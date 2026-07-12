@@ -1,0 +1,284 @@
+<!DOCTYPE html>
+<html lang="en-GB">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>United Kingdom · Economic Atlas</title>
+<meta name="description" content="The UK economy in numbers: GDP, productivity, the labour market, inflation and the public finances, from the Office for National Statistics.">
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+<link href="https://fonts.googleapis.com/css2?family=Nunito+Sans:wght@400;600;700&display=swap" rel="stylesheet">
+<link rel="stylesheet" href="style.css">
+<style>
+.led{display:inline-block; width:9px; height:9px; border-radius:50%;
+  margin-right:9px; vertical-align:middle; position:relative; top:-3px;}
+.led.green{background:#2FA463; box-shadow:0 0 0 3px rgba(47,164,99,.16);}
+.led.orange{background:#E39B2D; box-shadow:0 0 0 3px rgba(227,155,45,.16);}
+.stat .source{font-size:11.5px; color:var(--ink2); margin-top:6px;}
+.lightskey{font-size:12.5px; color:var(--ink2); margin:-28px 0 40px;
+  display:flex; gap:20px; flex-wrap:wrap;}
+.lightskey span{display:flex; align-items:center;}
+.lightskey .led{top:0;}
+</style>
+</head>
+<body>
+
+<nav class="top"><div class="wrap">
+  <a class="brand" href="index.html"><span class="globe"></span>Economic Atlas</a>
+  <a class="item active" href="index.html">Macro</a>
+  <a class="item" href="markets.html">Markets</a>
+</div></nav>
+<nav class="sub"><div class="wrap">
+  <a class="item active" href="uk.html">UK</a>
+  <a class="item" href="us.html">U.S.</a>
+  <a class="item" href="eurozone.html">Eurozone</a>
+</div></nav>
+
+<div class="wrap">
+<header class="page">
+  <p class="eyebrow"><span class="dot" aria-hidden="true"></span>Official statistics</p>
+  <h1>United Kingdom <span id="sampleBadge" class="badge">Sample data — run fetch_data.py for live figures</span></h1>
+</header>
+
+<section class="hero" id="hero" aria-label="Headline figures"></section>
+<p class="lightskey" aria-label="Key to freshness lights">
+  <span><span class="led green" aria-hidden="true"></span>&nbsp;updated on schedule</span>
+  <span><span class="led orange" aria-hidden="true"></span>&nbsp;awaiting next release</span>
+</p>
+
+<section class="grid" id="charts"></section>
+
+<footer>
+  All data: <a href="https://www.ons.gov.uk">Office for National Statistics</a>, used under the
+  Open Government Licence v3.0. Series codes are shown with each metric; figures are the latest
+  published observations and are subject to revision.
+</footer>
+</div>
+
+<script src="https://cdnjs.cloudflare.com/ajax/libs/Chart.js/4.4.1/chart.umd.min.js"></script>
+<script>
+"use strict";
+const INK="#171B1E", INK2="#5A6167", HAIR="#E7E9E4";
+const MAKO={deep:"#2E1E3B", indigo:"#413D7B", blue:"#37659E",
+            sea:"#348FA7", teal:"#40B7AD", mint:"#8AD9B1"};
+const LINE=MAKO.blue, BAR_UP=MAKO.sea, BAR_DOWN=MAKO.indigo;
+const MONTHS=["Jan","Feb","Mar","Apr","May","Jun","Jul","Aug","Sep","Oct","Nov","Dec"];
+
+/* ------------------------------ period utils ----------------------------- */
+function fmtPeriod(p){
+  if(/^\d{4}-\d{2}$/.test(p)) return MONTHS[+p.slice(5)-1]+" "+p.slice(0,4);
+  if(/^\d{4}-Q\d$/.test(p)) return p.slice(5)+" "+p.slice(0,4);
+  return p;
+}
+const year = p => p.slice(0,4);
+function periodEnd(p){
+  if(/^\d{4}-\d{2}$/.test(p)) return new Date(+p.slice(0,4), +p.slice(5), 0);
+  if(/^\d{4}-Q\d$/.test(p)) return new Date(+p.slice(0,4), +p.slice(6)*3, 0);
+  return new Date(+p.slice(0,4), 11, 31);
+}
+/* Freshness by cadence: is the latest observation about as recent as the
+   series' publication schedule allows? */
+const STALE_DAYS={months:75, quarters:150, years:660};
+function freshness(series){
+  const last=series.points[series.points.length-1][0];
+  const age=(Date.now()-periodEnd(last).getTime())/86400000;
+  return age<=(STALE_DAYS[series.freq]||90) ? "green" : "orange";
+}
+
+/* --------------- fallback sample data (until fetch_data.py) -------------- */
+function interp(keys, periods){
+  const kIdx = keys.map(k=>periods.indexOf(k[0]));
+  const pts=[];
+  for(let s=0;s<keys.length-1;s++){
+    const a=kIdx[s], b=kIdx[s+1]; if(a<0||b<0) continue;
+    for(let i=a;i<=b;i++){
+      const t=(i-a)/(b-a||1);
+      const wob=Math.sin(i*2.1)*0.05*(Math.abs(keys[s+1][1]-keys[s][1])+0.4);
+      pts[i]=[periods[i], +(keys[s][1]+(keys[s+1][1]-keys[s][1])*t+wob).toFixed(2)];
+    }
+  }
+  return pts.filter(Boolean);
+}
+function monthsBetween(a,b){
+  const out=[]; let [y,m]=a.split("-").map(Number); const [Y,M]=b.split("-").map(Number);
+  while(y<Y||(y===Y&&m<=M)){ out.push(y+"-"+String(m).padStart(2,"0")); m++; if(m>12){m=1;y++;} }
+  return out;
+}
+function quartersBetween(a,b){
+  const out=[]; let [y,q]=[+a.slice(0,4),+a.slice(6)]; const [Y,Q]=[+b.slice(0,4),+b.slice(6)];
+  while(y<Y||(y===Y&&q<=Q)){ out.push(y+"-Q"+q); q++; if(q>4){q=1;y++;} }
+  return out;
+}
+function sampleData(){
+  const mCpi=monthsBetween("1989-01","2026-05"), mU=monthsBetween("1971-01","2026-04");
+  const mDebt=monthsBetween("1997-04","2026-05");
+  const qAll=quartersBetween("1990-Q1","2026-Q1"), qP=quartersBetween("1997-Q1","2026-Q1");
+  const qG=quartersBetween("1998-Q1","2026-Q1");
+  const gdpG=qG.map((p,i)=>[p,+(0.45+0.3*Math.sin(i*1.7)).toFixed(1)]);
+  const put=(p,v)=>{const i=qG.indexOf(p); if(i>=0) gdpG[i]=[p,v];};
+  put("2008-Q3",-1.6); put("2008-Q4",-2.2); put("2009-Q1",-1.6); put("2009-Q2",-0.2);
+  put("2020-Q1",-2.6); put("2020-Q2",-19.4); put("2020-Q3",17.6); put("2020-Q4",1.4);
+  const S=(label,unit,freq,points)=>({label,unit,freq,points});
+  return { updated:null, sample:true, series:{
+    gdp_level:S("GDP, chained volume measure (ABMI)","£m","quarters",interp(
+      [["1990-Q1",330000],["1992-Q1",325000],["2000-Q1",410000],["2008-Q1",505000],
+       ["2009-Q2",470000],["2019-Q4",562000],["2020-Q2",450000],["2021-Q4",548000],
+       ["2024-Q1",572000],["2026-Q1",601000]],qAll)),
+    gdp_growth:S("GDP growth, quarter on quarter (IHYQ)","%","quarters",gdpG),
+    productivity:S("Output per hour worked, index 2023=100 (LZVB)","index","quarters",interp(
+      [["1997-Q1",67],["2003-Q1",78],["2008-Q1",91],["2009-Q2",88],["2014-Q1",93],
+       ["2019-Q4",99],["2020-Q2",102],["2023-Q1",100],["2026-Q1",101.4]],qP)),
+    unemployment:S("Unemployment rate, 16+, SA (MGSX)","%","months",interp(
+      [["1971-01",3.8],["1976-01",5.5],["1984-05",11.9],["1990-04",6.9],["1993-01",10.6],
+       ["2000-01",5.5],["2005-01",4.7],["2011-10",8.4],["2015-01",5.6],["2019-12",3.8],
+       ["2020-11",5.2],["2022-08",3.5],["2024-06",4.4],["2026-04",4.9]],mU)),
+    employment:S("Employment rate, 16-64, SA (LF24)","%","months",interp(
+      [["1971-01",71.9],["1983-05",65.8],["1990-04",72.4],["1993-01",68.4],["2000-01",72.5],
+       ["2008-04",73.0],["2011-10",70.3],["2015-01",73.3],["2019-12",76.3],["2020-12",75.0],
+       ["2023-06",75.8],["2026-04",75.1]],mU)),
+    inactivity:S("Economic inactivity rate, 16-64, SA (LF2S)","%","months",interp(
+      [["1971-01",24.9],["1983-05",25.4],["1990-04",22.4],["2000-01",21.6],["2008-04",20.9],
+       ["2011-10",23.2],["2015-01",22.2],["2019-12",20.5],["2022-08",21.7],["2026-04",21.0]],mU)),
+    cpi:S("CPI annual rate, all items (D7G7)","%","months",interp(
+      [["1989-01",5.2],["1990-10",8.1],["1993-02",3.1],["1997-01",1.9],["2000-06",0.8],
+       ["2008-09",5.2],["2009-09",1.1],["2011-09",5.2],["2015-10",-0.1],["2017-11",3.1],
+       ["2020-08",0.2],["2022-10",11.1],["2023-06",7.9],["2024-06",2.0],["2025-09",3.8],["2026-05",3.3]],mCpi)),
+    debt_gdp:S("Public sector net debt ex banks, % of GDP (HF6X)","%","months",interp(
+      [["1997-04",36.5],["2002-01",29.5],["2008-01",35.5],["2010-01",64.0],["2015-01",80.0],
+       ["2019-12",80.5],["2020-09",95.0],["2023-01",94.0],["2026-05",95.1]],mDebt)),
+    deficit:S("Public sector net borrowing ex banks (DZLS)","£m","months",interp(
+      [["2024-01",8000],["2024-07",12000],["2025-01",9000],["2025-07",14000],
+       ["2026-04",20500],["2026-05",23300]],monthsBetween("2024-01","2026-05"))),
+    current_account:S("Current account balance, % of GDP (AA6H)","%","years",interp(
+      [["1990",-3.7],["1997",-0.1],["2007",-3.5],["2013",-4.9],["2016",-5.4],
+       ["2020",-2.8],["2022",-2.1],["2024",-2.7]],
+      Array.from({length:35},(_,i)=>String(1990+i)))),
+  }};
+}
+
+/* ------------------------------- charts ---------------------------------- */
+const baseScales=(fmtY)=>({
+  x:{grid:{display:false}, border:{color:HAIR},
+     ticks:{color:INK2, font:{family:"'Avenir Next','Nunito Sans',sans-serif",size:11.5},
+            maxTicksLimit:7, maxRotation:0,
+            callback(v){ return year(this.getLabelForValue(v)); }}},
+  y:{grid:{color:HAIR}, border:{display:false},
+     ticks:{color:INK2, font:{family:"'Avenir Next','Nunito Sans',sans-serif",size:11.5},
+            maxTicksLimit:6, callback:v=>fmtY(v)}}
+});
+const baseOpts={
+  responsive:true, maintainAspectRatio:false, animation:false,
+  interaction:{mode:"index",intersect:false},
+  plugins:{legend:{display:false},
+    tooltip:{backgroundColor:"#fff",titleColor:INK,bodyColor:INK,borderColor:HAIR,borderWidth:1,
+             titleFont:{family:"'Avenir Next','Nunito Sans',sans-serif",weight:"600"},
+             bodyFont:{family:"'Avenir Next','Nunito Sans',sans-serif"},displayColors:false,
+             callbacks:{title:items=>fmtPeriod(items[0].label)}}}
+};
+function lineChart(canvas, pts, fmtY){
+  new Chart(canvas,{type:"line",
+    data:{labels:pts.map(p=>p[0]),
+      datasets:[{data:pts.map(p=>p[1]), borderColor:LINE, borderWidth:2,
+                 pointRadius:0, pointHitRadius:8, tension:0.25}]},
+    options:{...baseOpts, scales:baseScales(fmtY)}});
+}
+function barChart(canvas, pts, fmtY){
+  new Chart(canvas,{type:"bar",
+    data:{labels:pts.map(p=>p[0]),
+      datasets:[{data:pts.map(p=>p[1]),
+                 backgroundColor:pts.map(p=>p[1]<0?BAR_DOWN:BAR_UP),
+                 borderRadius:2, categoryPercentage:0.9, barPercentage:1.0}]},
+    options:{...baseOpts, scales:baseScales(fmtY)}});
+}
+
+/* -------------------------------- render ---------------------------------- */
+function heroStat(el, title, series, opts){
+  const pts=series.points, last=pts[pts.length-1], prev=pts[pts.length-2];
+  const d=+(last[1]-prev[1]).toFixed(2);
+  const dir=d===0?"flat":((d>0)===opts.upIsGood?"good":"bad");
+  const arrow=d===0?"—":(d>0?"▲":"▼");
+  const led=freshness(series);
+  const ledTitle=led==="green"?"Updated on schedule":"Awaiting next release";
+  el.insertAdjacentHTML("beforeend",`
+    <div class="stat">
+      <p class="label">${title}</p>
+      <p class="figure"><span class="led ${led}" title="${ledTitle}" role="img"
+        aria-label="${ledTitle}"></span>${opts.fmt(last[1])}</p>
+      <p class="delta ${dir}"><span class="arrow" aria-hidden="true">${arrow}</span>
+        ${d>0?"+":""}${opts.fmtD(d)} vs prior</p>
+      <p class="period">${fmtPeriod(last[0])}</p>
+      <p class="source">${opts.source}</p>
+    </div>`);
+}
+function heroPending(el, title, note, source){
+  el.insertAdjacentHTML("beforeend",`
+    <div class="stat pending">
+      <p class="label">${title}</p>
+      <p class="figure">—</p>
+      <p class="period">${note}</p>
+      <p class="source">${source}</p>
+    </div>`);
+}
+function chartPanel(container, title, series, kind, fmtY, srcNote, fromYear){
+  const pts = fromYear ? series.points.filter(p=>+p[0].slice(0,4)>=fromYear) : series.points;
+  const id = "ch-"+title.replace(/\W+/g,"_");
+  container.insertAdjacentHTML("beforeend",`
+    <div class="panel">
+      <h2>${title}</h2>
+      <p class="range">${fmtPeriod(pts[0][0])} to ${fmtPeriod(pts[pts.length-1][0])}</p>
+      <div class="chartbox"><canvas id="${id}" role="img" aria-label="${title}, ${fmtPeriod(pts[0][0])} to ${fmtPeriod(pts[pts.length-1][0])}"></canvas></div>
+      <p class="src">Source: ${srcNote}</p>
+    </div>`);
+  (kind==="bar"?barChart:lineChart)(document.getElementById(id), pts, fmtY);
+}
+
+function render(data){
+  const s=data.series;
+  if(data.sample) document.getElementById("sampleBadge").classList.add("show");
+
+  const hero=document.getElementById("hero");
+  const pct=v=>v.toFixed(1)+"%", pp=v=>v.toFixed(1)+"pp";
+  if(s.cpi) heroStat(hero,"CPI inflation",s.cpi,
+    {fmt:pct,fmtD:pp,upIsGood:false,source:"ONS · D7G7 (MM23)"});
+  if(s.unemployment) heroStat(hero,"Unemployment",s.unemployment,
+    {fmt:pct,fmtD:pp,upIsGood:false,source:"ONS · MGSX (LMS)"});
+  if(s.gdp_growth) heroStat(hero,"GDP growth (QoQ)",s.gdp_growth,
+    {fmt:pct,fmtD:pp,upIsGood:true,source:"ONS · IHYQ (PN2)"});
+  if(s.deficit) heroStat(hero,"Gov. borrowing (monthly)",s.deficit,
+    {fmt:v=>"£"+(v/1000).toFixed(1)+"bn",fmtD:v=>"£"+(v/1000).toFixed(1)+"bn",
+     upIsGood:false,source:"ONS · DZLS (PUSF), PSNB ex"});
+  if(s.debt_gdp) heroStat(hero,"Public debt",s.debt_gdp,
+    {fmt:pct,fmtD:pp,upIsGood:false,source:"ONS · HF6X (PUSF), % of GDP"});
+  if(s.current_account) heroStat(hero,"Current account",s.current_account,
+    {fmt:pct,fmtD:pp,upIsGood:true,source:"ONS · AA6H, % of GDP"});
+  heroPending(hero,"Business sentiment","source under review — PMI is proprietary",
+    "candidates: ONS BICS, OECD");
+  heroPending(hero,"FDI","annual ONS dataset — no live series feed",
+    "ONS FDI statistics");
+
+  const charts=document.getElementById("charts");
+  if(s.gdp_level) chartPanel(charts,"GDP",s.gdp_level,"line",
+    v=>"£"+Math.round(v/1000)+"bn","ONS series ABMI (PN2) · chained volume measure, £m, SA",1990);
+  if(s.gdp_growth) chartPanel(charts,"GDP growth, quarter on quarter",s.gdp_growth,"bar",
+    v=>v+"%","ONS series IHYQ (PN2) · chained volume measure",1998);
+  if(s.productivity) chartPanel(charts,"Productivity",s.productivity,"line",
+    v=>v,"ONS series LZVB (PRDY) · output per hour worked, index 2023 = 100, SA");
+  if(s.unemployment) chartPanel(charts,"Unemployment rate",s.unemployment,"line",
+    v=>v+"%","ONS series MGSX (LMS) · aged 16 and over, SA");
+  if(s.employment) chartPanel(charts,"Employment rate",s.employment,"line",
+    v=>v+"%","ONS series LF24 (LMS) · aged 16 to 64, SA");
+  if(s.inactivity) chartPanel(charts,"Economic inactivity rate",s.inactivity,"line",
+    v=>v+"%","ONS series LF2S (LMS) · aged 16 to 64, SA");
+  if(s.cpi) chartPanel(charts,"CPI inflation, annual rate",s.cpi,"line",
+    v=>v+"%","ONS series D7G7 (MM23) · all items");
+  if(s.debt_gdp) chartPanel(charts,"Public sector net debt, % of GDP",s.debt_gdp,"line",
+    v=>v+"%","ONS series HF6X (PUSF) · excluding public sector banks, NSA");
+}
+
+fetch("data.json",{cache:"no-store"})
+  .then(r=>{ if(!r.ok) throw new Error(r.status); return r.json(); })
+  .then(render)
+  .catch(()=>{ render(sampleData()); });
+</script>
+</body>
+</html>
