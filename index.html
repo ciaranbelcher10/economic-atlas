@@ -4,102 +4,51 @@
 <meta charset="utf-8">
 <meta name="viewport" content="width=device-width, initial-scale=1">
 <title>Economic Atlas</title>
-<meta name="description" content="Economic Atlas — the world economy, country by country, in numbers.">
+<meta name="description" content="Economic Atlas — the world economy, country by country, in numbers. UK live now.">
 <link rel="preconnect" href="https://fonts.googleapis.com">
 <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
 <link href="https://fonts.googleapis.com/css2?family=Nunito+Sans:wght@400;600;700&display=swap" rel="stylesheet">
 <link rel="icon" type="image/png" sizes="32x32" href="favicon-32.png">
 <link rel="apple-touch-icon" href="apple-touch-icon.png">
 <link rel="stylesheet" href="style.css">
-<style>
-.mapwrap{background:var(--panel); border:1px solid var(--hair); border-radius:16px;
-  padding:14px; margin:30px 0 14px;}
-#map{width:100%; display:block;}
-.country{fill:#E7EAE6; stroke:#fff; stroke-width:.5;}
-.country.live{fill:var(--mako-4); cursor:pointer; transition:fill .15s;}
-.country.live:hover{fill:var(--mako-2);}
-.legend{display:flex; gap:22px; flex-wrap:wrap; font-size:13px; color:var(--ink2);
-  padding:2px 6px 8px;}
-.legend span{display:flex; align-items:center; gap:7px;}
-.swatch{width:12px; height:12px; border-radius:3px;}
-.quick{display:flex; gap:10px; flex-wrap:wrap; margin:18px 0 8px;}
-#maperr{display:none; color:var(--ink2); font-size:14px; padding:26px; text-align:center;}
-</style>
 </head>
 <body>
-
 <nav class="top"><div class="wrap">
   <a class="brand" href="index.html"><img src="logo-64.png" alt="" width="26" height="26" style="display:block;border-radius:50%;background:#fff;padding:1px;">Economic Atlas</a>
   <a class="item active" href="index.html">Macro</a>
-  <a class="item" href="markets.html">Markets</a>
+  <a class="item" href="contact.html">Contact</a>
 </div></nav>
 <nav class="sub"><div class="wrap">
   <a class="item" href="uk.html">UK</a>
-  <a class="item" href="us.html">U.S.</a>
-  <a class="item" href="eurozone.html">Eurozone</a>
 </div></nav>
-
 <div class="wrap">
 <header class="page">
   <p class="eyebrow"><span class="dot" aria-hidden="true"></span>Official statistics, country by country</p>
   <h1>The world economy, in numbers</h1>
-  <p class="subline">Choose a country to see its statistical snapshot. Coloured countries are live; the rest are on the roadmap.</p>
+  <p class="subline">Clear figures from official sources — no commentary. The United Kingdom is live now; more is on the way.</p>
 </header>
 
-<div class="mapwrap">
-  <svg id="map" viewBox="0 0 960 500" role="img" aria-label="World map. The United Kingdom, United States and Eurozone are highlighted; selecting one opens its economy page."></svg>
-  <p id="maperr">The map couldn't load (it needs an internet connection) — use the buttons below instead.</p>
-  <div class="legend">
-    <span><span class="swatch" style="background:var(--mako-4)"></span>Live now</span>
-    <span><span class="swatch" style="background:#E7EAE6"></span>Coming later</span>
-  </div>
+<div class="quick" style="display:flex;gap:10px;flex-wrap:wrap;margin:22px 0 8px;">
+  <a class="btn" href="uk.html">Explore the UK →</a>
 </div>
 
-<div class="quick">
-  <a class="btn" href="uk.html">United Kingdom</a>
-  <a class="btn ghost" href="us.html">United States</a>
-  <a class="btn ghost" href="eurozone.html">Eurozone</a>
+<div class="roadmap">
+  <h2>Roadmap</h2>
+  <ol>
+    <li><strong>United States page</strong> <span>— the full UK treatment, built on FRED and BEA data.</span></li>
+    <li><strong>Eurozone page</strong> <span>— Eurostat and ECB sources.</span></li>
+    <li><strong>Trade partner map</strong> <span>— visualise the UK's largest trading partners on an interactive world map.</span></li>
+    <li><strong>Labour market breakdowns</strong> <span>— unemployment and inactivity by age group and sector.</span></li>
+    <li><strong>Public finances deep dive</strong> <span>— total debt stock, debt interest as a share of spending (Debt Management Office data), and where public money goes.</span></li>
+    <li><strong>Interactive world map front page</strong> <span>— click any live country to open its page.</span></li>
+    <li><strong>Markets</strong> <span>— FX, equity indices and gilt yields alongside the macro data.</span></li>
+  </ol>
+  <p style="margin-top:16px;color:var(--ink2);font-size:14px;">
+    Have an idea or want an indicator added? <a href="contact.html" style="color:var(--navy-2);">Suggest it</a> —
+    the roadmap is shaped by what readers ask for.</p>
 </div>
 
-<footer>
-  Economic Atlas · Data from national statistical offices, used under open licences.
-</footer>
+<footer>Economic Atlas · Data from national statistical offices, used under open licences.</footer>
 </div>
-
-<script src="https://cdnjs.cloudflare.com/ajax/libs/d3/7.8.5/d3.min.js"></script>
-<script src="https://cdnjs.cloudflare.com/ajax/libs/topojson/3.0.2/topojson.min.js"></script>
-<script>
-"use strict";
-/* ISO 3166-1 numeric ids in the world-atlas file */
-const UK = new Set(["826"]);
-const US = new Set(["840"]);
-const EZ = new Set(["040","056","191","196","233","246","250","276","300","372",
-                    "380","428","440","442","470","528","620","703","705","724"]);
-const dest = id => UK.has(id) ? "uk.html" : US.has(id) ? "us.html"
-                 : EZ.has(id) ? "eurozone.html" : null;
-
-fetch("https://cdn.jsdelivr.net/npm/world-atlas@2/countries-110m.json")
-  .then(r => r.json())
-  .then(world => {
-    const svg = d3.select("#map");
-    const projection = d3.geoNaturalEarth1().fitSize([960, 500],
-      {type: "Sphere"});
-    const path = d3.geoPath(projection);
-    const countries = topojson.feature(world, world.objects.countries).features
-      .filter(f => f.id !== "010"); // drop Antarctica
-    svg.selectAll("path")
-      .data(countries)
-      .join("path")
-      .attr("d", path)
-      .attr("class", f => dest(f.id) ? "country live" : "country")
-      .on("click", (_e, f) => { const d = dest(f.id); if (d) location.href = d; })
-      .append("title")
-      .text(f => dest(f.id) ? "Open economy page" : "Coming later");
-  })
-  .catch(() => {
-    document.getElementById("map").style.display = "none";
-    document.getElementById("maperr").style.display = "block";
-  });
-</script>
 </body>
 </html>

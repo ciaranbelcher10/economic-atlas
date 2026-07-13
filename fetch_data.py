@@ -32,6 +32,8 @@ SERIES = {
             "CPI annual rate, all items (D7G7)", "%"),
     "cpih": (["/economy/inflationandpriceindices/timeseries/l55o/mm23"],
              "CPIH annual rate, all items (L55O)", "%"),
+    "cpi_mom": (["/economy/inflationandpriceindices/timeseries/d7oe/mm23"],
+                "CPI monthly rate, all items (D7OE)", "%"),
     "debt_gdp": (["/economy/governmentpublicsectorandtaxes/publicsectorfinance/timeseries/hf6x/pusf"],
                  "Public sector net debt ex banks, % of GDP (HF6X)", "%"),
     "deficit": (["/economy/governmentpublicsectorandtaxes/publicsectorfinance/timeseries/dzls/pusf"],
@@ -226,7 +228,19 @@ def fetch(uris: list[str]) -> tuple[str, list] | None:
     return None
 
 
+def load_previous() -> dict:
+    """Latest periods from the existing data.json, for new-data detection."""
+    try:
+        with open("data.json") as f:
+            old = json.load(f)
+        return {k: v["points"][-1][0]
+                for k, v in old.get("series", {}).items() if v.get("points")}
+    except Exception:
+        return {}
+
+
 def main() -> int:
+    previous = load_previous()
     out = {
         "updated": datetime.now(timezone.utc).strftime("%Y-%m-%dT%H:%M:%SZ"),
         "sample": False,
@@ -274,6 +288,15 @@ def main() -> int:
     if not out["series"]:
         print("\nNothing fetched — check your internet connection.")
         return 1
+
+    # Series whose latest observation is newer than in the previous data.json
+    out["new_points"] = {
+        k: v["points"][-1][0] for k, v in out["series"].items()
+        if k in previous and previous[k] != v["points"][-1][0]
+    }
+    if out["new_points"]:
+        print("New data points: " + ", ".join(
+            f"{k} ({p})" for k, p in out["new_points"].items()))
 
     with open("data.json", "w") as f:
         json.dump(out, f)

@@ -22,10 +22,17 @@ Open http://localhost:8000 — click the UK on the map.
 - Charts: seaborn mako stops (#2E1E3B, #413D7B, #37659E, #348FA7, #40B7AD, #8AD9B1)
 - Type: Avenir Next / Avenir (macOS/iOS native) with Nunito Sans as web fallback
 
-## UK page structure
-Six sections via the category banner: Headline (tiles), GDP, Inflation &
-rates, Labour market, Trade, Public finances. Every chart carries a
-one-line plain-English explainer and an explicit source.
+## Site structure
+Front page: roadmap and link to the UK. Contact page:
+contact@economicatlas.co.uk. UK page: six sections via the category
+banner — Headline (tiles), GDP, Inflation & rates, Labour market,
+Trade, Public finances. Each section has its own summary tiles;
+headline tiles are clickable and jump to the relevant chart. Every
+chart carries a one-line plain-English explainer, unit-aware hover
+values and an explicit source. A green banner appears for ~3 days
+whenever a fetch brings in a new data point (diffed in fetch_data.py
+against the previous data.json). US, Eurozone and Markets pages exist
+but are unlinked until built.
 
 ## UK page data (verified series codes)
 Charts: ABMI (GDP), IHYQ (GDP growth), LZVB (productivity), MGSX
