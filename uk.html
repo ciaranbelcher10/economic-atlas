@@ -55,6 +55,10 @@ nav.cat button.active{background:var(--blue); border-color:var(--blue); color:#f
 .newdata .pulse{width:9px; height:9px; border-radius:50%; background:#2FA463;
   box-shadow:0 0 0 3px rgba(47,164,99,.2); flex:none;}
 .lightskey.compact{margin:6px 0 26px;}
+.hero .stat, .hero.mini .stat{padding:16px 18px; flex:1 1 195px;
+  max-width:255px; min-width:180px; min-height:0;}
+.hero .stat .figure, .hero.mini .stat .figure{font-size:28px;}
+
 </style>
 </head>
 <body>
@@ -149,7 +153,7 @@ const NAMES={gdp_level:"GDP",gdp_growth:"GDP growth",productivity:"Productivity"
   cpi:"CPI inflation",cpih:"CPIH inflation",cpi_mom:"CPI (month on month)",
   boe_rate:"Bank Rate",debt_gdp:"Public debt",deficit:"Gov. borrowing",
   current_account:"Current account",trade_balance:"Trade balance",exports:"Exports",
-  imports:"Imports",business_confidence:"Business confidence",fdi:"FDI"};
+  imports:"Imports",business_confidence:"Business confidence",fdi:"FDI",net_debt:"Net debt"};
 
 /* ------------------------------- tabs ------------------------------------ */
 function showSec(name){
@@ -300,6 +304,9 @@ function sampleData(){
     imports:S("Imports (IKBI)","£m","months",interp(
       [["1997-01",18800],["2005-01",29700],["2011-06",43600],["2016-06",48400],
        ["2020-05",39500],["2022-10",76500],["2024-06",75700],["2026-05",75700]],mTr)),
+    net_debt:S("PSND ex banks £bn (HF6W)","£bn","months",interp(
+      [["1997-04",352],["2008-01",527],["2010-01",960],["2015-01",1533],
+       ["2019-12",1804],["2020-12",2110],["2023-06",2570],["2026-05",2943]],mDebt)),
     fdi:S("FDI net inflows % GDP (World Bank)","%","years",interp(
       [["1990",3.2],["2000",8.4],["2005",7.3],["2010",2.4],["2016",12.6],
        ["2020",2.5],["2022",0.4],["2024",1.4]],yearsBetween(1990,2024))),
@@ -488,8 +495,6 @@ function render(data){
 
   /* ------------------------------ tiles -------------------------------- */
   const hero=document.getElementById("hero");
-  if(s.current_account) statTile(hero,"current_account","Current account",s.current_account,
-    {fmt:pct,fmtD:pp,upIsGood:true,source:"ONS · AA6H, % of GDP"});
   if(gdpAnnual) statTile(hero,"gdp_level","GDP (annual)",gdpAnnual,
     {fmt:tn,fmtD:v=>"£"+(v/1000).toFixed(0)+"bn",upIsGood:true,
      source:"ONS · ABMI (PN2), rolling 4 quarters"});
@@ -499,16 +504,18 @@ function render(data){
     {fmt:pct,fmtD:pp,upIsGood:false,source:"ONS · D7G7 (MM23)"});
   if(s.unemployment) statTile(hero,"unemployment","Unemployment",s.unemployment,
     {fmt:pct,fmtD:pp,upIsGood:false,source:"ONS · MGSX (LMS)"});
+  if(s.current_account) statTile(hero,"current_account","Current account",s.current_account,
+    {fmt:pct,fmtD:pp,upIsGood:true,source:"ONS · AA6H, % of GDP"});
   if(s.deficit) statTile(hero,"deficit","Gov. borrowing",s.deficit,
     {fmt:bn,fmtD:bn,upIsGood:false,source:"ONS · DZLS (PUSF), PSNB ex"});
-  if(s.debt_gdp) statTile(hero,"debt_gdp","Public debt",s.debt_gdp,
+  if(s.debt_gdp) statTile(hero,"debt_gdp","Public debt (% of GDP)",s.debt_gdp,
     {fmt:pct,fmtD:pp,upIsGood:false,source:"ONS · HF6X (PUSF), % of GDP"});
-  if(s.trade_balance) statTile(hero,"trade_balance","Trade balance",s.trade_balance,
-    {fmt:bn,fmtD:bn,upIsGood:true,source:"ONS · IKBJ (MRET), goods & services, SA"});
   if(s.business_confidence) statTile(hero,"business_confidence","Business confidence",s.business_confidence,
     {fmt:idx,fmtD:v=>v.toFixed(1)+"pt",upIsGood:true,source:"OECD · BCICP, long-term avg = 100"});
   if(s.fdi) statTile(hero,"fdi","FDI (net inflows)",s.fdi,
     {fmt:pct,fmtD:pp,upIsGood:true,source:"World Bank · % of GDP, annual"});
+  if(s.trade_balance) statTile(hero,"trade_balance","Trade balance",s.trade_balance,
+    {fmt:bn,fmtD:bn,upIsGood:true,source:"ONS · IKBJ (MRET), goods & services, SA"});
 
   /* section tiles */
   const tg=document.getElementById("tiles-gdp");
@@ -546,8 +553,11 @@ function render(data){
     {fmt:pct,fmtD:pp,upIsGood:true,source:"Calculated · IKBH, IKBI, ABMI"});
 
   const tp=document.getElementById("tiles-public");
-  if(s.debt_gdp) statTile(tp,"debt_gdp","Public debt",s.debt_gdp,
+  if(s.debt_gdp) statTile(tp,"debt_gdp","Public debt (% of GDP)",s.debt_gdp,
     {fmt:pct,fmtD:pp,upIsGood:false,source:"ONS · HF6X, % of GDP"});
+  if(s.net_debt) statTile(tp,"net_debt","Net debt",s.net_debt,
+    {fmt:v=>"£"+(v/1000).toFixed(2)+"tn",fmtD:v=>"£"+Math.abs(v).toFixed(0)+"bn",
+     upIsGood:false,source:"ONS · HF6W, £bn"});
   if(s.deficit) statTile(tp,"deficit","Borrowing",s.deficit,
     {fmt:bn,fmtD:bn,upIsGood:false,source:"ONS · DZLS"});
 }

@@ -28,6 +28,7 @@ FRED_SERIES = {
     "core_cpi": ("CPILFESL", "m", "Core CPI (ex food & energy), YoY", "%", "yoy"),
     "fed_funds": ("FEDFUNDS", "m", "Effective federal funds rate", "%", None),
     "debt_gdp": ("GFDEGDQ188S", "q", "Federal debt, % of GDP", "%", None),
+    "net_debt": ("GFDEBTN", "q", "Total federal public debt", "$m", None),
     "deficit": ("MTSDS133FMS", "m", "Federal surplus or deficit, monthly", "$m", None),
     "trade_balance": ("BOPGSTB", "m", "Trade balance, goods & services, SA", "$m", None),
     "exports": ("BOPTEXP", "m", "Exports, goods & services, SA", "$m", None),

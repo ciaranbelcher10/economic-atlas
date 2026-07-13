@@ -55,6 +55,10 @@ nav.cat button.active{background:var(--blue); border-color:var(--blue); color:#f
 .newdata .pulse{width:9px; height:9px; border-radius:50%; background:#2FA463;
   box-shadow:0 0 0 3px rgba(47,164,99,.2); flex:none;}
 .lightskey.compact{margin:6px 0 26px;}
+.hero .stat, .hero.mini .stat{padding:16px 18px; flex:1 1 195px;
+  max-width:255px; min-width:180px; min-height:0;}
+.hero .stat .figure, .hero.mini .stat .figure{font-size:28px;}
+
 </style>
 </head>
 <body>
@@ -148,7 +152,7 @@ const NAMES={gdp_level:"GDP",gdp_real:"Real GDP",gdp_growth:"GDP growth",
   participation:"Participation rate",cpi:"CPI inflation",core_cpi:"Core CPI",
   cpi_mom:"CPI (month on month)",fed_funds:"Fed funds rate",debt_gdp:"Federal debt",
   deficit:"Federal deficit",current_account:"Current account",trade_balance:"Trade balance",
-  exports:"Exports",imports:"Imports",business_confidence:"Business confidence",fdi:"FDI"};
+  exports:"Exports",imports:"Imports",business_confidence:"Business confidence",fdi:"FDI",net_debt:"Federal debt ($)"};
 
 /* ------------------------------- tabs ------------------------------------ */
 function showSec(name){
@@ -301,6 +305,9 @@ function sampleData(){
       [["1992-01",53000],["2000-06",119000],["2008-07",215000],["2009-05",146000],
        ["2014-10",240000],["2020-05",199000],["2022-03",340000],["2025-03",419000],
        ["2026-04",350000]],mTr)),
+    net_debt:S("Federal debt $m (GFDEBTN)","$m","quarters",interp(
+      [["1990-Q1",3052000],["2000-Q1",5674000],["2008-Q3",10025000],["2012-Q2",15856000],
+       ["2019-Q4",23201000],["2020-Q2",26477000],["2023-Q2",32332000],["2026-Q1",38500000]],qAll)),
     fdi:S("FDI net inflows % GDP (World Bank)","%","years",interp(
       [["1990",0.8],["2000",3.4],["2005",1.1],["2008",2.3],["2015",2.8],
        ["2021",2.0],["2024",1.2]],yearsBetween(1990,2024))),
@@ -486,8 +493,6 @@ function render(data){
 
   /* tiles */
   const hero=document.getElementById("hero");
-  if(s.current_account) statTile(hero,"current_account","Current account",s.current_account,
-    {fmt:pct,fmtD:pp,upIsGood:true,source:"World Bank · % of GDP, annual"});
   if(s.gdp_level) statTile(hero,"gdp_level","GDP (annual rate)",s.gdp_level,
     {fmt:tn,fmtD:v=>"$"+v.toFixed(0)+"bn",upIsGood:true,source:"FRED · GDP (BEA), nominal SAAR"});
   if(s.gdp_growth) statTile(hero,"gdp_growth","GDP growth (QoQ, ann.)",s.gdp_growth,
@@ -496,16 +501,18 @@ function render(data){
     {fmt:pct,fmtD:pp,upIsGood:false,source:"FRED · CPIAUCSL (BLS), YoY"});
   if(s.unemployment) statTile(hero,"unemployment","Unemployment",s.unemployment,
     {fmt:pct,fmtD:pp,upIsGood:false,source:"FRED · UNRATE (BLS)"});
+  if(s.current_account) statTile(hero,"current_account","Current account",s.current_account,
+    {fmt:pct,fmtD:pp,upIsGood:true,source:"World Bank · % of GDP, annual"});
   if(s.deficit) statTile(hero,"deficit","Federal deficit (monthly)",s.deficit,
     {fmt:bnD,fmtD:bnD,upIsGood:true,source:"FRED · MTSDS133FMS (Treasury)"});
-  if(s.debt_gdp) statTile(hero,"debt_gdp","Federal debt",s.debt_gdp,
+  if(s.debt_gdp) statTile(hero,"debt_gdp","Federal debt (% of GDP)",s.debt_gdp,
     {fmt:pct,fmtD:pp,upIsGood:false,source:"FRED · GFDEGDQ188S, % of GDP"});
-  if(s.trade_balance) statTile(hero,"trade_balance","Trade balance",s.trade_balance,
-    {fmt:bnD,fmtD:bnD,upIsGood:true,source:"FRED · BOPGSTB (BEA/Census), SA"});
   if(s.business_confidence) statTile(hero,"business_confidence","Business confidence",s.business_confidence,
     {fmt:idx,fmtD:v=>v.toFixed(1)+"pt",upIsGood:true,source:"OECD · BCICP, long-term avg = 100"});
   if(s.fdi) statTile(hero,"fdi","FDI (net inflows)",s.fdi,
     {fmt:pct,fmtD:pp,upIsGood:true,source:"World Bank · % of GDP, annual"});
+  if(s.trade_balance) statTile(hero,"trade_balance","Trade balance",s.trade_balance,
+    {fmt:bnD,fmtD:bnD,upIsGood:true,source:"FRED · BOPGSTB (BEA/Census), SA"});
 
   const tg=document.getElementById("tiles-gdp");
   if(s.gdp_level) statTile(tg,"gdp_level","GDP (annual rate)",s.gdp_level,
@@ -542,8 +549,11 @@ function render(data){
     {fmt:pct,fmtD:pp,upIsGood:true,source:"Calculated · BOPTEXP, BOPTIMP, GDP"});
 
   const tp=document.getElementById("tiles-public");
-  if(s.debt_gdp) statTile(tp,"debt_gdp","Federal debt",s.debt_gdp,
+  if(s.debt_gdp) statTile(tp,"debt_gdp","Federal debt (% of GDP)",s.debt_gdp,
     {fmt:pct,fmtD:pp,upIsGood:false,source:"FRED · GFDEGDQ188S, % of GDP"});
+  if(s.net_debt) statTile(tp,"net_debt","Federal debt ($)",s.net_debt,
+    {fmt:v=>"$"+(v/1e6).toFixed(1)+"tn",fmtD:v=>"$"+(Math.abs(v)/1000).toFixed(0)+"bn",
+     upIsGood:false,source:"FRED · GFDEBTN (Treasury)"});
   if(s.deficit) statTile(tp,"deficit","Surplus/deficit (monthly)",s.deficit,
     {fmt:bnD,fmtD:bnD,upIsGood:true,source:"FRED · MTSDS133FMS"});
 }
