@@ -22,16 +22,25 @@ Open http://localhost:8000 — click the UK on the map.
 - Charts: seaborn mako stops (#2E1E3B, #413D7B, #37659E, #348FA7, #40B7AD, #8AD9B1)
 - Type: Avenir Next / Avenir (macOS/iOS native) with Nunito Sans as web fallback
 
-## UK page data (all ONS, verified series codes)
+## UK page structure
+Six sections via the category banner: Headline (tiles), GDP, Inflation &
+rates, Labour market, Trade, Public finances. Every chart carries a
+one-line plain-English explainer and an explicit source.
+
+## UK page data (verified series codes)
 Charts: ABMI (GDP), IHYQ (GDP growth), LZVB (productivity), MGSX
 (unemployment), LF24 (employment), LF2S (inactivity), D7G7 (CPI),
 HF6X (debt % of GDP). Tiles additionally: DZLS (monthly borrowing),
 AA6H (current account % of GDP).
 Tile lights: green = latest observation is as recent as the series'
 publication schedule allows; orange = a newer release is overdue.
-Still pending: business sentiment (PMI is proprietary — candidates are
-ONS BICS or the OECD indicator) and FDI (annual ONS datasets only,
-no live time-series feed).
+Additional series: L55O (CPIH), IKBH/IKBI (exports/imports), the OECD
+business confidence indicator (BCICP, free SDMX API — replaces the
+proprietary PMI), FDI net inflows % of GDP from the World Bank API,
+and Bank Rate (IUDBEDR) from the Bank of England's IADB CSV endpoint.
+Annual GDP and trade intensity are derived client-side from ABMI and
+IKBH/IKBI. All non-ONS fetchers fail gracefully: a failed source shows
+its tile as pending rather than breaking the page.
 
 ## Deploy
 GitHub Pages + the included workflow (.github/workflows/update-data.yml),
