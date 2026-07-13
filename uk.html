@@ -10,7 +10,7 @@
 <link href="https://fonts.googleapis.com/css2?family=Nunito+Sans:wght@400;600;700&display=swap" rel="stylesheet">
 <link rel="icon" type="image/png" sizes="32x32" href="favicon-32.png">
 <link rel="apple-touch-icon" href="apple-touch-icon.png">
-<link rel="stylesheet" href="style.css">
+<link rel="stylesheet" href="style.css?v=4">
 <style>
 .led{display:inline-block; width:9px; height:9px; border-radius:50%;
   margin-right:9px; vertical-align:middle; position:relative; top:-3px;}
@@ -34,6 +34,27 @@ nav.cat button.active{background:var(--blue); border-color:var(--blue); color:#f
 .secnote{font-size:13px; color:var(--ink2); margin:18px 0 0;
   padding:12px 16px; background:var(--panel); border:1px dashed #C9CEC8; border-radius:10px;}
 .sec[hidden]{display:none;}
+
+/* v4 critical styles inlined (belt and braces vs cached style.css) */
+.hero{display:flex; flex-wrap:wrap; justify-content:center;
+  background:transparent; border:none; gap:14px; overflow:visible; margin:30px 0 10px;}
+.stat{background:var(--panel); border:1px solid var(--hair); border-radius:12px;
+  padding:20px 22px 18px; flex:1 1 205px; max-width:275px; min-width:190px; min-height:0;}
+.hero.mini{justify-content:center; margin:0 0 6px;}
+.hero.mini .stat{padding:14px 16px; flex-basis:180px; max-width:245px;}
+.hero.mini .figure{font-size:25px;}
+.hero.mini .source{font-size:10.5px;}
+.stat .figure{white-space:nowrap;}
+.stat.link{cursor:pointer; transition:border-color .15s, box-shadow .15s;}
+.stat.link:hover{border-color:var(--blue); box-shadow:0 2px 10px rgba(30,69,102,.10);}
+.newdata{display:flex; align-items:center; gap:10px; flex-wrap:wrap;
+  background:#E7F4EC; color:#1E6B48; border:1px solid #CBE7D6;
+  border-radius:10px; padding:11px 16px; margin:0 0 24px;
+  font-size:13.5px; font-weight:600;}
+.newdata[hidden]{display:none;}
+.newdata .pulse{width:9px; height:9px; border-radius:50%; background:#2FA463;
+  box-shadow:0 0 0 3px rgba(47,164,99,.2); flex:none;}
+.lightskey.compact{margin:6px 0 26px;}
 </style>
 </head>
 <body>
@@ -44,6 +65,7 @@ nav.cat button.active{background:var(--blue); border-color:var(--blue); color:#f
   <a class="item" href="contact.html">Contact</a>
 </div></nav>
 <nav class="sub"><div class="wrap">
+  <a class="item" href="index.html">Overview</a>
   <a class="item active" href="uk.html">UK</a>
 </div></nav>
 
@@ -71,31 +93,35 @@ nav.cat button.active{background:var(--blue); border-color:var(--blue); color:#f
   <p class="lightskey" aria-label="Key to freshness lights">
     <span><span class="led green" aria-hidden="true"></span>&nbsp;updated on schedule</span>
     <span><span class="led orange" aria-hidden="true"></span>&nbsp;awaiting next release</span>
-    <span>Tap a tile to see its chart.</span>
   </p>
   <div class="grid" id="charts-headline"></div>
 </section>
 
 <section class="sec" id="sec-gdp" hidden>
   <div class="hero mini" id="tiles-gdp"></div>
+  <p class="lightskey compact" aria-label="Key to freshness lights"><span><span class="led green" aria-hidden="true"></span>&nbsp;updated on schedule</span><span><span class="led orange" aria-hidden="true"></span>&nbsp;awaiting next release</span></p>
   <div class="grid" id="charts-gdp"></div>
 </section>
 <section class="sec" id="sec-inflation" hidden>
   <div class="hero mini" id="tiles-inflation"></div>
+  <p class="lightskey compact" aria-label="Key to freshness lights"><span><span class="led green" aria-hidden="true"></span>&nbsp;updated on schedule</span><span><span class="led orange" aria-hidden="true"></span>&nbsp;awaiting next release</span></p>
   <div class="grid" id="charts-inflation"></div>
 </section>
 <section class="sec" id="sec-labour" hidden>
   <div class="hero mini" id="tiles-labour"></div>
+  <p class="lightskey compact" aria-label="Key to freshness lights"><span><span class="led green" aria-hidden="true"></span>&nbsp;updated on schedule</span><span><span class="led orange" aria-hidden="true"></span>&nbsp;awaiting next release</span></p>
   <div class="grid" id="charts-labour"></div>
   <p class="secnote">On the roadmap: unemployment and inactivity broken down by age group and sector.</p>
 </section>
 <section class="sec" id="sec-trade" hidden>
   <div class="hero mini" id="tiles-trade"></div>
+  <p class="lightskey compact" aria-label="Key to freshness lights"><span><span class="led green" aria-hidden="true"></span>&nbsp;updated on schedule</span><span><span class="led orange" aria-hidden="true"></span>&nbsp;awaiting next release</span></p>
   <div class="grid" id="charts-trade"></div>
   <p class="secnote">On the roadmap: a visual map of the UK's largest trade partners.</p>
 </section>
 <section class="sec" id="sec-public" hidden>
   <div class="hero mini" id="tiles-public"></div>
+  <p class="lightskey compact" aria-label="Key to freshness lights"><span><span class="led green" aria-hidden="true"></span>&nbsp;updated on schedule</span><span><span class="led orange" aria-hidden="true"></span>&nbsp;awaiting next release</span></p>
   <div class="grid" id="charts-public"></div>
   <p class="secnote">On the roadmap: total debt stock, debt interest as a share of government spending (UK Debt Management Office), and a breakdown of where public money goes.</p>
 </section>
@@ -239,7 +265,7 @@ function sampleData(){
     inactivity:S("Inactivity (LF2S)","%","months",interp(
       [["1971-01",24.9],["1983-05",25.4],["1990-04",22.4],["2000-01",21.6],["2008-04",20.9],
        ["2011-10",23.2],["2015-01",22.2],["2019-12",20.5],["2022-08",21.7],["2026-04",21.0]],mU)),
-    cpi:S("CPI annual rate (D7G7)","%","months",interp(
+    cpi:{next:"22 July 2026",...S("CPI annual rate (D7G7)","%","months",interp(
       [["1989-01",5.2],["1990-10",8.1],["1993-02",3.1],["1997-01",1.9],["2000-06",0.8],
        ["2008-09",5.2],["2009-09",1.1],["2011-09",5.2],["2015-10",-0.1],["2017-11",3.1],
        ["2020-08",0.2],["2022-10",11.1],["2023-06",7.9],["2024-06",2.0],["2025-09",3.8],["2026-05",3.3]],mCpi)),
@@ -327,7 +353,8 @@ function statTile(el, key, title, series, opts){
   const dir=d===0?"flat":((d>0)===opts.upIsGood?"good":"bad");
   const arrow=d===0?"—":(d>0?"▲":"▼");
   const led=freshness(series);
-  const ledTitle=led==="green"?"Updated on schedule":"Awaiting next release";
+  let ledTitle=led==="green"?"Updated on schedule":"Awaiting next release";
+  if(series.next) ledTitle+=" · next release "+series.next;
   const clickable=!!ANCHORS[key];
   const div=document.createElement("div");
   div.className="stat"+(clickable?" link":"");
@@ -359,7 +386,7 @@ function chartPanel(key, containerId, title, expl, series, kind, fmtY, fmtTip, s
   panel.innerHTML=`
       <h2>${title}</h2>
       <p class="expl">${expl}</p>
-      <p class="range">${fmtPeriod(pts[0][0])} to ${fmtPeriod(pts[pts.length-1][0])}</p>
+      <p class="range"${series.next?` title="Next release: ${series.next}" style="cursor:help;"`:""}>${fmtPeriod(pts[0][0])} to ${fmtPeriod(pts[pts.length-1][0])}${series.next?" ·":""}</p>
       <div class="chartbox"><canvas id="${id}" role="img" aria-label="${title}, ${fmtPeriod(pts[0][0])} to ${fmtPeriod(pts[pts.length-1][0])}"></canvas></div>
       <p class="src">Source: ${srcNote}</p>`;
   container.appendChild(panel);
@@ -378,7 +405,7 @@ function render(data){
   /* --------------------------- new data banner ------------------------- */
   if(data.new_points && Object.keys(data.new_points).length && data.updated){
     const ageDays=(Date.now()-new Date(data.updated).getTime())/86400000;
-    if(ageDays<4){
+    if(ageDays<2){
       document.getElementById("newdataText").textContent="New data: "+
         Object.entries(data.new_points)
           .map(([k,p])=>(NAMES[k]||k)+" ("+fmtPeriod(p)+")").join(" · ");
@@ -438,6 +465,9 @@ function render(data){
   if(s.trade_balance) chartPanel("trade_balance","charts-trade","Trade balance",
     "Exports minus imports each month. Below zero means the UK buys more from abroad than it sells.",
     s.trade_balance,"bar",bn0,bn,"ONS series IKBJ (MRET) · goods and services, current prices, SA",1997);
+  if(s.current_account) chartPanel("current_account","charts-trade","Current account",
+    "The UK's overall balance with the rest of the world — trade plus investment income — as a share of GDP.",
+    s.current_account,"line",v=>v+"%",pct,"ONS series AA6H · % of GDP, annual (Pink Book)");
   if(s.exports) chartPanel("exports","charts-trade","Exports",
     "The value of goods and services the UK sells to the rest of the world each month.",
     s.exports,"line",bn0,bn,"ONS series IKBH (MRET) · goods and services, current prices, SA");
@@ -447,9 +477,6 @@ function render(data){
   if(ti) chartPanel(null,"charts-trade","Trade intensity",
     "Total trade (exports plus imports) as a share of GDP — a measure of how open the economy is.",
     ti,"line",v=>v+"%",pct,"Calculated from ONS series IKBH, IKBI and ABMI · complete calendar years");
-  if(s.current_account) chartPanel("current_account","charts-trade","Current account",
-    "The UK's overall balance with the rest of the world — trade plus investment income — as a share of GDP.",
-    s.current_account,"line",v=>v+"%",pct,"ONS series AA6H · % of GDP, annual (Pink Book)");
 
   if(s.debt_gdp) chartPanel("debt_gdp","charts-public","Public sector net debt, % of GDP",
     "Everything the government owes, compared with the size of the economy.",
@@ -460,6 +487,8 @@ function render(data){
 
   /* ------------------------------ tiles -------------------------------- */
   const hero=document.getElementById("hero");
+  if(s.current_account) statTile(hero,"current_account","Current account",s.current_account,
+    {fmt:pct,fmtD:pp,upIsGood:true,source:"ONS · AA6H, % of GDP"});
   if(gdpAnnual) statTile(hero,"gdp_level","GDP (annual)",gdpAnnual,
     {fmt:tn,fmtD:v=>"£"+(v/1000).toFixed(0)+"bn",upIsGood:true,
      source:"ONS · ABMI (PN2), rolling 4 quarters"});
@@ -469,13 +498,11 @@ function render(data){
     {fmt:pct,fmtD:pp,upIsGood:false,source:"ONS · D7G7 (MM23)"});
   if(s.unemployment) statTile(hero,"unemployment","Unemployment",s.unemployment,
     {fmt:pct,fmtD:pp,upIsGood:false,source:"ONS · MGSX (LMS)"});
-  if(s.deficit) statTile(hero,"deficit","Gov. borrowing (monthly)",s.deficit,
+  if(s.deficit) statTile(hero,"deficit","Gov. borrowing",s.deficit,
     {fmt:bn,fmtD:bn,upIsGood:false,source:"ONS · DZLS (PUSF), PSNB ex"});
   if(s.debt_gdp) statTile(hero,"debt_gdp","Public debt",s.debt_gdp,
     {fmt:pct,fmtD:pp,upIsGood:false,source:"ONS · HF6X (PUSF), % of GDP"});
-  if(s.current_account) statTile(hero,"current_account","Current account",s.current_account,
-    {fmt:pct,fmtD:pp,upIsGood:true,source:"ONS · AA6H, % of GDP"});
-  if(s.trade_balance) statTile(hero,"trade_balance","Trade balance (monthly)",s.trade_balance,
+  if(s.trade_balance) statTile(hero,"trade_balance","Trade balance",s.trade_balance,
     {fmt:bn,fmtD:bn,upIsGood:true,source:"ONS · IKBJ (MRET), goods & services, SA"});
   if(s.business_confidence) statTile(hero,"business_confidence","Business confidence",s.business_confidence,
     {fmt:idx,fmtD:v=>v.toFixed(1)+"pt",upIsGood:true,source:"OECD · BCICP, long-term avg = 100"});
@@ -520,7 +547,7 @@ function render(data){
   const tp=document.getElementById("tiles-public");
   if(s.debt_gdp) statTile(tp,"debt_gdp","Public debt",s.debt_gdp,
     {fmt:pct,fmtD:pp,upIsGood:false,source:"ONS · HF6X, % of GDP"});
-  if(s.deficit) statTile(tp,"deficit","Borrowing (monthly)",s.deficit,
+  if(s.deficit) statTile(tp,"deficit","Borrowing",s.deficit,
     {fmt:bn,fmtD:bn,upIsGood:false,source:"ONS · DZLS"});
 }
 

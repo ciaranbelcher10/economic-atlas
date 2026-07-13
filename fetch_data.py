@@ -222,7 +222,8 @@ def fetch(uris: list[str]) -> tuple[str, list] | None:
                         except (KeyError, ValueError):
                             continue
                     points.sort(key=lambda p: p[0])
-                    return freq, points
+                    nxt = (payload.get("description") or {}).get("nextRelease")
+                    return freq, points, (nxt or None)
     if last_error:
         raise last_error
     return None
@@ -252,10 +253,12 @@ def main() -> int:
             result = fetch(uris)
             if result is None:
                 raise ValueError("no observations in response")
-            freq, points = result
+            freq, points, nxt = result
             out["series"][key] = {
                 "label": label, "unit": unit, "freq": freq, "points": points,
             }
+            if nxt:
+                out["series"][key]["next"] = nxt
             print(f"  ok  {key:<16} {len(points):>5} observations "
                   f"({points[0][0]} to {points[-1][0]}, {freq})")
         except Exception as exc:
