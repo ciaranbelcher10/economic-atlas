@@ -4,35 +4,554 @@
 <meta charset="utf-8">
 <meta name="viewport" content="width=device-width, initial-scale=1">
 <title>United States · Economic Atlas</title>
+<meta name="description" content="The US economy in numbers: GDP, inflation, the labor market, trade and the federal finances, from official statistics.">
 <link rel="preconnect" href="https://fonts.googleapis.com">
 <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
 <link href="https://fonts.googleapis.com/css2?family=Nunito+Sans:wght@400;600;700&display=swap" rel="stylesheet">
 <link rel="icon" type="image/png" sizes="32x32" href="favicon-32.png">
 <link rel="apple-touch-icon" href="apple-touch-icon.png">
-<link rel="stylesheet" href="style.css">
+<link rel="stylesheet" href="style.css?v=4">
+<style>
+.led{display:inline-block; width:9px; height:9px; border-radius:50%;
+  margin-right:9px; vertical-align:middle; position:relative; top:-3px;}
+.led.green{background:#2FA463; box-shadow:0 0 0 3px rgba(47,164,99,.16);}
+.led.orange{background:#E39B2D; box-shadow:0 0 0 3px rgba(227,155,45,.16);}
+.stat .source{font-size:11.5px; color:var(--ink2); margin-top:6px;}
+.lightskey{font-size:12.5px; color:var(--ink2); margin:14px 0 30px;
+  display:flex; gap:20px; flex-wrap:wrap; justify-content:center;}
+.lightskey span{display:flex; align-items:center;}
+.lightskey .led{top:0;}
+nav.cat{margin:26px 0 26px; display:flex; gap:9px; flex-wrap:wrap;}
+nav.cat button{
+  border:1px solid var(--hair); background:var(--panel); color:var(--ink);
+  font:600 13.5px "Avenir Next","Avenir","Nunito Sans",sans-serif;
+  padding:9px 18px; border-radius:999px; cursor:pointer;
+}
+nav.cat button:hover{border-color:var(--blue); color:var(--navy);}
+nav.cat button.active{background:var(--blue); border-color:var(--blue); color:#fff;}
+.panel .expl{font-size:13px; color:var(--ink2); margin:3px 0 0; max-width:56ch;}
+.panel .range{font-size:12px; color:var(--ink2); margin:4px 0 14px;}
+.secnote{font-size:13px; color:var(--ink2); margin:18px 0 0;
+  padding:12px 16px; background:var(--panel); border:1px dashed #C9CEC8; border-radius:10px;}
+.sec[hidden]{display:none;}
+
+/* v4 critical styles inlined (belt and braces vs cached style.css) */
+.hero{display:flex; flex-wrap:wrap; justify-content:center;
+  background:transparent; border:none; gap:14px; overflow:visible; margin:30px 0 10px;}
+.stat{background:var(--panel); border:1px solid var(--hair); border-radius:12px;
+  padding:20px 22px 18px; flex:1 1 205px; max-width:275px; min-width:190px; min-height:0;}
+.hero.mini{justify-content:center; margin:0 0 6px;}
+.hero.mini .stat{padding:14px 16px; flex-basis:180px; max-width:245px;}
+.hero.mini .figure{font-size:25px;}
+.hero.mini .source{font-size:10.5px;}
+.stat .figure{white-space:nowrap;}
+.stat.link{cursor:pointer; transition:border-color .15s, box-shadow .15s;}
+.stat.link:hover{border-color:var(--blue); box-shadow:0 2px 10px rgba(30,69,102,.10);}
+.newdata{display:flex; align-items:center; gap:10px; flex-wrap:wrap;
+  background:#E7F4EC; color:#1E6B48; border:1px solid #CBE7D6;
+  border-radius:10px; padding:11px 16px; margin:0 0 24px;
+  font-size:13.5px; font-weight:600;}
+.newdata[hidden]{display:none;}
+.newdata .pulse{width:9px; height:9px; border-radius:50%; background:#2FA463;
+  box-shadow:0 0 0 3px rgba(47,164,99,.2); flex:none;}
+.lightskey.compact{margin:6px 0 26px;}
+</style>
 </head>
 <body>
+
 <nav class="top"><div class="wrap">
   <a class="brand" href="index.html"><img src="logo-64.png" alt="" width="26" height="26" style="display:block;border-radius:50%;background:#fff;padding:1px;">Economic Atlas</a>
   <a class="item active" href="index.html">Macro</a>
-  <a class="item" href="markets.html">Markets</a>
+  <a class="item" href="contact.html">Contact</a>
 </div></nav>
 <nav class="sub"><div class="wrap">
+  <a class="item" href="index.html">Overview</a>
   <a class="item" href="uk.html">UK</a>
   <a class="item active" href="us.html">U.S.</a>
-  <a class="item" href="eurozone.html">Eurozone</a>
 </div></nav>
+
 <div class="wrap">
 <header class="page">
-  <p class="eyebrow"><span class="dot" aria-hidden="true"></span>Economic Atlas</p>
-  <h1>United States</h1>
+  <p class="eyebrow"><span class="dot" aria-hidden="true"></span>Official statistics</p>
+  <h1>United States <span id="sampleBadge" class="badge">Sample data — run fetch_us.py for live figures</span></h1>
 </header>
-<div class="shell">
-  <h2>In the works</h2>
-  <p>The US page will mirror the UK snapshot — CPI, unemployment, GDP, the federal deficit and debt — drawn from FRED and the BEA.</p>
-  <a class="btn" href="uk.html">See the UK page — it's live</a>
+
+<div class="newdata" id="newdata" hidden>
+  <span class="pulse" aria-hidden="true"></span><span id="newdataText"></span>
 </div>
-<footer>Economic Atlas · Data from national statistical offices, used under open licences.</footer>
+
+<nav class="cat" aria-label="Sections">
+  <button class="active" data-sec="headline">Headline</button>
+  <button data-sec="gdp">GDP</button>
+  <button data-sec="inflation">Inflation &amp; rates</button>
+  <button data-sec="labour">Labour market</button>
+  <button data-sec="trade">Trade</button>
+  <button data-sec="public">Public finances</button>
+</nav>
+
+<section class="sec" id="sec-headline">
+  <div class="hero" id="hero" aria-label="Headline figures"></div>
+  <p class="lightskey" aria-label="Key to freshness lights">
+    <span><span class="led green" aria-hidden="true"></span>&nbsp;updated on schedule</span>
+    <span><span class="led orange" aria-hidden="true"></span>&nbsp;awaiting next release</span>
+  </p>
+  <div class="grid" id="charts-headline"></div>
+</section>
+
+<section class="sec" id="sec-gdp" hidden>
+  <div class="hero mini" id="tiles-gdp"></div>
+  <p class="lightskey compact" aria-label="Key to freshness lights"><span><span class="led green" aria-hidden="true"></span>&nbsp;updated on schedule</span><span><span class="led orange" aria-hidden="true"></span>&nbsp;awaiting next release</span></p>
+  <div class="grid" id="charts-gdp"></div>
+</section>
+<section class="sec" id="sec-inflation" hidden>
+  <div class="hero mini" id="tiles-inflation"></div>
+  <p class="lightskey compact" aria-label="Key to freshness lights"><span><span class="led green" aria-hidden="true"></span>&nbsp;updated on schedule</span><span><span class="led orange" aria-hidden="true"></span>&nbsp;awaiting next release</span></p>
+  <div class="grid" id="charts-inflation"></div>
+</section>
+<section class="sec" id="sec-labour" hidden>
+  <div class="hero mini" id="tiles-labour"></div>
+  <p class="lightskey compact" aria-label="Key to freshness lights"><span><span class="led green" aria-hidden="true"></span>&nbsp;updated on schedule</span><span><span class="led orange" aria-hidden="true"></span>&nbsp;awaiting next release</span></p>
+  <div class="grid" id="charts-labour"></div>
+  <p class="secnote">On the roadmap: unemployment and inactivity broken down by age group and sector.</p>
+</section>
+<section class="sec" id="sec-trade" hidden>
+  <div class="hero mini" id="tiles-trade"></div>
+  <p class="lightskey compact" aria-label="Key to freshness lights"><span><span class="led green" aria-hidden="true"></span>&nbsp;updated on schedule</span><span><span class="led orange" aria-hidden="true"></span>&nbsp;awaiting next release</span></p>
+  <div class="grid" id="charts-trade"></div>
+  <p class="secnote">On the roadmap: a visual map of the UK's largest trade partners.</p>
+</section>
+<section class="sec" id="sec-public" hidden>
+  <div class="hero mini" id="tiles-public"></div>
+  <p class="lightskey compact" aria-label="Key to freshness lights"><span><span class="led green" aria-hidden="true"></span>&nbsp;updated on schedule</span><span><span class="led orange" aria-hidden="true"></span>&nbsp;awaiting next release</span></p>
+  <div class="grid" id="charts-public"></div>
+  <p class="secnote">On the roadmap: total debt stock, debt interest as a share of government spending (UK Debt Management Office), and a breakdown of where public money goes.</p>
+</section>
+
+<footer>
+  Data: <a href="https://fred.stlouisfed.org">FRED, Federal Reserve Bank of St. Louis</a> (BEA, BLS, Census, Treasury),
+  the <a href="https://www.oecd.org">OECD</a> and the <a href="https://data.worldbank.org">World Bank</a>. Series codes are shown with each metric;
+  figures are the latest published observations and are subject to revision.
+  Ideas or corrections: <a href="contact.html">get in touch</a>.
+</footer>
 </div>
+
+<script src="https://cdnjs.cloudflare.com/ajax/libs/Chart.js/4.4.1/chart.umd.min.js"></script>
+<script>
+"use strict";
+const INK="#171B1E", INK2="#5A6167", HAIR="#E7E9E4";
+const MAKO={deep:"#2E1E3B", indigo:"#413D7B", blue:"#37659E",
+            sea:"#348FA7", teal:"#40B7AD", mint:"#8AD9B1"};
+const LINE=MAKO.blue, BAR_UP=MAKO.sea, BAR_DOWN=MAKO.indigo;
+const MONTHS=["Jan","Feb","Mar","Apr","May","Jun","Jul","Aug","Sep","Oct","Nov","Dec"];
+const NAMES={gdp_level:"GDP",gdp_real:"Real GDP",gdp_growth:"GDP growth",
+  productivity:"Productivity",unemployment:"Unemployment",employment:"Employment-population ratio",
+  participation:"Participation rate",cpi:"CPI inflation",core_cpi:"Core CPI",
+  cpi_mom:"CPI (month on month)",fed_funds:"Fed funds rate",debt_gdp:"Federal debt",
+  deficit:"Federal deficit",current_account:"Current account",trade_balance:"Trade balance",
+  exports:"Exports",imports:"Imports",business_confidence:"Business confidence",fdi:"FDI"};
+
+/* ------------------------------- tabs ------------------------------------ */
+function showSec(name){
+  document.querySelectorAll("nav.cat button").forEach(b=>
+    b.classList.toggle("active", b.dataset.sec===name));
+  document.querySelectorAll(".sec").forEach(s=>s.hidden=true);
+  document.getElementById("sec-"+name).hidden=false;
+  history.replaceState(null,"","#"+name);
+}
+document.querySelectorAll("nav.cat button").forEach(btn=>
+  btn.addEventListener("click",()=>showSec(btn.dataset.sec)));
+if(location.hash &&
+   document.querySelector(`nav.cat button[data-sec="${location.hash.slice(1)}"]`))
+  showSec(location.hash.slice(1));
+
+/* ------------------------------ period utils ----------------------------- */
+function fmtPeriod(p){
+  if(/^\d{4}-\d{2}$/.test(p)) return MONTHS[+p.slice(5)-1]+" "+p.slice(0,4);
+  if(/^\d{4}-Q\d$/.test(p)) return p.slice(5)+" "+p.slice(0,4);
+  return p;
+}
+const year = p => p.slice(0,4);
+function periodEnd(p){
+  if(/^\d{4}-\d{2}$/.test(p)) return new Date(+p.slice(0,4), +p.slice(5), 0);
+  if(/^\d{4}-Q\d$/.test(p)) return new Date(+p.slice(0,4), +p.slice(6)*3, 0);
+  return new Date(+p.slice(0,4), 11, 31);
+}
+const STALE_DAYS={months:75, quarters:150, years:660};
+function freshness(series){
+  const last=series.points[series.points.length-1][0];
+  const age=(Date.now()-periodEnd(last).getTime())/86400000;
+  return age<=(STALE_DAYS[series.freq]||90) ? "green" : "orange";
+}
+
+/* --------------------------- derived series ------------------------------ */
+/* Year-on-year real GDP growth from the quarterly level */
+function yoyGDP(gdpReal){
+  const p=gdpReal.points, out=[];
+  for(let i=4;i<p.length;i++)
+    out.push([p[i][0], +((p[i][1]/p[i-4][1]-1)*100).toFixed(1)]);
+  return {label:"Real GDP growth, year on year", unit:"%", freq:"quarters", points:out};
+}
+/* Trade intensity: (exports+imports)/GDP per complete calendar year, %.
+   GDP is $bn at annual rates (average the 4 quarters); trade is $m (sum 12 months). */
+function tradeIntensity(exp, imp, gdp){
+  const sumBy=(pts,len)=>{const m={}; for(const [p,v] of pts){const y=p.slice(0,4);
+    (m[y]=m[y]||[]).push(v);} return Object.fromEntries(Object.entries(m)
+    .filter(([_,a])=>a.length===len).map(([y,a])=>[y,a.reduce((s,v)=>s+v,0)]));};
+  const avgBy=(pts)=>{const m={}; for(const [p,v] of pts){const y=p.slice(0,4);
+    (m[y]=m[y]||[]).push(v);} return Object.fromEntries(Object.entries(m)
+    .filter(([_,a])=>a.length===4).map(([y,a])=>[y,a.reduce((s,v)=>s+v,0)/4]));};
+  const X=sumBy(exp.points,12), M=sumBy(imp.points,12), G=avgBy(gdp.points);
+  const out=Object.keys(G).filter(y=>X[y]!=null&&M[y]!=null)
+    .sort().map(y=>[y, +((X[y]+M[y])/(G[y]*1000)*100).toFixed(1)]);
+  return out.length?{label:"Trade intensity",unit:"%",freq:"years",points:out}:null;
+}
+
+/* --------------- fallback sample data (until fetch_data.py) -------------- */
+function interp(keys, periods){
+  const kIdx = keys.map(k=>periods.indexOf(k[0]));
+  const pts=[];
+  for(let s=0;s<keys.length-1;s++){
+    const a=kIdx[s], b=kIdx[s+1]; if(a<0||b<0) continue;
+    for(let i=a;i<=b;i++){
+      const t=(i-a)/(b-a||1);
+      const wob=Math.sin(i*2.1)*0.05*(Math.abs(keys[s+1][1]-keys[s][1])+0.4);
+      pts[i]=[periods[i], +(keys[s][1]+(keys[s+1][1]-keys[s][1])*t+wob).toFixed(2)];
+    }
+  }
+  return pts.filter(Boolean);
+}
+function monthsBetween(a,b){
+  const out=[]; let [y,m]=a.split("-").map(Number); const [Y,M]=b.split("-").map(Number);
+  while(y<Y||(y===Y&&m<=M)){ out.push(y+"-"+String(m).padStart(2,"0")); m++; if(m>12){m=1;y++;} }
+  return out;
+}
+function quartersBetween(a,b){
+  const out=[]; let [y,q]=[+a.slice(0,4),+a.slice(6)]; const [Y,Q]=[+b.slice(0,4),+b.slice(6)];
+  while(y<Y||(y===Y&&q<=Q)){ out.push(y+"-Q"+q); q++; if(q>4){q=1;y++;} }
+  return out;
+}
+const yearsBetween=(a,b)=>Array.from({length:b-a+1},(_,i)=>String(a+i));
+function sampleData(){
+  const mCpi=monthsBetween("1990-01","2026-05"), mU=monthsBetween("1990-01","2026-06");
+  const mTr=monthsBetween("1992-01","2026-04"), mDef=monthsBetween("2000-01","2026-05");
+  const qAll=quartersBetween("1990-Q1","2026-Q1"), qG=quartersBetween("1998-Q1","2026-Q1");
+  const gdpG=qG.map((p,i)=>[p,+(2.4+1.6*Math.sin(i*1.7)).toFixed(1)]);
+  const put=(p,v)=>{const i=qG.indexOf(p); if(i>=0) gdpG[i]=[p,v];};
+  put("2008-Q3",-2.1); put("2008-Q4",-8.5); put("2009-Q1",-4.5);
+  put("2020-Q1",-5.3); put("2020-Q2",-28.1); put("2020-Q3",34.8); put("2022-Q1",-1.6);
+  const cpiMoM=mCpi.map((p,i)=>[p,+(0.2+0.25*Math.sin(i*2.3)).toFixed(1)]);
+  const S=(label,unit,freq,points)=>({label,unit,freq,points});
+  return { updated:new Date().toISOString(), sample:true,
+    new_points:{cpi:"2026-05"},
+    series:{
+    gdp_level:S("GDP, nominal SAAR (GDP)","$bn","quarters",interp(
+      [["1990-Q1",5963],["1995-Q1",7639],["2000-Q1",10285],["2008-Q3",14770],
+       ["2009-Q2",14478],["2019-Q4",21540],["2020-Q2",19913],["2022-Q4",26400],
+       ["2026-Q1",30800]],qAll)),
+    gdp_real:S("Real GDP (GDPC1)","$bn","quarters",interp(
+      [["1990-Q1",9365],["2000-Q1",13878],["2008-Q3",16581],["2009-Q2",15982],
+       ["2019-Q4",20700],["2020-Q2",17700],["2022-Q4",21990],["2026-Q1",23900]],qAll)),
+    gdp_growth:S("Real GDP growth QoQ ann. (A191RL1Q225SBEA)","%","quarters",gdpG),
+    productivity:S("Output per hour (OPHNFB)","index","quarters",interp(
+      [["1990-Q1",62],["2000-Q1",74],["2010-Q1",94],["2019-Q4",104],
+       ["2020-Q2",110],["2023-Q1",111],["2026-Q1",117]],qAll)),
+    unemployment:S("Unemployment (UNRATE)","%","months",interp(
+      [["1990-01",5.4],["1992-06",7.8],["2000-04",3.8],["2003-06",6.3],["2007-05",4.4],
+       ["2009-10",10.0],["2015-06",5.3],["2019-09",3.5],["2020-04",14.8],
+       ["2023-04",3.4],["2026-06",4.4]],mU)),
+    employment:S("Employment-population (EMRATIO)","%","months",interp(
+      [["1990-01",62.8],["2000-04",64.7],["2003-09",62.0],["2007-01",63.3],["2009-12",58.3],
+       ["2015-01",59.3],["2020-02",61.1],["2020-04",51.3],["2023-06",60.3],["2026-06",59.9]],mU)),
+    participation:S("Participation (CIVPART)","%","months",interp(
+      [["1990-01",66.5],["2000-01",67.3],["2007-01",66.2],["2015-09",62.4],
+       ["2020-02",63.3],["2020-04",60.1],["2023-08",62.7],["2026-06",62.3]],mU)),
+    cpi:S("CPI YoY (CPIAUCSL)","%","months",interp(
+      [["1990-10",6.3],["1998-03",1.4],["2000-06",3.7],["2008-07",5.6],["2009-07",-2.1],
+       ["2011-09",3.9],["2015-01",-0.1],["2018-07",2.9],["2020-05",0.1],["2022-06",9.1],
+       ["2023-06",3.0],["2024-09",2.4],["2026-05",2.8]],mCpi)),
+    core_cpi:S("Core CPI YoY (CPILFESL)","%","months",interp(
+      [["1990-10",5.3],["1995-06",3.0],["2003-11",1.1],["2008-07",2.5],["2010-10",0.6],
+       ["2016-01",2.2],["2020-05",1.2],["2022-09",6.6],["2024-06",3.3],["2026-05",3.0]],mCpi)),
+    cpi_mom:S("CPI MoM (CPIAUCSL)","%","months",cpiMoM),
+    fed_funds:S("Fed funds (FEDFUNDS)","%","months",interp(
+      [["1990-01",8.2],["1993-01",3.0],["2000-07",6.5],["2003-07",1.0],["2007-07",5.26],
+       ["2009-01",0.15],["2015-11",0.12],["2019-04",2.42],["2020-04",0.05],["2022-03",0.2],
+       ["2023-08",5.33],["2024-12",4.48],["2026-06",3.9]],mU)),
+    debt_gdp:S("Federal debt % GDP (GFDEGDQ188S)","%","quarters",interp(
+      [["1990-Q1",54],["2000-Q1",57],["2008-Q3",67],["2012-Q2",99],["2019-Q4",106],
+       ["2020-Q2",132],["2023-Q2",119],["2026-Q1",124]],qAll)),
+    deficit:S("Federal surplus/deficit (MTSDS133FMS)","$m","months",interp(
+      [["2000-01",30000],["2003-02",-95000],["2009-02",-192000],["2015-01",-90000],
+       ["2019-02",-234000],["2020-04",-738000],["2022-04",308000],["2024-02",-296000],
+       ["2026-04",210000],["2026-05",-316000]],mDef)),
+    current_account:S("Current account % GDP (World Bank)","%","years",interp(
+      [["1991",0.0],["1999",-3.0],["2006",-5.9],["2009",-2.6],["2013",-2.0],
+       ["2020",-2.8],["2022",-3.9],["2024",-3.9]],yearsBetween(1991,2024))),
+    business_confidence:S("Business confidence (OECD BCICP)","index","months",interp(
+      [["2010-01",100.5],["2014-06",100.9],["2016-02",98.6],["2019-01",100.6],["2020-04",96.8],
+       ["2021-05",101.9],["2022-12",98.4],["2024-06",99.8],["2026-05",100.1]],monthsBetween("2010-01","2026-05"))),
+    trade_balance:S("Trade balance (BOPGSTB)","$m","months",interp(
+      [["1992-01",-3000],["2000-06",-30000],["2006-08",-60000],["2009-05",-26000],
+       ["2018-12",-50000],["2020-06",-67000],["2022-03",-95000],["2025-03",-138000],
+       ["2026-04",-60200]],mTr)),
+    exports:S("Exports (BOPTEXP)","$m","months",interp(
+      [["1992-01",50000],["2000-06",89000],["2008-07",155000],["2009-04",120000],
+       ["2014-10",197000],["2020-05",145000],["2022-12",250000],["2026-04",289000]],mTr)),
+    imports:S("Imports (BOPTIMP)","$m","months",interp(
+      [["1992-01",53000],["2000-06",119000],["2008-07",215000],["2009-05",146000],
+       ["2014-10",240000],["2020-05",199000],["2022-03",340000],["2025-03",419000],
+       ["2026-04",350000]],mTr)),
+    fdi:S("FDI net inflows % GDP (World Bank)","%","years",interp(
+      [["1990",0.8],["2000",3.4],["2005",1.1],["2008",2.3],["2015",2.8],
+       ["2021",2.0],["2024",1.2]],yearsBetween(1990,2024))),
+  }};
+}
+
+/* ------------------------------- charts ---------------------------------- */
+const baseScales=(fmtY)=>({
+  x:{grid:{display:false}, border:{color:HAIR},
+     ticks:{color:INK2, font:{family:"'Avenir Next','Nunito Sans',sans-serif",size:11.5},
+            maxTicksLimit:7, maxRotation:0,
+            callback(v){ return year(this.getLabelForValue(v)); }}},
+  y:{grid:{color:HAIR}, border:{display:false},
+     ticks:{color:INK2, font:{family:"'Avenir Next','Nunito Sans',sans-serif",size:11.5},
+            maxTicksLimit:6, callback:v=>fmtY(v)}}
+});
+const baseOpts=(fmtTip)=>({
+  responsive:true, maintainAspectRatio:false, animation:false,
+  interaction:{mode:"index",intersect:false},
+  plugins:{legend:{display:false},
+    tooltip:{backgroundColor:"#fff",titleColor:INK,bodyColor:INK,borderColor:HAIR,borderWidth:1,
+             titleFont:{family:"'Avenir Next','Nunito Sans',sans-serif",weight:"600"},
+             bodyFont:{family:"'Avenir Next','Nunito Sans',sans-serif"},displayColors:false,
+             callbacks:{title:items=>fmtPeriod(items[0].label),
+                        label:ctx=>fmtTip(ctx.parsed.y)}}}
+});
+function lineChart(canvas, pts, fmtY, fmtTip){
+  new Chart(canvas,{type:"line",
+    data:{labels:pts.map(p=>p[0]),
+      datasets:[{data:pts.map(p=>p[1]), borderColor:LINE, borderWidth:2,
+                 pointRadius:0, pointHitRadius:8, tension:0.25}]},
+    options:{...baseOpts(fmtTip), scales:baseScales(fmtY)}});
+}
+function barChart(canvas, pts, fmtY, fmtTip){
+  new Chart(canvas,{type:"bar",
+    data:{labels:pts.map(p=>p[0]),
+      datasets:[{data:pts.map(p=>p[1]),
+                 backgroundColor:pts.map(p=>p[1]<0?BAR_DOWN:BAR_UP),
+                 borderRadius:2, categoryPercentage:0.9, barPercentage:1.0}]},
+    options:{...baseOpts(fmtTip), scales:baseScales(fmtY)}});
+}
+
+/* -------------------------------- render ---------------------------------- */
+const SEC_OF={"charts-headline":"headline","charts-gdp":"gdp","charts-inflation":"inflation",
+  "charts-labour":"labour","charts-trade":"trade","charts-public":"public"};
+const ANCHORS={};   /* series key -> {sec, panelEl} */
+let panelId=0;
+
+function statTile(el, key, title, series, opts){
+  const pts=series.points, last=pts[pts.length-1], prev=pts[pts.length-2];
+  const d=+(last[1]-prev[1]).toFixed(2);
+  const dir=d===0?"flat":((d>0)===opts.upIsGood?"good":"bad");
+  const arrow=d===0?"—":(d>0?"▲":"▼");
+  const led=freshness(series);
+  let ledTitle=led==="green"?"Updated on schedule":"Awaiting next release";
+  if(series.next) ledTitle+=" · next release "+series.next;
+  const clickable=!!ANCHORS[key];
+  const div=document.createElement("div");
+  div.className="stat"+(clickable?" link":"");
+  if(clickable){
+    div.setAttribute("role","link");
+    div.setAttribute("tabindex","0");
+    div.setAttribute("aria-label",title+" — view chart");
+    const go=()=>{const a=ANCHORS[key]; showSec(a.sec);
+      setTimeout(()=>a.panelEl.scrollIntoView({behavior:"smooth",block:"start"}),60);};
+    div.addEventListener("click",go);
+    div.addEventListener("keydown",e=>{if(e.key==="Enter"||e.key===" "){e.preventDefault();go();}});
+  }
+  div.innerHTML=`
+      <p class="label">${title}</p>
+      <p class="figure"><span class="led ${led}" title="${ledTitle}" role="img"
+        aria-label="${ledTitle}"></span>${opts.fmt(last[1])}</p>
+      <p class="delta ${dir}"><span class="arrow" aria-hidden="true">${arrow}</span>
+        ${d>0?"+":""}${opts.fmtD(d)} vs prior</p>
+      <p class="period">${fmtPeriod(last[0])}</p>
+      <p class="source">${opts.source}</p>`;
+  el.appendChild(div);
+}
+function chartPanel(key, containerId, title, expl, series, kind, fmtY, fmtTip, srcNote, fromYear){
+  const container=document.getElementById(containerId);
+  const pts = fromYear ? series.points.filter(p=>+p[0].slice(0,4)>=fromYear) : series.points;
+  const id = "ch-"+(panelId++);
+  const panel=document.createElement("div");
+  panel.className="panel";
+  panel.innerHTML=`
+      <h2>${title}</h2>
+      <p class="expl">${expl}</p>
+      <p class="range"${series.next?` title="Next release: ${series.next}" style="cursor:help;"`:""}>${fmtPeriod(pts[0][0])} to ${fmtPeriod(pts[pts.length-1][0])}${series.next?" ·":""}</p>
+      <div class="chartbox"><canvas id="${id}" role="img" aria-label="${title}, ${fmtPeriod(pts[0][0])} to ${fmtPeriod(pts[pts.length-1][0])}"></canvas></div>
+      <p class="src">Source: ${srcNote}</p>`;
+  container.appendChild(panel);
+  if(key) ANCHORS[key]={sec:SEC_OF[containerId], panelEl:panel};
+  (kind==="bar"?barChart:lineChart)(document.getElementById(id), pts, fmtY, fmtTip);
+}
+
+function render(data){
+  const s=data.series;
+  if(data.sample) document.getElementById("sampleBadge").classList.add("show");
+  const gdpYoY = s.gdp_real ? yoyGDP(s.gdp_real) : null;
+  const ti = (s.exports&&s.imports&&s.gdp_level)
+    ? tradeIntensity(s.exports,s.imports,s.gdp_level) : null;
+
+  if(data.new_points && Object.keys(data.new_points).length && data.updated){
+    const ageDays=(Date.now()-new Date(data.updated).getTime())/86400000;
+    if(ageDays<2){
+      document.getElementById("newdataText").textContent="New data: "+
+        Object.entries(data.new_points)
+          .map(([k,p])=>(NAMES[k]||k)+" ("+fmtPeriod(p)+")").join(" · ");
+      document.getElementById("newdata").hidden=false;
+    }
+  }
+
+  const pct=v=>v.toFixed(1)+"%", pp=v=>v.toFixed(1)+"pp";
+  const tn=v=>"$"+(v/1000).toFixed(2)+"tn";
+  const bnD=v=>(v<0?"−$":"$")+Math.abs(v/1000).toFixed(1)+"bn";
+  const bnD0=v=>(v<0?"−$":"$")+Math.abs(v/1000).toFixed(0)+"bn";
+  const idx=v=>v.toFixed(1);
+
+  /* charts first, so tiles know their targets */
+  if(s.business_confidence) chartPanel("business_confidence","charts-headline","Business confidence",
+    "How optimistic firms are about the months ahead. 100 is the long-run average — above it, firms expect better times.",
+    s.business_confidence,"line",idx,v=>idx(v)+" (avg = 100)","OECD · BCICP, amplitude-adjusted, long-term average = 100");
+  if(s.fdi) chartPanel("fdi","charts-headline","Foreign direct investment",
+    "Money invested into US businesses from abroad each year, as a share of GDP.",
+    s.fdi,"line",v=>v+"%",pct,"World Bank · FDI net inflows, % of GDP, annual (IMF balance-of-payments data)");
+
+  if(s.gdp_level) chartPanel("gdp_level","charts-gdp","GDP",
+    "The total value of everything the US economy produces in a year, at current prices.",
+    s.gdp_level,"line",v=>"$"+(v/1000).toFixed(0)+"tn",tn,
+    "FRED series GDP · nominal, seasonally adjusted annual rate (BEA)",1990);
+  if(s.gdp_growth) chartPanel("gdp_growth","charts-gdp","Real GDP growth, quarter on quarter (annualised)",
+    "How fast the economy grew each quarter, expressed as a yearly pace — the standard US convention.",
+    s.gdp_growth,"bar",v=>v+"%",pct,"FRED series A191RL1Q225SBEA · chained 2017 dollars (BEA)",1998);
+  if(gdpYoY) chartPanel(null,"charts-gdp","Real GDP growth, year on year",
+    "How much bigger or smaller the economy is than a year ago, adjusted for inflation.",
+    gdpYoY,"line",v=>v+"%",pct,"Calculated from FRED series GDPC1 (BEA)",1998);
+  if(s.productivity) chartPanel("productivity","charts-gdp","Productivity",
+    "How much the US produces for each hour worked. Higher means the economy works more efficiently.",
+    s.productivity,"line",v=>v,idx,"FRED series OPHNFB · nonfarm business output per hour, index (BLS)");
+
+  if(s.cpi) chartPanel("cpi","charts-inflation","CPI inflation, annual rate",
+    "How much consumer prices are rising compared with a year ago. The Fed targets 2% inflation.",
+    s.cpi,"line",v=>v+"%",pct,"Calculated from FRED series CPIAUCSL · all items, SA (BLS)");
+  if(s.core_cpi) chartPanel("core_cpi","charts-inflation","Core CPI, annual rate",
+    "Inflation excluding volatile food and energy prices — a cleaner read on underlying price pressure.",
+    s.core_cpi,"line",v=>v+"%",pct,"Calculated from FRED series CPILFESL · SA (BLS)");
+  if(s.fed_funds) chartPanel("fed_funds","charts-inflation","Federal funds rate",
+    "The Federal Reserve's key interest rate — the anchor for borrowing costs across the economy.",
+    s.fed_funds,"line",v=>v+"%",v=>v.toFixed(2)+"%","FRED series FEDFUNDS · effective rate, monthly average");
+
+  if(s.unemployment) chartPanel("unemployment","charts-labour","Unemployment rate",
+    "The share of people who want a job but can't find one.",
+    s.unemployment,"line",v=>v+"%",pct,"FRED series UNRATE · seasonally adjusted (BLS)");
+  if(s.employment) chartPanel("employment","charts-labour","Employment-population ratio",
+    "The share of all people aged 16 and over who are in work.",
+    s.employment,"line",v=>v+"%",pct,"FRED series EMRATIO · seasonally adjusted (BLS)");
+  if(s.participation) chartPanel("participation","charts-labour","Labor force participation rate",
+    "The share of people either working or actively looking for work.",
+    s.participation,"line",v=>v+"%",pct,"FRED series CIVPART · seasonally adjusted (BLS)");
+
+  if(s.trade_balance) chartPanel("trade_balance","charts-trade","Trade balance",
+    "Exports minus imports each month. Below zero means the US buys more from abroad than it sells.",
+    s.trade_balance,"bar",bnD0,bnD,"FRED series BOPGSTB · goods and services, SA (BEA/Census)",1992);
+  if(s.current_account) chartPanel("current_account","charts-trade","Current account",
+    "The US's overall balance with the rest of the world — trade plus investment income — as a share of GDP.",
+    s.current_account,"line",v=>v+"%",pct,"World Bank · % of GDP, annual (IMF balance-of-payments data)");
+  if(s.exports) chartPanel("exports","charts-trade","Exports",
+    "The value of goods and services the US sells to the rest of the world each month.",
+    s.exports,"line",bnD0,bnD,"FRED series BOPTEXP · goods and services, SA (BEA/Census)");
+  if(s.imports) chartPanel("imports","charts-trade","Imports",
+    "The value of goods and services the US buys from the rest of the world each month.",
+    s.imports,"line",bnD0,bnD,"FRED series BOPTIMP · goods and services, SA (BEA/Census)");
+  if(ti) chartPanel(null,"charts-trade","Trade intensity",
+    "Total trade (exports plus imports) as a share of GDP — a measure of how open the economy is.",
+    ti,"line",v=>v+"%",pct,"Calculated from FRED series BOPTEXP, BOPTIMP and GDP · complete calendar years");
+
+  if(s.debt_gdp) chartPanel("debt_gdp","charts-public","Federal debt, % of GDP",
+    "Total federal government debt, compared with the size of the economy.",
+    s.debt_gdp,"line",v=>v+"%",pct,"FRED series GFDEGDQ188S · total public debt (Treasury/OMB)");
+  if(s.deficit) chartPanel("deficit","charts-public","Federal surplus or deficit",
+    "The monthly gap between federal spending and tax receipts. Negative means a deficit; tax-season months often show surpluses.",
+    s.deficit,"bar",bnD0,bnD,"FRED series MTSDS133FMS · Monthly Treasury Statement",2005);
+
+  /* tiles */
+  const hero=document.getElementById("hero");
+  if(s.current_account) statTile(hero,"current_account","Current account",s.current_account,
+    {fmt:pct,fmtD:pp,upIsGood:true,source:"World Bank · % of GDP, annual"});
+  if(s.gdp_level) statTile(hero,"gdp_level","GDP (annual rate)",s.gdp_level,
+    {fmt:tn,fmtD:v=>"$"+v.toFixed(0)+"bn",upIsGood:true,source:"FRED · GDP (BEA), nominal SAAR"});
+  if(s.gdp_growth) statTile(hero,"gdp_growth","GDP growth (QoQ, ann.)",s.gdp_growth,
+    {fmt:pct,fmtD:pp,upIsGood:true,source:"FRED · A191RL1Q225SBEA (BEA)"});
+  if(s.cpi) statTile(hero,"cpi","CPI inflation",s.cpi,
+    {fmt:pct,fmtD:pp,upIsGood:false,source:"FRED · CPIAUCSL (BLS), YoY"});
+  if(s.unemployment) statTile(hero,"unemployment","Unemployment",s.unemployment,
+    {fmt:pct,fmtD:pp,upIsGood:false,source:"FRED · UNRATE (BLS)"});
+  if(s.deficit) statTile(hero,"deficit","Federal deficit (monthly)",s.deficit,
+    {fmt:bnD,fmtD:bnD,upIsGood:true,source:"FRED · MTSDS133FMS (Treasury)"});
+  if(s.debt_gdp) statTile(hero,"debt_gdp","Federal debt",s.debt_gdp,
+    {fmt:pct,fmtD:pp,upIsGood:false,source:"FRED · GFDEGDQ188S, % of GDP"});
+  if(s.trade_balance) statTile(hero,"trade_balance","Trade balance",s.trade_balance,
+    {fmt:bnD,fmtD:bnD,upIsGood:true,source:"FRED · BOPGSTB (BEA/Census), SA"});
+  if(s.business_confidence) statTile(hero,"business_confidence","Business confidence",s.business_confidence,
+    {fmt:idx,fmtD:v=>v.toFixed(1)+"pt",upIsGood:true,source:"OECD · BCICP, long-term avg = 100"});
+  if(s.fdi) statTile(hero,"fdi","FDI (net inflows)",s.fdi,
+    {fmt:pct,fmtD:pp,upIsGood:true,source:"World Bank · % of GDP, annual"});
+
+  const tg=document.getElementById("tiles-gdp");
+  if(s.gdp_level) statTile(tg,"gdp_level","GDP (annual rate)",s.gdp_level,
+    {fmt:tn,fmtD:v=>"$"+v.toFixed(0)+"bn",upIsGood:true,source:"FRED · GDP"});
+  if(s.gdp_growth) statTile(tg,"gdp_growth","Growth (QoQ, ann.)",s.gdp_growth,
+    {fmt:pct,fmtD:pp,upIsGood:true,source:"FRED · A191RL1Q225SBEA"});
+  if(gdpYoY) statTile(tg,null,"Growth (YoY)",gdpYoY,
+    {fmt:pct,fmtD:pp,upIsGood:true,source:"Calculated · GDPC1"});
+
+  const tinf=document.getElementById("tiles-inflation");
+  if(s.cpi) statTile(tinf,"cpi","CPI (YoY)",s.cpi,
+    {fmt:pct,fmtD:pp,upIsGood:false,source:"FRED · CPIAUCSL"});
+  if(s.cpi_mom) statTile(tinf,null,"CPI (MoM)",s.cpi_mom,
+    {fmt:pct,fmtD:pp,upIsGood:false,source:"FRED · CPIAUCSL"});
+  if(s.fed_funds) statTile(tinf,"fed_funds","Fed funds rate",s.fed_funds,
+    {fmt:v=>v.toFixed(2)+"%",fmtD:v=>v.toFixed(2)+"pp",upIsGood:false,source:"FRED · FEDFUNDS"});
+
+  const tl=document.getElementById("tiles-labour");
+  if(s.unemployment) statTile(tl,"unemployment","Unemployment",s.unemployment,
+    {fmt:pct,fmtD:pp,upIsGood:false,source:"FRED · UNRATE"});
+  if(s.employment) statTile(tl,"employment","Employment-pop.",s.employment,
+    {fmt:pct,fmtD:pp,upIsGood:true,source:"FRED · EMRATIO"});
+  if(s.participation) statTile(tl,"participation","Participation",s.participation,
+    {fmt:pct,fmtD:pp,upIsGood:true,source:"FRED · CIVPART"});
+
+  const tt=document.getElementById("tiles-trade");
+  if(s.trade_balance) statTile(tt,"trade_balance","Trade balance",s.trade_balance,
+    {fmt:bnD,fmtD:bnD,upIsGood:true,source:"FRED · BOPGSTB"});
+  if(s.exports) statTile(tt,"exports","Exports",s.exports,
+    {fmt:bnD,fmtD:bnD,upIsGood:true,source:"FRED · BOPTEXP"});
+  if(s.imports) statTile(tt,"imports","Imports",s.imports,
+    {fmt:bnD,fmtD:bnD,upIsGood:false,source:"FRED · BOPTIMP"});
+  if(ti) statTile(tt,null,"Trade intensity",ti,
+    {fmt:pct,fmtD:pp,upIsGood:true,source:"Calculated · BOPTEXP, BOPTIMP, GDP"});
+
+  const tp=document.getElementById("tiles-public");
+  if(s.debt_gdp) statTile(tp,"debt_gdp","Federal debt",s.debt_gdp,
+    {fmt:pct,fmtD:pp,upIsGood:false,source:"FRED · GFDEGDQ188S, % of GDP"});
+  if(s.deficit) statTile(tp,"deficit","Surplus/deficit (monthly)",s.deficit,
+    {fmt:bnD,fmtD:bnD,upIsGood:true,source:"FRED · MTSDS133FMS"});
+}
+
+fetch("data-us.json",{cache:"no-store"})
+  .then(r=>{ if(!r.ok) throw new Error(r.status); return r.json(); })
+  .then(render)
+  .catch(()=>{ render(sampleData()); });
+</script>
 </body>
 </html>

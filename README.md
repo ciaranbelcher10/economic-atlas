@@ -31,8 +31,10 @@ headline tiles are clickable and jump to the relevant chart. Every
 chart carries a one-line plain-English explainer, unit-aware hover
 values and an explicit source. A green banner appears for ~3 days
 whenever a fetch brings in a new data point (diffed in fetch_data.py
-against the previous data.json). US, Eurozone and Markets pages exist
-but are unlinked until built.
+against the previous data.json). The US page is live (fetch_us.py -> data-us.json; FRED key
+required as the FRED_API_KEY repo secret). Eurozone and Markets
+pages exist but are unlinked until built. When a third country
+arrives, refactor the shared page machinery into a common JS file.
 
 ## UK page data (verified series codes)
 Charts: ABMI (GDP), IHYQ (GDP growth), LZVB (productivity), MGSX
