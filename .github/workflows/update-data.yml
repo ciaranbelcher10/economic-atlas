@@ -1,7 +1,7 @@
 name: Refresh ONS data
 on:
   schedule:
-    - cron: "30 7 * * 1-5"   # 07:30 UTC weekdays, just after ONS releases
+    - cron: "30 7 * * 1-5"   # 07:30 UTC weekdays
   workflow_dispatch:
 
 permissions:
@@ -17,10 +17,13 @@ jobs:
           python-version: "3.12"
       - run: pip install requests
       - run: python fetch_data.py
+      - run: python fetch_us.py
+        env:
+          FRED_API_KEY: ${{ secrets.FRED_API_KEY }}
       - name: Commit updated data
         run: |
           git config user.name "data-bot"
           git config user.email "actions@github.com"
-          git add data.json
-          git diff --cached --quiet || git commit -m "Refresh ONS data"
+          git add data.json data-us.json
+          git diff --cached --quiet || git commit -m "Refresh data"
           git push
