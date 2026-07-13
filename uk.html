@@ -44,14 +44,12 @@ nav.cat button.active{background:var(--blue); border-color:var(--blue); color:#f
 .hero.mini .stat{padding:14px 16px; flex-basis:180px; max-width:245px;}
 .hero.mini .figure{font-size:25px;}
 .hero.mini .source{font-size:10.5px;}
-.stat .figure{white-space:nowrap;}
 .stat.link{cursor:pointer; transition:border-color .15s, box-shadow .15s;}
 .stat.link:hover{border-color:var(--blue); box-shadow:0 2px 10px rgba(30,69,102,.10);}
 .newdata{display:flex; align-items:center; gap:10px; flex-wrap:wrap;
   background:#E7F4EC; color:#1E6B48; border:1px solid #CBE7D6;
   border-radius:10px; padding:11px 16px; margin:0 0 24px;
   font-size:13.5px; font-weight:600;}
-.newdata[hidden]{display:none;}
 .newdata .pulse{width:9px; height:9px; border-radius:50%; background:#2FA463;
   box-shadow:0 0 0 3px rgba(47,164,99,.2); flex:none;}
 .lightskey.compact{margin:6px 0 26px;}
@@ -65,7 +63,6 @@ nav.cat button.active{background:var(--blue); border-color:var(--blue); color:#f
   <a class="item" href="contact.html">Contact</a>
 </div></nav>
 <nav class="sub"><div class="wrap">
-  <a class="item" href="index.html">Overview</a>
   <a class="item active" href="uk.html">UK</a>
 </div></nav>
 
@@ -265,7 +262,7 @@ function sampleData(){
     inactivity:S("Inactivity (LF2S)","%","months",interp(
       [["1971-01",24.9],["1983-05",25.4],["1990-04",22.4],["2000-01",21.6],["2008-04",20.9],
        ["2011-10",23.2],["2015-01",22.2],["2019-12",20.5],["2022-08",21.7],["2026-04",21.0]],mU)),
-    cpi:{next:"22 July 2026",...S("CPI annual rate (D7G7)","%","months",interp(
+    cpi:S("CPI annual rate (D7G7)","%","months",interp(
       [["1989-01",5.2],["1990-10",8.1],["1993-02",3.1],["1997-01",1.9],["2000-06",0.8],
        ["2008-09",5.2],["2009-09",1.1],["2011-09",5.2],["2015-10",-0.1],["2017-11",3.1],
        ["2020-08",0.2],["2022-10",11.1],["2023-06",7.9],["2024-06",2.0],["2025-09",3.8],["2026-05",3.3]],mCpi)),
@@ -353,8 +350,7 @@ function statTile(el, key, title, series, opts){
   const dir=d===0?"flat":((d>0)===opts.upIsGood?"good":"bad");
   const arrow=d===0?"—":(d>0?"▲":"▼");
   const led=freshness(series);
-  let ledTitle=led==="green"?"Updated on schedule":"Awaiting next release";
-  if(series.next) ledTitle+=" · next release "+series.next;
+  const ledTitle=led==="green"?"Updated on schedule":"Awaiting next release";
   const clickable=!!ANCHORS[key];
   const div=document.createElement("div");
   div.className="stat"+(clickable?" link":"");
@@ -386,7 +382,7 @@ function chartPanel(key, containerId, title, expl, series, kind, fmtY, fmtTip, s
   panel.innerHTML=`
       <h2>${title}</h2>
       <p class="expl">${expl}</p>
-      <p class="range"${series.next?` title="Next release: ${series.next}" style="cursor:help;"`:""}>${fmtPeriod(pts[0][0])} to ${fmtPeriod(pts[pts.length-1][0])}${series.next?" ·":""}</p>
+      <p class="range">${fmtPeriod(pts[0][0])} to ${fmtPeriod(pts[pts.length-1][0])}</p>
       <div class="chartbox"><canvas id="${id}" role="img" aria-label="${title}, ${fmtPeriod(pts[0][0])} to ${fmtPeriod(pts[pts.length-1][0])}"></canvas></div>
       <p class="src">Source: ${srcNote}</p>`;
   container.appendChild(panel);
@@ -405,7 +401,7 @@ function render(data){
   /* --------------------------- new data banner ------------------------- */
   if(data.new_points && Object.keys(data.new_points).length && data.updated){
     const ageDays=(Date.now()-new Date(data.updated).getTime())/86400000;
-    if(ageDays<2){
+    if(ageDays<4){
       document.getElementById("newdataText").textContent="New data: "+
         Object.entries(data.new_points)
           .map(([k,p])=>(NAMES[k]||k)+" ("+fmtPeriod(p)+")").join(" · ");
@@ -498,11 +494,11 @@ function render(data){
     {fmt:pct,fmtD:pp,upIsGood:false,source:"ONS · D7G7 (MM23)"});
   if(s.unemployment) statTile(hero,"unemployment","Unemployment",s.unemployment,
     {fmt:pct,fmtD:pp,upIsGood:false,source:"ONS · MGSX (LMS)"});
-  if(s.deficit) statTile(hero,"deficit","Gov. borrowing",s.deficit,
+  if(s.deficit) statTile(hero,"deficit","Gov. borrowing (monthly)",s.deficit,
     {fmt:bn,fmtD:bn,upIsGood:false,source:"ONS · DZLS (PUSF), PSNB ex"});
   if(s.debt_gdp) statTile(hero,"debt_gdp","Public debt",s.debt_gdp,
     {fmt:pct,fmtD:pp,upIsGood:false,source:"ONS · HF6X (PUSF), % of GDP"});
-  if(s.trade_balance) statTile(hero,"trade_balance","Trade balance",s.trade_balance,
+  if(s.trade_balance) statTile(hero,"trade_balance","Trade balance (monthly)",s.trade_balance,
     {fmt:bn,fmtD:bn,upIsGood:true,source:"ONS · IKBJ (MRET), goods & services, SA"});
   if(s.business_confidence) statTile(hero,"business_confidence","Business confidence",s.business_confidence,
     {fmt:idx,fmtD:v=>v.toFixed(1)+"pt",upIsGood:true,source:"OECD · BCICP, long-term avg = 100"});
@@ -547,7 +543,7 @@ function render(data){
   const tp=document.getElementById("tiles-public");
   if(s.debt_gdp) statTile(tp,"debt_gdp","Public debt",s.debt_gdp,
     {fmt:pct,fmtD:pp,upIsGood:false,source:"ONS · HF6X, % of GDP"});
-  if(s.deficit) statTile(tp,"deficit","Borrowing",s.deficit,
+  if(s.deficit) statTile(tp,"deficit","Borrowing (monthly)",s.deficit,
     {fmt:bn,fmtD:bn,upIsGood:false,source:"ONS · DZLS"});
 }
 
