@@ -1,7 +1,18 @@
 name: Refresh ONS data
 on:
   schedule:
-    - cron: "30 7 * * 1-5"   # 07:30 UTC weekdays
+    # UK morning: catches ONS releases (typically ~07:00 UK time) and any
+    # Japan data not yet caught by the previous night's run.
+    - cron: "30 6 * * 1-5"
+    # US morning: catches BLS/BEA/Fed releases, typically 08:30 ET
+    # (12:30 UTC in daylight time, 13:30 UTC in standard time).
+    - cron: "30 12 * * 1-5"
+    # Europe afternoon: catches ECB releases/press conferences and any
+    # later US revisions.
+    - cron: "30 16 * * 1-5"
+    # Japan day-of: catches Cabinet Office/BoJ releases, typically ~08:50 JST,
+    # which is the previous UTC evening. Sun-Thu (0-4) covers Japan's Mon-Fri.
+    - cron: "50 23 * * 0-4"
   workflow_dispatch:
 
 permissions:
