@@ -14,19 +14,25 @@ from datetime import datetime, timezone
 
 import requests
 
-# key: (fred_id, freq 'm'|'q', label, unit, transform None|'yoy'|'mom')
+# key: (fred_id, freq 'm'|'q', label, unit, transform None|'yoy'|'mom', scale)
+# scale multiplies the raw FRED value before any transform. Use this to correct
+# unit mismatches at the source rather than patching displayed numbers downstream.
+# The OECD '667S' goods-trade family (exports/imports) reports PLAIN US DOLLARS,
+# not millions -- verified against FRED's own "Units" field on the series page --
+# so scale=1e-6 converts it to $m to match the declared unit and the bnD/bnD0
+# chart formatters (which assume $m and divide by 1000 for $bn).
 FRED_SERIES = {
-    "gdp_level": ("CPMNACSCAB1GQEA19", "q", "GDP, nominal, quarterly level", "\u20acm", None),
-    "gdp_real": ("CLVMEURSCAB1GQEA19", "q", "Real GDP, chained, quarterly level", "\u20acm", None),
-    "gdp_growth": ("CLVMEURSCAB1GQEA19", "q", "Real GDP growth, QoQ", "%", "qoq"),
-    "cpi": ("CP0000EZ19M086NEST", "m", "HICP, all items, YoY", "%", "yoy"),
-    "cpi_mom": ("CP0000EZ19M086NEST", "m", "HICP, all items, MoM", "%", "mom"),
-    "unemployment": ("LRHUTTTTEZM156S", "m", "Unemployment rate, SA", "%", None),
-    "ecb_rate": ("ECBDFR", "d", "ECB deposit facility rate", "%", None),
-    "debt_gdp": ("GGGDTAEZA188N", "a", "General government gross debt, % of GDP", "%", None),
-    "deficit": ("GGNLBAEZA188N", "a", "General government net lending/borrowing, % of GDP", "%", None),
-    "exports": ("XTEXVA01EZM667S", "m", "Exports of goods, $", "$m", None),
-    "imports": ("XTIMVA01EZM667S", "m", "Imports of goods, $", "$m", None),
+    "gdp_level": ("CPMNACSCAB1GQEA19", "q", "GDP, nominal, quarterly level", "\u20acm", None, 1.0),
+    "gdp_real": ("CLVMEURSCAB1GQEA19", "q", "Real GDP, chained, quarterly level", "\u20acm", None, 1.0),
+    "gdp_growth": ("CLVMEURSCAB1GQEA19", "q", "Real GDP growth, QoQ", "%", "qoq", 1.0),
+    "cpi": ("CP0000EZ19M086NEST", "m", "HICP, all items, YoY", "%", "yoy", 1.0),
+    "cpi_mom": ("CP0000EZ19M086NEST", "m", "HICP, all items, MoM", "%", "mom", 1.0),
+    "unemployment": ("LRHUTTTTEZM156S", "m", "Unemployment rate, SA", "%", None, 1.0),
+    "ecb_rate": ("ECBDFR", "d", "ECB deposit facility rate", "%", None, 1.0),
+    "debt_gdp": ("GGGDTAEZA188N", "a", "General government gross debt, % of GDP", "%", None, 1.0),
+    "deficit": ("GGNLBAEZA188N", "a", "General government net lending/borrowing, % of GDP", "%", None, 1.0),
+    "exports": ("XTEXVA01EZM667S", "m", "Exports of goods, $", "$m", None, 1e-6),
+    "imports": ("XTIMVA01EZM667S", "m", "Imports of goods, $", "$m", None, 1e-6),
 }
 
 FRED_URL = ("https://api.stlouisfed.org/fred/series/observations"
@@ -160,9 +166,12 @@ def main() -> int:
     if not key:
         print("WARN  no FRED_API_KEY set — FRED series will be skipped.")
     else:
-        for name, (sid, freq, label, unit, tf) in FRED_SERIES.items():
+        for name, (sid, freq, label, unit, tf, scale) in FRED_SERIES.items():
             try:
-                points = transform(fetch_fred(sid, freq, key), tf)
+                raw = fetch_fred(sid, freq, key)
+                if scale != 1.0:
+                    raw = [[p, v * scale] for p, v in raw]
+                points = transform(raw, tf)
                 if not points:
                     raise ValueError("no observations")
                 fr = {"m": "months", "d": "months", "q": "quarters", "a": "years"}[freq]
