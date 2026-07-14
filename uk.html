@@ -72,6 +72,7 @@ nav.cat button.active{background:var(--blue); border-color:var(--blue); color:#f
   <a class="item" href="index.html">Overview</a>
   <a class="item active" href="uk.html">UK</a>
   <a class="item" href="us.html">U.S.</a>
+  <a class="item" href="eurozone.html">Eurozone</a>
 </div></nav>
 
 <div class="wrap">
@@ -90,7 +91,7 @@ nav.cat button.active{background:var(--blue); border-color:var(--blue); color:#f
   <button data-sec="inflation">Inflation &amp; rates</button>
   <button data-sec="labour">Labour market</button>
   <button data-sec="trade">Trade</button>
-  <button data-sec="public">Public finances</button>
+  <button data-sec="public">Public Finances</button>
 </nav>
 
 <section class="sec" id="sec-headline">
@@ -162,6 +163,10 @@ function showSec(name){
   document.querySelectorAll(".sec").forEach(s=>s.hidden=true);
   document.getElementById("sec-"+name).hidden=false;
   history.replaceState(null,"","#"+name);
+  document.querySelectorAll("nav.sub a.item").forEach(a=>{
+    const b=a.getAttribute("href").split("#")[0];
+    if(b!=="index.html") a.setAttribute("href", b+"#"+name);
+  });
 }
 document.querySelectorAll("nav.cat button").forEach(btn=>
   btn.addEventListener("click",()=>showSec(btn.dataset.sec)));
