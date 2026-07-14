@@ -23,10 +23,13 @@ jobs:
       - run: python fetch_ez.py
         env:
           FRED_API_KEY: ${{ secrets.FRED_API_KEY }}
+      - run: python fetch_jp.py
+        env:
+          FRED_API_KEY: ${{ secrets.FRED_API_KEY }}
       - name: Commit updated data
         run: |
           git config user.name "data-bot"
           git config user.email "actions@github.com"
-          git add data.json data-us.json data-ez.json
+          git add data.json data-us.json data-ez.json data-jp.json
           git diff --cached --quiet || git commit -m "Refresh data"
           git push
