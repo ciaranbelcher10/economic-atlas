@@ -3,8 +3,8 @@
 <head>
 <meta charset="utf-8">
 <meta name="viewport" content="width=device-width, initial-scale=1">
-<title>United States · Economic Atlas</title>
-<meta name="description" content="The US economy in numbers: GDP, inflation, the labor market, trade and the federal finances, from official statistics.">
+<title>Japan · Economic Atlas</title>
+<meta name="description" content="The Japanese economy in numbers: GDP, inflation, unemployment, trade and government finances, from official statistics.">
 <link rel="preconnect" href="https://fonts.googleapis.com">
 <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
 <link href="https://fonts.googleapis.com/css2?family=Nunito+Sans:wght@400;600;700&display=swap" rel="stylesheet">
@@ -71,15 +71,15 @@ nav.cat button.active{background:var(--blue); border-color:var(--blue); color:#f
 <nav class="sub"><div class="wrap">
   <a class="item" href="index.html">Overview</a>
   <a class="item" href="uk.html">UK</a>
-  <a class="item active" href="us.html">U.S.</a>
+  <a class="item" href="us.html">U.S.</a>
   <a class="item" href="eurozone.html">Eurozone</a>
-  <a class="item" href="japan.html">Japan</a>
+  <a class="item active" href="japan.html">Japan</a>
 </div></nav>
 
 <div class="wrap">
 <header class="page">
   <p class="eyebrow"><span class="dot" aria-hidden="true"></span>Official statistics</p>
-  <h1>United States <span id="sampleBadge" class="badge">Sample data — run fetch_us.py for live figures</span></h1>
+  <h1>Japan <span id="sampleBadge" class="badge">Sample data — run fetch_jp.py for live figures</span></h1>
 </header>
 
 <div class="newdata" id="newdata" hidden>
@@ -118,13 +118,13 @@ nav.cat button.active{background:var(--blue); border-color:var(--blue); color:#f
   <div class="hero mini" id="tiles-labour"></div>
   <p class="lightskey compact" aria-label="Key to freshness lights"><span><span class="led green" aria-hidden="true"></span>&nbsp;updated on schedule</span><span><span class="led orange" aria-hidden="true"></span>&nbsp;awaiting next release</span></p>
   <div class="grid" id="charts-labour"></div>
-  <p class="secnote">On the roadmap: unemployment and inactivity broken down by age group and sector.</p>
+  <p class="secnote">On the roadmap: employment and participation rates, and wage growth.</p>
 </section>
 <section class="sec" id="sec-trade" hidden>
   <div class="hero mini" id="tiles-trade"></div>
   <p class="lightskey compact" aria-label="Key to freshness lights"><span><span class="led green" aria-hidden="true"></span>&nbsp;updated on schedule</span><span><span class="led orange" aria-hidden="true"></span>&nbsp;awaiting next release</span></p>
   <div class="grid" id="charts-trade"></div>
-  <p class="secnote">On the roadmap: a visual map of the UK's largest trade partners.</p>
+  <p class="secnote">On the roadmap: yen-denominated customs trade, and a map of largest trade partners.</p>
 </section>
 <section class="sec" id="sec-public" hidden>
   <div class="hero mini" id="tiles-public"></div>
@@ -134,7 +134,7 @@ nav.cat button.active{background:var(--blue); border-color:var(--blue); color:#f
 </section>
 
 <footer>
-  Data: <a href="https://fred.stlouisfed.org">FRED, Federal Reserve Bank of St. Louis</a> (BEA, BLS, Census, Treasury),
+  Data: <a href="https://fred.stlouisfed.org">FRED</a> (Cabinet Office of Japan, OECD and IMF series),
   the <a href="https://www.oecd.org">OECD</a> and the <a href="https://data.worldbank.org">World Bank</a>. Series codes are shown with each metric;
   figures are the latest published observations and are subject to revision.
   Ideas or corrections: <a href="contact.html">get in touch</a>.
@@ -150,11 +150,10 @@ const MAKO={deep:"#2E1E3B", indigo:"#413D7B", blue:"#37659E",
 const LINE=MAKO.blue, BAR_UP=MAKO.sea, BAR_DOWN=MAKO.indigo;
 const MONTHS=["Jan","Feb","Mar","Apr","May","Jun","Jul","Aug","Sep","Oct","Nov","Dec"];
 const NAMES={gdp_level:"GDP",gdp_real:"Real GDP",gdp_growth:"GDP growth",
-  productivity:"Productivity",unemployment:"Unemployment",employment:"Employment-population ratio",
-  participation:"Participation rate",cpi:"CPI inflation",core_cpi:"Core CPI",
-  cpi_mom:"CPI (month on month)",fed_funds:"Fed funds rate",debt_gdp:"Federal debt",
-  deficit:"Federal deficit",current_account:"Current account",trade_balance:"Trade balance",
-  exports:"Exports",imports:"Imports",business_confidence:"Business confidence",fdi:"FDI",net_debt:"Federal debt ($)"};
+  unemployment:"Unemployment",cpi:"CPI inflation",cpi_mom:"CPI (month on month)",
+  boj_rate:"Call money rate",debt_gdp:"Government debt",deficit:"Gov. deficit",
+  current_account:"Current account",trade_balance:"Trade balance",exports:"Exports",
+  imports:"Imports",business_confidence:"Business confidence",fdi:"FDI"};
 
 /* ------------------------------- tabs ------------------------------------ */
 function showSec(name){
@@ -194,26 +193,18 @@ function freshness(series){
 }
 
 /* --------------------------- derived series ------------------------------ */
-/* Year-on-year real GDP growth from the quarterly level */
+/* Annual GDP: rolling sum of the last four quarterly levels, in \u20acm */
+function annualGDP(gdp){
+  const p=gdp.points, out=[];
+  for(let i=3;i<p.length;i++)
+    out.push([p[i][0], p[i][1]+p[i-1][1]+p[i-2][1]+p[i-3][1]]);
+  return {label:"GDP, rolling four quarters", unit:"\u20acm", freq:"quarters", points:out};
+}
 function yoyGDP(gdpReal){
   const p=gdpReal.points, out=[];
   for(let i=4;i<p.length;i++)
     out.push([p[i][0], +((p[i][1]/p[i-4][1]-1)*100).toFixed(1)]);
   return {label:"Real GDP growth, year on year", unit:"%", freq:"quarters", points:out};
-}
-/* Trade intensity: (exports+imports)/GDP per complete calendar year, %.
-   GDP is $bn at annual rates (average the 4 quarters); trade is $m (sum 12 months). */
-function tradeIntensity(exp, imp, gdp){
-  const sumBy=(pts,len)=>{const m={}; for(const [p,v] of pts){const y=p.slice(0,4);
-    (m[y]=m[y]||[]).push(v);} return Object.fromEntries(Object.entries(m)
-    .filter(([_,a])=>a.length===len).map(([y,a])=>[y,a.reduce((s,v)=>s+v,0)]));};
-  const avgBy=(pts)=>{const m={}; for(const [p,v] of pts){const y=p.slice(0,4);
-    (m[y]=m[y]||[]).push(v);} return Object.fromEntries(Object.entries(m)
-    .filter(([_,a])=>a.length===4).map(([y,a])=>[y,a.reduce((s,v)=>s+v,0)/4]));};
-  const X=sumBy(exp.points,12), M=sumBy(imp.points,12), G=avgBy(gdp.points);
-  const out=Object.keys(G).filter(y=>X[y]!=null&&M[y]!=null)
-    .sort().map(y=>[y, +((X[y]+M[y])/(G[y]*1000)*100).toFixed(1)]);
-  return out.length?{label:"Trade intensity",unit:"%",freq:"years",points:out}:null;
 }
 
 /* --------------- fallback sample data (until fetch_data.py) -------------- */
@@ -242,81 +233,61 @@ function quartersBetween(a,b){
 }
 const yearsBetween=(a,b)=>Array.from({length:b-a+1},(_,i)=>String(a+i));
 function sampleData(){
-  const mCpi=monthsBetween("1990-01","2026-05"), mU=monthsBetween("1990-01","2026-06");
-  const mTr=monthsBetween("1992-01","2026-04"), mDef=monthsBetween("2000-01","2026-05");
-  const qAll=quartersBetween("1990-Q1","2026-Q1"), qG=quartersBetween("1998-Q1","2026-Q1");
-  const gdpG=qG.map((p,i)=>[p,+(2.4+1.6*Math.sin(i*1.7)).toFixed(1)]);
+  const mCpi=monthsBetween("1994-01","2026-05"), mU=monthsBetween("1994-01","2026-05");
+  const mR=monthsBetween("1994-01","2026-06"), mTr=monthsBetween("1999-01","2026-04");
+  const qAll=quartersBetween("1994-Q1","2026-Q1"), qG=quartersBetween("1998-Q1","2026-Q1");
+  const gdpG=qG.map((p,i)=>[p,+(0.3+0.4*Math.sin(i*1.7)).toFixed(1)]);
   const put=(p,v)=>{const i=qG.indexOf(p); if(i>=0) gdpG[i]=[p,v];};
-  put("2008-Q3",-2.1); put("2008-Q4",-8.5); put("2009-Q1",-4.5);
-  put("2020-Q1",-5.3); put("2020-Q2",-28.1); put("2020-Q3",34.8); put("2022-Q1",-1.6);
-  const cpiMoM=mCpi.map((p,i)=>[p,+(0.2+0.25*Math.sin(i*2.3)).toFixed(1)]);
+  put("2008-Q4",-2.4); put("2009-Q1",-4.8); put("2011-Q1",-1.4); put("2014-Q2",-1.9);
+  put("2019-Q4",-1.9); put("2020-Q2",-7.9); put("2020-Q3",5.6); put("2024-Q1",-0.6);
+  const cpiMoM=mCpi.map((p,i)=>[p,+(0.05+0.2*Math.sin(i*2.3)).toFixed(1)]);
   const S=(label,unit,freq,points)=>({label,unit,freq,points});
   return { updated:new Date().toISOString(), sample:true,
     new_points:{cpi:"2026-05"},
     series:{
-    gdp_level:S("GDP, nominal SAAR (GDP)","$bn","quarters",interp(
-      [["1990-Q1",5963],["1995-Q1",7639],["2000-Q1",10285],["2008-Q3",14770],
-       ["2009-Q2",14478],["2019-Q4",21540],["2020-Q2",19913],["2022-Q4",26400],
-       ["2026-Q1",30800]],qAll)),
-    gdp_real:S("Real GDP (GDPC1)","$bn","quarters",interp(
-      [["1990-Q1",9365],["2000-Q1",13878],["2008-Q3",16581],["2009-Q2",15982],
-       ["2019-Q4",20700],["2020-Q2",17700],["2022-Q4",21990],["2026-Q1",23900]],qAll)),
-    gdp_growth:S("Real GDP growth QoQ ann. (A191RL1Q225SBEA)","%","quarters",gdpG),
-    productivity:S("Output per hour (OPHNFB)","index","quarters",interp(
-      [["1990-Q1",62],["2000-Q1",74],["2010-Q1",94],["2019-Q4",104],
-       ["2020-Q2",110],["2023-Q1",111],["2026-Q1",117]],qAll)),
-    unemployment:S("Unemployment (UNRATE)","%","months",interp(
-      [["1990-01",5.4],["1992-06",7.8],["2000-04",3.8],["2003-06",6.3],["2007-05",4.4],
-       ["2009-10",10.0],["2015-06",5.3],["2019-09",3.5],["2020-04",14.8],
-       ["2023-04",3.4],["2026-06",4.4]],mU)),
-    employment:S("Employment-population (EMRATIO)","%","months",interp(
-      [["1990-01",62.8],["2000-04",64.7],["2003-09",62.0],["2007-01",63.3],["2009-12",58.3],
-       ["2015-01",59.3],["2020-02",61.1],["2020-04",51.3],["2023-06",60.3],["2026-06",59.9]],mU)),
-    participation:S("Participation (CIVPART)","%","months",interp(
-      [["1990-01",66.5],["2000-01",67.3],["2007-01",66.2],["2015-09",62.4],
-       ["2020-02",63.3],["2020-04",60.1],["2023-08",62.7],["2026-06",62.3]],mU)),
-    cpi:S("CPI YoY (CPIAUCSL)","%","months",interp(
-      [["1990-10",6.3],["1998-03",1.4],["2000-06",3.7],["2008-07",5.6],["2009-07",-2.1],
-       ["2011-09",3.9],["2015-01",-0.1],["2018-07",2.9],["2020-05",0.1],["2022-06",9.1],
-       ["2023-06",3.0],["2024-09",2.4],["2026-05",2.8]],mCpi)),
-    core_cpi:S("Core CPI YoY (CPILFESL)","%","months",interp(
-      [["1990-10",5.3],["1995-06",3.0],["2003-11",1.1],["2008-07",2.5],["2010-10",0.6],
-       ["2016-01",2.2],["2020-05",1.2],["2022-09",6.6],["2024-06",3.3],["2026-05",3.0]],mCpi)),
-    cpi_mom:S("CPI MoM (CPIAUCSL)","%","months",cpiMoM),
-    fed_funds:S("Fed funds (FEDFUNDS)","%","months",interp(
-      [["1990-01",8.2],["1993-01",3.0],["2000-07",6.5],["2003-07",1.0],["2007-07",5.26],
-       ["2009-01",0.15],["2015-11",0.12],["2019-04",2.42],["2020-04",0.05],["2022-03",0.2],
-       ["2023-08",5.33],["2024-12",4.48],["2026-06",3.9]],mU)),
-    debt_gdp:S("Federal debt % GDP (GFDEGDQ188S)","%","quarters",interp(
-      [["1990-Q1",54],["2000-Q1",57],["2008-Q3",67],["2012-Q2",99],["2019-Q4",106],
-       ["2020-Q2",132],["2023-Q2",119],["2026-Q1",124]],qAll)),
-    deficit:S("Federal surplus/deficit (MTSDS133FMS)","$m","months",interp(
-      [["2000-01",30000],["2003-02",-95000],["2009-02",-192000],["2015-01",-90000],
-       ["2019-02",-234000],["2020-04",-738000],["2022-04",308000],["2024-02",-296000],
-       ["2026-04",210000],["2026-05",-316000]],mDef)),
-    current_account:S("Current account % GDP (World Bank)","%","years",interp(
-      [["1991",0.0],["1999",-3.0],["2006",-5.9],["2009",-2.6],["2013",-2.0],
-       ["2020",-2.8],["2022",-3.9],["2024",-3.9]],yearsBetween(1991,2024))),
-    business_confidence:S("Business confidence (OECD BCICP)","index","months",interp(
-      [["2010-01",100.5],["2014-06",100.9],["2016-02",98.6],["2019-01",100.6],["2020-04",96.8],
-       ["2021-05",101.9],["2022-12",98.4],["2024-06",99.8],["2026-05",100.1]],monthsBetween("2010-01","2026-05"))),
-    trade_balance:S("Trade balance (BOPGSTB)","$m","months",interp(
-      [["1992-01",-3000],["2000-06",-30000],["2006-08",-60000],["2009-05",-26000],
-       ["2018-12",-50000],["2020-06",-67000],["2022-03",-95000],["2025-03",-138000],
-       ["2026-04",-60200]],mTr)),
-    exports:S("Exports (BOPTEXP)","$m","months",interp(
-      [["1992-01",50000],["2000-06",89000],["2008-07",155000],["2009-04",120000],
-       ["2014-10",197000],["2020-05",145000],["2022-12",250000],["2026-04",289000]],mTr)),
-    imports:S("Imports (BOPTIMP)","$m","months",interp(
-      [["1992-01",53000],["2000-06",119000],["2008-07",215000],["2009-05",146000],
-       ["2014-10",240000],["2020-05",199000],["2022-03",340000],["2025-03",419000],
-       ["2026-04",350000]],mTr)),
-    net_debt:S("Federal debt $m (GFDEBTN)","$m","quarters",interp(
-      [["1990-Q1",3052000],["2000-Q1",5674000],["2008-Q3",10025000],["2012-Q2",15856000],
-       ["2019-Q4",23201000],["2020-Q2",26477000],["2023-Q2",32332000],["2026-Q1",38500000]],qAll)),
-    fdi:S("FDI net inflows % GDP (World Bank)","%","years",interp(
-      [["1990",0.8],["2000",3.4],["2005",1.1],["2008",2.3],["2015",2.8],
-       ["2021",2.0],["2024",1.2]],yearsBetween(1990,2024))),
+    gdp_level:S("GDP nominal SAAR","\u00a5bn","quarters",interp(
+      [["1994-Q1",495000],["1997-Q2",533000],["2009-Q1",490000],["2012-Q4",495000],
+       ["2019-Q4",557000],["2020-Q2",528000],["2023-Q2",591000],["2026-Q1",630000]],qAll)),
+    gdp_real:S("Real GDP SAAR","\u00a5bn","quarters",interp(
+      [["1994-Q1",447000],["2008-Q1",520000],["2009-Q1",495000],["2019-Q4",557000],
+       ["2020-Q2",518000],["2023-Q2",560000],["2026-Q1",575000]],qAll)),
+    gdp_growth:S("Real GDP growth QoQ","%","quarters",gdpG),
+    cpi:S("CPI YoY","%","months",interp(
+      [["1994-06",0.5],["1997-10",2.5],["1999-09",-0.3],["2008-07",2.3],["2009-10",-2.5],
+       ["2014-05",3.7],["2016-08",-0.5],["2020-12",-1.2],["2023-01",4.3],["2024-06",2.8],
+       ["2026-05",3.0]],mCpi)),
+    cpi_mom:S("CPI MoM","%","months",cpiMoM),
+    unemployment:S("Unemployment","%","months",interp(
+      [["1994-01",2.9],["2002-08",5.5],["2007-07",3.6],["2009-07",5.5],["2019-12",2.2],
+       ["2020-10",3.1],["2024-01",2.4],["2026-05",2.4]],mU)),
+    boj_rate:S("Call money rate","%","months",interp(
+      [["1994-01",2.2],["1995-09",0.45],["1999-03",0.03],["2006-08",0.25],["2008-11",0.3],
+       ["2010-10",0.09],["2016-02",-0.05],["2024-03",0.08],["2024-08",0.25],["2025-01",0.48],
+       ["2026-06",0.75]],mR)),
+    debt_gdp:S("Gov. gross debt % GDP","%","years",interp(
+      [["1980",47],["1995",92],["2005",176],["2013",232],["2020",259],["2023",250]],
+      yearsBetween(1980,2023))),
+    deficit:S("Gov. net lending % GDP","%","years",interp(
+      [["1995",-4.6],["2007",-2.1],["2009",-9.8],["2019",-3.0],["2020",-9.1],
+       ["2023",-4.2]],yearsBetween(1995,2023))),
+    current_account:S("Current account % GDP","%","years",interp(
+      [["1994",2.7],["2007",4.7],["2011",2.1],["2014",0.8],["2017",4.1],["2022",1.9],
+       ["2024",4.8]],yearsBetween(1994,2024))),
+    business_confidence:S("Business confidence","index","months",interp(
+      [["2009-02",96.0],["2013-12",101.0],["2018-01",100.7],["2020-04",97.2],["2021-09",100.4],
+       ["2023-05",99.6],["2026-05",100.3]],monthsBetween("2009-02","2026-05"))),
+    trade_balance:S("Trade balance, goods","$m","months",interp(
+      [["1999-01",9000],["2008-07",-5000],["2010-06",6000],["2013-06",-9000],
+       ["2020-05",2000],["2022-09",-20000],["2024-06",-3000],["2026-04",3000]],mTr)),
+    exports:S("Exports, goods","$m","months",interp(
+      [["1999-01",35000],["2008-07",65000],["2009-02",33000],["2012-03",70000],
+       ["2020-05",44000],["2022-09",75000],["2026-04",66000]],mTr)),
+    imports:S("Imports, goods","$m","months",interp(
+      [["1999-01",26000],["2008-08",70000],["2012-03",73000],["2020-05",42000],
+       ["2022-09",95000],["2026-04",63000]],mTr)),
+    fdi:S("FDI net inflows % GDP","%","years",interp(
+      [["1996",0.05],["2008",0.5],["2016",0.8],["2020",1.2],["2024",0.4]],
+      yearsBetween(1996,2024))),
   }};
 }
 
@@ -412,9 +383,8 @@ function chartPanel(key, containerId, title, expl, series, kind, fmtY, fmtTip, s
 function render(data){
   const s=data.series;
   if(data.sample) document.getElementById("sampleBadge").classList.add("show");
+  const gdpAnnual = s.gdp_level || null;   /* Japanese GDP is already at annual rates */
   const gdpYoY = s.gdp_real ? yoyGDP(s.gdp_real) : null;
-  const ti = (s.exports&&s.imports&&s.gdp_level)
-    ? tradeIntensity(s.exports,s.imports,s.gdp_level) : null;
 
   if(data.new_points && Object.keys(data.new_points).length && data.updated){
     const ageDays=(Date.now()-new Date(data.updated).getTime())/86400000;
@@ -427,144 +397,118 @@ function render(data){
   }
 
   const pct=v=>v.toFixed(1)+"%", pp=v=>v.toFixed(1)+"pp";
-  const tn=v=>"$"+(v/1000).toFixed(2)+"tn";
-  const bnD=v=>(v<0?"−$":"$")+Math.abs(v/1000).toFixed(1)+"bn";
-  const bnD0=v=>(v<0?"−$":"$")+Math.abs(v/1000).toFixed(0)+"bn";
+  const etn=v=>"\u00a5"+(v/1000).toFixed(0)+"tn";
+  const bnD=v=>(v<0?"\u2212$":"$")+Math.abs(v/1000).toFixed(1)+"bn";
+  const bnD0=v=>(v<0?"\u2212$":"$")+Math.abs(v/1000).toFixed(0)+"bn";
   const idx=v=>v.toFixed(1);
 
-  /* charts first, so tiles know their targets */
   if(s.business_confidence) chartPanel("business_confidence","charts-headline","Business confidence",
-    "How optimistic firms are about the months ahead. 100 is the long-run average — above it, firms expect better times.",
-    s.business_confidence,"line",idx,v=>idx(v)+" (avg = 100)","OECD · BCICP, amplitude-adjusted, long-term average = 100");
+    "How optimistic firms are about the months ahead. 100 is the long-run average \u2014 above it, firms expect better times.",
+    s.business_confidence,"line",idx,v=>idx(v)+" (avg = 100)","OECD \u00b7 BCICP, amplitude-adjusted, long-term average = 100");
   if(s.fdi) chartPanel("fdi","charts-headline","Foreign direct investment",
-    "Money invested into US businesses from abroad each year, as a share of GDP.",
-    s.fdi,"line",v=>v+"%",pct,"World Bank · FDI net inflows, % of GDP, annual (IMF balance-of-payments data)");
+    "Money invested into Japanese businesses from abroad each year, as a share of GDP.",
+    s.fdi,"line",v=>v+"%",pct,"World Bank \u00b7 FDI net inflows, % of GDP, annual, euro-area aggregate");
 
-  if(s.gdp_level) chartPanel("gdp_level","charts-gdp","GDP",
-    "The total value of everything the US economy produces in a year, at current prices.",
-    s.gdp_level,"line",v=>"$"+(v/1000).toFixed(0)+"tn",tn,
-    "FRED series GDP · nominal, seasonally adjusted annual rate (BEA)",1990);
-  if(s.gdp_growth) chartPanel("gdp_growth","charts-gdp","Real GDP growth, quarter on quarter (annualised)",
-    "How fast the economy grew each quarter, expressed as a yearly pace — the standard US convention.",
-    s.gdp_growth,"bar",v=>v+"%",pct,"FRED series A191RL1Q225SBEA · chained 2017 dollars (BEA)",1998);
+  if(gdpAnnual) chartPanel("gdp_level","charts-gdp","GDP",
+    "The total value of everything Japan produces in a year, at current prices.",
+    gdpAnnual,"line",v=>"\u00a5"+(v/1000).toFixed(0)+"tn",etn,
+    "FRED series JPNNGDP \u00b7 nominal, seasonally adjusted annual rate (Cabinet Office of Japan)",1994);
+  if(s.gdp_growth) chartPanel("gdp_growth","charts-gdp","Real GDP growth, quarter on quarter",
+    "How much the economy grew or shrank compared with the previous three months.",
+    s.gdp_growth,"bar",v=>v+"%",pct,"Calculated from FRED series JPNRGDPEXP (Cabinet Office of Japan)",1998);
   if(gdpYoY) chartPanel(null,"charts-gdp","Real GDP growth, year on year",
     "How much bigger or smaller the economy is than a year ago, adjusted for inflation.",
-    gdpYoY,"line",v=>v+"%",pct,"Calculated from FRED series GDPC1 (BEA)",1998);
-  if(s.productivity) chartPanel("productivity","charts-gdp","Productivity",
-    "How much the US produces for each hour worked. Higher means the economy works more efficiently.",
-    s.productivity,"line",v=>v,idx,"FRED series OPHNFB · nonfarm business output per hour, index (BLS)");
+    gdpYoY,"line",v=>v+"%",pct,"Calculated from FRED series JPNRGDPEXP (Cabinet Office of Japan)",1998);
 
-  if(s.cpi) chartPanel("cpi","charts-inflation","CPI inflation, annual rate",
-    "How much consumer prices are rising compared with a year ago. The Fed targets 2% inflation.",
-    s.cpi,"line",v=>v+"%",pct,"Calculated from FRED series CPIAUCSL · all items, SA (BLS)");
-  if(s.core_cpi) chartPanel("core_cpi","charts-inflation","Core CPI, annual rate",
-    "Inflation excluding volatile food and energy prices — a cleaner read on underlying price pressure.",
-    s.core_cpi,"line",v=>v+"%",pct,"Calculated from FRED series CPILFESL · SA (BLS)");
-  if(s.fed_funds) chartPanel("fed_funds","charts-inflation","Federal funds rate",
-    "The Federal Reserve's key interest rate — the anchor for borrowing costs across the economy.",
-    s.fed_funds,"line",v=>v+"%",v=>v.toFixed(2)+"%","FRED series FEDFUNDS · effective rate, monthly average");
+  if(s.cpi) chartPanel("cpi","charts-inflation","HICP inflation, annual rate",
+    "How much consumer prices are rising compared with a year ago. The Bank of Japan targets 2%.",
+    s.cpi,"line",v=>v+"%",pct,"Calculated from FRED series JPNCPIALLMINMEI \u00b7 all items (OECD)");
+  if(s.boj_rate) chartPanel("boj_rate","charts-inflation","Call money rate",
+    "The overnight interbank rate \u2014 the closest market measure of the Bank of Japan's policy stance.",
+    s.boj_rate,"line",v=>v+"%",v=>v.toFixed(2)+"%","FRED series IRSTCI01JPM156N \u00b7 monthly average (OECD)");
 
   if(s.unemployment) chartPanel("unemployment","charts-labour","Unemployment rate",
     "The share of people who want a job but can't find one.",
-    s.unemployment,"line",v=>v+"%",pct,"FRED series UNRATE · seasonally adjusted (BLS)");
-  if(s.employment) chartPanel("employment","charts-labour","Employment-population ratio",
-    "The share of all people aged 16 and over who are in work.",
-    s.employment,"line",v=>v+"%",pct,"FRED series EMRATIO · seasonally adjusted (BLS)");
-  if(s.participation) chartPanel("participation","charts-labour","Labor force participation rate",
-    "The share of people either working or actively looking for work.",
-    s.participation,"line",v=>v+"%",pct,"FRED series CIVPART · seasonally adjusted (BLS)");
+    s.unemployment,"line",v=>v+"%",pct,"FRED series LRHUTTTTJPM156S \u00b7 seasonally adjusted (OECD)");
 
-  if(s.trade_balance) chartPanel("trade_balance","charts-trade","Trade balance",
-    "Exports minus imports each month. Below zero means the US buys more from abroad than it sells.",
-    s.trade_balance,"bar",bnD0,bnD,"FRED series BOPGSTB · goods and services, SA (BEA/Census)",1992);
+  if(s.trade_balance) chartPanel("trade_balance","charts-trade","Trade balance, goods",
+    "Exports minus imports of goods each month. Below zero means Japan buys more than it sells.",
+    s.trade_balance,"bar",bnD0,bnD,"Derived from OECD goods trade series (US dollars)",1999);
   if(s.current_account) chartPanel("current_account","charts-trade","Current account",
-    "The US's overall balance with the rest of the world — trade plus investment income — as a share of GDP.",
-    s.current_account,"line",v=>v+"%",pct,"World Bank · % of GDP, annual (IMF balance-of-payments data)");
-  if(s.exports) chartPanel("exports","charts-trade","Exports",
-    "The value of goods and services the US sells to the rest of the world each month.",
-    s.exports,"line",bnD0,bnD,"FRED series BOPTEXP · goods and services, SA (BEA/Census)");
-  if(s.imports) chartPanel("imports","charts-trade","Imports",
-    "The value of goods and services the US buys from the rest of the world each month.",
-    s.imports,"line",bnD0,bnD,"FRED series BOPTIMP · goods and services, SA (BEA/Census)");
-  if(ti) chartPanel(null,"charts-trade","Trade intensity",
-    "Total trade (exports plus imports) as a share of GDP — a measure of how open the economy is.",
-    ti,"line",v=>v+"%",pct,"Calculated from FRED series BOPTEXP, BOPTIMP and GDP · complete calendar years");
+    "Japan's overall balance with the rest of the world \u2014 trade plus investment income \u2014 as a share of GDP.",
+    s.current_account,"line",v=>v+"%",pct,"World Bank \u00b7 % of GDP, annual");
+  if(s.exports) chartPanel("exports","charts-trade","Exports, goods",
+    "The value of goods Japan sells to the rest of the world each month, in US dollars.",
+    s.exports,"line",bnD0,bnD,"FRED series XTEXVA01JPM667S \u00b7 goods, SA (OECD)");
+  if(s.imports) chartPanel("imports","charts-trade","Imports, goods",
+    "The value of goods Japan buys from the rest of the world each month, in US dollars.",
+    s.imports,"line",bnD0,bnD,"FRED series XTIMVA01JPM667S \u00b7 goods, SA (OECD)");
 
-  if(s.debt_gdp) chartPanel("debt_gdp","charts-public","Federal debt, % of GDP",
-    "Total federal government debt, compared with the size of the economy.",
-    s.debt_gdp,"line",v=>v+"%",pct,"FRED series GFDEGDQ188S · total public debt (Treasury/OMB)");
-  if(s.deficit) chartPanel("deficit","charts-public","Federal surplus or deficit",
-    "The monthly gap between federal spending and tax receipts. Negative means a deficit; tax-season months often show surpluses.",
-    s.deficit,"bar",bnD0,bnD,"FRED series MTSDS133FMS · Monthly Treasury Statement",2005);
+  if(s.debt_gdp) chartPanel("debt_gdp","charts-public","Government gross debt, % of GDP",
+    "Everything the Japanese government owes, compared with the size of the economy \u2014 the highest ratio of any major economy.",
+    s.debt_gdp,"line",v=>v+"%",pct,"FRED series GGGDTAJPA188N \u00b7 general government, annual (IMF)");
+  if(s.deficit) chartPanel("deficit","charts-public","Government deficit, % of GDP",
+    "The yearly gap between government spending and revenue. Negative means a deficit.",
+    s.deficit,"bar",v=>v+"%",pct,"FRED series GGNLBAJPA188N \u00b7 net lending/borrowing, annual (IMF)");
 
-  /* tiles */
   const hero=document.getElementById("hero");
-  if(s.gdp_level) statTile(hero,"gdp_level","GDP (annual rate)",s.gdp_level,
-    {fmt:tn,fmtD:v=>"$"+v.toFixed(0)+"bn",upIsGood:true,source:"FRED · GDP (BEA), nominal SAAR"});
-  if(s.gdp_growth) statTile(hero,"gdp_growth","GDP growth (QoQ, ann.)",s.gdp_growth,
-    {fmt:pct,fmtD:pp,upIsGood:true,source:"FRED · A191RL1Q225SBEA (BEA)"});
+  if(gdpAnnual) statTile(hero,"gdp_level","GDP (annual rate)",gdpAnnual,
+    {fmt:etn,fmtD:v=>"\u00a5"+(v/1000).toFixed(1)+"tn",upIsGood:true,source:"FRED \u00b7 JPNNGDP (Cabinet Office), SAAR"});
+  if(s.gdp_growth) statTile(hero,"gdp_growth","GDP growth (QoQ)",s.gdp_growth,
+    {fmt:pct,fmtD:pp,upIsGood:true,source:"Calculated \u00b7 Cabinet Office via FRED"});
   if(s.cpi) statTile(hero,"cpi","CPI inflation",s.cpi,
-    {fmt:pct,fmtD:pp,upIsGood:false,source:"FRED · CPIAUCSL (BLS), YoY"});
+    {fmt:pct,fmtD:pp,upIsGood:false,source:"FRED \u00b7 JPNCPIALLMINMEI, YoY"});
   if(s.unemployment) statTile(hero,"unemployment","Unemployment",s.unemployment,
-    {fmt:pct,fmtD:pp,upIsGood:false,source:"FRED · UNRATE (BLS)"});
+    {fmt:pct,fmtD:pp,upIsGood:false,source:"FRED \u00b7 LRHUTTTTJPM156S (OECD)"});
   if(s.current_account) statTile(hero,"current_account","Current account",s.current_account,
-    {fmt:pct,fmtD:pp,upIsGood:true,source:"World Bank · % of GDP, annual"});
-  if(s.deficit) statTile(hero,"deficit","Federal deficit (monthly)",s.deficit,
-    {fmt:bnD,fmtD:bnD,upIsGood:true,source:"FRED · MTSDS133FMS (Treasury)"});
-  if(s.debt_gdp) statTile(hero,"debt_gdp","Federal debt (% of GDP)",s.debt_gdp,
-    {fmt:pct,fmtD:pp,upIsGood:false,source:"FRED · GFDEGDQ188S, % of GDP"});
+    {fmt:pct,fmtD:pp,upIsGood:true,source:"World Bank \u00b7 % of GDP, annual"});
+  if(s.deficit) statTile(hero,"deficit","Gov. deficit (annual)",s.deficit,
+    {fmt:pct,fmtD:pp,upIsGood:true,source:"FRED \u00b7 GGNLBAJPA188N (IMF), % of GDP"});
+  if(s.debt_gdp) statTile(hero,"debt_gdp","Gov. debt (% of GDP)",s.debt_gdp,
+    {fmt:pct,fmtD:pp,upIsGood:false,source:"FRED \u00b7 GGGDTAJPA188N (IMF)"});
   if(s.business_confidence) statTile(hero,"business_confidence","Business confidence",s.business_confidence,
-    {fmt:idx,fmtD:v=>v.toFixed(1)+"pt",upIsGood:true,source:"OECD · BCICP, long-term avg = 100"});
+    {fmt:idx,fmtD:v=>v.toFixed(1)+"pt",upIsGood:true,source:"OECD \u00b7 BCICP, long-term avg = 100"});
   if(s.fdi) statTile(hero,"fdi","FDI (net inflows)",s.fdi,
-    {fmt:pct,fmtD:pp,upIsGood:true,source:"World Bank · % of GDP, annual"});
+    {fmt:pct,fmtD:pp,upIsGood:true,source:"World Bank \u00b7 % of GDP, annual"});
   if(s.trade_balance) statTile(hero,"trade_balance","Trade balance",s.trade_balance,
-    {fmt:bnD,fmtD:bnD,upIsGood:true,source:"FRED · BOPGSTB (BEA/Census), SA"});
+    {fmt:bnD,fmtD:bnD,upIsGood:true,source:"Derived \u00b7 OECD goods trade, $"});
 
   const tg=document.getElementById("tiles-gdp");
-  if(s.gdp_level) statTile(tg,"gdp_level","GDP (annual rate)",s.gdp_level,
-    {fmt:tn,fmtD:v=>"$"+v.toFixed(0)+"bn",upIsGood:true,source:"FRED · GDP"});
-  if(s.gdp_growth) statTile(tg,"gdp_growth","Growth (QoQ, ann.)",s.gdp_growth,
-    {fmt:pct,fmtD:pp,upIsGood:true,source:"FRED · A191RL1Q225SBEA"});
+  if(gdpAnnual) statTile(tg,"gdp_level","GDP (annual rate)",gdpAnnual,
+    {fmt:etn,fmtD:v=>"\u00a5"+(v/1000).toFixed(1)+"tn",upIsGood:true,source:"FRED \u00b7 JPNNGDP"});
+  if(s.gdp_growth) statTile(tg,"gdp_growth","Growth (QoQ)",s.gdp_growth,
+    {fmt:pct,fmtD:pp,upIsGood:true,source:"Calculated \u00b7 Cabinet Office"});
   if(gdpYoY) statTile(tg,null,"Growth (YoY)",gdpYoY,
-    {fmt:pct,fmtD:pp,upIsGood:true,source:"Calculated · GDPC1"});
+    {fmt:pct,fmtD:pp,upIsGood:true,source:"Calculated \u00b7 Cabinet Office"});
 
   const tinf=document.getElementById("tiles-inflation");
   if(s.cpi) statTile(tinf,"cpi","CPI (YoY)",s.cpi,
-    {fmt:pct,fmtD:pp,upIsGood:false,source:"FRED · CPIAUCSL"});
+    {fmt:pct,fmtD:pp,upIsGood:false,source:"FRED \u00b7 OECD"});
   if(s.cpi_mom) statTile(tinf,null,"CPI (MoM)",s.cpi_mom,
-    {fmt:pct,fmtD:pp,upIsGood:false,source:"FRED · CPIAUCSL"});
-  if(s.fed_funds) statTile(tinf,"fed_funds","Fed funds rate",s.fed_funds,
-    {fmt:v=>v.toFixed(2)+"%",fmtD:v=>v.toFixed(2)+"pp",upIsGood:false,source:"FRED · FEDFUNDS"});
+    {fmt:pct,fmtD:pp,upIsGood:false,source:"FRED \u00b7 OECD"});
+  if(s.boj_rate) statTile(tinf,"boj_rate","Call money rate",s.boj_rate,
+    {fmt:v=>v.toFixed(2)+"%",fmtD:v=>v.toFixed(2)+"pp",upIsGood:false,source:"FRED \u00b7 IRSTCI01JPM156N"});
 
   const tl=document.getElementById("tiles-labour");
   if(s.unemployment) statTile(tl,"unemployment","Unemployment",s.unemployment,
-    {fmt:pct,fmtD:pp,upIsGood:false,source:"FRED · UNRATE"});
-  if(s.employment) statTile(tl,"employment","Employment-pop.",s.employment,
-    {fmt:pct,fmtD:pp,upIsGood:true,source:"FRED · EMRATIO"});
-  if(s.participation) statTile(tl,"participation","Participation",s.participation,
-    {fmt:pct,fmtD:pp,upIsGood:true,source:"FRED · CIVPART"});
+    {fmt:pct,fmtD:pp,upIsGood:false,source:"FRED \u00b7 LRHUTTTTJPM156S"});
 
   const tt=document.getElementById("tiles-trade");
   if(s.trade_balance) statTile(tt,"trade_balance","Trade balance",s.trade_balance,
-    {fmt:bnD,fmtD:bnD,upIsGood:true,source:"FRED · BOPGSTB"});
+    {fmt:bnD,fmtD:bnD,upIsGood:true,source:"Derived \u00b7 OECD, $"});
   if(s.exports) statTile(tt,"exports","Exports",s.exports,
-    {fmt:bnD,fmtD:bnD,upIsGood:true,source:"FRED · BOPTEXP"});
+    {fmt:bnD,fmtD:bnD,upIsGood:true,source:"FRED \u00b7 XTEXVA01JPM667S"});
   if(s.imports) statTile(tt,"imports","Imports",s.imports,
-    {fmt:bnD,fmtD:bnD,upIsGood:false,source:"FRED · BOPTIMP"});
-  if(ti) statTile(tt,null,"Trade intensity",ti,
-    {fmt:pct,fmtD:pp,upIsGood:true,source:"Calculated · BOPTEXP, BOPTIMP, GDP"});
+    {fmt:bnD,fmtD:bnD,upIsGood:false,source:"FRED \u00b7 XTIMVA01JPM667S"});
 
   const tp=document.getElementById("tiles-public");
-  if(s.debt_gdp) statTile(tp,"debt_gdp","Federal debt (% of GDP)",s.debt_gdp,
-    {fmt:pct,fmtD:pp,upIsGood:false,source:"FRED · GFDEGDQ188S, % of GDP"});
-  if(s.net_debt) statTile(tp,"net_debt","Federal debt ($)",s.net_debt,
-    {fmt:v=>"$"+(v/1e6).toFixed(1)+"tn",fmtD:v=>"$"+(Math.abs(v)/1000).toFixed(0)+"bn",
-     upIsGood:false,source:"FRED · GFDEBTN (Treasury)"});
-  if(s.deficit) statTile(tp,"deficit","Surplus/deficit (monthly)",s.deficit,
-    {fmt:bnD,fmtD:bnD,upIsGood:true,source:"FRED · MTSDS133FMS"});
+  if(s.debt_gdp) statTile(tp,"debt_gdp","Gov. debt (% of GDP)",s.debt_gdp,
+    {fmt:pct,fmtD:pp,upIsGood:false,source:"FRED \u00b7 GGGDTAJPA188N"});
+  if(s.deficit) statTile(tp,"deficit","Deficit (% of GDP)",s.deficit,
+    {fmt:pct,fmtD:pp,upIsGood:true,source:"FRED \u00b7 GGNLBAJPA188N"});
 }
 
-fetch("data-us.json",{cache:"no-store"})
+fetch("data-jp.json",{cache:"no-store"})
   .then(r=>{ if(!r.ok) throw new Error(r.status); return r.json(); })
   .then(render)
   .catch(()=>{ render(sampleData()); });
