@@ -197,12 +197,33 @@ def main() -> int:
         print("\nNothing fetched.")
         return 1
 
-    out["new_points"] = {
-        k: v["points"][-1][0] for k, v in out["series"].items()
-        if k in previous and previous[k] != v["points"][-1][0]
-    }
+    try:
+        with open("data-us.json") as f:
+            prev_meta = json.load(f).get("new_points_meta", {})
+    except Exception:
+        prev_meta = {}
+    now_iso = out["updated"]
+    new_meta = {}
+    for k, v in out["series"].items():
+        period = v["points"][-1][0]
+        prior = prev_meta.get(k)
+        if prior and prior.get("period") == period:
+            new_meta[k] = {"period": period, "first_seen": prior["first_seen"]}
+        else:
+            new_meta[k] = {"period": period, "first_seen": now_iso}
+    out["new_points_meta"] = new_meta
+
+    def _age_days(iso):
+        try:
+            t = datetime.fromisoformat(iso.replace("Z", "+00:00"))
+            return (datetime.now(timezone.utc) - t).total_seconds() / 86400
+        except Exception:
+            return 999
+
+    out["new_points"] = {k: m["period"] for k, m in new_meta.items()
+                          if _age_days(m["first_seen"]) < 2}
     if out["new_points"]:
-        print("New data points: " + ", ".join(
+        print("Fresh (< 2 days old): " + ", ".join(
             f"{k} ({p})" for k, p in out["new_points"].items()))
 
     with open("data-us.json", "w") as f:

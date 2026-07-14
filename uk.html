@@ -54,6 +54,13 @@ nav.cat button.active{background:var(--blue); border-color:var(--blue); color:#f
 .newdata[hidden]{display:none;}
 .newdata .pulse{width:9px; height:9px; border-radius:50%; background:#2FA463;
   box-shadow:0 0 0 3px rgba(47,164,99,.2); flex:none;}
+.newdata #newdataText{display:flex; align-items:center; gap:6px; flex-wrap:wrap;}
+.newdata-link{font:inherit; font-weight:600; color:#1E6B48; background:#fff;
+  border:1px solid #9FCFAF; border-radius:6px; padding:2px 9px; cursor:pointer;
+  transition:background .15s, border-color .15s;}
+.newdata-link:hover, .newdata-link:focus-visible{background:#D5EEDD; border-color:#2FA463;
+  outline:none;}
+.newdata-sep{color:#5B9C79; font-weight:400;}
 .lightskey.compact{margin:6px 0 26px;}
 .hero .stat, .hero.mini .stat{padding:16px 18px; flex:1 1 195px;
   max-width:255px; min-width:180px; min-height:0;}
@@ -255,7 +262,7 @@ function sampleData(){
   const cpiMoM=mCpi.map((p,i)=>[p,+(0.25+0.3*Math.sin(i*2.3)).toFixed(1)]);
   const S=(label,unit,freq,points)=>({label,unit,freq,points});
   return { updated:new Date().toISOString(), sample:true,
-    new_points:{cpi:"2026-05", trade_balance:"2026-05"},
+    new_points_meta:{cpi:{period:"2026-05",first_seen:new Date(Date.now()-36*3600000).toISOString()},trade_balance:{period:"2026-05",first_seen:new Date(Date.now()-36*3600000).toISOString()}},
     series:{
     gdp_level:S("GDP (ABMI)","£m","quarters",interp(
       [["1990-Q1",330000],["1992-Q1",325000],["2000-Q1",410000],["2008-Q1",505000],
@@ -408,6 +415,41 @@ function chartPanel(key, containerId, title, expl, series, kind, fmtY, fmtTip, s
   (kind==="bar"?barChart:lineChart)(document.getElementById(id), pts, fmtY, fmtTip);
 }
 
+const COUNTRY_LABEL="UK";
+
+function renderNewDataBanner(meta){
+  if(!meta) return;
+  const now=Date.now();
+  const fresh=Object.entries(meta)
+    .filter(([k,m])=>ANCHORS[k] && (now-new Date(m.first_seen).getTime())/86400000<2)
+    .sort(([,a],[,b])=>new Date(b.first_seen)-new Date(a.first_seen));
+  if(!fresh.length) return;
+  const textEl=document.getElementById("newdataText");
+  textEl.innerHTML="";
+  const prefix=document.createElement("span");
+  prefix.textContent="Latest:";
+  textEl.appendChild(prefix);
+  fresh.forEach(([k,m],i)=>{
+    if(i>0){
+      const sep=document.createElement("span");
+      sep.className="newdata-sep"; sep.textContent="·";
+      textEl.appendChild(sep);
+    }
+    const dt=new Date(m.first_seen);
+    const dd=String(dt.getUTCDate()).padStart(2,"0");
+    const mo=String(dt.getUTCMonth()+1).padStart(2,"0");
+    const btn=document.createElement("button");
+    btn.type="button"; btn.className="newdata-link";
+    btn.textContent=`${COUNTRY_LABEL} ${NAMES[k]||k} ${dd}/${mo} Update`;
+    btn.addEventListener("click",()=>{
+      const a=ANCHORS[k]; showSec(a.sec);
+      setTimeout(()=>a.panelEl.scrollIntoView({behavior:"smooth",block:"start"}),60);
+    });
+    textEl.appendChild(btn);
+  });
+  document.getElementById("newdata").hidden=false;
+}
+
 function render(data){
   const s=data.series;
   if(data.sample) document.getElementById("sampleBadge").classList.add("show");
@@ -415,17 +457,6 @@ function render(data){
   const gdpYoY = s.gdp_level ? yoyGDP(s.gdp_level) : null;
   const ti = (s.exports&&s.imports&&s.gdp_level)
     ? tradeIntensity(s.exports,s.imports,s.gdp_level) : null;
-
-  /* --------------------------- new data banner ------------------------- */
-  if(data.new_points && Object.keys(data.new_points).length && data.updated){
-    const ageDays=(Date.now()-new Date(data.updated).getTime())/86400000;
-    if(ageDays<2){
-      document.getElementById("newdataText").textContent="New data: "+
-        Object.entries(data.new_points)
-          .map(([k,p])=>(NAMES[k]||k)+" ("+fmtPeriod(p)+")").join(" · ");
-      document.getElementById("newdata").hidden=false;
-    }
-  }
 
   /* ---------------------------- formatters ----------------------------- */
   const pct=v=>v.toFixed(1)+"%", pp=v=>v.toFixed(1)+"pp";
@@ -566,6 +597,7 @@ function render(data){
      upIsGood:false,source:"ONS · HF6W, £bn"});
   if(s.deficit) statTile(tp,"deficit","Borrowing",s.deficit,
     {fmt:bn,fmtD:bn,upIsGood:false,source:"ONS · DZLS"});
+  renderNewDataBanner(data.new_points_meta);
 }
 
 fetch("data.json",{cache:"no-store"})
