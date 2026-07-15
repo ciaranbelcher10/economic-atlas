@@ -441,11 +441,11 @@ function renderLastUpdated(updatedIso){
 function render(data){
   const s=data.series;
   if(data.sample) document.getElementById("sampleBadge").classList.add("show");
-  const gdpAnnual = s.gdp_level || null;   /* GDP level is already at annual rates for this build */
+  const gdpAnnual = s.gdp_level ? annualGDP(s.gdp_level) : null;   /* FIX (7.6.3): this series is the literal quarterly level (IMF IFS), NOT a seasonally-adjusted-annual-rate like UK/US -- must roll up 4 quarters, was previously used raw and inflated headline GDP ~4x */
   const gdpYoY = s.gdp_real ? yoyGDP(s.gdp_real) : null;
 
   const pct=v=>v.toFixed(1)+"%", pp=v=>v.toFixed(1)+"pp";
-  const etn=v=>"$"+(v/1000).toFixed(2)+"tn";
+  const etn=v=>"C$"+(v/1e6).toFixed(2)+"tn";
   const bnD=v=>(v<0?"\u2212$":"$")+Math.abs(v/1000).toFixed(1)+"bn";
   const bnD0=v=>(v<0?"\u2212$":"$")+Math.abs(v/1000).toFixed(0)+"bn";
   const idx=v=>v.toFixed(1);
@@ -498,7 +498,7 @@ function render(data){
 
   const hero=document.getElementById("hero");
   if(gdpAnnual) statTile(hero,"gdp_level","GDP (annual)",gdpAnnual,
-    {fmt:etn,fmtD:v=>"$"+(v/1000).toFixed(1)+"tn",upIsGood:true,source:SRC_GDP});
+    {fmt:etn,fmtD:v=>"C$"+(v/1e6).toFixed(1)+"tn",upIsGood:true,source:SRC_GDP});
   if(s.gdp_growth) statTile(hero,"gdp_growth","GDP growth (QoQ, ann.)",s.gdp_growth,
     {fmt:pct,fmtD:pp,upIsGood:true,source:SRC_GDP});
   if(s.overnight_rate) statTile(hero,"overnight_rate","Overnight rate",s.overnight_rate,
@@ -520,7 +520,7 @@ function render(data){
 
   const tg=document.getElementById("tiles-gdp");
   if(gdpAnnual) statTile(tg,"gdp_level","GDP (annual)",gdpAnnual,
-    {fmt:etn,fmtD:v=>"$"+(v/1000).toFixed(1)+"tn",upIsGood:true,source:SRC_GDP});
+    {fmt:etn,fmtD:v=>"C$"+(v/1e6).toFixed(1)+"tn",upIsGood:true,source:SRC_GDP});
   if(s.gdp_growth) statTile(tg,"gdp_growth","Growth (QoQ, ann.)",s.gdp_growth,
     {fmt:pct,fmtD:pp,upIsGood:true,source:SRC_GDP});
   if(gdpYoY) statTile(tg,null,"Growth (YoY)",gdpYoY,

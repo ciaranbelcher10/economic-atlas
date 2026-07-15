@@ -22,12 +22,39 @@ VERIFICATION NOTES (checked against each series' own FRED page before wiring in)
   10-year government bond yield (INDIRLTLT01STM) instead, honestly labelled
   as a bond yield rather than mislabelled as the policy rate. Confirmed live
   through May 2026.
-- exports (XTEXVA01INM667S) / imports (XTIMVA01INM664S): OECD merchandise
-  trade via FRED, confirmed live (exports to Mar 2026, imports to Dec 2025).
-  Same "plain US dollars, not millions" unit bug as Japan/Eurozone's "667S"
-  trade family -- confirmed via the sibling trade-balance series showing a
-  raw value of -19,520,830,000.00000 for a single month -- so scale=1e-6 is
-  applied here too, from day one, rather than discovered later as a bug.
+- exports (XTEXVA01INM667S): OECD merchandise trade via FRED, confirmed
+  live (to Mar/Apr 2026), genuinely in US dollars (UNIT_MEASURE: USD_EXC
+  on FRED's own OECD data filter for this series).
+- FIXED IN 7.6.3 -- real bug found via a user screenshot showing an
+  impossible trade balance: the imports series originally used here
+  (XTIMVA01INM664S) is NOT dollar-denominated -- its OECD data filter
+  shows UNIT_MEASURE: XDC (domestic currency, i.e. rupees), unlike the
+  matching exports series which is genuinely USD_EXC (US dollars). Every
+  previous "verified" check confirmed each series was individually live,
+  but never cross-checked that exports and imports shared the same
+  currency before subtracting one from the other -- exports (USD) minus
+  imports (rupees, scaled as if millions-of-dollars) produced a nonsense
+  trade balance. Rather than hunt for another cryptic imports series ID
+  and risk repeating the mistake, trade_balance now comes directly from
+  XTNTVA01INM667S -- a single, self-contained, confirmed dollar-
+  denominated (USD_EXC) trade balance series -- the exact series used to
+  originally diagnose the "667S family reports plain USD" scale bug.
+  Imports on their own are no longer shown (same call already made for
+  Canada and Australia, where no live dollar-denominated imports
+  component could be found either) -- known gap, honestly labelled on
+  the page rather than silently dropped.
+- gdp_level/gdp_real scale, also FIXED IN 7.6.3: these IMF IFS series are
+  the literal quarterly level, NOT a seasonally-adjusted-annual-rate like
+  the UK/US series -- displaying the raw quarterly figure as "annual GDP"
+  understated nothing but was labelled wrong; worse, the display code
+  divided by 1,000 assuming the value was already in $bn (matching the
+  original four countries' convention) when it's actually in millions of
+  RUPEES, inflating the headline figure by roughly 1000x and mislabelling
+  the currency as $ throughout. Fixed by rolling up 4 quarters (the
+  existing annualGDP() helper, already used by the UK page) and dividing
+  by 1e6 for millions-to-trillions, with the currency symbol corrected to
+  actually match the source data (Rs/C$/A$, not $, since no FX conversion
+  is performed).
 - debt_gdp (GGGDTAINA188N) / deficit (GGNLBAINA188N): IMF WEO annual, both
   confirmed live through 2023 -- the same ~2-year lag as Japan's equivalent
   series, which is normal for annual WEO figures, not a stale mirror.
@@ -76,7 +103,7 @@ FRED_SERIES = {
     "debt_gdp": ("GGGDTAINA188N", "a", "General government gross debt, % of GDP", "%", None, 1.0),
     "deficit": ("GGNLBAINA188N", "a", "General government net lending/borrowing, % of GDP", "%", None, 1.0),
     "exports": ("XTEXVA01INM667S", "m", "Exports of goods, $", "$m", None, 1e-6),
-    "imports": ("XTIMVA01INM664S", "m", "Imports of goods, $", "$m", None, 1e-6),
+    "trade_balance": ("XTNTVA01INM667S", "m", "Trade balance, goods, $", "$m", None, 1e-6),
 }
 
 FRED_URL = ("https://api.stlouisfed.org/fred/series/observations"
@@ -168,13 +195,26 @@ def fetch_oecd_bci() -> list | None:
 # MOSPI_PASSWORD secrets, rather than storing a static token. Sign-up (a
 # one-time step only you can do) is documented in README "Setting up the
 # MoSPI API key".
+#
+# CONFIRMED on a real run (2026-07-15): api.mospi.gov.in presents a
+# self-signed certificate, which Python rejects by default
+# (CERTIFICATE_VERIFY_FAILED). This isn't a mistake on our end -- MoSPI's
+# OWN official reference client (github.com/nso-india/esankhyiki-mcp,
+# mospi/client.py) explicitly disables certificate verification for calls
+# to this exact host, so verify=False here matches the platform owner's
+# own documented workaround for their infrastructure, not a shortcut we
+# invented. Scoped only to these two MoSPI calls -- every other fetch in
+# this file (FRED, OECD, World Bank) still verifies certificates normally.
 MOSPI_LOGIN_URL = "https://api.mospi.gov.in/api/users/login"
 MOSPI_DATA_URL = "https://api.mospi.gov.in/api/plfs/getData"
 
 
 def mospi_login(username: str, password: str) -> str | None:
+    import urllib3
+    urllib3.disable_warnings(urllib3.exceptions.InsecureRequestWarning)
     r = requests.post(MOSPI_LOGIN_URL, json={"username": username, "password": password},
-                      timeout=30, headers={"User-Agent": "economic-atlas/0.1"})
+                      timeout=30, headers={"User-Agent": "economic-atlas/0.1"},
+                      verify=False)
     r.raise_for_status()
     payload = r.json()
     # VERIFIED against a real login call (2026-07-15): the "response" field is
@@ -191,6 +231,8 @@ def mospi_login(username: str, password: str) -> str | None:
 
 
 def fetch_plfs_unemployment(token: str) -> list | None:
+    import urllib3
+    urllib3.disable_warnings(urllib3.exceptions.InsecureRequestWarning)
     params = {
         "indicator_code": "3",     # UR = Unemployment Rate
         "frequency_code": "3",     # Monthly (data from 2025 onwards)
@@ -203,7 +245,8 @@ def fetch_plfs_unemployment(token: str) -> list | None:
     }
     r = requests.get(MOSPI_DATA_URL, params=params, timeout=60,
                      headers={"User-Agent": "economic-atlas/0.1",
-                              "authorization": token})
+                              "authorization": token},
+                     verify=False)
     r.raise_for_status()
     payload = r.json()
     records = payload.get("data") or payload.get("records") or payload
@@ -324,16 +367,6 @@ def main() -> int:
     if not out["series"]:
         print("\nNothing fetched.")
         return 1
-
-    if "exports" in out["series"] and "imports" in out["series"]:
-        imp = dict(out["series"]["imports"]["points"])
-        tb = [[p, round(x - imp[p], 1)]
-              for p, x in out["series"]["exports"]["points"] if p in imp]
-        if tb:
-            out["series"]["trade_balance"] = {
-                "label": "Trade balance, goods (exports minus imports)", "unit": "$m",
-                "freq": "months", "points": tb}
-            print(f"  ok  {'trade_balance':<16} {len(tb):>5} observations (derived)")
 
     try:
         with open("data-in.json") as f:
