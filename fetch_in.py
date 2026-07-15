@@ -286,6 +286,22 @@ def fetch_plfs_unemployment(token: str) -> list | None:
                 return lower[name.lower()]
         return None
 
+    # CONFIRMED via a real run's log (7.6.6): the "month" field comes back as
+    # a full month name ("December"), not a numeric code as the request
+    # parameter of the same name suggested -- int("December") raised
+    # ValueError, silently caught below, which is why every row was skipped.
+    MONTH_NAMES = {"january": 1, "february": 2, "march": 3, "april": 4, "may": 5,
+                   "june": 6, "july": 7, "august": 8, "september": 9,
+                   "october": 10, "november": 11, "december": 12}
+
+    def _month_num(raw):
+        if raw is None:
+            return None
+        s = str(raw).strip()
+        if s.isdigit():
+            return int(s)
+        return MONTH_NAMES.get(s.lower())
+
     points = {}
     skipped = 0
     for row in records:
@@ -294,12 +310,12 @@ def fetch_plfs_unemployment(token: str) -> list | None:
             continue
         try:
             year = _get_ci(row, "year")
-            month = _get_ci(row, "month_code", "month")
+            month = _month_num(_get_ci(row, "month_code", "month"))
             value = _get_ci(row, "value", "ur", "indicator_value", "data_value")
             if year is None or month is None or value is None:
                 skipped += 1
                 continue
-            period = f"{int(year)}-{int(month):02d}"
+            period = f"{int(year)}-{month:02d}"
             points[period] = float(value)
         except (TypeError, ValueError):
             skipped += 1
