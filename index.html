@@ -11,6 +11,19 @@
 <link rel="icon" type="image/png" sizes="32x32" href="favicon-32.png">
 <link rel="apple-touch-icon" href="apple-touch-icon.png">
 <link rel="stylesheet" href="style.css?v=4">
+<style>
+.mapwrap{background:var(--panel); border:1px solid var(--hair); border-radius:16px;
+  padding:14px; margin:22px 0 18px;}
+#map{width:100%; display:block;}
+.country{fill:#E7EAE6; stroke:#fff; stroke-width:.5;}
+.country.live{fill:var(--mako-3); cursor:pointer; transition:fill .15s;}
+.country.live:hover{fill:var(--mako-4);}
+.legend{display:flex; gap:22px; flex-wrap:wrap; font-size:13px; color:var(--ink2);
+  padding:10px 6px 2px;}
+.legend span{display:flex; align-items:center; gap:7px;}
+.swatch{width:12px; height:12px; border-radius:3px;}
+#maperr{display:none; color:var(--ink2); font-size:14px; padding:26px; text-align:center;}
+</style>
 </head>
 <body>
 <nav class="top"><div class="wrap">
@@ -35,60 +48,13 @@
   <p class="subline">Clear figures from official sources — no commentary. The United Kingdom, United States, Eurozone, Japan, India, Canada and Australia are live; more is on the way.</p>
 </header>
 
-<div class="panel" style="padding:22px 26px 18px; margin:22px 0 18px;">
-  <svg viewBox="0 0 700 340" role="img" aria-label="Map of live and upcoming Economic Atlas countries" style="width:100%; height:auto; display:block;">
-    <defs>
-      <style>
-        .ea-grat{stroke:var(--hair,#E4E6E1); stroke-width:1;}
-        .ea-live{fill:var(--navy,#1E4566); cursor:pointer;}
-        .ea-live:hover{fill:var(--blue,#4796CE);}
-        .ea-soon{fill:#fff; stroke:var(--ink2,#5A6167); stroke-width:1.3; stroke-dasharray:2.5 2;}
-        .ea-label{font:600 12px "Nunito Sans",sans-serif; fill:var(--ink,#171B1E);}
-        .ea-label-soon{font:600 11px "Nunito Sans",sans-serif; fill:var(--ink2,#5A6167);}
-        .ea-link{text-decoration:none;}
-      </style>
-    </defs>
-    <rect x="0" y="0" width="700" height="340" fill="none"/>
-    <!-- graticule: longitude every 60deg, latitude every 30deg -->
-    <g class="ea-grat" opacity="0.6">
-      <line x1="0" y1="0" x2="0" y2="340"/><line x1="116.7" y1="0" x2="116.7" y2="340"/>
-      <line x1="233.3" y1="0" x2="233.3" y2="340"/><line x1="350" y1="0" x2="350" y2="340"/>
-      <line x1="466.7" y1="0" x2="466.7" y2="340"/><line x1="583.3" y1="0" x2="583.3" y2="340"/>
-      <line x1="700" y1="0" x2="700" y2="340"/>
-      <line x1="0" y1="0" x2="700" y2="0"/><line x1="0" y1="56.7" x2="700" y2="56.7"/>
-      <line x1="0" y1="113.3" x2="700" y2="113.3"/><line x1="0" y1="170" x2="700" y2="170"/>
-      <line x1="0" y1="226.7" x2="700" y2="226.7"/><line x1="0" y1="283.3" x2="700" y2="283.3"/>
-      <line x1="0" y1="340" x2="700" y2="340"/>
-    </g>
-
-    <!-- live countries -->
-    <a class="ea-link" href="canada.html"><circle class="ea-live" cx="144" cy="66" r="6"/>
-      <text class="ea-label" x="144" y="52">Canada</text></a>
-    <a class="ea-link" href="us.html"><circle class="ea-live" cx="159" cy="99" r="6"/>
-      <text class="ea-label" x="159" y="118">U.S.</text></a>
-    <a class="ea-link" href="uk.html"><circle class="ea-live" cx="346" cy="70" r="6"/>
-      <text class="ea-label" x="316" y="58">UK</text></a>
-    <a class="ea-link" href="eurozone.html"><circle class="ea-live" cx="378" cy="82" r="6"/>
-      <text class="ea-label" x="384" y="100">Eurozone</text></a>
-    <a class="ea-link" href="india.html"><circle class="ea-live" cx="502" cy="134" r="6"/>
-      <text class="ea-label" x="508" y="152">India</text></a>
-    <a class="ea-link" href="japan.html"><circle class="ea-live" cx="618" cy="105" r="6"/>
-      <text class="ea-label" x="624" y="98">Japan</text></a>
-    <a class="ea-link" href="australia.html"><circle class="ea-live" cx="609" cy="224" r="6"/>
-      <text class="ea-label" x="615" y="242">Australia</text></a>
-
-    <!-- roadmap countries: shown, not yet live -->
-    <g>
-      <circle class="ea-soon" cx="599" cy="112" r="5.5"><title>South Korea — on the roadmap</title></circle>
-      <text class="ea-label-soon" x="565" y="126">South Korea</text>
-      <circle class="ea-soon" cx="251" cy="194" r="5.5"><title>Brazil — on the roadmap</title></circle>
-      <text class="ea-label-soon" x="257" y="212">Brazil</text>
-    </g>
-  </svg>
-  <p style="margin:14px 2px 0; font-size:12.5px; color:var(--ink2);">
-    <span style="display:inline-block;width:9px;height:9px;border-radius:50%;background:var(--navy);margin-right:6px;vertical-align:middle;"></span>Live — click to explore
-    <span style="display:inline-block;width:9px;height:9px;border-radius:50%;background:#fff;border:1.3px dashed var(--ink2);margin:0 6px 0 18px;vertical-align:middle;"></span>On the roadmap
-  </p>
+<div class="mapwrap">
+  <svg id="map" viewBox="0 0 960 500" role="img" aria-label="World map. The United Kingdom, United States, Eurozone, Japan, India, Canada and Australia are highlighted; selecting one opens its economy page."></svg>
+  <p id="maperr">The map couldn't load (it needs an internet connection) — use the buttons below instead.</p>
+  <div class="legend">
+    <span><span class="swatch" style="background:var(--mako-3)"></span>Live — click to explore</span>
+    <span><span class="swatch" style="background:#E7EAE6"></span>On the roadmap</span>
+  </div>
 </div>
 
 <div class="quick" style="display:flex;gap:10px;flex-wrap:wrap;margin:22px 0 8px;">
@@ -111,7 +77,6 @@
     <li><strong>Timeline slider</strong> <span>— drag through years on the front-page map and watch the figures update.</span></li>
     <li><strong>Labour market breakdowns</strong> <span>— unemployment and inactivity by age group and sector.</span></li>
     <li><strong>Public finances deep dive</strong> <span>— total debt stock, debt interest as a share of spending (Debt Management Office data), and where public money goes.</span></li>
-    <li><strong>Interactive world map front page</strong> <span>— click any live country to open its page.</span></li>
     <li><strong>Next countries</strong> <span>— South Korea and Brazil next, prioritising consistency and depth over sheer number of countries covered.</span></li>
     <li><strong>China page</strong> <span>— pending a reliable high-frequency data source; free Western mirrors of Chinese statistics are sparse, and stale data would break the freshness promise.</span></li>
     <li><strong>Markets</strong> <span>— FX, equity indices and gilt yields alongside the macro data.</span></li>
@@ -123,5 +88,47 @@
 
 <footer>Economic Atlas · Data from national statistical offices, used under open licences.</footer>
 </div>
+
+<script src="https://cdnjs.cloudflare.com/ajax/libs/d3/7.8.5/d3.min.js"></script>
+<script src="https://cdnjs.cloudflare.com/ajax/libs/topojson/3.0.2/topojson.min.js"></script>
+<script>
+"use strict";
+/* ISO 3166-1 numeric ids in the world-atlas file */
+const UK = new Set(["826"]);
+const US = new Set(["840"]);
+const EZ = new Set(["040","056","191","196","233","246","250","276","300","372",
+                    "380","428","440","442","470","528","620","703","705","724"]);
+const JP = new Set(["392"]);
+const IN = new Set(["356"]);
+const CA = new Set(["124"]);
+const AU = new Set(["036"]);
+const dest = id => UK.has(id) ? "uk.html" : US.has(id) ? "us.html"
+                 : EZ.has(id) ? "eurozone.html" : JP.has(id) ? "japan.html"
+                 : IN.has(id) ? "india.html" : CA.has(id) ? "canada.html"
+                 : AU.has(id) ? "australia.html" : null;
+
+fetch("https://cdn.jsdelivr.net/npm/world-atlas@2/countries-110m.json")
+  .then(r => r.json())
+  .then(world => {
+    const svg = d3.select("#map");
+    const projection = d3.geoNaturalEarth1().fitSize([960, 500],
+      {type: "Sphere"});
+    const path = d3.geoPath(projection);
+    const countries = topojson.feature(world, world.objects.countries).features
+      .filter(f => f.id !== "010"); // drop Antarctica
+    svg.selectAll("path")
+      .data(countries)
+      .join("path")
+      .attr("d", path)
+      .attr("class", f => dest(f.id) ? "country live" : "country")
+      .on("click", (_e, f) => { const d = dest(f.id); if (d) location.href = d; })
+      .append("title")
+      .text(f => dest(f.id) ? "Open economy page" : "On the roadmap");
+  })
+  .catch(() => {
+    document.getElementById("map").style.display = "none";
+    document.getElementById("maperr").style.display = "block";
+  });
+</script>
 </body>
 </html>
