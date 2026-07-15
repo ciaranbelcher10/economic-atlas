@@ -18,6 +18,8 @@
 .country{fill:#E7EAE6; stroke:#fff; stroke-width:.5;}
 .country.live{fill:var(--mako-3); cursor:pointer; transition:fill .15s;}
 .country.live:hover{fill:var(--mako-4);}
+.country.g7{fill:var(--mako-2); cursor:pointer; transition:fill .15s;}
+.country.g7:hover{fill:var(--mako-1);}
 .legend{display:flex; gap:22px; flex-wrap:wrap; font-size:13px; color:var(--ink2);
   padding:10px 6px 2px;}
 .legend span{display:flex; align-items:center; gap:7px;}
@@ -96,6 +98,7 @@
   <span class="zoomhint">Scroll or pinch to zoom</span>
   <p id="maperr">The map couldn't load (it needs an internet connection) — use the buttons below instead.</p>
   <div class="legend">
+    <span><span class="swatch" style="background:var(--mako-2)"></span>G7 economy — live</span>
     <span><span class="swatch" style="background:var(--mako-3)"></span>Live — click to explore</span>
     <span><span class="swatch" style="background:#E7EAE6"></span>On the roadmap</span>
   </div>
@@ -146,6 +149,10 @@ const JP = new Set(["392"]);
 const IN = new Set(["356"]);
 const CA = new Set(["124"]);
 const AU = new Set(["036"]);
+/* G7: US, UK, Canada, Japan, France, Germany, Italy -- shown as a darker
+   shade on every map across the site, live or not, to stand out as the
+   largest advanced economies. */
+const G7 = new Set(["840","826","124","392","250","276","380"]);
 const dest = id => UK.has(id) ? "uk.html" : US.has(id) ? "us.html"
                  : EZ.has(id) ? "eurozone.html" : JP.has(id) ? "japan.html"
                  : IN.has(id) ? "india.html" : CA.has(id) ? "canada.html"
@@ -201,7 +208,7 @@ fetch("https://cdn.jsdelivr.net/npm/world-atlas@2/countries-110m.json")
       .data(countries)
       .join("path")
       .attr("d", path)
-      .attr("class", f => dest(f.id) ? "country live" : "country")
+      .attr("class", f => G7.has(f.id) ? "country g7" : dest(f.id) ? "country live" : "country")
       .on("click", (_e, f) => { const d = dest(f.id); if (d) location.href = d; })
       .on("mousemove", (e, f) => {
         const flag = flagEmoji(ALPHA2[f.id]);

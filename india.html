@@ -123,11 +123,88 @@ nav.cat button.active{background:var(--blue); border-color:var(--blue); color:#f
 })();
 </script>
 
+<script src="https://cdnjs.cloudflare.com/ajax/libs/d3/7.8.5/d3.min.js"></script>
+<script src="https://cdnjs.cloudflare.com/ajax/libs/topojson/3.0.2/topojson.min.js"></script>
+<script>
+(function(){
+  var UK=new Set(["826"]), US=new Set(["840"]),
+      EZ=new Set(["040","056","191","196","233","246","250","276","300","372",
+                  "380","428","440","442","470","528","620","703","705","724"]),
+      JP=new Set(["392"]), IN=new Set(["356"]), CA=new Set(["124"]), AU=new Set(["036"]);
+  var G7=new Set(["840","826","124","392","250","276","380"]);
+  var CURRENT=new Set(["356"]);
+  function dest(id){
+    return UK.has(id)?"uk.html":US.has(id)?"us.html":EZ.has(id)?"eurozone.html"
+      :JP.has(id)?"japan.html":IN.has(id)?"india.html":CA.has(id)?"canada.html"
+      :AU.has(id)?"australia.html":null;
+  }
+  var wrap = document.getElementById("miniMapWrap");
+  fetch("https://cdn.jsdelivr.net/npm/world-atlas@2/countries-110m.json")
+    .then(function(r){ return r.json(); })
+    .then(function(world){
+      var svg = d3.select("#miniMap");
+      var projection = d3.geoNaturalEarth1().fitSize([960,500], {type:"Sphere"});
+      var path = d3.geoPath(projection);
+      var countries = topojson.feature(world, world.objects.countries).features
+        .filter(function(f){ return f.id !== "010"; });
+      svg.selectAll("path")
+        .data(countries)
+        .join("path")
+        .attr("d", path)
+        .attr("class", function(f){
+          if(CURRENT.has(f.id)) return "country current";
+          if(G7.has(f.id)) return "country g7";
+          return dest(f.id) ? "country live" : "country";
+        })
+        .on("click", function(e, f){
+          e.stopPropagation();
+          var d = dest(f.id);
+          if(d && !CURRENT.has(f.id)) location.href = d + location.hash;
+        })
+        .append("title")
+        .text(function(f){
+          if(CURRENT.has(f.id)) return "You are here";
+          var d = dest(f.id);
+          return d ? "Go to " + (f.properties && f.properties.name || d) : "On the roadmap";
+        });
+    })
+    .catch(function(){ wrap.style.display = "none"; });
+
+  var expandedByTap = false;
+  wrap.addEventListener("click", function(){
+    if(!expandedByTap && !wrap.classList.contains("expanded")){
+      wrap.classList.add("expanded");
+      expandedByTap = true;
+    }
+  });
+  document.addEventListener("click", function(e){
+    if(expandedByTap && !wrap.contains(e.target)){
+      wrap.classList.remove("expanded");
+      expandedByTap = false;
+    }
+  });
+})();
+</script>
+
+
 <div class="wrap">
 <header class="page">
   <p class="eyebrow"><span class="dot" aria-hidden="true"></span>Official statistics</p>
   <h1>India <span id="sampleBadge" class="badge">Sample data — run fetch_in.py for live figures</span></h1>
 </header>
+
+<div class="mini-mapwrap" id="miniMapWrap" tabindex="0" role="img"
+  aria-label="Small world map. Hover or tap to enlarge, then select a country to jump to its page, keeping the current section.">
+  <svg id="miniMap" viewBox="0 0 960 500"></svg>
+  <span class="minihint">Hover to explore &bull; click a country</span>
+</div>
+<div class="mini-legend">
+  <span><span class="mini-swatch" style="background:#B0432E"></span>You are here</span>
+  <span><span class="mini-swatch" style="background:var(--mako-2)"></span>G7 economy</span>
+  <span><span class="mini-swatch" style="background:var(--mako-3)"></span>Other live country</span>
+  <span><span class="mini-swatch" style="background:#E7EAE6"></span>On the roadmap</span>
+</div>
+
 
 <div class="newdata" id="newdata" hidden>
   <span class="pulse" aria-hidden="true"></span><span id="newdataText"></span>
@@ -224,7 +301,7 @@ function showSec(name){
   document.querySelectorAll(".sec").forEach(s=>s.hidden=true);
   document.getElementById("sec-"+name).hidden=false;
   history.replaceState(null,"","#"+name);
-  document.querySelectorAll("nav.sub a.item").forEach(a=>{
+  document.querySelectorAll(".dcol a, .doverview a").forEach(a=>{
     const b=a.getAttribute("href").split("#")[0];
     if(b!=="index.html") a.setAttribute("href", b+"#"+name);
   });
