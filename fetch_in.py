@@ -240,7 +240,14 @@ def fetch_plfs_unemployment(token: str) -> list | None:
         "state_code": "99",        # All India
         "gender_code": "3",        # Person (all genders combined)
         "age_code": "4",           # All ages
-        "sector_code": "3",        # Rural + Urban combined
+        # FIXED IN 7.6.5: was "3" (Rural+Urban). PLFS's monthly Current
+        # Weekly Status bulletin is explicitly urban-only by design (per
+        # MoSPI's own data catalog: "estimate...in the short time interval
+        # of three months for the urban areas only in the CWS") -- the
+        # combined-sector code isn't valid for the monthly frequency, so
+        # the API returned 14 real rows with every "value" field empty
+        # rather than an error. Confirmed via a real run's log output.
+        "sector_code": "2",        # Urban only
         "limit": "200",
         "Format": "JSON",
     }
@@ -268,8 +275,8 @@ def fetch_plfs_unemployment(token: str) -> list | None:
         print(f"  [mospi] raw response (first 500 chars): {str(payload)[:500]}")
         return None
     if records:
-        print(f"  [mospi] {len(records)} raw records; first row keys: "
-              f"{list(records[0].keys()) if isinstance(records[0], dict) else type(records[0])}")
+        print(f"  [mospi] {len(records)} raw records; first row: "
+              f"{records[0] if isinstance(records[0], dict) else type(records[0])}")
 
     def _get_ci(row, *names):
         """Case-insensitive, multi-alias dict lookup."""
