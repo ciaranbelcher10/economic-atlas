@@ -119,3 +119,22 @@ that one chart.
   exists for either central bank's actual policy rate. The 10-year
   government bond yield is shown instead in both cases, honestly labelled
   as a bond yield rather than mislabelled as the policy rate.
+
+## Fixed in 7.6.3 (found via real user screenshots after first live run)
+- **India/Canada/Australia GDP was ~1000x too large and mislabelled as $**:
+  their IMF IFS GDP series are the literal quarterly level, not a
+  seasonally-adjusted-annual-rate like the UK/US series -- fixed by rolling
+  up 4 quarters with the existing `annualGDP()` helper (already used by the
+  UK page) rather than using the raw quarterly figure directly. Also, these
+  series are in local currency (rupees/Canadian dollars/Australian
+  dollars), not USD -- no FX conversion is performed, so the currency
+  symbol is now correctly Rs/C$/A$, not $.
+- **India trade balance was nonsense**: the imports series originally wired
+  in (XTIMVA01INM664S) turned out to be rupee-denominated, while the
+  exports series it was being subtracted from (XTEXVA01INM667S) is
+  dollar-denominated -- every previous check confirmed each series was
+  individually live, but never cross-checked they shared the same
+  currency. Fixed by using a single, self-contained, verified
+  dollar-denominated trade balance series (XTNTVA01INM667S) instead of
+  deriving one from two mismatched series. Imports on their own are no
+  longer shown for India (same call already made for Canada/Australia).
