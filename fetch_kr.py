@@ -1,8 +1,41 @@
-"""Fetch euro-area economic series and write data-ez.json.
+"""Fetch South Korea economic series and write data-kr.json.
 
-Run:  FRED_API_KEY=yourkey python3 fetch_ez.py
+Run:  FRED_API_KEY=yourkey python3 fetch_kr.py
 Sources: FRED (free key required: fred.stlouisfed.org), OECD, World Bank.
 In GitHub Actions the key comes from the FRED_API_KEY repository secret.
+
+VERIFICATION NOTES (checked against each series' own FRED page before wiring in):
+- gdp_level (NGDPSAXDCKRQ) / gdp_real (NGDPRSAXDCKRQ): IMF IFS quarterly,
+  seasonally adjusted, in millions of Korean won -- confirmed live via each
+  series' own FRED page (next release dates shown in 2026). Like India/
+  Canada/Australia, this is the literal QUARTERLY level, NOT a seasonally-
+  adjusted-annual-rate like the UK/US series -- gdpAnnual must roll up 4
+  quarters (annualGDP()) in the HTML, not use the raw value directly, and
+  the currency must be labelled \u20a9 (won), not $, since no FX conversion
+  is performed anywhere in this codebase.
+- unemployment (LRHUTTTTKRM156S): confirmed live, Jan 1990 to Apr 2026 --
+  matches real-world reported figures (~2.7-2.8% through mid-2026).
+- bond_yield_10y (IRLTLT01KRM156N): confirmed live, Oct 2000 to May 2026.
+  This is the 10-year government bond yield, not the Bank of Korea's own
+  base rate (no live FRED series carries that verbatim) -- labelled
+  honestly as a bond yield, same pattern as India/Australia.
+- debt_gdp (GGGDTAKRA188N) / deficit (GGNLBAKRA188N): IMF WEO annual, both
+  confirmed live through 2023 -- consistent with the same series family's
+  lag pattern for every other country already on the site.
+- trade_balance (XTNTVA01KRQ667S): OECD merchandise trade, quarterly.
+  Following the same discipline that caught India's currency-mismatch bug,
+  only the combined balance is used here -- not derived from separately
+  paired exports/imports -- matching the safer pattern already used for
+  Canada and Australia. scale=1e-6 applied per the established "667
+  family reports plain USD, not millions" pattern.
+- cpi: wired in directly via OECD's live SDMX prices system
+  (DSD_PRICES@DF_PRICES_ALL) from the START, rather than ever risking a
+  dead FRED "MEI" mirror the way Japan/India/Canada/Australia originally
+  did before their CPI fixes. Same query structure, same confidence level
+  as those fixes -- sourced from OECD's own documented example, not
+  personally executed end-to-end.
+- business_confidence: OECD BCICP via SDMX, same multi-query fallback
+  pattern already used for every other country. Best-effort.
 """
 
 from __future__ import annotations
@@ -14,22 +47,16 @@ from datetime import datetime, timezone
 
 import requests
 
-# key: (fred_id, freq 'm'|'q', label, unit, transform None|'yoy'|'mom', scale)
-# scale multiplies the raw FRED value before any transform. Use this to correct
-# unit mismatches at the source rather than patching displayed numbers downstream.
-# The OECD '667S' goods-trade family (exports/imports) reports PLAIN US DOLLARS,
-# not millions -- verified against FRED's own "Units" field on the series page --
-# so scale=1e-6 converts it to $m to match the declared unit and the bnD/bnD0
-# chart formatters (which assume $m and divide by 1000 for $bn).
+# key: (fred_id, freq 'm'|'q'|'a', label, unit, transform None|'yoy'|'mom'|'qoq', scale)
 FRED_SERIES = {
-    "gdp_level": ("CPMNACSCAB1GQEA19", "q", "GDP, nominal, quarterly level", "\u20acm", None, 1.0),
-    "gdp_real": ("CLVMEURSCAB1GQEA19", "q", "Real GDP, chained, quarterly level", "\u20acm", None, 1.0),
-    "gdp_growth": ("CLVMEURSCAB1GQEA19", "q", "Real GDP growth, QoQ", "%", "qoq", 1.0),
-    "cpi": ("CP0000EZ19M086NEST", "m", "HICP, all items, YoY", "%", "yoy", 1.0),
-    "cpi_mom": ("CP0000EZ19M086NEST", "m", "HICP, all items, MoM", "%", "mom", 1.0),
-    "ecb_rate": ("ECBDFR", "d", "ECB deposit facility rate", "%", None, 1.0),
-    "exports": ("XTEXVA01EZM667S", "m", "Exports of goods, $", "$m", None, 1e-6),
-    "imports": ("XTIMVA01EZM667S", "m", "Imports of goods, $", "$m", None, 1e-6),
+    "gdp_level": ("NGDPSAXDCKRQ", "q", "GDP, nominal, seasonally adjusted", "\u20a9m", None, 1.0),
+    "gdp_real": ("NGDPRSAXDCKRQ", "q", "Real GDP, seasonally adjusted", "\u20a9m", None, 1.0),
+    "gdp_growth": ("NGDPRSAXDCKRQ", "q", "Real GDP growth, QoQ", "%", "qoq", 1.0),
+    "unemployment": ("LRHUTTTTKRM156S", "m", "Unemployment rate, 15+, SA", "%", None, 1.0),
+    "bond_yield_10y": ("IRLTLT01KRM156N", "m", "10-year government bond yield", "%", None, 1.0),
+    "debt_gdp": ("GGGDTAKRA188N", "a", "General government gross debt, % of GDP", "%", None, 1.0),
+    "deficit": ("GGNLBAKRA188N", "a", "General government net lending/borrowing, % of GDP", "%", None, 1.0),
+    "trade_balance": ("XTNTVA01KRQ667S", "q", "Trade balance, goods, $", "$m", None, 1e-6),
 }
 
 FRED_URL = ("https://api.stlouisfed.org/fred/series/observations"
@@ -73,12 +100,12 @@ def transform(points: list, kind: str | None) -> list:
             for i in range(lag, len(points)) if points[i - lag][1]]
 
 
-# ---- OECD business confidence (USA) — free SDMX API, no key ----
+# ---- OECD business confidence (South Korea) — free SDMX API, no key ----
 OECD_BASE = "https://sdmx.oecd.org/public/rest/data/OECD.SDD.STES,DSD_STES@DF_CLI"
-EZ_AREAS = ("EA20", "EA19", "XEA")
+KR_AREAS = ("KOR",)
 OECD_QUERIES = [
-    f"{OECD_BASE}/EA20.M.BCICP...AA...H?format=csvfile&startPeriod=1990",
-    f"{OECD_BASE}/EA19.M.BCICP...AA...H?format=csvfile&startPeriod=1990",
+    f"{OECD_BASE}/KOR.M.BCICP...AA...H?format=csvfile&startPeriod=1990",
+    f"{OECD_BASE}/KOR.M.BCICP......?format=csvfile&startPeriod=1990",
     f"{OECD_BASE}/all?format=csvfile&startPeriod=2000",
 ]
 
@@ -97,7 +124,7 @@ def fetch_oecd_bci() -> list | None:
             rows = {}
             for row in csv.DictReader(io.StringIO(r.text)):
                 low = {k.upper(): (v or "") for k, v in row.items() if k}
-                if low.get("REF_AREA", "EA20") not in EZ_AREAS:
+                if low.get("REF_AREA", "KOR") not in KR_AREAS:
                     continue
                 if low.get("MEASURE", "BCICP") != "BCICP":
                     continue
@@ -115,75 +142,22 @@ def fetch_oecd_bci() -> list | None:
             continue
     return None
 
-
-# ---- Eurostat live unemployment (7.6.7) -- replaces a dead FRED mirror
-# (LRHUTTTTEZM156S, stuck since Jan 2023). Query structure CONFIRMED against
-# Eurostat's own API reference documentation, which gives this as a direct
-# worked example: .../data/une_rt_m/M.SA.TOTAL.PC_ACT.T.EA20 -- dimension
-# order FREQ.S_ADJ.AGE.UNIT.SEX.GEO. High confidence, not a guess. The euro
-# area aggregate code has changed over time as membership grew (EA19 ->
-# EA20 -> EA21 as Croatia then a further country joined) -- a Eurostat news
-# release from Jan 2026 explicitly refers to "the euro area (EA21 series)",
-# so EA21 is tried first with EA20/EA19 as fallbacks in case of a mismatch.
-EUROSTAT_BASE = "https://ec.europa.eu/eurostat/api/dissemination/sdmx/2.1/data"
+# ---- OECD live CPI (7.6.4) -- FRED has no live CPI series for South Korea
+# at all, so there's nothing to remove/replace here, just a genuine gap
+# being filled. Same query structure as the Japan fix, sourced from OECD's
+# own generated example query for DSD_PRICES@DF_PRICES_ALL, not personally
+# executed end-to-end -- check the Actions log on first run.
+OECD_PRICES_BASE = "https://sdmx.oecd.org/public/rest/data/OECD.SDD.TPS,DSD_PRICES@DF_PRICES_ALL,1.0"
 
 
-def fetch_eurostat_unemployment() -> list | None:
+def fetch_oecd_cpi(areas: tuple, freq: str) -> list | None:
     import csv
     import io
-    for area in ("EA21", "EA20", "EA19"):
-        url = (f"{EUROSTAT_BASE}/une_rt_m/M.SA.TOTAL.PC_ACT.T.{area}"
-              f"?startPeriod=2000-01&format=sdmx+csv")
-        try:
-            r = requests.get(url, timeout=60,
-                             headers={"User-Agent": "economic-atlas/0.1"})
-            r.raise_for_status()
-        except Exception:
-            continue
-        try:
-            rows = {}
-            for row in csv.DictReader(io.StringIO(r.text)):
-                low = {k.upper(): (v or "") for k, v in row.items() if k}
-                period = low.get("TIME_PERIOD", "")
-                value = low.get("OBS_VALUE", "")
-                if period and value:
-                    try:
-                        rows[period] = float(value)
-                    except ValueError:
-                        continue
-            if rows:
-                return sorted([[p, v] for p, v in rows.items()], key=lambda x: x[0])
-        except Exception:
-            continue
-    return None
-
-
-# ---- Eurostat live government debt/deficit (7.6.7) -- replaces dead FRED
-# mirrors (GGGDTAEZA188N/GGNLBAEZA188N, stuck since 2010). Dataset
-# gov_10dd_edpt1 confirmed to carry these exact figures via Eurostat's own
-# published statistics ("the euro area it increased from 87.0% to 87.8%");
-# confirmed filter VALUES (sector=S13 general government, unit=PC_GDP,
-# na_item=GD for gross debt / B9 for net lending/borrowing) via Eurostat's
-# own metadata and third-party analyses of this exact dataset. The REST
-# API's positional dimension ORDER for this specific dataset was not found
-# as a single confirmed worked example (only named-filter usage was found,
-# e.g. in R), so several plausible orderings are tried here as a resilient
-# fallback -- lower confidence than the unemployment fix above; treat the
-# first live run as the real verification step and check the Actions log.
-def fetch_eurostat_govfinance(na_item: str) -> list | None:
-    import csv
-    import io
-    candidates = [
-        f"A.{na_item}.S13.PC_GDP.EA20",
-        f"A.S13.{na_item}.PC_GDP.EA20",
-        f"A.PC_GDP.{na_item}.S13.EA20",
-        f"A.{na_item}.PC_GDP.S13.EA20",
-    ]
-    for area_sub in ("EA20", "EA19", "EA21"):
-        for template in candidates:
-            path = template.replace("EA20", area_sub)
-            url = (f"{EUROSTAT_BASE}/gov_10dd_edpt1/{path}"
-                  f"?startPeriod=2000&format=sdmx+csv")
+    lag = 4 if freq == "Q" else 12
+    for area in areas:
+        for trans_code, needs_yoy in (("GY", False), ("_Z", True)):
+            url = (f"{OECD_PRICES_BASE}/{area}.{freq}.N.CPI.IX._T.N.{trans_code}"
+                  f"?format=csvfile&startPeriod=2015")
             try:
                 r = requests.get(url, timeout=60,
                                  headers={"User-Agent": "economic-atlas/0.1"})
@@ -192,33 +166,29 @@ def fetch_eurostat_govfinance(na_item: str) -> list | None:
                 continue
             try:
                 rows = {}
-                text = r.text
-                if "na_item" not in text.lower() and "OBS_VALUE" not in text:
-                    continue
-                for row in csv.DictReader(io.StringIO(text)):
+                for row in csv.DictReader(io.StringIO(r.text)):
                     low = {k.upper(): (v or "") for k, v in row.items() if k}
-                    if low.get("NA_ITEM", na_item) != na_item:
+                    if low.get("REF_AREA", area) != area:
                         continue
-                    if low.get("SECTOR", "S13") != "S13":
-                        continue
-                    if low.get("UNIT", "PC_GDP") != "PC_GDP":
-                        continue
-                    period = low.get("TIME_PERIOD", "")
-                    value = low.get("OBS_VALUE", "")
+                    period, value = low.get("TIME_PERIOD", ""), low.get("OBS_VALUE", "")
                     if period and value:
                         try:
                             rows[period] = float(value)
                         except ValueError:
                             continue
-                if rows:
-                    return sorted([[p, v] for p, v in rows.items()], key=lambda x: x[0])
+                if not rows:
+                    continue
+                pts = sorted([[p, v] for p, v in rows.items()], key=lambda x: x[0])
+                if not needs_yoy:
+                    return pts
+                return [[pts[i][0], round((pts[i][1] / pts[i - lag][1] - 1) * 100, 2)]
+                        for i in range(lag, len(pts)) if pts[i - lag][1]] or None
             except Exception:
                 continue
     return None
 
-
-
-WB_URL = ("https://api.worldbank.org/v2/country/EMU/indicator/"
+# ---- World Bank (South Korea) — free API, no key ----
+WB_URL = ("https://api.worldbank.org/v2/country/KOR/indicator/"
           "{code}?format=json&per_page=200")
 
 
@@ -241,18 +211,7 @@ def fetch_worldbank(code: str) -> list | None:
     return points or None
 
 
-def load_previous() -> dict:
-    try:
-        with open("data-ez.json") as f:
-            old = json.load(f)
-        return {k: v["points"][-1][0]
-                for k, v in old.get("series", {}).items() if v.get("points")}
-    except Exception:
-        return {}
-
-
 def main() -> int:
-    previous = load_previous()
     out = {
         "updated": datetime.now(timezone.utc).strftime("%Y-%m-%dT%H:%M:%SZ"),
         "sample": False,
@@ -284,12 +243,8 @@ def main() -> int:
     extras = [
         ("business_confidence", lambda: fetch_oecd_bci(),
          "Business confidence indicator, LT avg = 100 (OECD BCICP)", "index", "months"),
-        ("unemployment", lambda: fetch_eurostat_unemployment(),
-         "Unemployment rate, SA (Eurostat une_rt_m)", "%", "months"),
-        ("debt_gdp", lambda: fetch_eurostat_govfinance("GD"),
-         "General government gross debt, % of GDP (Eurostat gov_10dd_edpt1)", "%", "years"),
-        ("deficit", lambda: fetch_eurostat_govfinance("B9"),
-         "General government net lending/borrowing, % of GDP (Eurostat gov_10dd_edpt1)", "%", "years"),
+        ("cpi", lambda: fetch_oecd_cpi(("KOR",), "M"),
+         "CPI, all items, YoY (OECD live prices system)", "%", "months"),
         ("fdi", lambda: fetch_worldbank("BX.KLT.DINV.WD.GD.ZS"),
          "FDI net inflows, % of GDP (World Bank)", "%", "years"),
         ("current_account", lambda: fetch_worldbank("BN.CAB.XOKA.GD.ZS"),
@@ -312,26 +267,12 @@ def main() -> int:
         print("\nNothing fetched.")
         return 1
 
-    if "exports" in out["series"] and "imports" in out["series"]:
-        imp = dict(out["series"]["imports"]["points"])
-        tb = [[p, round(x - imp[p], 1)]
-              for p, x in out["series"]["exports"]["points"] if p in imp]
-        if tb:
-            out["series"]["trade_balance"] = {
-                "label": "Trade balance, goods (exports minus imports)", "unit": "$m",
-                "freq": "months", "points": tb}
-            print(f"  ok  {'trade_balance':<16} {len(tb):>5} observations (derived)")
-
     try:
-        with open("data-ez.json") as f:
+        with open("data-kr.json") as f:
             prev_full = json.load(f)
     except Exception:
         prev_full = {}
     prev_meta = prev_full.get("new_points_meta")
-    # migrating from the old pipeline (or a corrupted/missing meta file): back-date
-    # everything to the last known-good run instead of "now", so turning this
-    # tracking on (or recovering from a bad file) doesn't falsely flag every
-    # series as freshly released.
     migrating = prev_meta is None
     backdate = prev_full.get("updated")
     prev_meta = prev_meta or {}
@@ -361,9 +302,9 @@ def main() -> int:
         print("Fresh (< 2 days old): " + ", ".join(
             f"{k} ({p})" for k, p in out["new_points"].items()))
 
-    with open("data-ez.json", "w") as f:
+    with open("data-kr.json", "w") as f:
         json.dump(out, f)
-    print(f"\nWrote data-ez.json with {len(out['series'])} series.")
+    print(f"\nWrote data-kr.json with {len(out['series'])} series.")
     if failures:
         print(f"Missing: {', '.join(failures)} — the page will still render.")
     return 0

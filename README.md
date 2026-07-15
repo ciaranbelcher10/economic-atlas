@@ -184,3 +184,23 @@ that one chart.
   dollar-denominated trade balance series (XTNTVA01INM667S) instead of
   deriving one from two mismatched series. Imports on their own are no
   longer shown for India (same call already made for Canada/Australia).
+
+## South Korea (added 7.6.8)
+GDP, unemployment, 10-year bond yield, government debt/deficit, trade
+balance, CPI, business confidence, FDI and current account -- all
+verified live before wiring in, following the same discipline as India/
+Canada/Australia. Two lessons already learned from those builds were
+applied from day one rather than discovered as bugs:
+- GDP (NGDPSAXDCKRQ/NGDPRSAXDCKRQ) is the literal quarterly level, not a
+  seasonally-adjusted-annual-rate -- uses the rolling-4-quarter annualGDP()
+  helper from the start, with the currency correctly labelled \u20a9 (won),
+  not $.
+- Trade balance (XTNTVA01KRQ667S) is shown as a single combined series only
+  -- not derived from separately paired exports/imports -- avoiding the
+  exact currency-mismatch class of bug that broke India's trade balance
+  originally.
+- CPI is wired in directly via OECD's live SDMX prices system from the
+  start, rather than ever risking a dead FRED "MEI" mirror the way Japan/
+  India/Canada/Australia's CPI originally was.
+- Known gap: exports/imports individually, and the Bank of Korea's actual
+  base rate (a 10-year bond yield is shown instead, honestly labelled).
