@@ -8,13 +8,15 @@ VERIFICATION NOTES (checked against each series' own FRED page before wiring in)
 - gdp_level (NGDPSAXDCCAQ) / gdp_real (NGDPRSAXDCCAQ): IMF IFS quarterly,
   seasonally adjusted, confirmed live through Q1 2026 (next release Jul 6 2026).
 - unemployment (LRUNTTTTCAM156S): confirmed live, Jan 1955 to Apr 2026.
-- Canada has NO live CPI series on FRED. Both obvious mirrors
-  (CPALCY01CAM661N, CPALTT01CAM659N) stopped updating around Mar 2025 --
-  the SAME systemic failure as Japan's and India's CPI: FRED's OECD "MEI"
-  vintage CPI family was discontinued en masse around that date. StatCan
-  clearly still publishes monthly CPI directly, but the live replacement
-  route hasn't been verified end-to-end, so CPI is deliberately NOT wired
-  in here -- see README "Known data gaps".
+- FIXED IN 7.6.4: Canada has NO live legacy-mirror CPI series on FRED --
+  both obvious mirrors (CPALCY01CAM661N, CPALTT01CAM659N) stopped updating
+  around Mar 2025, the same systemic failure as Japan's and India's CPI:
+  FRED's OECD "MEI" vintage CPI family was discontinued en masse around
+  that date. Replaced with a live query against OECD's own SDMX prices
+  system (DSD_PRICES@DF_PRICES_ALL) -- same fix, same caveat as Japan's:
+  the query structure is sourced from OECD's own generated example query,
+  not guessed, but hasn't been personally executed end-to-end -- check
+  the Actions log on first run.
 - overnight_rate (IRSTCI01CAM156N): confirmed live, May 2026 (2.24%, closely
   tracking the Bank of Canada's 2.25% target). This is the market interbank
   overnight rate, not the BoC's own policy-rate series directly (no live
@@ -137,6 +139,50 @@ def fetch_oecd_bci() -> list | None:
             continue
     return None
 
+# ---- OECD live CPI (7.6.4) -- FRED has no live CPI series for Canada
+# at all, so there's nothing to remove/replace here, just a genuine gap
+# being filled. Same query structure as the Japan fix, sourced from OECD's
+# own generated example query for DSD_PRICES@DF_PRICES_ALL, not personally
+# executed end-to-end -- check the Actions log on first run.
+OECD_PRICES_BASE = "https://sdmx.oecd.org/public/rest/data/OECD.SDD.TPS,DSD_PRICES@DF_PRICES_ALL,1.0"
+
+
+def fetch_oecd_cpi(areas: tuple, freq: str) -> list | None:
+    import csv
+    import io
+    lag = 4 if freq == "Q" else 12
+    for area in areas:
+        for trans_code, needs_yoy in (("GY", False), ("_Z", True)):
+            url = (f"{OECD_PRICES_BASE}/{area}.{freq}.N.CPI.IX._T.N.{trans_code}"
+                  f"?format=csvfile&startPeriod=2015")
+            try:
+                r = requests.get(url, timeout=60,
+                                 headers={"User-Agent": "economic-atlas/0.1"})
+                r.raise_for_status()
+            except Exception:
+                continue
+            try:
+                rows = {}
+                for row in csv.DictReader(io.StringIO(r.text)):
+                    low = {k.upper(): (v or "") for k, v in row.items() if k}
+                    if low.get("REF_AREA", area) != area:
+                        continue
+                    period, value = low.get("TIME_PERIOD", ""), low.get("OBS_VALUE", "")
+                    if period and value:
+                        try:
+                            rows[period] = float(value)
+                        except ValueError:
+                            continue
+                if not rows:
+                    continue
+                pts = sorted([[p, v] for p, v in rows.items()], key=lambda x: x[0])
+                if not needs_yoy:
+                    return pts
+                return [[pts[i][0], round((pts[i][1] / pts[i - lag][1] - 1) * 100, 2)]
+                        for i in range(lag, len(pts)) if pts[i - lag][1]] or None
+            except Exception:
+                continue
+    return None
 
 # ---- World Bank (Canada) — free API, no key ----
 WB_URL = ("https://api.worldbank.org/v2/country/CAN/indicator/"
@@ -194,6 +240,8 @@ def main() -> int:
     extras = [
         ("business_confidence", lambda: fetch_oecd_bci(),
          "Business confidence indicator, LT avg = 100 (OECD BCICP)", "index", "months"),
+        ("cpi", lambda: fetch_oecd_cpi(("CAN",), "M"),
+         "CPI, all items, YoY (OECD live prices system)", "%", "months"),
         ("fdi", lambda: fetch_worldbank("BX.KLT.DINV.WD.GD.ZS"),
          "FDI net inflows, % of GDP (World Bank)", "%", "years"),
         ("current_account", lambda: fetch_worldbank("BN.CAB.XOKA.GD.ZS"),

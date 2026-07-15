@@ -3,6 +3,20 @@
 Run:  FRED_API_KEY=yourkey python3 fetch_jp.py
 Sources: FRED (free key required: fred.stlouisfed.org), OECD, World Bank.
 In GitHub Actions the key comes from the FRED_API_KEY repository secret.
+
+FIXED IN 7.6.4: cpi was previously wired to JPNCPIALLMINMEI, a FRED mirror
+that stopped updating in June 2021 -- confirmed dead via its own FRED page
+("from Jan 1955 to Jun 2021"). Removed from FRED_SERIES entirely (so a
+future fetch failure can't silently fall back to serving 2021 data as if
+current) and replaced with a live query against OECD's own SDMX prices
+system (DSD_PRICES@DF_PRICES_ALL), the same underlying platform that
+publishes OECD's monthly inflation press releases citing current Japan
+CPI. The query structure (REF_AREA.FREQ.METHODOLOGY.MEASURE.UNIT_MEASURE.
+EXPENDITURE.ADJUSTMENT.TRANSFORMATION) is sourced from OECD's own
+generated example query, not guessed from nothing -- but hasn't been
+personally executed end-to-end (no way to test sdmx.oecd.org from the
+build sandbox), so treat the first live run as the real verification step
+and check the Actions log for "ok  cpi" vs "FAIL  cpi".
 """
 
 from __future__ import annotations
@@ -25,8 +39,6 @@ FRED_SERIES = {
     "gdp_level": ("JPNNGDP", "q", "GDP, nominal, SAAR", "\u00a5bn", None, 1.0),
     "gdp_real": ("JPNRGDPEXP", "q", "Real GDP, chained 2015 yen, SAAR", "\u00a5bn", None, 1.0),
     "gdp_growth": ("JPNRGDPEXP", "q", "Real GDP growth, QoQ", "%", "qoq", 1.0),
-    "cpi": ("JPNCPIALLMINMEI", "m", "CPI, all items, YoY", "%", "yoy", 1.0),
-    "cpi_mom": ("JPNCPIALLMINMEI", "m", "CPI, all items, MoM", "%", "mom", 1.0),
     "unemployment": ("LRHUTTTTJPM156S", "m", "Unemployment rate, SA", "%", None, 1.0),
     "boj_rate": ("IRSTCI01JPM156N", "m", "Call money rate (overnight)", "%", None, 1.0),
     "debt_gdp": ("GGGDTAJPA188N", "a", "General government gross debt, % of GDP", "%", None, 1.0),
@@ -119,6 +131,54 @@ def fetch_oecd_bci() -> list | None:
     return None
 
 
+# ---- OECD live CPI (7.6.4) — replaces the dead FRED "MEI" mirror ----
+# DSD_PRICES@DF_PRICES_ALL confirmed via OECD's own generated example query
+# (dimension order REF_AREA.FREQ.METHODOLOGY.MEASURE.UNIT_MEASURE.EXPENDITURE.
+# ADJUSTMENT.TRANSFORMATION). Not personally executed end-to-end -- the query
+# structure is sourced from OECD's own documentation, not guessed from
+# nothing, but treat the first live run as the real verification step and
+# check the Actions log, same caveat as MoSPI.
+OECD_PRICES_BASE = "https://sdmx.oecd.org/public/rest/data/OECD.SDD.TPS,DSD_PRICES@DF_PRICES_ALL,1.0"
+
+
+def fetch_oecd_cpi(areas: tuple, freq: str) -> list | None:
+    import csv
+    import io
+    lag = 4 if freq == "Q" else 12
+    for area in areas:
+        for trans_code, needs_yoy in (("GY", False), ("_Z", True)):
+            url = (f"{OECD_PRICES_BASE}/{area}.{freq}.N.CPI.IX._T.N.{trans_code}"
+                  f"?format=csvfile&startPeriod=2015")
+            try:
+                r = requests.get(url, timeout=60,
+                                 headers={"User-Agent": "economic-atlas/0.1"})
+                r.raise_for_status()
+            except Exception:
+                continue
+            try:
+                rows = {}
+                for row in csv.DictReader(io.StringIO(r.text)):
+                    low = {k.upper(): (v or "") for k, v in row.items() if k}
+                    if low.get("REF_AREA", area) != area:
+                        continue
+                    period, value = low.get("TIME_PERIOD", ""), low.get("OBS_VALUE", "")
+                    if period and value:
+                        try:
+                            rows[period] = float(value)
+                        except ValueError:
+                            continue
+                if not rows:
+                    continue
+                pts = sorted([[p, v] for p, v in rows.items()], key=lambda x: x[0])
+                if not needs_yoy:
+                    return pts
+                return [[pts[i][0], round((pts[i][1] / pts[i - lag][1] - 1) * 100, 2)]
+                        for i in range(lag, len(pts)) if pts[i - lag][1]] or None
+            except Exception:
+                continue
+    return None
+
+
 # ---- World Bank (USA) — free API, no key ----
 WB_URL = ("https://api.worldbank.org/v2/country/JPN/indicator/"
           "{code}?format=json&per_page=200")
@@ -186,6 +246,8 @@ def main() -> int:
     extras = [
         ("business_confidence", lambda: fetch_oecd_bci(),
          "Business confidence indicator, LT avg = 100 (OECD BCICP)", "index", "months"),
+        ("cpi", lambda: fetch_oecd_cpi(("JPN",), "M"),
+         "CPI, all items, YoY (OECD live prices system)", "%", "months"),
         ("fdi", lambda: fetch_worldbank("BX.KLT.DINV.WD.GD.ZS"),
          "FDI net inflows, % of GDP (World Bank)", "%", "years"),
         ("current_account", lambda: fetch_worldbank("BN.CAB.XOKA.GD.ZS"),

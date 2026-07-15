@@ -10,12 +10,18 @@ VERIFICATION NOTES (checked against each series' own FRED page before wiring in)
 - unemployment (LRUNTTTTAUQ156S): confirmed live, Q3 1966 to Q1 2026.
   Quarterly, not monthly -- ABS's own headline unemployment is monthly, but
   this FRED mirror is only quarterly; noted honestly in the chart explainer.
-- Australia has NO live CPI series on FRED -- same systemic failure as
-  Japan/India/Canada: FRED's OECD "MEI" vintage CPI family was discontinued
-  en masse around March 2025. The ABS clearly still publishes CPI directly
-  (quarterly, with a newer monthly indicator since Oct 2022), but the live
-  replacement route hasn't been verified end-to-end -- see README "Known
-  data gaps".
+- FIXED IN 7.6.4: Australia has NO live legacy-mirror CPI series on FRED --
+  same systemic failure as Japan/India/Canada: FRED's OECD "MEI" vintage
+  CPI family was discontinued en masse around March 2025. Replaced with a
+  live query against OECD's own SDMX prices system (DSD_PRICES@DF_PRICES_ALL),
+  QUARTERLY not monthly -- OECD's own documentation for this dataflow
+  states "data are available monthly for all the countries except for
+  Australia and New Zealand (quarterly data)", matching the well-known
+  fact that ABS's primary official CPI has always been quarterly (the
+  newer monthly indicator since Oct 2022 is a supplementary series, not
+  what this OECD dataflow carries). Same caveat as Japan/Canada: query
+  structure sourced from OECD's own documentation, not personally executed
+  end-to-end -- check the Actions log on first run.
 - No live RBA cash rate series exists on FRED. The 10-year government bond
   yield (IRLTLT01AUM156N, confirmed live to May 2026) is used instead and
   honestly labelled as a bond yield, not the policy rate.
@@ -139,6 +145,50 @@ def fetch_oecd_bci() -> list | None:
             continue
     return None
 
+# ---- OECD live CPI (7.6.4) -- FRED has no live CPI series for Australia
+# at all, so there's nothing to remove/replace here, just a genuine gap
+# being filled. Same query structure as the Japan fix, sourced from OECD's
+# own generated example query for DSD_PRICES@DF_PRICES_ALL, not personally
+# executed end-to-end -- check the Actions log on first run.
+OECD_PRICES_BASE = "https://sdmx.oecd.org/public/rest/data/OECD.SDD.TPS,DSD_PRICES@DF_PRICES_ALL,1.0"
+
+
+def fetch_oecd_cpi(areas: tuple, freq: str) -> list | None:
+    import csv
+    import io
+    lag = 4 if freq == "Q" else 12
+    for area in areas:
+        for trans_code, needs_yoy in (("GY", False), ("_Z", True)):
+            url = (f"{OECD_PRICES_BASE}/{area}.{freq}.N.CPI.IX._T.N.{trans_code}"
+                  f"?format=csvfile&startPeriod=2015")
+            try:
+                r = requests.get(url, timeout=60,
+                                 headers={"User-Agent": "economic-atlas/0.1"})
+                r.raise_for_status()
+            except Exception:
+                continue
+            try:
+                rows = {}
+                for row in csv.DictReader(io.StringIO(r.text)):
+                    low = {k.upper(): (v or "") for k, v in row.items() if k}
+                    if low.get("REF_AREA", area) != area:
+                        continue
+                    period, value = low.get("TIME_PERIOD", ""), low.get("OBS_VALUE", "")
+                    if period and value:
+                        try:
+                            rows[period] = float(value)
+                        except ValueError:
+                            continue
+                if not rows:
+                    continue
+                pts = sorted([[p, v] for p, v in rows.items()], key=lambda x: x[0])
+                if not needs_yoy:
+                    return pts
+                return [[pts[i][0], round((pts[i][1] / pts[i - lag][1] - 1) * 100, 2)]
+                        for i in range(lag, len(pts)) if pts[i - lag][1]] or None
+            except Exception:
+                continue
+    return None
 
 # ---- World Bank (Australia) — free API, no key ----
 WB_URL = ("https://api.worldbank.org/v2/country/AUS/indicator/"
@@ -196,6 +246,8 @@ def main() -> int:
     extras = [
         ("business_confidence", lambda: fetch_oecd_bci(),
          "Business confidence indicator, LT avg = 100 (OECD BCICP)", "index", "months"),
+        ("cpi", lambda: fetch_oecd_cpi(("AUS",), "Q"),
+         "CPI, all items, YoY, quarterly (OECD live prices system)", "%", "quarters"),
         ("fdi", lambda: fetch_worldbank("BX.KLT.DINV.WD.GD.ZS"),
          "FDI net inflows, % of GDP (World Bank)", "%", "years"),
         ("current_account", lambda: fetch_worldbank("BN.CAB.XOKA.GD.ZS"),

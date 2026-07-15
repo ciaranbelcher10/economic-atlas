@@ -94,11 +94,17 @@ Until both secrets are set, `fetch_in.py` skips unemployment gracefully
 that one chart.
 
 ## Known data gaps
-- **India CPI**: the obvious FRED mirror (CPALTT01INM659N) stopped updating
-  in March 2025. OECD's own live system clearly still has current India
-  CPI, but the correct live SDMX query hasn't been verified end-to-end —
-  needs its own session before wiring in, same discipline that caught the
-  Japan CPI and Eurozone trade/unemployment/debt bugs.
+- **Eurozone unemployment, debt, deficit**: stuck at Jan 2023 / 2010 / 2010
+  respectively -- confirmed genuinely stale (dead FRED mirrors), and a live
+  OECD replacement was investigated for 7.6.4 but NOT wired in. The CPI fix
+  in this same release rested on an exact, single-country working example
+  query from OECD's own documentation; the only example found for the
+  unemployment dataflow (DSD_LFS@DF_IALFS_UNE_M) was a 26-country broad
+  query with no confirmed single-country pattern to replicate, meaning the
+  dimension order would have to be guessed -- exactly the kind of
+  unverified guess that caused the India trade currency-mismatch bug.
+  Deliberately left as an honest gap rather than shipped on a guess; needs
+  its own dedicated verification session.
 - **India RBI policy rate**: no live FRED series exists. The 10-year
   government bond yield is used instead and honestly labelled as a bond
   yield, not the policy rate.
@@ -106,11 +112,6 @@ that one chart.
   source (OECD) since April 2023. Shown for historical reference with
   explicit "discontinued" labelling; a live Eurostat SDMX replacement is
   on the roadmap.
-- **Canada CPI**, **Australia CPI**: same systemic issue as Japan/India --
-  FRED's OECD "MEI" vintage CPI family was discontinued en masse around
-  March 2025. StatCan/ABS clearly still publish live, but the replacement
-  route needs its own verification pass. 10-year bond yield (Canada:
-  interbank overnight rate) shown instead in the meantime.
 - **Canada trade**, **Australia trade**: only the combined trade balance is
   wired in, not separate exports/imports -- the matching components either
   don't exist live or looked stale relative to the headline series in
@@ -119,6 +120,31 @@ that one chart.
   exists for either central bank's actual policy rate. The 10-year
   government bond yield is shown instead in both cases, honestly labelled
   as a bond yield rather than mislabelled as the policy rate.
+
+## Fixed in 7.6.4
+- **India, Canada, Australia CPI**: FRED's OECD "MEI" vintage CPI family
+  was discontinued en masse around March 2025 (confirmed via each series'
+  own FRED page). Replaced with live queries against OECD's own SDMX
+  prices system (DSD_PRICES@DF_PRICES_ALL) -- the same underlying platform
+  that publishes OECD's monthly inflation press releases. Japan's dead
+  FRED series (JPNCPIALLMINMEI) was removed from FRED_SERIES entirely so a
+  future failure can't silently fall back to serving 2021 data as current.
+  Australia's CPI is quarterly, not monthly, matching OECD's own
+  documentation ("data are available monthly for all the countries except
+  for Australia and New Zealand"). None of these three fixes have been
+  personally executed end-to-end (no way to test sdmx.oecd.org from the
+  build sandbox) -- check the Actions log on first run for "ok  cpi" vs
+  "FAIL  cpi".
+- **Eurozone CPI was investigated and found NOT to be broken.** It uses a
+  different (ECB/Eurostat-sourced) series, CP0000EZ19M086NEST, not the
+  dead OECD MEI family -- confirmed genuinely live (May 2026 data) via a
+  direct data audit. No fix needed; time was spent on the genuine gaps
+  above instead of "fixing" something that already worked.
+- **India unemployment (MoSPI)**: hardened with diagnostic logging after
+  the SSL fix still didn't produce data on the next run. The login and
+  data-fetch functions now print the actual response status and shape on
+  every run, so any further failure is diagnosable from the Actions log
+  directly rather than requiring another guess.
 
 ## Fixed in 7.6.3 (found via real user screenshots after first live run)
 - **India/Canada/Australia GDP was ~1000x too large and mislabelled as $**:

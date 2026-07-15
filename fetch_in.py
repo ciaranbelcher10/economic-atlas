@@ -215,6 +215,7 @@ def mospi_login(username: str, password: str) -> str | None:
     r = requests.post(MOSPI_LOGIN_URL, json={"username": username, "password": password},
                       timeout=30, headers={"User-Agent": "economic-atlas/0.1"},
                       verify=False)
+    print(f"  [mospi] login status={r.status_code}")
     r.raise_for_status()
     payload = r.json()
     # VERIFIED against a real login call (2026-07-15): the "response" field is
@@ -247,23 +248,57 @@ def fetch_plfs_unemployment(token: str) -> list | None:
                      headers={"User-Agent": "economic-atlas/0.1",
                               "authorization": token},
                      verify=False)
+    print(f"  [mospi] getData status={r.status_code}")
     r.raise_for_status()
     payload = r.json()
-    records = payload.get("data") or payload.get("records") or payload
+
+    # DIAGNOSTIC (7.6.4): the login response shape ("response" as a raw string,
+    # not the nested {"response":{"token":...}} the official example script
+    # assumes) turned out to differ from documentation once, so don't assume
+    # the data response's shape either -- print enough of it that a failure
+    # here is diagnosable from the Actions log alone, not another guess.
+    records = payload.get("data")
+    if records is None:
+        records = payload.get("records")
+    if records is None and isinstance(payload, list):
+        records = payload
     if not isinstance(records, list):
+        print(f"  [mospi] unexpected getData shape, top-level keys: "
+              f"{list(payload.keys()) if isinstance(payload, dict) else type(payload)}")
+        print(f"  [mospi] raw response (first 500 chars): {str(payload)[:500]}")
         return None
+    if records:
+        print(f"  [mospi] {len(records)} raw records; first row keys: "
+              f"{list(records[0].keys()) if isinstance(records[0], dict) else type(records[0])}")
+
+    def _get_ci(row, *names):
+        """Case-insensitive, multi-alias dict lookup."""
+        lower = {k.lower(): v for k, v in row.items()}
+        for name in names:
+            if name.lower() in lower and lower[name.lower()] not in (None, ""):
+                return lower[name.lower()]
+        return None
+
     points = {}
+    skipped = 0
     for row in records:
+        if not isinstance(row, dict):
+            skipped += 1
+            continue
         try:
-            year = str(row.get("year") or row.get("Year"))
-            month = int(row.get("month_code") or row.get("Month") or row.get("month"))
-            value = row.get("value") if "value" in row else row.get("Value")
-            if value is None:
+            year = _get_ci(row, "year")
+            month = _get_ci(row, "month_code", "month")
+            value = _get_ci(row, "value", "ur", "indicator_value", "data_value")
+            if year is None or month is None or value is None:
+                skipped += 1
                 continue
-            period = f"{year}-{month:02d}"
+            period = f"{int(year)}-{int(month):02d}"
             points[period] = float(value)
         except (TypeError, ValueError):
+            skipped += 1
             continue
+    if skipped:
+        print(f"  [mospi] skipped {skipped} of {len(records)} rows (unparseable)")
     return sorted([[p, v] for p, v in points.items()], key=lambda x: x[0]) or None
 
 
