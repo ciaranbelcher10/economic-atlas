@@ -199,9 +199,17 @@ def main() -> int:
 
     try:
         with open("data-us.json") as f:
-            prev_meta = json.load(f).get("new_points_meta", {})
+            prev_full = json.load(f)
     except Exception:
-        prev_meta = {}
+        prev_full = {}
+    prev_meta = prev_full.get("new_points_meta")
+    # migrating from the old pipeline (or a corrupted/missing meta file): back-date
+    # everything to the last known-good run instead of "now", so turning this
+    # tracking on (or recovering from a bad file) doesn't falsely flag every
+    # series as freshly released.
+    migrating = prev_meta is None
+    backdate = prev_full.get("updated")
+    prev_meta = prev_meta or {}
     now_iso = out["updated"]
     new_meta = {}
     for k, v in out["series"].items():
@@ -209,6 +217,8 @@ def main() -> int:
         prior = prev_meta.get(k)
         if prior and prior.get("period") == period:
             new_meta[k] = {"period": period, "first_seen": prior["first_seen"]}
+        elif migrating and backdate:
+            new_meta[k] = {"period": period, "first_seen": backdate}
         else:
             new_meta[k] = {"period": period, "first_seen": now_iso}
     out["new_points_meta"] = new_meta

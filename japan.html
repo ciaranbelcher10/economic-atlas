@@ -61,6 +61,7 @@ nav.cat button.active{background:var(--blue); border-color:var(--blue); color:#f
 .newdata-link:hover, .newdata-link:focus-visible{background:#D5EEDD; border-color:#2FA463;
   outline:none;}
 .newdata-sep{color:#5B9C79; font-weight:400;}
+.lastupdated{display:block; margin-top:10px; color:var(--ink2); font-size:12.5px;}
 .lightskey.compact{margin:6px 0 26px;}
 .hero .stat, .hero.mini .stat{padding:16px 18px; flex:1 1 195px;
   max-width:255px; min-width:180px; min-height:0;}
@@ -145,6 +146,7 @@ nav.cat button.active{background:var(--blue); border-color:var(--blue); color:#f
   the <a href="https://www.oecd.org">OECD</a> and the <a href="https://data.worldbank.org">World Bank</a>. Series codes are shown with each metric;
   figures are the latest published observations and are subject to revision.
   Ideas or corrections: <a href="contact.html">get in touch</a>.
+  <span id="lastUpdated" class="lastupdated"></span>
 </footer>
 </div>
 
@@ -422,6 +424,18 @@ function renderNewDataBanner(meta){
   document.getElementById("newdata").hidden=false;
 }
 
+function renderLastUpdated(updatedIso){
+  const el=document.getElementById("lastUpdated");
+  if(!el || !updatedIso) return;
+  const dt=new Date(updatedIso);
+  const dd=String(dt.getUTCDate()).padStart(2,"0");
+  const mo=MONTHS[dt.getUTCMonth()];
+  const yy=dt.getUTCFullYear();
+  const hh=String(dt.getUTCHours()).padStart(2,"0");
+  const mi=String(dt.getUTCMinutes()).padStart(2,"0");
+  el.textContent=`Data last refreshed: ${dd} ${mo} ${yy}, ${hh}:${mi} UTC`;
+}
+
 function render(data){
   const s=data.series;
   if(data.sample) document.getElementById("sampleBadge").classList.add("show");
@@ -539,6 +553,7 @@ function render(data){
   if(s.deficit) statTile(tp,"deficit","Deficit (% of GDP)",s.deficit,
     {fmt:pct,fmtD:pp,upIsGood:true,source:"FRED \u00b7 GGNLBAJPA188N"});
   renderNewDataBanner(data.new_points_meta);
+  renderLastUpdated(data.updated);
 }
 
 fetch("data-jp.json",{cache:"no-store"})
