@@ -59,28 +59,39 @@ which refreshes data.json every weekday morning after ONS releases.
 India's unemployment figure comes from MoSPI's own PLFS survey via their
 eSankhyiki API (api.mospi.gov.in) — the only source that's genuinely live
 (monthly, since MoSPI relaunched PLFS in Jan 2025) rather than a stale
-mirror. It requires a personal access token, following the same self-service
-pattern as the FRED key:
-1. Go to https://esankhyiki.mospi.gov.in and find the API/Developer section
-   (the official user manual PDFs, e.g. "WPI API User Manual.pdf", document
-   the exact steps).
-2. Using Postman (or the platform's own Swagger UI), call the platform's
-   signup API at base URL https://api.mospi.gov.in to register and receive
-   an access token.
-3. Add that token as a GitHub Actions repo secret named `MOSPI_API_KEY`
-   (Settings → Secrets and variables → Actions), same place as
-   `FRED_API_KEY`.
-4. Add a step to `.github/workflows/update-data.yml` passing it to
-   `fetch_in.py`, mirroring the existing `FRED_API_KEY` step:
-   ```yaml
-   - run: python fetch_in.py
-     env:
-       FRED_API_KEY: ${{ secrets.FRED_API_KEY }}
-       MOSPI_API_KEY: ${{ secrets.MOSPI_API_KEY }}
-   ```
-Until this secret is set, `fetch_in.py` skips unemployment gracefully (logs
-a note, doesn't fail the build) and the India page simply won't show that
-one chart.
+mirror. Unlike the FRED key, MoSPI's access tokens expire after **30
+minutes**, so there's no static key to store — instead you register an
+account once, and `fetch_in.py` logs in fresh on every scheduled run.
+
+**Step 1 — sign up (one-time).** Pick a real email you haven't used on this
+platform before, plus a password. Run this once from any terminal with
+`curl` (or paste it into Postman as a POST request):
+```bash
+curl -X POST https://api.mospi.gov.in/api/users/usersignup \
+  -H "Content-Type: application/json" \
+  -d '{
+    "username": "you@example.com",
+    "password": "ChooseAStrongPassword123!",
+    "organization": "Economic Atlas",
+    "purpose": "View/Download the Data",
+    "gender": "Male"
+  }'
+```
+A response code of 200 means it worked. Keep that email and password —
+that's your permanent login, not a token.
+
+**Step 2 — add two GitHub secrets**, not one: `MOSPI_USERNAME` (the email
+you used) and `MOSPI_PASSWORD` (the password you chose), under Settings →
+Secrets and variables → Actions, same place as `FRED_API_KEY`.
+
+**Step 3 — nothing else to do.** `fetch_in.py` already calls MoSPI's login
+endpoint itself on every run to get a fresh 30-minute token, then
+immediately uses it to fetch the data — no manual token handling needed.
+The workflow file already passes both secrets through.
+
+Until both secrets are set, `fetch_in.py` skips unemployment gracefully
+(logs a note, doesn't fail the build) and the India page simply won't show
+that one chart.
 
 ## Known data gaps
 - **India CPI**: the obvious FRED mirror (CPALTT01INM659N) stopped updating

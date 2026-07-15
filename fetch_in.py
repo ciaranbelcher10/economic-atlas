@@ -39,15 +39,23 @@ VERIFICATION NOTES (checked against each series' own FRED page before wiring in)
   in Jan 2025 specifically to publish MONTHLY all-India unemployment
   (Current Weekly Status), replacing the old annual-only cadence. Confirmed
   via the official swagger spec (api.mospi.gov.in/api/plfs/getData,
-  frequency_code=3 = Monthly, data from 2025 onwards) and the official
-  WPI/CPI API user manual PDFs, which document a genuine self-service
-  signup+token flow analogous to FRED's. This endpoint requires a personal
-  bearer token (MOSPI_API_KEY secret) that only you can obtain -- see
-  README "Setting up the MoSPI API key". Because of that, this specific
-  call has NOT been executed end-to-end in the build sandbox (no token
-  available there); the query is built directly from the official spec,
-  but treat the very first live run as the real verification step and
-  check the Actions log.
+  frequency_code=3 = Monthly, data from 2025 onwards) and the official CPI
+  API user manual PDF, which documents the real flow: sign up ONCE with a
+  username/password (api/users/usersignup), then log in on every single
+  run (api/users/login) to get a fresh access token -- tokens expire after
+  30 minutes, so they can't be stored as a static secret the way
+  FRED_API_KEY is. This script logs in itself each run using
+  MOSPI_USERNAME/MOSPI_PASSWORD secrets -- see README "Setting up the
+  MoSPI API key". The login step was VERIFIED against a real account on
+  2026-07-15: it returns {"response": "<token string>"} directly, NOT
+  {"response": {"token": ...}} as the official example script (Login.py)
+  assumes -- mospi_login() parses this correctly and defensively handles
+  both shapes. Signing in did NOT require an OTP/2FA step despite the
+  account having two_factor enabled at signup. The data-fetch call itself
+  (using that token in an "authorization" header, per the official
+  example) has NOT yet been independently confirmed to return real PLFS
+  records -- treat the next live run as the remaining verification step
+  and check the Actions log.
 """
 
 from __future__ import annotations
@@ -155,13 +163,31 @@ def fetch_oecd_bci() -> list | None:
     return None
 
 
-# ---- MoSPI PLFS unemployment (India) — official govt API, needs a personal
-# bearer token (MOSPI_API_KEY). Sign-up flow is documented in the official
-# API user manuals (e.g. esankhyiki.mospi.gov.in/API/WPI API User Manual.pdf):
-# use the platform's signup API (via Postman/Swagger) at the base URL
-# https://api.mospi.gov.in to register and receive a token, then add it to
-# the "Authorization" header. See README for full step-by-step.
-MOSPI_BASE = "https://api.mospi.gov.in/api/plfs/getData"
+# ---- MoSPI PLFS unemployment (India) — official govt API. Tokens expire
+# after 30 minutes, so this logs in fresh on every run using MOSPI_USERNAME/
+# MOSPI_PASSWORD secrets, rather than storing a static token. Sign-up (a
+# one-time step only you can do) is documented in README "Setting up the
+# MoSPI API key".
+MOSPI_LOGIN_URL = "https://api.mospi.gov.in/api/users/login"
+MOSPI_DATA_URL = "https://api.mospi.gov.in/api/plfs/getData"
+
+
+def mospi_login(username: str, password: str) -> str | None:
+    r = requests.post(MOSPI_LOGIN_URL, json={"username": username, "password": password},
+                      timeout=30, headers={"User-Agent": "economic-atlas/0.1"})
+    r.raise_for_status()
+    payload = r.json()
+    # VERIFIED against a real login call (2026-07-15): the "response" field is
+    # the token itself, as a raw encrypted-looking string -- e.g.
+    # {"msg": "Login successful", "statusCode": true, "response": "<iv>:<ciphertext>"}
+    # NOT an object with a nested "token" key as the official example script
+    # (Login.py) assumes. Handle both shapes defensively in case this changes.
+    resp = payload.get("response")
+    if isinstance(resp, str):
+        return resp
+    if isinstance(resp, dict):
+        return resp.get("token")
+    return payload.get("token")
 
 
 def fetch_plfs_unemployment(token: str) -> list | None:
@@ -175,9 +201,9 @@ def fetch_plfs_unemployment(token: str) -> list | None:
         "limit": "200",
         "Format": "JSON",
     }
-    r = requests.get(MOSPI_BASE, params=params, timeout=60,
+    r = requests.get(MOSPI_DATA_URL, params=params, timeout=60,
                      headers={"User-Agent": "economic-atlas/0.1",
-                              "Authorization": token})
+                              "authorization": token})
     r.raise_for_status()
     payload = r.json()
     records = payload.get("data") or payload.get("records") or payload
@@ -272,14 +298,18 @@ def main() -> int:
             failures.append(name)
             print(f"FAIL  {name:<16} {exc}")
 
-    mospi_key = os.environ.get("MOSPI_API_KEY")
-    if not mospi_key:
-        print("note  no MOSPI_API_KEY set — unemployment will be skipped "
-              "(see README for how to register one).")
+    mospi_user = os.environ.get("MOSPI_USERNAME")
+    mospi_pass = os.environ.get("MOSPI_PASSWORD")
+    if not mospi_user or not mospi_pass:
+        print("note  no MOSPI_USERNAME/MOSPI_PASSWORD set — unemployment will "
+              "be skipped (see README for how to register).")
         failures.append("unemployment")
     else:
         try:
-            points = fetch_plfs_unemployment(mospi_key)
+            token = mospi_login(mospi_user, mospi_pass)
+            if not token:
+                raise ValueError("login succeeded but no token in response")
+            points = fetch_plfs_unemployment(token)
             if not points:
                 raise ValueError("no usable response")
             out["series"]["unemployment"] = {
