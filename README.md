@@ -54,3 +54,57 @@ its tile as pending rather than breaking the page.
 ## Deploy
 GitHub Pages + the included workflow (.github/workflows/update-data.yml),
 which refreshes data.json every weekday morning after ONS releases.
+
+## Setting up the MoSPI API key (for India unemployment)
+India's unemployment figure comes from MoSPI's own PLFS survey via their
+eSankhyiki API (api.mospi.gov.in) — the only source that's genuinely live
+(monthly, since MoSPI relaunched PLFS in Jan 2025) rather than a stale
+mirror. It requires a personal access token, following the same self-service
+pattern as the FRED key:
+1. Go to https://esankhyiki.mospi.gov.in and find the API/Developer section
+   (the official user manual PDFs, e.g. "WPI API User Manual.pdf", document
+   the exact steps).
+2. Using Postman (or the platform's own Swagger UI), call the platform's
+   signup API at base URL https://api.mospi.gov.in to register and receive
+   an access token.
+3. Add that token as a GitHub Actions repo secret named `MOSPI_API_KEY`
+   (Settings → Secrets and variables → Actions), same place as
+   `FRED_API_KEY`.
+4. Add a step to `.github/workflows/update-data.yml` passing it to
+   `fetch_in.py`, mirroring the existing `FRED_API_KEY` step:
+   ```yaml
+   - run: python fetch_in.py
+     env:
+       FRED_API_KEY: ${{ secrets.FRED_API_KEY }}
+       MOSPI_API_KEY: ${{ secrets.MOSPI_API_KEY }}
+   ```
+Until this secret is set, `fetch_in.py` skips unemployment gracefully (logs
+a note, doesn't fail the build) and the India page simply won't show that
+one chart.
+
+## Known data gaps
+- **India CPI**: the obvious FRED mirror (CPALTT01INM659N) stopped updating
+  in March 2025. OECD's own live system clearly still has current India
+  CPI, but the correct live SDMX query hasn't been verified end-to-end —
+  needs its own session before wiring in, same discipline that caught the
+  Japan CPI and Eurozone trade/unemployment/debt bugs.
+- **India RBI policy rate**: no live FRED series exists. The 10-year
+  government bond yield is used instead and honestly labelled as a bond
+  yield, not the policy rate.
+- **Eurozone trade** (exports/imports/trade balance): discontinued at
+  source (OECD) since April 2023. Shown for historical reference with
+  explicit "discontinued" labelling; a live Eurostat SDMX replacement is
+  on the roadmap.
+- **Canada CPI**, **Australia CPI**: same systemic issue as Japan/India --
+  FRED's OECD "MEI" vintage CPI family was discontinued en masse around
+  March 2025. StatCan/ABS clearly still publish live, but the replacement
+  route needs its own verification pass. 10-year bond yield (Canada:
+  interbank overnight rate) shown instead in the meantime.
+- **Canada trade**, **Australia trade**: only the combined trade balance is
+  wired in, not separate exports/imports -- the matching components either
+  don't exist live or looked stale relative to the headline series in
+  verification. Individual exports/imports remain a known gap.
+- **India RBI repo rate**, **Australia RBA cash rate**: no live FRED series
+  exists for either central bank's actual policy rate. The 10-year
+  government bond yield is shown instead in both cases, honestly labelled
+  as a bond yield rather than mislabelled as the policy rate.
