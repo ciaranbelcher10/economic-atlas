@@ -152,12 +152,22 @@ def fetch_oecd_cpi(areas: tuple, freq: str) -> list | None:
             try:
                 r = requests.get(url, timeout=60,
                                  headers={"User-Agent": "economic-atlas/0.1"})
+                print(f"  [oecd-cpi] {area}.{trans_code} status={r.status_code}")
                 r.raise_for_status()
-            except Exception:
+            except Exception as exc:
+                print(f"  [oecd-cpi] {area}.{trans_code} request failed: {exc}")
                 continue
             try:
+                text = r.text
                 rows = {}
-                for row in csv.DictReader(io.StringIO(r.text)):
+                reader = list(csv.DictReader(io.StringIO(text)))
+                if reader:
+                    print(f"  [oecd-cpi] {area}.{trans_code} {len(reader)} CSV rows; "
+                          f"columns: {list(reader[0].keys())}")
+                else:
+                    print(f"  [oecd-cpi] {area}.{trans_code} 0 CSV rows; "
+                          f"raw response (first 300 chars): {text[:300]!r}")
+                for row in reader:
                     low = {k.upper(): (v or "") for k, v in row.items() if k}
                     if low.get("REF_AREA", area) != area:
                         continue
@@ -168,13 +178,18 @@ def fetch_oecd_cpi(areas: tuple, freq: str) -> list | None:
                         except ValueError:
                             continue
                 if not rows:
+                    print(f"  [oecd-cpi] {area}.{trans_code} 0 usable rows after filtering "
+                          f"(REF_AREA/TIME_PERIOD/OBS_VALUE mismatch)")
                     continue
                 pts = sorted([[p, v] for p, v in rows.items()], key=lambda x: x[0])
+                print(f"  [oecd-cpi] {area}.{trans_code} SUCCESS: {len(pts)} points, "
+                      f"{pts[0][0]} to {pts[-1][0]}")
                 if not needs_yoy:
                     return pts
                 return [[pts[i][0], round((pts[i][1] / pts[i - lag][1] - 1) * 100, 2)]
                         for i in range(lag, len(pts)) if pts[i - lag][1]] or None
-            except Exception:
+            except Exception as exc:
+                print(f"  [oecd-cpi] {area}.{trans_code} parsing failed: {exc}")
                 continue
     return None
 

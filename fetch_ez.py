@@ -116,106 +116,97 @@ def fetch_oecd_bci() -> list | None:
     return None
 
 
-# ---- Eurostat live unemployment (7.6.7) -- replaces a dead FRED mirror
-# (LRHUTTTTEZM156S, stuck since Jan 2023). Query structure CONFIRMED against
-# Eurostat's own API reference documentation, which gives this as a direct
-# worked example: .../data/une_rt_m/M.SA.TOTAL.PC_ACT.T.EA20 -- dimension
-# order FREQ.S_ADJ.AGE.UNIT.SEX.GEO. High confidence, not a guess. The euro
-# area aggregate code has changed over time as membership grew (EA19 ->
-# EA20 -> EA21 as Croatia then a further country joined) -- a Eurostat news
-# release from Jan 2026 explicitly refers to "the euro area (EA21 series)",
-# so EA21 is tried first with EA20/EA19 as fallbacks in case of a mismatch.
-EUROSTAT_BASE = "https://ec.europa.eu/eurostat/api/dissemination/sdmx/2.1/data"
+# ---- Eurostat live unemployment + government finance (7.6.9) -- rebuilt
+# using Eurostat's "API Statistics" endpoint, which takes NAMED query
+# parameters (geo=, sector=, unit=, etc.) rather than the SDMX 2.1 REST
+# API's positional dot-path segments. This completely avoids the
+# dimension-ORDER guessing that the previous version relied on -- a
+# confirmed working example of this named-parameter style is documented
+# directly in Eurostat's own API guide: .../data/reg_area3?format=JSON&
+# geo=BE&unit=KM2&landuse=TOTAL&lang=EN&TIME=2025. Response format is
+# JSON-stat, parsed generically below (all non-time dimensions are held
+# fixed to a single value, so "time" is the only dimension that varies).
+EUROSTAT_STATS_BASE = "https://ec.europa.eu/eurostat/api/dissemination/statistics/1.0/data"
+
+
+def _parse_jsonstat(text: str, tag: str) -> list | None:
+    """Generic JSON-stat parser: extracts (period, value) pairs assuming
+    every dimension except 'time' is fixed to a single filtered value."""
+    import json as jsonlib
+    data = jsonlib.loads(text)
+    if "dimension" not in data or "time" not in data.get("dimension", {}):
+        print(f"  [{tag}] response has no time dimension; top-level keys: "
+              f"{list(data.keys())}")
+        return None
+    time_index = data["dimension"]["time"]["category"]["index"]
+    pos_to_period = {v: k for k, v in time_index.items()}
+    value = data.get("value")
+    points = {}
+    if isinstance(value, dict):
+        for pos_str, val in value.items():
+            try:
+                pos = int(pos_str)
+            except ValueError:
+                continue
+            if pos in pos_to_period and val is not None:
+                points[pos_to_period[pos]] = float(val)
+    elif isinstance(value, list):
+        for pos, val in enumerate(value):
+            if val is not None and pos in pos_to_period:
+                points[pos_to_period[pos]] = float(val)
+    if not points:
+        print(f"  [{tag}] parsed JSON-stat but got 0 points; "
+              f"value type={type(value)}, size={data.get('size')}")
+        return None
+    pts = sorted([[p, v] for p, v in points.items()], key=lambda x: x[0])
+    print(f"  [{tag}] SUCCESS: {len(pts)} points, {pts[0][0]} to {pts[-1][0]}")
+    return pts
 
 
 def fetch_eurostat_unemployment() -> list | None:
-    import csv
-    import io
     for area in ("EA21", "EA20", "EA19"):
-        url = (f"{EUROSTAT_BASE}/une_rt_m/M.SA.TOTAL.PC_ACT.T.{area}"
-              f"?startPeriod=2000-01&format=sdmx+csv")
+        url = (f"{EUROSTAT_STATS_BASE}/une_rt_m?format=JSON&lang=EN"
+              f"&geo={area}&sex=T&age=TOTAL&unit=PC_ACT&s_adj=SA"
+              f"&sinceTimePeriod=2000")
         try:
             r = requests.get(url, timeout=60,
                              headers={"User-Agent": "economic-atlas/0.1"})
+            print(f"  [eurostat-unemp] {area} status={r.status_code}")
             r.raise_for_status()
-        except Exception:
+        except Exception as exc:
+            print(f"  [eurostat-unemp] {area} request failed: {exc}")
             continue
         try:
-            rows = {}
-            for row in csv.DictReader(io.StringIO(r.text)):
-                low = {k.upper(): (v or "") for k, v in row.items() if k}
-                period = low.get("TIME_PERIOD", "")
-                value = low.get("OBS_VALUE", "")
-                if period and value:
-                    try:
-                        rows[period] = float(value)
-                    except ValueError:
-                        continue
-            if rows:
-                return sorted([[p, v] for p, v in rows.items()], key=lambda x: x[0])
-        except Exception:
-            continue
+            pts = _parse_jsonstat(r.text, f"eurostat-unemp-{area}")
+            if pts:
+                return pts
+        except Exception as exc:
+            print(f"  [eurostat-unemp] {area} parsing failed: {exc}; "
+                  f"first 300 chars: {r.text[:300]!r}")
     return None
 
 
-# ---- Eurostat live government debt/deficit (7.6.7) -- replaces dead FRED
-# mirrors (GGGDTAEZA188N/GGNLBAEZA188N, stuck since 2010). Dataset
-# gov_10dd_edpt1 confirmed to carry these exact figures via Eurostat's own
-# published statistics ("the euro area it increased from 87.0% to 87.8%");
-# confirmed filter VALUES (sector=S13 general government, unit=PC_GDP,
-# na_item=GD for gross debt / B9 for net lending/borrowing) via Eurostat's
-# own metadata and third-party analyses of this exact dataset. The REST
-# API's positional dimension ORDER for this specific dataset was not found
-# as a single confirmed worked example (only named-filter usage was found,
-# e.g. in R), so several plausible orderings are tried here as a resilient
-# fallback -- lower confidence than the unemployment fix above; treat the
-# first live run as the real verification step and check the Actions log.
 def fetch_eurostat_govfinance(na_item: str) -> list | None:
-    import csv
-    import io
-    candidates = [
-        f"A.{na_item}.S13.PC_GDP.EA20",
-        f"A.S13.{na_item}.PC_GDP.EA20",
-        f"A.PC_GDP.{na_item}.S13.EA20",
-        f"A.{na_item}.PC_GDP.S13.EA20",
-    ]
-    for area_sub in ("EA20", "EA19", "EA21"):
-        for template in candidates:
-            path = template.replace("EA20", area_sub)
-            url = (f"{EUROSTAT_BASE}/gov_10dd_edpt1/{path}"
-                  f"?startPeriod=2000&format=sdmx+csv")
-            try:
-                r = requests.get(url, timeout=60,
-                                 headers={"User-Agent": "economic-atlas/0.1"})
-                r.raise_for_status()
-            except Exception:
-                continue
-            try:
-                rows = {}
-                text = r.text
-                if "na_item" not in text.lower() and "OBS_VALUE" not in text:
-                    continue
-                for row in csv.DictReader(io.StringIO(text)):
-                    low = {k.upper(): (v or "") for k, v in row.items() if k}
-                    if low.get("NA_ITEM", na_item) != na_item:
-                        continue
-                    if low.get("SECTOR", "S13") != "S13":
-                        continue
-                    if low.get("UNIT", "PC_GDP") != "PC_GDP":
-                        continue
-                    period = low.get("TIME_PERIOD", "")
-                    value = low.get("OBS_VALUE", "")
-                    if period and value:
-                        try:
-                            rows[period] = float(value)
-                        except ValueError:
-                            continue
-                if rows:
-                    return sorted([[p, v] for p, v in rows.items()], key=lambda x: x[0])
-            except Exception:
-                continue
+    for area in ("EA20", "EA19", "EA21"):
+        url = (f"{EUROSTAT_STATS_BASE}/gov_10dd_edpt1?format=JSON&lang=EN"
+              f"&geo={area}&sector=S13&unit=PC_GDP&na_item={na_item}"
+              f"&sinceTimePeriod=2000")
+        try:
+            r = requests.get(url, timeout=60,
+                             headers={"User-Agent": "economic-atlas/0.1"})
+            print(f"  [eurostat-gov-{na_item}] {area} status={r.status_code}")
+            r.raise_for_status()
+        except Exception as exc:
+            print(f"  [eurostat-gov-{na_item}] {area} request failed: {exc}")
+            continue
+        try:
+            pts = _parse_jsonstat(r.text, f"eurostat-gov-{na_item}-{area}")
+            if pts:
+                return pts
+        except Exception as exc:
+            print(f"  [eurostat-gov-{na_item}] {area} parsing failed: {exc}; "
+                  f"first 300 chars: {r.text[:300]!r}")
     return None
-
 
 
 WB_URL = ("https://api.worldbank.org/v2/country/EMU/indicator/"

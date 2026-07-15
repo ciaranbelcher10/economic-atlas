@@ -94,24 +94,13 @@ Until both secrets are set, `fetch_in.py` skips unemployment gracefully
 that one chart.
 
 ## Known data gaps
-- **Eurozone unemployment, debt, deficit**: stuck at Jan 2023 / 2010 / 2010
-  respectively -- confirmed genuinely stale (dead FRED mirrors), and a live
-  OECD replacement was investigated for 7.6.4 but NOT wired in. The CPI fix
-  in this same release rested on an exact, single-country working example
-  query from OECD's own documentation; the only example found for the
-  unemployment dataflow (DSD_LFS@DF_IALFS_UNE_M) was a 26-country broad
-  query with no confirmed single-country pattern to replicate, meaning the
-  dimension order would have to be guessed -- exactly the kind of
-  unverified guess that caused the India trade currency-mismatch bug.
-  Deliberately left as an honest gap rather than shipped on a guess; needs
-  its own dedicated verification session.
+- **Eurozone trade** (exports/imports/trade balance): discontinued at
+  source (OECD) since April 2023, and this one remains genuinely
+  unresolved. Shown for historical reference with explicit "discontinued"
+  labelling; a live Eurostat SDMX replacement is on the roadmap.
 - **India RBI policy rate**: no live FRED series exists. The 10-year
   government bond yield is used instead and honestly labelled as a bond
   yield, not the policy rate.
-- **Eurozone trade** (exports/imports/trade balance): discontinued at
-  source (OECD) since April 2023. Shown for historical reference with
-  explicit "discontinued" labelling; a live Eurostat SDMX replacement is
-  on the roadmap.
 - **Canada trade**, **Australia trade**: only the combined trade balance is
   wired in, not separate exports/imports -- the matching components either
   don't exist live or looked stale relative to the headline series in
@@ -120,6 +109,32 @@ that one chart.
   exists for either central bank's actual policy rate. The 10-year
   government bond yield is shown instead in both cases, honestly labelled
   as a bond yield rather than mislabelled as the policy rate.
+
+## Fixed in 7.6.9
+- **Eurozone unemployment/debt/deficit rebuilt from scratch, not patched.**
+  A real user-run data audit found these three series had gone from
+  "stale" (the original dead-FRED-mirror problem) to completely ABSENT
+  after the 7.6.7 fix -- meaning the Eurostat queries were failing
+  entirely, including the unemployment one that had been flagged as
+  high-confidence. Root cause: the 7.6.7 fix used Eurostat's SDMX 2.1 REST
+  API, which requires filter values in a strict, dataset-specific
+  positional order -- exactly the kind of thing that's easy to get subtly
+  wrong. Rather than guess at the order again, the fetchers now use
+  Eurostat's separate "API Statistics" endpoint, which takes named query
+  parameters (geo=, sector=, unit=, na_item=, etc.) instead of positional
+  ones -- this class of bug becomes structurally impossible, not just less
+  likely. The new endpoint's JSON-stat response format was verified
+  directly against a real live response (a different dataset, used only to
+  confirm the response shape matches what the parser expects) before
+  wiring it in. Added full diagnostic logging (HTTP status, row counts,
+  raw response snippets on failure) to both this and Japan's CPI fetch, so
+  any future failure is diagnosable from the Actions log directly.
+- **Japan's CPI showing 2021 data despite the fix being deployed**: this
+  wasn't a code bug -- the fix was already correctly in place, but
+  `fetch_oecd_cpi()` had zero diagnostic output, so a real failure was
+  indistinguishable from "hasn't been re-run since deploying." Added the
+  same diagnostic logging pattern used for MoSPI, so the next run's log
+  will show exactly what OECD's API returned.
 
 ## Fixed in 7.6.6
 - **Canada and Australia's CPI fetch worked, but the pages never displayed
