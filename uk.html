@@ -125,6 +125,8 @@ nav.cat button.active{background:var(--blue); border-color:var(--blue); color:#f
 
 <script src="https://cdnjs.cloudflare.com/ajax/libs/d3/7.8.5/d3.min.js"></script>
 <script src="https://cdnjs.cloudflare.com/ajax/libs/topojson/3.0.2/topojson.min.js"></script>
+<script src="https://cdnjs.cloudflare.com/ajax/libs/d3/7.8.5/d3.min.js"></script>
+<script src="https://cdnjs.cloudflare.com/ajax/libs/topojson/3.0.2/topojson.min.js"></script>
 <script>
 (function(){
   var UK=new Set(["826"]), US=new Set(["840"]),
@@ -138,16 +140,53 @@ nav.cat button.active{background:var(--blue); border-color:var(--blue); color:#f
       :JP.has(id)?"japan.html":IN.has(id)?"india.html":CA.has(id)?"canada.html"
       :AU.has(id)?"australia.html":null;
   }
+
+  /* Same flag lookup and rendering logic as the homepage map -- kept
+     identical on purpose so every map on the site behaves the same way. */
+  var ALPHA2 = {
+    "004":"AF","008":"AL","012":"DZ","024":"AO","032":"AR","036":"AU","040":"AT",
+    "044":"BS","048":"BH","050":"BD","051":"AM","056":"BE","064":"BT","068":"BO",
+    "070":"BA","072":"BW","076":"BR","096":"BN","100":"BG","104":"MM","108":"BI",
+    "112":"BY","116":"KH","120":"CM","124":"CA","144":"LK","148":"TD","152":"CL",
+    "156":"CN","170":"CO","178":"CG","180":"CD","188":"CR","191":"HR","192":"CU",
+    "196":"CY","203":"CZ","208":"DK","214":"DO","218":"EC","818":"EG","222":"SV",
+    "231":"ET","233":"EE","238":"FK","242":"FJ","246":"FI","250":"FR","266":"GA",
+    "268":"GE","276":"DE","288":"GH","300":"GR","320":"GT","324":"GN","328":"GY",
+    "332":"HT","340":"HN","344":"HK","348":"HU","352":"IS","356":"IN","360":"ID",
+    "364":"IR","368":"IQ","372":"IE","376":"IL","380":"IT","384":"CI","388":"JM",
+    "392":"JP","400":"JO","398":"KZ","404":"KE","408":"KP","410":"KR","414":"KW",
+    "417":"KG","418":"LA","422":"LB","426":"LS","428":"LV","430":"LR","434":"LY",
+    "440":"LT","442":"LU","450":"MG","454":"MW","458":"MY","466":"ML","470":"MT",
+    "478":"MR","480":"MU","484":"MX","496":"MN","499":"ME","504":"MA","508":"MZ",
+    "516":"NA","524":"NP","528":"NL","554":"NZ","558":"NI","562":"NE",
+    "566":"NG","578":"NO","512":"OM","586":"PK","591":"PA","598":"PG","600":"PY",
+    "604":"PE","608":"PH","616":"PL","620":"PT","630":"PR","634":"QA","642":"RO",
+    "643":"RU","646":"RW","682":"SA","686":"SN","688":"RS","702":"SG","703":"SK",
+    "705":"SI","706":"SO","710":"ZA","724":"ES","728":"SS","729":"SD","740":"SR",
+    "752":"SE","756":"CH","760":"SY","158":"TW","762":"TJ","834":"TZ","764":"TH",
+    "626":"TL","768":"TG","780":"TT","788":"TN","792":"TR","795":"TM","800":"UG",
+    "804":"UA","784":"AE","826":"GB","840":"US","858":"UY","860":"UZ","862":"VE",
+    "704":"VN","887":"YE","894":"ZM","716":"ZW","010":"AQ",
+  };
+  var flagEmoji = function(a2){
+    return a2 ? String.fromCodePoint.apply(null, a2.toUpperCase().split("").map(
+      function(c){ return 0x1F1E6 + c.charCodeAt(0) - 65; })) : "";
+  };
+
   var wrap = document.getElementById("miniMapWrap");
+  var tip = document.getElementById("maptip");
+
   fetch("https://cdn.jsdelivr.net/npm/world-atlas@2/countries-110m.json")
     .then(function(r){ return r.json(); })
     .then(function(world){
       var svg = d3.select("#miniMap");
+      var g = svg.append("g");
       var projection = d3.geoNaturalEarth1().fitSize([960,500], {type:"Sphere"});
       var path = d3.geoPath(projection);
       var countries = topojson.feature(world, world.objects.countries).features
         .filter(function(f){ return f.id !== "010"; });
-      svg.selectAll("path")
+
+      g.selectAll("path")
         .data(countries)
         .join("path")
         .attr("d", path)
@@ -161,12 +200,24 @@ nav.cat button.active{background:var(--blue); border-color:var(--blue); color:#f
           var d = dest(f.id);
           if(d && !CURRENT.has(f.id)) location.href = d + location.hash;
         })
-        .append("title")
-        .text(function(f){
-          if(CURRENT.has(f.id)) return "You are here";
-          var d = dest(f.id);
-          return d ? "Go to " + (f.properties && f.properties.name || d) : "On the roadmap";
-        });
+        .on("mousemove", function(e, f){
+          var flag = flagEmoji(ALPHA2[f.id]);
+          var name = (f.properties && f.properties.name) || "This country";
+          var status = CURRENT.has(f.id) ? "You are here"
+            : dest(f.id) ? "Live — click to explore" : "On the roadmap";
+          tip.innerHTML = "<span style=\"font-size:20px;line-height:1;\">" + flag + "</span> "
+            + "<strong>" + name + "</strong><br><span style=\"color:var(--ink2);font-size:12px;\">" + status + "</span>";
+          tip.style.left = (e.offsetX + 16) + "px";
+          tip.style.top = (e.offsetY + 8) + "px";
+          tip.style.display = "block";
+        })
+        .on("mouseleave", function(){ tip.style.display = "none"; });
+
+      var zoom = d3.zoom()
+        .scaleExtent([1, 8])
+        .translateExtent([[0, 0], [960, 500]])
+        .on("zoom", function(e){ g.attr("transform", e.transform); });
+      svg.call(zoom);
     })
     .catch(function(){ wrap.style.display = "none"; });
 
@@ -196,15 +247,16 @@ nav.cat button.active{background:var(--blue); border-color:var(--blue); color:#f
 <div class="mini-mapwrap" id="miniMapWrap" tabindex="0" role="img"
   aria-label="Small world map. Hover or tap to enlarge, then select a country to jump to its page, keeping the current section.">
   <svg id="miniMap" viewBox="0 0 960 500"></svg>
+  <div id="maptip" aria-hidden="true"></div>
+  <span class="zoomhint">Scroll or pinch to zoom</span>
   <span class="minihint">Hover to explore &bull; click a country</span>
 </div>
 <div class="mini-legend">
   <span><span class="mini-swatch" style="background:#B0432E"></span>You are here</span>
-  <span><span class="mini-swatch" style="background:var(--mako-2)"></span>G7 economy</span>
+  <span><span class="mini-swatch" style="background:var(--mako-4)"></span>G7 economy</span>
   <span><span class="mini-swatch" style="background:var(--mako-3)"></span>Other live country</span>
   <span><span class="mini-swatch" style="background:#E7EAE6"></span>On the roadmap</span>
 </div>
-
 
 <div class="newdata" id="newdata" hidden>
   <span class="pulse" aria-hidden="true"></span><span id="newdataText"></span>
