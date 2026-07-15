@@ -124,12 +124,8 @@ nav.cat button.active{background:var(--blue); border-color:var(--blue); color:#f
   <div class="hero mini" id="tiles-inflation"></div>
   <p class="lightskey compact" aria-label="Key to freshness lights"><span><span class="led green" aria-hidden="true"></span>&nbsp;updated on schedule</span><span><span class="led orange" aria-hidden="true"></span>&nbsp;awaiting next release</span></p>
   <div class="grid" id="charts-inflation"></div>
-  <p class="secnote"><strong>Known gap:</strong> CPI inflation isn't shown yet. Both obvious FRED mirrors
-    of Canada's CPI stopped updating in March 2025 — the same systemic failure that hit Japan's and
-    India's CPI: FRED's OECD "MEI" vintage CPI family was discontinued en masse around that date.
-    StatCan clearly still publishes monthly CPI directly, but the live replacement route needs its own
-    verification pass before going live here — shown instead is the interbank overnight rate, which
-    closely tracks the Bank of Canada's policy rate and is genuinely live.</p>
+  <p class="secnote">CPI is sourced from OECD's own live prices system, not the dead FRED mirror
+    (CPALCY01CAM661N/CPALTT01CAM659N) that stopped updating in March 2025 — see the README for details.</p>
 </section>
 <section class="sec" id="sec-labour" hidden>
   <div class="hero mini" id="tiles-labour"></div>
@@ -173,7 +169,7 @@ const MAKO={deep:"#2E1E3B", indigo:"#413D7B", blue:"#37659E",
 const LINE=MAKO.blue, BAR_UP=MAKO.sea, BAR_DOWN=MAKO.indigo;
 const MONTHS=["Jan","Feb","Mar","Apr","May","Jun","Jul","Aug","Sep","Oct","Nov","Dec"];
 const NAMES={gdp_level:"GDP",gdp_real:"Real GDP",gdp_growth:"GDP growth",
-  overnight_rate:"Overnight rate",debt_gdp:"Government debt",deficit:"Gov. deficit",
+  cpi:"CPI inflation",overnight_rate:"Overnight rate",debt_gdp:"Government debt",deficit:"Gov. deficit",
   current_account:"Current account",trade_balance:"Trade balance",
   business_confidence:"Business confidence",fdi:"FDI",unemployment:"Unemployment"};
 
@@ -273,6 +269,9 @@ function sampleData(){
       [["1996-Q1",850],["2008-Q1",1620],["2013-Q1",1780],["2019-Q4",2000],
        ["2020-Q2",1740],["2023-Q2",2080],["2026-Q1",2140]],qAll)),
     gdp_growth:S("Real GDP growth QoQ, annualised","%","quarters",gdpG),
+    cpi:S("CPI, all items, YoY","%","months",interp(
+      [["1996-01",1.6],["2001-05",3.9],["2008-08",3.4],["2011-08",3.1],["2015-01",1.0],
+       ["2020-05",-0.4],["2022-06",8.1],["2023-06",2.8],["2024-12",1.8],["2026-05",3.23]],mR)),
     overnight_rate:S("Interbank overnight rate","%","months",interp(
       [["1996-01",6.0],["2001-01",5.75],["2004-01",2.5],["2007-07",4.5],["2009-04",0.25],
        ["2015-07",0.5],["2018-10",1.75],["2020-03",0.25],["2022-07",2.5],["2023-07",5.0],
@@ -474,6 +473,9 @@ function render(data){
     "How much bigger or smaller the economy is than a year ago, adjusted for inflation.",
     gdpYoY,"line",v=>v+"%",pct,SRC_GDP,1999);
 
+  if(s.cpi) chartPanel("cpi","charts-inflation","CPI inflation, annual rate",
+    "How much consumer prices are rising compared with a year ago. The Bank of Canada targets 2%.",
+    s.cpi,"line",v=>v+"%",pct,"OECD live prices system \u00b7 CPI, all items, YoY");
   if(s.overnight_rate) chartPanel("overnight_rate","charts-inflation","Interbank overnight rate",
     "The rate banks charge each other for overnight loans \u2014 closely tracks the Bank of Canada's target rate. Not the BoC's own published rate series directly.",
     s.overnight_rate,"line",v=>v+"%",v=>v.toFixed(2)+"%",SRC_RATE);
@@ -501,6 +503,8 @@ function render(data){
     {fmt:etn,fmtD:v=>"C$"+(v/1e6).toFixed(1)+"tn",upIsGood:true,source:SRC_GDP});
   if(s.gdp_growth) statTile(hero,"gdp_growth","GDP growth (QoQ, ann.)",s.gdp_growth,
     {fmt:pct,fmtD:pp,upIsGood:true,source:SRC_GDP});
+  if(s.cpi) statTile(hero,"cpi","CPI inflation",s.cpi,
+    {fmt:pct,fmtD:pp,upIsGood:false,source:"OECD live prices system"});
   if(s.overnight_rate) statTile(hero,"overnight_rate","Overnight rate",s.overnight_rate,
     {fmt:v=>v.toFixed(2)+"%",fmtD:v=>v.toFixed(2)+"pp",upIsGood:false,source:SRC_RATE});
   if(s.unemployment) statTile(hero,"unemployment","Unemployment",s.unemployment,
@@ -527,6 +531,8 @@ function render(data){
     {fmt:pct,fmtD:pp,upIsGood:true,source:SRC_GDP});
 
   const tinf=document.getElementById("tiles-inflation");
+  if(s.cpi) statTile(tinf,"cpi","CPI (YoY)",s.cpi,
+    {fmt:pct,fmtD:pp,upIsGood:false,source:"OECD live prices system"});
   if(s.overnight_rate) statTile(tinf,"overnight_rate","Overnight rate",s.overnight_rate,
     {fmt:v=>v.toFixed(2)+"%",fmtD:v=>v.toFixed(2)+"pp",upIsGood:false,source:SRC_RATE});
 

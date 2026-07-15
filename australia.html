@@ -124,12 +124,9 @@ nav.cat button.active{background:var(--blue); border-color:var(--blue); color:#f
   <div class="hero mini" id="tiles-inflation"></div>
   <p class="lightskey compact" aria-label="Key to freshness lights"><span><span class="led green" aria-hidden="true"></span>&nbsp;updated on schedule</span><span><span class="led orange" aria-hidden="true"></span>&nbsp;awaiting next release</span></p>
   <div class="grid" id="charts-inflation"></div>
-  <p class="secnote"><strong>Known gap:</strong> CPI inflation isn't shown yet. Australia's FRED CPI
-    mirrors are dead — the same systemic failure that hit Japan's, India's and Canada's CPI: FRED's
-    OECD "MEI" vintage CPI family was discontinued en masse around March 2025. The ABS clearly still
-    publishes CPI directly (quarterly, plus a monthly indicator since Oct 2022), but the live
-    replacement route needs its own verification pass before going live here — shown instead is the
-    10-year government bond yield, which is genuinely live.</p>
+  <p class="secnote">CPI is sourced from OECD's own live prices system, not the dead FRED mirrors that
+    stopped updating in March 2025 — see the README for details. It's quarterly, not monthly, matching
+    the ABS's own primary official CPI release.</p>
 </section>
 <section class="sec" id="sec-labour" hidden>
   <div class="hero mini" id="tiles-labour"></div>
@@ -176,7 +173,7 @@ const MAKO={deep:"#2E1E3B", indigo:"#413D7B", blue:"#37659E",
 const LINE=MAKO.blue, BAR_UP=MAKO.sea, BAR_DOWN=MAKO.indigo;
 const MONTHS=["Jan","Feb","Mar","Apr","May","Jun","Jul","Aug","Sep","Oct","Nov","Dec"];
 const NAMES={gdp_level:"GDP",gdp_real:"Real GDP",gdp_growth:"GDP growth",
-  bond_yield_10y:"10-year bond yield",debt_gdp:"Government debt",deficit:"Gov. deficit",
+  cpi:"CPI inflation",bond_yield_10y:"10-year bond yield",debt_gdp:"Government debt",deficit:"Gov. deficit",
   current_account:"Current account",trade_balance:"Trade balance",
   business_confidence:"Business confidence",fdi:"FDI",unemployment:"Unemployment"};
 
@@ -275,6 +272,9 @@ function sampleData(){
       [["1996-Q1",520],["2008-Q1",870],["2013-Q1",1080],["2019-Q4",1320],
        ["2020-Q2",1270],["2023-Q2",1400],["2026-Q1",1470]],qAll)),
     gdp_growth:S("Real GDP growth QoQ, annualised","%","quarters",gdpG),
+    cpi:S("CPI, all items, YoY, quarterly","%","quarters",interp(
+      [["1996-Q1",4.3],["2001-Q3",6.1],["2008-Q3",4.4],["2011-Q1",3.3],["2015-Q1",1.3],
+       ["2020-Q2",-0.3],["2022-Q4",7.8],["2023-Q4",4.1],["2025-Q1",3.3],["2026-Q1",4.05]],qAll)),
     bond_yield_10y:S("10-year government bond yield","%","months",interp(
       [["1996-01",8.5],["2001-10",5.5],["2008-09",5.7],["2013-09",4.0],
        ["2020-05",0.9],["2022-05",3.4],["2023-10",4.9],["2026-05",4.4]],mR)),
@@ -476,6 +476,9 @@ function render(data){
     "How much bigger or smaller the economy is than a year ago, adjusted for inflation.",
     gdpYoY,"line",v=>v+"%",pct,SRC_GDP,1999);
 
+  if(s.cpi) chartPanel("cpi","charts-inflation","CPI inflation, annual rate",
+    "How much consumer prices are rising compared with a year ago. The RBA targets 2\u20133%. Quarterly, matching the ABS's own primary official CPI release.",
+    s.cpi,"line",v=>v+"%",pct,"OECD live prices system \u00b7 CPI, all items, YoY, quarterly");
   if(s.bond_yield_10y) chartPanel("bond_yield_10y","charts-inflation","10-year government bond yield",
     "The yield on 10-year Australian government bonds \u2014 a market gauge of inflation and rate expectations. Not the RBA's cash rate.",
     s.bond_yield_10y,"line",v=>v+"%",v=>v.toFixed(2)+"%",SRC_BOND);
@@ -503,6 +506,8 @@ function render(data){
     {fmt:etn,fmtD:v=>"A$"+(v/1e6).toFixed(1)+"tn",upIsGood:true,source:SRC_GDP});
   if(s.gdp_growth) statTile(hero,"gdp_growth","GDP growth (QoQ, ann.)",s.gdp_growth,
     {fmt:pct,fmtD:pp,upIsGood:true,source:SRC_GDP});
+  if(s.cpi) statTile(hero,"cpi","CPI inflation",s.cpi,
+    {fmt:pct,fmtD:pp,upIsGood:false,source:"OECD live prices system"});
   if(s.bond_yield_10y) statTile(hero,"bond_yield_10y","10Y bond yield",s.bond_yield_10y,
     {fmt:v=>v.toFixed(2)+"%",fmtD:v=>v.toFixed(2)+"pp",upIsGood:false,source:SRC_BOND});
   if(s.unemployment) statTile(hero,"unemployment","Unemployment",s.unemployment,
@@ -529,6 +534,8 @@ function render(data){
     {fmt:pct,fmtD:pp,upIsGood:true,source:SRC_GDP});
 
   const tinf=document.getElementById("tiles-inflation");
+  if(s.cpi) statTile(tinf,"cpi","CPI (YoY)",s.cpi,
+    {fmt:pct,fmtD:pp,upIsGood:false,source:"OECD live prices system"});
   if(s.bond_yield_10y) statTile(tinf,"bond_yield_10y","10Y bond yield",s.bond_yield_10y,
     {fmt:v=>v.toFixed(2)+"%",fmtD:v=>v.toFixed(2)+"pp",upIsGood:false,source:SRC_BOND});
 

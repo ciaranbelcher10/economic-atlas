@@ -121,6 +121,26 @@ that one chart.
   government bond yield is shown instead in both cases, honestly labelled
   as a bond yield rather than mislabelled as the policy rate.
 
+## Fixed in 7.6.6
+- **Canada and Australia's CPI fetch worked, but the pages never displayed
+  it.** The 7.6.4 fix added `cpi` to both fetch scripts and confirmed it
+  was landing correctly in the live JSON (Canada 3.23% for May 2026,
+  Australia 4.05% for Q1 2026 -- both plausible, both live) -- but neither
+  `canada.html` nor `australia.html` was ever updated to actually render
+  it. The "Known gap" note describing the old dead-mirror problem was
+  still showing even though the gap itself was closed. Both pages now have
+  real cpi charts/tiles wired in, matching the NAMES map, sampleData(),
+  and render() consistency already required elsewhere.
+- Also fixed, across three separate rounds with a real user testing each
+  one: India's MoSPI unemployment fetch. In order: (1) the platform's
+  self-signed TLS certificate needed `verify=False`, matching MoSPI's own
+  reference client; (2) `sector_code` needed to be Urban-only ("2"), not
+  Rural+Urban combined ("3"), since PLFS's monthly bulletin is explicitly
+  urban-only by MoSPI's own design; (3) the `month` field comes back as a
+  full month name ("December"), not a numeric code as the parameter name
+  implied -- confirmed directly from real log output each time, not
+  guessed.
+
 ## Fixed in 7.6.4
 - **India, Canada, Australia CPI**: FRED's OECD "MEI" vintage CPI family
   was discontinued en masse around March 2025 (confirmed via each series'
