@@ -10,7 +10,7 @@
 <link href="https://fonts.googleapis.com/css2?family=Nunito+Sans:wght@400;600;700&display=swap" rel="stylesheet">
 <link rel="icon" type="image/png" sizes="32x32" href="favicon-32.png">
 <link rel="apple-touch-icon" href="apple-touch-icon.png">
-<link rel="stylesheet" href="style.css?v=4">
+<link rel="stylesheet" href="style.css?v=5">
 <style>
 .led{display:inline-block; width:9px; height:9px; border-radius:50%;
   margin-right:9px; vertical-align:middle; position:relative; top:-3px;}
@@ -73,19 +73,55 @@ nav.cat button.active{background:var(--blue); border-color:var(--blue); color:#f
 
 <nav class="top"><div class="wrap">
   <a class="brand" href="index.html"><img src="logo-64.png" alt="" width="26" height="26" style="display:block;border-radius:50%;background:#fff;padding:1px;">Economic Atlas</a>
-  <a class="item active" href="index.html">Macro</a>
+  <div class="dropdown">
+    <button type="button" class="dropbtn" id="macroBtn" aria-haspopup="true" aria-expanded="false">Macro <span class="caret">&#9662;</span></button>
+    <div class="dropdown-panel" id="macroPanel">
+      <div class="doverview">
+        <a href="index.html">Overview</a>
+      </div>
+      <div class="dcol">
+        <p class="dhead">Europe</p>
+        <a href="uk.html">UK</a>
+        <a href="eurozone.html">Eurozone</a>
+      </div>
+      <div class="dcol">
+        <p class="dhead">North America</p>
+        <a href="us.html">U.S.</a>
+        <a href="canada.html" class="active">Canada</a>
+      </div>
+      <div class="dcol">
+        <p class="dhead">Asia</p>
+        <a href="japan.html">Japan</a>
+        <a href="india.html">India</a>
+      </div>
+      <div class="dcol">
+        <p class="dhead">Oceania</p>
+        <a href="australia.html">Australia</a>
+      </div>
+    </div>
+  </div>
   <a class="item" href="contact.html">Contact</a>
 </div></nav>
-<nav class="sub"><div class="wrap">
-  <a class="item" href="index.html">Overview</a>
-  <a class="item" href="uk.html">UK</a>
-  <a class="item" href="us.html">U.S.</a>
-  <a class="item" href="eurozone.html">Eurozone</a>
-  <a class="item" href="japan.html">Japan</a>
-  <a class="item" href="india.html">India</a>
-  <a class="item active" href="canada.html">Canada</a>
-  <a class="item" href="australia.html">Australia</a>
-</div></nav>
+<script>
+(function(){
+  var btn = document.getElementById("macroBtn");
+  var panel = document.getElementById("macroPanel");
+  function close(){
+    panel.classList.remove("open"); btn.classList.remove("open");
+    btn.setAttribute("aria-expanded","false");
+  }
+  btn.addEventListener("click", function(e){
+    e.stopPropagation();
+    var isOpen = panel.classList.toggle("open");
+    btn.classList.toggle("open", isOpen);
+    btn.setAttribute("aria-expanded", isOpen ? "true" : "false");
+  });
+  document.addEventListener("click", function(e){
+    if(!panel.contains(e.target) && e.target !== btn) close();
+  });
+  document.addEventListener("keydown", function(e){ if(e.key === "Escape") close(); });
+})();
+</script>
 
 <div class="wrap">
 <header class="page">
