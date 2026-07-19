@@ -344,10 +344,40 @@ MOSPI_LOGIN_URL = "https://api.mospi.gov.in/api/users/login"
 MOSPI_DATA_URL = "https://api.mospi.gov.in/api/plfs/getData"
 
 
+# CONFIRMED on a live 8.3.0 run (2026-07-19): both MoSPI calls now also fail
+# with "SSLError: UNSAFE_LEGACY_RENEGOTIATION_DISABLED" -- OpenSSL 3 refuses
+# legacy TLS renegotiation by default, and MoSPI's server still relies on it.
+# Fix is a dedicated requests.Session whose HTTPAdapter carries an SSLContext
+# with OP_LEGACY_SERVER_CONNECT set, scoped only to api.mospi.gov.in (same
+# scoping discipline as the verify=False cert-verification exception above --
+# every other fetch in this file still uses plain requests with normal TLS).
+def _mospi_session() -> "requests.Session":
+    import ssl
+    from requests.adapters import HTTPAdapter
+    ctx = ssl.create_default_context()
+    ctx.check_hostname = False
+    ctx.verify_mode = ssl.CERT_NONE
+    ctx.options |= ssl.OP_LEGACY_SERVER_CONNECT
+
+    class _LegacyTLSAdapter(HTTPAdapter):
+        def init_poolmanager(self, *args, **kwargs):
+            kwargs["ssl_context"] = ctx
+            return super().init_poolmanager(*args, **kwargs)
+
+        def proxy_manager_for(self, *args, **kwargs):
+            kwargs["ssl_context"] = ctx
+            return super().proxy_manager_for(*args, **kwargs)
+
+    session = requests.Session()
+    session.mount("https://api.mospi.gov.in", _LegacyTLSAdapter())
+    return session
+
+
 def mospi_login(username: str, password: str) -> str | None:
     import urllib3
     urllib3.disable_warnings(urllib3.exceptions.InsecureRequestWarning)
-    r = requests.post(MOSPI_LOGIN_URL, json={"username": username, "password": password},
+    session = _mospi_session()
+    r = session.post(MOSPI_LOGIN_URL, json={"username": username, "password": password},
                       timeout=30, headers={"User-Agent": "economic-atlas/0.1"},
                       verify=False)
     print(f"  [mospi] login status={r.status_code}")
@@ -386,7 +416,8 @@ def fetch_plfs_unemployment(token: str) -> list | None:
         "limit": "200",
         "Format": "JSON",
     }
-    r = requests.get(MOSPI_DATA_URL, params=params, timeout=60,
+    session = _mospi_session()
+    r = session.get(MOSPI_DATA_URL, params=params, timeout=60,
                      headers={"User-Agent": "economic-atlas/0.1",
                               "authorization": token},
                      verify=False)

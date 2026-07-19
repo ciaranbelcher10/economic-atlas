@@ -224,15 +224,25 @@ def fetch_eurostat_govfinance(na_item: str) -> list | None:
 
 def fetch_eurostat_trade(stk_flow: str) -> list | None:
     """Monthly euro-area goods trade, EUR million, direct from Eurostat's
-    short-term trade statistics (8.3.0). Replaces the FRED/OECD 667S mirror,
-    which was discontinued in April 2023. stk_flow: "EXP" or "IMP".
-    Candidate dataset codes and dimension names follow Eurostat's ext_st
-    family conventions; first live run verifies -- check the Actions log for
-    [eurostat-trade] lines. On total failure the caller falls back to the
-    discontinued OECD mirror, so nothing regresses."""
+    short-term trade statistics. Replaces the FRED/OECD 667S mirror, which
+    was discontinued in April 2023. stk_flow: "EXP" or "IMP".
+
+    UPDATE (post-8.3.0): the previously guessed dataset codes
+    (ext_st_ea20sitc / ext_st_ea19sitc) were confirmed 404 on a live run --
+    they don't exist. Verified against Eurostat's own catalogue: the correct,
+    current dataset is the single rolling series "ext_st_easitc" ("Euro area
+    trade by SITC product group"), which carries only one geo value (EA20,
+    backdated) rather than being split by enlargement vintage. Confirmed via
+    Eurostat's own euro-indicators press releases, which cite this exact
+    dataset for euro-area trade in goods, and cross-checked partner/indicator
+    codes (EXT_EA20, TRD_VAL) against Eurostat's ext_st/tet family conventions
+    on other confirmed-live datasets. ext_st_ea20sitc is kept as a secondary
+    fallback candidate only in case this dataset is ever retired in turn --
+    first live run after deploy still verifies via the [eurostat-trade] log
+    lines, per the site's standing "log output beats static analysis" rule."""
     candidates = (
+        ("ext_st_easitc", "EA20", "EXT_EA20"),
         ("ext_st_ea20sitc", "EA20", "EXT_EA20"),
-        ("ext_st_ea19sitc", "EA19", "EXT_EA19"),
     )
     for dataset, geo, partner in candidates:
         for params in (
