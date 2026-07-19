@@ -126,8 +126,6 @@ nav.cat button.active{background:var(--blue); border-color:var(--blue); color:#f
 
 <script src="https://cdnjs.cloudflare.com/ajax/libs/d3/7.8.5/d3.min.js"></script>
 <script src="https://cdnjs.cloudflare.com/ajax/libs/topojson/3.0.2/topojson.min.js"></script>
-<script src="https://cdnjs.cloudflare.com/ajax/libs/d3/7.8.5/d3.min.js"></script>
-<script src="https://cdnjs.cloudflare.com/ajax/libs/topojson/3.0.2/topojson.min.js"></script>
 <script>
 (function(){
   var UK=new Set(["826"]), US=new Set(["840"]),
@@ -244,7 +242,7 @@ nav.cat button.active{background:var(--blue); border-color:var(--blue); color:#f
 <header class="page with-map">
   <div class="head-text">
   <p class="eyebrow"><span class="dot" aria-hidden="true"></span>Official statistics</p>
-  <h1>Canada <span id="sampleBadge" class="badge">Sample data — run fetch_ca.py for live figures</span></h1>
+  <h1>Canada <span id="sampleBadge" class="badge"></span></h1>
   </div>
 <div class="mini-mapwrap" id="miniMapWrap" tabindex="0" role="img"
   aria-label="Small world map. Hover or tap to enlarge, then select a country to jump to its page, keeping the current section.">
@@ -608,7 +606,7 @@ function renderLastUpdated(updatedIso){
 
 function render(data){
   const s=data.series;
-  if(data.sample) document.getElementById("sampleBadge").classList.add("show");
+  if(data.sample){const sb=document.getElementById("sampleBadge");sb.textContent="Sample data — run fetch_ca.py for live figures";sb.classList.add("show");}
   const gdpAnnual = s.gdp_level ? annualGDP(s.gdp_level) : null;   /* FIX (7.6.3): this series is the literal quarterly level (IMF IFS), NOT a seasonally-adjusted-annual-rate like UK/US -- must roll up 4 quarters, was previously used raw and inflated headline GDP ~4x */
   const gdpYoY = s.gdp_real ? yoyGDP(s.gdp_real) : null;
 
