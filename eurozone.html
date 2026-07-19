@@ -627,8 +627,14 @@ function render(data){
 
   const pct=v=>v.toFixed(1)+"%", pp=v=>v.toFixed(1)+"pp";
   const etn=v=>"\u20ac"+(v/1e6).toFixed(2)+"tn";
-  const bnD=v=>(v<0?"\u2212$":"$")+Math.abs(v/1000).toFixed(1)+"bn";
-  const bnD0=v=>(v<0?"\u2212$":"$")+Math.abs(v/1000).toFixed(0)+"bn";
+  const bnD=v=>{
+    const sign=v<0?"\u2212":""; const a=Math.abs(v)*1e6;
+    return a>=1e12 ? sign+"€"+(a/1e12).toFixed(2)+"tn" : sign+"€"+(a/1e9).toFixed(1)+"bn";
+  };
+  const bnD0=v=>{
+    const sign=v<0?"\u2212":""; const a=Math.abs(v)*1e6;
+    return a>=1e12 ? sign+"€"+(a/1e12).toFixed(2)+"tn" : sign+"€"+(a/1e9).toFixed(0)+"bn";
+  };
   const idx=v=>v.toFixed(1);
 
   if(s.business_confidence) chartPanel("business_confidence","charts-headline","Business confidence",
@@ -662,15 +668,15 @@ function render(data){
 
   if(s.trade_balance) chartPanel("trade_balance","charts-trade","Trade balance, goods",
     "Exports minus imports of goods each month. Below zero means the euro area buys more than it sells. This OECD-mirrored series was discontinued in April 2023, so it no longer updates \u2014 shown for historical reference while we source a live replacement.",
-    s.trade_balance,"bar",bnD0,bnD,"Derived from OECD goods trade series (US dollars) \u2014 discontinued Apr 2023",1999);
+    s.trade_balance,"bar",bnD0,bnD,"Derived from OECD goods trade series, converted to euros \u2014 discontinued Apr 2023",1999);
   if(s.current_account) chartPanel("current_account","charts-trade","Current account",
     "The euro area's overall balance with the rest of the world \u2014 trade plus investment income \u2014 as a share of GDP.",
     s.current_account,"line",v=>v+"%",pct,"World Bank \u00b7 % of GDP, annual, euro-area aggregate");
   if(s.exports) chartPanel("exports","charts-trade","Exports, goods",
-    "The value of goods the euro area sells to the rest of the world each month, in US dollars. This series was discontinued in April 2023; we're sourcing a live Eurostat replacement.",
+    "The value of goods the euro area sells to the rest of the world each month, converted to euros from the OECD's US dollar-denominated source. This series was discontinued in April 2023; we're sourcing a live Eurostat replacement.",
     s.exports,"line",bnD0,bnD,"FRED series XTEXVA01EZM667S \u00b7 goods, SA (OECD) \u2014 discontinued Apr 2023");
   if(s.imports) chartPanel("imports","charts-trade","Imports, goods",
-    "The value of goods the euro area buys from the rest of the world each month, in US dollars. This series was discontinued in April 2023; we're sourcing a live Eurostat replacement.",
+    "The value of goods the euro area buys from the rest of the world each month, converted to euros from the OECD's US dollar-denominated source. This series was discontinued in April 2023; we're sourcing a live Eurostat replacement.",
     s.imports,"line",bnD0,bnD,"FRED series XTIMVA01EZM667S \u00b7 goods, SA (OECD) \u2014 discontinued Apr 2023");
 
   if(s.debt_gdp) chartPanel("debt_gdp","charts-public","Government gross debt, % of GDP",
@@ -700,7 +706,7 @@ function render(data){
   if(s.fdi) statTile(hero,"fdi","FDI (net inflows)",s.fdi,
     {fmt:pct,fmtD:pp,upIsGood:true,source:"World Bank \u00b7 % of GDP, annual"});
   if(s.trade_balance) statTile(hero,"trade_balance","Trade balance",s.trade_balance,
-    {fmt:bnD,fmtD:bnD,upIsGood:true,source:"Derived \u00b7 OECD goods trade, $"});
+    {fmt:bnD,fmtD:bnD,upIsGood:true,source:"Derived \u00b7 OECD goods trade, converted to €"});
 
   const tg=document.getElementById("tiles-gdp");
   if(gdpAnnual) statTile(tg,"gdp_level","GDP (annual)",gdpAnnual,
@@ -724,7 +730,7 @@ function render(data){
 
   const tt=document.getElementById("tiles-trade");
   if(s.trade_balance) statTile(tt,"trade_balance","Trade balance",s.trade_balance,
-    {fmt:bnD,fmtD:bnD,upIsGood:true,source:"Derived \u00b7 OECD, $"});
+    {fmt:bnD,fmtD:bnD,upIsGood:true,source:"Derived \u00b7 OECD, converted to €"});
   if(s.exports) statTile(tt,"exports","Exports",s.exports,
     {fmt:bnD,fmtD:bnD,upIsGood:true,source:"FRED \u00b7 XTEXVA01EZM667S"});
   if(s.imports) statTile(tt,"imports","Imports",s.imports,
@@ -776,7 +782,7 @@ function applyToggles(){
   const dollarBtn = document.getElementById("toggleDollar");
   const note = document.getElementById("mtoggleNote");
   if(!s.gdp_real) realBtn.classList.add("disabled");
-  const alreadyUsd = s.gdp_level && currencySymbol(s.gdp_level.unit)==="$";
+  const alreadyUsd = COUNTRY_LABEL==="US"; // avoid $-symbol collision with CAD/AUD
   if(alreadyUsd){
     dollarBtn.classList.add("disabled");
     dollarBtn.title="Already in US dollars";

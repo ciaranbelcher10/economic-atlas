@@ -475,6 +475,17 @@ def main() -> int:
                 out["fx_to_usd"] = {"pair": "INR/USD", "rate": fx_rate,
                                      "as_of": fx_period, "direction": "divide"}
                 print(f"  ok  fx_to_usd        1 observation ({fx_period}, {fx_rate})")
+
+                to_local = lambda v: v * fx_rate
+                for tk in ("trade_balance", "exports", "imports"):
+                    if tk in out["series"]:
+                        ser = out["series"][tk]
+                        if ser["unit"].strip().startswith("$"):
+                            ser["points"] = [[p, round(to_local(v), 1)] for p, v in ser["points"]]
+                            ser["unit"] = ser["unit"].replace("$", "₹", 1)
+                            ser["label"] = ser["label"].replace(", $ ", ", ₹ ") \
+                                                        .replace(", $", ", ₹")
+                            print(f"  ok  {tk:<16} converted {'$'}->{'₹'} using {fx_rate}")
             else:
                 print("note  fx_to_usd: no observations returned")
         else:

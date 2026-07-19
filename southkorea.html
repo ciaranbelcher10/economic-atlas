@@ -626,8 +626,14 @@ function render(data){
 
   const pct=v=>v.toFixed(1)+"%", pp=v=>v.toFixed(1)+"pp";
   const etn=v=>"\u20a9"+(v/1e6).toFixed(2)+"tn";
-  const bnD=v=>(v<0?"\u2212$":"$")+Math.abs(v/1000).toFixed(1)+"bn";
-  const bnD0=v=>(v<0?"\u2212$":"$")+Math.abs(v/1000).toFixed(0)+"bn";
+  const bnD=v=>{
+    const sign=v<0?"\u2212":""; const a=Math.abs(v)*1e6;
+    return a>=1e12 ? sign+"₩"+(a/1e12).toFixed(2)+"tn" : sign+"₩"+(a/1e9).toFixed(1)+"bn";
+  };
+  const bnD0=v=>{
+    const sign=v<0?"\u2212":""; const a=Math.abs(v)*1e6;
+    return a>=1e12 ? sign+"₩"+(a/1e12).toFixed(2)+"tn" : sign+"₩"+(a/1e9).toFixed(0)+"bn";
+  };
   const idx=v=>v.toFixed(1);
   const SRC_GDP="FRED \u00b7 IMF International Financial Statistics, quarterly";
   const SRC_TRADE="FRED series XTNTVA01KRQ667S \u00b7 OECD merchandise trade, quarterly";
@@ -773,7 +779,7 @@ function applyToggles(){
   const dollarBtn = document.getElementById("toggleDollar");
   const note = document.getElementById("mtoggleNote");
   if(!s.gdp_real) realBtn.classList.add("disabled");
-  const alreadyUsd = s.gdp_level && currencySymbol(s.gdp_level.unit)==="$";
+  const alreadyUsd = COUNTRY_LABEL==="US"; // avoid $-symbol collision with CAD/AUD
   if(alreadyUsd){
     dollarBtn.classList.add("disabled");
     dollarBtn.title="Already in US dollars";
