@@ -338,6 +338,22 @@ def main() -> int:
         print("Fresh (< 2 days old): " + ", ".join(
             f"{k} ({p})" for k, p in out["new_points"].items()))
 
+    try:
+        if key:
+            fx_pts = fetch_fred("DEXJPUS", "d", key)
+            if fx_pts:
+                fx_period, fx_rate = fx_pts[-1]
+                out["fx_to_usd"] = {"pair": "JPY/USD", "rate": fx_rate,
+                                     "as_of": fx_period, "direction": "divide"}
+                print(f"  ok  fx_to_usd        1 observation ({fx_period}, {fx_rate})")
+            else:
+                print("note  fx_to_usd: no observations returned")
+        else:
+            print("note  fx_to_usd not set (no FRED_API_KEY) — "
+                  "Dollarise will be unavailable on this page until next run.")
+    except Exception as exc:
+        print(f"FAIL  fx_to_usd        {exc}")
+
     with open("data-jp.json", "w") as f:
         json.dump(out, f)
     print(f"\nWrote data-jp.json with {len(out['series'])} series.")

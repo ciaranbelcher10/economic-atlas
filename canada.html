@@ -10,7 +10,7 @@
 <link href="https://fonts.googleapis.com/css2?family=Nunito+Sans:wght@400;600;700&display=swap" rel="stylesheet">
 <link rel="icon" type="image/png" sizes="32x32" href="favicon-32.png">
 <link rel="apple-touch-icon" href="apple-touch-icon.png">
-<link rel="stylesheet" href="style.css?v=11">
+<link rel="stylesheet" href="style.css?v=12">
 <style>
 .led{display:inline-block; width:9px; height:9px; border-radius:50%;
   margin-right:9px; vertical-align:middle; position:relative; top:-3px;}
@@ -275,6 +275,16 @@ document.addEventListener("DOMContentLoaded", function(){
   <button data-sec="public">Public Finances</button>
 </nav>
 
+<div class="metric-toggles" aria-label="Display options">
+  <button type="button" class="mtoggle" id="toggleReal" onclick="toggleMetric('real',this)">
+    <span class="mtoggle-switch" aria-hidden="true"></span>Make it real
+  </button>
+  <button type="button" class="mtoggle" id="toggleDollar" onclick="toggleMetric('dollar',this)">
+    <span class="mtoggle-switch" aria-hidden="true"></span>Dollarise
+  </button>
+  <span class="mtoggle-note" id="mtoggleNote"></span>
+</div>
+
 <section class="sec" id="sec-headline">
   <div class="hero" id="hero" aria-label="Headline figures"></div>
   <p class="lightskey" aria-label="Key to freshness lights">
@@ -523,6 +533,7 @@ function statTile(el, key, title, series, opts){
   const clickable=!!ANCHORS[key];
   const div=document.createElement("div");
   div.className="stat"+(clickable?" link":"");
+  div.dataset.key=key;
   if(clickable){
     div.setAttribute("role","link");
     div.setAttribute("tabindex","0");
@@ -724,10 +735,97 @@ function render(data){
   renderLastUpdated(data.updated);
 }
 
+/* ---------------------- Dollarise / Make it real ---------------------- */
+let PAGE_DATA = null;
+const TOGGLE_STATE = { real:false, dollar:false };
+
+function scaleOf(unitStr){
+  if(/tn$/.test(unitStr)) return 1e12;
+  if(/bn$/.test(unitStr)) return 1e9;
+  if(/m$/.test(unitStr)) return 1e6;
+  return 1;
+}
+function autoFormat(rawValue, unitStr, symbol){
+  const abs = rawValue * scaleOf(unitStr);
+  const sign = abs<0 ? "-" : "";
+  const a = Math.abs(abs);
+  if(a>=1e12) return sign+symbol+(a/1e12).toFixed(2)+"tn";
+  if(a>=1e9) return sign+symbol+(a/1e9).toFixed(1)+"bn";
+  return sign+symbol+(a/1e6).toFixed(0)+"m";
+}
+function currencySymbol(unitStr){
+  const m = unitStr.match(/^[^a-zA-Z0-9]+/);
+  return m ? m[0] : "";
+}
+
+function toggleMetric(which, el){
+  if(el.classList.contains("disabled")) return;
+  TOGGLE_STATE[which] = !TOGGLE_STATE[which];
+  el.classList.toggle("on", TOGGLE_STATE[which]);
+  applyToggles();
+}
+
+function applyToggles(){
+  if(!PAGE_DATA || !PAGE_DATA.series) return;
+  const s = PAGE_DATA.series;
+  const realBtn = document.getElementById("toggleReal");
+  const dollarBtn = document.getElementById("toggleDollar");
+  const note = document.getElementById("mtoggleNote");
+  if(!s.gdp_real) realBtn.classList.add("disabled");
+  const alreadyUsd = s.gdp_level && currencySymbol(s.gdp_level.unit)==="$";
+  if(alreadyUsd){
+    dollarBtn.classList.add("disabled");
+    dollarBtn.title="Already in US dollars";
+  } else if(!PAGE_DATA.fx_to_usd){
+    dollarBtn.classList.add("disabled");
+    dollarBtn.title="Exchange rate not available yet";
+  }
+
+  const useReal = TOGGLE_STATE.real && s.gdp_real;
+  const base = useReal ? s.gdp_real : s.gdp_level;
+  if(!base){ return; }
+  const pts = base.points, last = pts[pts.length-1], prev = pts[pts.length-2];
+  let val = last[1], prevVal = prev ? prev[1] : null;
+  let unitStr = base.unit, symbol = currencySymbol(base.unit);
+  const notes = [];
+
+  if(TOGGLE_STATE.dollar && PAGE_DATA.fx_to_usd){
+    const fx = PAGE_DATA.fx_to_usd;
+    const conv = v => fx.direction==="multiply" ? v*fx.rate : v/fx.rate;
+    val = conv(val); if(prevVal!==null) prevVal = conv(prevVal);
+    symbol = "$";
+    notes.push(`Converted at ${fx.pair} = ${fx.rate} (as of ${fx.as_of})`);
+  } else if(TOGGLE_STATE.dollar && !PAGE_DATA.fx_to_usd){
+    notes.push("Exchange rate not available yet — showing original currency");
+  }
+  if(useReal) notes.push("Real terms (chained volume / constant prices)");
+  note.textContent = notes.join(" · ");
+
+  const figureText = autoFormat(val, unitStr, symbol);
+  const deltaText = prevVal!==null ? autoFormat(val-prevVal, unitStr, symbol) : null;
+
+  document.querySelectorAll('[data-key="gdp_level"]').forEach(tile=>{
+    const fig = tile.querySelector(".figure");
+    if(fig){
+      const led = fig.querySelector(".led");
+      fig.innerHTML = "";
+      if(led) fig.appendChild(led);
+      fig.appendChild(document.createTextNode(figureText));
+    }
+    const delta = tile.querySelector(".delta");
+    if(delta && deltaText!==null){
+      const arrow = delta.querySelector(".arrow");
+      const arrowHtml = arrow ? arrow.outerHTML : "";
+      delta.innerHTML = arrowHtml + " " + (val-prevVal>0?"+":"") + deltaText + " vs prior";
+    }
+  });
+}
+
+
 fetch("data-ca.json",{cache:"no-store"})
   .then(r=>{ if(!r.ok) throw new Error(r.status); return r.json(); })
-  .then(render)
-  .catch(()=>{ render(sampleData()); });
+  .then(d=>{ PAGE_DATA=d; render(d); applyToggles(); })
+  .catch(()=>{ PAGE_DATA=sampleData(); render(PAGE_DATA); applyToggles(); });
 </script>
 </body>
 </html>

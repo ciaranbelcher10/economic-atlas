@@ -29,8 +29,10 @@ UA = {"User-Agent": "economic-atlas/0.2"}
 # UK — ONS series (verified page URIs)
 # ===========================================================================
 UK_SERIES = {
-    "gdp_level": (["/economy/grossdomesticproductgdp/timeseries/abmi/pn2"],
-                  "GDP, chained volume measure (ABMI)", "£m"),
+    "gdp_level": (["/economy/grossdomesticproductgdp/timeseries/ybha/pn2"],
+                  "GDP, current prices (YBHA)", "£m"),
+    "gdp_real": (["/economy/grossdomesticproductgdp/timeseries/abmi/pn2"],
+                 "GDP, chained volume measure (ABMI)", "£m"),
     "gdp_growth": (["/economy/grossdomesticproductgdp/timeseries/ihyq/pn2"],
                    "GDP growth, quarter on quarter (IHYQ)", "%"),
     "productivity": (["/employmentandlabourmarket/peopleinwork/labourproductivity/timeseries/lzvb/prdy"],
@@ -170,6 +172,22 @@ def fetch_fred(series_id: str, freq: str, api_key: str) -> list:
             continue
     points.sort(key=lambda p: p[0])
     return points
+
+
+def fetch_latest_fx(series_id: str, api_key: str) -> tuple[str, float] | None:
+    """Most recent (date, rate) from a FRED daily FX series, skipping any
+    trailing missing-value rows (weekends/holidays report '.')."""
+    params = {"series_id": series_id, "api_key": api_key, "file_type": "json",
+              "sort_order": "desc", "limit": 10}
+    r = requests.get(FRED_BASE, params=params, timeout=60, headers=UA)
+    r.raise_for_status()
+    for o in r.json().get("observations", []):
+        if o.get("value") not in (None, "", "."):
+            try:
+                return o["date"], float(o["value"])
+            except ValueError:
+                continue
+    return None
 
 
 def pct_change(points: list, lag: int) -> list:
@@ -361,6 +379,7 @@ def build_uk() -> bool:
     print("== United Kingdom ==")
     previous = load_previous("data.json")
     out = {"updated": stamp(), "sample": False, "series": {}}
+    api_key = os.environ.get("FRED_API_KEY", "").strip()
     failures = []
     for key, (uris, label, unit) in UK_SERIES.items():
         try:
@@ -401,6 +420,19 @@ def build_uk() -> bool:
     if not out["series"]:
         print("UK: nothing fetched.")
         return False
+
+    try:
+        fx = fetch_latest_fx("DEXUSUK", api_key) if api_key else None
+        if fx:
+            out["fx_to_usd"] = {"pair": "GBP/USD", "rate": fx[1], "as_of": fx[0],
+                                 "direction": "multiply"}
+            print(f"  ok  fx_to_usd        1 observation ({fx[0]}, {fx[1]})")
+        else:
+            print("note  fx_to_usd not set (no FRED_API_KEY or no data) — "
+                  "Dollarise will be unavailable on this page until next run.")
+    except Exception as exc:
+        print(f"FAIL  fx_to_usd        {exc}")
+
     finalise(out, previous, "data.json", failures)
     return True
 
