@@ -661,10 +661,11 @@ function render(data){
 
   /* ---------------------------- formatters ----------------------------- */
   const pct=v=>v.toFixed(1)+"%", pp=v=>v.toFixed(1)+"pp";
-  const tn=v=>"£"+(v/1e6).toFixed(2)+"tn";
-  const bn=v=>(v<0?"−£":"£")+Math.abs(v/1000).toFixed(1)+"bn";
-  const bn0=v=>(v<0?"−£":"£")+Math.abs(v/1000).toFixed(0)+"bn";
   const idx=v=>v.toFixed(1);
+  /* Currency formatting (tn/bn/m, correct symbol) is handled dynamically
+     by curFmt(value, unit, decimals), defined in the toggle script below --
+     it reads whatever unit the series currently has, so it stays correct
+     whether or not Dollarise has converted it. */
 
   /* --------------- charts first, so tiles know their targets ----------- */
   if(s.business_confidence) chartPanel("business_confidence","charts-headline","Business confidence",
@@ -676,7 +677,7 @@ function render(data){
 
   if(gdpAnnual) chartPanel("gdp_level","charts-gdp","GDP",
     "The total value of everything the UK economy produces in a year.",
-    gdpAnnual,"line",v=>"£"+(v/1e6).toFixed(1)+"tn",tn,
+    gdpAnnual,"line",v=>curFmt(v,s.gdp_level.unit,1),v=>curFmt(v,s.gdp_level.unit,2),
     "ONS series ABMI (PN2) · chained volume measure, rolling four-quarter sum, SA",1991);
   if(s.gdp_growth) chartPanel("gdp_growth","charts-gdp","GDP growth, quarter on quarter",
     "How much the economy grew or shrank compared with the previous three months.",
@@ -710,16 +711,16 @@ function render(data){
 
   if(s.trade_balance) chartPanel("trade_balance","charts-trade","Trade balance",
     "Exports minus imports each month. Below zero means the UK buys more from abroad than it sells.",
-    s.trade_balance,"bar",bn0,bn,"ONS series IKBJ (MRET) · goods and services, current prices, SA",1997);
+    s.trade_balance,"bar",v=>curFmt(v,s.trade_balance.unit,0),v=>curFmt(v,s.trade_balance.unit,1),"ONS series IKBJ (MRET) · goods and services, current prices, SA",1997);
   if(s.current_account) chartPanel("current_account","charts-trade","Current account",
     "The UK's overall balance with the rest of the world — trade plus investment income — as a share of GDP.",
     s.current_account,"line",v=>v+"%",pct,"ONS series AA6H · % of GDP, annual (Pink Book)");
   if(s.exports) chartPanel("exports","charts-trade","Exports",
     "The value of goods and services the UK sells to the rest of the world each month.",
-    s.exports,"line",bn0,bn,"ONS series IKBH (MRET) · goods and services, current prices, SA");
+    s.exports,"line",v=>curFmt(v,s.exports.unit,0),v=>curFmt(v,s.exports.unit,1),"ONS series IKBH (MRET) · goods and services, current prices, SA");
   if(s.imports) chartPanel("imports","charts-trade","Imports",
     "The value of goods and services the UK buys from the rest of the world each month.",
-    s.imports,"line",bn0,bn,"ONS series IKBI (MRET) · goods and services, current prices, SA");
+    s.imports,"line",v=>curFmt(v,s.imports.unit,0),v=>curFmt(v,s.imports.unit,1),"ONS series IKBI (MRET) · goods and services, current prices, SA");
   if(ti) chartPanel(null,"charts-trade","Trade intensity",
     "Total trade (exports plus imports) as a share of GDP — a measure of how open the economy is.",
     ti,"line",v=>v+"%",pct,"Calculated from ONS series IKBH, IKBI and ABMI · complete calendar years");
@@ -729,12 +730,12 @@ function render(data){
     s.debt_gdp,"line",v=>v+"%",pct,"ONS series HF6X (PUSF) · excluding public sector banks, NSA");
   if(s.deficit) chartPanel("deficit","charts-public","Public sector net borrowing",
     "How much the government borrows each month to cover the gap between spending and tax. Seasonal swings are normal.",
-    s.deficit,"bar",bn0,bn,"ONS series DZLS (PUSF) · excluding public sector banks, monthly",2005);
+    s.deficit,"bar",v=>curFmt(v,s.deficit.unit,0),v=>curFmt(v,s.deficit.unit,1),"ONS series DZLS (PUSF) · excluding public sector banks, monthly",2005);
 
   /* ------------------------------ tiles -------------------------------- */
   const hero=document.getElementById("hero");
   if(gdpAnnual) statTile(hero,"gdp_level","GDP (annual)",gdpAnnual,
-    {fmt:tn,fmtD:v=>"£"+(v/1000).toFixed(0)+"bn",upIsGood:true,
+    {fmt:v=>curFmt(v,s.gdp_level.unit,2),fmtD:v=>curFmt(v,s.gdp_level.unit,0),upIsGood:true,
      source:"ONS · ABMI (PN2), rolling 4 quarters"});
   if(s.gdp_growth) statTile(hero,"gdp_growth","GDP growth (QoQ)",s.gdp_growth,
     {fmt:pct,fmtD:pp,upIsGood:true,source:"ONS · IHYQ (PN2)"});
@@ -745,7 +746,7 @@ function render(data){
   if(s.current_account) statTile(hero,"current_account","Current account",s.current_account,
     {fmt:pct,fmtD:pp,upIsGood:true,source:"ONS · AA6H, % of GDP"});
   if(s.deficit) statTile(hero,"deficit","Gov. borrowing",s.deficit,
-    {fmt:bn,fmtD:bn,upIsGood:false,source:"ONS · DZLS (PUSF), PSNB ex"});
+    {fmt:v=>curFmt(v,s.deficit.unit,1),fmtD:v=>curFmt(v,s.deficit.unit,1),upIsGood:false,source:"ONS · DZLS (PUSF), PSNB ex"});
   if(s.debt_gdp) statTile(hero,"debt_gdp","Public debt (% of GDP)",s.debt_gdp,
     {fmt:pct,fmtD:pp,upIsGood:false,source:"ONS · HF6X (PUSF), % of GDP"});
   if(s.business_confidence) statTile(hero,"business_confidence","Business confidence",s.business_confidence,
@@ -753,12 +754,12 @@ function render(data){
   if(s.fdi) statTile(hero,"fdi","FDI (net inflows)",s.fdi,
     {fmt:pct,fmtD:pp,upIsGood:true,source:"World Bank · % of GDP, annual"});
   if(s.trade_balance) statTile(hero,"trade_balance","Trade balance",s.trade_balance,
-    {fmt:bn,fmtD:bn,upIsGood:true,source:"ONS · IKBJ (MRET), goods & services, SA"});
+    {fmt:v=>curFmt(v,s.trade_balance.unit,1),fmtD:v=>curFmt(v,s.trade_balance.unit,1),upIsGood:true,source:"ONS · IKBJ (MRET), goods & services, SA"});
 
   /* section tiles */
   const tg=document.getElementById("tiles-gdp");
   if(gdpAnnual) statTile(tg,"gdp_level","GDP (annual)",gdpAnnual,
-    {fmt:tn,fmtD:v=>"£"+(v/1000).toFixed(0)+"bn",upIsGood:true,source:"ONS · ABMI"});
+    {fmt:v=>curFmt(v,s.gdp_level.unit,2),fmtD:v=>curFmt(v,s.gdp_level.unit,0),upIsGood:true,source:"ONS · ABMI"});
   if(s.gdp_growth) statTile(tg,"gdp_growth","Growth (QoQ)",s.gdp_growth,
     {fmt:pct,fmtD:pp,upIsGood:true,source:"ONS · IHYQ"});
   if(gdpYoY) statTile(tg,null,"Growth (YoY)",gdpYoY,
@@ -782,11 +783,11 @@ function render(data){
 
   const tt=document.getElementById("tiles-trade");
   if(s.trade_balance) statTile(tt,"trade_balance","Trade balance",s.trade_balance,
-    {fmt:bn,fmtD:bn,upIsGood:true,source:"ONS · IKBJ"});
+    {fmt:v=>curFmt(v,s.trade_balance.unit,1),fmtD:v=>curFmt(v,s.trade_balance.unit,1),upIsGood:true,source:"ONS · IKBJ"});
   if(s.exports) statTile(tt,"exports","Exports",s.exports,
-    {fmt:bn,fmtD:bn,upIsGood:true,source:"ONS · IKBH"});
+    {fmt:v=>curFmt(v,s.exports.unit,1),fmtD:v=>curFmt(v,s.exports.unit,1),upIsGood:true,source:"ONS · IKBH"});
   if(s.imports) statTile(tt,"imports","Imports",s.imports,
-    {fmt:bn,fmtD:bn,upIsGood:false,source:"ONS · IKBI"});
+    {fmt:v=>curFmt(v,s.imports.unit,1),fmtD:v=>curFmt(v,s.imports.unit,1),upIsGood:false,source:"ONS · IKBI"});
   if(ti) statTile(tt,null,"Trade intensity",ti,
     {fmt:pct,fmtD:pp,upIsGood:true,source:"Calculated · IKBH, IKBI, ABMI"});
 
@@ -794,10 +795,10 @@ function render(data){
   if(s.debt_gdp) statTile(tp,"debt_gdp","Public debt (% of GDP)",s.debt_gdp,
     {fmt:pct,fmtD:pp,upIsGood:false,source:"ONS · HF6X, % of GDP"});
   if(s.net_debt) statTile(tp,"net_debt","Net debt",s.net_debt,
-    {fmt:v=>"£"+(v/1000).toFixed(2)+"tn",fmtD:v=>"£"+Math.abs(v).toFixed(0)+"bn",
+    {fmt:v=>curFmt(v,s.net_debt.unit,2),fmtD:v=>curFmt(v,s.net_debt.unit,0),
      upIsGood:false,source:"ONS · HF6W, £bn"});
   if(s.deficit) statTile(tp,"deficit","Borrowing",s.deficit,
-    {fmt:bn,fmtD:bn,upIsGood:false,source:"ONS · DZLS"});
+    {fmt:v=>curFmt(v,s.deficit.unit,1),fmtD:v=>curFmt(v,s.deficit.unit,1),upIsGood:false,source:"ONS · DZLS"});
   renderNewDataBanner(data.new_points_meta);
   renderLastUpdated(data.updated);
 }
@@ -805,6 +806,9 @@ function render(data){
 /* ---------------------- Dollarise / Make it real ---------------------- */
 let PAGE_DATA = null;
 const TOGGLE_STATE = { real:false, dollar:false };
+const CURRENCY_KEYS = ["gdp_level","gdp_real","net_debt","deficit","trade_balance","exports","imports"];
+const CONTAINER_IDS = ["hero","tiles-gdp","tiles-inflation","tiles-labour","tiles-trade","tiles-public",
+                        "charts-headline","charts-gdp","charts-inflation","charts-labour","charts-trade","charts-public"];
 
 function scaleOf(unitStr){
   if(/tn$/.test(unitStr)) return 1e12;
@@ -812,34 +816,60 @@ function scaleOf(unitStr){
   if(/m$/.test(unitStr)) return 1e6;
   return 1;
 }
-function autoFormat(rawValue, unitStr, symbol){
-  const abs = rawValue * scaleOf(unitStr);
-  const sign = abs<0 ? "-" : "";
-  const a = Math.abs(abs);
-  if(a>=1e12) return sign+symbol+(a/1e12).toFixed(2)+"tn";
-  if(a>=1e9) return sign+symbol+(a/1e9).toFixed(1)+"bn";
-  return sign+symbol+(a/1e6).toFixed(0)+"m";
-}
 function currencySymbol(unitStr){
   const m = unitStr.match(/^[^a-zA-Z0-9]+/);
   return m ? m[0] : "";
+}
+function curFmt(rawValue, unitStr, decimals){
+  const scale = scaleOf(unitStr);
+  const symbol = currencySymbol(unitStr);
+  const a = Math.abs(rawValue) * scale;
+  const sign = rawValue<0 ? "\u2212" : "";
+  if(a>=1e12) return sign+symbol+(a/1e12).toFixed(decimals)+"tn";
+  if(a>=1e9) return sign+symbol+(a/1e9).toFixed(decimals)+"bn";
+  return sign+symbol+(a/1e6).toFixed(0)+"m";
+}
+function isCurrencyUnit(u){
+  return u!=="%" && u!=="index" && /(m|bn|tn)$/.test(u);
+}
+function convertSeriesToUSD(series, fx){
+  const toUSD = v => fx.direction==="multiply" ? v*fx.rate : v/fx.rate;
+  const newUnit = "$"+series.unit.replace(/^[^a-zA-Z0-9]+/,"");
+  return {...series, unit:newUnit, points: series.points.map(([p,v])=>[p, toUSD(v)])};
+}
+function buildDisplaySeries(rawSeries){
+  const out = {};
+  for(const k in rawSeries) out[k]=rawSeries[k];
+  if(TOGGLE_STATE.real && out.gdp_real){
+    out.gdp_level = out.gdp_real;
+  }
+  if(TOGGLE_STATE.dollar && PAGE_DATA.fx_to_usd){
+    const fx = PAGE_DATA.fx_to_usd;
+    CURRENCY_KEYS.forEach(k=>{
+      if(out[k] && isCurrencyUnit(out[k].unit)) out[k]=convertSeriesToUSD(out[k], fx);
+    });
+  }
+  return out;
 }
 
 function toggleMetric(which, el){
   if(el.classList.contains("disabled")) return;
   TOGGLE_STATE[which] = !TOGGLE_STATE[which];
   el.classList.toggle("on", TOGGLE_STATE[which]);
-  applyToggles();
+  rerender();
 }
 
-function applyToggles(){
+function rerender(){
   if(!PAGE_DATA || !PAGE_DATA.series) return;
   const s = PAGE_DATA.series;
   const realBtn = document.getElementById("toggleReal");
   const dollarBtn = document.getElementById("toggleDollar");
   const note = document.getElementById("mtoggleNote");
+  realBtn.classList.remove("disabled");
+  dollarBtn.classList.remove("disabled");
+  dollarBtn.title="";
   if(!s.gdp_real) realBtn.classList.add("disabled");
-  const alreadyUsd = COUNTRY_LABEL==="US"; // avoid $-symbol collision with CAD/AUD
+  const alreadyUsd = COUNTRY_LABEL==="US";
   if(alreadyUsd){
     dollarBtn.classList.add("disabled");
     dollarBtn.title="Already in US dollars";
@@ -848,50 +878,29 @@ function applyToggles(){
     dollarBtn.title="Exchange rate not available yet";
   }
 
-  const useReal = TOGGLE_STATE.real && s.gdp_real;
-  const base = useReal ? s.gdp_real : s.gdp_level;
-  if(!base){ return; }
-  const pts = base.points, last = pts[pts.length-1], prev = pts[pts.length-2];
-  let val = last[1], prevVal = prev ? prev[1] : null;
-  let unitStr = base.unit, symbol = currencySymbol(base.unit);
   const notes = [];
-
   if(TOGGLE_STATE.dollar && PAGE_DATA.fx_to_usd){
     const fx = PAGE_DATA.fx_to_usd;
-    const conv = v => fx.direction==="multiply" ? v*fx.rate : v/fx.rate;
-    val = conv(val); if(prevVal!==null) prevVal = conv(prevVal);
-    symbol = "$";
-    notes.push(`Converted at ${fx.pair} = ${fx.rate} (as of ${fx.as_of})`);
-  } else if(TOGGLE_STATE.dollar && !PAGE_DATA.fx_to_usd){
+    notes.push(`All currency figures converted at ${fx.pair} = ${fx.rate} (as of ${fx.as_of})`);
+  } else if(TOGGLE_STATE.dollar){
     notes.push("Exchange rate not available yet — showing original currency");
   }
-  if(useReal) notes.push("Real terms (chained volume / constant prices)");
+  if(TOGGLE_STATE.real) notes.push("GDP shown in real terms (chained volume / constant prices)");
   note.textContent = notes.join(" · ");
 
-  const figureText = autoFormat(val, unitStr, symbol);
-  const deltaText = prevVal!==null ? autoFormat(val-prevVal, unitStr, symbol) : null;
-
-  document.querySelectorAll('[data-key="gdp_level"]').forEach(tile=>{
-    const fig = tile.querySelector(".figure");
-    if(fig){
-      const led = fig.querySelector(".led");
-      fig.innerHTML = "";
-      if(led) fig.appendChild(led);
-      fig.appendChild(document.createTextNode(figureText));
-    }
-    const delta = tile.querySelector(".delta");
-    if(delta && deltaText!==null){
-      const arrow = delta.querySelector(".arrow");
-      const arrowHtml = arrow ? arrow.outerHTML : "";
-      delta.innerHTML = arrowHtml + " " + (val-prevVal>0?"+":"") + deltaText + " vs prior";
-    }
+  CONTAINER_IDS.forEach(id=>{
+    const el = document.getElementById(id);
+    if(el) el.innerHTML = "";
   });
+  const displaySeries = buildDisplaySeries(s);
+  render({...PAGE_DATA, series: displaySeries});
 }
 
 fetch("data.json",{cache:"no-store"})
   .then(r=>{ if(!r.ok) throw new Error(r.status); return r.json(); })
-  .then(d=>{ PAGE_DATA=d; render(d); applyToggles(); })
-  .catch(()=>{ PAGE_DATA=sampleData(); render(PAGE_DATA); applyToggles(); });
+  .then(d=>{ PAGE_DATA=d; rerender(); })
+  .catch(()=>{ PAGE_DATA=sampleData(); rerender(); });
 </script>
+
 </body>
 </html>

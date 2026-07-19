@@ -630,15 +630,8 @@ function render(data){
   const gdpYoY = s.gdp_real ? yoyGDP(s.gdp_real) : null;
 
   const pct=v=>v.toFixed(1)+"%", pp=v=>v.toFixed(1)+"pp";
-  const etn=v=>"\u20b9"+(v/1e6).toFixed(2)+"tn";
-  const bnD=v=>{
-    const sign=v<0?"\u2212":""; const a=Math.abs(v)*1e6;
-    return a>=1e12 ? sign+"₹"+(a/1e12).toFixed(2)+"tn" : sign+"₹"+(a/1e9).toFixed(1)+"bn";
-  };
-  const bnD0=v=>{
-    const sign=v<0?"\u2212":""; const a=Math.abs(v)*1e6;
-    return a>=1e12 ? sign+"₹"+(a/1e12).toFixed(2)+"tn" : sign+"₹"+(a/1e9).toFixed(0)+"bn";
-  };
+  /* currency formatting handled dynamically by curFmt() below */
+  
   const idx=v=>v.toFixed(1);
   const SRC_GDP="FRED \u00b7 IMF International Financial Statistics, quarterly";
   const SRC_TRADE="FRED series XTEXVA01INM667S / XTIMVA01INM664S \u00b7 OECD merchandise trade";
@@ -656,7 +649,7 @@ function render(data){
 
   if(gdpAnnual) chartPanel("gdp_level","charts-gdp","GDP",
     "The total value of everything India produces in a year, at current prices.",
-    gdpAnnual,"line",etn,etn,SRC_GDP,1996);
+    gdpAnnual,"line",v=>curFmt(v,s.gdp_level.unit,2),v=>curFmt(v,s.gdp_level.unit,2),SRC_GDP,1996);
   if(s.gdp_growth) chartPanel("gdp_growth","charts-gdp","Real GDP growth, quarter on quarter (annualised)",
     "How fast the economy grew each quarter, expressed as a yearly pace.",
     s.gdp_growth,"bar",v=>v+"%",pct,SRC_GDP,1999);
@@ -674,13 +667,13 @@ function render(data){
 
   if(s.trade_balance) chartPanel("trade_balance","charts-trade","Trade balance, goods",
     "Exports minus imports of goods each month. India runs a persistent deficit, driven largely by oil and gold imports.",
-    s.trade_balance,"bar",bnD0,bnD,"FRED series XTNTVA01INM667S \u00b7 OECD merchandise trade",2000);
+    s.trade_balance,"bar",v=>curFmt(v,s.trade_balance.unit,0),v=>curFmt(v,s.trade_balance.unit,1),"FRED series XTNTVA01INM667S \u00b7 OECD merchandise trade",2000);
   if(s.current_account) chartPanel("current_account","charts-trade","Current account",
     "India's overall balance with the rest of the world \u2014 trade plus investment income \u2014 as a share of GDP.",
     s.current_account,"line",v=>v+"%",pct,SRC_WB);
   if(s.exports) chartPanel("exports","charts-trade","Exports, goods",
     "The value of goods India sells to the rest of the world each month, converted to rupees from the OECD's US dollar-denominated source.",
-    s.exports,"line",bnD0,bnD,SRC_TRADE);
+    s.exports,"line",v=>curFmt(v,s.exports.unit,0),v=>curFmt(v,s.exports.unit,1),SRC_TRADE);
 
   if(s.debt_gdp) chartPanel("debt_gdp","charts-public","General government debt, % of GDP",
     "Everything central and state governments owe combined, compared with the size of the economy.",
@@ -691,7 +684,7 @@ function render(data){
 
   const hero=document.getElementById("hero");
   if(gdpAnnual) statTile(hero,"gdp_level","GDP (annual)",gdpAnnual,
-    {fmt:etn,fmtD:v=>"\u20b9"+(v/1e6).toFixed(1)+"tn",upIsGood:true,source:SRC_GDP});
+    {fmt:v=>curFmt(v,s.gdp_level.unit,2),fmtD:v=>curFmt(v,s.gdp_level.unit,1),upIsGood:true,source:SRC_GDP});
   if(s.gdp_growth) statTile(hero,"gdp_growth","GDP growth (QoQ, ann.)",s.gdp_growth,
     {fmt:pct,fmtD:pp,upIsGood:true,source:SRC_GDP});
   if(s.bond_yield_10y) statTile(hero,"bond_yield_10y","10Y bond yield",s.bond_yield_10y,
@@ -709,11 +702,11 @@ function render(data){
   if(s.fdi) statTile(hero,"fdi","FDI (net inflows)",s.fdi,
     {fmt:pct,fmtD:pp,upIsGood:true,source:SRC_WB});
   if(s.trade_balance) statTile(hero,"trade_balance","Trade balance",s.trade_balance,
-    {fmt:bnD,fmtD:bnD,upIsGood:true,source:SRC_TRADE});
+    {fmt:v=>curFmt(v,s.trade_balance.unit,1),fmtD:v=>curFmt(v,s.trade_balance.unit,1),upIsGood:true,source:SRC_TRADE});
 
   const tg=document.getElementById("tiles-gdp");
   if(gdpAnnual) statTile(tg,"gdp_level","GDP (annual)",gdpAnnual,
-    {fmt:etn,fmtD:v=>"\u20b9"+(v/1e6).toFixed(1)+"tn",upIsGood:true,source:SRC_GDP});
+    {fmt:v=>curFmt(v,s.gdp_level.unit,2),fmtD:v=>curFmt(v,s.gdp_level.unit,1),upIsGood:true,source:SRC_GDP});
   if(s.gdp_growth) statTile(tg,"gdp_growth","Growth (QoQ, ann.)",s.gdp_growth,
     {fmt:pct,fmtD:pp,upIsGood:true,source:SRC_GDP});
   if(gdpYoY) statTile(tg,null,"Growth (YoY)",gdpYoY,
@@ -729,9 +722,9 @@ function render(data){
 
   const tt=document.getElementById("tiles-trade");
   if(s.trade_balance) statTile(tt,"trade_balance","Trade balance",s.trade_balance,
-    {fmt:bnD,fmtD:bnD,upIsGood:true,source:SRC_TRADE});
+    {fmt:v=>curFmt(v,s.trade_balance.unit,1),fmtD:v=>curFmt(v,s.trade_balance.unit,1),upIsGood:true,source:SRC_TRADE});
   if(s.exports) statTile(tt,"exports","Exports",s.exports,
-    {fmt:bnD,fmtD:bnD,upIsGood:true,source:SRC_TRADE});
+    {fmt:v=>curFmt(v,s.exports.unit,1),fmtD:v=>curFmt(v,s.exports.unit,1),upIsGood:true,source:SRC_TRADE});
 
   const tp=document.getElementById("tiles-public");
   if(s.debt_gdp) statTile(tp,"debt_gdp","Gov. debt (% of GDP)",s.debt_gdp,
@@ -745,6 +738,9 @@ function render(data){
 /* ---------------------- Dollarise / Make it real ---------------------- */
 let PAGE_DATA = null;
 const TOGGLE_STATE = { real:false, dollar:false };
+const CURRENCY_KEYS = ["gdp_level","gdp_real","net_debt","deficit","trade_balance","exports","imports"];
+const CONTAINER_IDS = ["hero","tiles-gdp","tiles-inflation","tiles-labour","tiles-trade","tiles-public",
+                        "charts-headline","charts-gdp","charts-inflation","charts-labour","charts-trade","charts-public"];
 
 function scaleOf(unitStr){
   if(/tn$/.test(unitStr)) return 1e12;
@@ -752,34 +748,60 @@ function scaleOf(unitStr){
   if(/m$/.test(unitStr)) return 1e6;
   return 1;
 }
-function autoFormat(rawValue, unitStr, symbol){
-  const abs = rawValue * scaleOf(unitStr);
-  const sign = abs<0 ? "-" : "";
-  const a = Math.abs(abs);
-  if(a>=1e12) return sign+symbol+(a/1e12).toFixed(2)+"tn";
-  if(a>=1e9) return sign+symbol+(a/1e9).toFixed(1)+"bn";
-  return sign+symbol+(a/1e6).toFixed(0)+"m";
-}
 function currencySymbol(unitStr){
   const m = unitStr.match(/^[^a-zA-Z0-9]+/);
   return m ? m[0] : "";
+}
+function curFmt(rawValue, unitStr, decimals){
+  const scale = scaleOf(unitStr);
+  const symbol = currencySymbol(unitStr);
+  const a = Math.abs(rawValue) * scale;
+  const sign = rawValue<0 ? "\u2212" : "";
+  if(a>=1e12) return sign+symbol+(a/1e12).toFixed(decimals)+"tn";
+  if(a>=1e9) return sign+symbol+(a/1e9).toFixed(decimals)+"bn";
+  return sign+symbol+(a/1e6).toFixed(0)+"m";
+}
+function isCurrencyUnit(u){
+  return u!=="%" && u!=="index" && /(m|bn|tn)$/.test(u);
+}
+function convertSeriesToUSD(series, fx){
+  const toUSD = v => fx.direction==="multiply" ? v*fx.rate : v/fx.rate;
+  const newUnit = "$"+series.unit.replace(/^[^a-zA-Z0-9]+/,"");
+  return {...series, unit:newUnit, points: series.points.map(([p,v])=>[p, toUSD(v)])};
+}
+function buildDisplaySeries(rawSeries){
+  const out = {};
+  for(const k in rawSeries) out[k]=rawSeries[k];
+  if(TOGGLE_STATE.real && out.gdp_real){
+    out.gdp_level = out.gdp_real;
+  }
+  if(TOGGLE_STATE.dollar && PAGE_DATA.fx_to_usd){
+    const fx = PAGE_DATA.fx_to_usd;
+    CURRENCY_KEYS.forEach(k=>{
+      if(out[k] && isCurrencyUnit(out[k].unit)) out[k]=convertSeriesToUSD(out[k], fx);
+    });
+  }
+  return out;
 }
 
 function toggleMetric(which, el){
   if(el.classList.contains("disabled")) return;
   TOGGLE_STATE[which] = !TOGGLE_STATE[which];
   el.classList.toggle("on", TOGGLE_STATE[which]);
-  applyToggles();
+  rerender();
 }
 
-function applyToggles(){
+function rerender(){
   if(!PAGE_DATA || !PAGE_DATA.series) return;
   const s = PAGE_DATA.series;
   const realBtn = document.getElementById("toggleReal");
   const dollarBtn = document.getElementById("toggleDollar");
   const note = document.getElementById("mtoggleNote");
+  realBtn.classList.remove("disabled");
+  dollarBtn.classList.remove("disabled");
+  dollarBtn.title="";
   if(!s.gdp_real) realBtn.classList.add("disabled");
-  const alreadyUsd = COUNTRY_LABEL==="US"; // avoid $-symbol collision with CAD/AUD
+  const alreadyUsd = COUNTRY_LABEL==="US";
   if(alreadyUsd){
     dollarBtn.classList.add("disabled");
     dollarBtn.title="Already in US dollars";
@@ -788,51 +810,29 @@ function applyToggles(){
     dollarBtn.title="Exchange rate not available yet";
   }
 
-  const useReal = TOGGLE_STATE.real && s.gdp_real;
-  const base = useReal ? s.gdp_real : s.gdp_level;
-  if(!base){ return; }
-  const pts = base.points, last = pts[pts.length-1], prev = pts[pts.length-2];
-  let val = last[1], prevVal = prev ? prev[1] : null;
-  let unitStr = base.unit, symbol = currencySymbol(base.unit);
   const notes = [];
-
   if(TOGGLE_STATE.dollar && PAGE_DATA.fx_to_usd){
     const fx = PAGE_DATA.fx_to_usd;
-    const conv = v => fx.direction==="multiply" ? v*fx.rate : v/fx.rate;
-    val = conv(val); if(prevVal!==null) prevVal = conv(prevVal);
-    symbol = "$";
-    notes.push(`Converted at ${fx.pair} = ${fx.rate} (as of ${fx.as_of})`);
-  } else if(TOGGLE_STATE.dollar && !PAGE_DATA.fx_to_usd){
+    notes.push(`All currency figures converted at ${fx.pair} = ${fx.rate} (as of ${fx.as_of})`);
+  } else if(TOGGLE_STATE.dollar){
     notes.push("Exchange rate not available yet — showing original currency");
   }
-  if(useReal) notes.push("Real terms (chained volume / constant prices)");
+  if(TOGGLE_STATE.real) notes.push("GDP shown in real terms (chained volume / constant prices)");
   note.textContent = notes.join(" · ");
 
-  const figureText = autoFormat(val, unitStr, symbol);
-  const deltaText = prevVal!==null ? autoFormat(val-prevVal, unitStr, symbol) : null;
-
-  document.querySelectorAll('[data-key="gdp_level"]').forEach(tile=>{
-    const fig = tile.querySelector(".figure");
-    if(fig){
-      const led = fig.querySelector(".led");
-      fig.innerHTML = "";
-      if(led) fig.appendChild(led);
-      fig.appendChild(document.createTextNode(figureText));
-    }
-    const delta = tile.querySelector(".delta");
-    if(delta && deltaText!==null){
-      const arrow = delta.querySelector(".arrow");
-      const arrowHtml = arrow ? arrow.outerHTML : "";
-      delta.innerHTML = arrowHtml + " " + (val-prevVal>0?"+":"") + deltaText + " vs prior";
-    }
+  CONTAINER_IDS.forEach(id=>{
+    const el = document.getElementById(id);
+    if(el) el.innerHTML = "";
   });
+  const displaySeries = buildDisplaySeries(s);
+  render({...PAGE_DATA, series: displaySeries});
 }
-
 
 fetch("data-in.json",{cache:"no-store"})
   .then(r=>{ if(!r.ok) throw new Error(r.status); return r.json(); })
-  .then(d=>{ PAGE_DATA=d; render(d); applyToggles(); })
-  .catch(()=>{ PAGE_DATA=sampleData(); render(PAGE_DATA); applyToggles(); });
+  .then(d=>{ PAGE_DATA=d; rerender(); })
+  .catch(()=>{ PAGE_DATA=sampleData(); rerender(); });
 </script>
+
 </body>
 </html>
