@@ -158,18 +158,31 @@ def fetch_oecd_cpi(areas: tuple, freq: str) -> list | None:
     import io
     lag = 4 if freq == "Q" else 12
     for area in areas:
-        for trans_code, needs_yoy in (("GY", False), ("_Z", True)):
-            url = (f"{OECD_PRICES_BASE}/{area}.{freq}.N.CPI.IX._T.N.{trans_code}"
+        # UNIT_MEASURE must match TRANSFORMATION: GY (year-on-year growth) only
+        # exists under PA (percentage), while _Z (no transform / raw level)
+        # exists under IX (index). Pairing GY with IX 404s -- confirmed against
+        # OECD's own DF_PRICES_ALL dataflow, see the 7.6.11 diagnostic run.
+        for unit_measure, trans_code, needs_yoy in (("PA", "GY", False), ("IX", "_Z", True)):
+            url = (f"{OECD_PRICES_BASE}/{area}.{freq}.N.CPI.{unit_measure}._T.N.{trans_code}"
                   f"?format=csvfile&startPeriod=2015")
             try:
                 r = requests.get(url, timeout=60,
                                  headers={"User-Agent": "economic-atlas/0.1"})
+                print(f"  [oecd-cpi] {area}.{unit_measure}.{trans_code} status={r.status_code}")
                 r.raise_for_status()
-            except Exception:
+            except Exception as exc:
+                print(f"  [oecd-cpi] {area}.{unit_measure}.{trans_code} request failed: {exc}")
                 continue
             try:
                 rows = {}
-                for row in csv.DictReader(io.StringIO(r.text)):
+                reader = list(csv.DictReader(io.StringIO(r.text)))
+                if reader:
+                    print(f"  [oecd-cpi] {area}.{unit_measure}.{trans_code} {len(reader)} CSV rows; "
+                          f"columns: {list(reader[0].keys())}")
+                else:
+                    print(f"  [oecd-cpi] {area}.{unit_measure}.{trans_code} 0 CSV rows; "
+                          f"raw response (first 300 chars): {r.text[:300]!r}")
+                for row in reader:
                     low = {k.upper(): (v or "") for k, v in row.items() if k}
                     if low.get("REF_AREA", area) != area:
                         continue
@@ -180,13 +193,18 @@ def fetch_oecd_cpi(areas: tuple, freq: str) -> list | None:
                         except ValueError:
                             continue
                 if not rows:
+                    print(f"  [oecd-cpi] {area}.{unit_measure}.{trans_code} 0 usable rows after "
+                          f"filtering (REF_AREA/TIME_PERIOD/OBS_VALUE mismatch)")
                     continue
                 pts = sorted([[p, v] for p, v in rows.items()], key=lambda x: x[0])
+                print(f"  [oecd-cpi] {area}.{unit_measure}.{trans_code} SUCCESS: {len(pts)} points, "
+                      f"{pts[0][0]} to {pts[-1][0]}")
                 if not needs_yoy:
                     return pts
                 return [[pts[i][0], round((pts[i][1] / pts[i - lag][1] - 1) * 100, 2)]
                         for i in range(lag, len(pts)) if pts[i - lag][1]] or None
-            except Exception:
+            except Exception as exc:
+                print(f"  [oecd-cpi] {area}.{unit_measure}.{trans_code} parsing failed: {exc}")
                 continue
     return None
 
