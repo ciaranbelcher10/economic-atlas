@@ -303,10 +303,10 @@ document.addEventListener("DOMContentLoaded", function(){
   <div class="hero mini" id="tiles-inflation"></div>
   <p class="lightskey compact" aria-label="Key to freshness lights"><span><span class="led green" aria-hidden="true"></span>&nbsp;updated on schedule</span><span><span class="led orange" aria-hidden="true"></span>&nbsp;awaiting next release</span></p>
   <div class="grid" id="charts-inflation"></div>
-  <p class="secnote"><strong>Known gap:</strong> CPI inflation isn't shown yet. The obvious FRED mirror
-    of India's CPI stopped updating in March 2025; a live replacement (likely OECD's own SDMX system,
-    which still publishes current India CPI) needs its own verification pass before going live here —
-    shown instead is the 10-year government bond yield, which is genuinely live.</p>
+  <p class="secnote">CPI is sourced live from the OECD's consumer price system — the same
+    feed used for Japan, Canada, Australia and South Korea — after the FRED mirror of India's
+    CPI stopped updating in March 2025. The fetch refuses to publish stale data: if the CPI
+    tile is missing, the last verified observation was too old to show as current.</p>
 </section>
 <section class="sec" id="sec-labour" hidden>
   <div class="hero mini" id="tiles-labour"></div>
@@ -314,9 +314,9 @@ document.addEventListener("DOMContentLoaded", function(){
   <div class="grid" id="charts-labour"></div>
   <p class="secnote">Unemployment is sourced from MoSPI's own Periodic Labour Force Survey (PLFS)
     via their eSankhyiki API — monthly Current Weekly Status data, only available from 2025
-    onwards since MoSPI only started publishing at monthly frequency this year. Requires a
-    personal API token (<code>MOSPI_API_KEY</code>); until that's configured this chart won't
-    populate. On the roadmap: employment and participation rates, and wage growth.</p>
+    onwards since MoSPI only started publishing at monthly frequency this year. The feed is
+    wired up but has not yet returned data on a live run; this tab stays hidden until it does.
+    On the roadmap: employment and participation rates, and wage growth.</p>
 </section>
 <section class="sec" id="sec-trade" hidden>
   <div class="hero mini" id="tiles-trade"></div>
@@ -339,8 +339,8 @@ document.addEventListener("DOMContentLoaded", function(){
   Data: <a href="https://fred.stlouisfed.org">FRED, Federal Reserve Bank of St. Louis</a> (IMF, OECD),
   the <a href="https://www.oecd.org">OECD</a> and the <a href="https://data.worldbank.org">World Bank</a>. Series codes are shown with each metric;
   figures are the latest published observations and are subject to revision.
-  CPI and unemployment are known gaps, not yet wired to a verified live source — see the notes on
-  the Inflation &amp; rates and Labour market tabs.
+  Unemployment is a known gap awaiting a working MoSPI feed — see the note on
+  the Labour market tab.
   Ideas or corrections: <a href="contact.html">get in touch</a>.
   <span id="lastUpdated" class="lastupdated"></span>
 </footer>
@@ -454,7 +454,7 @@ function sampleData(){
     gdp_real:S("Real GDP, constant prices","$bn","quarters",interp(
       [["1996-Q1",420],["2008-Q1",1050],["2013-Q1",1650],["2019-Q4",2450],
        ["2020-Q2",1880],["2023-Q2",2600],["2026-Q1",3050]],qAll)),
-    gdp_growth:S("Real GDP growth QoQ, annualised","%","quarters",gdpG),
+    gdp_growth:S("Real GDP growth, YoY","%","quarters",gdpG),
     bond_yield_10y:S("10-year government bond yield","%","months",interp(
       [["1996-01",13.5],["2001-10",9.2],["2008-09",8.1],["2013-09",8.8],
        ["2020-05",6.0],["2022-05",7.3],["2023-02",7.4],["2026-06",6.9]],mR)),
@@ -534,7 +534,12 @@ function statTile(el, key, title, series, opts){
   const dir=d===0?"flat":((d>0)===opts.upIsGood?"good":"bad");
   const arrow=d===0?"—":(d>0?"▲":"▼");
   const led=freshness(series);
-  let ledTitle=led==="green"?"Updated on schedule":"Awaiting next release";
+  const _lastP=series.points[series.points.length-1][0];
+  const _ageDays=(Date.now()-periodEnd(_lastP).getTime())/86400000;
+  let ledTitle=led==="green"?"Updated on schedule":
+    (_ageDays>3*(STALE_DAYS[series.freq]||90)
+      ?"Source series stale — last data "+fmtPeriod(_lastP)
+      :"Awaiting next release");
   if(series.next) ledTitle+=" · next release "+series.next;
   const clickable=!!ANCHORS[key];
   const div=document.createElement("div");
@@ -639,6 +644,7 @@ function render(data){
   const SRC_WB="World Bank \u00b7 % of GDP, annual";
   const SRC_BCI="OECD \u00b7 BCICP, amplitude-adjusted, long-term average = 100";
   const SRC_BOND="FRED series INDIRLTLT01STM \u00b7 monthly average";
+  const SRC_CPI="OECD consumer price statistics \u00b7 all items, YoY";
 
   if(s.business_confidence) chartPanel("business_confidence","charts-headline","Business confidence",
     "How optimistic firms are about the months ahead. 100 is the long-run average \u2014 above it, firms expect better times.",
@@ -650,13 +656,13 @@ function render(data){
   if(gdpAnnual) chartPanel("gdp_level","charts-gdp","GDP",
     "The total value of everything India produces in a year, at current prices.",
     gdpAnnual,"line",v=>curFmt(v,s.gdp_level.unit,2),v=>curFmt(v,s.gdp_level.unit,2),SRC_GDP,1996);
-  if(s.gdp_growth) chartPanel("gdp_growth","charts-gdp","Real GDP growth, quarter on quarter (annualised)",
-    "How fast the economy grew each quarter, expressed as a yearly pace.",
+  if(s.gdp_growth) chartPanel("gdp_growth","charts-gdp","Real GDP growth, year on year",
+    "How much bigger or smaller the economy is than a year ago, adjusted for inflation. India's source series is not seasonally adjusted, so quarter-on-quarter rates are not shown.",
     s.gdp_growth,"bar",v=>v+"%",pct,SRC_GDP,1999);
-  if(gdpYoY) chartPanel(null,"charts-gdp","Real GDP growth, year on year",
-    "How much bigger or smaller the economy is than a year ago, adjusted for inflation.",
-    gdpYoY,"line",v=>v+"%",pct,SRC_GDP,1999);
 
+  if(s.cpi) chartPanel("cpi","charts-inflation","CPI inflation, annual rate",
+    "How much consumer prices rose compared with a year earlier.",
+    s.cpi,"line",v=>v+"%",pct,SRC_CPI,2015);
   if(s.bond_yield_10y) chartPanel("bond_yield_10y","charts-inflation","10-year government bond yield",
     "The yield on 10-year Indian government bonds \u2014 a market gauge of inflation and rate expectations. Not the RBI's policy rate.",
     s.bond_yield_10y,"line",v=>v+"%",v=>v.toFixed(2)+"%",SRC_BOND);
@@ -685,8 +691,10 @@ function render(data){
   const hero=document.getElementById("hero");
   if(gdpAnnual) statTile(hero,"gdp_level","GDP (annual)",gdpAnnual,
     {fmt:v=>curFmt(v,s.gdp_level.unit,2),fmtD:v=>curFmt(v,s.gdp_level.unit,1),upIsGood:true,source:SRC_GDP});
-  if(s.gdp_growth) statTile(hero,"gdp_growth","GDP growth (QoQ, ann.)",s.gdp_growth,
+  if(s.gdp_growth) statTile(hero,"gdp_growth","GDP growth (YoY)",s.gdp_growth,
     {fmt:pct,fmtD:pp,upIsGood:true,source:SRC_GDP});
+  if(s.cpi) statTile(hero,"cpi","CPI inflation",s.cpi,
+    {fmt:pct,fmtD:pp,upIsGood:false,source:SRC_CPI});
   if(s.bond_yield_10y) statTile(hero,"bond_yield_10y","10Y bond yield",s.bond_yield_10y,
     {fmt:v=>v.toFixed(2)+"%",fmtD:v=>v.toFixed(2)+"pp",upIsGood:false,source:SRC_BOND});
   if(s.unemployment) statTile(hero,"unemployment","Unemployment",s.unemployment,
@@ -707,12 +715,12 @@ function render(data){
   const tg=document.getElementById("tiles-gdp");
   if(gdpAnnual) statTile(tg,"gdp_level","GDP (annual)",gdpAnnual,
     {fmt:v=>curFmt(v,s.gdp_level.unit,2),fmtD:v=>curFmt(v,s.gdp_level.unit,1),upIsGood:true,source:SRC_GDP});
-  if(s.gdp_growth) statTile(tg,"gdp_growth","Growth (QoQ, ann.)",s.gdp_growth,
-    {fmt:pct,fmtD:pp,upIsGood:true,source:SRC_GDP});
-  if(gdpYoY) statTile(tg,null,"Growth (YoY)",gdpYoY,
+  if(s.gdp_growth) statTile(tg,"gdp_growth","Growth (YoY)",s.gdp_growth,
     {fmt:pct,fmtD:pp,upIsGood:true,source:SRC_GDP});
 
   const tinf=document.getElementById("tiles-inflation");
+  if(s.cpi) statTile(tinf,"cpi","CPI (YoY)",s.cpi,
+    {fmt:pct,fmtD:pp,upIsGood:false,source:SRC_CPI});
   if(s.bond_yield_10y) statTile(tinf,"bond_yield_10y","10Y bond yield",s.bond_yield_10y,
     {fmt:v=>v.toFixed(2)+"%",fmtD:v=>v.toFixed(2)+"pp",upIsGood:false,source:SRC_BOND});
 
@@ -733,6 +741,24 @@ function render(data){
     {fmt:pct,fmtD:pp,upIsGood:true,source:SRC_FISCAL});
   renderNewDataBanner(data.new_points_meta);
   renderLastUpdated(data.updated);
+  pruneEmptySections();
+}
+/* Hide any tab whose section rendered no tiles and no charts (e.g. Labour
+   while the MoSPI feed is down) rather than showing an empty page. Sections
+   reappear automatically on the first run where their data arrives. */
+function pruneEmptySections(){
+  ["gdp","inflation","labour","trade","public"].forEach(name=>{
+    const tiles=document.getElementById("tiles-"+name);
+    const charts=document.getElementById("charts-"+name);
+    const empty=(!tiles||!tiles.children.length)&&(!charts||!charts.children.length);
+    const btn=document.querySelector(`nav.cat button[data-sec="${name}"]`);
+    const sec=document.getElementById("sec-"+name);
+    if(btn) btn.style.display=empty?"none":"";
+    if(empty&&sec){
+      sec.hidden=true;
+      if(btn&&btn.classList.contains("active")) showSec("headline");
+    }
+  });
 }
 
 /* ---------------------- Dollarise / Make it real ---------------------- */

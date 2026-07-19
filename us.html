@@ -559,7 +559,12 @@ function statTile(el, key, title, series, opts){
   const dir=d===0?"flat":((d>0)===opts.upIsGood?"good":"bad");
   const arrow=d===0?"—":(d>0?"▲":"▼");
   const led=freshness(series);
-  let ledTitle=led==="green"?"Updated on schedule":"Awaiting next release";
+  const _lastP=series.points[series.points.length-1][0];
+  const _ageDays=(Date.now()-periodEnd(_lastP).getTime())/86400000;
+  let ledTitle=led==="green"?"Updated on schedule":
+    (_ageDays>3*(STALE_DAYS[series.freq]||90)
+      ?"Source series stale — last data "+fmtPeriod(_lastP)
+      :"Awaiting next release");
   if(series.next) ledTitle+=" · next release "+series.next;
   const clickable=!!ANCHORS[key];
   const div=document.createElement("div");
@@ -652,8 +657,14 @@ function render(data){
   const s=data.series;
   if(data.sample){const sb=document.getElementById("sampleBadge");sb.textContent="Sample data — run fetch_us.py for live figures";sb.classList.add("show");}
   const gdpYoY = s.gdp_real ? yoyGDP(s.gdp_real) : null;
-  const ti = (s.exports&&s.imports&&s.gdp_level)
-    ? tradeIntensity(s.exports,s.imports,s.gdp_level) : null;
+  /* Trade intensity is pinned to the raw nominal series (8.3.0): "Make it
+     real" has no real-terms exports/imports to pair with a real-GDP
+     denominator (nominal trade ÷ real GDP is economically meaningless), and
+     Dollarise cancels out of the ratio anyway — both toggles are deliberate
+     no-ops for this metric. */
+  const tiSrc = (PAGE_DATA && PAGE_DATA.series) ? PAGE_DATA.series : s;
+  const ti = (tiSrc.exports&&tiSrc.imports&&tiSrc.gdp_level)
+    ? tradeIntensity(tiSrc.exports,tiSrc.imports,tiSrc.gdp_level) : null;
 
   const pct=v=>v.toFixed(1)+"%", pp=v=>v.toFixed(1)+"pp";
   /* currency formatting handled dynamically by curFmt() below */

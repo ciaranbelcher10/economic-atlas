@@ -530,7 +530,12 @@ function statTile(el, key, title, series, opts){
   const dir=d===0?"flat":((d>0)===opts.upIsGood?"good":"bad");
   const arrow=d===0?"—":(d>0?"▲":"▼");
   const led=freshness(series);
-  let ledTitle=led==="green"?"Updated on schedule":"Awaiting next release";
+  const _lastP=series.points[series.points.length-1][0];
+  const _ageDays=(Date.now()-periodEnd(_lastP).getTime())/86400000;
+  let ledTitle=led==="green"?"Updated on schedule":
+    (_ageDays>3*(STALE_DAYS[series.freq]||90)
+      ?"Source series stale — last data "+fmtPeriod(_lastP)
+      :"Awaiting next release");
   if(series.next) ledTitle+=" · next release "+series.next;
   const clickable=!!ANCHORS[key];
   const div=document.createElement("div");
@@ -648,9 +653,9 @@ function render(data){
     "How much bigger or smaller the economy is than a year ago, adjusted for inflation.",
     gdpYoY,"line",v=>v+"%",pct,"Calculated from FRED series JPNRGDPEXP (Cabinet Office of Japan)",1998);
 
-  if(s.cpi) chartPanel("cpi","charts-inflation","HICP inflation, annual rate",
+  if(s.cpi) chartPanel("cpi","charts-inflation","CPI inflation, annual rate",
     "How much consumer prices are rising compared with a year ago. The Bank of Japan targets 2%.",
-    s.cpi,"line",v=>v+"%",pct,"Calculated from FRED series JPNCPIALLMINMEI \u00b7 all items (OECD)");
+    s.cpi,"line",v=>v+"%",pct,"OECD consumer price statistics \u00b7 all items, YoY");
   if(s.boj_rate) chartPanel("boj_rate","charts-inflation","Call money rate",
     "The overnight interbank rate \u2014 the closest market measure of the Bank of Japan's policy stance.",
     s.boj_rate,"line",v=>v+"%",v=>v.toFixed(2)+"%","FRED series IRSTCI01JPM156N \u00b7 monthly average (OECD)");
@@ -685,7 +690,7 @@ function render(data){
   if(s.gdp_growth) statTile(hero,"gdp_growth","GDP growth (QoQ)",s.gdp_growth,
     {fmt:pct,fmtD:pp,upIsGood:true,source:"Calculated \u00b7 Cabinet Office via FRED"});
   if(s.cpi) statTile(hero,"cpi","CPI inflation",s.cpi,
-    {fmt:pct,fmtD:pp,upIsGood:false,source:"FRED \u00b7 JPNCPIALLMINMEI, YoY"});
+    {fmt:pct,fmtD:pp,upIsGood:false,source:"OECD consumer price statistics \u00b7 YoY"});
   if(s.unemployment) statTile(hero,"unemployment","Unemployment",s.unemployment,
     {fmt:pct,fmtD:pp,upIsGood:false,source:"FRED \u00b7 LRHUTTTTJPM156S (OECD)"});
   if(s.current_account) statTile(hero,"current_account","Current account",s.current_account,

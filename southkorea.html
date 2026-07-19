@@ -448,7 +448,7 @@ function sampleData(){
     gdp_real:S("Real GDP, SA","\u20a9m","quarters",interp(
       [["1996-Q1",280000000],["2008-Q1",380000000],["2013-Q1",440000000],["2019-Q4",490000000],
        ["2020-Q2",475000000],["2023-Q2",505000000],["2026-Q1",520000000]],qAll)),
-    gdp_growth:S("Real GDP growth QoQ, annualised","%","quarters",gdpG),
+    gdp_growth:S("Real GDP growth, QoQ","%","quarters",gdpG),
     cpi:S("CPI, all items, YoY","%","months",interp(
       [["1996-01",4.5],["2001-05",3.8],["2008-08",5.6],["2011-08",4.7],["2015-01",0.8],
        ["2020-05",-0.3],["2022-07",6.3],["2023-06",2.7],["2024-12",1.9],["2026-06",3.2]],mR)),
@@ -529,7 +529,12 @@ function statTile(el, key, title, series, opts){
   const dir=d===0?"flat":((d>0)===opts.upIsGood?"good":"bad");
   const arrow=d===0?"—":(d>0?"▲":"▼");
   const led=freshness(series);
-  let ledTitle=led==="green"?"Updated on schedule":"Awaiting next release";
+  const _lastP=series.points[series.points.length-1][0];
+  const _ageDays=(Date.now()-periodEnd(_lastP).getTime())/86400000;
+  let ledTitle=led==="green"?"Updated on schedule":
+    (_ageDays>3*(STALE_DAYS[series.freq]||90)
+      ?"Source series stale — last data "+fmtPeriod(_lastP)
+      :"Awaiting next release");
   if(series.next) ledTitle+=" · next release "+series.next;
   const clickable=!!ANCHORS[key];
   const div=document.createElement("div");
@@ -646,8 +651,8 @@ function render(data){
   if(gdpAnnual) chartPanel("gdp_level","charts-gdp","GDP",
     "The total value of everything South Korea produces in a year, at current prices.",
     gdpAnnual,"line",v=>curFmt(v,s.gdp_level.unit,2),v=>curFmt(v,s.gdp_level.unit,2),SRC_GDP,1996);
-  if(s.gdp_growth) chartPanel("gdp_growth","charts-gdp","Real GDP growth, quarter on quarter (annualised)",
-    "How fast the economy grew each quarter, expressed as a yearly pace.",
+  if(s.gdp_growth) chartPanel("gdp_growth","charts-gdp","Real GDP growth, quarter on quarter",
+    "How much the economy grew or shrank compared with the previous three months.",
     s.gdp_growth,"bar",v=>v+"%",pct,SRC_GDP,1999);
   if(gdpYoY) chartPanel(null,"charts-gdp","Real GDP growth, year on year",
     "How much bigger or smaller the economy is than a year ago, adjusted for inflation.",
@@ -681,7 +686,7 @@ function render(data){
   const hero=document.getElementById("hero");
   if(gdpAnnual) statTile(hero,"gdp_level","GDP (annual)",gdpAnnual,
     {fmt:v=>curFmt(v,s.gdp_level.unit,2),fmtD:v=>curFmt(v,s.gdp_level.unit,1),upIsGood:true,source:SRC_GDP});
-  if(s.gdp_growth) statTile(hero,"gdp_growth","GDP growth (QoQ, ann.)",s.gdp_growth,
+  if(s.gdp_growth) statTile(hero,"gdp_growth","GDP growth (QoQ)",s.gdp_growth,
     {fmt:pct,fmtD:pp,upIsGood:true,source:SRC_GDP});
   if(s.cpi) statTile(hero,"cpi","CPI inflation",s.cpi,
     {fmt:pct,fmtD:pp,upIsGood:false,source:"OECD live prices system"});
@@ -705,7 +710,7 @@ function render(data){
   const tg=document.getElementById("tiles-gdp");
   if(gdpAnnual) statTile(tg,"gdp_level","GDP (annual)",gdpAnnual,
     {fmt:v=>curFmt(v,s.gdp_level.unit,2),fmtD:v=>curFmt(v,s.gdp_level.unit,1),upIsGood:true,source:SRC_GDP});
-  if(s.gdp_growth) statTile(tg,"gdp_growth","Growth (QoQ, ann.)",s.gdp_growth,
+  if(s.gdp_growth) statTile(tg,"gdp_growth","Growth (QoQ)",s.gdp_growth,
     {fmt:pct,fmtD:pp,upIsGood:true,source:SRC_GDP});
   if(gdpYoY) statTile(tg,null,"Growth (YoY)",gdpYoY,
     {fmt:pct,fmtD:pp,upIsGood:true,source:SRC_GDP});

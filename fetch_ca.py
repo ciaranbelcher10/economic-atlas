@@ -150,55 +150,121 @@ OECD_PRICES_BASE = "https://sdmx.oecd.org/public/rest/data/OECD.SDD.TPS,DSD_PRIC
 def fetch_oecd_cpi(areas: tuple, freq: str) -> list | None:
     import csv
     import io
+
     lag = 4 if freq == "Q" else 12
+    # Staleness guard (8.3.0): a fetch that "succeeds" but returns a
+    # discontinued series must be REJECTED, not shipped. Japan's pinned
+    # national-methodology CPI in DF_PRICES_ALL ends June 2021 (the 2015=100
+    # base was retired when Japan rebased to 2020=100 in Aug 2021), and the
+    # old code happily served it as current -- the live site showed -0.5%
+    # deflation for Japan in July 2026 when actual CPI was +1.5%.
+    max_age_days = 460 if freq == "Q" else 370
+
+    def period_age_days(period: str) -> float:
+        try:
+            if "-Q" in period:
+                y, q = period.split("-Q")
+                dt = datetime(int(y), int(q) * 3, 1, tzinfo=timezone.utc)
+            else:
+                y, m = period.split("-")[:2]
+                dt = datetime(int(y), int(m), 1, tzinfo=timezone.utc)
+            return (datetime.now(timezone.utc) - dt).total_seconds() / 86400
+        except Exception:
+            return 0.0  # unparseable period -> don't reject on age alone
+
+    def to_yoy(pts):
+        return [[pts[i][0], round((pts[i][1] / pts[i - lag][1] - 1) * 100, 2)]
+                for i in range(lag, len(pts)) if pts[i - lag][1]] or None
+
+    def parse_groups(text: str, area: str, tag: str) -> dict:
+        # Group rows by (METHODOLOGY, ADJUSTMENT) so a wildcard query that
+        # returns several series variants doesn't get scrambled into one dict
+        # (the pre-8.3.0 parser keyed on TIME_PERIOD alone, silently
+        # overwriting one methodology's values with another's).
+        reader = list(csv.DictReader(io.StringIO(text)))
+        if reader:
+            print(f"  [oecd-cpi] {tag} {len(reader)} CSV rows; "
+                  f"columns: {list(reader[0].keys())}")
+        else:
+            print(f"  [oecd-cpi] {tag} 0 CSV rows; "
+                  f"raw response (first 300 chars): {text[:300]!r}")
+            return {}
+        groups: dict = {}
+        for row in reader:
+            low = {k.upper(): (v or "") for k, v in row.items() if k}
+            if low.get("REF_AREA", area) != area:
+                continue
+            period, value = low.get("TIME_PERIOD", ""), low.get("OBS_VALUE", "")
+            if not (period and value):
+                continue
+            gkey = (low.get("METHODOLOGY", "?"), low.get("ADJUSTMENT", "?"))
+            try:
+                groups.setdefault(gkey, {})[period] = float(value)
+            except ValueError:
+                continue
+        return groups
+
     for area in areas:
-        # UNIT_MEASURE must match TRANSFORMATION: GY (year-on-year growth) only
-        # exists under PA (percentage), while _Z (no transform / raw level)
-        # exists under IX (index). Pairing GY with IX 404s -- confirmed against
-        # OECD's own DF_PRICES_ALL dataflow, see the 7.6.11 diagnostic run.
-        for unit_measure, trans_code, needs_yoy in (("PA", "GY", False), ("IX", "_Z", True)):
-            url = (f"{OECD_PRICES_BASE}/{area}.{freq}.N.CPI.{unit_measure}._T.N.{trans_code}"
-                  f"?format=csvfile&startPeriod=2015")
+        # Pass 1: pinned national-methodology combos (verified working for
+        # AU/CA/KR). Pass 2: wildcard METHODOLOGY and ADJUSTMENT -- for
+        # countries where the pinned combo resolves to a discontinued base
+        # series (Japan), ask the dataset for every variant it has and pick
+        # the freshest. UNIT_MEASURE must still match TRANSFORMATION: GY
+        # (year-on-year growth) pairs with PA (percentage), _Z (raw level)
+        # pairs with IX (index); GY+IX 404s -- confirmed against
+        # DF_PRICES_ALL, see the 7.6.12 diagnostic run.
+        attempts = (
+            ("PA", "GY", False, "N", "N"),
+            ("IX", "_Z", True, "N", "N"),
+            ("PA", "GY", False, "", ""),
+            ("IX", "_Z", True, "", ""),
+        )
+        for unit_measure, trans_code, needs_yoy, meth, adj in attempts:
+            tag = f"{area}.{meth or '*'}.{unit_measure}.{trans_code}"
+            url = (f"{OECD_PRICES_BASE}/{area}.{freq}.{meth}.CPI."
+                   f"{unit_measure}._T.{adj}.{trans_code}"
+                   f"?format=csvfile&startPeriod=2015")
             try:
                 r = requests.get(url, timeout=60,
                                  headers={"User-Agent": "economic-atlas/0.1"})
-                print(f"  [oecd-cpi] {area}.{unit_measure}.{trans_code} status={r.status_code}")
+                print(f"  [oecd-cpi] {tag} status={r.status_code}")
                 r.raise_for_status()
             except Exception as exc:
-                print(f"  [oecd-cpi] {area}.{unit_measure}.{trans_code} request failed: {exc}")
+                print(f"  [oecd-cpi] {tag} request failed: {exc}")
                 continue
             try:
-                rows = {}
-                reader = list(csv.DictReader(io.StringIO(r.text)))
-                if reader:
-                    print(f"  [oecd-cpi] {area}.{unit_measure}.{trans_code} {len(reader)} CSV rows; "
-                          f"columns: {list(reader[0].keys())}")
-                else:
-                    print(f"  [oecd-cpi] {area}.{unit_measure}.{trans_code} 0 CSV rows; "
-                          f"raw response (first 300 chars): {r.text[:300]!r}")
-                for row in reader:
-                    low = {k.upper(): (v or "") for k, v in row.items() if k}
-                    if low.get("REF_AREA", area) != area:
-                        continue
-                    period, value = low.get("TIME_PERIOD", ""), low.get("OBS_VALUE", "")
-                    if period and value:
-                        try:
-                            rows[period] = float(value)
-                        except ValueError:
-                            continue
-                if not rows:
-                    print(f"  [oecd-cpi] {area}.{unit_measure}.{trans_code} 0 usable rows after "
-                          f"filtering (REF_AREA/TIME_PERIOD/OBS_VALUE mismatch)")
+                groups = parse_groups(r.text, area, tag)
+                if not groups:
+                    print(f"  [oecd-cpi] {tag} 0 usable rows after filtering "
+                          f"(REF_AREA/TIME_PERIOD/OBS_VALUE mismatch)")
                     continue
-                pts = sorted([[p, v] for p, v in rows.items()], key=lambda x: x[0])
-                print(f"  [oecd-cpi] {area}.{unit_measure}.{trans_code} SUCCESS: {len(pts)} points, "
-                      f"{pts[0][0]} to {pts[-1][0]}")
-                if not needs_yoy:
-                    return pts
-                return [[pts[i][0], round((pts[i][1] / pts[i - lag][1] - 1) * 100, 2)]
-                        for i in range(lag, len(pts)) if pts[i - lag][1]] or None
+                # Freshest last-period wins; longer history breaks ties.
+                candidates = []
+                for gkey, rows in groups.items():
+                    pts = sorted([[p, v] for p, v in rows.items()],
+                                 key=lambda x: x[0])
+                    candidates.append((pts[-1][0], len(pts), gkey, pts))
+                candidates.sort(key=lambda t: (t[0], t[1]), reverse=True)
+                for last_period, n, gkey, pts in candidates:
+                    age = period_age_days(last_period)
+                    if age > max_age_days:
+                        print(f"  [oecd-cpi] {tag} {gkey} REJECTED stale: "
+                              f"{n} points ending {last_period} "
+                              f"({age:.0f} days old, limit {max_age_days})")
+                        continue
+                    out = pts if not needs_yoy else to_yoy(pts)
+                    if not out:
+                        print(f"  [oecd-cpi] {tag} {gkey} YoY transform "
+                              f"produced no points -- skipping")
+                        continue
+                    print(f"  [oecd-cpi] {tag} {gkey} SUCCESS: {len(out)} "
+                          f"points, {out[0][0]} to {out[-1][0]}")
+                    return out
+                print(f"  [oecd-cpi] {tag} all series variants stale or "
+                      f"unusable -- trying next combo")
+                continue
             except Exception as exc:
-                print(f"  [oecd-cpi] {area}.{unit_measure}.{trans_code} parsing failed: {exc}")
+                print(f"  [oecd-cpi] {tag} parsing failed: {exc}")
                 continue
     return None
 

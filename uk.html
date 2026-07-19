@@ -562,7 +562,12 @@ function statTile(el, key, title, series, opts){
   const dir=d===0?"flat":((d>0)===opts.upIsGood?"good":"bad");
   const arrow=d===0?"—":(d>0?"▲":"▼");
   const led=freshness(series);
-  let ledTitle=led==="green"?"Updated on schedule":"Awaiting next release";
+  const _lastP=series.points[series.points.length-1][0];
+  const _ageDays=(Date.now()-periodEnd(_lastP).getTime())/86400000;
+  let ledTitle=led==="green"?"Updated on schedule":
+    (_ageDays>3*(STALE_DAYS[series.freq]||90)
+      ?"Source series stale — last data "+fmtPeriod(_lastP)
+      :"Awaiting next release");
   if(series.next) ledTitle+=" · next release "+series.next;
   const clickable=!!ANCHORS[key];
   const div=document.createElement("div");
@@ -656,8 +661,14 @@ function render(data){
   if(data.sample){const sb=document.getElementById("sampleBadge");sb.textContent="Sample data — run fetch_data.py for live figures";sb.classList.add("show");}
   const gdpAnnual = s.gdp_level ? annualGDP(s.gdp_level) : null;
   const gdpYoY = s.gdp_real ? yoyGDP(s.gdp_real) : (s.gdp_level ? yoyGDP(s.gdp_level) : null);
-  const ti = (s.exports&&s.imports&&s.gdp_level)
-    ? tradeIntensity(s.exports,s.imports,s.gdp_level) : null;
+  /* Trade intensity is pinned to the raw nominal series (8.3.0): "Make it
+     real" has no real-terms exports/imports to pair with a real-GDP
+     denominator (nominal trade ÷ real GDP is economically meaningless), and
+     Dollarise cancels out of the ratio anyway — both toggles are deliberate
+     no-ops for this metric. */
+  const tiSrc = (PAGE_DATA && PAGE_DATA.series) ? PAGE_DATA.series : s;
+  const ti = (tiSrc.exports&&tiSrc.imports&&tiSrc.gdp_level)
+    ? tradeIntensity(tiSrc.exports,tiSrc.imports,tiSrc.gdp_level) : null;
 
   /* ---------------------------- formatters ----------------------------- */
   const pct=v=>v.toFixed(1)+"%", pp=v=>v.toFixed(1)+"pp";
@@ -678,7 +689,7 @@ function render(data){
   if(gdpAnnual) chartPanel("gdp_level","charts-gdp","GDP",
     "The total value of everything the UK economy produces in a year.",
     gdpAnnual,"line",v=>curFmt(v,s.gdp_level.unit,1),v=>curFmt(v,s.gdp_level.unit,2),
-    "ONS series ABMI (PN2) · chained volume measure, rolling four-quarter sum, SA",1991);
+    "ONS series YBHA (PN2) · current prices, rolling four-quarter sum, SA",1991);
   if(s.gdp_growth) chartPanel("gdp_growth","charts-gdp","GDP growth, quarter on quarter",
     "How much the economy grew or shrank compared with the previous three months.",
     s.gdp_growth,"bar",v=>v+"%",pct,"ONS series IHYQ (PN2) · chained volume measure",1998);
@@ -723,7 +734,7 @@ function render(data){
     s.imports,"line",v=>curFmt(v,s.imports.unit,0),v=>curFmt(v,s.imports.unit,1),"ONS series IKBI (MRET) · goods and services, current prices, SA");
   if(ti) chartPanel(null,"charts-trade","Trade intensity",
     "Total trade (exports plus imports) as a share of GDP — a measure of how open the economy is.",
-    ti,"line",v=>v+"%",pct,"Calculated from ONS series IKBH, IKBI and ABMI · complete calendar years");
+    ti,"line",v=>v+"%",pct,"Calculated from ONS series IKBH, IKBI and YBHA · complete calendar years");
 
   if(s.debt_gdp) chartPanel("debt_gdp","charts-public","Public sector net debt, % of GDP",
     "Everything the government owes, compared with the size of the economy.",
@@ -736,7 +747,7 @@ function render(data){
   const hero=document.getElementById("hero");
   if(gdpAnnual) statTile(hero,"gdp_level","GDP (annual)",gdpAnnual,
     {fmt:v=>curFmt(v,s.gdp_level.unit,2),fmtD:v=>curFmt(v,s.gdp_level.unit,0),upIsGood:true,
-     source:"ONS · ABMI (PN2), rolling 4 quarters"});
+     source:"ONS · YBHA (PN2), rolling 4 quarters"});
   if(s.gdp_growth) statTile(hero,"gdp_growth","GDP growth (QoQ)",s.gdp_growth,
     {fmt:pct,fmtD:pp,upIsGood:true,source:"ONS · IHYQ (PN2)"});
   if(s.cpi) statTile(hero,"cpi","CPI inflation",s.cpi,
@@ -759,7 +770,7 @@ function render(data){
   /* section tiles */
   const tg=document.getElementById("tiles-gdp");
   if(gdpAnnual) statTile(tg,"gdp_level","GDP (annual)",gdpAnnual,
-    {fmt:v=>curFmt(v,s.gdp_level.unit,2),fmtD:v=>curFmt(v,s.gdp_level.unit,0),upIsGood:true,source:"ONS · ABMI"});
+    {fmt:v=>curFmt(v,s.gdp_level.unit,2),fmtD:v=>curFmt(v,s.gdp_level.unit,0),upIsGood:true,source:"ONS · YBHA"});
   if(s.gdp_growth) statTile(tg,"gdp_growth","Growth (QoQ)",s.gdp_growth,
     {fmt:pct,fmtD:pp,upIsGood:true,source:"ONS · IHYQ"});
   if(gdpYoY) statTile(tg,null,"Growth (YoY)",gdpYoY,
@@ -789,7 +800,7 @@ function render(data){
   if(s.imports) statTile(tt,"imports","Imports",s.imports,
     {fmt:v=>curFmt(v,s.imports.unit,1),fmtD:v=>curFmt(v,s.imports.unit,1),upIsGood:false,source:"ONS · IKBI"});
   if(ti) statTile(tt,null,"Trade intensity",ti,
-    {fmt:pct,fmtD:pp,upIsGood:true,source:"Calculated · IKBH, IKBI, ABMI"});
+    {fmt:pct,fmtD:pp,upIsGood:true,source:"Calculated · IKBH, IKBI, YBHA"});
 
   const tp=document.getElementById("tiles-public");
   if(s.debt_gdp) statTile(tp,"debt_gdp","Public debt (% of GDP)",s.debt_gdp,

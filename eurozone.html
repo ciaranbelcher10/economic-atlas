@@ -530,7 +530,12 @@ function statTile(el, key, title, series, opts){
   const dir=d===0?"flat":((d>0)===opts.upIsGood?"good":"bad");
   const arrow=d===0?"—":(d>0?"▲":"▼");
   const led=freshness(series);
-  let ledTitle=led==="green"?"Updated on schedule":"Awaiting next release";
+  const _lastP=series.points[series.points.length-1][0];
+  const _ageDays=(Date.now()-periodEnd(_lastP).getTime())/86400000;
+  let ledTitle=led==="green"?"Updated on schedule":
+    (_ageDays>3*(STALE_DAYS[series.freq]||90)
+      ?"Source series stale — last data "+fmtPeriod(_lastP)
+      :"Awaiting next release");
   if(series.next) ledTitle+=" · next release "+series.next;
   const clickable=!!ANCHORS[key];
   const div=document.createElement("div");
@@ -640,7 +645,7 @@ function render(data){
   if(gdpAnnual) chartPanel("gdp_level","charts-gdp","GDP",
     "The total value of everything the euro area produces in a year, at current prices.",
     gdpAnnual,"line",v=>curFmt(v,s.gdp_level.unit,0),v=>curFmt(v,s.gdp_level.unit,2),
-    "FRED series CPMNACSCAB1GQEA19 \u00b7 nominal, rolling four-quarter sum (Eurostat)",1996);
+    "FRED series CPMNACSCAB1GQEA19 \u00b7 nominal, rolling four-quarter sum, EA19 aggregate (Eurostat)",1996);
   if(s.gdp_growth) chartPanel("gdp_growth","charts-gdp","Real GDP growth, quarter on quarter",
     "How much the economy grew or shrank compared with the previous three months.",
     s.gdp_growth,"bar",v=>v+"%",pct,"Calculated from FRED series CLVMEURSCAB1GQEA19 (Eurostat)",1998);
@@ -650,7 +655,7 @@ function render(data){
 
   if(s.cpi) chartPanel("cpi","charts-inflation","HICP inflation, annual rate",
     "How much consumer prices are rising compared with a year ago. The ECB targets 2%.",
-    s.cpi,"line",v=>v+"%",pct,"Calculated from FRED series CP0000EZ19M086NEST \u00b7 all items (Eurostat)");
+    s.cpi,"line",v=>v+"%",pct,"Calculated from FRED series CP0000EZ19M086NEST \u00b7 all items, EA19 aggregate (Eurostat)");
   if(s.ecb_rate) chartPanel("ecb_rate","charts-inflation","ECB deposit facility rate",
     "The European Central Bank's key interest rate \u2014 the anchor for borrowing costs across the euro area.",
     s.ecb_rate,"line",v=>v+"%",v=>v.toFixed(2)+"%","FRED series ECBDFR \u00b7 end-of-month value (ECB)");
@@ -659,18 +664,30 @@ function render(data){
     "The share of people who want a job but can't find one.",
     s.unemployment,"line",v=>v+"%",pct,"FRED series LRHUTTTTEZM156S \u00b7 seasonally adjusted (OECD)");
 
+  /* Trade source wording follows the data: once the live Eurostat feed is
+     confirmed (label carries "Eurostat ext_st"), the "discontinued" caveats
+     drop away automatically. */
+  const tradeLive = !!(s.exports && /Eurostat ext_st/.test(s.exports.label||""));
+  const tradeExpl = tradeLive
+    ? "each month, extra-euro-area trade, direct from Eurostat."
+    : "each month, converted to euros from the OECD's US dollar-denominated source. This series was discontinued in April 2023; we're sourcing a live Eurostat replacement.";
+  const tradeSrc = tradeLive
+    ? "Eurostat ext_st \u00b7 extra-euro-area goods trade, \u20ac million"
+    : "FRED (OECD mirror) \u2014 discontinued Apr 2023";
   if(s.trade_balance) chartPanel("trade_balance","charts-trade","Trade balance, goods",
-    "Exports minus imports of goods each month. Below zero means the euro area buys more than it sells. This OECD-mirrored series was discontinued in April 2023, so it no longer updates \u2014 shown for historical reference while we source a live replacement.",
-    s.trade_balance,"bar",v=>curFmt(v,s.trade_balance.unit,0),v=>curFmt(v,s.trade_balance.unit,1),"Derived from OECD goods trade series, converted to euros \u2014 discontinued Apr 2023",1999);
+    (tradeLive
+      ? "Exports minus imports of goods each month, extra-euro-area, direct from Eurostat. Below zero means the euro area buys more than it sells."
+      : "Exports minus imports of goods each month. Below zero means the euro area buys more than it sells. This OECD-mirrored series was discontinued in April 2023, so it no longer updates \u2014 shown for historical reference while we source a live replacement."),
+    s.trade_balance,"bar",v=>curFmt(v,s.trade_balance.unit,0),v=>curFmt(v,s.trade_balance.unit,1),(tradeLive?"Derived from Eurostat ext_st goods trade, \u20ac million":"Derived from OECD goods trade series, converted to euros \u2014 discontinued Apr 2023"),1999);
   if(s.current_account) chartPanel("current_account","charts-trade","Current account",
     "The euro area's overall balance with the rest of the world \u2014 trade plus investment income \u2014 as a share of GDP.",
     s.current_account,"line",v=>v+"%",pct,"World Bank \u00b7 % of GDP, annual, euro-area aggregate");
   if(s.exports) chartPanel("exports","charts-trade","Exports, goods",
-    "The value of goods the euro area sells to the rest of the world each month, converted to euros from the OECD's US dollar-denominated source. This series was discontinued in April 2023; we're sourcing a live Eurostat replacement.",
-    s.exports,"line",v=>curFmt(v,s.exports.unit,0),v=>curFmt(v,s.exports.unit,1),"FRED series XTEXVA01EZM667S \u00b7 goods, SA (OECD) \u2014 discontinued Apr 2023");
+    "The value of goods the euro area sells to the rest of the world "+tradeExpl,
+    s.exports,"line",v=>curFmt(v,s.exports.unit,0),v=>curFmt(v,s.exports.unit,1),(tradeLive?tradeSrc:"FRED series XTEXVA01EZM667S \u00b7 goods, SA (OECD) \u2014 discontinued Apr 2023"));
   if(s.imports) chartPanel("imports","charts-trade","Imports, goods",
-    "The value of goods the euro area buys from the rest of the world each month, converted to euros from the OECD's US dollar-denominated source. This series was discontinued in April 2023; we're sourcing a live Eurostat replacement.",
-    s.imports,"line",v=>curFmt(v,s.imports.unit,0),v=>curFmt(v,s.imports.unit,1),"FRED series XTIMVA01EZM667S \u00b7 goods, SA (OECD) \u2014 discontinued Apr 2023");
+    "The value of goods the euro area buys from the rest of the world "+tradeExpl,
+    s.imports,"line",v=>curFmt(v,s.imports.unit,0),v=>curFmt(v,s.imports.unit,1),(tradeLive?tradeSrc:"FRED series XTIMVA01EZM667S \u00b7 goods, SA (OECD) \u2014 discontinued Apr 2023"));
 
   if(s.debt_gdp) chartPanel("debt_gdp","charts-public","Government gross debt, % of GDP",
     "Everything euro-area governments owe, compared with the size of the economy.",
@@ -699,7 +716,7 @@ function render(data){
   if(s.fdi) statTile(hero,"fdi","FDI (net inflows)",s.fdi,
     {fmt:pct,fmtD:pp,upIsGood:true,source:"World Bank \u00b7 % of GDP, annual"});
   if(s.trade_balance) statTile(hero,"trade_balance","Trade balance",s.trade_balance,
-    {fmt:v=>curFmt(v,s.trade_balance.unit,1),fmtD:v=>curFmt(v,s.trade_balance.unit,1),upIsGood:true,source:"Derived \u00b7 OECD goods trade, converted to €"});
+    {fmt:v=>curFmt(v,s.trade_balance.unit,1),fmtD:v=>curFmt(v,s.trade_balance.unit,1),upIsGood:true,source:(tradeLive?"Derived \u00b7 Eurostat ext_st, \u20ac million":"Derived \u00b7 OECD goods trade, converted to €")});
 
   const tg=document.getElementById("tiles-gdp");
   if(gdpAnnual) statTile(tg,"gdp_level","GDP (annual)",gdpAnnual,
@@ -723,7 +740,7 @@ function render(data){
 
   const tt=document.getElementById("tiles-trade");
   if(s.trade_balance) statTile(tt,"trade_balance","Trade balance",s.trade_balance,
-    {fmt:v=>curFmt(v,s.trade_balance.unit,1),fmtD:v=>curFmt(v,s.trade_balance.unit,1),upIsGood:true,source:"Derived \u00b7 OECD, converted to €"});
+    {fmt:v=>curFmt(v,s.trade_balance.unit,1),fmtD:v=>curFmt(v,s.trade_balance.unit,1),upIsGood:true,source:(tradeLive?"Derived \u00b7 Eurostat ext_st":"Derived \u00b7 OECD, converted to €")});
   if(s.exports) statTile(tt,"exports","Exports",s.exports,
     {fmt:v=>curFmt(v,s.exports.unit,1),fmtD:v=>curFmt(v,s.exports.unit,1),upIsGood:true,source:"FRED \u00b7 XTEXVA01EZM667S"});
   if(s.imports) statTile(tt,"imports","Imports",s.imports,

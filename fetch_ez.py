@@ -138,6 +138,19 @@ def _parse_jsonstat(text: str, tag: str) -> list | None:
         print(f"  [{tag}] response has no time dimension; top-level keys: "
               f"{list(data.keys())}")
         return None
+    # 8.3.0: the mapping below assumes exactly one series in the response.
+    # If a non-time dimension has more than one category (a wrong or missing
+    # filter), positions from different series would silently overwrite each
+    # other -- fail loudly instead.
+    for dname, dim in data["dimension"].items():
+        if dname == "time" or not isinstance(dim, dict):
+            continue
+        idx = dim.get("category", {}).get("index", {})
+        if isinstance(idx, dict) and len(idx) > 1:
+            print(f"  [{tag}] dimension {dname!r} has {len(idx)} categories "
+                  f"({list(idx)[:5]}...) -- query is under-filtered, refusing "
+                  f"to parse a multi-series response")
+            return None
     time_index = data["dimension"]["time"]["category"]["index"]
     pos_to_period = {v: k for k, v in time_index.items()}
     value = data.get("value")
@@ -206,6 +219,44 @@ def fetch_eurostat_govfinance(na_item: str) -> list | None:
         except Exception as exc:
             print(f"  [eurostat-gov-{na_item}] {area} parsing failed: {exc}; "
                   f"first 300 chars: {r.text[:300]!r}")
+    return None
+
+
+def fetch_eurostat_trade(stk_flow: str) -> list | None:
+    """Monthly euro-area goods trade, EUR million, direct from Eurostat's
+    short-term trade statistics (8.3.0). Replaces the FRED/OECD 667S mirror,
+    which was discontinued in April 2023. stk_flow: "EXP" or "IMP".
+    Candidate dataset codes and dimension names follow Eurostat's ext_st
+    family conventions; first live run verifies -- check the Actions log for
+    [eurostat-trade] lines. On total failure the caller falls back to the
+    discontinued OECD mirror, so nothing regresses."""
+    candidates = (
+        ("ext_st_ea20sitc", "EA20", "EXT_EA20"),
+        ("ext_st_ea19sitc", "EA19", "EXT_EA19"),
+    )
+    for dataset, geo, partner in candidates:
+        for params in (
+            f"geo={geo}&partner={partner}&sitc06=TOTAL&stk_flow={stk_flow}&indic_et=TRD_VAL",
+            f"partner={partner}&sitc06=TOTAL&stk_flow={stk_flow}&indic_et=TRD_VAL",
+        ):
+            url = (f"{EUROSTAT_STATS_BASE}/{dataset}?format=JSON&lang=EN"
+                   f"&{params}&sinceTimePeriod=1999")
+            tag = f"eurostat-trade-{stk_flow}-{dataset}"
+            try:
+                r = requests.get(url, timeout=60,
+                                 headers={"User-Agent": "economic-atlas/0.1"})
+                print(f"  [eurostat-trade] {stk_flow} {dataset} status={r.status_code}")
+                r.raise_for_status()
+            except Exception as exc:
+                print(f"  [eurostat-trade] {stk_flow} {dataset} request failed: {exc}")
+                continue
+            try:
+                pts = _parse_jsonstat(r.text, tag)
+                if pts:
+                    return pts
+            except Exception as exc:
+                print(f"  [eurostat-trade] {stk_flow} {dataset} parsing failed: {exc}; "
+                      f"first 300 chars: {r.text[:300]!r}")
     return None
 
 
@@ -303,13 +354,36 @@ def main() -> int:
         print("\nNothing fetched.")
         return 1
 
+    # 8.3.0: prefer live Eurostat trade over the FRED/OECD mirror that died
+    # in April 2023. Only swap in when BOTH flows fetch, so exports/imports
+    # and the derived balance always share one source.
+    es_exp = fetch_eurostat_trade("EXP")
+    es_imp = fetch_eurostat_trade("IMP")
+    if es_exp and es_imp:
+        out["series"]["exports"] = {
+            "label": "Exports of goods, extra-euro-area (Eurostat ext_st)",
+            "unit": "\u20acm", "freq": "months", "points": es_exp}
+        out["series"]["imports"] = {
+            "label": "Imports of goods, extra-euro-area (Eurostat ext_st)",
+            "unit": "\u20acm", "freq": "months", "points": es_imp}
+        print(f"  ok  exports/imports replaced with live Eurostat series "
+              f"({es_exp[-1][0]} / {es_imp[-1][0]})")
+    else:
+        print("note  Eurostat trade unavailable this run -- keeping the "
+              "discontinued OECD mirror (ends Apr 2023)")
+
     if "exports" in out["series"] and "imports" in out["series"]:
         imp = dict(out["series"]["imports"]["points"])
         tb = [[p, round(x - imp[p], 1)]
               for p, x in out["series"]["exports"]["points"] if p in imp]
         if tb:
+            # Inherit the unit from the source flows: with live Eurostat data
+            # these are already \u20acm and must NOT be picked up by the
+            # $-to-local FX conversion below; with the OECD fallback they are
+            # $m and will be converted as before.
             out["series"]["trade_balance"] = {
-                "label": "Trade balance, goods (exports minus imports)", "unit": "$m",
+                "label": "Trade balance, goods (exports minus imports)",
+                "unit": out["series"]["exports"]["unit"],
                 "freq": "months", "points": tb}
             print(f"  ok  {'trade_balance':<16} {len(tb):>5} observations (derived)")
 
