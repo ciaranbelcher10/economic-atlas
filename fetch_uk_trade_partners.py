@@ -52,24 +52,36 @@ COMTRADE_BASE = "https://comtradeapi.un.org/data/v1/get/C/A/HS"
 UK_REPORTER = "826"
 
 # name, ISO-3166 numeric code (matches the world-atlas ids already used in
-# uk.html's map), region (for the "order by region" dropdown)
+# uk.html's map), Comtrade partner code, region (for the "order by region"
+# dropdown). CONFIRMED live (2026-07-20): 5 of 14 partners came back with
+# "no data in either flow" on the first real run -- United States, France,
+# Switzerland, Norway, India. Traced to a real, documented cause: Comtrade
+# uses its own historical M49-derived codes for these five specifically,
+# which diverge from standard ISO-3166 numeric (confirmed against Comtrade's
+# own reference docs and the comtradr package's country code table) --
+# these aren't guesses, all 5 mismatches are confirmed divergences:
+#   US 840->842, France 250->251, Switzerland 756->757, Norway 578->579,
+#   India 356->699.
+# The ISO code is kept separately because uk.html's map uses world-atlas
+# topojson, which uses standard ISO numeric ids -- only the API query needs
+# Comtrade's own code.
 PARTNERS = [
-    ("United States", "840", "Americas"),
-    ("Germany", "276", "Europe"),
-    ("China", "156", "Asia"),
-    ("Netherlands", "528", "Europe"),
-    ("France", "250", "Europe"),
-    ("Ireland", "372", "Europe"),
-    ("Switzerland", "756", "Europe"),
-    ("Belgium", "056", "Europe"),
-    ("Spain", "724", "Europe"),
-    ("Italy", "380", "Europe"),
-    ("Norway", "578", "Europe"),
-    ("India", "356", "Asia"),
-    ("United Arab Emirates", "784", "Middle East"),
-    ("South Korea", "410", "Asia"),
+    ("United States", "840", "842", "Americas"),
+    ("Germany", "276", "276", "Europe"),
+    ("China", "156", "156", "Asia"),
+    ("Netherlands", "528", "528", "Europe"),
+    ("France", "250", "251", "Europe"),
+    ("Ireland", "372", "372", "Europe"),
+    ("Switzerland", "756", "757", "Europe"),
+    ("Belgium", "056", "056", "Europe"),
+    ("Spain", "724", "724", "Europe"),
+    ("Italy", "380", "380", "Europe"),
+    ("Norway", "578", "579", "Europe"),
+    ("India", "356", "699", "Asia"),
+    ("United Arab Emirates", "784", "784", "Middle East"),
+    ("South Korea", "410", "410", "Asia"),
 ]
-PARTNER_CODES = ",".join(p[1] for p in PARTNERS)
+PARTNER_CODES = ",".join(p[2] for p in PARTNERS)
 
 
 def _value(row: dict) -> float | None:
@@ -178,15 +190,16 @@ def main() -> int:
             imp_by_partner[code] = imp_by_partner.get(code, 0.0) + v
 
     partners_out = []
-    for name, code, region in PARTNERS:
-        exp = exp_by_partner.get(code, 0.0)
-        imp = imp_by_partner.get(code, 0.0)
+    for name, iso_code, comtrade_code, region in PARTNERS:
+        exp = exp_by_partner.get(comtrade_code, 0.0)
+        imp = imp_by_partner.get(comtrade_code, 0.0)
         total = exp + imp
         if total <= 0:
-            print(f"  [comtrade] {name} ({code}): no data in either flow — skipped")
+            print(f"  [comtrade] {name} (iso={iso_code}, comtrade={comtrade_code}): "
+                  f"no data in either flow — skipped")
             continue
         partners_out.append({
-            "name": name, "code": code, "region": region,
+            "name": name, "code": iso_code, "region": region,
             "exports_usd": round(exp, 0), "imports_usd": round(imp, 0),
             "value_usd": round(total, 0),
         })
