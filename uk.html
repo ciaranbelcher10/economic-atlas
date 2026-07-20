@@ -120,6 +120,26 @@ nav.viztoggle label{font-size:12.5px; color:var(--ink2); font-weight:600; margin
   background:linear-gradient(to right, var(--mako-7), var(--mako-4), var(--mako-1));}
 .vizlegend .gradrow{display:flex; align-items:center; gap:8px;}
 .tpm-covnote{font-size:12.5px; color:var(--ink2); margin:14px 2px 0;}
+.tpm-scopenote{font-size:13.5px; color:var(--ink); background:#EEF3F0; border:1px solid #D7E3DA;
+  border-radius:10px; padding:11px 15px; margin:0 0 14px;}
+.tpm-scopenote strong{color:#1E4566;}
+.tpm-layout{display:flex; gap:20px; align-items:flex-start; flex-wrap:wrap;}
+.tpm-left{flex:1 1 560px; min-width:320px;}
+.tpm-right{flex:1 1 300px; min-width:270px;}
+.tpm-ranking{background:var(--panel); border:1px solid var(--hair); border-radius:14px;
+  padding:20px 22px 8px;}
+.tpm-ranking h4{font-size:15.5px; margin:0;}
+.tpm-ranksubtitle{font-size:12.5px; color:var(--ink2); margin:4px 0 4px;}
+.tpm-ranklist{list-style:none; padding:0; margin:10px 0 0;}
+.tpm-rankrow{display:flex; align-items:center; gap:10px; padding:10px 0;
+  border-bottom:1px solid var(--hair); cursor:default;}
+.tpm-rankrow:last-child{border-bottom:none;}
+.tpm-rankrow.hi{background:#F7F9F6; margin:0 -10px; padding:10px; border-radius:8px;}
+.tpm-ranknum{font-weight:700; font-size:13px; color:var(--ink2); width:16px; flex:none;}
+.tpm-rankswatch{width:10px; height:10px; border-radius:50%; flex:none;}
+.tpm-rankname{flex:1; font-weight:600; font-size:14px; min-width:0; overflow:hidden;
+  text-overflow:ellipsis; white-space:nowrap;}
+.tpm-rankvalue{font-weight:700; font-size:14px; color:var(--ink); white-space:nowrap; flex:none;}
 
 </style>
 </head>
@@ -369,9 +389,10 @@ document.addEventListener("DOMContentLoaded", function(){
   <p class="lightskey compact" aria-label="Key to freshness lights"><span><span class="led green" aria-hidden="true"></span>&nbsp;updated on schedule</span><span><span class="led orange" aria-hidden="true"></span>&nbsp;awaiting next release</span></p>
   <div class="grid" id="charts-trade"></div>
 
-  <div class="tpm-head"><h3>Where the UK trades</h3></div>
+  <div class="tpm-head"><h3>UK goods trade &mdash; top partners</h3></div>
+  <p class="tpm-scopenote"><strong>Goods trade only.</strong> Services (roughly 40% of UK exports, including finance and other professional services) aren't covered by this data source and aren't shown here &mdash; so relationships that lean heavily on services, especially with the United States, are understated.</p>
   <div class="tpm-banner" id="tpmBanner"><span class="dot2" aria-hidden="true"></span>
-  <span id="tpmBannerText">Illustrative data — approximate 2025 goods-trade shares, not a live feed. Real bilateral figures pending a UN Comtrade API key (goods only; UK's ~40% services trade isn't shown here).</span></div>
+  <span id="tpmBannerText">Illustrative data — approximate 2025 goods-trade shares, not a live feed. Real bilateral figures pending a UN Comtrade API key.</span></div>
   <nav class="viztoggle">
     <button type="button" class="vtbtn active" data-view="geo">Geographic</button>
     <button type="button" class="vtbtn" data-view="radial">Radial</button>
@@ -383,17 +404,28 @@ document.addEventListener("DOMContentLoaded", function(){
       <option value="region">Region</option>
     </select>
   </nav>
-  <div class="vizpanel">
-    <div id="viewGeo" class="vizview">
-      <svg id="geoSvg" viewBox="0 0 960 500"></svg>
+  <div class="tpm-layout">
+    <div class="tpm-left">
+      <div class="vizpanel">
+        <div id="viewGeo" class="vizview">
+          <svg id="geoSvg" viewBox="0 0 960 500"></svg>
+        </div>
+        <div id="viewRadial" class="vizview" hidden>
+          <svg id="radialSvg" viewBox="0 0 700 700"></svg>
+        </div>
+        <div id="viztip" aria-hidden="true"></div>
+        <div class="vizlegend">
+          <div class="gradrow"><span class="grad"></span><span>Lower &#8594; higher trade value</span></div>
+          <span>Line thickness also scales with value</span>
+        </div>
+      </div>
     </div>
-    <div id="viewRadial" class="vizview" hidden>
-      <svg id="radialSvg" viewBox="0 0 700 700"></svg>
-    </div>
-    <div id="viztip" aria-hidden="true"></div>
-    <div class="vizlegend">
-      <div class="gradrow"><span class="grad"></span><span>Lower &#8594; higher trade value</span></div>
-      <span>Line thickness also scales with value</span>
+    <div class="tpm-right">
+      <div class="tpm-ranking">
+        <h4 id="tpmRankTitle">Goods trade &mdash; top partners</h4>
+        <p class="tpm-ranksubtitle" id="tpmRankSubtitle">Illustrative 2025 figures, &pound;bn</p>
+        <ol class="tpm-ranklist" id="tpmRankList"></ol>
+      </div>
     </div>
   </div>
   <p class="tpm-covnote" id="tpmCovnote">Top 14 goods-trade partners shown, accounting for roughly 72% of total UK goods trade by value; the remainder is spread across some 180 other countries and territories not individually plotted.</p>
@@ -1030,7 +1062,38 @@ function computeScales(){
   }).domain([minV, maxV]);
   widthScale = d3.scaleSqrt().domain([minV, maxV]).range([1.5, 9]);
 }
+
+var activeHighlightFn = null;
+var geoHighlightFn = null;
+var radialHighlightFn = null;
+
+function renderRanking(){
+  var list = document.getElementById("tpmRankList");
+  if(!list) return;
+  var ranked = PARTNERS.slice().sort(function(a,b){ return b.value - a.value; });
+  list.innerHTML = "";
+  ranked.forEach(function(p, i){
+    var li = document.createElement("li");
+    li.className = "tpm-rankrow";
+    li.dataset.code = p.code;
+    li.innerHTML = "<span class=\"tpm-ranknum\">" + (i + 1) + "</span>"
+      + "<span class=\"tpm-rankswatch\" style=\"background:" + colorScale(p.value) + "\"></span>"
+      + "<span class=\"tpm-rankname\">" + p.name + "</span>"
+      + "<span class=\"tpm-rankvalue\">" + CURRENCY_SYMBOL + p.value.toFixed(1) + "bn</span>";
+    li.addEventListener("mouseenter", function(){ if(activeHighlightFn) activeHighlightFn(p.code, true); });
+    li.addEventListener("mouseleave", function(){ if(activeHighlightFn) activeHighlightFn(p.code, false); });
+    list.appendChild(li);
+  });
+}
+
+function highlightRankRow(code, on){
+  document.querySelectorAll(".tpm-rankrow").forEach(function(row){
+    row.classList.toggle("hi", on && row.dataset.code === code);
+  });
+}
 computeScales();
+renderRanking();
+
 
 var tip = document.getElementById("viztip");
 function showTip(e, p){
@@ -1108,7 +1171,10 @@ function drawGeo(world){
   function highlightGeo(code, on){
     arcs.selectAll("path").classed("dim", function(p){ return on && p.code !== code; })
       .classed("hi", function(p){ return on && p.code === code; });
+    highlightRankRow(code, on);
   }
+  geoHighlightFn = highlightGeo;
+  activeHighlightFn = geoHighlightFn;
 }
 
 var currentOrder = "value";
@@ -1136,10 +1202,9 @@ function renderRadial(){
   var list = orderedPartners();
   var n = list.length;
 
-  var hub = svg.append("g").attr("class", "radial-hub");
-  hub.append("circle").attr("cx", cx).attr("cy", cy).attr("r", hubR);
-  hub.append("text").attr("x", cx).attr("y", cy + 5).text("UK");
-
+  // Spokes and nodes are drawn FIRST, hub LAST -- SVG paints later elements
+  // on top, so the hub circle needs to be the last thing appended to sit
+  // cleanly above the spoke lines rather than have them drawn over it.
   var spokes = svg.append("g");
   var nodesG = svg.append("g");
 
@@ -1164,8 +1229,8 @@ function renderRadial(){
       .attr("stroke", colorScale(p.value))
       .attr("stroke-width", widthScale(p.value))
       .attr("opacity", 0.82)
-      .on("mousemove", function(e){ showTip(e, p); highlightRadial(p.code, true); })
-      .on("mouseleave", function(){ hideTip(); highlightRadial(p.code, false); });
+      .on("mousemove", function(e){ showTip(e, p); highlightAll(p.code, true); })
+      .on("mouseleave", function(){ hideTip(); highlightAll(p.code, false); });
 
     var nodeG = nodesG.append("g").attr("class", "radial-node").datum(p);
     nodeG.append("circle")
@@ -1179,14 +1244,21 @@ function renderRadial(){
       .attr("text-anchor", anchor)
       .text(p.name);
 
-    nodeG.on("mousemove", function(e){ showTip(e, p); highlightRadial(p.code, true); })
-      .on("mouseleave", function(){ hideTip(); highlightRadial(p.code, false); });
+    nodeG.on("mousemove", function(e){ showTip(e, p); highlightAll(p.code, true); })
+      .on("mouseleave", function(){ hideTip(); highlightAll(p.code, false); });
   });
 
-  function highlightRadial(code, on){
+  var hub = svg.append("g").attr("class", "radial-hub");
+  hub.append("circle").attr("cx", cx).attr("cy", cy).attr("r", hubR);
+  hub.append("text").attr("x", cx).attr("y", cy + 5).text("UK");
+
+  function highlightAll(code, on){
     spokes.selectAll("path").classed("dim", function(p){ return on && p.code !== code; });
     nodesG.selectAll(".radial-node").classed("dim", function(p){ return on && p.code !== code; });
+    highlightRankRow(code, on);
   }
+  radialHighlightFn = highlightAll;
+  activeHighlightFn = radialHighlightFn;
 }
 
 var dataReady = false;
@@ -1212,6 +1284,8 @@ function applyLivePartners(payload){
       + payload.period + " (US dollars, UN Comtrade). Curated set of major partners, not an "
       + "exhaustive top-N ranking; goods only — UK's roughly 40% services trade isn't shown here.";
   }
+  var rankSubtitle = document.getElementById("tpmRankSubtitle");
+  if(rankSubtitle) rankSubtitle.textContent = "Goods trade, " + payload.period + " (US$bn, UN Comtrade)";
   return true;
 }
 
@@ -1225,6 +1299,7 @@ Promise.all([
   var livePayload = results[1];
   applyLivePartners(livePayload);
   computeScales();
+  renderRanking();
   drawGeo(world);
   dataReady = true;
   if(pendingRadialRender){
@@ -1237,6 +1312,7 @@ Promise.all([
   if(el) el.outerHTML = "<p style=\"color:var(--ink2);padding:40px;text-align:center;\">Map data unavailable right now.</p>";
   dataReady = true;
 });
+
 
 document.querySelectorAll(".vtbtn").forEach(function(btn){
   btn.addEventListener("click", function(){
@@ -1257,6 +1333,7 @@ document.querySelectorAll(".vtbtn").forEach(function(btn){
         pendingRadialRender = true;
       }
     }
+    activeHighlightFn = isRadial ? radialHighlightFn : geoHighlightFn;
   });
 });
 
