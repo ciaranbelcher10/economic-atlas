@@ -131,6 +131,10 @@ nav.viztoggle label{font-size:12.5px; color:var(--ink2); font-weight:600; margin
 .tpm-ranking h4{font-size:15.5px; margin:0;}
 .tpm-ranksubtitle{font-size:12.5px; color:var(--ink2); margin:4px 0 4px;}
 .tpm-ranklist{list-style:none; padding:0; margin:10px 0 0;}
+.tpm-rankmore{width:100%; text-align:center; background:none; border:none;
+  color:var(--blue); font:600 13px "Avenir Next","Avenir","Nunito Sans",sans-serif;
+  padding:12px 0 14px; cursor:pointer;}
+.tpm-rankmore:hover{color:var(--navy); text-decoration:underline;}
 .tpm-rankrow{display:flex; align-items:center; gap:10px; padding:10px 0;
   border-bottom:1px solid var(--hair); cursor:default;}
 .tpm-rankrow:last-child{border-bottom:none;}
@@ -405,7 +409,6 @@ document.addEventListener("DOMContentLoaded", function(){
     <select id="orderBy">
       <option value="value">Trade value</option>
       <option value="alpha">Alphabetical</option>
-      <option value="region">Region</option>
     </select>
   </nav>
   <div class="tpm-layout">
@@ -429,10 +432,11 @@ document.addEventListener("DOMContentLoaded", function(){
         <h4 id="tpmRankTitle">Goods trade &mdash; top partners</h4>
         <p class="tpm-ranksubtitle" id="tpmRankSubtitle">Illustrative 2025 figures, &pound;bn</p>
         <ol class="tpm-ranklist" id="tpmRankList"></ol>
+        <button type="button" class="tpm-rankmore" id="tpmRankMore" hidden>Show all partners</button>
       </div>
     </div>
   </div>
-  <p class="tpm-covnote" id="tpmCovnote">Top 14 goods-trade partners shown, accounting for roughly 72% of total UK goods trade by value; the remainder is spread across some 180 other countries and territories not individually plotted.</p>
+  <p class="tpm-covnote" id="tpmCovnote">Illustrative fallback shows 14 major partners. Once live, every partner UN Comtrade has data for is included &mdash; the radial view shows the top 20 by value, the map shows all of them, and the ranking list can be expanded to show every partner.</p>
 </section>
 <section class="sec" id="sec-public" hidden>
   <div class="hero mini" id="tiles-public"></div>
@@ -1064,6 +1068,8 @@ var PARTNERS = FALLBACK_PARTNERS;
 var CURRENCY_SYMBOL = "\u00a3"; // illustrative fallback was priced in GBP
 var colorScale, widthScale;
 var currentMetric = "total"; // "total" | "exports" | "imports"
+var rankExpanded = false;
+var RANK_INITIAL_N = 20;
 
 function metricValue(p){ return p[currentMetric]; }
 function metricShare(p){
@@ -1094,8 +1100,9 @@ function renderRanking(){
   var list = document.getElementById("tpmRankList");
   if(!list) return;
   var ranked = PARTNERS.slice().sort(function(a,b){ return metricValue(b) - metricValue(a); });
+  var visible = rankExpanded ? ranked : ranked.slice(0, RANK_INITIAL_N);
   list.innerHTML = "";
-  ranked.forEach(function(p, i){
+  visible.forEach(function(p, i){
     var li = document.createElement("li");
     li.className = "tpm-rankrow";
     li.dataset.code = p.code;
@@ -1107,6 +1114,17 @@ function renderRanking(){
     li.addEventListener("mouseleave", function(){ if(activeHighlightFn) activeHighlightFn(p.code, false); });
     list.appendChild(li);
   });
+  var moreBtn = document.getElementById("tpmRankMore");
+  if(moreBtn){
+    if(ranked.length <= RANK_INITIAL_N){
+      moreBtn.hidden = true;
+    } else {
+      moreBtn.hidden = false;
+      moreBtn.textContent = rankExpanded
+        ? "Show top " + RANK_INITIAL_N
+        : "Show all " + ranked.length + " partners";
+    }
+  }
 }
 
 function highlightRankRow(code, on){
@@ -1211,20 +1229,20 @@ function drawGeoArcs(){
 
 var currentOrder = "value";
 var radialInit = false;
+var RADIAL_TOP_N = 20;
 
 function orderedPartners(){
-  var list = PARTNERS.slice();
+  // Radial only ever shows the top N by whichever metric is selected --
+  // "order by" just controls how those N are arranged on the ring, not
+  // which N get shown.
+  var top = PARTNERS.slice().sort(function(a,b){ return metricValue(b) - metricValue(a); })
+    .slice(0, RADIAL_TOP_N);
   if(currentOrder === "alpha"){
-    list.sort(function(a,b){ return a.name.localeCompare(b.name); });
-  } else if(currentOrder === "region"){
-    list.sort(function(a,b){
-      if(a.region !== b.region) return a.region.localeCompare(b.region);
-      return metricValue(b) - metricValue(a);
-    });
+    top.sort(function(a,b){ return a.name.localeCompare(b.name); });
   } else {
-    list.sort(function(a,b){ return metricValue(b) - metricValue(a); });
+    top.sort(function(a,b){ return metricValue(b) - metricValue(a); });
   }
-  return list;
+  return top;
 }
 
 function renderRadial(){
@@ -1299,7 +1317,7 @@ function applyLivePartners(payload){
   if(!payload || !Array.isArray(payload.partners) || !payload.partners.length) return false;
   var mapped = payload.partners.map(function(p){
     return {
-      name: p.name, code: p.code, region: p.region,
+      name: p.name, code: p.code,
       total: p.value_usd / 1e9, exports: p.exports_usd / 1e9, imports: p.imports_usd / 1e9,
       totalShare: p.share_pct, exportShare: p.export_share_pct, importShare: p.import_share_pct
     };
@@ -1312,9 +1330,10 @@ function applyLivePartners(payload){
   if(bannerText) bannerText.textContent = "";
   var covnote = document.getElementById("tpmCovnote");
   if(covnote){
-    covnote.textContent = "Top " + payload.partners.length + " goods-trade partners shown by value, "
-      + payload.period + " (US dollars, UN Comtrade). Curated set of major partners, not an "
-      + "exhaustive top-N ranking; goods only — UK's roughly 40% services trade isn't shown here.";
+    covnote.textContent = "All " + payload.partners.length + " partners UN Comtrade reports UK goods trade "
+      + "with are included, " + payload.period + " (US dollars). The radial view shows the top " + RADIAL_TOP_N
+      + " by the selected metric; the map shows all of them; the ranking list can be expanded below. "
+      + "Goods only — UK's roughly 40% services trade isn't shown here.";
   }
   var rankSubtitle = document.getElementById("tpmRankSubtitle");
   if(rankSubtitle) rankSubtitle.textContent = "Goods trade, " + payload.period + " (US$bn, UN Comtrade)";
@@ -1363,6 +1382,11 @@ document.querySelectorAll(".vtbtn").forEach(function(btn){
 document.getElementById("orderBy").addEventListener("change", function(e){
   currentOrder = e.target.value;
   renderRadial();
+});
+
+document.getElementById("tpmRankMore").addEventListener("click", function(){
+  rankExpanded = !rankExpanded;
+  renderRanking();
 });
 
 document.querySelectorAll(".mtbtn").forEach(function(btn){

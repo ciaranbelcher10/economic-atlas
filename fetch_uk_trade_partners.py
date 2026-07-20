@@ -1,5 +1,9 @@
-"""Fetch UK bilateral goods-trade values from UN Comtrade and write
+"""Fetch UK bilateral goods-trade values from UN Comtrade for EVERY partner
+Comtrade has data for (not a curated shortlist), and write
 data-uk-trade-partners.json, consumed by the trade partner map on uk.html.
+The frontend decides how many to actually display (e.g. top 20 on the
+radial view, all of them on the geographic map, top 20 + "show more" on the
+ranking list) -- this script's job is just to hand over the full dataset.
 
 Run:  COMTRADE_API_KEY=yourkey python3 fetch_uk_trade_partners.py
 In GitHub Actions the key comes from the COMTRADE_API_KEY repository secret.
@@ -9,29 +13,44 @@ API STRUCTURE -- confirmed against a real recorded Comtrade API v1 request
 alone): base URL is
   https://comtradeapi.un.org/data/v1/get/{typeCode}/{freqCode}/{clCode}
 with typeCode=C (commodities/goods), freqCode=A (annual), clCode=HS, and
-query params reporterCode, partnerCode (comma-separated list of ISO numeric
-codes), cmdCode=TOTAL (all commodities), flowCode (X=export, M=import),
-motCode=0 (all modes of transport), partner2Code=0, customsCode=C00.
+query params reporterCode, cmdCode=TOTAL (all commodities), flowCode
+(X=export, M=import), motCode=0 (all modes of transport), partner2Code=0,
+customsCode=C00. Confirmed live (2026-07-20) with auth via the
+"Ocp-Apim-Subscription-Key" header and pinned partnerCode lists -- that part
+works.
 
-NOT personally confirmed (first live run is the real test, per this repo's
-standing practice):
-  - The auth mechanism. Comtrade's API sits behind Azure API Management
-    (visible from its response headers -- "Request-Context: appId=cid-v1:..."
-    is an Azure APIM signature), and Azure APIM's own default convention is
-    the "Ocp-Apim-Subscription-Key" HTTP header, so that's what's used here.
-    If this is wrong the fetch will fail with 401/403 -- check the
-    [comtrade] log lines.
-  - The exact JSON field name for the trade value. Comtrade's documented
-    schema uses camelCase ("primaryValue"), but third-party wrappers
-    sometimes show snake_case after their own renaming, so this defensively
-    checks a few likely variants.
-  - Which annual period is the latest with real (non-empty) data for the UK
-    as reporter -- tries a few recent years and keeps whichever has rows.
+UPDATE (post-8.5.0): switched from a 14-country curated partnerCode list to
+OMITTING partnerCode entirely. NOT yet confirmed live -- the expectation,
+based on how Comtrade's data model works (each row is naturally one
+reporter-partner-period-flow combination), is that leaving partnerCode
+unset returns one row per partner Comtrade holds data for, rather than a
+single aggregated "World" row. If that assumption is wrong, this will come
+back with just 1-2 rows instead of ~100+ -- check the "X rows" count in the
+[comtrade] log lines on the first live run and adjust if so (e.g. try
+partnerCode=all as a literal string, or breakdownMode=plus).
 
-SCOPE: this covers a curated list of 14 major partners (the same list
-already shown in the illustrative prototype), not a true "top N of all ~200
-partners" ranking -- that would need Comtrade's separate trade-matrix
-endpoint. Good enough for v1; flagged as a possible future enhancement.
+COUNTRY CODE MAPPING: Comtrade uses its own historical M49-derived partner
+codes, which are usually identical to ISO-3166 numeric but confirmed to
+diverge for at least 5 countries (US 842, France 251, Switzerland 757,
+Norway 579, India 699 -- all confirmed via a previous live run + Comtrade's
+own reference docs). uk.html's map needs standard ISO codes to match
+world-atlas topojson ids. Rather than build a full ~200-country crosswalk
+(which would need Comtrade's own reference file,
+comtradeapi.un.org/files/v1/app/reference/partnerAreas.json, cross-checked
+against an ISO list), this applies the 5 known overrides and assumes
+Comtrade's code equals the ISO code for everyone else. Partners without a
+matching world-atlas feature id simply won't get an arc on the map --
+harmless, they'll still appear correctly in the ranking list and radial
+view, which don't depend on the map at all. If more mismatches turn up
+(silently missing arcs for a country that should have one), add it to
+COMTRADE_TO_ISO_OVERRIDES below.
+
+NON-COUNTRY CODES: Comtrade's partner list includes aggregates that aren't
+real bilateral partners -- "0" (World total) and a handful of historical
+grouping codes (documented via a UN FAO crosswalk: 473, 490, 527, 568, 577,
+637, 711, 837, 838, 839, 899 -- "Areas, nes", regional groupings, etc.).
+These are excluded. There may be others not on this list; if an obviously
+non-country name shows up in the output, add its code here.
 
 Values are left in US dollars, Comtrade's native reporting currency,
 rather than converted to GBP -- avoids depending on a separately-fetched FX
@@ -51,37 +70,14 @@ import requests
 COMTRADE_BASE = "https://comtradeapi.un.org/data/v1/get/C/A/HS"
 UK_REPORTER = "826"
 
-# name, ISO-3166 numeric code (matches the world-atlas ids already used in
-# uk.html's map), Comtrade partner code, region (for the "order by region"
-# dropdown). CONFIRMED live (2026-07-20): 5 of 14 partners came back with
-# "no data in either flow" on the first real run -- United States, France,
-# Switzerland, Norway, India. Traced to a real, documented cause: Comtrade
-# uses its own historical M49-derived codes for these five specifically,
-# which diverge from standard ISO-3166 numeric (confirmed against Comtrade's
-# own reference docs and the comtradr package's country code table) --
-# these aren't guesses, all 5 mismatches are confirmed divergences:
-#   US 840->842, France 250->251, Switzerland 756->757, Norway 578->579,
-#   India 356->699.
-# The ISO code is kept separately because uk.html's map uses world-atlas
-# topojson, which uses standard ISO numeric ids -- only the API query needs
-# Comtrade's own code.
-PARTNERS = [
-    ("United States", "840", "842", "Americas"),
-    ("Germany", "276", "276", "Europe"),
-    ("China", "156", "156", "Asia"),
-    ("Netherlands", "528", "528", "Europe"),
-    ("France", "250", "251", "Europe"),
-    ("Ireland", "372", "372", "Europe"),
-    ("Switzerland", "756", "757", "Europe"),
-    ("Belgium", "056", "056", "Europe"),
-    ("Spain", "724", "724", "Europe"),
-    ("Italy", "380", "380", "Europe"),
-    ("Norway", "578", "579", "Europe"),
-    ("India", "356", "699", "Asia"),
-    ("United Arab Emirates", "784", "784", "Middle East"),
-    ("South Korea", "410", "410", "Asia"),
-]
-PARTNER_CODES = ",".join(p[2] for p in PARTNERS)
+COMTRADE_TO_ISO_OVERRIDES = {
+    "842": "840",  # United States
+    "251": "250",  # France
+    "757": "756",  # Switzerland
+    "579": "578",  # Norway
+    "699": "356",  # India
+}
+NON_COUNTRY_CODES = {"0", "473", "490", "527", "568", "577", "637", "711", "837", "838", "839", "899"}
 
 
 def _value(row: dict) -> float | None:
@@ -97,6 +93,14 @@ def _value(row: dict) -> float | None:
     return None
 
 
+def _name(row: dict) -> str | None:
+    for key in ("partnerDesc", "PartnerDesc", "partner_desc"):
+        v = row.get(key)
+        if v:
+            return str(v)
+    return None
+
+
 def _get(params: dict, key: str) -> requests.Response:
     headers = {
         "User-Agent": "economic-atlas/0.1",
@@ -105,10 +109,9 @@ def _get(params: dict, key: str) -> requests.Response:
     return requests.get(COMTRADE_BASE, params=params, headers=headers, timeout=60)
 
 
-def fetch_flow(reporter: str, partner_codes: str, flow: str, period: str, key: str) -> list | None:
+def fetch_flow(reporter: str, flow: str, period: str, key: str) -> list | None:
     params = {
         "reporterCode": reporter,
-        "partnerCode": partner_codes,
         "period": period,
         "cmdCode": "TOTAL",
         "flowCode": flow,
@@ -116,17 +119,13 @@ def fetch_flow(reporter: str, partner_codes: str, flow: str, period: str, key: s
         "partner2Code": "0",
         "customsCode": "C00",
         "includeDesc": "true",
+        # partnerCode intentionally omitted -- see module docstring.
     }
-    # CONFIRMED on a live run (2026-07-20): the free tier's daily quota
-    # (500 calls/day) isn't what bit us -- a burst/per-second rate limit
-    # is. Firing two calls back-to-back got the second one 429'd every
-    # time, across three different periods. Space calls out and retry
-    # once on 429 with a longer pause before giving up on this call.
     for attempt in range(3):
         try:
             r = _get(params, key)
-            print(f"  [comtrade] reporter={reporter} partner={partner_codes[:20]}{'...' if len(partner_codes) > 20 else ''} "
-                  f"flow={flow} period={period} attempt={attempt+1} status={r.status_code}")
+            print(f"  [comtrade] reporter={reporter} flow={flow} period={period} "
+                  f"attempt={attempt+1} status={r.status_code}")
             if r.status_code == 429:
                 wait = 8 * (attempt + 1)
                 print(f"  [comtrade] rate limited, waiting {wait}s before retry")
@@ -145,6 +144,7 @@ def fetch_flow(reporter: str, partner_codes: str, flow: str, period: str, key: s
         if rows is None:
             print(f"  [comtrade] no 'data' key in response; top-level keys: {list(payload.keys())}")
             return None
+        print(f"  [comtrade] {flow} {period}: {len(rows)} rows returned")
         return rows
     print(f"  [comtrade] still rate limited after retries for flow={flow} period={period}")
     return None
@@ -160,10 +160,10 @@ def main() -> int:
     exp_rows = imp_rows = None
     used_period = None
     for period in periods_to_try:
-        exp_rows = fetch_flow(UK_REPORTER, PARTNER_CODES, "X", period, key)
+        exp_rows = fetch_flow(UK_REPORTER, "X", period, key)
         time.sleep(3)  # space out calls -- confirmed live that firing these
                        # back-to-back triggers a 429 burst limit
-        imp_rows = fetch_flow(UK_REPORTER, PARTNER_CODES, "M", period, key)
+        imp_rows = fetch_flow(UK_REPORTER, "M", period, key)
         if exp_rows and imp_rows:
             used_period = period
             break
@@ -175,39 +175,49 @@ def main() -> int:
               "leaving any previously-fetched file in place, not overwriting with nothing")
         return 0
 
-    exp_by_partner: dict[str, float] = {}
+    # code -> {"name":..., "exports":..., "imports":...}
+    by_partner: dict[str, dict] = {}
+
     for row in exp_rows:
         code = str(row.get("partnerCode", "")).zfill(3)
+        if code in NON_COUNTRY_CODES:
+            continue
         v = _value(row)
-        if v is not None:
-            exp_by_partner[code] = exp_by_partner.get(code, 0.0) + v
+        if v is None:
+            continue
+        entry = by_partner.setdefault(code, {"name": _name(row) or code, "exports": 0.0, "imports": 0.0})
+        entry["exports"] += v
 
-    imp_by_partner: dict[str, float] = {}
     for row in imp_rows:
         code = str(row.get("partnerCode", "")).zfill(3)
+        if code in NON_COUNTRY_CODES:
+            continue
         v = _value(row)
-        if v is not None:
-            imp_by_partner[code] = imp_by_partner.get(code, 0.0) + v
+        if v is None:
+            continue
+        entry = by_partner.setdefault(code, {"name": _name(row) or code, "exports": 0.0, "imports": 0.0})
+        entry["imports"] += v
+        if not entry["name"] or entry["name"] == code:
+            entry["name"] = _name(row) or code
+
+    if not by_partner:
+        print("FAIL  comtrade  parsed responses but found no usable partner rows — "
+              "leaving any previously-fetched file in place")
+        return 0
 
     partners_out = []
-    for name, iso_code, comtrade_code, region in PARTNERS:
-        exp = exp_by_partner.get(comtrade_code, 0.0)
-        imp = imp_by_partner.get(comtrade_code, 0.0)
+    for comtrade_code, entry in by_partner.items():
+        exp = entry["exports"]
+        imp = entry["imports"]
         total = exp + imp
         if total <= 0:
-            print(f"  [comtrade] {name} (iso={iso_code}, comtrade={comtrade_code}): "
-                  f"no data in either flow — skipped")
             continue
+        iso_code = COMTRADE_TO_ISO_OVERRIDES.get(comtrade_code, comtrade_code)
         partners_out.append({
-            "name": name, "code": iso_code, "region": region,
+            "name": entry["name"], "code": iso_code,
             "exports_usd": round(exp, 0), "imports_usd": round(imp, 0),
             "value_usd": round(total, 0),
         })
-
-    if not partners_out:
-        print("FAIL  comtrade  parsed responses but no partner had usable data — "
-              "leaving any previously-fetched file in place")
-        return 0
 
     grand_total = sum(p["value_usd"] for p in partners_out)
     grand_exports = sum(p["exports_usd"] for p in partners_out)
