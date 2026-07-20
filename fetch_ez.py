@@ -169,7 +169,8 @@ def _parse_jsonstat(text: str, tag: str) -> list | None:
                 points[pos_to_period[pos]] = float(val)
     if not points:
         print(f"  [{tag}] parsed JSON-stat but got 0 points; "
-              f"value type={type(value)}, size={data.get('size')}")
+              f"value type={type(value)}, size={data.get('size')}, "
+              f"dim order={data.get('id')}")
         return None
     pts = sorted([[p, v] for p, v in points.items()], key=lambda x: x[0])
     print(f"  [{tag}] SUCCESS: {len(pts)} points, {pts[0][0]} to {pts[-1][0]}")
@@ -227,46 +228,51 @@ def fetch_eurostat_trade(stk_flow: str) -> list | None:
     short-term trade statistics. Replaces the FRED/OECD 667S mirror, which
     was discontinued in April 2023. stk_flow: "EXP" or "IMP".
 
-    UPDATE (post-8.3.0): the previously guessed dataset codes
-    (ext_st_ea20sitc / ext_st_ea19sitc) were confirmed 404 on a live run --
-    they don't exist. Verified against Eurostat's own catalogue: the correct,
-    current dataset is the single rolling series "ext_st_easitc" ("Euro area
-    trade by SITC product group"), which carries only one geo value (EA20,
-    backdated) rather than being split by enlargement vintage. Confirmed via
-    Eurostat's own euro-indicators press releases, which cite this exact
-    dataset for euro-area trade in goods, and cross-checked partner/indicator
-    codes (EXT_EA20, TRD_VAL) against Eurostat's ext_st/tet family conventions
-    on other confirmed-live datasets. ext_st_ea20sitc is kept as a secondary
-    fallback candidate only in case this dataset is ever retired in turn --
-    first live run after deploy still verifies via the [eurostat-trade] log
-    lines, per the site's standing "log output beats static analysis" rule."""
-    candidates = (
-        ("ext_st_easitc", "EA20", "EXT_EA20"),
-        ("ext_st_ea20sitc", "EA20", "EXT_EA20"),
-    )
-    for dataset, geo, partner in candidates:
-        for params in (
-            f"geo={geo}&partner={partner}&sitc06=TOTAL&stk_flow={stk_flow}&indic_et=TRD_VAL",
-            f"partner={partner}&sitc06=TOTAL&stk_flow={stk_flow}&indic_et=TRD_VAL",
-        ):
-            url = (f"{EUROSTAT_STATS_BASE}/{dataset}?format=JSON&lang=EN"
-                   f"&{params}&sinceTimePeriod=1999")
-            tag = f"eurostat-trade-{stk_flow}-{dataset}"
-            try:
-                r = requests.get(url, timeout=60,
-                                 headers={"User-Agent": "economic-atlas/0.1"})
-                print(f"  [eurostat-trade] {stk_flow} {dataset} status={r.status_code}")
-                r.raise_for_status()
-            except Exception as exc:
-                print(f"  [eurostat-trade] {stk_flow} {dataset} request failed: {exc}")
-                continue
-            try:
-                pts = _parse_jsonstat(r.text, tag)
-                if pts:
-                    return pts
-            except Exception as exc:
-                print(f"  [eurostat-trade] {stk_flow} {dataset} parsing failed: {exc}; "
-                      f"first 300 chars: {r.text[:300]!r}")
+    UPDATE #2 (post-8.3.1): the dataset code fix (ext_st_ea20sitc/19sitc ->
+    ext_st_easitc) confirmed status=200 on the next live run -- no more 404 --
+    but still returned 0 points. The old diagnostic printed the JSON-stat
+    `size` array without the matching `id` (dimension name) array, so it
+    was impossible to tell *which* dimension was empty from the log alone;
+    that's fixed now (see _parse_jsonstat). In the meantime, widened the
+    partner-code guess: EXT_EA20 (the "extra-area total" code used by the
+    tet-prefixed short-term-indicator datasets) may not be the code this
+    specific long-run dataset uses for the same concept -- a closely related
+    Eurostat monthly trade dataset (teiet110, "Imports of goods") uses
+    WRL_REST ("Rest of the world") for what looks like the same concept, so
+    that's added as a second candidate, alongside the plain WORLD code as a
+    third. Also try omitting the geo filter (the dataset carries only one
+    geo value already, so an exact-string mismatch on "EA20" would silently
+    return zero rows rather than error). None of this is confirmed live --
+    check the [eurostat-trade] log lines after the next deploy, and if all
+    of these still return 0, the new `dim order=` field in the log will
+    finally name the actual empty dimension directly."""
+    candidates = ("ext_st_easitc", "ext_st_ea20sitc")
+    partners = ("EXT_EA20", "WRL_REST", "WORLD")
+    for dataset in candidates:
+        for partner in partners:
+            for geo_part in (f"geo=EA20&", ""):
+                params = (f"{geo_part}partner={partner}&sitc06=TOTAL"
+                          f"&stk_flow={stk_flow}&indic_et=TRD_VAL")
+                url = (f"{EUROSTAT_STATS_BASE}/{dataset}?format=JSON&lang=EN"
+                       f"&{params}&sinceTimePeriod=1999")
+                tag = f"eurostat-trade-{stk_flow}-{dataset}-{partner}"
+                try:
+                    r = requests.get(url, timeout=60,
+                                     headers={"User-Agent": "economic-atlas/0.1"})
+                    print(f"  [eurostat-trade] {stk_flow} {dataset} {partner} "
+                          f"geo={'Y' if geo_part else 'N'} status={r.status_code}")
+                    r.raise_for_status()
+                except Exception as exc:
+                    print(f"  [eurostat-trade] {stk_flow} {dataset} {partner} "
+                          f"request failed: {exc}")
+                    continue
+                try:
+                    pts = _parse_jsonstat(r.text, tag)
+                    if pts:
+                        return pts
+                except Exception as exc:
+                    print(f"  [eurostat-trade] {stk_flow} {dataset} {partner} "
+                          f"parsing failed: {exc}; first 300 chars: {r.text[:300]!r}")
     return None
 
 
