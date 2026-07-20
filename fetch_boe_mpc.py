@@ -142,7 +142,18 @@ def fetch_and_parse() -> list[dict] | None:
     data_start_row = rate_row + 1  # the row right after is a no-date baseline, skipped naturally
     print(f"  [boe-mpc] date col={date_col}, rate col={rate_col}, data starts row {data_start_row}")
 
-    meetings = []
+    # Two passes: first collect raw (date, decision, per-member voted rates)
+    # without classifying anything -- classification needs to compare each
+    # member's vote against the PREVIOUS meeting's rate, not the current
+    # decision, so previous_rate has to be known first (confirmed live,
+    # 2026-07-20: comparing against the current decision instead produced
+    # visibly wrong hold/hike/cut splits for every meeting where the
+    # decision itself was a change -- e.g. a cut meeting where everyone who
+    # voted for the new lower rate got bucketed as "hold" because their
+    # vote matched the decision, and dissenters wanting the old rate kept
+    # got bucketed as "hike", even though relative to the true previous
+    # rate they may have just wanted to hold).
+    raw_meetings = []
     for row_idx in range(data_start_row, ws.max_row + 1):
         raw_date = ws.cell(row=row_idx, column=date_col).value
         if not hasattr(raw_date, "strftime"):
@@ -151,35 +162,53 @@ def fetch_and_parse() -> list[dict] | None:
         if decision is None:
             continue
         decision_pct = round(decision * 100, 4)
-
-        hold = hike = cut = 0
+        votes = {}
         for c in member_cols:
             voted = _to_float(ws.cell(row=row_idx, column=c).value)
-            if voted is None:
-                continue
-            voted_pct = voted * 100
-            if abs(voted_pct - decision_pct) < 1e-6:
-                hold += 1
-            elif voted_pct > decision_pct:
-                hike += 1
-            else:
-                cut += 1
-        total_votes = hold + hike + cut
-        if total_votes == 0:
-            continue  # no current-member data for this (likely older) meeting
-
-        meetings.append({
-            "date": raw_date.strftime("%Y-%m-%d"), "decision_rate": decision_pct,
-            "hold": hold, "hike": hike, "cut": cut, "total_votes": total_votes,
+            if voted is not None:
+                votes[c] = round(voted * 100, 4)
+        if not votes:
+            continue
+        raw_meetings.append({
+            "date": raw_date.strftime("%Y-%m-%d"),
+            "decision_rate": decision_pct,
+            "votes": votes,
         })
 
-    if not meetings:
+    if not raw_meetings:
         print("  [boe-mpc] found anchors but parsed 0 meetings with current-member vote data")
         return None
 
-    meetings.sort(key=lambda m: m["date"], reverse=True)
-    for i, m in enumerate(meetings):
-        m["previous_rate"] = meetings[i + 1]["decision_rate"] if i + 1 < len(meetings) else None
+    raw_meetings.sort(key=lambda m: m["date"])  # chronological, oldest first
+    meetings = []
+    prev_rate = None
+    for rm in raw_meetings:
+        hold = hike = cut = 0
+        if prev_rate is not None:
+            for voted_pct in rm["votes"].values():
+                if abs(voted_pct - prev_rate) < 1e-6:
+                    hold += 1
+                elif voted_pct > prev_rate:
+                    hike += 1
+                else:
+                    cut += 1
+        total_votes = hold + hike + cut
+        meetings.append({
+            "date": rm["date"], "decision_rate": rm["decision_rate"], "previous_rate": prev_rate,
+            "hold": hold, "hike": hike, "cut": cut, "total_votes": total_votes,
+        })
+        prev_rate = rm["decision_rate"]
+
+    # Drop the very first meeting in the sheet's history -- it has no
+    # previous rate to compare against, so its hold/hike/cut counts are
+    # always zero by construction. Harmless in practice since that's
+    # decades in the past and never near the top of any displayed list.
+    meetings = [m for m in meetings if m["total_votes"] > 0]
+    if not meetings:
+        print("  [boe-mpc] every parsed meeting had zero classifiable votes")
+        return None
+
+    meetings.sort(key=lambda m: m["date"], reverse=True)  # newest first, matching the rest of the site
 
     latest = meetings[0]
     print(f"  [boe-mpc] {len(meetings)} meetings parsed, latest {latest['date']} "
