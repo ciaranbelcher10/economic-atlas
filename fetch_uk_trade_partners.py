@@ -210,8 +210,12 @@ def main() -> int:
         return 0
 
     grand_total = sum(p["value_usd"] for p in partners_out)
+    grand_exports = sum(p["exports_usd"] for p in partners_out)
+    grand_imports = sum(p["imports_usd"] for p in partners_out)
     for p in partners_out:
         p["share_pct"] = round(p["value_usd"] / grand_total * 100, 1) if grand_total else 0.0
+        p["export_share_pct"] = round(p["exports_usd"] / grand_exports * 100, 1) if grand_exports else 0.0
+        p["import_share_pct"] = round(p["imports_usd"] / grand_imports * 100, 1) if grand_imports else 0.0
     partners_out.sort(key=lambda p: p["value_usd"], reverse=True)
 
     out = {

@@ -394,11 +394,15 @@ document.addEventListener("DOMContentLoaded", function(){
   <div class="tpm-banner" id="tpmBanner"><span class="dot2" aria-hidden="true"></span>
   <span id="tpmBannerText">Illustrative data — approximate 2025 goods-trade shares, not a live feed. Real bilateral figures pending a UN Comtrade API key.</span></div>
   <nav class="viztoggle">
-    <button type="button" class="vtbtn active" data-view="geo">Geographic</button>
-    <button type="button" class="vtbtn" data-view="radial">Radial</button>
+    <button type="button" class="vtbtn" data-view="geo">Geographic</button>
+    <button type="button" class="vtbtn active" data-view="radial">Radial</button>
     <div class="spacer"></div>
-    <label for="orderBy" id="orderByWrap" hidden>Order by</label>
-    <select id="orderBy" hidden>
+    <label id="metricWrap">Show</label>
+    <button type="button" class="mtbtn active" data-metric="total">Total</button>
+    <button type="button" class="mtbtn" data-metric="exports">Exports</button>
+    <button type="button" class="mtbtn" data-metric="imports">Imports</button>
+    <label for="orderBy" id="orderByWrap">Order by</label>
+    <select id="orderBy">
       <option value="value">Trade value</option>
       <option value="alpha">Alphabetical</option>
       <option value="region">Region</option>
@@ -407,10 +411,10 @@ document.addEventListener("DOMContentLoaded", function(){
   <div class="tpm-layout">
     <div class="tpm-left">
       <div class="vizpanel">
-        <div id="viewGeo" class="vizview">
+        <div id="viewGeo" class="vizview" hidden>
           <svg id="geoSvg" viewBox="0 0 960 500"></svg>
         </div>
-        <div id="viewRadial" class="vizview" hidden>
+        <div id="viewRadial" class="vizview">
           <svg id="radialSvg" viewBox="0 0 700 700"></svg>
         </div>
         <div id="viztip" aria-hidden="true"></div>
@@ -1033,30 +1037,49 @@ fetch("data.json",{cache:"no-store"})
 
 // Illustrative fallback only — used if the live Comtrade fetch fails or
 // COMTRADE_API_KEY isn't set yet. See tpmBanner for the live/fallback text.
+// Illustrative fallback only — used if the live Comtrade fetch fails or
+// COMTRADE_API_KEY isn't set yet. Export/import splits here are invented
+// but plausible (e.g. UK goods deficit with China/Germany, surplus with
+// Ireland/UAE) — not derived from any real source, purely to make the
+// Total/Exports/Imports toggle demonstrate something sensible before live
+// data loads. See tpmBanner for the live/fallback indicator.
 var FALLBACK_PARTNERS = [
-  {name:"United States", code:"840", value:58.4, share:14.6, region:"Americas"},
-  {name:"Germany",       code:"276", value:33.2, share:8.3,  region:"Europe"},
-  {name:"China",         code:"156", value:31.5, share:7.9,  region:"Asia"},
-  {name:"Netherlands",   code:"528", value:28.9, share:7.2,  region:"Europe"},
-  {name:"France",        code:"250", value:21.6, share:5.4,  region:"Europe"},
-  {name:"Ireland",       code:"372", value:19.8, share:4.9,  region:"Europe"},
-  {name:"Switzerland",   code:"756", value:16.4, share:4.1,  region:"Europe"},
-  {name:"Belgium",       code:"056", value:14.2, share:3.5,  region:"Europe"},
-  {name:"Spain",         code:"724", value:12.8, share:3.2,  region:"Europe"},
-  {name:"Italy",         code:"380", value:12.1, share:3.0,  region:"Europe"},
-  {name:"Norway",        code:"578", value:11.3, share:2.8,  region:"Europe"},
-  {name:"India",         code:"356", value:9.6,  share:2.4,  region:"Asia"},
-  {name:"United Arab Emirates", code:"784", value:8.7, share:2.2, region:"Middle East"},
-  {name:"South Korea",  code:"410", value:7.4,  share:1.8,  region:"Asia"}
+  {name:"United States", code:"840", region:"Americas",   total:58.4, exports:28.0, imports:30.4, totalShare:14.6, exportShare:21.9, importShare:19.3},
+  {name:"Germany",       code:"276", region:"Europe",     total:33.2, exports:12.0, imports:21.2, totalShare:8.3,  exportShare:9.4,  importShare:13.4},
+  {name:"China",         code:"156", region:"Asia",       total:31.5, exports:8.0,  imports:23.5, totalShare:7.9,  exportShare:6.3,  importShare:14.9},
+  {name:"Netherlands",   code:"528", region:"Europe",     total:28.9, exports:15.0, imports:13.9, totalShare:7.2,  exportShare:11.7, importShare:8.8},
+  {name:"France",        code:"250", region:"Europe",     total:21.6, exports:10.0, imports:11.6, totalShare:5.4,  exportShare:7.8,  importShare:7.3},
+  {name:"Ireland",       code:"372", region:"Europe",     total:19.8, exports:12.0, imports:7.8,  totalShare:4.9,  exportShare:9.4,  importShare:4.9},
+  {name:"Switzerland",   code:"756", region:"Europe",     total:16.4, exports:9.0,  imports:7.4,  totalShare:4.1,  exportShare:7.0,  importShare:4.7},
+  {name:"Belgium",       code:"056", region:"Europe",     total:14.2, exports:7.0,  imports:7.2,  totalShare:3.5,  exportShare:5.5,  importShare:4.6},
+  {name:"Spain",         code:"724", region:"Europe",     total:12.8, exports:6.0,  imports:6.8,  totalShare:3.2,  exportShare:4.7,  importShare:4.3},
+  {name:"Italy",         code:"380", region:"Europe",     total:12.1, exports:5.0,  imports:7.1,  totalShare:3.0,  exportShare:3.9,  importShare:4.5},
+  {name:"Norway",        code:"578", region:"Europe",     total:11.3, exports:2.0,  imports:9.3,  totalShare:2.8,  exportShare:1.6,  importShare:5.9},
+  {name:"India",         code:"356", region:"Asia",       total:9.6,  exports:5.0,  imports:4.6,  totalShare:2.4,  exportShare:3.9,  importShare:2.9},
+  {name:"United Arab Emirates", code:"784", region:"Middle East", total:8.7, exports:6.0, imports:2.7, totalShare:2.2, exportShare:4.7, importShare:1.7},
+  {name:"South Korea",  code:"410", region:"Asia",        total:7.4,  exports:3.0,  imports:4.4,  totalShare:1.8,  exportShare:2.3,  importShare:2.8}
 ];
 var UK_ID = "826";
 var PARTNERS = FALLBACK_PARTNERS;
 var CURRENCY_SYMBOL = "\u00a3"; // illustrative fallback was priced in GBP
 var colorScale, widthScale;
+var currentMetric = "total"; // "total" | "exports" | "imports"
+
+function metricValue(p){ return p[currentMetric]; }
+function metricShare(p){
+  return currentMetric === "exports" ? p.exportShare
+       : currentMetric === "imports" ? p.importShare
+       : p.totalShare;
+}
+function metricLabel(){
+  return currentMetric === "exports" ? "UK goods exports"
+       : currentMetric === "imports" ? "UK goods imports"
+       : "UK goods trade";
+}
 
 function computeScales(){
-  var minV = d3.min(PARTNERS, function(p){ return p.value; });
-  var maxV = d3.max(PARTNERS, function(p){ return p.value; });
+  var minV = d3.min(PARTNERS, metricValue);
+  var maxV = d3.max(PARTNERS, metricValue);
   colorScale = d3.scaleSequential(function(t){
     return d3.interpolateRgbBasis(["#DEF5E5","#8AD9B1","#40B7AD","#348FA7","#37659E","#413D7B","#2E1E3B"])(t);
   }).domain([minV, maxV]);
@@ -1070,16 +1093,16 @@ var radialHighlightFn = null;
 function renderRanking(){
   var list = document.getElementById("tpmRankList");
   if(!list) return;
-  var ranked = PARTNERS.slice().sort(function(a,b){ return b.value - a.value; });
+  var ranked = PARTNERS.slice().sort(function(a,b){ return metricValue(b) - metricValue(a); });
   list.innerHTML = "";
   ranked.forEach(function(p, i){
     var li = document.createElement("li");
     li.className = "tpm-rankrow";
     li.dataset.code = p.code;
     li.innerHTML = "<span class=\"tpm-ranknum\">" + (i + 1) + "</span>"
-      + "<span class=\"tpm-rankswatch\" style=\"background:" + colorScale(p.value) + "\"></span>"
+      + "<span class=\"tpm-rankswatch\" style=\"background:" + colorScale(metricValue(p)) + "\"></span>"
       + "<span class=\"tpm-rankname\">" + p.name + "</span>"
-      + "<span class=\"tpm-rankvalue\">" + CURRENCY_SYMBOL + p.value.toFixed(1) + "bn</span>";
+      + "<span class=\"tpm-rankvalue\">" + CURRENCY_SYMBOL + metricValue(p).toFixed(1) + "bn</span>";
     li.addEventListener("mouseenter", function(){ if(activeHighlightFn) activeHighlightFn(p.code, true); });
     li.addEventListener("mouseleave", function(){ if(activeHighlightFn) activeHighlightFn(p.code, false); });
     list.appendChild(li);
@@ -1097,8 +1120,8 @@ renderRanking();
 
 var tip = document.getElementById("viztip");
 function showTip(e, p){
-  tip.innerHTML = "<strong>" + p.name + "</strong><span class=\"v\">" + CURRENCY_SYMBOL + p.value.toFixed(1)
-    + "bn &middot; " + p.share.toFixed(1) + "% of UK goods trade</span>";
+  tip.innerHTML = "<strong>" + p.name + "</strong><span class=\"v\">" + CURRENCY_SYMBOL + metricValue(p).toFixed(1)
+    + "bn &middot; " + metricShare(p).toFixed(1) + "% of " + metricLabel() + "</span>";
   var host = e.currentTarget.closest(".vizpanel").getBoundingClientRect();
   tip.style.left = (e.clientX - host.left + 16) + "px";
   tip.style.top = (e.clientY - host.top + 8) + "px";
@@ -1106,11 +1129,13 @@ function showTip(e, p){
 }
 function hideTip(){ tip.style.display = "none"; }
 
+var geoPath, geoById, geoUkXY, geoArcsG, geoNodesG;
+
 function drawGeo(world){
   var svg = d3.select("#geoSvg");
   var g = svg.append("g");
   var projection = d3.geoNaturalEarth1().fitSize([960, 500], {type:"Sphere"});
-  var path = d3.geoPath(projection);
+  geoPath = d3.geoPath(projection);
   var countries = topojson.feature(world, world.objects.countries).features
     .filter(function(f){ return f.id !== "010"; });
 
@@ -1118,63 +1143,70 @@ function drawGeo(world){
     .data(countries)
     .join("path")
     .attr("class", function(f){ return "country2" + (f.id === UK_ID ? " uk" : ""); })
-    .attr("d", path);
+    .attr("d", geoPath);
 
-  var byId = {};
-  countries.forEach(function(f){ byId[f.id] = f; });
-  var ukFeature = byId[UK_ID];
+  geoById = {};
+  countries.forEach(function(f){ geoById[f.id] = f; });
+  var ukFeature = geoById[UK_ID];
   if(!ukFeature) return;
-  var ukXY = path.centroid(ukFeature);
+  geoUkXY = geoPath.centroid(ukFeature);
 
-  var arcs = g.append("g");
-  var nodes = g.append("g");
-
-  PARTNERS.forEach(function(p){
-    var f = byId[p.code];
-    if(!f) return;
-    var xy = path.centroid(f);
-    if(!isFinite(xy[0]) || !isFinite(ukXY[0])) return;
-
-    var mx = (ukXY[0] + xy[0]) / 2, my = (ukXY[1] + xy[1]) / 2;
-    var dx = xy[0] - ukXY[0], dy = xy[1] - ukXY[1];
-    var dist = Math.sqrt(dx*dx + dy*dy);
-    var offset = Math.min(dist * 0.18, 70);
-    var cx = mx - dy / (dist || 1) * offset;
-    var cy = my + dx / (dist || 1) * offset;
-    var d = "M" + ukXY[0] + "," + ukXY[1] + " Q" + cx + "," + cy + " " + xy[0] + "," + xy[1];
-
-    arcs.append("path")
-      .datum(p)
-      .attr("class", "arc-link")
-      .attr("d", d)
-      .attr("stroke", colorScale(p.value))
-      .attr("stroke-width", widthScale(p.value))
-      .on("mousemove", function(e){ showTip(e, p); highlightGeo(p.code, true); })
-      .on("mouseleave", function(){ hideTip(); highlightGeo(p.code, false); });
-
-    nodes.append("circle")
-      .datum(p)
-      .attr("class", "node-dot")
-      .attr("cx", xy[0]).attr("cy", xy[1])
-      .attr("r", 4)
-      .attr("fill", colorScale(p.value))
-      .on("mousemove", function(e){ showTip(e, p); highlightGeo(p.code, true); })
-      .on("mouseleave", function(){ hideTip(); highlightGeo(p.code, false); });
-  });
+  geoArcsG = g.append("g");
+  geoNodesG = g.append("g");
+  drawGeoArcs();
 
   var zoom = d3.zoom()
     .scaleExtent([1, 6])
     .translateExtent([[0, 0], [960, 500]])
     .on("zoom", function(e){ g.attr("transform", e.transform); });
   svg.call(zoom);
+}
+
+function drawGeoArcs(){
+  if(!geoArcsG) return;
+  geoArcsG.selectAll("*").remove();
+  geoNodesG.selectAll("*").remove();
 
   function highlightGeo(code, on){
-    arcs.selectAll("path").classed("dim", function(p){ return on && p.code !== code; })
+    geoArcsG.selectAll("path").classed("dim", function(p){ return on && p.code !== code; })
       .classed("hi", function(p){ return on && p.code === code; });
     highlightRankRow(code, on);
   }
   geoHighlightFn = highlightGeo;
-  activeHighlightFn = geoHighlightFn;
+  if(!document.getElementById("viewGeo").hidden) activeHighlightFn = geoHighlightFn;
+
+  PARTNERS.forEach(function(p){
+    var f = geoById[p.code];
+    if(!f) return;
+    var xy = geoPath.centroid(f);
+    if(!isFinite(xy[0]) || !isFinite(geoUkXY[0])) return;
+
+    var mx = (geoUkXY[0] + xy[0]) / 2, my = (geoUkXY[1] + xy[1]) / 2;
+    var dx = xy[0] - geoUkXY[0], dy = xy[1] - geoUkXY[1];
+    var dist = Math.sqrt(dx*dx + dy*dy);
+    var offset = Math.min(dist * 0.18, 70);
+    var cx = mx - dy / (dist || 1) * offset;
+    var cy = my + dx / (dist || 1) * offset;
+    var d = "M" + geoUkXY[0] + "," + geoUkXY[1] + " Q" + cx + "," + cy + " " + xy[0] + "," + xy[1];
+
+    geoArcsG.append("path")
+      .datum(p)
+      .attr("class", "arc-link")
+      .attr("d", d)
+      .attr("stroke", colorScale(metricValue(p)))
+      .attr("stroke-width", widthScale(metricValue(p)))
+      .on("mousemove", function(e){ showTip(e, p); geoHighlightFn(p.code, true); })
+      .on("mouseleave", function(){ hideTip(); geoHighlightFn(p.code, false); });
+
+    geoNodesG.append("circle")
+      .datum(p)
+      .attr("class", "node-dot")
+      .attr("cx", xy[0]).attr("cy", xy[1])
+      .attr("r", 4)
+      .attr("fill", colorScale(metricValue(p)))
+      .on("mousemove", function(e){ showTip(e, p); geoHighlightFn(p.code, true); })
+      .on("mouseleave", function(){ hideTip(); geoHighlightFn(p.code, false); });
+  });
 }
 
 var currentOrder = "value";
@@ -1187,10 +1219,10 @@ function orderedPartners(){
   } else if(currentOrder === "region"){
     list.sort(function(a,b){
       if(a.region !== b.region) return a.region.localeCompare(b.region);
-      return b.value - a.value;
+      return metricValue(b) - metricValue(a);
     });
   } else {
-    list.sort(function(a,b){ return b.value - a.value; });
+    list.sort(function(a,b){ return metricValue(b) - metricValue(a); });
   }
   return list;
 }
@@ -1226,8 +1258,8 @@ function renderRadial(){
       .datum(p)
       .attr("class", "radial-spoke")
       .attr("d", d)
-      .attr("stroke", colorScale(p.value))
-      .attr("stroke-width", widthScale(p.value))
+      .attr("stroke", colorScale(metricValue(p)))
+      .attr("stroke-width", widthScale(metricValue(p)))
       .attr("opacity", 0.82)
       .on("mousemove", function(e){ showTip(e, p); highlightAll(p.code, true); })
       .on("mouseleave", function(){ hideTip(); highlightAll(p.code, false); });
@@ -1235,7 +1267,7 @@ function renderRadial(){
     var nodeG = nodesG.append("g").attr("class", "radial-node").datum(p);
     nodeG.append("circle")
       .attr("cx", nx).attr("cy", ny).attr("r", 5)
-      .attr("fill", colorScale(p.value));
+      .attr("fill", colorScale(metricValue(p)));
 
     var labelDx = Math.cos(angle) >= 0 ? 10 : -10;
     var anchor = Math.cos(angle) >= 0 ? "start" : "end";
@@ -1258,18 +1290,18 @@ function renderRadial(){
     highlightRankRow(code, on);
   }
   radialHighlightFn = highlightAll;
-  activeHighlightFn = radialHighlightFn;
+  if(!document.getElementById("viewRadial").hidden) activeHighlightFn = radialHighlightFn;
 }
 
 var dataReady = false;
-var pendingRadialRender = false;
 
 function applyLivePartners(payload){
   if(!payload || !Array.isArray(payload.partners) || !payload.partners.length) return false;
   var mapped = payload.partners.map(function(p){
     return {
       name: p.name, code: p.code, region: p.region,
-      value: p.value_usd / 1e9, share: p.share_pct
+      total: p.value_usd / 1e9, exports: p.exports_usd / 1e9, imports: p.imports_usd / 1e9,
+      totalShare: p.share_pct, exportShare: p.export_share_pct, importShare: p.import_share_pct
     };
   });
   PARTNERS = mapped;
@@ -1301,12 +1333,11 @@ Promise.all([
   computeScales();
   renderRanking();
   drawGeo(world);
+  // Radial is the default visible view -- render it now too, rather than
+  // waiting for the user to toggle to it.
+  radialInit = true;
+  renderRadial();
   dataReady = true;
-  if(pendingRadialRender){
-    pendingRadialRender = false;
-    radialInit = true;
-    renderRadial();
-  }
 }).catch(function(){
   var el = document.getElementById("geoSvg");
   if(el) el.outerHTML = "<p style=\"color:var(--ink2);padding:40px;text-align:center;\">Map data unavailable right now.</p>";
@@ -1325,14 +1356,6 @@ document.querySelectorAll(".vtbtn").forEach(function(btn){
     document.getElementById("orderBy").hidden = !isRadial;
     document.getElementById("orderByWrap").hidden = !isRadial;
     hideTip();
-    if(isRadial && !radialInit){
-      if(dataReady){
-        radialInit = true;
-        renderRadial();
-      } else {
-        pendingRadialRender = true;
-      }
-    }
     activeHighlightFn = isRadial ? radialHighlightFn : geoHighlightFn;
   });
 });
@@ -1340,6 +1363,19 @@ document.querySelectorAll(".vtbtn").forEach(function(btn){
 document.getElementById("orderBy").addEventListener("change", function(e){
   currentOrder = e.target.value;
   renderRadial();
+});
+
+document.querySelectorAll(".mtbtn").forEach(function(btn){
+  btn.addEventListener("click", function(){
+    document.querySelectorAll(".mtbtn").forEach(function(b){ b.classList.remove("active"); });
+    btn.classList.add("active");
+    currentMetric = btn.getAttribute("data-metric");
+    computeScales();
+    renderRanking();
+    drawGeoArcs();
+    renderRadial();
+    hideTip();
+  });
 });
 })();
 </script>
