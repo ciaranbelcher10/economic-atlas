@@ -223,57 +223,73 @@ def fetch_eurostat_govfinance(na_item: str) -> list | None:
     return None
 
 
-def fetch_eurostat_trade(stk_flow: str) -> list | None:
-    """Monthly euro-area goods trade, EUR million, direct from Eurostat's
-    short-term trade statistics. Replaces the FRED/OECD 667S mirror, which
-    was discontinued in April 2023. stk_flow: "EXP" or "IMP".
-
-    UPDATE #2 (post-8.3.1): the dataset code fix (ext_st_ea20sitc/19sitc ->
-    ext_st_easitc) confirmed status=200 on the next live run -- no more 404 --
-    but still returned 0 points. The old diagnostic printed the JSON-stat
-    `size` array without the matching `id` (dimension name) array, so it
-    was impossible to tell *which* dimension was empty from the log alone;
-    that's fixed now (see _parse_jsonstat). In the meantime, widened the
-    partner-code guess: EXT_EA20 (the "extra-area total" code used by the
-    tet-prefixed short-term-indicator datasets) may not be the code this
-    specific long-run dataset uses for the same concept -- a closely related
-    Eurostat monthly trade dataset (teiet110, "Imports of goods") uses
-    WRL_REST ("Rest of the world") for what looks like the same concept, so
-    that's added as a second candidate, alongside the plain WORLD code as a
-    third. Also try omitting the geo filter (the dataset carries only one
-    geo value already, so an exact-string mismatch on "EA20" would silently
-    return zero rows rather than error). None of this is confirmed live --
-    check the [eurostat-trade] log lines after the next deploy, and if all
-    of these still return 0, the new `dim order=` field in the log will
-    finally name the actual empty dimension directly."""
-    candidates = ("ext_st_easitc", "ext_st_ea20sitc")
-    partners = ("EXT_EA20", "WRL_REST", "WORLD")
-    for dataset in candidates:
-        for partner in partners:
-            for geo_part in (f"geo=EA20&", ""):
-                params = (f"{geo_part}partner={partner}&sitc06=TOTAL"
-                          f"&stk_flow={stk_flow}&indic_et=TRD_VAL")
-                url = (f"{EUROSTAT_STATS_BASE}/{dataset}?format=JSON&lang=EN"
-                       f"&{params}&sinceTimePeriod=1999")
-                tag = f"eurostat-trade-{stk_flow}-{dataset}-{partner}"
+def _fetch_eurostat_teiet(dataset: str, partner: str, flow_code: str | None,
+                          tag_prefix: str) -> list | None:
+    """Query one of Eurostat's 'teiet' short-term-indicator trade tables.
+    UPDATE #3 (post-8.3.2): every ext_st_easitc partner guess (EXT_EA20,
+    WRL_REST, WORLD) came back confirmed-empty on a live run -- the dim-order
+    diagnostic showed 'partner' as the empty dimension regardless of code,
+    meaning this dataset most likely just doesn't carry a pre-aggregated
+    extra-area total row at all (it's a bilateral SITC breakdown). Switching
+    to a different dataset family: teiet110 ("Imports of goods") has a
+    confirmed real series using partner=WRL_REST (scraped via DBnomics), and
+    teiet210 ("Balance of trade - EU and euro area aggregates") has a
+    confirmed real series using partner=EXT_EA20 -- both are the right
+    concept, unlike the ext_st family. What ISN'T confirmed: the exact query
+    parameter names this "teiet" family expects (unlike ext_st, Eurostat's
+    short-term-indicator tables aren't consistently documented) -- so this
+    tries a couple of plausible parameter-name variants per dataset and
+    relies on the dim-order diagnostic to name the problem if all of them
+    still come back empty. Tries EA21 (current euro-area composition,
+    includes Bulgaria from Jan 2026) before EA20 (pre-2026), same as
+    fetch_eurostat_unemployment."""
+    for geo in ("EA21", "EA20"):
+        for flow_param in (
+            {"indic_et": flow_code} if flow_code else {},
+            {"stk_flow": flow_code} if flow_code else {},
+        ):
+            if flow_code and not flow_param:
+                continue
+            for product_param in ({"product": "TOTAL"}, {"sitc06": "TOTAL"}, {}):
+                params = {"geo": geo, "partner": partner, "unit": "TVAL_SA",
+                          **flow_param, **product_param}
+                qs = "&".join(f"{k}={v}" for k, v in params.items())
+                url = f"{EUROSTAT_STATS_BASE}/{dataset}?format=JSON&lang=EN&{qs}&sinceTimePeriod=1999"
+                tag = f"{tag_prefix}-{dataset}-{geo}-{list(flow_param.keys()) or 'noflow'}-{list(product_param.keys()) or 'noprod'}"
                 try:
                     r = requests.get(url, timeout=60,
                                      headers={"User-Agent": "economic-atlas/0.1"})
-                    print(f"  [eurostat-trade] {stk_flow} {dataset} {partner} "
-                          f"geo={'Y' if geo_part else 'N'} status={r.status_code}")
+                    print(f"  [{tag_prefix}] {dataset} {geo} {qs} status={r.status_code}")
                     r.raise_for_status()
                 except Exception as exc:
-                    print(f"  [eurostat-trade] {stk_flow} {dataset} {partner} "
-                          f"request failed: {exc}")
+                    print(f"  [{tag_prefix}] {dataset} {geo} request failed: {exc}")
                     continue
                 try:
                     pts = _parse_jsonstat(r.text, tag)
                     if pts:
                         return pts
                 except Exception as exc:
-                    print(f"  [eurostat-trade] {stk_flow} {dataset} {partner} "
-                          f"parsing failed: {exc}; first 300 chars: {r.text[:300]!r}")
+                    print(f"  [{tag_prefix}] {dataset} {geo} parsing failed: {exc}; "
+                          f"first 300 chars: {r.text[:300]!r}")
     return None
+
+
+def fetch_eurostat_trade_pair() -> tuple[list | None, list | None]:
+    """Returns (exports, imports) points, both euro-area extra-area goods
+    trade in EUR million. Imports comes directly from teiet110; exports is
+    derived as imports + balance (from teiet210), since Eurostat doesn't
+    appear to publish an aggregated extra-area exports series directly in
+    the same family. Returns (None, None) if either leg fails, so the caller
+    falls back to the discontinued OECD mirror rather than shipping a
+    half-derived pair."""
+    imports = _fetch_eurostat_teiet("teiet110", "WRL_REST", "IMP", "eurostat-trade-imp")
+    balance = _fetch_eurostat_teiet("teiet210", "EXT_EA20", None, "eurostat-trade-bal")
+    if imports and balance:
+        bal = dict(balance)
+        exports = [[p, round(v + bal[p], 1)] for p, v in imports if p in bal]
+        if exports:
+            return exports, imports
+    return None, None
 
 
 WB_URL = ("https://api.worldbank.org/v2/country/EMU/indicator/"
@@ -373,14 +389,13 @@ def main() -> int:
     # 8.3.0: prefer live Eurostat trade over the FRED/OECD mirror that died
     # in April 2023. Only swap in when BOTH flows fetch, so exports/imports
     # and the derived balance always share one source.
-    es_exp = fetch_eurostat_trade("EXP")
-    es_imp = fetch_eurostat_trade("IMP")
+    es_exp, es_imp = fetch_eurostat_trade_pair()
     if es_exp and es_imp:
         out["series"]["exports"] = {
-            "label": "Exports of goods, extra-euro-area (Eurostat ext_st)",
+            "label": "Exports of goods, extra-euro-area (derived: Eurostat teiet110 imports + teiet210 balance)",
             "unit": "\u20acm", "freq": "months", "points": es_exp}
         out["series"]["imports"] = {
-            "label": "Imports of goods, extra-euro-area (Eurostat ext_st)",
+            "label": "Imports of goods, extra-euro-area (Eurostat teiet110)",
             "unit": "\u20acm", "freq": "months", "points": es_imp}
         print(f"  ok  exports/imports replaced with live Eurostat series "
               f"({es_exp[-1][0]} / {es_imp[-1][0]})")
