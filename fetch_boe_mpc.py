@@ -7,40 +7,56 @@ Run:  python3 fetch_boe_mpc.py
 No API key needed -- this is a public file download, no auth.
 
 SOURCE: https://www.bankofengland.co.uk/-/media/boe/files/monetary-policy-
-summary-and-minutes/mpcvoting.xlsx -- the Bank's own official long-format
-voting record (one row per meeting-member pair), confirmed to exist via a
-documented R package wrapper (the "boe" CRAN package's boe_mpc_votes()
-function, which describes exactly this file's columns: meeting date,
-member name, the Bank Rate that member voted for, and the committee's
-actual decision).
+summary-and-minutes/mpcvoting.xlsx
 
-NOT YET CONFIRMED LIVE: this sandbox can't reach bankofengland.co.uk (not
-in the allowed outbound domains here), so the exact column headers/layout
-have never actually been inspected -- only inferred from that third-party
-package's documented schema. GitHub Actions runners have normal internet
-access and will actually hit the real file. Parsing below is deliberately
-defensive (keyword-matches header names rather than assuming fixed
-column positions/order) and logs exactly what it finds, so the first live
-run's [boe-mpc] log lines will show definitively whether the assumed
-layout was right -- adjust from there rather than guessing further blind.
+CONFIRMED LIVE (2026-07-20, after two rounds of diagnostic dumps -- this
+sandbox can't reach bankofengland.co.uk directly, so the real layout could
+only be read via log output from a live GitHub Actions run, not inspected
+locally). The workbook has 4 sheets; the first, "Bank Rate Decisions", is
+laid out like this:
+
+  Row with "Current members" (col C) -> member-name header row. Columns
+    D onward are each CURRENT committee member's name, up to (but not
+    including) the column holding "Past members", where past members'
+    names continue.
+  Rows 6-9 below that: a LIFETIME summary per member (career totals of
+    votes to increase/maintain/reduce, and total meetings) -- not used
+    here, this script wants per-meeting data.
+  Row with "Bank Rate" (col C) -> section anchor. The row right after it
+    is a baseline rate with no date (skipped automatically since it has
+    no date). Every row after THAT is one meeting:
+      col B = meeting date (a real datetime cell)
+      col C = the decided Bank Rate for that meeting, as a decimal
+        fraction (0.0625 = 6.25%) -- multiply by 100 for a percentage
+      cols D onward (same columns as the member-header row) = that
+        member's individually voted-for rate, same fraction format,
+        blank if they weren't sitting on the committee at that meeting
+
+None of the past-members' columns are read -- this only uses the
+"current members" block, which is sufficient for recent meetings (every
+sitting member's tenure started 2017 or later; anyone who left before
+that is already out of scope for "recent meetings" anyway). Meetings
+during a committee transition (i.e. right as an old member is replaced by
+a new one, if the departing member isn't in the current-members block)
+may show one fewer vote than the true total for that single meeting --
+a known, minor, accepted edge case rather than something worth building
+a full past-members crosswalk for.
 
 WHY NO NAMED INDIVIDUAL VOTES IN THE OUTPUT (yet): the source data does
-include each member's name, but before publishing real people's individual
-votes, the parsed output should be spot-checked against the Bank's own
-published minutes (e.g. https://www.bankofengland.co.uk/monetary-policy-
-summary-and-minutes/...) at least once, given how much worse a
-misattribution of a real, identifiable person's vote is than an
-approximation elsewhere on the site. This first cut only emits AGGREGATE
-counts per meeting (how many voted hold/hike/cut), which the aggregate
-Monetary Policy Summary text also states independently -- giving a
-built-in cross-check. Names can be added once that spot-check happens.
+give each member's individual vote, but before publishing real people's
+individual votes, the parsed output should be spot-checked against the
+Bank's own published Monetary Policy Summary text (which independently
+states the same majority breakdown) at least once, given how much worse
+misattributing a real, identifiable person's vote is than an
+approximation elsewhere on the site. This cut only emits AGGREGATE counts
+per meeting (hold/hike/cut), cross-checkable against that published text.
+Names can be added once that spot-check happens.
 """
 
 from __future__ import annotations
 
 import io
 import json
-import re
 import sys
 from datetime import datetime, timezone
 
@@ -49,35 +65,28 @@ import requests
 VOTING_XLSX_URL = ("https://www.bankofengland.co.uk/-/media/boe/files/"
                     "monetary-policy-summary-and-minutes/mpcvoting.xlsx")
 
-# How many most-recent meetings to keep in the output history.
+SHEET_NAME = "Bank Rate Decisions"
 HISTORY_LIMIT = 16
 
 
-def _find_header_row(ws) -> tuple[int, dict[str, int]] | None:
-    """Scan the first few rows for a header row, matching column purpose
-    by keyword rather than assuming a fixed layout. Returns
-    (header_row_index, {purpose: col_index}) or None if not found."""
-    wanted = {
-        "date": ("date", "meeting"),
-        "member": ("name", "member"),
-        "vote": ("vote", "voted"),
-        "decision": ("decision", "outcome", "bank rate"),
-    }
-    for row_idx in range(1, 6):
-        cols: dict[str, int] = {}
-        for col_idx in range(1, ws.max_column + 1):
-            v = ws.cell(row=row_idx, column=col_idx).value
-            if not v:
-                continue
-            label = str(v).strip().lower()
-            for purpose, keywords in wanted.items():
-                if purpose in cols:
-                    continue
-                if any(kw in label for kw in keywords):
-                    cols[purpose] = col_idx
-        if "date" in cols and "vote" in cols:
-            print(f"  [boe-mpc] header row {row_idx}: {cols}")
-            return row_idx, cols
+def _to_float(v):
+    if v is None:
+        return None
+    try:
+        return float(v)
+    except (TypeError, ValueError):
+        return None
+
+
+def _find_anchor(ws, target: str) -> tuple[int, int] | None:
+    """Find the (row, col) of a cell whose value equals `target` exactly
+    (after stripping whitespace), scanning the whole sheet. Used instead
+    of hardcoding row/col numbers so a future reshuffle of the sheet
+    (extra row inserted, etc.) doesn't silently break this."""
+    for row in ws.iter_rows():
+        for cell in row:
+            if isinstance(cell.value, str) and cell.value.strip() == target:
+                return cell.row, cell.column
     return None
 
 
@@ -103,99 +112,73 @@ def fetch_and_parse() -> list[dict] | None:
         print(f"  [boe-mpc] couldn't open as xlsx: {exc}")
         return None
 
-    print(f"  [boe-mpc] sheets in workbook: {wb.sheetnames}")
-    ws = wb[wb.sheetnames[0]]
+    if SHEET_NAME not in wb.sheetnames:
+        print(f"  [boe-mpc] sheet '{SHEET_NAME}' not found; sheets present: {wb.sheetnames}")
+        return None
+    ws = wb[SHEET_NAME]
     print(f"  [boe-mpc] sheet '{ws.title}': {ws.max_row} rows x {ws.max_column} cols")
 
-    found = _find_header_row(ws)
-    if not found:
-        # CONFIRMED live (2026-07-20): rows 1-9 turned out to be a lifetime
-        # SUMMARY per member (career totals of increase/maintain/reduce
-        # votes), not a per-meeting record -- completely different shape
-        # than assumed. But row 10 says "Bank Rate" (a new section
-        # starting), which is very likely where the actual per-meeting
-        # matrix begins, using the same member columns from row 4 as
-        # headers. Dumping further down this time, plus scanning for any
-        # row containing an actual date value anywhere in the sheet, so
-        # the real per-meeting section's start row is identified directly
-        # rather than guessed at a third time.
-        print("  [boe-mpc] dumping rows 1-45, cols 1-12:")
-        for row_idx in range(1, min(46, ws.max_row + 1)):
-            row_vals = []
-            for col_idx in range(1, min(13, ws.max_column + 1)):
-                v = ws.cell(row=row_idx, column=col_idx).value
-                row_vals.append(repr(v) if v is not None else "")
-            print(f"  [boe-mpc] row {row_idx}: {row_vals}")
-
-        print("  [boe-mpc] scanning all rows/cols for date-like values "
-              "(first 20 matches)...")
-        date_hits = 0
-        for row_idx in range(1, ws.max_row + 1):
-            if date_hits >= 20:
-                break
-            for col_idx in range(1, min(ws.max_column + 1, 20)):
-                v = ws.cell(row=row_idx, column=col_idx).value
-                if hasattr(v, "strftime"):
-                    print(f"  [boe-mpc] date-like value at row {row_idx}, col {col_idx}: {v!r}")
-                    date_hits += 1
-                    break
-        if date_hits == 0:
-            print("  [boe-mpc] no date-typed cells found in first 20 columns of any row")
+    member_anchor = _find_anchor(ws, "Current members")
+    past_anchor = _find_anchor(ws, "Past members")
+    rate_anchor = _find_anchor(ws, "Bank Rate")
+    if not member_anchor or not rate_anchor:
+        print(f"  [boe-mpc] couldn't find expected anchors "
+              f"(Current members={member_anchor}, Bank Rate={rate_anchor}) — layout changed")
         return None
-    header_row, cols = found
 
-    # meeting_date -> {"decision": float, "votes": [rate, rate, ...]}
-    by_meeting: dict[str, dict] = {}
-    for row_idx in range(header_row + 1, ws.max_row + 1):
-        raw_date = ws.cell(row=row_idx, column=cols["date"]).value
-        raw_vote = ws.cell(row=row_idx, column=cols["vote"]).value
-        raw_decision = ws.cell(row=row_idx, column=cols.get("decision", cols["vote"])).value
-        if raw_date is None or raw_vote is None:
-            continue
-        if hasattr(raw_date, "strftime"):
-            date_str = raw_date.strftime("%Y-%m-%d")
-        else:
-            date_str = str(raw_date).strip()
-            m = re.search(r"(\d{4})-(\d{2})-(\d{2})", date_str)
-            if not m:
-                continue
-        try:
-            vote_rate = float(raw_vote)
-        except (TypeError, ValueError):
-            continue
-        try:
-            decision_rate = float(raw_decision) if raw_decision is not None else vote_rate
-        except (TypeError, ValueError):
-            decision_rate = vote_rate
+    member_row, member_start_col = member_anchor
+    member_end_col = past_anchor[1] if past_anchor else ws.max_column + 1
+    member_cols = list(range(member_start_col + 1, member_end_col))
+    member_names = [ws.cell(row=member_row, column=c).value for c in member_cols]
+    print(f"  [boe-mpc] {len(member_cols)} current members: {member_names}")
 
-        entry = by_meeting.setdefault(date_str, {"decision": decision_rate, "votes": []})
-        entry["votes"].append(vote_rate)
-        entry["decision"] = decision_rate  # last non-null wins; should be constant per meeting
-
-    if not by_meeting:
-        print("  [boe-mpc] parsed header but found 0 usable data rows")
-        return None
+    rate_row, rate_col = rate_anchor
+    date_col = rate_col - 1
+    data_start_row = rate_row + 1  # the row right after is a no-date baseline, skipped naturally
+    print(f"  [boe-mpc] date col={date_col}, rate col={rate_col}, data starts row {data_start_row}")
 
     meetings = []
-    for date_str, entry in by_meeting.items():
-        decision = entry["decision"]
-        votes = entry["votes"]
-        hold = sum(1 for v in votes if abs(v - decision) < 1e-9)
-        hike = sum(1 for v in votes if v > decision + 1e-9)
-        cut = sum(1 for v in votes if v < decision - 1e-9)
-        meetings.append({
-            "date": date_str, "decision_rate": decision,
-            "hold": hold, "hike": hike, "cut": cut, "total_votes": len(votes),
-        })
-    meetings.sort(key=lambda m: m["date"], reverse=True)
+    for row_idx in range(data_start_row, ws.max_row + 1):
+        raw_date = ws.cell(row=row_idx, column=date_col).value
+        if not hasattr(raw_date, "strftime"):
+            continue
+        decision = _to_float(ws.cell(row=row_idx, column=rate_col).value)
+        if decision is None:
+            continue
+        decision_pct = round(decision * 100, 4)
 
-    # Fill in "previous rate" for each meeting so the frontend can say
-    # "held at X%" vs "cut from Y% to X%" without a second lookup.
+        hold = hike = cut = 0
+        for c in member_cols:
+            voted = _to_float(ws.cell(row=row_idx, column=c).value)
+            if voted is None:
+                continue
+            voted_pct = voted * 100
+            if abs(voted_pct - decision_pct) < 1e-6:
+                hold += 1
+            elif voted_pct > decision_pct:
+                hike += 1
+            else:
+                cut += 1
+        total_votes = hold + hike + cut
+        if total_votes == 0:
+            continue  # no current-member data for this (likely older) meeting
+
+        meetings.append({
+            "date": raw_date.strftime("%Y-%m-%d"), "decision_rate": decision_pct,
+            "hold": hold, "hike": hike, "cut": cut, "total_votes": total_votes,
+        })
+
+    if not meetings:
+        print("  [boe-mpc] found anchors but parsed 0 meetings with current-member vote data")
+        return None
+
+    meetings.sort(key=lambda m: m["date"], reverse=True)
     for i, m in enumerate(meetings):
         m["previous_rate"] = meetings[i + 1]["decision_rate"] if i + 1 < len(meetings) else None
 
-    print(f"  [boe-mpc] {len(meetings)} meetings parsed, "
-          f"latest {meetings[0]['date']} ({meetings[0]['hold']}-{meetings[0]['hike']}-{meetings[0]['cut']})")
+    latest = meetings[0]
+    print(f"  [boe-mpc] {len(meetings)} meetings parsed, latest {latest['date']} "
+          f"({latest['hold']}-{latest['hike']}-{latest['cut']}, rate {latest['decision_rate']}%)")
     return meetings[:HISTORY_LIMIT]
 
 
