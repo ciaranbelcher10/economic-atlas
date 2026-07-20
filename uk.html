@@ -436,7 +436,7 @@ document.addEventListener("DOMContentLoaded", function(){
       </div>
     </div>
   </div>
-  <p class="tpm-covnote" id="tpmCovnote">Illustrative fallback shows 14 major partners. Once live, every partner UN Comtrade has data for is included &mdash; the radial view shows the top 20 by value, the map shows all of them, and the ranking list can be expanded to show every partner.</p>
+  <p class="tpm-covnote" id="tpmCovnote">Illustrative fallback shows 14 major partners. Once live, every partner UN Comtrade has data for is included &mdash; the radial view shows the top 20 by value, the map shows all of them, and the ranking list can be expanded to show the top 50.</p>
 </section>
 <section class="sec" id="sec-public" hidden>
   <div class="hero mini" id="tiles-public"></div>
@@ -1070,6 +1070,7 @@ var colorScale, widthScale;
 var currentMetric = "total"; // "total" | "exports" | "imports"
 var rankExpanded = false;
 var RANK_INITIAL_N = 20;
+var RANK_EXPANDED_N = 50;
 
 function metricValue(p){ return p[currentMetric]; }
 function metricShare(p){
@@ -1100,7 +1101,7 @@ function renderRanking(){
   var list = document.getElementById("tpmRankList");
   if(!list) return;
   var ranked = PARTNERS.slice().sort(function(a,b){ return metricValue(b) - metricValue(a); });
-  var visible = rankExpanded ? ranked : ranked.slice(0, RANK_INITIAL_N);
+  var visible = rankExpanded ? ranked.slice(0, RANK_EXPANDED_N) : ranked.slice(0, RANK_INITIAL_N);
   list.innerHTML = "";
   visible.forEach(function(p, i){
     var li = document.createElement("li");
@@ -1122,7 +1123,7 @@ function renderRanking(){
       moreBtn.hidden = false;
       moreBtn.textContent = rankExpanded
         ? "Show top " + RANK_INITIAL_N
-        : "Show all " + ranked.length + " partners";
+        : "Show top " + Math.min(RANK_EXPANDED_N, ranked.length) + " partners";
     }
   }
 }
@@ -1332,7 +1333,7 @@ function applyLivePartners(payload){
   if(covnote){
     covnote.textContent = "All " + payload.partners.length + " partners UN Comtrade reports UK goods trade "
       + "with are included, " + payload.period + " (US dollars). The radial view shows the top " + RADIAL_TOP_N
-      + " by the selected metric; the map shows all of them; the ranking list can be expanded below. "
+      + " by the selected metric; the map shows all of them; the ranking list can be expanded to the top 50. "
       + "Goods only — UK's roughly 40% services trade isn't shown here.";
   }
   var rankSubtitle = document.getElementById("tpmRankSubtitle");

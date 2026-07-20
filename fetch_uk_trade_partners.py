@@ -77,7 +77,20 @@ COMTRADE_TO_ISO_OVERRIDES = {
     "579": "578",  # Norway
     "699": "356",  # India
 }
-NON_COUNTRY_CODES = {"0", "473", "490", "527", "568", "577", "637", "711", "837", "838", "839", "899"}
+# CONFIRMED live (2026-07-20): the no-partnerCode approach worked -- 231
+# rows came back for a single call, real per-partner breakdown as hoped.
+# Two real issues surfaced in that same run, both now fixed below:
+#   1. "World" (code 0) was NOT excluded despite being in this set -- because
+#      `code` gets zero-padded to "000" via zfill(3) before the membership
+#      check, but this set had a bare "0". They never matched. Fixed by
+#      zero-padding these codes the same way.
+#   2. The United Kingdom itself appeared as a partner ($19.9bn) -- this is
+#      a real, documented Comtrade phenomenon ("trade with itself", usually
+#      re-exports or free-zone misclassification), not a parsing bug. A
+#      country trading with itself isn't a meaningful "partner" for this
+#      feature, so the reporter's own code is now explicitly excluded too.
+NON_COUNTRY_CODES = {c.zfill(3) for c in
+    ("0", "473", "490", "527", "568", "577", "637", "711", "837", "838", "839", "899")}
 
 
 def _value(row: dict) -> float | None:
@@ -180,7 +193,7 @@ def main() -> int:
 
     for row in exp_rows:
         code = str(row.get("partnerCode", "")).zfill(3)
-        if code in NON_COUNTRY_CODES:
+        if code in NON_COUNTRY_CODES or code == UK_REPORTER:
             continue
         v = _value(row)
         if v is None:
@@ -190,7 +203,7 @@ def main() -> int:
 
     for row in imp_rows:
         code = str(row.get("partnerCode", "")).zfill(3)
-        if code in NON_COUNTRY_CODES:
+        if code in NON_COUNTRY_CODES or code == UK_REPORTER:
             continue
         v = _value(row)
         if v is None:
