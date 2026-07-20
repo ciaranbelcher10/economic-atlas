@@ -436,7 +436,7 @@ document.addEventListener("DOMContentLoaded", function(){
       </div>
     </div>
   </div>
-  <p class="tpm-covnote" id="tpmCovnote">Illustrative fallback shows 14 major partners. Once live, every partner UN Comtrade has data for is included &mdash; the radial view shows the top 20 by value, the map shows all of them, and the ranking list can be expanded to show the top 50.</p>
+  <p class="tpm-covnote" id="tpmCovnote">Illustrative fallback shows 14 major partners. Once live, every partner UN Comtrade has data for is fetched &mdash; the radial view shows the top 20 by value, the map shows the top 50, and the ranking list can be expanded to show the top 50 too.</p>
 </section>
 <section class="sec" id="sec-public" hidden>
   <div class="hero mini" id="tiles-public"></div>
@@ -1207,7 +1207,9 @@ function drawGeoArcs(){
   geoHighlightFn = highlightGeo;
   if(!document.getElementById("viewGeo").hidden) activeHighlightFn = geoHighlightFn;
 
-  PARTNERS.forEach(function(p){
+  var geoTop = PARTNERS.slice().sort(function(a,b){ return metricValue(b) - metricValue(a); })
+    .slice(0, GEO_TOP_N);
+  geoTop.forEach(function(p){
     var f = geoById[p.code];
     if(!f) return;
     var xy = geoPath.centroid(f);
@@ -1244,6 +1246,7 @@ function drawGeoArcs(){
 var currentOrder = "value";
 var radialInit = false;
 var RADIAL_TOP_N = 20;
+var GEO_TOP_N = 50;
 
 function orderedPartners(){
   // Radial only ever shows the top N by whichever metric is selected --
@@ -1346,7 +1349,7 @@ function applyLivePartners(payload){
   if(covnote){
     covnote.textContent = "All " + payload.partners.length + " partners UN Comtrade reports UK goods trade "
       + "with are included, " + payload.period + " (US dollars). The radial view shows the top " + RADIAL_TOP_N
-      + " by the selected metric; the map shows all of them; the ranking list can be expanded to the top 50. "
+      + " by the selected metric; the map and the ranking list both show the top 50. "
       + "Goods only — UK's roughly 40% services trade isn't shown here.";
   }
   var rankSubtitle = document.getElementById("tpmRankSubtitle");
