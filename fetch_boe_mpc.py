@@ -103,13 +103,28 @@ def fetch_and_parse() -> list[dict] | None:
         print(f"  [boe-mpc] couldn't open as xlsx: {exc}")
         return None
 
+    print(f"  [boe-mpc] sheets in workbook: {wb.sheetnames}")
     ws = wb[wb.sheetnames[0]]
     print(f"  [boe-mpc] sheet '{ws.title}': {ws.max_row} rows x {ws.max_column} cols")
 
     found = _find_header_row(ws)
     if not found:
-        print("  [boe-mpc] couldn't find a recognisable header row — "
-              "layout assumption was wrong, needs a live look at the file")
+        # CONFIRMED live (2026-07-20): 3818 rows x 191 cols is nowhere near
+        # the simple long-format (meeting, member, vote, decision) table
+        # assumed from the R package docs -- that shape suggests a wide/
+        # pivot layout instead (e.g. one column per meeting), or the real
+        # data sits on a different sheet than the first one. Rather than
+        # guess a third time, dump the actual raw corner of the sheet so
+        # the real layout can be read directly from the next log rather
+        # than inferred blind.
+        print("  [boe-mpc] couldn't find a recognisable header row via keyword "
+              "matching -- dumping raw content instead (rows 1-10, cols 1-15):")
+        for row_idx in range(1, min(11, ws.max_row + 1)):
+            row_vals = []
+            for col_idx in range(1, min(16, ws.max_column + 1)):
+                v = ws.cell(row=row_idx, column=col_idx).value
+                row_vals.append(repr(v) if v is not None else "")
+            print(f"  [boe-mpc] row {row_idx}: {row_vals}")
         return None
     header_row, cols = found
 
