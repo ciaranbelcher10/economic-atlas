@@ -43,6 +43,7 @@ from __future__ import annotations
 import json
 import os
 import sys
+import time
 from datetime import datetime, timezone
 
 import requests
@@ -89,8 +90,7 @@ def _get(params: dict, key: str) -> requests.Response:
         "User-Agent": "economic-atlas/0.1",
         "Ocp-Apim-Subscription-Key": key,
     }
-    r = requests.get(COMTRADE_BASE, params=params, headers=headers, timeout=60)
-    return r
+    return requests.get(COMTRADE_BASE, params=params, headers=headers, timeout=60)
 
 
 def fetch_flow(reporter: str, partner_codes: str, flow: str, period: str, key: str) -> list | None:
@@ -105,24 +105,37 @@ def fetch_flow(reporter: str, partner_codes: str, flow: str, period: str, key: s
         "customsCode": "C00",
         "includeDesc": "true",
     }
-    try:
-        r = _get(params, key)
-        print(f"  [comtrade] reporter={reporter} partner={partner_codes[:20]}{'...' if len(partner_codes) > 20 else ''} "
-              f"flow={flow} period={period} status={r.status_code}")
-        r.raise_for_status()
-    except Exception as exc:
-        print(f"  [comtrade] request failed: {exc}")
-        return None
-    try:
-        payload = r.json()
-    except Exception as exc:
-        print(f"  [comtrade] response wasn't JSON: {exc}; first 300 chars: {r.text[:300]!r}")
-        return None
-    rows = payload.get("data")
-    if rows is None:
-        print(f"  [comtrade] no 'data' key in response; top-level keys: {list(payload.keys())}")
-        return None
-    return rows
+    # CONFIRMED on a live run (2026-07-20): the free tier's daily quota
+    # (500 calls/day) isn't what bit us -- a burst/per-second rate limit
+    # is. Firing two calls back-to-back got the second one 429'd every
+    # time, across three different periods. Space calls out and retry
+    # once on 429 with a longer pause before giving up on this call.
+    for attempt in range(3):
+        try:
+            r = _get(params, key)
+            print(f"  [comtrade] reporter={reporter} partner={partner_codes[:20]}{'...' if len(partner_codes) > 20 else ''} "
+                  f"flow={flow} period={period} attempt={attempt+1} status={r.status_code}")
+            if r.status_code == 429:
+                wait = 8 * (attempt + 1)
+                print(f"  [comtrade] rate limited, waiting {wait}s before retry")
+                time.sleep(wait)
+                continue
+            r.raise_for_status()
+        except Exception as exc:
+            print(f"  [comtrade] request failed: {exc}")
+            return None
+        try:
+            payload = r.json()
+        except Exception as exc:
+            print(f"  [comtrade] response wasn't JSON: {exc}; first 300 chars: {r.text[:300]!r}")
+            return None
+        rows = payload.get("data")
+        if rows is None:
+            print(f"  [comtrade] no 'data' key in response; top-level keys: {list(payload.keys())}")
+            return None
+        return rows
+    print(f"  [comtrade] still rate limited after retries for flow={flow} period={period}")
+    return None
 
 
 def main() -> int:
@@ -136,11 +149,14 @@ def main() -> int:
     used_period = None
     for period in periods_to_try:
         exp_rows = fetch_flow(UK_REPORTER, PARTNER_CODES, "X", period, key)
+        time.sleep(3)  # space out calls -- confirmed live that firing these
+                       # back-to-back triggers a 429 burst limit
         imp_rows = fetch_flow(UK_REPORTER, PARTNER_CODES, "M", period, key)
         if exp_rows and imp_rows:
             used_period = period
             break
         print(f"  [comtrade] period {period} incomplete — trying an earlier year")
+        time.sleep(3)
 
     if not used_period:
         print("FAIL  comtrade  no usable response for any tried period — "
