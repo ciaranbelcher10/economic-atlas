@@ -26,7 +26,7 @@ jobs:
       - uses: actions/setup-python@v5
         with:
           python-version: "3.12"
-      - run: pip install requests
+      - run: pip install requests openpyxl
       - run: python fetch_data.py
         env:
           FRED_API_KEY: ${{ secrets.FRED_API_KEY }}
@@ -57,11 +57,13 @@ jobs:
       - run: python fetch_uk_trade_partners.py
         env:
           COMTRADE_API_KEY: ${{ secrets.COMTRADE_API_KEY }}
+      - run: python fetch_boe_mpc.py
       - name: Commit updated data
         run: |
           git config user.name "data-bot"
           git config user.email "actions@github.com"
           git add data.json data-us.json data-ez.json data-jp.json data-in.json data-ca.json data-au.json data-kr.json
           git add data-uk-trade-partners.json 2>/dev/null || true
+          git add data-uk-mpc-votes.json 2>/dev/null || true
           git diff --cached --quiet || git commit -m "Refresh data"
           git push
