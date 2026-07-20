@@ -139,9 +139,13 @@ nav.viztoggle label{font-size:12.5px; color:var(--ink2); font-weight:600; margin
   min-width:220px;}
 .mpc-votebar div{display:flex; align-items:center; justify-content:center;
   font-size:12.5px; font-weight:700; color:#fff;}
-.mpc-seg-hold{background:var(--navy);}
-.mpc-seg-hike{background:var(--blue);}
-.mpc-seg-cut{background:#5FB89C;}
+.mpc-seg-cut{background:#BFE8C7;}
+.mpc-seg-hold{background:#F2A65A;}
+.mpc-seg-hike{background:#413D7B;}
+.mpc-votebar div, .mpc-row .bar span{position:relative;}
+.mpc-arrow{font-size:15px; font-weight:700; line-height:1;}
+.mpc-seg-cut .mpc-arrow, .mpc-seg-hold .mpc-arrow{color:#2A3B2E;}
+.mpc-seg-hike .mpc-arrow{color:#fff;}
 .mpc-legend{display:flex; gap:16px; font-size:12.5px; color:var(--ink2); margin-top:10px;
   flex:1 0 100%;}
 .mpc-legend span{display:inline-flex; align-items:center; gap:6px;}
@@ -153,6 +157,8 @@ nav.viztoggle label{font-size:12.5px; color:var(--ink2); font-weight:600; margin
 .mpc-row:last-child{border-bottom:none;}
 .mpc-row .date{font-size:13px; font-weight:600; color:var(--ink);}
 .mpc-row .bar{display:flex; height:20px; border-radius:5px; overflow:hidden;}
+.mpc-row .bar span{display:flex; align-items:center; justify-content:center;}
+.mpc-row .bar .mpc-arrow{font-size:12px;}
 .mpc-row .result{font-size:13px; color:var(--ink2); text-align:right;}
 .mpc-row .result strong{color:var(--ink); font-weight:700;}
 .mpc-covnote{font-size:12.5px; color:var(--ink2); margin:14px 2px 0;}
@@ -1497,21 +1503,21 @@ function renderMPC(meetings){
   var latestEl = document.getElementById("mpcLatest");
   if(latestEl){
     var voteSegs = "";
-    if(latest.hold) voteSegs += "<div class=\"mpc-seg-hold\" style=\"flex:" + latest.hold + "\">" + latest.hold + " hold</div>";
-    if(latest.hike) voteSegs += "<div class=\"mpc-seg-hike\" style=\"flex:" + latest.hike + "\">" + latest.hike + " hike</div>";
-    if(latest.cut) voteSegs += "<div class=\"mpc-seg-cut\" style=\"flex:" + latest.cut + "\">" + latest.cut + " cut</div>";
+    if(latest.cut) voteSegs += "<div class=\"mpc-seg-cut\" style=\"flex:" + latest.cut + "\"><span class=\"mpc-arrow\">\u2193</span> " + latest.cut + " cut</div>";
+    if(latest.hold) voteSegs += "<div class=\"mpc-seg-hold\" style=\"flex:" + latest.hold + "\"><span class=\"mpc-arrow\">=</span> " + latest.hold + " hold</div>";
+    if(latest.hike) voteSegs += "<div class=\"mpc-seg-hike\" style=\"flex:" + latest.hike + "\"><span class=\"mpc-arrow\">\u2191</span> " + latest.hike + " hike</div>";
     var voteLabel = latest.hike && !latest.cut ? (latest.hold + "\u2013" + latest.hike)
       : latest.cut && !latest.hike ? (latest.hold + "\u2013" + latest.cut)
-      : (latest.hold + "\u2013" + latest.hike + "\u2013" + latest.cut);
+      : (latest.cut + "\u2013" + latest.hold + "\u2013" + latest.hike);
     latestEl.innerHTML =
       "<div class=\"mpc-stat\"><p class=\"k\">Meeting ending</p><p class=\"v\">" + fmtDate(latest.date) + "</p></div>" +
       "<div class=\"mpc-stat\"><p class=\"k\">Bank Rate</p><p class=\"v\">" + latest.decision_rate.toFixed(2) + "% <small>" + action + "</small></p></div>" +
       "<div class=\"mpc-stat\"><p class=\"k\">Vote</p><p class=\"v\">" + voteLabel + "</p></div>" +
-      "<div class=\"mpc-votebar\" role=\"img\" aria-label=\"" + latest.hold + " members voted to hold, " + latest.hike + " to raise, " + latest.cut + " to cut\">" + voteSegs + "</div>" +
+      "<div class=\"mpc-votebar\" role=\"img\" aria-label=\"" + latest.cut + " members voted to cut, " + latest.hold + " to hold, " + latest.hike + " to raise\">" + voteSegs + "</div>" +
       "<div class=\"mpc-legend\">" +
+        "<span><i class=\"mpc-seg-cut\"></i>Voted to cut</span>" +
         "<span><i class=\"mpc-seg-hold\"></i>Voted to hold</span>" +
         "<span><i class=\"mpc-seg-hike\"></i>Voted to raise</span>" +
-        "<span><i class=\"mpc-seg-cut\"></i>Voted to cut</span>" +
       "</div>";
   }
 
@@ -1519,9 +1525,9 @@ function renderMPC(meetings){
   if(histEl){
     histEl.innerHTML = meetings.map(function(m){
       var bar = "";
-      if(m.hold) bar += "<span class=\"mpc-seg-hold\" style=\"flex:" + m.hold + "\"></span>";
-      if(m.hike) bar += "<span class=\"mpc-seg-hike\" style=\"flex:" + m.hike + "\"></span>";
-      if(m.cut) bar += "<span class=\"mpc-seg-cut\" style=\"flex:" + m.cut + "\"></span>";
+      if(m.cut) bar += "<span class=\"mpc-seg-cut\" style=\"flex:" + m.cut + "\"><span class=\"mpc-arrow\">\u2193</span></span>";
+      if(m.hold) bar += "<span class=\"mpc-seg-hold\" style=\"flex:" + m.hold + "\"><span class=\"mpc-arrow\">=</span></span>";
+      if(m.hike) bar += "<span class=\"mpc-seg-hike\" style=\"flex:" + m.hike + "\"><span class=\"mpc-arrow\">\u2191</span></span>";
       var resultText;
       if(m.previous_rate != null && m.decision_rate !== m.previous_rate){
         var verb = m.decision_rate > m.previous_rate ? "raised to" : "cut to";
