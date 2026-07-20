@@ -109,22 +109,38 @@ def fetch_and_parse() -> list[dict] | None:
 
     found = _find_header_row(ws)
     if not found:
-        # CONFIRMED live (2026-07-20): 3818 rows x 191 cols is nowhere near
-        # the simple long-format (meeting, member, vote, decision) table
-        # assumed from the R package docs -- that shape suggests a wide/
-        # pivot layout instead (e.g. one column per meeting), or the real
-        # data sits on a different sheet than the first one. Rather than
-        # guess a third time, dump the actual raw corner of the sheet so
-        # the real layout can be read directly from the next log rather
-        # than inferred blind.
-        print("  [boe-mpc] couldn't find a recognisable header row via keyword "
-              "matching -- dumping raw content instead (rows 1-10, cols 1-15):")
-        for row_idx in range(1, min(11, ws.max_row + 1)):
+        # CONFIRMED live (2026-07-20): rows 1-9 turned out to be a lifetime
+        # SUMMARY per member (career totals of increase/maintain/reduce
+        # votes), not a per-meeting record -- completely different shape
+        # than assumed. But row 10 says "Bank Rate" (a new section
+        # starting), which is very likely where the actual per-meeting
+        # matrix begins, using the same member columns from row 4 as
+        # headers. Dumping further down this time, plus scanning for any
+        # row containing an actual date value anywhere in the sheet, so
+        # the real per-meeting section's start row is identified directly
+        # rather than guessed at a third time.
+        print("  [boe-mpc] dumping rows 1-45, cols 1-12:")
+        for row_idx in range(1, min(46, ws.max_row + 1)):
             row_vals = []
-            for col_idx in range(1, min(16, ws.max_column + 1)):
+            for col_idx in range(1, min(13, ws.max_column + 1)):
                 v = ws.cell(row=row_idx, column=col_idx).value
                 row_vals.append(repr(v) if v is not None else "")
             print(f"  [boe-mpc] row {row_idx}: {row_vals}")
+
+        print("  [boe-mpc] scanning all rows/cols for date-like values "
+              "(first 20 matches)...")
+        date_hits = 0
+        for row_idx in range(1, ws.max_row + 1):
+            if date_hits >= 20:
+                break
+            for col_idx in range(1, min(ws.max_column + 1, 20)):
+                v = ws.cell(row=row_idx, column=col_idx).value
+                if hasattr(v, "strftime"):
+                    print(f"  [boe-mpc] date-like value at row {row_idx}, col {col_idx}: {v!r}")
+                    date_hits += 1
+                    break
+        if date_hits == 0:
+            print("  [boe-mpc] no date-typed cells found in first 20 columns of any row")
         return None
     header_row, cols = found
 
