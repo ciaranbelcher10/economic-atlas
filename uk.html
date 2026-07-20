@@ -142,6 +142,10 @@ nav.viztoggle label{font-size:12.5px; color:var(--ink2); font-weight:600; margin
 .mpc-seg-cut{background:rgba(46,160,67,0.25);}
 .mpc-seg-hold{background:rgba(242,166,90,0.4);}
 .mpc-seg-hike{background:rgba(214,69,65,0.28);}
+.mpc-seg-cut.bold{background:rgba(46,160,67,1);}
+.mpc-seg-hold.bold{background:rgba(242,166,90,1);}
+.mpc-seg-hike.bold{background:rgba(214,69,65,1);}
+.mpc-seg-cut.bold .mpc-arrow, .mpc-seg-hold.bold .mpc-arrow, .mpc-seg-hike.bold .mpc-arrow{color:#fff;}
 .mpc-votebar div, .mpc-row .bar span{position:relative;}
 .mpc-arrow{font-size:15px; font-weight:700; line-height:1;}
 .mpc-seg-cut .mpc-arrow, .mpc-seg-hold .mpc-arrow, .mpc-seg-hike .mpc-arrow{color:#3A2E2A;}
@@ -1556,6 +1560,13 @@ var mpcExpanded = false;
 var MPC_INITIAL_N = 16; // roughly 2 years at 8 meetings/year
 var lastRenderedMeetings = null;
 
+// Which segment (cut/hold/hike) matches this meeting's actual outcome --
+// used to bold that one segment so the real decision reads at a glance.
+function decisionFor(m){
+  if(m.previous_rate == null || m.decision_rate === m.previous_rate) return "hold";
+  return m.decision_rate > m.previous_rate ? "hike" : "cut";
+}
+
 function renderMPC(meetings){
   if(!meetings || !meetings.length) return;
   lastRenderedMeetings = meetings;
@@ -1568,9 +1579,10 @@ function renderMPC(meetings){
   var latestEl = document.getElementById("mpcLatest");
   if(latestEl){
     var voteSegs = "";
-    if(latest.cut) voteSegs += "<div class=\"mpc-seg-cut\" style=\"flex:" + latest.cut + "\"><span class=\"mpc-arrow\">\u2193</span> " + latest.cut + " cut</div>";
-    if(latest.hold) voteSegs += "<div class=\"mpc-seg-hold\" style=\"flex:" + latest.hold + "\"><span class=\"mpc-arrow\">=</span> " + latest.hold + " hold</div>";
-    if(latest.hike) voteSegs += "<div class=\"mpc-seg-hike\" style=\"flex:" + latest.hike + "\"><span class=\"mpc-arrow\">\u2191</span> " + latest.hike + " hike</div>";
+    var latestDecision = decisionFor(latest);
+    if(latest.cut) voteSegs += "<div class=\"mpc-seg-cut" + (latestDecision === "cut" ? " bold" : "") + "\" style=\"flex:" + latest.cut + "\"><span class=\"mpc-arrow\">\u2193</span> " + latest.cut + " cut</div>";
+    if(latest.hold) voteSegs += "<div class=\"mpc-seg-hold" + (latestDecision === "hold" ? " bold" : "") + "\" style=\"flex:" + latest.hold + "\"><span class=\"mpc-arrow\">=</span> " + latest.hold + " hold</div>";
+    if(latest.hike) voteSegs += "<div class=\"mpc-seg-hike" + (latestDecision === "hike" ? " bold" : "") + "\" style=\"flex:" + latest.hike + "\"><span class=\"mpc-arrow\">\u2191</span> " + latest.hike + " hike</div>";
     var voteLabel = latest.hike && !latest.cut ? (latest.hold + "\u2013" + latest.hike)
       : latest.cut && !latest.hike ? (latest.hold + "\u2013" + latest.cut)
       : (latest.cut + "\u2013" + latest.hold + "\u2013" + latest.hike);
@@ -1599,10 +1611,11 @@ function renderMPCHistory(){
   var histEl = document.getElementById("mpcHistory");
   if(histEl){
     histEl.innerHTML = visible.map(function(m){
+      var d = decisionFor(m);
       var bar = "";
-      if(m.cut) bar += "<span class=\"mpc-seg-cut\" style=\"flex:" + m.cut + "\"><span class=\"mpc-arrow\">\u2193</span></span>";
-      if(m.hold) bar += "<span class=\"mpc-seg-hold\" style=\"flex:" + m.hold + "\"><span class=\"mpc-arrow\">=</span></span>";
-      if(m.hike) bar += "<span class=\"mpc-seg-hike\" style=\"flex:" + m.hike + "\"><span class=\"mpc-arrow\">\u2191</span></span>";
+      if(m.cut) bar += "<span class=\"mpc-seg-cut" + (d === "cut" ? " bold" : "") + "\" style=\"flex:" + m.cut + "\"><span class=\"mpc-arrow\">\u2193</span></span>";
+      if(m.hold) bar += "<span class=\"mpc-seg-hold" + (d === "hold" ? " bold" : "") + "\" style=\"flex:" + m.hold + "\"><span class=\"mpc-arrow\">=</span></span>";
+      if(m.hike) bar += "<span class=\"mpc-seg-hike" + (d === "hike" ? " bold" : "") + "\" style=\"flex:" + m.hike + "\"><span class=\"mpc-arrow\">\u2191</span></span>";
       var resultText;
       if(m.previous_rate != null && m.decision_rate !== m.previous_rate){
         var verb = m.decision_rate > m.previous_rate ? "raised to" : "cut to";
