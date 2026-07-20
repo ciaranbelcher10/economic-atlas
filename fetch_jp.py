@@ -23,6 +23,7 @@ from __future__ import annotations
 
 import json
 import os
+import re
 import sys
 from datetime import datetime, timezone
 
@@ -131,7 +132,128 @@ def fetch_oecd_bci() -> list | None:
     return None
 
 
-# ---- OECD live CPI (7.6.4) — replaces the dead FRED "MEI" mirror ----
+# ---- e-Stat (Statistics Bureau of Japan) live CPI (post-8.3.2) ----
+# OECD's DF_PRICES_ALL has no current Japan CPI at all (confirmed on a live
+# 8.3.0 run -- every METHODOLOGY/ADJUSTMENT variant for JPN dead-ends at the
+# retired 2015=100 base, June 2021). This queries Japan's own statistics
+# bureau directly via the e-Stat API, using an ESTAT_APP_ID repository
+# secret (same pattern as FRED_API_KEY/MOSPI creds -- a free, user-issued
+# key, not something Claude can obtain). statsDataId "0003427113" is the
+# long-run national CPI table (2020=100 base, the one currently in force --
+# Japan's last base-year rebasing was Aug 2021, per e-Stat's own news
+# archive, and no newer rebasing notice was posted as of this write-up) --
+# sourced from public e-Stat API tutorials, not verified end-to-end from
+# this sandbox (e-Stat isn't reachable from the build environment). Rather
+# than hardcode a guessed category code for "all items" (cat01), this reads
+# the response's own CLASS_INF metadata to find it by name, and does the
+# same for the time-axis codes, so it's robust to code churn even if the
+# guessed statsDataId itself turns out to need adjustment. Check the
+# [estat-cpi] log lines on the first live run.
+ESTAT_BASE = "https://api.e-stat.go.jp/rest/3.0/app/json/getStatsData"
+ESTAT_CPI_STATS_DATA_ID = "0003427113"
+
+
+def fetch_estat_cpi() -> list | None:
+    app_id = os.environ.get("ESTAT_APP_ID")
+    if not app_id:
+        print("  [estat-cpi] no ESTAT_APP_ID set — skipping")
+        return None
+
+    url = (f"{ESTAT_BASE}?appId={app_id}&statsDataId={ESTAT_CPI_STATS_DATA_ID}"
+           f"&cdArea=00000&metaGetFlg=Y&cntGetFlg=N")
+    try:
+        r = requests.get(url, timeout=60,
+                         headers={"User-Agent": "economic-atlas/0.1"})
+        print(f"  [estat-cpi] status={r.status_code}")
+        r.raise_for_status()
+        payload = r.json()
+    except Exception as exc:
+        print(f"  [estat-cpi] request failed: {exc}")
+        return None
+
+    root = payload.get("GET_STATS_DATA", {})
+    result = root.get("RESULT", {})
+    if str(result.get("STATUS", "0")) != "0":
+        print(f"  [estat-cpi] API error status={result.get('STATUS')} "
+              f"msg={result.get('ERROR_MSG')!r}")
+        return None
+
+    stat_data = root.get("STATISTICAL_DATA", {})
+    class_objs = stat_data.get("CLASS_INF", {}).get("CLASS_OBJ", [])
+    if isinstance(class_objs, dict):
+        class_objs = [class_objs]
+
+    def classes_for(class_id: str) -> list:
+        for co in class_objs:
+            if co.get("@id") == class_id:
+                items = co.get("CLASS", [])
+                return [items] if isinstance(items, dict) else items
+        return []
+
+    # Find the "all items" (総合) category code -- exact match preferred
+    # over e.g. "生鮮食品を除く総合" (all items less fresh food), which also
+    # contains the substring "総合".
+    cat_items = classes_for("cat01")
+    all_items_code = None
+    for c in cat_items:
+        if c.get("@name") == "総合":
+            all_items_code = c.get("@code")
+            break
+    if all_items_code is None:
+        for c in cat_items:
+            if "総合" in (c.get("@name") or ""):
+                all_items_code = c.get("@code")
+                print(f"  [estat-cpi] no exact '総合' match; falling back to "
+                      f"{c.get('@name')!r} ({all_items_code})")
+                break
+    if all_items_code is None:
+        print(f"  [estat-cpi] could not find an 'all items' category in "
+              f"cat01 metadata ({len(cat_items)} categories present)")
+        return None
+
+    # Build time-code -> "YYYY-MM" from the time-axis metadata rather than
+    # guessing e-Stat's internal time-code format.
+    time_items = classes_for("time")
+    period_of = {}
+    for t in time_items:
+        name = t.get("@name", "")
+        m = re.match(r"(\d{4})年(\d{1,2})月", name)
+        if m:
+            period_of[t.get("@code")] = f"{m.group(1)}-{int(m.group(2)):02d}"
+
+    values = stat_data.get("DATA_INF", {}).get("VALUE", [])
+    if isinstance(values, dict):
+        values = [values]
+    rows = {}
+    for v in values:
+        if v.get("@cat01") != all_items_code:
+            continue
+        period = period_of.get(v.get("@time"))
+        raw = v.get("$")
+        if period is None or raw in (None, ""):
+            continue
+        try:
+            rows[period] = float(raw)
+        except ValueError:
+            continue
+
+    if not rows:
+        print(f"  [estat-cpi] parsed response but got 0 matching rows "
+              f"(cat01={all_items_code}, {len(values)} VALUE entries, "
+              f"{len(period_of)} time codes resolved)")
+        return None
+
+    pts = sorted([[p, v] for p, v in rows.items()], key=lambda x: x[0])
+    yoy = transform(pts, "yoy")
+    if not yoy:
+        print(f"  [estat-cpi] {len(pts)} index points parsed but YoY "
+              f"transform produced nothing")
+        return None
+    print(f"  [estat-cpi] SUCCESS: {len(yoy)} points, {yoy[0][0]} to {yoy[-1][0]}")
+    return yoy
+
+
+
 # DSD_PRICES@DF_PRICES_ALL confirmed via OECD's own generated example query
 # (dimension order REF_AREA.FREQ.METHODOLOGY.MEASURE.UNIT_MEASURE.EXPENDITURE.
 # ADJUSTMENT.TRANSFORMATION). Not personally executed end-to-end -- the query
@@ -330,8 +452,8 @@ def main() -> int:
     extras = [
         ("business_confidence", lambda: fetch_oecd_bci(),
          "Business confidence indicator, LT avg = 100 (OECD BCICP)", "index", "months"),
-        ("cpi", lambda: fetch_oecd_cpi(("JPN",), "M"),
-         "CPI, all items, YoY (OECD live prices system)", "%", "months"),
+        ("cpi", lambda: fetch_estat_cpi() or fetch_oecd_cpi(("JPN",), "M"),
+         "CPI, all items, YoY (e-Stat, Statistics Bureau of Japan)", "%", "months"),
         ("fdi", lambda: fetch_worldbank("BX.KLT.DINV.WD.GD.ZS"),
          "FDI net inflows, % of GDP (World Bank)", "%", "years"),
         ("current_account", lambda: fetch_worldbank("BN.CAB.XOKA.GD.ZS"),
