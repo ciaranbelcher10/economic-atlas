@@ -223,73 +223,55 @@ def fetch_eurostat_govfinance(na_item: str) -> list | None:
     return None
 
 
-def _fetch_eurostat_teiet(dataset: str, partner: str, flow_code: str | None,
-                          tag_prefix: str) -> list | None:
-    """Query one of Eurostat's 'teiet' short-term-indicator trade tables.
-    UPDATE #3 (post-8.3.2): every ext_st_easitc partner guess (EXT_EA20,
-    WRL_REST, WORLD) came back confirmed-empty on a live run -- the dim-order
-    diagnostic showed 'partner' as the empty dimension regardless of code,
-    meaning this dataset most likely just doesn't carry a pre-aggregated
-    extra-area total row at all (it's a bilateral SITC breakdown). Switching
-    to a different dataset family: teiet110 ("Imports of goods") has a
-    confirmed real series using partner=WRL_REST (scraped via DBnomics), and
-    teiet210 ("Balance of trade - EU and euro area aggregates") has a
-    confirmed real series using partner=EXT_EA20 -- both are the right
-    concept, unlike the ext_st family. What ISN'T confirmed: the exact query
-    parameter names this "teiet" family expects (unlike ext_st, Eurostat's
-    short-term-indicator tables aren't consistently documented) -- so this
-    tries a couple of plausible parameter-name variants per dataset and
-    relies on the dim-order diagnostic to name the problem if all of them
-    still come back empty. Tries EA21 (current euro-area composition,
-    includes Bulgaria from Jan 2026) before EA20 (pre-2026), same as
-    fetch_eurostat_unemployment."""
+def _fetch_eurostat_teiet110(stk_flow: str) -> list | None:
+    """Query teiet110 for euro-area extra-area goods trade, one flow at a
+    time. CONFIRMED WORKING (post-8.3.3 live run) for stk_flow=IMP with
+    exactly these parameter names -- geo, partner, unit, stk_flow, sitc06 --
+    which is NOT what the dataset's own dimension IDs suggested from the
+    DBnomics scrape (that showed a 'product' concept, but the working query
+    parameter turned out to be 'sitc06'). Returned only 12 points
+    (2025-06 to 2026-05) despite sinceTimePeriod=1999 -- the EA21 aggregate
+    (current euro-area composition incl. Bulgaria, from Jan 2026) may simply
+    not have deep back-history published yet in this specific short-term
+    table; EA20 wasn't tried as a fallback here because the confirmed EA21
+    hit already satisfies "some live data beats none", but a thin (12-point)
+    series is a known limitation worth revisiting once more months land.
+    stk_flow=EXP is an unconfirmed but well-motivated extension of the same
+    confirmed query shape -- the dataset's own series IDs include an
+    explicit stk_flow dimension value even though its title is "Imports of
+    goods", suggesting export rows may live in the same table."""
     for geo in ("EA21", "EA20"):
-        for flow_param in (
-            {"indic_et": flow_code} if flow_code else {},
-            {"stk_flow": flow_code} if flow_code else {},
-        ):
-            if flow_code and not flow_param:
-                continue
-            for product_param in ({"product": "TOTAL"}, {"sitc06": "TOTAL"}, {}):
-                params = {"geo": geo, "partner": partner, "unit": "TVAL_SA",
-                          **flow_param, **product_param}
-                qs = "&".join(f"{k}={v}" for k, v in params.items())
-                url = f"{EUROSTAT_STATS_BASE}/{dataset}?format=JSON&lang=EN&{qs}&sinceTimePeriod=1999"
-                tag = f"{tag_prefix}-{dataset}-{geo}-{list(flow_param.keys()) or 'noflow'}-{list(product_param.keys()) or 'noprod'}"
-                try:
-                    r = requests.get(url, timeout=60,
-                                     headers={"User-Agent": "economic-atlas/0.1"})
-                    print(f"  [{tag_prefix}] {dataset} {geo} {qs} status={r.status_code}")
-                    r.raise_for_status()
-                except Exception as exc:
-                    print(f"  [{tag_prefix}] {dataset} {geo} request failed: {exc}")
-                    continue
-                try:
-                    pts = _parse_jsonstat(r.text, tag)
-                    if pts:
-                        return pts
-                except Exception as exc:
-                    print(f"  [{tag_prefix}] {dataset} {geo} parsing failed: {exc}; "
-                          f"first 300 chars: {r.text[:300]!r}")
+        params = {"geo": geo, "partner": "WRL_REST", "unit": "TVAL_SA",
+                  "stk_flow": stk_flow, "sitc06": "TOTAL"}
+        qs = "&".join(f"{k}={v}" for k, v in params.items())
+        url = f"{EUROSTAT_STATS_BASE}/teiet110?format=JSON&lang=EN&{qs}&sinceTimePeriod=1999"
+        tag = f"eurostat-trade-{stk_flow}-teiet110-{geo}"
+        try:
+            r = requests.get(url, timeout=60,
+                             headers={"User-Agent": "economic-atlas/0.1"})
+            print(f"  [eurostat-trade] {stk_flow} teiet110 {geo} status={r.status_code}")
+            r.raise_for_status()
+        except Exception as exc:
+            print(f"  [eurostat-trade] {stk_flow} teiet110 {geo} request failed: {exc}")
+            continue
+        try:
+            pts = _parse_jsonstat(r.text, tag)
+            if pts:
+                return pts
+        except Exception as exc:
+            print(f"  [eurostat-trade] {stk_flow} teiet110 {geo} parsing failed: {exc}; "
+                  f"first 300 chars: {r.text[:300]!r}")
     return None
 
 
 def fetch_eurostat_trade_pair() -> tuple[list | None, list | None]:
-    """Returns (exports, imports) points, both euro-area extra-area goods
-    trade in EUR million. Imports comes directly from teiet110; exports is
-    derived as imports + balance (from teiet210), since Eurostat doesn't
-    appear to publish an aggregated extra-area exports series directly in
-    the same family. Returns (None, None) if either leg fails, so the caller
-    falls back to the discontinued OECD mirror rather than shipping a
-    half-derived pair."""
-    imports = _fetch_eurostat_teiet("teiet110", "WRL_REST", "IMP", "eurostat-trade-imp")
-    balance = _fetch_eurostat_teiet("teiet210", "EXT_EA20", None, "eurostat-trade-bal")
-    if imports and balance:
-        bal = dict(balance)
-        exports = [[p, round(v + bal[p], 1)] for p, v in imports if p in bal]
-        if exports:
-            return exports, imports
-    return None, None
+    """Returns (exports, imports) points, euro-area extra-area goods trade
+    in EUR million, both from teiet110. IMP confirmed live and working;
+    EXP is the same confirmed query shape with stk_flow=EXP, unconfirmed
+    until the next live run -- check the [eurostat-trade] EXP log lines."""
+    exports = _fetch_eurostat_teiet110("EXP")
+    imports = _fetch_eurostat_teiet110("IMP")
+    return exports, imports
 
 
 WB_URL = ("https://api.worldbank.org/v2/country/EMU/indicator/"
@@ -392,7 +374,7 @@ def main() -> int:
     es_exp, es_imp = fetch_eurostat_trade_pair()
     if es_exp and es_imp:
         out["series"]["exports"] = {
-            "label": "Exports of goods, extra-euro-area (derived: Eurostat teiet110 imports + teiet210 balance)",
+            "label": "Exports of goods, extra-euro-area (Eurostat teiet110)",
             "unit": "\u20acm", "freq": "months", "points": es_exp}
         out["series"]["imports"] = {
             "label": "Imports of goods, extra-euro-area (Eurostat teiet110)",
