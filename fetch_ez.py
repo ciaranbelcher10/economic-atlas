@@ -223,54 +223,48 @@ def fetch_eurostat_govfinance(na_item: str) -> list | None:
     return None
 
 
-def _fetch_eurostat_teiet110(stk_flow: str) -> list | None:
-    """Query teiet110 for euro-area extra-area goods trade, one flow at a
-    time. CONFIRMED WORKING (post-8.3.3 live run) for stk_flow=IMP with
-    exactly these parameter names -- geo, partner, unit, stk_flow, sitc06 --
-    which is NOT what the dataset's own dimension IDs suggested from the
-    DBnomics scrape (that showed a 'product' concept, but the working query
-    parameter turned out to be 'sitc06'). Returned only 12 points
-    (2025-06 to 2026-05) despite sinceTimePeriod=1999 -- the EA21 aggregate
-    (current euro-area composition incl. Bulgaria, from Jan 2026) may simply
-    not have deep back-history published yet in this specific short-term
-    table; EA20 wasn't tried as a fallback here because the confirmed EA21
-    hit already satisfies "some live data beats none", but a thin (12-point)
-    series is a known limitation worth revisiting once more months land.
-    stk_flow=EXP is an unconfirmed but well-motivated extension of the same
-    confirmed query shape -- the dataset's own series IDs include an
-    explicit stk_flow dimension value even though its title is "Imports of
-    goods", suggesting export rows may live in the same table."""
+def _fetch_eurostat_teiet(dataset: str, stk_flow: str) -> list | None:
+    """Query one of Eurostat's 'teiet' short-term-indicator trade tables
+    using the confirmed-working query shape (geo, partner, unit, stk_flow,
+    sitc06 as the exact parameter names -- confirmed live for teiet110/IMP).
+    UPDATE #4 (post-8.3.4): teiet110 confirmed to hold ONLY imports --
+    stk_flow=EXP against it came back with dim size 0 for stk_flow itself,
+    meaning that value genuinely isn't in the table (not a parameter-name
+    problem). The real exports counterpart is teiet010 ("Exports of goods -
+    total"), confirmed to exist via Eurostat's own databrowser
+    (ec.europa.eu/eurostat/databrowser/view/teiet010) -- same table family,
+    same expected structure, not yet run live."""
     for geo in ("EA21", "EA20"):
         params = {"geo": geo, "partner": "WRL_REST", "unit": "TVAL_SA",
                   "stk_flow": stk_flow, "sitc06": "TOTAL"}
         qs = "&".join(f"{k}={v}" for k, v in params.items())
-        url = f"{EUROSTAT_STATS_BASE}/teiet110?format=JSON&lang=EN&{qs}&sinceTimePeriod=1999"
-        tag = f"eurostat-trade-{stk_flow}-teiet110-{geo}"
+        url = f"{EUROSTAT_STATS_BASE}/{dataset}?format=JSON&lang=EN&{qs}&sinceTimePeriod=1999"
+        tag = f"eurostat-trade-{stk_flow}-{dataset}-{geo}"
         try:
             r = requests.get(url, timeout=60,
                              headers={"User-Agent": "economic-atlas/0.1"})
-            print(f"  [eurostat-trade] {stk_flow} teiet110 {geo} status={r.status_code}")
+            print(f"  [eurostat-trade] {stk_flow} {dataset} {geo} status={r.status_code}")
             r.raise_for_status()
         except Exception as exc:
-            print(f"  [eurostat-trade] {stk_flow} teiet110 {geo} request failed: {exc}")
+            print(f"  [eurostat-trade] {stk_flow} {dataset} {geo} request failed: {exc}")
             continue
         try:
             pts = _parse_jsonstat(r.text, tag)
             if pts:
                 return pts
         except Exception as exc:
-            print(f"  [eurostat-trade] {stk_flow} teiet110 {geo} parsing failed: {exc}; "
+            print(f"  [eurostat-trade] {stk_flow} {dataset} {geo} parsing failed: {exc}; "
                   f"first 300 chars: {r.text[:300]!r}")
     return None
 
 
 def fetch_eurostat_trade_pair() -> tuple[list | None, list | None]:
     """Returns (exports, imports) points, euro-area extra-area goods trade
-    in EUR million, both from teiet110. IMP confirmed live and working;
-    EXP is the same confirmed query shape with stk_flow=EXP, unconfirmed
-    until the next live run -- check the [eurostat-trade] EXP log lines."""
-    exports = _fetch_eurostat_teiet110("EXP")
-    imports = _fetch_eurostat_teiet110("IMP")
+    in EUR million. IMP from teiet110 confirmed live and working; EXP from
+    teiet010, the confirmed-to-exist counterpart table, using the exact
+    same query shape -- unconfirmed until the next live run."""
+    exports = _fetch_eurostat_teiet("teiet010", "EXP")
+    imports = _fetch_eurostat_teiet("teiet110", "IMP")
     return exports, imports
 
 
