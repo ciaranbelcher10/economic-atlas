@@ -1084,26 +1084,13 @@ function metricLabel(){
        : "UK goods trade";
 }
 
-function scaledValue(p){
-  // Floor to avoid log(0)/log(negative) -- display values (tooltip, ranking)
-  // still use the true, unclamped metricValue(p).
-  return Math.max(metricValue(p), 0.01);
-}
-
 function computeScales(){
-  var minV = d3.min(PARTNERS, scaledValue);
-  var maxV = d3.max(PARTNERS, scaledValue);
-  // Log scale, not linear -- with 229 partners spanning $0.0bn to ~$200bn,
-  // a linear domain would compress nearly everyone below the top ~15 into
-  // an indistinguishable pale sliver, making "show all on the map"
-  // pointless. Log scaling keeps mid-sized and smaller partners visually
-  // legible alongside the US/China/Germany-scale ones.
+  var minV = d3.min(PARTNERS, metricValue);
+  var maxV = d3.max(PARTNERS, metricValue);
   colorScale = d3.scaleSequential(function(t){
     return d3.interpolateRgbBasis(["#DEF5E5","#8AD9B1","#40B7AD","#348FA7","#37659E","#413D7B","#2E1E3B"])(t);
-  }).domain([Math.log(minV), Math.log(maxV)]);
-  var rawColorScale = colorScale;
-  colorScale = function(v){ return rawColorScale(Math.log(Math.max(v, 0.01))); };
-  widthScale = d3.scaleLog().domain([minV, maxV]).range([1, 9]);
+  }).domain([minV, maxV]);
+  widthScale = d3.scaleSqrt().domain([minV, maxV]).range([1.5, 9]);
 }
 
 var activeHighlightFn = null;
@@ -1121,7 +1108,7 @@ function renderRanking(){
     li.className = "tpm-rankrow";
     li.dataset.code = p.code;
     li.innerHTML = "<span class=\"tpm-ranknum\">" + (i + 1) + "</span>"
-      + "<span class=\"tpm-rankswatch\" style=\"background:" + colorScale(scaledValue(p)) + "\"></span>"
+      + "<span class=\"tpm-rankswatch\" style=\"background:" + colorScale(metricValue(p)) + "\"></span>"
       + "<span class=\"tpm-rankname\">" + p.name + "</span>"
       + "<span class=\"tpm-rankvalue\">" + CURRENCY_SYMBOL + metricValue(p).toFixed(1) + "bn</span>";
     li.addEventListener("mouseenter", function(){ if(activeHighlightFn) activeHighlightFn(p.code, true); });
@@ -1227,8 +1214,8 @@ function drawGeoArcs(){
       .datum(p)
       .attr("class", "arc-link")
       .attr("d", d)
-      .attr("stroke", colorScale(scaledValue(p)))
-      .attr("stroke-width", widthScale(scaledValue(p)))
+      .attr("stroke", colorScale(metricValue(p)))
+      .attr("stroke-width", widthScale(metricValue(p)))
       .on("mousemove", function(e){ showTip(e, p); geoHighlightFn(p.code, true); })
       .on("mouseleave", function(){ hideTip(); geoHighlightFn(p.code, false); });
 
@@ -1237,7 +1224,7 @@ function drawGeoArcs(){
       .attr("class", "node-dot")
       .attr("cx", xy[0]).attr("cy", xy[1])
       .attr("r", 4)
-      .attr("fill", colorScale(scaledValue(p)))
+      .attr("fill", colorScale(metricValue(p)))
       .on("mousemove", function(e){ showTip(e, p); geoHighlightFn(p.code, true); })
       .on("mouseleave", function(){ hideTip(); geoHighlightFn(p.code, false); });
   });
@@ -1293,8 +1280,8 @@ function renderRadial(){
       .datum(p)
       .attr("class", "radial-spoke")
       .attr("d", d)
-      .attr("stroke", colorScale(scaledValue(p)))
-      .attr("stroke-width", widthScale(scaledValue(p)))
+      .attr("stroke", colorScale(metricValue(p)))
+      .attr("stroke-width", widthScale(metricValue(p)))
       .attr("opacity", 0.82)
       .on("mousemove", function(e){ showTip(e, p); highlightAll(p.code, true); })
       .on("mouseleave", function(){ hideTip(); highlightAll(p.code, false); });
@@ -1302,7 +1289,7 @@ function renderRadial(){
     var nodeG = nodesG.append("g").attr("class", "radial-node").datum(p);
     nodeG.append("circle")
       .attr("cx", nx).attr("cy", ny).attr("r", 5)
-      .attr("fill", colorScale(scaledValue(p)));
+      .attr("fill", colorScale(metricValue(p)));
 
     var labelDx = Math.cos(angle) >= 0 ? 10 : -10;
     var anchor = Math.cos(angle) >= 0 ? "start" : "end";
