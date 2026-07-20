@@ -120,6 +120,42 @@ nav.viztoggle label{font-size:12.5px; color:var(--ink2); font-weight:600; margin
   background:linear-gradient(to right, var(--mako-7), var(--mako-4), var(--mako-1));}
 .vizlegend .gradrow{display:flex; align-items:center; gap:8px;}
 .tpm-covnote{font-size:12.5px; color:var(--ink2); margin:14px 2px 0;}
+
+/* BoE MPC vote record (v8.7.0) */
+.mpc-head{display:flex; align-items:baseline; justify-content:space-between; margin:30px 0 14px;}
+.mpc-head h3{font-size:17px; margin:0;}
+.mpc-banner{display:flex; align-items:center; gap:10px; background:#FBF3E4; color:#8A5A1E;
+  border:1px solid #EFDBAF; border-radius:10px; padding:10px 15px; margin:0 0 16px;
+  font-size:13px; font-weight:600;}
+.mpc-banner .dot2{width:8px; height:8px; border-radius:50%; background:#E39B2D; flex:none;}
+.mpc-latest{background:var(--panel); border:1px solid var(--hair); border-radius:14px;
+  padding:24px 26px; display:flex; gap:36px; flex-wrap:wrap; align-items:center;}
+.mpc-stat{flex:1 1 140px;}
+.mpc-stat .k{font-size:12px; color:var(--ink2); font-weight:600; text-transform:uppercase;
+  letter-spacing:.03em; margin:0 0 4px;}
+.mpc-stat .v{font-size:26px; font-weight:700; color:var(--navy); line-height:1.1;}
+.mpc-stat .v small{font-size:14px; font-weight:600; color:var(--ink2);}
+.mpc-votebar{display:flex; height:34px; border-radius:8px; overflow:hidden; flex:1 1 260px;
+  min-width:220px;}
+.mpc-votebar div{display:flex; align-items:center; justify-content:center;
+  font-size:12.5px; font-weight:700; color:#fff;}
+.mpc-seg-hold{background:var(--navy);}
+.mpc-seg-hike{background:var(--blue);}
+.mpc-seg-cut{background:#5FB89C;}
+.mpc-legend{display:flex; gap:16px; font-size:12.5px; color:var(--ink2); margin-top:10px;
+  flex:1 0 100%;}
+.mpc-legend span{display:inline-flex; align-items:center; gap:6px;}
+.mpc-legend i{width:10px; height:10px; border-radius:3px; display:inline-block;}
+.mpc-history{background:var(--panel); border:1px solid var(--hair); border-radius:14px;
+  padding:22px 26px; margin-top:18px;}
+.mpc-row{display:grid; grid-template-columns:110px 1fr 170px; gap:16px; align-items:center;
+  padding:11px 0; border-bottom:1px solid var(--hair);}
+.mpc-row:last-child{border-bottom:none;}
+.mpc-row .date{font-size:13px; font-weight:600; color:var(--ink);}
+.mpc-row .bar{display:flex; height:20px; border-radius:5px; overflow:hidden;}
+.mpc-row .result{font-size:13px; color:var(--ink2); text-align:right;}
+.mpc-row .result strong{color:var(--ink); font-weight:700;}
+.mpc-covnote{font-size:12.5px; color:var(--ink2); margin:14px 2px 0;}
 .tpm-scopenote{font-size:13.5px; color:var(--ink); background:#EEF3F0; border:1px solid #D7E3DA;
   border-radius:10px; padding:11px 15px; margin:0 0 14px;}
 .tpm-scopenote strong{color:#1E4566;}
@@ -381,6 +417,13 @@ document.addEventListener("DOMContentLoaded", function(){
   <div class="hero mini" id="tiles-inflation"></div>
   <p class="lightskey compact" aria-label="Key to freshness lights"><span><span class="led green" aria-hidden="true"></span>&nbsp;updated on schedule</span><span><span class="led orange" aria-hidden="true"></span>&nbsp;awaiting next release</span></p>
   <div class="grid" id="charts-inflation"></div>
+
+  <div class="mpc-head"><h3>Bank Rate decisions &mdash; MPC vote record</h3></div>
+  <div class="mpc-banner" id="mpcBanner"><span class="dot2" aria-hidden="true"></span>
+  <span id="mpcBannerText">Illustrative — compiled from published BoE decisions, not yet on an automated fetch.</span></div>
+  <div class="mpc-latest" id="mpcLatest"></div>
+  <div class="mpc-history" id="mpcHistory"></div>
+  <p class="mpc-covnote">Vote counts are the committee's published majority breakdown (how many members backed the decision vs. each alternative). Individual members' names and votes aren't shown &mdash; only aggregate counts sourced directly from the Bank's own figures.</p>
 </section>
 <section class="sec" id="sec-labour" hidden>
   <div class="hero mini" id="tiles-labour"></div>
@@ -1416,6 +1459,101 @@ document.querySelectorAll(".mtbtn").forEach(function(btn){
     hideTip();
   });
 });
+})();
+</script>
+
+<script>
+(function(){
+"use strict";
+
+// Fallback: real published BoE decisions (not fabricated), used only if
+// the live fetch fails or hasn't run yet. See mpcBanner for which state
+// is currently showing.
+var FALLBACK_MEETINGS = [
+  {date:"2026-06-17", decision_rate:3.75, previous_rate:3.75, hold:7, hike:2, cut:0, total_votes:9},
+  {date:"2026-04-29", decision_rate:3.75, previous_rate:3.75, hold:8, hike:1, cut:0, total_votes:9},
+  {date:"2026-03-18", decision_rate:3.75, previous_rate:3.75, hold:9, hike:0, cut:0, total_votes:9},
+  {date:"2026-02-04", decision_rate:3.75, previous_rate:3.75, hold:5, hike:0, cut:4, total_votes:9},
+  {date:"2025-12-17", decision_rate:3.75, previous_rate:4.00, hold:4, hike:0, cut:5, total_votes:9}
+];
+
+function fmtDate(iso){
+  var d = new Date(iso + "T00:00:00Z");
+  return d.toLocaleDateString("en-GB", {day:"numeric", month:"short", year:"numeric", timeZone:"UTC"});
+}
+function fmtDateShort(iso){
+  var d = new Date(iso + "T00:00:00Z");
+  return d.toLocaleDateString("en-GB", {month:"short", year:"numeric", timeZone:"UTC"});
+}
+
+function renderMPC(meetings){
+  if(!meetings || !meetings.length) return;
+  var latest = meetings[0];
+  var action = latest.previous_rate == null ? "held"
+    : latest.decision_rate > latest.previous_rate ? "raised"
+    : latest.decision_rate < latest.previous_rate ? "cut"
+    : "held";
+
+  var latestEl = document.getElementById("mpcLatest");
+  if(latestEl){
+    var voteSegs = "";
+    if(latest.hold) voteSegs += "<div class=\"mpc-seg-hold\" style=\"flex:" + latest.hold + "\">" + latest.hold + " hold</div>";
+    if(latest.hike) voteSegs += "<div class=\"mpc-seg-hike\" style=\"flex:" + latest.hike + "\">" + latest.hike + " hike</div>";
+    if(latest.cut) voteSegs += "<div class=\"mpc-seg-cut\" style=\"flex:" + latest.cut + "\">" + latest.cut + " cut</div>";
+    var voteLabel = latest.hike && !latest.cut ? (latest.hold + "\u2013" + latest.hike)
+      : latest.cut && !latest.hike ? (latest.hold + "\u2013" + latest.cut)
+      : (latest.hold + "\u2013" + latest.hike + "\u2013" + latest.cut);
+    latestEl.innerHTML =
+      "<div class=\"mpc-stat\"><p class=\"k\">Meeting ending</p><p class=\"v\">" + fmtDate(latest.date) + "</p></div>" +
+      "<div class=\"mpc-stat\"><p class=\"k\">Bank Rate</p><p class=\"v\">" + latest.decision_rate.toFixed(2) + "% <small>" + action + "</small></p></div>" +
+      "<div class=\"mpc-stat\"><p class=\"k\">Vote</p><p class=\"v\">" + voteLabel + "</p></div>" +
+      "<div class=\"mpc-votebar\" role=\"img\" aria-label=\"" + latest.hold + " members voted to hold, " + latest.hike + " to raise, " + latest.cut + " to cut\">" + voteSegs + "</div>" +
+      "<div class=\"mpc-legend\">" +
+        "<span><i class=\"mpc-seg-hold\"></i>Voted to hold</span>" +
+        "<span><i class=\"mpc-seg-hike\"></i>Voted to raise</span>" +
+        "<span><i class=\"mpc-seg-cut\"></i>Voted to cut</span>" +
+      "</div>";
+  }
+
+  var histEl = document.getElementById("mpcHistory");
+  if(histEl){
+    histEl.innerHTML = meetings.map(function(m){
+      var bar = "";
+      if(m.hold) bar += "<span class=\"mpc-seg-hold\" style=\"flex:" + m.hold + "\"></span>";
+      if(m.hike) bar += "<span class=\"mpc-seg-hike\" style=\"flex:" + m.hike + "\"></span>";
+      if(m.cut) bar += "<span class=\"mpc-seg-cut\" style=\"flex:" + m.cut + "\"></span>";
+      var resultText;
+      if(m.previous_rate != null && m.decision_rate !== m.previous_rate){
+        var verb = m.decision_rate > m.previous_rate ? "raised to" : "cut to";
+        resultText = verb + " <strong>" + m.decision_rate.toFixed(2) + "%</strong>";
+      } else {
+        resultText = "held at <strong>" + m.decision_rate.toFixed(2) + "%</strong>";
+      }
+      var votePart = m.hike && !m.cut ? (m.hold + "\u2013" + m.hike)
+        : m.cut && !m.hike ? (m.hold + "\u2013" + m.cut)
+        : (m.hold + "\u2013" + m.hike + "\u2013" + m.cut);
+      return "<div class=\"mpc-row\">" +
+        "<span class=\"date\">" + fmtDateShort(m.date) + "</span>" +
+        "<span class=\"bar\">" + bar + "</span>" +
+        "<span class=\"result\">" + resultText + " (" + votePart + ")</span>" +
+        "</div>";
+    }).join("");
+  }
+}
+
+renderMPC(FALLBACK_MEETINGS);
+
+fetch("data-uk-mpc-votes.json", {cache:"no-store"})
+  .then(function(r){ if(!r.ok) throw new Error(r.status); return r.json(); })
+  .then(function(payload){
+    if(!payload || !Array.isArray(payload.meetings) || !payload.meetings.length) return;
+    renderMPC(payload.meetings);
+    var banner = document.getElementById("mpcBanner");
+    var bannerText = document.getElementById("mpcBannerText");
+    if(banner) banner.style.display = "none";
+    if(bannerText) bannerText.textContent = "";
+  })
+  .catch(function(){ /* fallback already rendered */ });
 })();
 </script>
 
