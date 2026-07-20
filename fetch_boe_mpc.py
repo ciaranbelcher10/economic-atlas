@@ -66,7 +66,12 @@ VOTING_XLSX_URL = ("https://www.bankofengland.co.uk/-/media/boe/files/"
                     "monetary-policy-summary-and-minutes/mpcvoting.xlsx")
 
 SHEET_NAME = "Bank Rate Decisions"
-HISTORY_LIMIT = 16
+HISTORY_LIMIT = 400  # generous cap, not a real limit -- the spreadsheet's full
+# history goes back to 1997 (~300-350 meetings depending on frequency changes
+# over time); this just guards against something going wrong and returning
+# an absurd number. The frontend decides how much to actually show (2 years
+# by default, "show more" to reveal the rest) -- this script's job is to
+# hand over everything available.
 
 
 def _to_float(v):

@@ -152,8 +152,16 @@ nav.viztoggle label{font-size:12.5px; color:var(--ink2); font-weight:600; margin
 .mpc-legend i{width:10px; height:10px; border-radius:3px; display:inline-block;}
 .mpc-history{background:var(--panel); border:1px solid var(--hair); border-radius:14px;
   padding:22px 26px; margin-top:18px;}
-.mpc-row{display:grid; grid-template-columns:110px 1fr 170px; gap:16px; align-items:center;
+.mpc-row{display:grid; grid-template-columns:100px 1fr 145px 200px 56px; gap:14px; align-items:center;
   padding:11px 0; border-bottom:1px solid var(--hair);}
+.mpc-row .context{font-size:12px; color:var(--ink2);}
+.mpc-row .srclink{font-size:12px; text-align:right; white-space:nowrap;}
+.mpc-row .srclink a{color:var(--blue); text-decoration:none;}
+.mpc-row .srclink a:hover{text-decoration:underline;}
+.mpc-showmore{width:100%; text-align:center; background:none; border:none;
+  color:var(--blue); font:600 13px "Avenir Next","Avenir","Nunito Sans",sans-serif;
+  padding:12px 0 4px; cursor:pointer;}
+.mpc-showmore:hover{color:var(--navy); text-decoration:underline;}
 .mpc-row:last-child{border-bottom:none;}
 .mpc-row .date{font-size:13px; font-weight:600; color:var(--ink);}
 .mpc-row .bar{display:flex; height:20px; border-radius:5px; overflow:hidden;}
@@ -429,7 +437,9 @@ document.addEventListener("DOMContentLoaded", function(){
   <span id="mpcBannerText">Illustrative — compiled from published BoE decisions, not yet on an automated fetch.</span></div>
   <div class="mpc-latest" id="mpcLatest"></div>
   <div class="mpc-history" id="mpcHistory"></div>
-  <p class="mpc-covnote">Vote counts are the committee's published majority breakdown (how many members backed the decision vs. each alternative). Individual members' names and votes aren't shown &mdash; only aggregate counts sourced directly from the Bank's own figures.</p>
+  <button type="button" class="mpc-showmore" id="mpcShowMore" hidden>Show more meetings</button>
+  <p class="mpc-covnote">Vote counts are the committee's published majority breakdown (how many members backed the decision vs. each alternative). Individual members' names and votes aren't shown &mdash; only aggregate counts sourced directly from the Bank's own figures. Economic context shows the most recently published CPI, GDP growth and unemployment figures as of each meeting date.</p>
+
 </section>
 <section class="sec" id="sec-labour" hidden>
   <div class="hero mini" id="tiles-labour"></div>
@@ -1076,6 +1086,7 @@ function rerender(){
   });
   const displaySeries = buildDisplaySeries(s);
   render({...PAGE_DATA, series: displaySeries});
+  if(typeof window.refreshMPCContext === "function") window.refreshMPCContext();
 }
 
 fetch("data.json",{cache:"no-store"})
@@ -1492,8 +1503,63 @@ function fmtDateShort(iso){
   return d.toLocaleDateString("en-GB", {month:"short", year:"numeric", timeZone:"UTC"});
 }
 
+// BoE's own URL pattern for each meeting's published summary/minutes.
+function mpcMinutesUrl(dateIso){
+  var d = new Date(dateIso + "T00:00:00Z");
+  var monthNames = ["january","february","march","april","may","june","july",
+    "august","september","october","november","december"];
+  var month = monthNames[d.getUTCMonth()];
+  var year = d.getUTCFullYear();
+  return "https://www.bankofengland.co.uk/monetary-policy-summary-and-minutes/" + year + "/" + month + "-" + year;
+}
+
+// Economic context: the most recently PUBLISHED CPI/GDP-growth/unemployment
+// figure as of a given meeting date. Reads PAGE_DATA, which is declared
+// with `let` at the top level of the main render script -- classic
+// (non-module) <script> tags share one global lexical scope, so it's
+// visible here even though this runs inside its own IIFE. Guarded against
+// PAGE_DATA not being ready yet (data.json fetch is async and may resolve
+// after or before this script's own fetch).
+function periodKeyForCompare(dateIso, freq){
+  var year = dateIso.slice(0, 4);
+  var month = parseInt(dateIso.slice(5, 7), 10);
+  if(freq === "quarters") return year + "-Q" + Math.ceil(month / 3);
+  return dateIso.slice(0, 7);
+}
+function contextFor(dateIso){
+  if(typeof PAGE_DATA === "undefined" || !PAGE_DATA || !PAGE_DATA.series) return null;
+  function latestAsOf(seriesKey){
+    var s = PAGE_DATA.series[seriesKey];
+    if(!s || !s.points || !s.points.length) return null;
+    var cmpKey = periodKeyForCompare(dateIso, s.freq);
+    var best = null;
+    for(var i = 0; i < s.points.length; i++){
+      if(s.points[i][0] <= cmpKey) best = s.points[i];
+      else break;
+    }
+    return best;
+  }
+  var cpi = latestAsOf("cpi"), gdp = latestAsOf("gdp_growth"), unemployment = latestAsOf("unemployment");
+  if(!cpi && !gdp && !unemployment) return null;
+  return {cpi: cpi, gdp: gdp, unemployment: unemployment};
+}
+function contextText(dateIso){
+  var ctx = contextFor(dateIso);
+  if(!ctx) return "";
+  var parts = [];
+  if(ctx.cpi) parts.push("CPI " + ctx.cpi[1].toFixed(1) + "%");
+  if(ctx.gdp) parts.push("GDP " + (ctx.gdp[1] >= 0 ? "+" : "") + ctx.gdp[1].toFixed(1) + "%");
+  if(ctx.unemployment) parts.push("U/E " + ctx.unemployment[1].toFixed(1) + "%");
+  return parts.join(" \u00b7 ");
+}
+
+var mpcExpanded = false;
+var MPC_INITIAL_N = 16; // roughly 2 years at 8 meetings/year
+var lastRenderedMeetings = null;
+
 function renderMPC(meetings){
   if(!meetings || !meetings.length) return;
+  lastRenderedMeetings = meetings;
   var latest = meetings[0];
   var action = latest.previous_rate == null ? "held"
     : latest.decision_rate > latest.previous_rate ? "raised"
@@ -1509,21 +1575,31 @@ function renderMPC(meetings){
     var voteLabel = latest.hike && !latest.cut ? (latest.hold + "\u2013" + latest.hike)
       : latest.cut && !latest.hike ? (latest.hold + "\u2013" + latest.cut)
       : (latest.cut + "\u2013" + latest.hold + "\u2013" + latest.hike);
+    var ctxText = contextText(latest.date);
     latestEl.innerHTML =
       "<div class=\"mpc-stat\"><p class=\"k\">Meeting ending</p><p class=\"v\">" + fmtDate(latest.date) + "</p></div>" +
       "<div class=\"mpc-stat\"><p class=\"k\">Bank Rate</p><p class=\"v\">" + latest.decision_rate.toFixed(2) + "% <small>" + action + "</small></p></div>" +
       "<div class=\"mpc-stat\"><p class=\"k\">Vote</p><p class=\"v\">" + voteLabel + "</p></div>" +
+      (ctxText ? "<div class=\"mpc-stat\"><p class=\"k\">Economic context</p><p class=\"v\" style=\"font-size:15px;\">" + ctxText + "</p></div>" : "") +
       "<div class=\"mpc-votebar\" role=\"img\" aria-label=\"" + latest.cut + " members voted to cut, " + latest.hold + " to hold, " + latest.hike + " to raise\">" + voteSegs + "</div>" +
       "<div class=\"mpc-legend\">" +
         "<span><i class=\"mpc-seg-cut\"></i>Voted to cut</span>" +
         "<span><i class=\"mpc-seg-hold\"></i>Voted to hold</span>" +
         "<span><i class=\"mpc-seg-hike\"></i>Voted to raise</span>" +
+        "<span style=\"margin-left:auto;\"><a href=\"" + mpcMinutesUrl(latest.date) + "\" target=\"_blank\" rel=\"noopener\" style=\"color:var(--blue);\">Read the official Summary &amp; minutes \u2192</a></span>" +
       "</div>";
   }
 
+  renderMPCHistory();
+}
+
+function renderMPCHistory(){
+  var meetings = lastRenderedMeetings;
+  if(!meetings) return;
+  var visible = mpcExpanded ? meetings : meetings.slice(0, MPC_INITIAL_N);
   var histEl = document.getElementById("mpcHistory");
   if(histEl){
-    histEl.innerHTML = meetings.map(function(m){
+    histEl.innerHTML = visible.map(function(m){
       var bar = "";
       if(m.cut) bar += "<span class=\"mpc-seg-cut\" style=\"flex:" + m.cut + "\"><span class=\"mpc-arrow\">\u2193</span></span>";
       if(m.hold) bar += "<span class=\"mpc-seg-hold\" style=\"flex:" + m.hold + "\"><span class=\"mpc-arrow\">=</span></span>";
@@ -1538,16 +1614,34 @@ function renderMPC(meetings){
       var votePart = m.hike && !m.cut ? (m.hold + "\u2013" + m.hike)
         : m.cut && !m.hike ? (m.hold + "\u2013" + m.cut)
         : (m.hold + "\u2013" + m.hike + "\u2013" + m.cut);
+      var ctx = contextText(m.date);
       return "<div class=\"mpc-row\">" +
         "<span class=\"date\">" + fmtDateShort(m.date) + "</span>" +
         "<span class=\"bar\">" + bar + "</span>" +
         "<span class=\"result\">" + resultText + " (" + votePart + ")</span>" +
+        "<span class=\"context\">" + ctx + "</span>" +
+        "<span class=\"srclink\"><a href=\"" + mpcMinutesUrl(m.date) + "\" target=\"_blank\" rel=\"noopener\">Minutes \u2192</a></span>" +
         "</div>";
     }).join("");
+  }
+  var moreBtn = document.getElementById("mpcShowMore");
+  if(moreBtn){
+    if(meetings.length <= MPC_INITIAL_N){
+      moreBtn.hidden = true;
+    } else {
+      moreBtn.hidden = false;
+      moreBtn.textContent = mpcExpanded ? "Show fewer meetings"
+        : "Show more meetings (" + (meetings.length - MPC_INITIAL_N) + " earlier)";
+    }
   }
 }
 
 renderMPC(FALLBACK_MEETINGS);
+
+document.getElementById("mpcShowMore").addEventListener("click", function(){
+  mpcExpanded = !mpcExpanded;
+  renderMPCHistory();
+});
 
 fetch("data-uk-mpc-votes.json", {cache:"no-store"})
   .then(function(r){ if(!r.ok) throw new Error(r.status); return r.json(); })
@@ -1560,6 +1654,18 @@ fetch("data-uk-mpc-votes.json", {cache:"no-store"})
     if(bannerText) bannerText.textContent = "";
   })
   .catch(function(){ /* fallback already rendered */ });
+
+// The economic-context lookup needs PAGE_DATA (from the main script's own
+// data.json fetch), which resolves independently and isn't guaranteed to
+// be ready before this script's own fetch completes. This function is a
+// plain top-level declaration, so -- like PAGE_DATA itself -- it's visible
+// from the main script's rerender() via the shared global scope, letting
+// it ask this block to redraw with context once real data lands, however
+// the two fetches happen to race.
+function refreshMPCContext(){
+  if(lastRenderedMeetings) renderMPC(lastRenderedMeetings);
+}
+window.refreshMPCContext = refreshMPCContext;
 })();
 </script>
 
