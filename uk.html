@@ -1085,8 +1085,19 @@ function metricLabel(){
 }
 
 function computeScales(){
-  var minV = d3.min(PARTNERS, metricValue);
-  var maxV = d3.max(PARTNERS, metricValue);
+  // Domain is calibrated to the DISPLAYED set (top 50), not the full
+  // fetched dataset (up to ~230 partners down to $0.0bn). Confirmed live
+  // (screenshot review, 2026-07-20): using the full dataset's floor
+  // compressed nearly every displayed country below the top 3 into the
+  // same barely-differentiated pale colour, since the meaningful range
+  // (USA's ~$200bn down to ~50th place) was a tiny sliver of a domain
+  // stretching all the way to near-zero. Still linear -- the log-scale
+  // attempt was reverted per direct feedback, this is a narrower, less
+  // invasive fix that targets the actual visible problem.
+  var top = PARTNERS.slice().sort(function(a,b){ return metricValue(b) - metricValue(a); })
+    .slice(0, GEO_TOP_N);
+  var minV = d3.min(top, metricValue);
+  var maxV = d3.max(top, metricValue);
   colorScale = d3.scaleSequential(function(t){
     return d3.interpolateRgbBasis(["#DEF5E5","#8AD9B1","#40B7AD","#348FA7","#37659E","#413D7B","#2E1E3B"])(t);
   }).domain([minV, maxV]);
