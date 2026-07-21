@@ -25,7 +25,8 @@ workbook. It's:
   - A "Dataset identifier code" row gives each category column a stable
     ONS series code -- these are used as the anchor instead of label
     text, since they're less ambiguous:
-      LF66 = Student
+      LF64 = Student
+      LF66 = Looking after family / home
       LF68 = Temp sick
       LF6A = Long-term sick
       LFM3 = Discouraged workers
@@ -59,7 +60,8 @@ DATASET_PAGE = ("https://www.ons.gov.uk/employmentandlabourmarket/peoplenotinwor
 # (2026-07-21) against the actual "Dataset identifier code" row in the
 # real workbook, not guessed.
 CODE_TO_CATEGORY = {
-    "LF66": "student",
+    "LF64": "student",
+    "LF66": "looking_after_family",
     "LF6A": "long_term_sick",   # summed with LF68 below
     "LF68": "long_term_sick",
     "LFM3": "other",            # "discouraged workers" folded into other
