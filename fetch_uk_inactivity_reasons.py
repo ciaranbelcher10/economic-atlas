@@ -77,7 +77,7 @@ def _grid_from_xlrd(sheet):
     return grid
 
 
-def _parse_grid(grid: list[list]) -> dict | None:
+def _parse_grid(grid: list[list], quiet: bool = False) -> dict | None:
     """Shared parsing logic once a sheet has been reduced to a plain 2D
     list -- works the same regardless of which library opened the file."""
     found = {}
@@ -100,11 +100,12 @@ def _parse_grid(grid: list[list]) -> dict | None:
                         print(f"  [inac01] matched '{key}' at row {r+1} -> {last_val}")
 
     if len(found) < 3:
-        print(f"  [inac01] only matched {len(found)}/5 categories via label search — "
-              f"dumping first 30 rows, cols 1-10 for diagnosis:")
-        for r in range(min(30, len(grid))):
-            vals = [repr(v) for v in grid[r][:10]]
-            print(f"  [inac01] row {r+1}: {vals}")
+        if not quiet:
+            print(f"  [inac01] only matched {len(found)}/5 categories via label search — "
+                  f"dumping first 30 rows, cols 1-10 for diagnosis:")
+            for r in range(min(30, len(grid))):
+                vals = [repr(v) for v in grid[r][:10]]
+                print(f"  [inac01] row {r+1}: {vals}")
         return None
 
     total = sum(found.values())
@@ -168,13 +169,47 @@ def fetch_and_parse() -> dict | None:
         print(f"  [inac01] openpyxl couldn't open it ({exc}) — trying xlrd "
               f"(likely genuine legacy .xls format)")
 
-    if grid is None:
+    # CONFIRMED live (2026-07-20): the real file genuinely is legacy .xls
+    # format (openpyxl correctly rejected it as "not a zip file"), and its
+    # FIRST sheet is called "Note" -- a 7-row data-quality disclaimer, not
+    # the data table. Both engines below now try every sheet in turn
+    # rather than assuming sheet 0 is the data, same fix as needed for the
+    # COFOG workbook.
+    engine_used = None
+    sheets_tried = []
+    try:
+        import openpyxl
+        wb = openpyxl.load_workbook(io.BytesIO(xls_r.content), data_only=True)
+        print(f"  [inac01] opened via openpyxl, sheets: {wb.sheetnames}")
+        for sheet_name in wb.sheetnames:
+            ws = wb[sheet_name]
+            print(f"  [inac01] trying sheet '{sheet_name}': {ws.max_row} rows x {ws.max_column} cols")
+            grid = _grid_from_openpyxl(ws)
+            result = _parse_grid(grid, quiet=True)
+            sheets_tried.append(sheet_name)
+            if result:
+                return result
+        grid = None
+    except ImportError:
+        print("  [inac01] openpyxl not installed — skipping straight to xlrd")
+        grid = None
+    except Exception as exc:
+        print(f"  [inac01] openpyxl couldn't open it ({exc}) — trying xlrd "
+              f"(likely genuine legacy .xls format)")
+        grid = None
+
+    if grid is None and not sheets_tried:
         try:
             import xlrd
             book = xlrd.open_workbook(file_contents=xls_r.content)
-            sheet = book.sheet_by_index(0)
-            print(f"  [inac01] opened via xlrd, sheet '{sheet.name}': {sheet.nrows} rows x {sheet.ncols} cols")
-            grid = _grid_from_xlrd(sheet)
+            print(f"  [inac01] opened via xlrd, sheets: {book.sheet_names()}")
+            for sheet_name in book.sheet_names():
+                sheet = book.sheet_by_name(sheet_name)
+                print(f"  [inac01] trying sheet '{sheet_name}': {sheet.nrows} rows x {sheet.ncols} cols")
+                grid = _grid_from_xlrd(sheet)
+                result = _parse_grid(grid, quiet=True)
+                if result:
+                    return result
         except ImportError:
             print("  [inac01] xlrd not installed either — add it alongside openpyxl "
                   "if the file turns out to be genuine legacy .xls")
@@ -183,7 +218,12 @@ def fetch_and_parse() -> dict | None:
             print(f"  [inac01] xlrd also failed to open it: {exc2}")
             return None
 
-    return _parse_grid(grid)
+    print("  [inac01] no sheet matched enough reason-category labels — "
+          "dumping first 30 rows, cols 1-10 of the last sheet tried for diagnosis:")
+    for r in range(min(30, len(grid))):
+        vals = [repr(v) for v in grid[r][:10]]
+        print(f"  [inac01] row {r+1}: {vals}")
+    return None
 
 
 def main() -> int:

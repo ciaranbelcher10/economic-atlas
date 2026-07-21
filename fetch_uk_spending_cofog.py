@@ -54,9 +54,9 @@ COFOG_LABELS = {
     "public_order_safety": ["public order and safety"],
     "economic_affairs": ["economic affairs"],
     "environmental_protection": ["environmental protection"],
-    "housing_community": ["housing and community amenities"],
+    "housing_community": ["housing and community amenities", "housing and community", "housing"],
     "health": ["health"],
-    "recreation_culture": ["recreation, culture and religion", "recreation culture and religion"],
+    "recreation_culture": ["recreation, culture and religion", "recreation culture and religion", "recreation"],
     "education": ["education"],
     "social_protection": ["social protection"],
 }
@@ -128,11 +128,21 @@ def fetch_and_parse() -> dict | None:
         return None
 
     print(f"  [cofog] sheets: {wb.sheetnames}")
-    # Try every sheet, not just the first -- COFOG workbooks sometimes
-    # split central/local/general government across separate tabs, and
-    # this dataset is specifically the "general government" edition, which
-    # may not necessarily be the first sheet.
-    for sheet_name in wb.sheetnames:
+    # CONFIRMED live (2026-07-21): this workbook has one sheet PER YEAR
+    # ('1995', '1996', ... '2024'), plus some non-year cover/notes sheets.
+    # Trying sheets in file order and taking the first match picked up
+    # 1995 -- the earliest year, not the most recent -- since it happened
+    # to satisfy the "matched >=6 categories" threshold first. Sort
+    # year-named sheets numerically descending and try the most recent
+    # year first; only fall through to non-year sheets (or older years)
+    # if that somehow fails.
+    year_sheets = sorted(
+        (s for s in wb.sheetnames if s.strip().isdigit()),
+        key=lambda s: int(s), reverse=True
+    )
+    other_sheets = [s for s in wb.sheetnames if s not in year_sheets]
+    ordered_sheets = year_sheets + other_sheets
+    for sheet_name in ordered_sheets:
         ws = wb[sheet_name]
         print(f"  [cofog] trying sheet '{sheet_name}': {ws.max_row} rows x {ws.max_column} cols")
         grid = _grid_from_openpyxl(ws)
@@ -152,6 +162,7 @@ def main() -> int:
 
     out = {
         "updated": datetime.now(timezone.utc).strftime("%Y-%m-%dT%H:%M:%SZ"),
+        "year": result.get("sheet"),
         "source": "ONS, General government annual expenditure: ESA Table 11 (COFOG)",
         "frequency_note": "Annual, with a real lag behind the publication date -- not comparable "
                            "in freshness to the site's monthly/quarterly series.",
