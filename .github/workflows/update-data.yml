@@ -26,7 +26,7 @@ jobs:
       - uses: actions/setup-python@v5
         with:
           python-version: "3.12"
-      - run: pip install requests openpyxl
+      - run: pip install requests openpyxl xlrd
       - run: python fetch_data.py
         env:
           FRED_API_KEY: ${{ secrets.FRED_API_KEY }}
@@ -76,6 +76,8 @@ jobs:
         env:
           COMTRADE_API_KEY: ${{ secrets.COMTRADE_API_KEY }}
       - run: python fetch_boe_mpc.py
+      - run: python fetch_uk_inactivity_reasons.py
+      - run: python fetch_uk_spending_cofog.py
       - name: Commit updated data
         run: |
           git config user.name "data-bot"
@@ -89,5 +91,7 @@ jobs:
           git add data-au-trade-partners.json 2>/dev/null || true
           git add data-kr-trade-partners.json 2>/dev/null || true
           git add data-uk-mpc-votes.json 2>/dev/null || true
+          git add data-uk-inactivity-reasons.json 2>/dev/null || true
+          git add data-uk-spending-cofog.json 2>/dev/null || true
           git diff --cached --quiet || git commit -m "Refresh data"
           git push
