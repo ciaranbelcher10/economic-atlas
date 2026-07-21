@@ -73,6 +73,12 @@ nav.cat button.active{background:var(--blue); border-color:var(--blue); color:#f
 .reasonlegend i{width:10px; height:10px; border-radius:3px; display:inline-block;}
 
 .cofog-layout{display:flex; gap:28px; align-items:center; flex-wrap:wrap; margin:6px 0 4px;}
+.cofog-toggle{display:flex; gap:6px; margin:0 0 14px;}
+.cofogtbtn{border:1px solid var(--hair); background:var(--panel); color:var(--ink2);
+  font:600 12px "Avenir Next","Avenir","Nunito Sans",sans-serif; padding:6px 14px;
+  border-radius:999px; cursor:pointer;}
+.cofogtbtn:hover{border-color:var(--blue); color:var(--navy);}
+.cofogtbtn.active{background:var(--blue); border-color:var(--blue); color:#fff;}
 .cofog-chartbox{flex:1 1 280px; max-width:320px; position:relative; height:280px;}
 .cofog-list{flex:1 1 320px; list-style:none; padding:0; margin:0;}
 .cofog-row{display:flex; align-items:center; gap:10px; padding:9px 0; border-bottom:1px solid var(--hair);
@@ -603,6 +609,10 @@ document.addEventListener("DOMContentLoaded", function(){
   <div class="depth-head"><h3>Where public money goes</h3></div>
   <div class="depth-banner" id="cofogBanner"><span class="dot2" aria-hidden="true"></span>
   <span id="cofogBannerText">Illustrative — approximate spending shares, not a live feed.</span></div>
+  <div class="cofog-toggle" id="cofogToggle">
+    <button type="button" class="cofogtbtn active" data-mode="total">% of total spending</button>
+    <button type="button" class="cofogtbtn" data-mode="gdp">% of GDP</button>
+  </div>
   <div class="cofog-layout">
     <div class="cofog-chartbox">
       <canvas id="cofogPie"></canvas>
@@ -2080,12 +2090,31 @@ var COFOG_FALLBACK = [
 ];
 
 var cofogChart = null;
-function renderCofogPie(categories){
+var cofogCurrentCategories = null;
+var cofogCurrentYear = null;
+var cofogMode = "total"; // "total" | "gdp"
+
+function annualGdpForYear(year){
+  if(!year || typeof PAGE_DATA === "undefined" || !PAGE_DATA || !PAGE_DATA.series) return null;
+  var s = PAGE_DATA.series.gdp_level;
+  if(!s) return null;
+  var yearPts = s.points.filter(function(p){ return p[0].slice(0, 4) === String(year); });
+  if(yearPts.length < 4) return null; // need a full calendar year of quarters
+  return yearPts.reduce(function(sum, p){ return sum + p[1]; }, 0);
+}
+
+function renderCofogPie(categories, year){
   var canvas = document.getElementById("cofogPie");
   var listEl = document.getElementById("cofogList");
   if(!canvas || !listEl || typeof Chart === "undefined") return;
+  cofogCurrentCategories = categories;
+  cofogCurrentYear = year;
+
   var sorted = categories.slice().sort(function(a, b){ return b.value - a.value; });
-  var total = sorted.reduce(function(s, c){ return s + c.value; }, 0);
+  var totalSpending = sorted.reduce(function(s, c){ return s + c.value; }, 0);
+  var gdp = annualGdpForYear(year);
+  var denominator = cofogMode === "gdp" ? gdp : totalSpending;
+  var denomLabel = cofogMode === "gdp" ? "of GDP" : "of total";
   var labels = sorted.map(function(c){ return COFOG_LABELS_DISPLAY[c.key] || c.key; });
   var values = sorted.map(function(c){ return c.value; });
   var colors = sorted.map(function(c, i){ return COFOG_COLORS[i % COFOG_COLORS.length]; });
@@ -2104,8 +2133,8 @@ function renderCofogPie(categories){
           callbacks: {
             label: function(ctx){
               var v = ctx.parsed;
-              var pct = total ? (v / total * 100).toFixed(1) : "0.0";
-              return curFmt(v, "£m", 1) + " (" + pct + "% of total)";
+              var pct = denominator ? (v / denominator * 100).toFixed(1) : "n/a";
+              return curFmt(v, "£m", 1) + " (" + pct + "% " + denomLabel + ")";
             }
           }
         }
@@ -2114,17 +2143,31 @@ function renderCofogPie(categories){
   });
 
   listEl.innerHTML = sorted.map(function(c, i){
-    var pct = total ? (c.value / total * 100) : 0;
+    var pct = denominator ? (c.value / denominator * 100) : null;
     var label = COFOG_LABELS_DISPLAY[c.key] || c.key;
     return "<li class=\"cofog-row\">"
       + "<span class=\"cofog-swatch\" style=\"background:" + colors[i] + ";\"></span>"
       + "<span class=\"cofog-name\">" + label + "</span>"
       + "<span class=\"cofog-value\">" + curFmt(c.value, "£m", 1) + "</span>"
-      + "<span class=\"cofog-share\">" + pct.toFixed(1) + "%</span></li>";
+      + "<span class=\"cofog-share\">" + (pct == null ? "n/a" : pct.toFixed(1) + "%") + "</span></li>";
   }).join("");
 }
 
-renderCofogPie(COFOG_FALLBACK);
+document.addEventListener("DOMContentLoaded", function(){
+  var toggle = document.getElementById("cofogToggle");
+  if(!toggle) return;
+  var buttons = toggle.querySelectorAll("button[data-mode]");
+  buttons.forEach(function(btn){
+    btn.addEventListener("click", function(){
+      buttons.forEach(function(b){ b.classList.remove("active"); });
+      btn.classList.add("active");
+      cofogMode = btn.dataset.mode;
+      if(cofogCurrentCategories) renderCofogPie(cofogCurrentCategories, cofogCurrentYear);
+    });
+  });
+});
+
+renderCofogPie(COFOG_FALLBACK, null);
 
 fetch("data-uk-spending-cofog.json", {cache: "no-store"})
   .then(function(r){ if(!r.ok) throw new Error(r.status); return r.json(); })
@@ -2141,12 +2184,12 @@ fetch("data-uk-spending-cofog.json", {cache: "no-store"})
       var annualTotal = last12.reduce(function(s, p){ return s + p[1]; }, 0);
       categories.push({key: "debt_interest", value: annualTotal});
     }
-    renderCofogPie(categories);
+    renderCofogPie(categories, payload.year);
     var banner = document.getElementById("cofogBanner");
     if(banner) banner.hidden = true;
     var secnote = document.getElementById("cofogSecnote");
     if(secnote) secnote.textContent = "Annual data (" + (payload.year || "latest available year")
-      + "), published with a real lag behind the current date — not comparable in freshness to the monthly/quarterly series above. Debt interest is added from the site's own monthly series (last 12 months), since COFOG classifies it separately from functional spending categories.";
+      + "), published with a real lag behind the current date — not comparable in freshness to the monthly/quarterly series above. Debt interest is added from the site's own monthly series (last 12 months), since COFOG classifies it separately from functional spending categories. \"% of GDP\" uses that year's annual nominal GDP (ONS YBHA, four quarters summed).";
   })
   .catch(function(){ /* fallback already rendered */ });
 })();
