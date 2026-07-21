@@ -35,6 +35,54 @@ nav.cat button.active{background:var(--blue); border-color:var(--blue); color:#f
   padding:12px 16px; background:var(--panel); border:1px dashed #C9CEC8; border-radius:10px;}
 .sec[hidden]{display:none;}
 
+/* Depth-pass modules: inactivity-by-reason, spending-by-category (v9.4.0) */
+.secsub2{color:var(--ink2); font-size:13.5px; margin:0 0 14px; max-width:70ch;}
+.tag{display:inline-block; font-size:10px; font-weight:700; text-transform:uppercase; letter-spacing:.03em;
+  padding:2px 7px; border-radius:5px; margin-left:6px;}
+.tag.real{background:#E3F2E8; color:#1E6B3E;}
+.tag.approx{background:#F3EEE0; color:#8A6D1E;}
+
+.agegrid{display:grid; grid-template-columns:repeat(4,1fr); gap:14px; margin-bottom:8px;}
+.agecard{background:var(--panel); border:1px solid var(--hair); border-radius:14px; padding:18px 16px;}
+.agecard.approx{border-style:dashed;}
+.agecard .band{font-size:12px; font-weight:700; color:var(--ink2); text-transform:uppercase; letter-spacing:.03em;}
+.agecard .u{font-size:22px; font-weight:700; color:var(--navy); margin:8px 0 2px;}
+.agecard .ulabel{font-size:11.5px; color:var(--ink2);}
+.agecard .i{font-size:15px; font-weight:600; color:#37659E; margin-top:10px;}
+.agecard .ilabel{font-size:11px; color:var(--ink2);}
+
+.statrow{display:flex; gap:14px; flex-wrap:wrap; margin-bottom:8px;}
+.statcard{background:var(--panel); border:1px solid var(--hair); border-radius:14px;
+  padding:20px 22px; flex:1 1 220px;}
+.statcard .k{font-size:12px; font-weight:700; color:var(--ink2); text-transform:uppercase; letter-spacing:.03em;}
+.statcard .v{font-size:24px; font-weight:700; color:var(--navy); margin:8px 0 2px;}
+.statcard .d{font-size:12.5px; color:var(--ink2);}
+.depth-head{display:flex; align-items:baseline; justify-content:space-between; margin:30px 0 14px;}
+.depth-head h3{font-size:17px; margin:0;}
+.depth-banner{display:flex; align-items:center; gap:10px; background:#FBF3E4; color:#8A5A1E;
+  border:1px solid #EFDBAF; border-radius:10px; padding:10px 15px; margin:0 0 16px;
+  font-size:13px; font-weight:600;}
+.depth-banner .dot2{width:8px; height:8px; border-radius:50%; background:#E39B2D; flex:none;}
+.depth-banner[hidden]{display:none;}
+
+.reasonbar{display:flex; height:48px; border-radius:10px; overflow:hidden; margin:6px 0 12px;}
+.reasonbar div{display:flex; align-items:center; justify-content:center; color:#fff;
+  font-size:12.5px; font-weight:700;}
+.reasonlegend{display:flex; flex-wrap:wrap; gap:16px; font-size:12.5px; color:var(--ink2);}
+.reasonlegend span{display:inline-flex; align-items:center; gap:6px;}
+.reasonlegend i{width:10px; height:10px; border-radius:3px; display:inline-block;}
+
+.cofog-layout{display:flex; gap:28px; align-items:center; flex-wrap:wrap; margin:6px 0 4px;}
+.cofog-chartbox{flex:1 1 280px; max-width:320px; position:relative; height:280px;}
+.cofog-list{flex:1 1 320px; list-style:none; padding:0; margin:0;}
+.cofog-row{display:flex; align-items:center; gap:10px; padding:9px 0; border-bottom:1px solid var(--hair);
+  font-size:13.5px;}
+.cofog-row:last-child{border-bottom:none;}
+.cofog-swatch{width:11px; height:11px; border-radius:3px; flex:none;}
+.cofog-name{flex:1; font-weight:600; min-width:0; overflow:hidden; text-overflow:ellipsis; white-space:nowrap;}
+.cofog-value{font-weight:700; white-space:nowrap;}
+.cofog-share{color:var(--ink2); font-size:12px; white-space:nowrap; width:44px; text-align:right;}
+
 /* Chart interactivity (v9.2.0) */
 .panelhead{display:flex; align-items:flex-start; justify-content:space-between; gap:10px;}
 .panelhead h2{margin:0;}
@@ -482,7 +530,17 @@ document.addEventListener("DOMContentLoaded", function(){
   <div class="hero mini" id="tiles-labour"></div>
   <p class="lightskey compact" aria-label="Key to freshness lights"><span><span class="led green" aria-hidden="true"></span>&nbsp;updated on schedule</span><span><span class="led orange" aria-hidden="true"></span>&nbsp;awaiting next release</span></p>
   <div class="grid" id="charts-labour"></div>
-  <p class="secnote">On the roadmap: unemployment and inactivity broken down by age group and sector.</p>
+
+  <div class="depth-head"><h3>By age group</h3></div>
+  <p class="secsub2">Unemployment and inactivity vary enormously by age — youth unemployment in particular runs at roughly triple the all-ages rate.</p>
+  <div class="agegrid" id="ageGrid"></div>
+
+  <div class="depth-head"><h3>Why people are economically inactive</h3></div>
+  <div class="depth-banner" id="inacBanner"><span class="dot2" aria-hidden="true"></span>
+  <span id="inacBannerText">Illustrative — approximate reasons for inactivity, not a live feed.</span></div>
+  <div class="reasonbar" id="reasonBar" role="img" aria-label="Reasons for economic inactivity"></div>
+  <div class="reasonlegend" id="reasonLegend"></div>
+  <p class="secnote">On the roadmap: unemployment and inactivity broken down further by age group, once a fuller ONS series (A05 SA) is sourced.</p>
 </section>
 <section class="sec" id="sec-trade" hidden>
   <div class="hero mini" id="tiles-trade"></div>
@@ -538,7 +596,20 @@ document.addEventListener("DOMContentLoaded", function(){
   <div class="hero mini" id="tiles-public"></div>
   <p class="lightskey compact" aria-label="Key to freshness lights"><span><span class="led green" aria-hidden="true"></span>&nbsp;updated on schedule</span><span><span class="led orange" aria-hidden="true"></span>&nbsp;awaiting next release</span></p>
   <div class="grid" id="charts-public"></div>
-  <p class="secnote">On the roadmap: total debt stock, debt interest as a share of government spending (UK Debt Management Office), and a breakdown of where public money goes.</p>
+
+  <div class="depth-head"><h3>The debt in context</h3></div>
+  <div class="statrow" id="debtStatRow"></div>
+
+  <div class="depth-head"><h3>Where public money goes</h3></div>
+  <div class="depth-banner" id="cofogBanner"><span class="dot2" aria-hidden="true"></span>
+  <span id="cofogBannerText">Illustrative — approximate spending shares, not a live feed.</span></div>
+  <div class="cofog-layout">
+    <div class="cofog-chartbox">
+      <canvas id="cofogPie"></canvas>
+    </div>
+    <ol class="cofog-list" id="cofogList"></ol>
+  </div>
+  <p class="secnote" id="cofogSecnote">Annual data, published with a real lag behind the current date — not comparable in freshness to the monthly/quarterly series above.</p>
 </section>
 
 <footer>
@@ -1051,6 +1122,9 @@ function render(data){
   if(s.inactivity) chartPanel("inactivity","charts-labour","Economic inactivity rate",
     "The share of working-age people neither working nor looking for work — including students, carers and the long-term sick.",
     s.inactivity,"line",v=>v+"%",pct,"ONS series LF2S (LMS) · aged 16 to 64, SA");
+  if(s.unemployment_1624) chartPanel("unemployment_1624","charts-labour","Unemployment rate, aged 16-24",
+    "Youth unemployment runs at roughly three times the all-ages rate, and moves more sharply with the economic cycle.",
+    s.unemployment_1624,"line",v=>v+"%",pct,"ONS series MGWY (LMS) · aged 16 to 24, SA");
 
   if(s.trade_balance) chartPanel("trade_balance","charts-trade","Trade balance",
     "Exports minus imports each month. Below zero means the UK buys more from abroad than it sells.",
@@ -1071,6 +1145,12 @@ function render(data){
   if(s.debt_gdp) chartPanel("debt_gdp","charts-public","Public sector net debt, % of GDP",
     "Everything the government owes, compared with the size of the economy.",
     s.debt_gdp,"line",v=>v+"%",pct,"ONS series HF6X (PUSF) · excluding public sector banks, NSA");
+  if(s.net_debt) chartPanel("net_debt","charts-public","Public sector net debt, £bn",
+    "The actual debt stock in pounds, rather than as a share of GDP.",
+    s.net_debt,"line",v=>curFmt(v,s.net_debt.unit,0),v=>curFmt(v,s.net_debt.unit,1),"ONS series HF6W (PUSF) · excluding public sector banks, NSA");
+  if(s.debt_interest) chartPanel("debt_interest","charts-public","Debt interest",
+    "What the government pays each month to service its existing debt, mostly to gilt holders.",
+    s.debt_interest,"bar",v=>curFmt(v,s.debt_interest.unit,0),v=>curFmt(v,s.debt_interest.unit,1),"ONS series NMFX (PUSF) · central government, net interest payable",undefined,0);
   if(s.deficit) chartPanel("deficit","charts-public","Public sector net borrowing",
     "How much the government borrows each month to cover the gap between spending and tax. Seasonal swings are normal.",
     s.deficit,"bar",v=>curFmt(v,s.deficit.unit,0),v=>curFmt(v,s.deficit.unit,1),"ONS series DZLS (PUSF) · excluding public sector banks, monthly",2005,0);
@@ -1238,6 +1318,7 @@ function rerender(){
   const displaySeries = buildDisplaySeries(s);
   render({...PAGE_DATA, series: displaySeries});
   if(typeof window.refreshMPCContext === "function") window.refreshMPCContext();
+  if(typeof window.refreshDepthPass === "function") window.refreshDepthPass();
 }
 
 fetch("data.json",{cache:"no-store"})
@@ -1844,6 +1925,232 @@ window.refreshMPCContext = refreshMPCContext;
     <p class="chart-modal-src" id="chartModalSrc"></p>
   </div>
 </div>
+
+<script>
+(function(){
+"use strict";
+
+/* -------------------------------- By age group --------------------------- */
+// 16-24 unemployment is real (ONS MGWY, already fetched). Everything else
+// in this grid is illustrative -- no confirmed ONS series sourced yet for
+// 25-49/50-64/65+ breakdowns, or for 16-24's inactivity rate specifically
+// (only its unemployment rate has a confirmed series so far). The 39.8%
+// figure for 16-24 inactivity is real but not live-fetched -- a fixed
+// reference point from published Commons Library research, not invented.
+var AGE_BANDS = [
+  {band: "16\u201324", seriesKey: "unemployment_1624", illustrativeInactivity: 39.8, inactivityIsReal: true},
+  {band: "25\u201349", illustrativeUnemployment: 3.2, illustrativeInactivity: 14},
+  {band: "50\u201364", illustrativeUnemployment: 3.5, illustrativeInactivity: 27},
+  {band: "65+", noUnemployment: true, illustrativeInactivity: 89}
+];
+
+function renderAgeGrid(){
+  var el = document.getElementById("ageGrid");
+  if(!el) return;
+  var hasPageData = typeof PAGE_DATA !== "undefined" && PAGE_DATA && PAGE_DATA.series;
+  el.innerHTML = AGE_BANDS.map(function(b){
+    var uVal, uTag, isCardApprox;
+    if(b.noUnemployment){
+      uVal = "n/a"; uTag = ""; isCardApprox = true;
+    } else if(b.seriesKey && hasPageData && PAGE_DATA.series[b.seriesKey]){
+      var pts = PAGE_DATA.series[b.seriesKey].points;
+      uVal = pts[pts.length - 1][1].toFixed(1) + "%";
+      uTag = "<span class=\"tag real\">REAL</span>";
+      isCardApprox = false;
+    } else {
+      uVal = "~" + (b.illustrativeUnemployment != null ? b.illustrativeUnemployment : "?") + "%";
+      uTag = "<span class=\"tag approx\">APPROX</span>";
+      isCardApprox = true;
+    }
+    var iVal = b.illustrativeInactivity + "%";
+    var iTag = b.inactivityIsReal ? "" : " (illustrative)";
+    return "<div class=\"agecard" + (isCardApprox ? " approx" : "") + "\">"
+      + "<p class=\"band\">" + b.band + "</p>"
+      + "<p class=\"u\">" + uVal + uTag + "</p>"
+      + "<p class=\"ulabel\">" + (b.noUnemployment ? "not economically active by default" : "unemployment rate") + "</p>"
+      + "<p class=\"i\">" + iVal + "</p>"
+      + "<p class=\"ilabel\">inactivity rate" + iTag + "</p>"
+      + "</div>";
+  }).join("");
+}
+
+/* ------------------------------ Debt in context --------------------------- */
+function renderDebtStatRow(){
+  var el = document.getElementById("debtStatRow");
+  if(!el || typeof PAGE_DATA === "undefined" || !PAGE_DATA || !PAGE_DATA.series) return;
+  var s = PAGE_DATA.series;
+  var html = "";
+  if(s.net_debt){
+    var pts = s.net_debt.points, last = pts[pts.length - 1];
+    html += "<div class=\"statcard\"><p class=\"k\">Net debt</p><p class=\"v\">"
+      + curFmt(last[1], s.net_debt.unit, 0) + "<span class=\"tag real\">REAL</span></p>"
+      + "<p class=\"d\">" + fmtPeriod(last[0]) + " \u00b7 ONS HF6W</p></div>";
+  }
+  if(s.debt_gdp){
+    var pts2 = s.debt_gdp.points, last2 = pts2[pts2.length - 1];
+    html += "<div class=\"statcard\"><p class=\"k\">As a share of GDP</p><p class=\"v\">"
+      + last2[1].toFixed(1) + "%</p><p class=\"d\">" + fmtPeriod(last2[0]) + " \u00b7 ONS HF6X</p></div>";
+  }
+  if(s.debt_interest){
+    var pts3 = s.debt_interest.points, last12 = pts3.slice(-12);
+    var annual = last12.reduce(function(sum, p){ return sum + p[1]; }, 0);
+    html += "<div class=\"statcard\"><p class=\"k\">Debt interest, last 12 months</p><p class=\"v\">"
+      + curFmt(annual, s.debt_interest.unit, 0) + "<span class=\"tag real\">REAL</span></p>"
+      + "<p class=\"d\">ONS NMFX, monthly figures summed</p></div>";
+  }
+  if(html) el.innerHTML = html;
+}
+
+function refreshDepthPass(){
+  renderAgeGrid();
+  renderDebtStatRow();
+}
+window.refreshDepthPass = refreshDepthPass;
+refreshDepthPass();
+
+/* ---------------------- Why people are inactive ------------------------ */
+var REASON_LABELS_DISPLAY = {
+  long_term_sick: "Long-term/temporary sickness", student: "Student",
+  looking_after_family: "Looking after family/home", retired: "Retired", other: "Other"
+};
+var REASON_COLORS = ["#413D7B", "#37659E", "#348FA7", "#40B7AD", "#8AD9B1"];
+// Fallback: real published ONS figures (INAC01 SA, Q4 2025), not invented.
+var REASON_FALLBACK = [
+  {key: "long_term_sick", share_pct: 33.0},
+  {key: "student", share_pct: 26.8},
+  {key: "looking_after_family", share_pct: 17.1},
+  {key: "retired", share_pct: 11.3},
+  {key: "other", share_pct: 11.8}
+];
+
+function renderReasonBar(reasons){
+  var bar = document.getElementById("reasonBar");
+  var legend = document.getElementById("reasonLegend");
+  if(!bar || !legend) return;
+  var sorted = reasons.slice().sort(function(a, b){ return b.share_pct - a.share_pct; });
+  bar.innerHTML = sorted.map(function(r, i){
+    var color = REASON_COLORS[i % REASON_COLORS.length];
+    var textColor = i >= 4 ? "color:var(--ink);" : "";
+    return "<div style=\"flex:" + r.share_pct + "; background:" + color + ";" + textColor + "\">"
+      + r.share_pct.toFixed(1) + "%</div>";
+  }).join("");
+  legend.innerHTML = sorted.map(function(r, i){
+    var label = REASON_LABELS_DISPLAY[r.key] || r.key;
+    return "<span><i style=\"background:" + REASON_COLORS[i % REASON_COLORS.length] + ";\"></i>" + label + "</span>";
+  }).join("");
+}
+
+renderReasonBar(REASON_FALLBACK);
+
+fetch("data-uk-inactivity-reasons.json", {cache: "no-store"})
+  .then(function(r){ if(!r.ok) throw new Error(r.status); return r.json(); })
+  .then(function(payload){
+    if(!payload || !Array.isArray(payload.reasons) || !payload.reasons.length) return;
+    renderReasonBar(payload.reasons);
+    var banner = document.getElementById("inacBanner");
+    if(banner) banner.hidden = true;
+  })
+  .catch(function(){ /* fallback already rendered */ });
+
+/* -------------------------- Where money goes ---------------------------- */
+var COFOG_LABELS_DISPLAY = {
+  general_public_services: "General public services", defence: "Defence",
+  public_order_safety: "Public order & safety", economic_affairs: "Economic affairs",
+  environmental_protection: "Environmental protection", housing_community: "Housing & community amenities",
+  health: "Health", recreation_culture: "Recreation, culture & religion",
+  education: "Education", social_protection: "Social protection", debt_interest: "Debt interest"
+};
+var COFOG_COLORS = ["#2E1E3B", "#413D7B", "#37659E", "#348FA7", "#40B7AD", "#8AD9B1", "#DEF5E5",
+                     "#A9C9E0", "#C9B8DB", "#E8C9A0", "#D97D6C"];
+// Fallback: illustrative only, order of categories matches well-documented
+// reality (social protection largest, then health, education, debt
+// interest as a top-4 item) but exact percentages are placeholders.
+var COFOG_FALLBACK = [
+  {key: "social_protection", value: 300000},
+  {key: "health", value: 215000},
+  {key: "education", value: 108000},
+  {key: "debt_interest", value: 88000},
+  {key: "economic_affairs", value: 55000},
+  {key: "general_public_services", value: 49000},
+  {key: "defence", value: 46000},
+  {key: "public_order_safety", value: 38000},
+  {key: "housing_community", value: 20000},
+  {key: "recreation_culture", value: 16000},
+  {key: "environmental_protection", value: 14000}
+];
+
+var cofogChart = null;
+function renderCofogPie(categories){
+  var canvas = document.getElementById("cofogPie");
+  var listEl = document.getElementById("cofogList");
+  if(!canvas || !listEl || typeof Chart === "undefined") return;
+  var sorted = categories.slice().sort(function(a, b){ return b.value - a.value; });
+  var total = sorted.reduce(function(s, c){ return s + c.value; }, 0);
+  var labels = sorted.map(function(c){ return COFOG_LABELS_DISPLAY[c.key] || c.key; });
+  var values = sorted.map(function(c){ return c.value; });
+  var colors = sorted.map(function(c, i){ return COFOG_COLORS[i % COFOG_COLORS.length]; });
+
+  if(cofogChart) cofogChart.destroy();
+  cofogChart = new Chart(canvas, {
+    type: "pie",
+    data: {labels: labels, datasets: [{data: values, backgroundColor: colors, borderColor: "#fff", borderWidth: 2}]},
+    options: {
+      responsive: true, maintainAspectRatio: false,
+      plugins: {
+        legend: {display: false},
+        tooltip: {
+          backgroundColor: "#fff", titleColor: "#171B1E", bodyColor: "#171B1E",
+          borderColor: "#E4E6E1", borderWidth: 1,
+          callbacks: {
+            label: function(ctx){
+              var v = ctx.parsed;
+              var pct = total ? (v / total * 100).toFixed(1) : "0.0";
+              return curFmt(v, "£m", 1) + " (" + pct + "% of total)";
+            }
+          }
+        }
+      }
+    }
+  });
+
+  listEl.innerHTML = sorted.map(function(c, i){
+    var pct = total ? (c.value / total * 100) : 0;
+    var label = COFOG_LABELS_DISPLAY[c.key] || c.key;
+    return "<li class=\"cofog-row\">"
+      + "<span class=\"cofog-swatch\" style=\"background:" + colors[i] + ";\"></span>"
+      + "<span class=\"cofog-name\">" + label + "</span>"
+      + "<span class=\"cofog-value\">" + curFmt(c.value, "£m", 1) + "</span>"
+      + "<span class=\"cofog-share\">" + pct.toFixed(1) + "%</span></li>";
+  }).join("");
+}
+
+renderCofogPie(COFOG_FALLBACK);
+
+fetch("data-uk-spending-cofog.json", {cache: "no-store"})
+  .then(function(r){ if(!r.ok) throw new Error(r.status); return r.json(); })
+  .then(function(payload){
+    if(!payload || !Array.isArray(payload.categories) || !payload.categories.length) return;
+    var categories = payload.categories.map(function(c){ return {key: c.key, value: c.value_gbp_m}; });
+    // Add debt interest as an 11th slice if we have real fetched data for
+    // it -- COFOG's own classification doesn't include debt interest as a
+    // functional category (it's recorded separately as property income),
+    // so it has to be added in from the site's own already-fetched series.
+    if(typeof PAGE_DATA !== "undefined" && PAGE_DATA && PAGE_DATA.series && PAGE_DATA.series.debt_interest){
+      var pts = PAGE_DATA.series.debt_interest.points;
+      var last12 = pts.slice(-12);
+      var annualTotal = last12.reduce(function(s, p){ return s + p[1]; }, 0);
+      categories.push({key: "debt_interest", value: annualTotal});
+    }
+    renderCofogPie(categories);
+    var banner = document.getElementById("cofogBanner");
+    if(banner) banner.hidden = true;
+    var secnote = document.getElementById("cofogSecnote");
+    if(secnote) secnote.textContent = "Annual data (" + (payload.updated ? payload.updated.slice(0, 4) : "latest")
+      + " edition), published with a real lag behind the current date — not comparable in freshness to the monthly/quarterly series above. Debt interest is added from the site's own monthly series (last 12 months), since COFOG classifies it separately from functional spending categories.";
+  })
+  .catch(function(){ /* fallback already rendered */ });
+})();
+</script>
 
 </body>
 </html>
