@@ -202,8 +202,30 @@ var COUNTRY_COLOR = {UK:"#1E4566", US:"#4796CE", Eurozone:"#413D7B", Japan:"#376
   India:"#348FA7", Canada:"#40B7AD", Australia:"#8AD9B1", "South Korea":"#E39B2D"};
 var METRIC_LABEL = {gdp_growth:"GDP growth (vs prior quarter)", cpi:"Inflation (CPI)",
   unemployment:"Unemployment rate", debt_gdp:"Debt, % of GDP", rate:"Policy rate"};
-var METRIC_UNIT = {gdp_growth:"%", cpi:"%", unemployment:"%", debt_gdp:"pts", rate:"pts"};
+var METRIC_UNIT = {gdp_growth:"%", cpi:"%", unemployment:"%", debt_gdp:"%", rate:"%"};
 var ALL_COUNTRIES = Object.keys(COUNTRY_DATA);
+var MONTHS = ["Jan","Feb","Mar","Apr","May","Jun","Jul","Aug","Sep","Oct","Nov","Dec"];
+
+// Matches the exact formatting already used on every country's own page,
+// so a period reads the same way here as it does there.
+function fmtPeriod(p){
+  if(/^\d{4}-\d{2}$/.test(p)) return MONTHS[+p.slice(5)-1] + " " + p.slice(0,4);
+  if(/^\d{4}-Q\d$/.test(p)) return p.slice(5) + " " + p.slice(0,4);
+  return p;
+}
+// The site's own convention: a percentage LEVEL is shown with "%"; the
+// ARITHMETIC DIFFERENCE between two percentages (this rate now vs this
+// rate a horizon ago) is shown in percentage points ("pp") instead,
+// since "unemployment rose 0.2%" and "unemployment rose 0.2 percentage
+// points" mean different things and only the second is what's meant
+// here. GDP's horizon figure is a genuine compounded growth rate, not a
+// point-to-point difference, so it stays "%" even across a horizon.
+function suffixFor(dv, metricKey){
+  if(!dv) return "";
+  if(dv.isCumulative) return "%";
+  if(dv.isDelta) return "pp";
+  return "%";
+}
 var MAX_SELECTED = 5;
 
 var selected = ["UK", "US", "Japan", "India", "Eurozone"];
@@ -296,7 +318,7 @@ function renderCharts(){
     var title = isGdpCumulative ? "Total real GDP growth" : (METRIC_LABEL[metricKey] + (horizon !== "0" ? " \u2014 change" : ""));
     var expl = horizon === "0" ? "Latest available figure for each country."
       : isGdpCumulative ? "Cumulative growth in real (inflation-adjusted) GDP over the selected horizon \u2014 not a comparison of two single quarterly growth-rate readings."
-      : "Change over the selected horizon, in " + METRIC_UNIT[metricKey] + ".";
+      : "Change over the selected horizon, in percentage points.";
     card.innerHTML = "<h3>" + title + "</h3>"
       + "<p class=\"expl\">" + expl + "</p>"
       + "<div class=\"cbox\"><canvas></canvas></div>";
@@ -324,14 +346,18 @@ function renderCharts(){
               label: function(ctx){
                 var r = rows[ctx.dataIndex];
                 var sign = r.dv.isDelta && r.dv.value > 0 ? "+" : "";
-                var suffix = r.dv.isCumulative ? "% cumulative since " + r.dv.period : " (as of " + r.dv.period + ")";
-                return sign + r.dv.value + suffix;
+                var unit = suffixFor(r.dv, metricKey);
+                var periodText = r.dv.isCumulative ? "cumulative since " + fmtPeriod(r.dv.period)
+                  : r.dv.isDelta ? "vs " + fmtPeriod(r.dv.period)
+                  : "as of " + fmtPeriod(r.dv.period);
+                return sign + r.dv.value + unit + " (" + periodText + ")";
               }
             }
           }
         },
         scales: {
-          y: {grid: {color: "#E4E6E1"}, border: {display: false}},
+          y: {grid: {color: "#E4E6E1"}, border: {display: false},
+              ticks: {callback: function(v){ return v + "%"; }}},
           x: {grid: {display: false}, border: {color: "#E4E6E1"}}
         }
       }
@@ -354,6 +380,7 @@ function renderTable(){
     metricsToShow.forEach(function(m){
       var dv = getDisplayValue(c, m);
       row[m] = dv ? dv.value : null;
+      row[m + "_dv"] = dv;
     });
     return row;
   });
@@ -377,8 +404,10 @@ function renderTable(){
   var bodyRows = rows.map(function(r){
     var cells = "<td class=\"country\"><span class=\"swatch\" style=\"background:" + COUNTRY_COLOR[r.country] + ";\"></span>" + r.country + "</td>";
     metricsToShow.forEach(function(m){
-      var v = r[m];
-      cells += "<td class=\"num\">" + (v == null ? "\u2014" : (horizon !== "0" && v > 0 ? "+" : "") + v) + "</td>";
+      var v = r[m], dv = r[m + "_dv"];
+      var sign = v != null && horizon !== "0" && v > 0 ? "+" : "";
+      var unit = v != null ? suffixFor(dv, m) : "";
+      cells += "<td class=\"num\">" + (v == null ? "\u2014" : sign + v + unit) + "</td>";
     });
     return "<tr>" + cells + "</tr>";
   }).join("");

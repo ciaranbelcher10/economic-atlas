@@ -250,13 +250,14 @@ function wireRangePresets(scopeEl, pts, kind, chart){
     });
   });
 }
-function buildChartConfig(kind, pts, refLine){
+function buildChartConfig(kind, pts, refLine, unit){
   var data = kind === "bar"
     ? {labels: pts.map(function(p){ return p[0]; }), datasets: [{data: pts.map(function(p){ return p[1]; }),
         backgroundColor: "#37659E", borderRadius: 2}]}
     : {labels: pts.map(function(p){ return p[0]; }), datasets: [{data: pts.map(function(p){ return p[1]; }),
         borderColor: "#37659E", backgroundColor: "rgba(55,101,158,0.12)", borderWidth: 2,
         pointRadius: 0, pointHitRadius: 8, tension: 0.25, fill: true}]};
+  var fmtY = function(v){ return fmtVal(v, unit); };
   return {
     type: kind,
     data: data,
@@ -266,13 +267,18 @@ function buildChartConfig(kind, pts, refLine){
       plugins: {
         legend: {display: false},
         tooltip: {backgroundColor: "#fff", titleColor: "#171B1E", bodyColor: "#171B1E",
-          borderColor: "#E4E6E1", borderWidth: 1},
+          borderColor: "#E4E6E1", borderWidth: 1,
+          callbacks: {
+            title: function(items){ return fmtPeriod(items[0].label); },
+            label: function(ctx){ return fmtVal(ctx.parsed.y, unit); }
+          }},
         zoom: zoomOpts(),
         refLine: {value: refLine == null ? null : refLine}
       },
       scales: {
-        x: {grid: {display: false}, border: {color: "#E4E6E1"}, ticks: {maxTicksLimit: 8}},
-        y: {grid: {color: "#E4E6E1"}, border: {display: false}}
+        x: {grid: {display: false}, border: {color: "#E4E6E1"}, ticks: {maxTicksLimit: 8, maxRotation: 0,
+            callback: function(v){ return this.getLabelForValue(v).slice(0, 4); }}},
+        y: {grid: {color: "#E4E6E1"}, border: {display: false}, ticks: {callback: fmtY}}
       }
     }
   };
@@ -342,15 +348,41 @@ function tileFromId(id){
   var last = s.points[s.points.length - 1];
   return {id: id, country: country, key: key, series: s, value: last[1], period: last[0]};
 }
+// Ported exactly from the country pages, so a value reads identically
+// here as it does there -- same tn/bn/m auto-tiering by magnitude, same
+// one-decimal percentage convention, same month/quarter period format.
+var MONTHS = ["Jan","Feb","Mar","Apr","May","Jun","Jul","Aug","Sep","Oct","Nov","Dec"];
+function fmtPeriod(p){
+  if(/^\d{4}-\d{2}$/.test(p)) return MONTHS[+p.slice(5)-1] + " " + p.slice(0,4);
+  if(/^\d{4}-Q\d$/.test(p)) return p.slice(5) + " " + p.slice(0,4);
+  return p;
+}
+function scaleOf(unitStr){
+  if(/tn$/.test(unitStr)) return 1e12;
+  if(/bn$/.test(unitStr)) return 1e9;
+  if(/m$/.test(unitStr)) return 1e6;
+  return 1;
+}
+function currencySymbol(unitStr){
+  var m = unitStr.match(/^[^a-zA-Z0-9]+/);
+  return m ? m[0] : "";
+}
+function curFmt(rawValue, unitStr, decimals){
+  var scale = scaleOf(unitStr);
+  var symbol = currencySymbol(unitStr);
+  var a = Math.abs(rawValue) * scale;
+  var sign = rawValue < 0 ? "\u2212" : "";
+  if(a >= 1e12) return sign + symbol + (a/1e12).toFixed(decimals) + "tn";
+  if(a >= 1e9) return sign + symbol + (a/1e9).toFixed(decimals) + "bn";
+  return sign + symbol + (a/1e6).toFixed(0) + "m";
+}
+function isCurrencyUnit(u){
+  return u !== "%" && u !== "index" && /(m|bn|tn)$/.test(u);
+}
 function fmtVal(v, unit){
   if(!unit) return String(v);
-  if(unit === "%") return v + "%";
-  if(/^[^a-zA-Z0-9]/.test(unit)){
-    // currency-style unit, e.g. "£bn" -- prefix the symbol, keep the
-    // scale suffix (bn/m) rather than dropping it, since "£2984" reads
-    // as literally two thousand pounds, not £2,984 billion.
-    return unit.charAt(0) + v.toLocaleString() + unit.slice(1);
-  }
+  if(unit === "%") return v.toFixed(1) + "%";
+  if(isCurrencyUnit(unit)) return curFmt(v, unit, 1);
   return v + " " + unit;
 }
 
@@ -371,14 +403,14 @@ function renderDash(){
       + "<p class=\"country\">" + m.country + "</p>"
       + "<p class=\"label\">" + m.series.label + "</p>"
       + "<p class=\"value\">" + fmtVal(m.value, m.series.unit) + "</p>"
-      + "<p class=\"period\">" + m.period + "</p>"
+      + "<p class=\"period\">" + fmtPeriod(m.period) + "</p>"
       + "<button type=\"button\" class=\"chartbtn\">&#128200; View chart</button>"
       + "<div class=\"chartbox\"><canvas></canvas></div>"
       + "<div class=\"charttools\">"
       + "<div class=\"rangepresets\">" + rangePresetsHtml() + "</div>"
       + "<button type=\"button\" class=\"resetzoom\">Reset zoom</button>"
       + "</div>"
-      + "<p class=\"chartsrc\">" + m.series.points.length + " observations, " + m.period + " is the latest.</p>";
+      + "<p class=\"chartsrc\">" + m.series.points.length + " observations, " + fmtPeriod(m.period) + " is the latest.</p>";
 
     tile.querySelector(".remove").addEventListener("click", function(e){
       e.stopPropagation();
@@ -394,7 +426,7 @@ function renderDash(){
         var pts = m.series.points;
         var kind = BAR_KEYS[m.key] ? "bar" : "line";
         var refLine = REF_LINE_FOR[m.key] == null ? null : REF_LINE_FOR[m.key];
-        var chart = new Chart(canvas, buildChartConfig(kind, pts, refLine));
+        var chart = new Chart(canvas, buildChartConfig(kind, pts, refLine, m.series.unit));
         tileCharts[id] = chart;
         wireRangePresets(tile, pts, kind, chart);
         tile.querySelector(".resetzoom").addEventListener("click", function(){
