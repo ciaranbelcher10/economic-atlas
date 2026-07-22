@@ -12,6 +12,8 @@
 <link rel="apple-touch-icon" href="apple-touch-icon.png">
 <link rel="stylesheet" href="style.css?v=12">
 <script src="https://cdnjs.cloudflare.com/ajax/libs/Chart.js/4.4.1/chart.umd.min.js"></script>
+<script src="https://cdnjs.cloudflare.com/ajax/libs/hammer.js/2.0.8/hammer.min.js"></script>
+<script src="https://cdnjs.cloudflare.com/ajax/libs/chartjs-plugin-zoom/2.0.1/chartjs-plugin-zoom.min.js"></script>
 <style>
 .premium{display:inline-flex; align-items:center; gap:5px; font-size:10.5px; font-weight:700; text-transform:uppercase;
   letter-spacing:.04em; background:var(--navy); color:#fff; padding:3px 10px; border-radius:999px; vertical-align:middle;}
@@ -34,6 +36,17 @@
   display:inline-flex; align-items:center; gap:6px;}
 .tile .chartbtn:hover{border-color:var(--blue);}
 .tile .chartbox{height:220px; margin-top:14px; position:relative; display:none;}
+.tile .charttools{display:none; align-items:center; justify-content:space-between; gap:10px; margin:10px 0 2px;}
+.tile.expanded .charttools{display:flex;}
+.tile .rangepresets{display:flex; gap:6px;}
+.tile .rangepresets button{border:1px solid var(--hair); background:var(--paper); color:var(--ink2);
+  font:600 11px "Avenir Next","Avenir","Nunito Sans",sans-serif; padding:4px 9px;
+  border-radius:999px; cursor:pointer;}
+.tile .rangepresets button:hover{border-color:var(--blue); color:var(--navy);}
+.tile .rangepresets button.active{background:var(--blue); border-color:var(--blue); color:#fff;}
+.tile .resetzoom{border:none; background:none; color:var(--ink2); font:600 11px "Avenir Next","Avenir","Nunito Sans",sans-serif;
+  cursor:pointer; padding:4px 4px;}
+.tile .resetzoom:hover{color:var(--navy); text-decoration:underline;}
 .tile.expanded .chartbox{display:block;}
 .tile .chartsrc{font-size:11px; color:var(--ink2); margin-top:8px; display:none;}
 .tile.expanded .chartsrc{display:block;}
@@ -160,6 +173,111 @@ footer.dash-foot{margin-top:36px; font-size:12.5px; color:var(--ink2); border-to
 (function(){
 "use strict";
 
+/* --------------------- chart interactivity (shared with the ------------- */
+/* --------------------- main site's country pages) ----------------------- */
+function periodEnd(p){
+  if(/^\d{4}-\d{2}$/.test(p)) return new Date(+p.slice(0,4), +p.slice(5), 0);
+  if(/^\d{4}-Q\d$/.test(p)) return new Date(+p.slice(0,4), +p.slice(6)*3, 0);
+  return new Date(+p.slice(0,4), 11, 31);
+}
+var refLinePlugin = {
+  id: "refLine",
+  afterDraw(chart){
+    var opts = chart.config.options.plugins && chart.config.options.plugins.refLine;
+    if(!opts || opts.value == null) return;
+    var ctx = chart.ctx, chartArea = chart.chartArea, scales = chart.scales;
+    if(!chartArea) return;
+    var y = scales.y.getPixelForValue(opts.value);
+    if(y < chartArea.top - 1 || y > chartArea.bottom + 1) return;
+    ctx.save();
+    ctx.strokeStyle = "#B7BEB5";
+    ctx.setLineDash([4, 3]);
+    ctx.lineWidth = 1;
+    ctx.beginPath();
+    ctx.moveTo(chartArea.left, y);
+    ctx.lineTo(chartArea.right, y);
+    ctx.stroke();
+    ctx.restore();
+  }
+};
+if(typeof Chart !== "undefined") Chart.register(refLinePlugin);
+
+function zoomOpts(){
+  return {
+    pan: {enabled: true, mode: "x", modifierKey: "shift"},
+    zoom: {wheel: {enabled: true}, pinch: {enabled: true},
+           drag: {enabled: true, backgroundColor: "rgba(55,101,158,0.15)", borderColor: "rgba(55,101,158,0.4)", borderWidth: 1},
+           mode: "x"},
+    limits: {x: {min: "original", max: "original"}}
+  };
+}
+
+// Which metrics read better as bars vs lines, and which deserve a
+// dashed reference line -- mirrors the choices already made per-metric
+// on each country's own page, generalised here since this dashboard can
+// show literally any metric from any country.
+var BAR_KEYS = {gdp_growth: 1, deficit: 1, trade_balance: 1, debt_interest: 1};
+var REF_LINE_FOR = {business_confidence: 100, gdp_growth: 0, deficit: 0, trade_balance: 0, current_account: 0, cpi_mom: 0};
+
+function sliceRange(pts, years){
+  if(years === "max") return pts;
+  var lastDate = periodEnd(pts[pts.length - 1][0]);
+  var cutoff = new Date(lastDate);
+  cutoff.setFullYear(cutoff.getFullYear() - years);
+  var filtered = pts.filter(function(p){ return periodEnd(p[0]) >= cutoff; });
+  return filtered.length >= 2 ? filtered : pts.slice(-Math.min(pts.length, 2));
+}
+function rangePresetsHtml(){
+  return '<button type="button" data-range="max" class="active">Max</button>'
+    + '<button type="button" data-range="10">10Y</button>'
+    + '<button type="button" data-range="5">5Y</button>'
+    + '<button type="button" data-range="1">1Y</button>';
+}
+function updateChartData(chart, pts, kind){
+  chart.data.labels = pts.map(function(p){ return p[0]; });
+  chart.data.datasets[0].data = pts.map(function(p){ return p[1]; });
+  if(chart.resetZoom) chart.resetZoom();
+  chart.update();
+}
+function wireRangePresets(scopeEl, pts, kind, chart){
+  var buttons = scopeEl.querySelectorAll("button[data-range]");
+  buttons.forEach(function(btn){
+    btn.addEventListener("click", function(){
+      buttons.forEach(function(b){ b.classList.remove("active"); });
+      btn.classList.add("active");
+      var r = btn.dataset.range;
+      updateChartData(chart, sliceRange(pts, r === "max" ? "max" : +r), kind);
+    });
+  });
+}
+function buildChartConfig(kind, pts, refLine){
+  var data = kind === "bar"
+    ? {labels: pts.map(function(p){ return p[0]; }), datasets: [{data: pts.map(function(p){ return p[1]; }),
+        backgroundColor: "#37659E", borderRadius: 2}]}
+    : {labels: pts.map(function(p){ return p[0]; }), datasets: [{data: pts.map(function(p){ return p[1]; }),
+        borderColor: "#37659E", backgroundColor: "rgba(55,101,158,0.12)", borderWidth: 2,
+        pointRadius: 0, pointHitRadius: 8, tension: 0.25, fill: true}]};
+  return {
+    type: kind,
+    data: data,
+    options: {
+      responsive: true, maintainAspectRatio: false,
+      interaction: {mode: "index", intersect: false},
+      plugins: {
+        legend: {display: false},
+        tooltip: {backgroundColor: "#fff", titleColor: "#171B1E", bodyColor: "#171B1E",
+          borderColor: "#E4E6E1", borderWidth: 1},
+        zoom: zoomOpts(),
+        refLine: {value: refLine == null ? null : refLine}
+      },
+      scales: {
+        x: {grid: {display: false}, border: {color: "#E4E6E1"}, ticks: {maxTicksLimit: 8}},
+        y: {grid: {color: "#E4E6E1"}, border: {display: false}}
+      }
+    }
+  };
+}
+
 var FILES = {
   UK: "data.json", US: "data-us.json", Eurozone: "data-ez.json", Japan: "data-jp.json",
   India: "data-in.json", Canada: "data-ca.json", Australia: "data-au.json", "South Korea": "data-kr.json"
@@ -256,6 +374,10 @@ function renderDash(){
       + "<p class=\"period\">" + m.period + "</p>"
       + "<button type=\"button\" class=\"chartbtn\">&#128200; View chart</button>"
       + "<div class=\"chartbox\"><canvas></canvas></div>"
+      + "<div class=\"charttools\">"
+      + "<div class=\"rangepresets\">" + rangePresetsHtml() + "</div>"
+      + "<button type=\"button\" class=\"resetzoom\">Reset zoom</button>"
+      + "</div>"
       + "<p class=\"chartsrc\">" + m.series.points.length + " observations, " + m.period + " is the latest.</p>";
 
     tile.querySelector(".remove").addEventListener("click", function(e){
@@ -270,27 +392,13 @@ function renderDash(){
       if(isExpanded && !tileCharts[id]){
         var canvas = tile.querySelector("canvas");
         var pts = m.series.points;
-        var kind = m.series.unit === "%" || m.series.freq === "quarters" ? "bar" : "line";
-        // simple, deliberately not the full interactive chart system used
-        // on each country's own page -- this is a quick-glance preview
-        tileCharts[id] = new Chart(canvas, {
-          type: kind,
-          data: {
-            labels: pts.map(function(p){ return p[0]; }),
-            datasets: [{
-              data: pts.map(function(p){ return p[1]; }),
-              borderColor: "#37659E", backgroundColor: kind === "bar" ? "#37659E" : "rgba(55,101,158,0.12)",
-              borderWidth: kind === "bar" ? 0 : 2, pointRadius: 0, fill: kind === "line", borderRadius: 2
-            }]
-          },
-          options: {
-            responsive: true, maintainAspectRatio: false,
-            plugins: {legend: {display: false}},
-            scales: {
-              x: {grid: {display: false}, border: {color: "#E4E6E1"}, ticks: {maxTicksLimit: 8}},
-              y: {grid: {color: "#E4E6E1"}, border: {display: false}}
-            }
-          }
+        var kind = BAR_KEYS[m.key] ? "bar" : "line";
+        var refLine = REF_LINE_FOR[m.key] == null ? null : REF_LINE_FOR[m.key];
+        var chart = new Chart(canvas, buildChartConfig(kind, pts, refLine));
+        tileCharts[id] = chart;
+        wireRangePresets(tile, pts, kind, chart);
+        tile.querySelector(".resetzoom").addEventListener("click", function(){
+          if(chart.resetZoom) chart.resetZoom();
         });
       }
     });
