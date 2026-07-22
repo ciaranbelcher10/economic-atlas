@@ -225,11 +225,15 @@ function tileFromId(id){
   return {id: id, country: country, key: key, series: s, value: last[1], period: last[0]};
 }
 function fmtVal(v, unit){
-  if(unit && /^[^a-zA-Z0-9]/.test(unit)){
-    // currency-style unit, e.g. "£bn" -- keep simple for a compact tile
-    return unit.charAt(0) + v.toLocaleString();
+  if(!unit) return String(v);
+  if(unit === "%") return v + "%";
+  if(/^[^a-zA-Z0-9]/.test(unit)){
+    // currency-style unit, e.g. "£bn" -- prefix the symbol, keep the
+    // scale suffix (bn/m) rather than dropping it, since "£2984" reads
+    // as literally two thousand pounds, not £2,984 billion.
+    return unit.charAt(0) + v.toLocaleString() + unit.slice(1);
   }
-  return v + (unit || "");
+  return v + " " + unit;
 }
 
 /* --------------------------------- tiles ----------------------------------- */
