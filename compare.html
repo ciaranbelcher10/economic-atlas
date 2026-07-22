@@ -1,0 +1,502 @@
+<!DOCTYPE html>
+<html lang="en-GB">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>Compare Countries · Economic Atlas</title>
+<meta name="description" content="Compare GDP growth, inflation, unemployment, debt and policy rates across up to five countries at once, with real historical data.">
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+<link href="https://fonts.googleapis.com/css2?family=Nunito+Sans:wght@400;600;700&display=swap" rel="stylesheet">
+<link rel="icon" type="image/png" sizes="32x32" href="favicon-32.png">
+<link rel="apple-touch-icon" href="apple-touch-icon.png">
+<link rel="stylesheet" href="style.css?v=12">
+<style>
+.premium{display:inline-flex; align-items:center; gap:5px; font-size:10.5px; font-weight:700; text-transform:uppercase;
+  letter-spacing:.04em; background:var(--navy); color:#fff; padding:3px 10px; border-radius:999px; vertical-align:middle;}
+
+.chiprow{display:flex; gap:9px; flex-wrap:wrap; margin-bottom:8px;}
+.chip{border:1.5px solid var(--hair); background:var(--panel); color:var(--ink);
+  font:600 13.5px "Avenir Next","Avenir","Nunito Sans",sans-serif; padding:8px 16px 8px 12px;
+  border-radius:999px; cursor:pointer; display:flex; align-items:center; gap:7px;}
+.chip .dot{width:9px; height:9px; border-radius:50%; flex:none; background:var(--hair);}
+.chip.active{border-color:transparent; color:#fff;}
+.chip:disabled{opacity:.4; cursor:not-allowed;}
+.chiphint{font-size:12.5px; color:var(--ink2); margin:0 0 22px;}
+
+.horizonrow{display:flex; align-items:center; gap:10px; margin:26px 0 20px; flex-wrap:wrap;}
+.horizonrow .hlabel{font-size:13px; font-weight:700; color:var(--ink2);}
+.hbtn{border:1px solid var(--hair); background:var(--panel); color:var(--ink2);
+  font:600 13px "Avenir Next","Avenir","Nunito Sans",sans-serif; padding:7px 16px;
+  border-radius:999px; cursor:pointer;}
+.hbtn:hover{border-color:var(--blue); color:var(--navy);}
+.hbtn.active{background:var(--navy); border-color:var(--navy); color:#fff;}
+.mapbtn{margin-left:auto; border:1px solid var(--navy); background:var(--panel); color:var(--navy);
+  font:700 13px "Avenir Next","Avenir","Nunito Sans",sans-serif; padding:7px 16px;
+  border-radius:999px; cursor:pointer; display:flex; align-items:center; gap:6px;}
+.mapbtn:hover{background:var(--navy); color:#fff;}
+
+.cmp-grid{display:grid; grid-template-columns:1fr 1fr; gap:18px; margin-bottom:8px;}
+.cmp-card{background:var(--panel); border:1px solid var(--hair); border-radius:14px; padding:18px 20px;}
+.cmp-card h3{font-size:14.5px; margin:0 0 4px;}
+.cmp-card .expl{font-size:12px; color:var(--ink2); margin:0 0 12px;}
+.cmp-card .cbox{height:210px; position:relative;}
+.cmp-card.wide{grid-column:1 / -1;}
+
+.rank-table{width:100%; border-collapse:collapse; font-size:13.5px; margin-top:6px;}
+.rank-table th{text-align:left; font-size:11.5px; text-transform:uppercase; letter-spacing:.03em;
+  color:var(--ink2); padding:8px 12px; cursor:pointer; user-select:none; border-bottom:2px solid var(--hair);}
+.rank-table th:hover{color:var(--navy);}
+.rank-table th.sorted::after{content:" \25BE"; font-size:10px;}
+.rank-table td{padding:10px 12px; border-bottom:1px solid var(--hair);}
+.rank-table td.country{font-weight:700; display:flex; align-items:center; gap:8px;}
+.rank-table .swatch{width:10px; height:10px; border-radius:50%; display:inline-block;}
+.rank-table td.num{text-align:right; font-variant-numeric:tabular-nums;}
+
+.modal{position:fixed; inset:0; z-index:200; display:flex; align-items:center; justify-content:center; padding:24px;}
+.modal[hidden]{display:none;}
+.modal-backdrop{position:absolute; inset:0; background:rgba(20,26,22,.6);}
+.modal-content{position:relative; background:var(--paper); border-radius:16px; padding:24px 28px;
+  width:min(920px, 94vw); max-height:90vh; overflow:auto; box-shadow:0 20px 60px rgba(0,0,0,.35);}
+.modal-close{position:absolute; top:14px; right:16px; width:32px; height:32px; border-radius:50%;
+  border:1px solid var(--hair); background:var(--panel); color:var(--ink2); font-size:18px; cursor:pointer;}
+.modal-close:hover{border-color:var(--blue); color:var(--navy);}
+.modal-content h2{margin:0 30px 4px 0; font-size:19px;}
+.modal-sub{font-size:13px; color:var(--ink2); margin:0 0 14px;}
+.mapmetric{display:flex; gap:8px; margin-bottom:14px; flex-wrap:wrap;}
+.mapmetric button{border:1px solid var(--hair); background:var(--panel); color:var(--ink2);
+  font:600 12.5px "Avenir Next","Avenir","Nunito Sans",sans-serif; padding:6px 14px; border-radius:999px; cursor:pointer;}
+.mapmetric button.active{background:var(--navy); border-color:var(--navy); color:#fff;}
+#heatmapSvg{width:100%; height:auto; display:block;}
+.legend-grad{display:flex; align-items:center; gap:10px; margin-top:10px; font-size:12px; color:var(--ink2);}
+.legend-bar{width:180px; height:10px; border-radius:5px;
+  background:linear-gradient(90deg,#EAF3E9,#8AD9B1,#348FA7,#37659E,#2E1E3B);}
+#heatTip{position:absolute; pointer-events:none; background:#fff; border:1px solid var(--hair); border-radius:8px;
+  padding:8px 11px; font-size:12.5px; box-shadow:0 6px 18px rgba(0,0,0,.12); display:none; z-index:5;}
+
+footer.cmp-foot{margin-top:36px; font-size:12.5px; color:var(--ink2); border-top:1px solid var(--hair); padding-top:16px;}
+</style>
+</head>
+<body>
+<nav class="top"><div class="wrap">
+  <a class="brand" href="index.html"><img src="logo-64.png" alt="" width="26" height="26" style="display:block;border-radius:50%;background:#fff;padding:1px;">Economic Atlas</a>
+  <div class="dropdown">
+    <button type="button" class="dropbtn" id="macroBtn" aria-haspopup="true" aria-expanded="false">Country Breakdowns <span class="caret">&#9662;</span></button>
+    <div class="dropdown-panel" id="macroPanel">
+      <div class="doverview">
+        <a href="index.html">Overview</a>
+      </div>
+      <div class="dcol">
+        <p class="dhead">Europe</p>
+        <a href="uk.html">UK</a>
+        <a href="eurozone.html">Eurozone</a>
+      </div>
+      <div class="dcol">
+        <p class="dhead">North America</p>
+        <a href="us.html">U.S.</a>
+        <a href="canada.html">Canada</a>
+      </div>
+      <div class="dcol">
+        <p class="dhead">Asia</p>
+        <a href="japan.html">Japan</a>
+        <a href="india.html">India</a>
+        <a href="southkorea.html">South Korea</a>
+      </div>
+      <div class="dcol">
+        <p class="dhead">Oceania</p>
+        <a href="australia.html">Australia</a>
+      </div>
+    </div>
+  </div>
+  <a class="item active" href="compare.html">Compare</a>
+  <a class="item" href="dashboard.html">Dashboard</a>
+  <a class="item" href="contact.html">Contact</a>
+</div></nav>
+<script>
+(function(){
+  var btn = document.getElementById("macroBtn");
+  var panel = document.getElementById("macroPanel");
+  function close(){
+    panel.classList.remove("open"); btn.classList.remove("open");
+    btn.setAttribute("aria-expanded","false");
+  }
+  btn.addEventListener("click", function(e){
+    e.stopPropagation();
+    var isOpen = panel.classList.toggle("open");
+    btn.classList.toggle("open", isOpen);
+    btn.setAttribute("aria-expanded", isOpen ? "true" : "false");
+  });
+  document.addEventListener("click", function(e){
+    if(!panel.contains(e.target) && e.target !== btn) close();
+  });
+  document.addEventListener("keydown", function(e){ if(e.key === "Escape") close(); });
+})();
+</script>
+
+<div class="wrap" style="max-width:1080px; padding:30px 24px 60px;">
+  <h1 style="font-size:28px; letter-spacing:-.01em; margin-bottom:6px;">Compare Countries <span class="premium">Free feature</span></h1>
+  <p style="color:var(--ink2); font-size:14.5px; max-width:74ch; margin:8px 0 0;">Pick up to five countries and see GDP growth, inflation, unemployment, debt and policy rates side by side &mdash; as they stand now, or how each has changed over the last 1, 2, 5 or 10 years.</p>
+
+  <h3 style="font-size:14px; margin:0 0 10px;">Countries (up to 5)</h3>
+  <div class="chiprow" id="chipRow"></div>
+  <p class="chiphint" id="chipHint"></p>
+
+  <div class="horizonrow">
+    <span class="hlabel">Compare:</span>
+    <button type="button" class="hbtn active" data-h="0">Now</button>
+    <button type="button" class="hbtn" data-h="1">Change vs 1Y ago</button>
+    <button type="button" class="hbtn" data-h="2">Change vs 2Y ago</button>
+    <button type="button" class="hbtn" data-h="5">Change vs 5Y ago</button>
+    <button type="button" class="hbtn" data-h="10">Change vs 10Y ago</button>
+    <button type="button" class="mapbtn" id="openMapBtn">&#128506; Show as map</button>
+  </div>
+
+  <div class="cmp-grid" id="chartGrid"></div>
+
+  <div class="cmp-card wide" style="margin-top:18px;">
+    <h3>Ranking</h3>
+    <p class="expl">Click any column to sort. Shows whatever time horizon is selected above.</p>
+    <div style="overflow-x:auto;">
+      <table class="rank-table" id="rankTable"></table>
+    </div>
+  </div>
+
+  <footer class="cmp-foot">
+    Figures: ONS, FRED, Eurostat, e-Stat/Bank of Japan, MoSPI, Bank of Korea and OECD &mdash; the same sources already cited on each country&#39;s own page. Historical comparison points are the closest available observation to each horizon, not necessarily an exact anniversary. GDP growth over a horizon (1Y/2Y/5Y/10Y) shows total real growth over that period, compounded from the country's own real GDP level &mdash; not the difference between two single quarterly growth-rate readings, which wouldn't tell you how much the economy actually grew. India&#39;s unemployment series has limited history (MoSPI data begins in 2025), so its 5Y/10Y comparison points aren&#39;t meaningful and are marked accordingly. The Eurozone is excluded from the map view since it isn&#39;t a single country UN Comtrade or world-atlas can plot &mdash; it still appears in every chart and table above.
+    <br><br>Free to use for now &mdash; this may move behind a paid tier as the site develops.
+  </footer>
+</div>
+
+<div class="modal" id="mapModal" hidden>
+  <div class="modal-backdrop" id="mapBackdrop"></div>
+  <div class="modal-content">
+    <button type="button" class="modal-close" id="mapClose" aria-label="Close">&times;</button>
+    <h2>Heatmap view</h2>
+    <p class="modal-sub">Darker = higher. Only the 7 tracked countries with a single geography are coloured; everywhere else is left blank.</p>
+    <div class="mapmetric" id="mapMetricRow"></div>
+    <div style="position:relative;">
+      <svg id="heatmapSvg" viewBox="0 0 960 500"></svg>
+      <div id="heatTip"></div>
+    </div>
+    <div class="legend-grad">
+      <span id="legendLo">low</span>
+      <div class="legend-bar"></div>
+      <span id="legendHi">high</span>
+    </div>
+  </div>
+</div>
+
+<script src="https://cdnjs.cloudflare.com/ajax/libs/d3/7.8.5/d3.min.js"></script>
+<script src="https://cdnjs.cloudflare.com/ajax/libs/topojson/3.0.2/topojson.min.js"></script>
+<script src="https://cdnjs.cloudflare.com/ajax/libs/Chart.js/4.4.1/chart.umd.min.js"></script>
+<script>
+(function(){
+"use strict";
+
+var COUNTRY_DATA = {"UK":{"iso":"826","metrics":{"gdp_growth":{"0":{"period":"2026-Q1","value":0.6},"1":{"period":"2025-Q1","value":0.6},"2":{"period":"2024-Q1","value":0.7},"5":{"period":"2021-Q1","value":-1.1},"10":{"period":"2016-Q1","value":0.5}},"gdp_real":{"0":{"period":"2026-Q1","value":710896.0},"1":{"period":"2025-Q1","value":703218.0},"2":{"period":"2024-Q1","value":690605.0},"5":{"period":"2021-Q1","value":612665.0},"10":{"period":"2016-Q1","value":625099.0}},"cpi":{"0":{"period":"2026-05","value":2.8},"1":{"period":"2025-05","value":3.4},"2":{"period":"2024-05","value":2.0},"5":{"period":"2021-05","value":2.1},"10":{"period":"2016-05","value":0.3}},"unemployment":{"0":{"period":"2026-04","value":4.9},"1":{"period":"2025-04","value":4.7},"2":{"period":"2024-04","value":4.4},"5":{"period":"2021-04","value":4.8},"10":{"period":"2016-04","value":4.9}},"debt_gdp":{"0":{"period":"2026-06","value":94.9},"1":{"period":"2025-06","value":94.5},"2":{"period":"2024-06","value":94.5},"5":{"period":"2021-06","value":95.8},"10":{"period":"2016-06","value":80.8}},"rate":{"label":"Bank Rate","0":{"period":"2026-07","value":3.75},"1":{"period":"2025-07","value":4.25},"2":{"period":"2024-07","value":5.25},"5":{"period":"2021-07","value":0.1},"10":{"period":"2016-07","value":0.5}}}},"US":{"iso":"840","metrics":{"gdp_growth":{"0":{"period":"2026-Q1","value":2.1},"1":{"period":"2025-Q1","value":-0.6},"2":{"period":"2024-Q1","value":0.8},"5":{"period":"2021-Q1","value":5.7},"10":{"period":"2016-Q1","value":2.3}},"gdp_real":{"0":{"period":"2026-Q1","value":24180.42},"1":{"period":"2025-Q1","value":23548.21},"2":{"period":"2024-Q1","value":23082.12},"5":{"period":"2021-Q1","value":21082.13},"10":{"period":"2016-Q1","value":19001.69}},"cpi":{"0":{"period":"2026-06","value":3.73},"1":{"period":"2025-06","value":2.68},"2":{"period":"2024-06","value":2.97},"5":{"period":"2021-06","value":5.3},"10":{"period":"2016-06","value":1.08}},"unemployment":{"0":{"period":"2026-06","value":4.2},"1":{"period":"2025-06","value":4.1},"2":{"period":"2024-06","value":4.1},"5":{"period":"2021-06","value":5.9},"10":{"period":"2016-06","value":4.9}},"debt_gdp":{"0":{"period":"2026-Q1","value":122.59},"1":{"period":"2025-Q1","value":120.55},"2":{"period":"2024-Q1","value":120.48},"5":{"period":"2021-Q1","value":124.04},"10":{"period":"2016-Q1","value":103.99}},"rate":{"label":"Fed Funds","0":{"period":"2026-06","value":3.63},"1":{"period":"2025-06","value":4.33},"2":{"period":"2024-06","value":5.33},"5":{"period":"2021-06","value":0.08},"10":{"period":"2016-06","value":0.38}}}},"Eurozone":{"iso":null,"metrics":{"gdp_growth":{"0":{"period":"2026-Q1","value":-0.01},"1":{"period":"2025-Q1","value":0.57},"2":{"period":"2024-Q1","value":0.34},"5":{"period":"2021-Q1","value":0.82},"10":{"period":"2016-Q1","value":0.5}},"gdp_real":{"0":{"period":"2026-Q1","value":2883905.9},"1":{"period":"2025-Q1","value":2870191.3},"2":{"period":"2024-Q1","value":2825702.8},"5":{"period":"2021-Q1","value":2625551.5},"10":{"period":"2016-Q1","value":2529577.7}},"cpi":{"0":{"period":"2026-06","value":2.73},"1":{"period":"2025-06","value":1.96},"2":{"period":"2024-06","value":2.5},"5":{"period":"2021-06","value":1.9},"10":{"period":"2016-06","value":0.04}},"unemployment":{"0":{"period":"2026-05","value":6.2},"1":{"period":"2025-05","value":6.3},"2":{"period":"2024-05","value":6.4},"5":{"period":"2021-05","value":8.1},"10":{"period":"2016-05","value":10.2}},"debt_gdp":{"0":{"period":"2025","value":87.8},"1":{"period":"2024","value":87.0},"2":{"period":"2023","value":86.9},"5":{"period":"2020","value":96.5},"10":{"period":"2015","value":91.0}},"rate":{"label":"ECB Rate","0":{"period":"2026-07","value":2.25},"1":{"period":"2025-07","value":2.0},"2":{"period":"2024-07","value":3.75},"5":{"period":"2021-07","value":-0.5},"10":{"period":"2016-07","value":-0.4}}}},"Japan":{"iso":"392","metrics":{"gdp_growth":{"0":{"period":"2026-Q1","value":0.45},"1":{"period":"2025-Q1","value":0.51},"2":{"period":"2024-Q1","value":-0.3},"5":{"period":"2021-Q1","value":1.09},"10":{"period":"2016-Q1","value":0.87}},"gdp_real":{"0":{"period":"2026-Q1","value":593218.8},"1":{"period":"2025-Q1","value":591344.0},"2":{"period":"2024-Q1","value":582459.5},"5":{"period":"2021-Q1","value":569978.1},"10":{"period":"2016-Q1","value":567582.5}},"cpi":{"0":{"period":"2026-05","value":1.52},"1":{"period":"2025-05","value":3.42},"2":{"period":"2024-05","value":2.85},"5":{"period":"2021-05","value":-0.7},"10":{"period":"2016-05","value":-0.51}},"unemployment":{"0":{"period":"2026-05","value":2.5},"1":{"period":"2025-05","value":2.5},"2":{"period":"2024-05","value":2.6},"5":{"period":"2021-05","value":2.9},"10":{"period":"2016-05","value":3.2}},"debt_gdp":{"0":{"period":"2023","value":239.97},"1":{"period":"2022","value":248.31},"2":{"period":"2021","value":253.65},"5":{"period":"2018","value":232.38},"10":{"period":"2013","value":229.45}},"rate":{"label":"BoJ Rate","0":{"period":"2026-06","value":0.84},"1":{"period":"2025-06","value":0.48},"2":{"period":"2024-06","value":0.08},"5":{"period":"2021-06","value":-0.03},"10":{"period":"2016-06","value":-0.06}}}},"India":{"iso":"356","metrics":{"gdp_growth":{"0":{"period":"2026-Q1","value":7.83},"1":{"period":"2025-Q1","value":6.98},"2":{"period":"2024-Q1","value":7.51},"5":{"period":"2021-Q1","value":3.29},"10":{"period":"2016-Q1","value":9.09}},"gdp_real":{"0":{"period":"2026-Q1","value":87771040.1},"1":{"period":"2025-Q1","value":81395975.0},"2":{"period":"2024-Q1","value":76084479.5},"5":{"period":"2021-Q1","value":62825463.5},"10":{"period":"2016-Q1","value":48268479.0}},"cpi":{"0":{"period":"2026-05","value":4.72},"1":{"period":"2025-05","value":2.93},"2":{"period":"2024-05","value":3.86},"5":{"period":"2021-05","value":5.26},"10":{"period":"2016-05","value":6.59}},"unemployment":{"0":{"period":"2026-06","value":6.6},"1":{"period":"2025-06","value":7.1},"2":{"period":"2025-04","value":6.5},"5":{"period":"2025-04","value":6.5},"10":{"period":"2025-04","value":6.5}},"debt_gdp":{"0":{"period":"2023","value":81.23},"1":{"period":"2022","value":82.17},"2":{"period":"2021","value":83.49},"5":{"period":"2018","value":70.39},"10":{"period":"2013","value":67.71}}}},"Canada":{"iso":"124","metrics":{"gdp_growth":{"0":{"period":"2026-Q1","value":-0.04},"1":{"period":"2025-Q1","value":0.72},"2":{"period":"2024-Q1","value":0.73},"5":{"period":"2021-Q1","value":1.7},"10":{"period":"2016-Q1","value":0.59}},"gdp_real":{"0":{"period":"2026-Q1","value":625170.0},"1":{"period":"2025-Q1","value":625509.5},"2":{"period":"2024-Q1","value":606777.0},"5":{"period":"2021-Q1","value":556122.3},"10":{"period":"2016-Q1","value":517933.0}},"cpi":{"0":{"period":"2026-06","value":2.8},"1":{"period":"2025-06","value":1.86},"2":{"period":"2024-06","value":2.67},"5":{"period":"2021-06","value":3.06},"10":{"period":"2016-06","value":1.49}},"unemployment":{"0":{"period":"2026-06","value":6.5},"1":{"period":"2025-06","value":6.9},"2":{"period":"2024-06","value":6.4},"5":{"period":"2021-06","value":7.9},"10":{"period":"2016-06","value":7.0}},"debt_gdp":{"0":{"period":"2024","value":110.77},"1":{"period":"2023","value":107.71},"2":{"period":"2022","value":104.21},"5":{"period":"2019","value":90.21},"10":{"period":"2014","value":85.54}},"rate":{"label":"Overnight Rate","0":{"period":"2026-06","value":2.27},"1":{"period":"2025-06","value":2.74},"2":{"period":"2024-06","value":4.8},"5":{"period":"2021-06","value":0.19},"10":{"period":"2016-06","value":0.51}}}},"Australia":{"iso":"36","metrics":{"gdp_growth":{"0":{"period":"2026-Q1","value":0.27},"1":{"period":"2025-Q1","value":0.26},"2":{"period":"2024-Q1","value":0.24},"5":{"period":"2021-Q1","value":2.16},"10":{"period":"2016-Q1","value":0.92}},"gdp_real":{"0":{"period":"2026-Q1","value":695945.0},"1":{"period":"2025-Q1","value":678840.0},"2":{"period":"2024-Q1","value":670388.0},"5":{"period":"2021-Q1","value":622355.0},"10":{"period":"2016-Q1","value":561139.0}},"cpi":{"0":{"period":"2026-Q1","value":4.05},"1":{"period":"2025-Q1","value":2.46},"2":{"period":"2024-Q1","value":3.62},"5":{"period":"2021-Q1","value":1.11},"10":{"period":"2016-Q1","value":1.31}},"unemployment":{"0":{"period":"2026-Q1","value":4.22},"1":{"period":"2025-Q1","value":4.09},"2":{"period":"2024-Q1","value":3.91},"5":{"period":"2021-Q1","value":5.93},"10":{"period":"2016-Q1","value":5.8}},"debt_gdp":{"0":{"period":"2024","value":49.83},"1":{"period":"2023","value":48.97},"2":{"period":"2022","value":50.22},"5":{"period":"2019","value":46.72},"10":{"period":"2014","value":34.04}}}},"South Korea":{"iso":"410","metrics":{"gdp_growth":{"0":{"period":"2026-Q1","value":1.83},"1":{"period":"2025-Q1","value":-0.17},"2":{"period":"2024-Q1","value":1.01},"5":{"period":"2021-Q1","value":1.59},"10":{"period":"2016-Q1","value":0.38}},"gdp_real":{"0":{"period":"2026-Q1","value":596692800.0},"1":{"period":"2025-Q1","value":574984300.0},"2":{"period":"2024-Q1","value":575171300.0},"5":{"period":"2021-Q1","value":531069700.0},"10":{"period":"2016-Q1","value":468400300.0}},"cpi":{"0":{"period":"2026-06","value":3.16},"1":{"period":"2025-06","value":2.17},"2":{"period":"2024-06","value":2.41},"5":{"period":"2021-06","value":2.35},"10":{"period":"2016-06","value":0.74}},"unemployment":{"0":{"period":"2026-05","value":2.8},"1":{"period":"2025-05","value":2.7},"2":{"period":"2024-05","value":2.8},"5":{"period":"2021-05","value":3.8},"10":{"period":"2016-05","value":3.5}},"debt_gdp":{"0":{"period":"2023","value":50.7},"1":{"period":"2022","value":49.8},"2":{"period":"2021","value":47.99},"5":{"period":"2018","value":37.85},"10":{"period":"2013","value":36.0}}}}}
+;
+
+var COUNTRY_LABEL = {UK:"United Kingdom", US:"United States", Eurozone:"Eurozone", Japan:"Japan",
+  India:"India", Canada:"Canada", Australia:"Australia", "South Korea":"South Korea"};
+var COUNTRY_COLOR = {UK:"#1E4566", US:"#4796CE", Eurozone:"#413D7B", Japan:"#37659E",
+  India:"#348FA7", Canada:"#40B7AD", Australia:"#8AD9B1", "South Korea":"#E39B2D"};
+var METRIC_LABEL = {gdp_growth:"GDP growth (vs prior quarter)", cpi:"Inflation (CPI)",
+  unemployment:"Unemployment rate", debt_gdp:"Debt, % of GDP", rate:"Policy rate"};
+var METRIC_UNIT = {gdp_growth:"%", cpi:"%", unemployment:"%", debt_gdp:"pts", rate:"pts"};
+var ALL_COUNTRIES = Object.keys(COUNTRY_DATA);
+var MAX_SELECTED = 5;
+
+var selected = ["UK", "US", "Japan", "India", "Eurozone"];
+var horizon = "0";
+
+/* ------------------------------- chips ---------------------------------- */
+function renderChips(){
+  var row = document.getElementById("chipRow");
+  row.innerHTML = "";
+  ALL_COUNTRIES.forEach(function(c){
+    var isOn = selected.indexOf(c) !== -1;
+    var chip = document.createElement("button");
+    chip.type = "button";
+    chip.className = "chip" + (isOn ? " active" : "");
+    if(isOn) chip.style.background = COUNTRY_COLOR[c];
+    chip.disabled = !isOn && selected.length >= MAX_SELECTED;
+    chip.innerHTML = "<span class=\"dot\" style=\"background:" + (isOn ? "#fff" : COUNTRY_COLOR[c]) + ";\"></span>" + COUNTRY_LABEL[c];
+    chip.addEventListener("click", function(){
+      if(isOn){
+        selected = selected.filter(function(x){ return x !== c; });
+      } else if(selected.length < MAX_SELECTED){
+        selected.push(c);
+      }
+      renderAll();
+    });
+    row.appendChild(chip);
+  });
+  document.getElementById("chipHint").textContent = selected.length + " of " + MAX_SELECTED + " selected"
+    + (selected.length >= MAX_SELECTED ? " \u2014 remove one to add another." : ".");
+}
+
+/* ------------------------------ data helpers ----------------------------- */
+function getMetricPoint(country, metricKey, h){
+  var m = COUNTRY_DATA[country] && COUNTRY_DATA[country].metrics[metricKey];
+  if(!m) return null;
+  return m[h] || null;
+}
+function getDisplayValue(country, metricKey){
+  var now = getMetricPoint(country, metricKey, "0");
+  if(!now) return null;
+  if(horizon === "0") return {value: now.value, isDelta: false, period: now.period};
+
+  // GDP growth is itself already a rate (quarter-on-quarter), so taking
+  // the difference between two single point-in-time growth rates
+  // doesn't say anything about how much the economy actually grew over
+  // the horizon -- it's comparing two speedometer readings, not the
+  // distance travelled. Total real growth over the period, compounded
+  // from the level series, is what actually answers "how has GDP grown"
+  // over 1/2/5/10 years -- confirmed against real data before shipping
+  // (e.g. India's real GDP is genuinely ~82% larger than 10 years ago;
+  // the old rate-delta approach would have shown a meaningless -1.3pp).
+  if(metricKey === "gdp_growth"){
+    var nowLevel = getMetricPoint(country, "gdp_real", "0");
+    var thenLevel = getMetricPoint(country, "gdp_real", horizon);
+    if(!nowLevel || !thenLevel || !thenLevel.value) return null;
+    var cumulative = Math.round((nowLevel.value / thenLevel.value - 1) * 1000) / 10;
+    return {value: cumulative, isDelta: true, isCumulative: true, period: thenLevel.period};
+  }
+
+  var then = getMetricPoint(country, metricKey, horizon);
+  if(!then) return null;
+  // India's unemployment history is genuinely too short for 5Y/10Y --
+  // flag rather than silently show a meaningless "change" from a
+  // duplicated earliest-available point.
+  if(country === "India" && metricKey === "unemployment" && (horizon === "5" || horizon === "10") && then.period === getMetricPoint(country, metricKey, "2").period){
+    return null;
+  }
+  return {value: Math.round((now.value - then.value) * 100) / 100, isDelta: true, period: then.period};
+}
+
+/* ------------------------------ bar charts ------------------------------- */
+var charts = {};
+function renderCharts(){
+  var grid = document.getElementById("chartGrid");
+  grid.innerHTML = "";
+  Object.keys(charts).forEach(function(k){ charts[k].destroy(); });
+  charts = {};
+
+  var metricsToShow = ["gdp_growth", "cpi", "unemployment", "debt_gdp", "rate"];
+  metricsToShow.forEach(function(metricKey){
+    var rows = selected.map(function(c){
+      var dv = getDisplayValue(c, metricKey);
+      return {country: c, dv: dv};
+    }).filter(function(r){ return r.dv != null; });
+    if(!rows.length) return;
+
+    var card = document.createElement("div");
+    card.className = "cmp-card";
+    var isGdpCumulative = metricKey === "gdp_growth" && horizon !== "0";
+    var title = isGdpCumulative ? "Total real GDP growth" : (METRIC_LABEL[metricKey] + (horizon !== "0" ? " \u2014 change" : ""));
+    var expl = horizon === "0" ? "Latest available figure for each country."
+      : isGdpCumulative ? "Cumulative growth in real (inflation-adjusted) GDP over the selected horizon \u2014 not a comparison of two single quarterly growth-rate readings."
+      : "Change over the selected horizon, in " + METRIC_UNIT[metricKey] + ".";
+    card.innerHTML = "<h3>" + title + "</h3>"
+      + "<p class=\"expl\">" + expl + "</p>"
+      + "<div class=\"cbox\"><canvas></canvas></div>";
+    grid.appendChild(card);
+
+    var canvas = card.querySelector("canvas");
+    var chart = new Chart(canvas, {
+      type: "bar",
+      data: {
+        labels: rows.map(function(r){ return r.country; }),
+        datasets: [{
+          data: rows.map(function(r){ return r.dv.value; }),
+          backgroundColor: rows.map(function(r){ return COUNTRY_COLOR[r.country]; }),
+          borderRadius: 5
+        }]
+      },
+      options: {
+        responsive: true, maintainAspectRatio: false,
+        plugins: {
+          legend: {display: false},
+          tooltip: {
+            backgroundColor: "#fff", titleColor: "#171B1E", bodyColor: "#171B1E",
+            borderColor: "#E4E6E1", borderWidth: 1,
+            callbacks: {
+              label: function(ctx){
+                var r = rows[ctx.dataIndex];
+                var sign = r.dv.isDelta && r.dv.value > 0 ? "+" : "";
+                var suffix = r.dv.isCumulative ? "% cumulative since " + r.dv.period : " (as of " + r.dv.period + ")";
+                return sign + r.dv.value + suffix;
+              }
+            }
+          }
+        },
+        scales: {
+          y: {grid: {color: "#E4E6E1"}, border: {display: false}},
+          x: {grid: {display: false}, border: {color: "#E4E6E1"}}
+        }
+      }
+    });
+    charts[metricKey] = chart;
+  });
+}
+
+/* -------------------------------- table ---------------------------------- */
+var sortKey = null, sortDir = 1;
+function renderTable(){
+  var table = document.getElementById("rankTable");
+  var metricsToShow = ["gdp_growth", "cpi", "unemployment", "debt_gdp", "rate"];
+  var headLabels = {country: "Country",
+    gdp_growth: horizon === "0" ? "GDP growth (QoQ)" : "Total real GDP growth",
+    cpi: "CPI", unemployment: "Unemployment", debt_gdp: "Debt/GDP", rate: "Policy rate"};
+
+  var rows = selected.map(function(c){
+    var row = {country: c};
+    metricsToShow.forEach(function(m){
+      var dv = getDisplayValue(c, m);
+      row[m] = dv ? dv.value : null;
+    });
+    return row;
+  });
+
+  if(sortKey){
+    rows.sort(function(a, b){
+      var av = sortKey === "country" ? a.country : a[sortKey];
+      var bv = sortKey === "country" ? b.country : b[sortKey];
+      if(av == null) return 1;
+      if(bv == null) return -1;
+      if(typeof av === "string") return av.localeCompare(bv) * sortDir;
+      return (av - bv) * sortDir;
+    });
+  }
+
+  var theadCells = ["country"].concat(metricsToShow).map(function(k){
+    var cls = k === sortKey ? "sorted" : "";
+    return "<th class=\"" + cls + "\" data-k=\"" + k + "\">" + headLabels[k] + "</th>";
+  }).join("");
+
+  var bodyRows = rows.map(function(r){
+    var cells = "<td class=\"country\"><span class=\"swatch\" style=\"background:" + COUNTRY_COLOR[r.country] + ";\"></span>" + r.country + "</td>";
+    metricsToShow.forEach(function(m){
+      var v = r[m];
+      cells += "<td class=\"num\">" + (v == null ? "\u2014" : (horizon !== "0" && v > 0 ? "+" : "") + v) + "</td>";
+    });
+    return "<tr>" + cells + "</tr>";
+  }).join("");
+
+  table.innerHTML = "<thead><tr>" + theadCells + "</tr></thead><tbody>" + bodyRows + "</tbody>";
+  table.querySelectorAll("th").forEach(function(th){
+    th.addEventListener("click", function(){
+      var k = th.dataset.k;
+      if(sortKey === k){ sortDir *= -1; } else { sortKey = k; sortDir = 1; }
+      renderTable();
+    });
+  });
+}
+
+/* ------------------------------ horizon toggle ---------------------------- */
+document.querySelectorAll(".hbtn").forEach(function(btn){
+  btn.addEventListener("click", function(){
+    document.querySelectorAll(".hbtn").forEach(function(b){ b.classList.remove("active"); });
+    btn.classList.add("active");
+    horizon = btn.dataset.h;
+    renderCharts();
+    renderTable();
+  });
+});
+
+function renderAll(){
+  renderChips();
+  renderCharts();
+  renderTable();
+}
+renderAll();
+
+/* -------------------------------- map modal -------------------------------- */
+var mapMetric = "gdp_growth";
+var mapMetricsAvailable = ["gdp_growth", "cpi", "unemployment", "debt_gdp"];
+function renderMapMetricRow(){
+  var row = document.getElementById("mapMetricRow");
+  row.innerHTML = "";
+  mapMetricsAvailable.forEach(function(m){
+    var b = document.createElement("button");
+    b.type = "button";
+    b.className = "hbtn" + (m === mapMetric ? " active" : "");
+    b.textContent = METRIC_LABEL[m];
+    b.addEventListener("click", function(){
+      mapMetric = m;
+      renderMapMetricRow();
+      drawHeatmap();
+    });
+    row.appendChild(b);
+  });
+}
+
+var worldData = null;
+function drawHeatmap(){
+  if(!worldData) return;
+  var svg = d3.select("#heatmapSvg");
+  svg.selectAll("*").remove();
+
+  var vals = ALL_COUNTRIES.filter(function(c){ return COUNTRY_DATA[c].iso; })
+    .map(function(c){ var p = getMetricPoint(c, mapMetric, "0"); return p ? p.value : null; })
+    .filter(function(v){ return v != null; });
+  var lo = Math.min.apply(null, vals), hi = Math.max.apply(null, vals);
+  var colorScale = d3.scaleSequential().domain([lo, hi]).interpolator(d3.interpolateRgbBasis(["#EAF3E9", "#8AD9B1", "#348FA7", "#37659E", "#2E1E3B"]));
+
+  document.getElementById("legendLo").textContent = lo.toFixed(1) + (METRIC_UNIT[mapMetric] === "%" ? "%" : "");
+  document.getElementById("legendHi").textContent = hi.toFixed(1) + (METRIC_UNIT[mapMetric] === "%" ? "%" : "");
+
+  var isoToCountry = {};
+  ALL_COUNTRIES.forEach(function(c){ if(COUNTRY_DATA[c].iso) isoToCountry[COUNTRY_DATA[c].iso] = c; });
+
+  var projection = d3.geoNaturalEarth1().fitSize([960, 500], {type: "Sphere"});
+  var path = d3.geoPath(projection);
+  var countries = topojson.feature(worldData, worldData.objects.countries).features;
+  var tip = document.getElementById("heatTip");
+
+  svg.selectAll("path").data(countries).join("path")
+    .attr("d", path)
+    .attr("fill", function(f){
+      var c = isoToCountry[f.id];
+      if(!c) return "#E9EBE7";
+      var p = getMetricPoint(c, mapMetric, "0");
+      return p ? colorScale(p.value) : "#E9EBE7";
+    })
+    .attr("stroke", "#fff").attr("stroke-width", 0.6)
+    .style("cursor", function(f){ return isoToCountry[f.id] ? "pointer" : "default"; })
+    .on("mousemove", function(e, f){
+      var c = isoToCountry[f.id];
+      if(!c){ tip.style.display = "none"; return; }
+      var p = getMetricPoint(c, mapMetric, "0");
+      tip.style.display = "block";
+      tip.style.left = (e.offsetX + 14) + "px";
+      tip.style.top = (e.offsetY + 10) + "px";
+      tip.innerHTML = "<strong>" + c + "</strong><br>" + METRIC_LABEL[mapMetric] + ": " + (p ? p.value + (METRIC_UNIT[mapMetric] === "%" ? "%" : "") : "n/a");
+    })
+    .on("mouseleave", function(){ tip.style.display = "none"; });
+}
+
+document.getElementById("openMapBtn").addEventListener("click", function(){
+  document.getElementById("mapModal").hidden = false;
+  document.body.style.overflow = "hidden";
+  renderMapMetricRow();
+  if(!worldData){
+    fetch("https://cdn.jsdelivr.net/npm/world-atlas@2/countries-110m.json")
+      .then(function(r){ return r.json(); })
+      .then(function(world){ worldData = world; drawHeatmap(); });
+  } else {
+    drawHeatmap();
+  }
+});
+function closeMap(){
+  document.getElementById("mapModal").hidden = true;
+  document.body.style.overflow = "";
+}
+document.getElementById("mapClose").addEventListener("click", closeMap);
+document.getElementById("mapBackdrop").addEventListener("click", closeMap);
+document.addEventListener("keydown", function(e){ if(e.key === "Escape") closeMap(); });
+
+})();
+</script>
+</body>
+</html>

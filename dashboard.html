@@ -1,0 +1,418 @@
+<!DOCTYPE html>
+<html lang="en-GB">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>My Dashboard · Economic Atlas</title>
+<meta name="description" content="Pin any metric from any country into one personal view, with an inline chart on demand.">
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+<link href="https://fonts.googleapis.com/css2?family=Nunito+Sans:wght@400;600;700&display=swap" rel="stylesheet">
+<link rel="icon" type="image/png" sizes="32x32" href="favicon-32.png">
+<link rel="apple-touch-icon" href="apple-touch-icon.png">
+<link rel="stylesheet" href="style.css?v=12">
+<script src="https://cdnjs.cloudflare.com/ajax/libs/Chart.js/4.4.1/chart.umd.min.js"></script>
+<style>
+.premium{display:inline-flex; align-items:center; gap:5px; font-size:10.5px; font-weight:700; text-transform:uppercase;
+  letter-spacing:.04em; background:var(--navy); color:#fff; padding:3px 10px; border-radius:999px; vertical-align:middle;}
+.loadmsg{font-size:13.5px; color:var(--ink2); padding:20px 0;}
+
+.dashgrid{display:grid; grid-template-columns:repeat(3,1fr); gap:14px; margin-bottom:8px;}
+.tile{background:var(--panel); border:1px solid var(--hair); border-radius:14px; padding:18px 20px; position:relative;
+  grid-column:span 1;}
+.tile.expanded{grid-column:span 3;}
+.tile .remove{position:absolute; top:10px; right:10px; width:22px; height:22px; border-radius:50%;
+  border:1px solid var(--hair); background:var(--paper); color:var(--ink2); font-size:13px; cursor:pointer;
+  display:flex; align-items:center; justify-content:center;}
+.tile .remove:hover{border-color:#C0392B; color:#C0392B;}
+.tile .country{font-size:11px; font-weight:700; color:var(--blue); text-transform:uppercase; letter-spacing:.04em;}
+.tile .label{font-size:13px; color:var(--ink2); margin:6px 0 8px; padding-right:26px;}
+.tile .value{font-size:26px; font-weight:700; color:var(--navy);}
+.tile .period{font-size:11.5px; color:var(--ink2); margin-top:4px;}
+.tile .chartbtn{margin-top:12px; border:1px solid var(--hair); background:var(--paper); color:var(--navy);
+  font:600 12px "Avenir Next","Avenir","Nunito Sans",sans-serif; padding:6px 13px; border-radius:999px; cursor:pointer;
+  display:inline-flex; align-items:center; gap:6px;}
+.tile .chartbtn:hover{border-color:var(--blue);}
+.tile .chartbox{height:220px; margin-top:14px; position:relative; display:none;}
+.tile.expanded .chartbox{display:block;}
+.tile .chartsrc{font-size:11px; color:var(--ink2); margin-top:8px; display:none;}
+.tile.expanded .chartsrc{display:block;}
+
+.addtile{background:var(--panel); border:2px dashed var(--hair); border-radius:14px; padding:18px 20px;
+  display:flex; flex-direction:column; align-items:center; justify-content:center; gap:8px; cursor:pointer;
+  color:var(--ink2); min-height:118px;}
+.addtile:hover{border-color:var(--blue); color:var(--navy);}
+.addtile .plus{font-size:28px; line-height:1;}
+.addtile .txt{font-size:13px; font-weight:600;}
+
+.picker{display:none; background:var(--panel); border:1px solid var(--hair); border-radius:14px;
+  padding:20px 22px; margin-bottom:20px;}
+.picker.open{display:block;}
+.picker h3{font-size:15px; margin:0 0 14px;}
+
+.modetoggle{display:flex; gap:6px; margin-bottom:16px;}
+.modetoggle button{border:1px solid var(--hair); background:var(--paper); color:var(--ink2);
+  font:600 12.5px "Avenir Next","Avenir","Nunito Sans",sans-serif; padding:6px 15px; border-radius:999px; cursor:pointer;}
+.modetoggle button.active{background:var(--navy); border-color:var(--navy); color:#fff;}
+
+.pickerselect{margin-bottom:14px; display:flex; gap:14px; flex-wrap:wrap;}
+.pickerselect > div{flex:1; min-width:200px;}
+.pickerselect select{font:600 13.5px "Avenir Next","Avenir","Nunito Sans",sans-serif; color:var(--ink);
+  background:var(--paper); border:1px solid var(--hair); border-radius:10px; padding:9px 13px; cursor:pointer; width:100%;}
+.pickerselect label{display:block; font-size:11.5px; font-weight:700; color:var(--ink2); text-transform:uppercase;
+  letter-spacing:.03em; margin-bottom:6px;}
+
+.pickergrid{display:grid; grid-template-columns:repeat(3,1fr); gap:10px; max-height:340px; overflow-y:auto; padding-right:4px;}
+.pickeritem{border:1px solid var(--hair); border-radius:10px; padding:10px 12px; cursor:pointer; font-size:13px;
+  background:var(--paper);}
+.pickeritem:hover{border-color:var(--blue); background:#F0F6FA;}
+.pickeritem .c{font-size:10px; font-weight:700; color:var(--blue); text-transform:uppercase;}
+.pickerempty{font-size:13px; color:var(--ink2); font-style:italic; grid-column:1 / -1;}
+
+footer.dash-foot{margin-top:36px; font-size:12.5px; color:var(--ink2); border-top:1px solid var(--hair); padding-top:16px;}
+</style>
+</head>
+<body>
+<nav class="top"><div class="wrap">
+  <a class="brand" href="index.html"><img src="logo-64.png" alt="" width="26" height="26" style="display:block;border-radius:50%;background:#fff;padding:1px;">Economic Atlas</a>
+  <div class="dropdown">
+    <button type="button" class="dropbtn" id="macroBtn" aria-haspopup="true" aria-expanded="false">Country Breakdowns <span class="caret">&#9662;</span></button>
+    <div class="dropdown-panel" id="macroPanel">
+      <div class="doverview">
+        <a href="index.html">Overview</a>
+      </div>
+      <div class="dcol">
+        <p class="dhead">Europe</p>
+        <a href="uk.html">UK</a>
+        <a href="eurozone.html">Eurozone</a>
+      </div>
+      <div class="dcol">
+        <p class="dhead">North America</p>
+        <a href="us.html">U.S.</a>
+        <a href="canada.html">Canada</a>
+      </div>
+      <div class="dcol">
+        <p class="dhead">Asia</p>
+        <a href="japan.html">Japan</a>
+        <a href="india.html">India</a>
+        <a href="southkorea.html">South Korea</a>
+      </div>
+      <div class="dcol">
+        <p class="dhead">Oceania</p>
+        <a href="australia.html">Australia</a>
+      </div>
+    </div>
+  </div>
+  <a class="item" href="compare.html">Compare</a>
+  <a class="item active" href="dashboard.html">Dashboard</a>
+  <a class="item" href="contact.html">Contact</a>
+</div></nav>
+<script>
+(function(){
+  var btn = document.getElementById("macroBtn");
+  var panel = document.getElementById("macroPanel");
+  function close(){
+    panel.classList.remove("open"); btn.classList.remove("open");
+    btn.setAttribute("aria-expanded","false");
+  }
+  btn.addEventListener("click", function(e){
+    e.stopPropagation();
+    var isOpen = panel.classList.toggle("open");
+    btn.classList.toggle("open", isOpen);
+    btn.setAttribute("aria-expanded", isOpen ? "true" : "false");
+  });
+  document.addEventListener("click", function(e){
+    if(!panel.contains(e.target) && e.target !== btn) close();
+  });
+  document.addEventListener("keydown", function(e){ if(e.key === "Escape") close(); });
+})();
+</script>
+
+<div class="wrap" style="max-width:1080px; padding:30px 24px 60px;">
+  <h1 style="font-size:28px; letter-spacing:-.01em; margin-bottom:6px;">My Dashboard <span class="premium">Free feature</span></h1>
+  <p style="color:var(--ink2); font-size:14.5px; max-width:70ch; margin:8px 0 0;">Pin any metric from any of the 8 tracked countries into one personal view, with a chart on demand for any tile.</p>
+
+  <div id="loadMsg" class="loadmsg">Loading every country&#39;s data&hellip;</div>
+  <div class="dashgrid" id="dashGrid" style="display:none;"></div>
+
+  <div class="picker" id="picker" style="display:none;">
+    <h3>Add a metric</h3>
+    <div class="modetoggle" id="modeToggle">
+      <button type="button" class="active" data-mode="country">By country</button>
+      <button type="button" data-mode="metric">By metric</button>
+    </div>
+    <div class="pickerselect" id="pickerSelectWrap">
+      <div>
+        <label id="pickerSelectLabel">Country</label>
+        <select id="pickerSelect"></select>
+      </div>
+    </div>
+    <div class="pickergrid" id="pickerGrid"></div>
+  </div>
+
+  <footer class="dash-foot">
+    Every figure and chart here is read live from the same data files each country's own page uses (ONS, FRED, Eurostat, e-Stat/Bank of Japan, MoSPI, Bank of Korea, OECD, World Bank) &mdash; nothing is hand-picked or invented. Your pinned tiles reset each time you reload this page &mdash; there's no account system yet to remember your selection between visits.
+    <br><br>Free to use for now &mdash; this may move behind a paid tier as the site develops.
+  </footer>
+</div>
+
+<script>
+(function(){
+"use strict";
+
+var FILES = {
+  UK: "data.json", US: "data-us.json", Eurozone: "data-ez.json", Japan: "data-jp.json",
+  India: "data-in.json", Canada: "data-ca.json", Australia: "data-au.json", "South Korea": "data-kr.json"
+};
+
+// Groups every known series key into a category, purely for the "By
+// metric" browse mode -- different countries often use different key
+// names for a conceptually similar thing (boe_rate/fed_funds/ecb_rate
+// are all "policy rate"), so metrics are browsed by category rather than
+// by a single canonical key name. Anything not listed here still shows
+// up under "Other" rather than being silently dropped, so a metric added
+// to the site later doesn't just disappear from this page.
+var CATEGORY_OF = {
+  gdp_level: "GDP & growth", gdp_real: "GDP & growth", gdp_growth: "GDP & growth",
+  gdp_nominal: "GDP & growth", productivity: "GDP & growth",
+  unemployment: "Labour market", employment: "Labour market", inactivity: "Labour market",
+  participation: "Labour market", unemployment_1624: "Labour market",
+  cpi: "Prices", cpih: "Prices", cpi_mom: "Prices", core_cpi: "Prices",
+  debt_gdp: "Public finances", net_debt: "Public finances", deficit: "Public finances",
+  debt_interest: "Public finances", current_account: "Public finances",
+  trade_balance: "Trade", exports: "Trade", imports: "Trade",
+  business_confidence: "Business & investment", fdi: "Business & investment",
+  boe_rate: "Rates & yields", fed_funds: "Rates & yields", ecb_rate: "Rates & yields",
+  boj_rate: "Rates & yields", overnight_rate: "Rates & yields", bond_yield_10y: "Rates & yields"
+};
+var CATEGORY_ORDER = ["GDP & growth", "Labour market", "Prices", "Public finances", "Trade", "Business & investment", "Rates & yields", "Other"];
+
+var REGISTRY = {}; // REGISTRY[country][key] = {label, unit, freq, points}
+
+function categoryOf(key){ return CATEGORY_OF[key] || "Other"; }
+
+function loadAll(){
+  var entries = Object.keys(FILES);
+  return Promise.all(entries.map(function(country){
+    return fetch(FILES[country], {cache: "no-store"})
+      .then(function(r){ if(!r.ok) throw new Error(r.status); return r.json(); })
+      .then(function(payload){
+        var series = payload.series || {};
+        REGISTRY[country] = {};
+        Object.keys(series).forEach(function(key){
+          var s = series[key];
+          if(s && Array.isArray(s.points) && s.points.length){
+            REGISTRY[country][key] = s;
+          }
+        });
+      })
+      .catch(function(err){
+        console.warn("Couldn't load data for " + country + ":", err);
+        REGISTRY[country] = REGISTRY[country] || {};
+      });
+  }));
+}
+
+var ALL_COUNTRIES = Object.keys(FILES);
+
+function tileId(country, key){ return country + "::" + key; }
+function tileFromId(id){
+  var parts = id.split("::");
+  var country = parts[0], key = parts.slice(1).join("::");
+  var s = REGISTRY[country] && REGISTRY[country][key];
+  if(!s) return null;
+  var last = s.points[s.points.length - 1];
+  return {id: id, country: country, key: key, series: s, value: last[1], period: last[0]};
+}
+function fmtVal(v, unit){
+  if(unit && /^[^a-zA-Z0-9]/.test(unit)){
+    // currency-style unit, e.g. "£bn" -- keep simple for a compact tile
+    return unit.charAt(0) + v.toLocaleString();
+  }
+  return v + (unit || "");
+}
+
+/* --------------------------------- tiles ----------------------------------- */
+var pinned = []; // set once data has loaded, see below
+var tileCharts = {};
+
+function renderDash(){
+  var grid = document.getElementById("dashGrid");
+  grid.innerHTML = "";
+  pinned.forEach(function(id){
+    var m = tileFromId(id);
+    if(!m) return;
+    var tile = document.createElement("div");
+    tile.className = "tile";
+    tile.dataset.id = id;
+    tile.innerHTML = "<button type=\"button\" class=\"remove\" aria-label=\"Remove\">&times;</button>"
+      + "<p class=\"country\">" + m.country + "</p>"
+      + "<p class=\"label\">" + m.series.label + "</p>"
+      + "<p class=\"value\">" + fmtVal(m.value, m.series.unit) + "</p>"
+      + "<p class=\"period\">" + m.period + "</p>"
+      + "<button type=\"button\" class=\"chartbtn\">&#128200; View chart</button>"
+      + "<div class=\"chartbox\"><canvas></canvas></div>"
+      + "<p class=\"chartsrc\">" + m.series.points.length + " observations, " + m.period + " is the latest.</p>";
+
+    tile.querySelector(".remove").addEventListener("click", function(e){
+      e.stopPropagation();
+      pinned = pinned.filter(function(x){ return x !== id; });
+      if(tileCharts[id]){ tileCharts[id].destroy(); delete tileCharts[id]; }
+      renderDash();
+    });
+    tile.querySelector(".chartbtn").addEventListener("click", function(){
+      var isExpanded = tile.classList.toggle("expanded");
+      tile.querySelector(".chartbtn").innerHTML = isExpanded ? "&#128200; Hide chart" : "&#128200; View chart";
+      if(isExpanded && !tileCharts[id]){
+        var canvas = tile.querySelector("canvas");
+        var pts = m.series.points;
+        var kind = m.series.unit === "%" || m.series.freq === "quarters" ? "bar" : "line";
+        // simple, deliberately not the full interactive chart system used
+        // on each country's own page -- this is a quick-glance preview
+        tileCharts[id] = new Chart(canvas, {
+          type: kind,
+          data: {
+            labels: pts.map(function(p){ return p[0]; }),
+            datasets: [{
+              data: pts.map(function(p){ return p[1]; }),
+              borderColor: "#37659E", backgroundColor: kind === "bar" ? "#37659E" : "rgba(55,101,158,0.12)",
+              borderWidth: kind === "bar" ? 0 : 2, pointRadius: 0, fill: kind === "line", borderRadius: 2
+            }]
+          },
+          options: {
+            responsive: true, maintainAspectRatio: false,
+            plugins: {legend: {display: false}},
+            scales: {
+              x: {grid: {display: false}, border: {color: "#E4E6E1"}, ticks: {maxTicksLimit: 8}},
+              y: {grid: {color: "#E4E6E1"}, border: {display: false}}
+            }
+          }
+        });
+      }
+    });
+
+    grid.appendChild(tile);
+  });
+
+  var addTile = document.createElement("div");
+  addTile.className = "addtile";
+  addTile.innerHTML = "<span class=\"plus\">+</span><span class=\"txt\">Add a metric</span>";
+  addTile.addEventListener("click", function(){
+    var picker = document.getElementById("picker");
+    picker.classList.toggle("open");
+    if(picker.classList.contains("open")) refreshPicker();
+  });
+  grid.appendChild(addTile);
+}
+
+/* -------------------------------- picker ----------------------------------- */
+var pickerMode = "country";
+
+document.querySelectorAll("#modeToggle button").forEach(function(btn){
+  btn.addEventListener("click", function(){
+    document.querySelectorAll("#modeToggle button").forEach(function(b){ b.classList.remove("active"); });
+    btn.classList.add("active");
+    pickerMode = btn.dataset.mode;
+    populatePickerSelect();
+  });
+});
+
+function populatePickerSelect(){
+  var wrap = document.getElementById("pickerSelectWrap");
+  wrap.innerHTML = "";
+  var div = document.createElement("div");
+  var label = document.createElement("label");
+  var sel = document.createElement("select");
+  sel.id = "pickerSelect";
+  if(pickerMode === "country"){
+    label.textContent = "Country";
+    ALL_COUNTRIES.forEach(function(c){
+      var o = document.createElement("option"); o.value = c; o.textContent = c; sel.appendChild(o);
+    });
+  } else {
+    label.textContent = "Category";
+    CATEGORY_ORDER.forEach(function(cat){
+      var o = document.createElement("option"); o.value = cat; o.textContent = cat; sel.appendChild(o);
+    });
+  }
+  div.appendChild(label); div.appendChild(sel);
+  wrap.appendChild(div);
+  sel.addEventListener("change", refreshPickerGrid);
+  refreshPickerGrid();
+}
+
+function refreshPicker(){ populatePickerSelect(); }
+
+function refreshPickerGrid(){
+  var sel = document.getElementById("pickerSelect");
+  var pgrid = document.getElementById("pickerGrid");
+  pgrid.innerHTML = "";
+  var items = [];
+
+  if(pickerMode === "country"){
+    var country = sel.value;
+    Object.keys(REGISTRY[country] || {}).forEach(function(key){
+      var id = tileId(country, key);
+      if(pinned.indexOf(id) === -1) items.push({id: id, country: country, key: key});
+    });
+    items.sort(function(a, b){
+      var ca = categoryOf(a.key), cb = categoryOf(b.key);
+      if(ca !== cb) return CATEGORY_ORDER.indexOf(ca) - CATEGORY_ORDER.indexOf(cb);
+      return REGISTRY[country][a.key].label.localeCompare(REGISTRY[country][b.key].label);
+    });
+  } else {
+    var cat = sel.value;
+    ALL_COUNTRIES.forEach(function(country){
+      Object.keys(REGISTRY[country] || {}).forEach(function(key){
+        if(categoryOf(key) !== cat) return;
+        var id = tileId(country, key);
+        if(pinned.indexOf(id) === -1) items.push({id: id, country: country, key: key});
+      });
+    });
+    items.sort(function(a, b){ return a.country.localeCompare(b.country); });
+  }
+
+  if(!items.length){
+    pgrid.innerHTML = "<p class=\"pickerempty\">Everything available here is already pinned.</p>";
+    return;
+  }
+
+  items.forEach(function(it){
+    var s = REGISTRY[it.country][it.key];
+    var div = document.createElement("div");
+    div.className = "pickeritem";
+    var top = pickerMode === "country" ? categoryOf(it.key) : it.country;
+    div.innerHTML = "<p class=\"c\">" + top + "</p>" + s.label;
+    div.addEventListener("click", function(){
+      pinned.push(it.id);
+      document.getElementById("picker").classList.remove("open");
+      renderDash();
+    });
+    pgrid.appendChild(div);
+  });
+}
+
+/* --------------------------------- boot ------------------------------------ */
+loadAll().then(function(){
+  document.getElementById("loadMsg").style.display = "none";
+  document.getElementById("dashGrid").style.display = "grid";
+  document.getElementById("picker").style.display = "";
+
+  // A plausible starting selection -- what a UK-based user tracking a
+  // couple of other economies might pin. Falls back gracefully if any
+  // of these happen to be missing from a given country's file.
+  var wishlist = [
+    tileId("UK", "unemployment"), tileId("UK", "boe_rate"), tileId("US", "fed_funds"),
+    tileId("Japan", "boj_rate"), tileId("India", "gdp_growth"), tileId("Eurozone", "unemployment")
+  ];
+  pinned = wishlist.filter(function(id){ return tileFromId(id) != null; });
+  renderDash();
+}).catch(function(err){
+  document.getElementById("loadMsg").textContent = "Couldn't load the site's data files. If you're viewing this locally, make sure data.json, data-us.json, data-ez.json, data-jp.json, data-in.json, data-ca.json, data-au.json and data-kr.json are in the same folder as this page.";
+  console.error(err);
+});
+
+})();
+</script>
+</body>
+</html>
