@@ -2,6 +2,14 @@
 <html lang="en-GB">
 <head>
 <meta charset="utf-8">
+<script>(function(){
+  try{
+    var saved = localStorage.getItem("eatlas_theme");
+    if(saved === "dark" || (!saved && window.matchMedia && window.matchMedia("(prefers-color-scheme: dark)").matches)){
+      document.documentElement.setAttribute("data-theme", "dark");
+    }
+  }catch(e){}
+})();</script>
 <meta name="viewport" content="width=device-width, initial-scale=1">
 <title>Economic Atlas</title>
 <meta name="description" content="Economic Atlas — the world economy, country by country, in numbers. UK, US, Eurozone, Japan, India, Canada and Australia live now.">
@@ -67,6 +75,7 @@
   <a class="item" href="compare.html">Compare</a>
   <a class="item" href="dashboard.html">My Dashboard</a>
   <a class="item" href="contact.html">Contact</a>
+  <button type="button" class="theme-toggle" id="themeToggle" aria-label="Switch to dark mode" title="Switch to dark mode">&#127769;</button>
 </div></nav>
 <script>
 (function(){
@@ -86,6 +95,28 @@
     if(!panel.contains(e.target) && e.target !== btn) close();
   });
   document.addEventListener("keydown", function(e){ if(e.key === "Escape") close(); });
+
+  var themeBtn = document.getElementById("themeToggle");
+  function updateThemeIcon(){
+    var isDark = document.documentElement.getAttribute("data-theme") === "dark";
+    themeBtn.innerHTML = isDark ? "&#9728;&#65039;" : "&#127769;";
+    themeBtn.setAttribute("aria-label", isDark ? "Switch to light mode" : "Switch to dark mode");
+    themeBtn.setAttribute("title", isDark ? "Switch to light mode" : "Switch to dark mode");
+  }
+  if(themeBtn){
+    updateThemeIcon();
+    themeBtn.addEventListener("click", function(){
+      var isDark = document.documentElement.getAttribute("data-theme") === "dark";
+      if(isDark){
+        document.documentElement.removeAttribute("data-theme");
+        try{ localStorage.setItem("eatlas_theme", "light"); }catch(e){}
+      } else {
+        document.documentElement.setAttribute("data-theme", "dark");
+        try{ localStorage.setItem("eatlas_theme", "dark"); }catch(e){}
+      }
+      updateThemeIcon();
+    });
+  }
 })();
 </script>
 <div class="wrap">

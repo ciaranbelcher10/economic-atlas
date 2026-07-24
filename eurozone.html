@@ -2,6 +2,14 @@
 <html lang="en-GB">
 <head>
 <meta charset="utf-8">
+<script>(function(){
+  try{
+    var saved = localStorage.getItem("eatlas_theme");
+    if(saved === "dark" || (!saved && window.matchMedia && window.matchMedia("(prefers-color-scheme: dark)").matches)){
+      document.documentElement.setAttribute("data-theme", "dark");
+    }
+  }catch(e){}
+})();</script>
 <meta name="viewport" content="width=device-width, initial-scale=1">
 <title>Eurozone · Economic Atlas</title>
 <meta name="description" content="The euro-area economy in numbers: GDP, inflation, unemployment, trade and government finances, from official statistics.">
@@ -138,6 +146,7 @@ nav.cat button.active{background:var(--blue); border-color:var(--blue); color:#f
   <a class="item" href="compare.html">Compare</a>
   <a class="item" href="dashboard.html">My Dashboard</a>
   <a class="item" href="contact.html">Contact</a>
+  <button type="button" class="theme-toggle" id="themeToggle" aria-label="Switch to dark mode" title="Switch to dark mode">&#127769;</button>
 </div></nav>
 <script>
 (function(){
@@ -157,6 +166,28 @@ nav.cat button.active{background:var(--blue); border-color:var(--blue); color:#f
     if(!panel.contains(e.target) && e.target !== btn) close();
   });
   document.addEventListener("keydown", function(e){ if(e.key === "Escape") close(); });
+
+  var themeBtn = document.getElementById("themeToggle");
+  function updateThemeIcon(){
+    var isDark = document.documentElement.getAttribute("data-theme") === "dark";
+    themeBtn.innerHTML = isDark ? "&#9728;&#65039;" : "&#127769;";
+    themeBtn.setAttribute("aria-label", isDark ? "Switch to light mode" : "Switch to dark mode");
+    themeBtn.setAttribute("title", isDark ? "Switch to light mode" : "Switch to dark mode");
+  }
+  if(themeBtn){
+    updateThemeIcon();
+    themeBtn.addEventListener("click", function(){
+      var isDark = document.documentElement.getAttribute("data-theme") === "dark";
+      if(isDark){
+        document.documentElement.removeAttribute("data-theme");
+        try{ localStorage.setItem("eatlas_theme", "light"); }catch(e){}
+      } else {
+        document.documentElement.setAttribute("data-theme", "dark");
+        try{ localStorage.setItem("eatlas_theme", "dark"); }catch(e){}
+      }
+      updateThemeIcon();
+    });
+  }
 })();
 </script>
 
@@ -373,7 +404,11 @@ document.addEventListener("DOMContentLoaded", function(){
 <script src="https://cdnjs.cloudflare.com/ajax/libs/chartjs-plugin-zoom/2.0.1/chartjs-plugin-zoom.min.js"></script>
 <script>
 "use strict";
-const INK="#171B1E", INK2="#5A6167", HAIR="#E7E9E4";
+const _cs0 = getComputedStyle(document.documentElement);
+const INK = _cs0.getPropertyValue("--ink").trim() || "#171B1E";
+const INK2 = _cs0.getPropertyValue("--ink2").trim() || "#5A6167";
+const HAIR = _cs0.getPropertyValue("--hair").trim() || "#E7E9E4";
+const PANEL_BG = _cs0.getPropertyValue("--panel").trim() || "#fff";
 const MAKO={deep:"#2E1E3B", indigo:"#413D7B", blue:"#37659E",
             sea:"#348FA7", teal:"#40B7AD", mint:"#8AD9B1"};
 const LINE=MAKO.blue, BAR_UP=MAKO.sea, BAR_DOWN=MAKO.indigo;
@@ -565,7 +600,7 @@ const baseOpts=(fmtTip, refLine)=>({
   responsive:true, maintainAspectRatio:false, animation:false,
   interaction:{mode:"index",intersect:false},
   plugins:{legend:{display:false},
-    tooltip:{backgroundColor:"#fff",titleColor:INK,bodyColor:INK,borderColor:HAIR,borderWidth:1,
+    tooltip:{backgroundColor:PANEL_BG,titleColor:INK,bodyColor:INK,borderColor:HAIR,borderWidth:1,
              titleFont:{family:"'Avenir Next','Nunito Sans',sans-serif",weight:"600"},
              bodyFont:{family:"'Avenir Next','Nunito Sans',sans-serif"},displayColors:false,
              callbacks:{title:items=>fmtPeriod(items[0].label),

@@ -2,6 +2,14 @@
 <html lang="en-GB">
 <head>
 <meta charset="utf-8">
+<script>(function(){
+  try{
+    var saved = localStorage.getItem("eatlas_theme");
+    if(saved === "dark" || (!saved && window.matchMedia && window.matchMedia("(prefers-color-scheme: dark)").matches)){
+      document.documentElement.setAttribute("data-theme", "dark");
+    }
+  }catch(e){}
+})();</script>
 <meta name="viewport" content="width=device-width, initial-scale=1">
 <title>My Dashboard · Economic Atlas</title>
 <meta name="description" content="Pin any metric from any country into one personal view, with an inline chart on demand.">
@@ -18,6 +26,17 @@
 .premium{display:inline-flex; align-items:center; gap:5px; font-size:10.5px; font-weight:700; text-transform:uppercase;
   letter-spacing:.04em; background:var(--navy); color:#fff; padding:3px 10px; border-radius:999px; vertical-align:middle;}
 .loadmsg{font-size:13.5px; color:var(--ink2); padding:20px 0;}
+.dollarrow{margin:16px 0 22px;}
+.dollarbtn{display:inline-flex; align-items:center; gap:9px; border:1px solid var(--hair);
+  background:var(--panel); color:var(--ink); font:600 13px "Avenir Next","Avenir","Nunito Sans",sans-serif;
+  padding:9px 16px; border-radius:999px; cursor:pointer;}
+.dollarbtn:hover{border-color:var(--blue);}
+.dollarbtn.active{border-color:var(--navy); background:var(--navy); color:#fff;}
+.dollarcheck{width:16px; height:16px; border-radius:5px; border:1.5px solid var(--ink2); flex:none;
+  position:relative;}
+.dollarbtn.active .dollarcheck{border-color:#fff; background:#fff;}
+.dollarbtn.active .dollarcheck::after{content:"\2713"; position:absolute; top:-3px; left:2px;
+  color:var(--navy); font-size:12px; font-weight:700;}
 
 .dashgrid{display:grid; grid-template-columns:repeat(3,1fr); gap:14px; margin-bottom:8px;}
 .tile{background:var(--panel); border:1px solid var(--hair); border-radius:14px; padding:18px 20px; position:relative;
@@ -61,9 +80,17 @@
 .picker{display:none; background:var(--panel); border:1px solid var(--hair); border-radius:14px;
   padding:20px 22px; margin-bottom:20px;}
 .picker.open{display:block;}
-.picker h3{font-size:15px; margin:0 0 14px;}
+.pickerhead{display:flex; align-items:center; justify-content:space-between; margin-bottom:6px;}
+.picker h3{font-size:15px; margin:0;}
+.pickerdone{border:1px solid var(--navy); background:var(--navy); color:#fff;
+  font:600 12.5px "Avenir Next","Avenir","Nunito Sans",sans-serif; padding:6px 16px; border-radius:999px; cursor:pointer;}
+.pickerdone:hover{background:var(--navy-2); border-color:var(--navy-2);}
+.pickerhint{font-size:12.5px; color:var(--ink2); margin:0 0 14px;}
 
 .modetoggle{display:flex; gap:6px; margin-bottom:16px;}
+.pickersearch{width:100%; font:600 13.5px "Avenir Next","Avenir","Nunito Sans",sans-serif; color:var(--ink);
+  background:var(--paper); border:1px solid var(--hair); border-radius:10px; padding:10px 14px; margin-bottom:14px;}
+.pickersearch:focus{outline:none; border-color:var(--blue);}
 .modetoggle button{border:1px solid var(--hair); background:var(--paper); color:var(--ink2);
   font:600 12.5px "Avenir Next","Avenir","Nunito Sans",sans-serif; padding:6px 15px; border-radius:999px; cursor:pointer;}
 .modetoggle button.active{background:var(--navy); border-color:var(--navy); color:#fff;}
@@ -120,6 +147,7 @@ footer.dash-foot{margin-top:36px; font-size:12.5px; color:var(--ink2); border-to
   <a class="item" href="compare.html">Compare</a>
   <a class="item active" href="dashboard.html">My Dashboard</a>
   <a class="item" href="contact.html">Contact</a>
+  <button type="button" class="theme-toggle" id="themeToggle" aria-label="Switch to dark mode" title="Switch to dark mode">&#127769;</button>
 </div></nav>
 <script>
 (function(){
@@ -139,6 +167,28 @@ footer.dash-foot{margin-top:36px; font-size:12.5px; color:var(--ink2); border-to
     if(!panel.contains(e.target) && e.target !== btn) close();
   });
   document.addEventListener("keydown", function(e){ if(e.key === "Escape") close(); });
+
+  var themeBtn = document.getElementById("themeToggle");
+  function updateThemeIcon(){
+    var isDark = document.documentElement.getAttribute("data-theme") === "dark";
+    themeBtn.innerHTML = isDark ? "&#9728;&#65039;" : "&#127769;";
+    themeBtn.setAttribute("aria-label", isDark ? "Switch to light mode" : "Switch to dark mode");
+    themeBtn.setAttribute("title", isDark ? "Switch to light mode" : "Switch to dark mode");
+  }
+  if(themeBtn){
+    updateThemeIcon();
+    themeBtn.addEventListener("click", function(){
+      var isDark = document.documentElement.getAttribute("data-theme") === "dark";
+      if(isDark){
+        document.documentElement.removeAttribute("data-theme");
+        try{ localStorage.setItem("eatlas_theme", "light"); }catch(e){}
+      } else {
+        document.documentElement.setAttribute("data-theme", "dark");
+        try{ localStorage.setItem("eatlas_theme", "dark"); }catch(e){}
+      }
+      updateThemeIcon();
+    });
+  }
 })();
 </script>
 
@@ -146,11 +196,22 @@ footer.dash-foot{margin-top:36px; font-size:12.5px; color:var(--ink2); border-to
   <h1 style="font-size:28px; letter-spacing:-.01em; margin-bottom:6px;">My Dashboard <span class="premium">Free feature</span></h1>
   <p style="color:var(--ink2); font-size:14.5px; max-width:70ch; margin:8px 0 0;">Pin any metric from any of the 8 tracked countries into one personal view, with a chart on demand for any tile.</p>
 
+  <div class="dollarrow">
+    <button type="button" id="dollariseBtn" class="dollarbtn">
+      <span class="dollarcheck" id="dollarCheck"></span> Dollarise (show currency figures in USD)
+    </button>
+  </div>
+
   <div id="loadMsg" class="loadmsg">Loading every country&#39;s data&hellip;</div>
   <div class="dashgrid" id="dashGrid" style="display:none;"></div>
 
   <div class="picker" id="picker" style="display:none;">
-    <h3>Add a metric</h3>
+    <div class="pickerhead">
+      <h3>Add a metric</h3>
+      <button type="button" id="pickerDone" class="pickerdone">Done</button>
+    </div>
+    <p class="pickerhint">Click as many as you like &mdash; they'll keep appearing on your dashboard below without closing this panel.</p>
+    <input type="text" id="pickerSearch" class="pickersearch" placeholder="Search all metrics and countries&hellip; (e.g. &quot;inflation&quot;, &quot;Japan&quot;)">
     <div class="modetoggle" id="modeToggle">
       <button type="button" class="active" data-mode="country">By country</button>
       <button type="button" data-mode="metric">By metric</button>
@@ -173,6 +234,11 @@ footer.dash-foot{margin-top:36px; font-size:12.5px; color:var(--ink2); border-to
 <script>
 (function(){
 "use strict";
+
+var _cs = getComputedStyle(document.documentElement);
+var TOOLTIP_BG = _cs.getPropertyValue("--panel").trim() || "#fff";
+var TOOLTIP_INK = _cs.getPropertyValue("--ink").trim() || "#171B1E";
+var TOOLTIP_HAIR = _cs.getPropertyValue("--hair").trim() || "#E4E6E1";
 
 /* --------------------- chart interactivity (shared with the ------------- */
 /* --------------------- main site's country pages) ----------------------- */
@@ -267,7 +333,7 @@ function buildChartConfig(kind, pts, refLine, unit, key){
       interaction: {mode: "index", intersect: false},
       plugins: {
         legend: {display: false},
-        tooltip: {backgroundColor: "#fff", titleColor: "#171B1E", bodyColor: "#171B1E",
+        tooltip: {backgroundColor: TOOLTIP_BG, titleColor: TOOLTIP_INK, bodyColor: TOOLTIP_INK,
           borderColor: "#E4E6E1", borderWidth: 1,
           callbacks: {
             title: function(items){ return fmtPeriod(items[0].label); },
@@ -354,6 +420,7 @@ function explainerOf(key){
 }
 
 var REGISTRY = {}; // REGISTRY[country][key] = {label, unit, freq, points}
+var FX_RATES = {}; // FX_RATES[country] = {pair, rate, as_of, direction} or undefined (e.g. US, already USD)
 
 function categoryOf(key){ return CATEGORY_OF[key] || "Other"; }
 
@@ -371,6 +438,7 @@ function loadAll(){
             REGISTRY[country][key] = s;
           }
         });
+        if(payload.fx_to_usd) FX_RATES[country] = payload.fx_to_usd;
       })
       .catch(function(err){
         console.warn("Couldn't load data for " + country + ":", err);
@@ -436,6 +504,33 @@ function fmtVal(v, unit, key){
   return v + " " + unit;
 }
 
+/* -------------------------------- Dollarise --------------------------------- */
+var DOLLARISE_KEY = "eatlas_dashboard_dollarise";
+var dollarise = false;
+try { dollarise = localStorage.getItem(DOLLARISE_KEY) === "1"; } catch(e){}
+
+// Converts a currency value from its own local unit to USD using that
+// country's real FX rate (same rate already used elsewhere on the
+// site), swapping the currency symbol but keeping the scale suffix
+// (bn/m/tn). Non-currency units, and countries with no FX entry (only
+// the US, since it's already USD), pass through unchanged.
+function toDisplayUnit(value, unit, country){
+  if(!dollarise || !isCurrencyUnit(unit)) return {value: value, unit: unit};
+  var fx = FX_RATES[country];
+  if(!fx) return {value: value, unit: unit};
+  var converted = fx.direction === "multiply" ? value * fx.rate : value / fx.rate;
+  var scaleSuffix = unit.replace(/^[^a-zA-Z0-9]+/, "");
+  return {value: converted, unit: "$" + scaleSuffix};
+}
+function toDisplayPoints(pts, unit, country){
+  if(!dollarise || !isCurrencyUnit(unit)) return pts;
+  var fx = FX_RATES[country];
+  if(!fx) return pts;
+  return pts.map(function(p){
+    return [p[0], fx.direction === "multiply" ? p[1] * fx.rate : p[1] / fx.rate];
+  });
+}
+
 /* --------------------------------- tiles ----------------------------------- */
 var STORAGE_KEY = "eatlas_dashboard_pins_v1";
 function savePinned(){
@@ -460,19 +555,40 @@ function loadSavedPinned(){
 var pinned = []; // set once data has loaded, see below
 var tileCharts = {};
 
+var expandedTiles = {}; // id -> true, survives renderDash() rebuilding the grid
+
+function expandTile(tile, id, m){
+  tile.classList.add("expanded");
+  tile.querySelector(".chartbtn").innerHTML = "&#128200; Hide chart";
+  if(!tileCharts[id]){
+    var canvas = tile.querySelector("canvas");
+    var pts = toDisplayPoints(m.series.points, m.series.unit, m.country);
+    var chartUnit = toDisplayUnit(0, m.series.unit, m.country).unit;
+    var kind = BAR_KEYS[m.key] ? "bar" : "line";
+    var refLine = REF_LINE_FOR[m.key] == null ? null : REF_LINE_FOR[m.key];
+    var chart = new Chart(canvas, buildChartConfig(kind, pts, refLine, chartUnit, m.key));
+    tileCharts[id] = chart;
+    wireRangePresets(tile, pts, kind, chart);
+    tile.querySelector(".resetzoom").addEventListener("click", function(){
+      if(chart.resetZoom) chart.resetZoom();
+    });
+  }
+}
+
 function renderDash(){
   var grid = document.getElementById("dashGrid");
   grid.innerHTML = "";
   pinned.forEach(function(id){
     var m = tileFromId(id);
     if(!m) return;
+    var disp = toDisplayUnit(m.value, m.series.unit, m.country);
     var tile = document.createElement("div");
     tile.className = "tile";
     tile.dataset.id = id;
     tile.innerHTML = "<button type=\"button\" class=\"remove\" aria-label=\"Remove\">&times;</button>"
       + "<p class=\"country\">" + m.country + "</p>"
-      + "<p class=\"label\">" + m.series.label + "</p>"
-      + "<p class=\"value\">" + fmtVal(m.value, m.series.unit, m.key) + "</p>"
+      + "<p class=\"label\">" + m.series.label + (dollarise && disp.unit !== m.series.unit ? " (USD)" : "") + "</p>"
+      + "<p class=\"value\">" + fmtVal(disp.value, disp.unit, m.key) + "</p>"
       + "<p class=\"period\">" + fmtPeriod(m.period) + "</p>"
       + "<button type=\"button\" class=\"chartbtn\">&#128200; View chart</button>"
       + "<div class=\"chartbox\"><canvas></canvas></div>"
@@ -486,25 +602,22 @@ function renderDash(){
       e.stopPropagation();
       pinned = pinned.filter(function(x){ return x !== id; });
       savePinned();
+      delete expandedTiles[id];
       if(tileCharts[id]){ tileCharts[id].destroy(); delete tileCharts[id]; }
       renderDash();
     });
     tile.querySelector(".chartbtn").addEventListener("click", function(){
-      var isExpanded = tile.classList.toggle("expanded");
-      tile.querySelector(".chartbtn").innerHTML = isExpanded ? "&#128200; Hide chart" : "&#128200; View chart";
-      if(isExpanded && !tileCharts[id]){
-        var canvas = tile.querySelector("canvas");
-        var pts = m.series.points;
-        var kind = BAR_KEYS[m.key] ? "bar" : "line";
-        var refLine = REF_LINE_FOR[m.key] == null ? null : REF_LINE_FOR[m.key];
-        var chart = new Chart(canvas, buildChartConfig(kind, pts, refLine, m.series.unit, m.key));
-        tileCharts[id] = chart;
-        wireRangePresets(tile, pts, kind, chart);
-        tile.querySelector(".resetzoom").addEventListener("click", function(){
-          if(chart.resetZoom) chart.resetZoom();
-        });
+      var isNowExpanded = tile.classList.toggle("expanded");
+      if(isNowExpanded){
+        expandedTiles[id] = true;
+        expandTile(tile, id, m);
+      } else {
+        delete expandedTiles[id];
+        tile.querySelector(".chartbtn").innerHTML = "&#128200; View chart";
       }
     });
+
+    if(expandedTiles[id]) expandTile(tile, id, m);
 
     grid.appendChild(tile);
   });
@@ -522,6 +635,11 @@ function renderDash(){
 
 /* -------------------------------- picker ----------------------------------- */
 var pickerMode = "country";
+
+document.getElementById("pickerSearch").addEventListener("input", refreshPickerGrid);
+document.getElementById("pickerDone").addEventListener("click", function(){
+  document.getElementById("picker").classList.remove("open");
+});
 
 document.querySelectorAll("#modeToggle button").forEach(function(btn){
   btn.addEventListener("click", function(){
@@ -564,6 +682,35 @@ function refreshPickerGrid(){
   pgrid.innerHTML = "";
   var items = [];
 
+  var searchTerm = (document.getElementById("pickerSearch").value || "").trim().toLowerCase();
+  var pickerSelectWrap = document.getElementById("pickerSelectWrap");
+  var modeToggle = document.getElementById("modeToggle");
+
+  if(searchTerm){
+    // Search overrides the browse mode entirely -- matches against
+    // country name, category, and the metric's own real label, across
+    // every country and every metric at once.
+    pickerSelectWrap.style.display = "none";
+    modeToggle.style.opacity = "0.4";
+    ALL_COUNTRIES.forEach(function(country){
+      Object.keys(REGISTRY[country] || {}).forEach(function(key){
+        var id = tileId(country, key);
+        if(pinned.indexOf(id) !== -1) return;
+        var s = REGISTRY[country][key];
+        var haystack = (country + " " + categoryOf(key) + " " + s.label).toLowerCase();
+        if(haystack.indexOf(searchTerm) !== -1) items.push({id: id, country: country, key: key});
+      });
+    });
+    items.sort(function(a, b){
+      if(a.country !== b.country) return a.country.localeCompare(b.country);
+      return REGISTRY[a.country][a.key].label.localeCompare(REGISTRY[b.country][b.key].label);
+    });
+    renderPickerItems(items, pgrid, true);
+    return;
+  }
+  pickerSelectWrap.style.display = "";
+  modeToggle.style.opacity = "1";
+
   if(pickerMode === "country"){
     var country = sel.value;
     Object.keys(REGISTRY[country] || {}).forEach(function(key){
@@ -587,8 +734,12 @@ function refreshPickerGrid(){
     items.sort(function(a, b){ return a.country.localeCompare(b.country); });
   }
 
+  renderPickerItems(items, pgrid, false);
+}
+
+function renderPickerItems(items, pgrid, isSearchMode){
   if(!items.length){
-    pgrid.innerHTML = "<p class=\"pickerempty\">Everything available here is already pinned.</p>";
+    pgrid.innerHTML = "<p class=\"pickerempty\">" + (isSearchMode ? "Nothing matches that search." : "Everything available here is already pinned.") + "</p>";
     return;
   }
 
@@ -596,14 +747,20 @@ function refreshPickerGrid(){
     var s = REGISTRY[it.country][it.key];
     var div = document.createElement("div");
     div.className = "pickeritem";
-    var top = pickerMode === "country" ? categoryOf(it.key) : it.country;
+    var top = isSearchMode ? (it.country + " \u00b7 " + categoryOf(it.key)) : (pickerMode === "country" ? categoryOf(it.key) : it.country);
     div.innerHTML = "<p class=\"c\">" + top + "</p>" + s.label
       + "<p class=\"e\">" + explainerOf(it.key) + "</p>";
     div.addEventListener("click", function(){
       pinned.push(it.id);
       savePinned();
-      document.getElementById("picker").classList.remove("open");
       renderDash();
+      // Deliberately doesn't close the picker -- add as many metrics as
+      // you want in one go, then close it yourself (the "Add a metric"
+      // button toggles it, or the Escape/outside-click handlers below).
+      // Just refresh this same grid so the just-added item drops off the
+      // "still available" list without losing your search text, mode,
+      // or country/category selection.
+      refreshPickerGrid();
     });
     pgrid.appendChild(div);
   });
@@ -614,6 +771,24 @@ loadAll().then(function(){
   document.getElementById("loadMsg").style.display = "none";
   document.getElementById("dashGrid").style.display = "grid";
   document.getElementById("picker").style.display = "";
+
+  var dollarBtn = document.getElementById("dollariseBtn");
+  function updateDollarBtn(){
+    dollarBtn.classList.toggle("active", dollarise);
+  }
+  updateDollarBtn();
+  dollarBtn.addEventListener("click", function(){
+    dollarise = !dollarise;
+    try { localStorage.setItem(DOLLARISE_KEY, dollarise ? "1" : "0"); } catch(e){}
+    updateDollarBtn();
+    // Currency figures depend on dollarise, and any tile with its chart
+    // already open needs its chart torn down and rebuilt with the newly
+    // converted (or reverted) points -- simplest correct way to do that
+    // is to re-render the whole grid, same as adding or removing a tile.
+    Object.keys(tileCharts).forEach(function(id){ tileCharts[id].destroy(); });
+    tileCharts = {};
+    renderDash();
+  });
 
   var saved = loadSavedPinned();
   if(saved && saved.length){
