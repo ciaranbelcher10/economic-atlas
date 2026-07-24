@@ -75,11 +75,12 @@
 .pickerselect label{display:block; font-size:11.5px; font-weight:700; color:var(--ink2); text-transform:uppercase;
   letter-spacing:.03em; margin-bottom:6px;}
 
-.pickergrid{display:grid; grid-template-columns:repeat(3,1fr); gap:10px; max-height:340px; overflow-y:auto; padding-right:4px;}
+.pickergrid{display:grid; grid-template-columns:repeat(2,1fr); gap:10px; max-height:400px; overflow-y:auto; padding-right:4px;}
 .pickeritem{border:1px solid var(--hair); border-radius:10px; padding:10px 12px; cursor:pointer; font-size:13px;
   background:var(--paper);}
 .pickeritem:hover{border-color:var(--blue); background:#F0F6FA;}
 .pickeritem .c{font-size:10px; font-weight:700; color:var(--blue); text-transform:uppercase;}
+.pickeritem .e{font-size:12px; color:var(--ink2); margin-top:4px; font-weight:400; text-transform:none;}
 .pickerempty{font-size:13px; color:var(--ink2); font-style:italic; grid-column:1 / -1;}
 
 footer.dash-foot{margin-top:36px; font-size:12.5px; color:var(--ink2); border-top:1px solid var(--hair); padding-top:16px;}
@@ -117,7 +118,7 @@ footer.dash-foot{margin-top:36px; font-size:12.5px; color:var(--ink2); border-to
     </div>
   </div>
   <a class="item" href="compare.html">Compare</a>
-  <a class="item active" href="dashboard.html">Dashboard</a>
+  <a class="item active" href="dashboard.html">My Dashboard</a>
   <a class="item" href="contact.html">Contact</a>
 </div></nav>
 <script>
@@ -164,7 +165,7 @@ footer.dash-foot{margin-top:36px; font-size:12.5px; color:var(--ink2); border-to
   </div>
 
   <footer class="dash-foot">
-    Every figure and chart here is read live from the same data files each country's own page uses (ONS, FRED, Eurostat, e-Stat/Bank of Japan, MoSPI, Bank of Korea, OECD, World Bank) &mdash; nothing is hand-picked or invented. Your pinned tiles reset each time you reload this page &mdash; there's no account system yet to remember your selection between visits.
+    Every figure and chart here is read live from the same data files each country's own page uses (ONS, FRED, Eurostat, e-Stat/Bank of Japan, MoSPI, Bank of Korea, OECD, World Bank) &mdash; nothing is hand-picked or invented. Your pinned tiles are remembered in this browser between visits &mdash; on this device only, since there's no account system yet to sync a selection across devices.
     <br><br>Free to use for now &mdash; this may move behind a paid tier as the site develops.
   </footer>
 </div>
@@ -311,6 +312,47 @@ var CATEGORY_OF = {
 };
 var CATEGORY_ORDER = ["GDP & growth", "Labour market", "Prices", "Public finances", "Trade", "Business & investment", "Rates & yields", "Other"];
 
+// Same explainer text already used on each country's own page for these
+// metrics, so a description reads identically here as it does there.
+// Two (gdp_real, cpi_mom) aren't shown as their own chart on any country
+// page, so those two are new, plainly-worded text rather than lifted
+// from elsewhere.
+var EXPLAINER_OF = {
+  gdp_level: "The total value of everything the economy produces in a year.",
+  gdp_real: "The size of the economy adjusted for inflation, so it reflects real growth rather than rising prices.",
+  gdp_growth: "How much the economy grew or shrank compared with the previous three months.",
+  gdp_nominal: "The total value of everything the economy produces, at current prices (not adjusted for inflation).",
+  productivity: "How much the economy produces for each hour worked. Higher means it works more efficiently.",
+  unemployment: "The share of people who want a job but can't find one.",
+  employment: "The share of working-age people who are in work.",
+  inactivity: "The share of working-age people neither working nor looking for work \u2014 including students, carers and the long-term sick.",
+  participation: "The share of people either working or actively looking for work.",
+  unemployment_1624: "The unemployment rate specifically among 16\u201324 year-olds, which typically runs well above the all-ages rate.",
+  cpi: "How much consumer prices are rising compared with a year ago.",
+  cpih: "Like CPI, but also includes homeowners' housing costs.",
+  cpi_mom: "How much prices moved compared with the previous month, rather than the same month a year ago.",
+  core_cpi: "Inflation excluding volatile food and energy prices \u2014 a cleaner read on underlying price pressure.",
+  debt_gdp: "Everything the government owes, compared with the size of the economy.",
+  net_debt: "The actual debt stock in currency terms, rather than as a share of GDP.",
+  deficit: "How much the government borrows to cover the gap between spending and tax. Seasonal swings are normal.",
+  debt_interest: "What the government pays to service its existing debt.",
+  current_account: "The country's overall balance with the rest of the world \u2014 trade plus investment income \u2014 as a share of GDP.",
+  trade_balance: "Exports minus imports. Below zero means the country buys more from abroad than it sells.",
+  exports: "The value of goods and services sold to the rest of the world.",
+  imports: "The value of goods and services bought from the rest of the world.",
+  business_confidence: "How optimistic firms are about the months ahead. 100 is the long-run average \u2014 above it, firms expect better times.",
+  fdi: "Money invested into local businesses from abroad, as a share of GDP.",
+  boe_rate: "The Bank of England's base interest rate \u2014 the anchor for mortgage, loan and savings rates.",
+  fed_funds: "The Federal Reserve's key interest rate \u2014 the anchor for borrowing costs across the economy.",
+  ecb_rate: "The European Central Bank's key interest rate \u2014 the anchor for borrowing costs across the euro area.",
+  boj_rate: "The overnight interbank rate \u2014 the closest market measure of the Bank of Japan's policy stance.",
+  overnight_rate: "The rate banks charge each other for overnight loans \u2014 closely tracks the central bank's target rate.",
+  bond_yield_10y: "The yield on 10-year government bonds \u2014 a market gauge of inflation and rate expectations, not the central bank's own policy rate."
+};
+function explainerOf(key){
+  return EXPLAINER_OF[key] || "Economic indicator tracked on this country's own page.";
+}
+
 var REGISTRY = {}; // REGISTRY[country][key] = {label, unit, freq, points}
 
 function categoryOf(key){ return CATEGORY_OF[key] || "Other"; }
@@ -395,6 +437,26 @@ function fmtVal(v, unit, key){
 }
 
 /* --------------------------------- tiles ----------------------------------- */
+var STORAGE_KEY = "eatlas_dashboard_pins_v1";
+function savePinned(){
+  try {
+    localStorage.setItem(STORAGE_KEY, JSON.stringify(pinned));
+  } catch(e) {
+    // Private browsing / storage disabled -- fail quietly, the page
+    // still works, it just won't remember the selection next visit.
+  }
+}
+function loadSavedPinned(){
+  try {
+    var raw = localStorage.getItem(STORAGE_KEY);
+    if(!raw) return null;
+    var arr = JSON.parse(raw);
+    return Array.isArray(arr) ? arr : null;
+  } catch(e) {
+    return null;
+  }
+}
+
 var pinned = []; // set once data has loaded, see below
 var tileCharts = {};
 
@@ -423,6 +485,7 @@ function renderDash(){
     tile.querySelector(".remove").addEventListener("click", function(e){
       e.stopPropagation();
       pinned = pinned.filter(function(x){ return x !== id; });
+      savePinned();
       if(tileCharts[id]){ tileCharts[id].destroy(); delete tileCharts[id]; }
       renderDash();
     });
@@ -534,9 +597,11 @@ function refreshPickerGrid(){
     var div = document.createElement("div");
     div.className = "pickeritem";
     var top = pickerMode === "country" ? categoryOf(it.key) : it.country;
-    div.innerHTML = "<p class=\"c\">" + top + "</p>" + s.label;
+    div.innerHTML = "<p class=\"c\">" + top + "</p>" + s.label
+      + "<p class=\"e\">" + explainerOf(it.key) + "</p>";
     div.addEventListener("click", function(){
       pinned.push(it.id);
+      savePinned();
       document.getElementById("picker").classList.remove("open");
       renderDash();
     });
@@ -550,14 +615,23 @@ loadAll().then(function(){
   document.getElementById("dashGrid").style.display = "grid";
   document.getElementById("picker").style.display = "";
 
-  // A plausible starting selection -- what a UK-based user tracking a
-  // couple of other economies might pin. Falls back gracefully if any
-  // of these happen to be missing from a given country's file.
-  var wishlist = [
-    tileId("UK", "unemployment"), tileId("UK", "boe_rate"), tileId("US", "fed_funds"),
-    tileId("Japan", "boj_rate"), tileId("India", "gdp_growth"), tileId("Eurozone", "unemployment")
-  ];
-  pinned = wishlist.filter(function(id){ return tileFromId(id) != null; });
+  var saved = loadSavedPinned();
+  if(saved && saved.length){
+    // Returning visitor -- restore their actual selection, but drop any
+    // saved id that no longer resolves (e.g. a metric that's since been
+    // renamed or removed from a country's file) rather than showing a
+    // broken tile.
+    pinned = saved.filter(function(id){ return tileFromId(id) != null; });
+  } else {
+    // First visit, or nothing usable was saved -- a plausible starting
+    // selection, what a UK-based user tracking a couple of other
+    // economies might pin.
+    var wishlist = [
+      tileId("UK", "unemployment"), tileId("UK", "boe_rate"), tileId("US", "fed_funds"),
+      tileId("Japan", "boj_rate"), tileId("India", "gdp_growth"), tileId("Eurozone", "unemployment")
+    ];
+    pinned = wishlist.filter(function(id){ return tileFromId(id) != null; });
+  }
   renderDash();
 }).catch(function(err){
   document.getElementById("loadMsg").textContent = "Couldn't load the site's data files. If you're viewing this locally, make sure data.json, data-us.json, data-ez.json, data-jp.json, data-in.json, data-ca.json, data-au.json and data-kr.json are in the same folder as this page.";

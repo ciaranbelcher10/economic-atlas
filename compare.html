@@ -109,7 +109,7 @@ footer.cmp-foot{margin-top:36px; font-size:12.5px; color:var(--ink2); border-top
     </div>
   </div>
   <a class="item active" href="compare.html">Compare</a>
-  <a class="item" href="dashboard.html">Dashboard</a>
+  <a class="item" href="dashboard.html">My Dashboard</a>
   <a class="item" href="contact.html">Contact</a>
 </div></nav>
 <script>
@@ -135,9 +135,9 @@ footer.cmp-foot{margin-top:36px; font-size:12.5px; color:var(--ink2); border-top
 
 <div class="wrap" style="max-width:1080px; padding:30px 24px 60px;">
   <h1 style="font-size:28px; letter-spacing:-.01em; margin-bottom:6px;">Compare Countries <span class="premium">Free feature</span></h1>
-  <p style="color:var(--ink2); font-size:14.5px; max-width:74ch; margin:8px 0 0;">Pick up to five countries and see GDP growth, inflation, unemployment, debt and policy rates side by side &mdash; as they stand now, or how each has changed over the last 1, 2, 5 or 10 years.</p>
+  <p style="color:var(--ink2); font-size:14.5px; max-width:74ch; margin:8px 0 0;">Pick any (or all) of the 8 tracked countries and see GDP growth, inflation, unemployment, debt and policy rates side by side &mdash; as they stand now, or how each has changed over the last 1, 2, 5 or 10 years.</p>
 
-  <h3 style="font-size:14px; margin:0 0 10px;">Countries (up to 5)</h3>
+  <h3 style="font-size:14px; margin:0 0 10px;">Countries</h3>
   <div class="chiprow" id="chipRow"></div>
   <p class="chiphint" id="chipHint"></p>
 
@@ -203,6 +203,18 @@ var COUNTRY_COLOR = {UK:"#1E4566", US:"#4796CE", Eurozone:"#413D7B", Japan:"#376
 var METRIC_LABEL = {gdp_growth:"GDP growth (vs prior quarter)", cpi:"Inflation (CPI)",
   unemployment:"Unemployment rate", debt_gdp:"Debt, % of GDP", rate:"Policy rate"};
 var METRIC_UNIT = {gdp_growth:"%", cpi:"%", unemployment:"%", debt_gdp:"%", rate:"%"};
+// Same explainer text already used on each country's own page for these
+// five metrics, so a description reads the same here as it does there.
+// "Policy rate" is generalised slightly since this one card can show
+// five different countries' own central banks, not just the Bank of
+// England.
+var METRIC_EXPLAINER = {
+  gdp_growth: "How much the economy grew or shrank compared with the previous three months.",
+  cpi: "How much consumer prices are rising compared with a year ago.",
+  unemployment: "The share of people who want a job but can't find one.",
+  debt_gdp: "Everything the government owes, compared with the size of the economy.",
+  rate: "The central bank's key interest rate \u2014 the anchor for borrowing costs across the economy."
+};
 var ALL_COUNTRIES = Object.keys(COUNTRY_DATA);
 var MONTHS = ["Jan","Feb","Mar","Apr","May","Jun","Jul","Aug","Sep","Oct","Nov","Dec"];
 
@@ -226,7 +238,7 @@ function suffixFor(dv, metricKey){
   if(dv.isDelta) return "pp";
   return "%";
 }
-var MAX_SELECTED = 5;
+var MAX_SELECTED = ALL_COUNTRIES.length; // no artificial cap -- capped only by how many countries actually exist
 
 var selected = ["UK", "US", "Japan", "India", "Eurozone"];
 var horizon = "0";
@@ -253,8 +265,9 @@ function renderChips(){
     });
     row.appendChild(chip);
   });
-  document.getElementById("chipHint").textContent = selected.length + " of " + MAX_SELECTED + " selected"
-    + (selected.length >= MAX_SELECTED ? " \u2014 remove one to add another." : ".");
+  document.getElementById("chipHint").textContent = selected.length === MAX_SELECTED
+    ? "All " + MAX_SELECTED + " tracked countries selected."
+    : selected.length + " of " + MAX_SELECTED + " tracked countries selected.";
 }
 
 /* ------------------------------ data helpers ----------------------------- */
@@ -316,9 +329,10 @@ function renderCharts(){
     card.className = "cmp-card";
     var isGdpCumulative = metricKey === "gdp_growth" && horizon !== "0";
     var title = isGdpCumulative ? "Total real GDP growth" : (METRIC_LABEL[metricKey] + (horizon !== "0" ? " \u2014 change" : ""));
-    var expl = horizon === "0" ? "Latest available figure for each country."
+    var horizonNote = horizon === "0" ? "Latest available figure for each country."
       : isGdpCumulative ? "Cumulative growth in real (inflation-adjusted) GDP over the selected horizon \u2014 not a comparison of two single quarterly growth-rate readings."
       : "Change over the selected horizon, in percentage points.";
+    var expl = METRIC_EXPLAINER[metricKey] + " " + horizonNote;
     card.innerHTML = "<h3>" + title + "</h3>"
       + "<p class=\"expl\">" + expl + "</p>"
       + "<div class=\"cbox\"><canvas></canvas></div>";
