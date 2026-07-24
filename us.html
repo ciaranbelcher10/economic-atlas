@@ -409,7 +409,7 @@ document.addEventListener("DOMContentLoaded", function(){
           var flag = flagEmoji(ALPHA2[f.id]);
           var name = (f.properties && f.properties.name) || "This country";
           var status = CURRENT.has(f.id) ? "You are here"
-            : dest(f.id) ? "Live — click to explore" : "On the roadmap";
+            : dest(f.id) ? "Live: click to explore" : "On the roadmap";
           tip.innerHTML = "<span style=\"font-size:20px;line-height:1;\">" + flag + "</span> "
             + "<strong>" + name + "</strong><br><span style=\"color:var(--ink2);font-size:12px;\">" + status + "</span>";
           tip.style.left = (e.offsetX + 16) + "px";
@@ -522,7 +522,7 @@ document.addEventListener("DOMContentLoaded", function(){
   <div class="tpm-head"><h3>US goods trade &mdash; top partners</h3></div>
   <p class="tpm-scopenote"><strong>Goods trade only.</strong> Services aren't covered by this data source and aren't shown here &mdash; so relationships that lean heavily on services may be understated.</p>
   <div class="tpm-banner" id="tpmBanner"><span class="dot2" aria-hidden="true"></span>
-  <span id="tpmBannerText">Illustrative data — approximate 2025 goods-trade shares, not a live feed. Real bilateral figures pending a UN Comtrade API key.</span></div>
+  <span id="tpmBannerText">Illustrative data: approximate 2025 goods-trade shares, not a live feed. Real bilateral figures pending a UN Comtrade API key.</span></div>
   <nav class="viztoggle">
     <button type="button" class="vtbtn" data-view="geo">Geographic</button>
     <button type="button" class="vtbtn active" data-view="radial">Radial</button>
@@ -911,13 +911,13 @@ function statTile(el, key, title, series, opts){
   const pts=series.points, last=pts[pts.length-1], prev=pts[pts.length-2];
   const d=+(last[1]-prev[1]).toFixed(2);
   const dir=d===0?"flat":((d>0)===opts.upIsGood?"good":"bad");
-  const arrow=d===0?"—":(d>0?"▲":"▼");
+  const arrow=d===0?"▬":(d>0?"▲":"▼");
   const led=freshness(series);
   const _lastP=series.points[series.points.length-1][0];
   const _ageDays=(Date.now()-periodEnd(_lastP).getTime())/86400000;
   let ledTitle=led==="green"?"Updated on schedule":
     (_ageDays>3*(STALE_DAYS[series.freq]||90)
-      ?"Source series stale — last data "+fmtPeriod(_lastP)
+      ?"Source series stale: last data "+fmtPeriod(_lastP)
       :"Awaiting next release");
   if(series.next) ledTitle+=" · next release "+series.next;
   const clickable=!!ANCHORS[key];
@@ -927,7 +927,7 @@ function statTile(el, key, title, series, opts){
   if(clickable){
     div.setAttribute("role","link");
     div.setAttribute("tabindex","0");
-    div.setAttribute("aria-label",title+" — view chart");
+    div.setAttribute("aria-label",title+", view chart");
     const go=()=>{const a=ANCHORS[key]; showSec(a.sec);
       setTimeout(()=>a.panelEl.scrollIntoView({behavior:"smooth",block:"start"}),60);};
     div.addEventListener("click",go);
@@ -1022,12 +1022,12 @@ function renderLastUpdated(updatedIso){
 
 function render(data){
   const s=data.series;
-  if(data.sample){const sb=document.getElementById("sampleBadge");sb.textContent="Sample data — run fetch_us.py for live figures";sb.classList.add("show");}
+  if(data.sample){const sb=document.getElementById("sampleBadge");sb.textContent="Sample data: run fetch_us.py for live figures";sb.classList.add("show");}
   const gdpYoY = s.gdp_real ? yoyGDP(s.gdp_real) : null;
   /* Trade intensity is pinned to the raw nominal series (8.3.0): "Make it
      real" has no real-terms exports/imports to pair with a real-GDP
      denominator (nominal trade ÷ real GDP is economically meaningless), and
-     Dollarise cancels out of the ratio anyway — both toggles are deliberate
+     Dollarise cancels out of the ratio anyway; both toggles are deliberate
      no-ops for this metric. */
   const tiSrc = (PAGE_DATA && PAGE_DATA.series) ? PAGE_DATA.series : s;
   const ti = (tiSrc.exports&&tiSrc.imports&&tiSrc.gdp_level)
@@ -1039,7 +1039,7 @@ function render(data){
 
   /* charts first, so tiles know their targets */
   if(s.business_confidence) chartPanel("business_confidence","charts-headline","Business confidence",
-    "How optimistic firms are about the months ahead. 100 is the long-run average — above it, firms expect better times.",
+    "How optimistic firms are about the months ahead. 100 is the long-run average; above it, firms expect better times.",
     s.business_confidence,"line",idx,v=>idx(v)+" (avg = 100)","OECD · BCICP, amplitude-adjusted, long-term average = 100",undefined,100);
   if(s.fdi) chartPanel("fdi","charts-headline","Foreign direct investment",
     "Money invested into US businesses from abroad each year, as a share of GDP.",
@@ -1050,7 +1050,7 @@ function render(data){
     s.gdp_level,"line",v=>curFmt(v,s.gdp_level.unit,0),v=>curFmt(v,s.gdp_level.unit,2),
     "FRED series GDP · nominal, seasonally adjusted annual rate (BEA)",1990);
   if(s.gdp_growth) chartPanel("gdp_growth","charts-gdp","Real GDP growth, quarter on quarter (annualised)",
-    "How fast the economy grew each quarter, expressed as a yearly pace — the standard US convention.",
+    "How fast the economy grew each quarter, expressed as a yearly pace, the standard US convention.",
     s.gdp_growth,"bar",v=>v+"%",pct,"FRED series A191RL1Q225SBEA · chained 2017 dollars (BEA)",1998,0);
   if(gdpYoY) chartPanel(null,"charts-gdp","Real GDP growth, year on year",
     "How much bigger or smaller the economy is than a year ago, adjusted for inflation.",
@@ -1063,10 +1063,10 @@ function render(data){
     "How much consumer prices are rising compared with a year ago. The Fed targets 2% inflation.",
     s.cpi,"line",v=>v+"%",pct,"Calculated from FRED series CPIAUCSL · all items, SA (BLS)");
   if(s.core_cpi) chartPanel("core_cpi","charts-inflation","Core CPI, annual rate",
-    "Inflation excluding volatile food and energy prices — a cleaner read on underlying price pressure.",
+    "Inflation excluding volatile food and energy prices, a cleaner read on underlying price pressure.",
     s.core_cpi,"line",v=>v+"%",pct,"Calculated from FRED series CPILFESL · SA (BLS)");
   if(s.fed_funds) chartPanel("fed_funds","charts-inflation","Federal funds rate",
-    "The Federal Reserve's key interest rate — the anchor for borrowing costs across the economy.",
+    "The Federal Reserve's key interest rate, the anchor for borrowing costs across the economy.",
     s.fed_funds,"line",v=>v+"%",v=>v.toFixed(2)+"%","FRED series FEDFUNDS · effective rate, monthly average");
 
   if(s.unemployment) chartPanel("unemployment","charts-labour","Unemployment rate",
@@ -1083,7 +1083,7 @@ function render(data){
     "Exports minus imports each month. Below zero means the US buys more from abroad than it sells.",
     s.trade_balance,"bar",v=>curFmt(v,s.trade_balance.unit,0),v=>curFmt(v,s.trade_balance.unit,1),"FRED series BOPGSTB · goods and services, SA (BEA/Census)",1992,0);
   if(s.current_account) chartPanel("current_account","charts-trade","Current account",
-    "The US's overall balance with the rest of the world — trade plus investment income — as a share of GDP.",
+    "The US's overall balance with the rest of the world (trade plus investment income) as a share of GDP.",
     s.current_account,"line",v=>v+"%",pct,"World Bank · % of GDP, annual (IMF balance-of-payments data)",undefined,0);
   if(s.exports) chartPanel("exports","charts-trade","Exports",
     "The value of goods and services the US sells to the rest of the world each month.",
@@ -1092,7 +1092,7 @@ function render(data){
     "The value of goods and services the US buys from the rest of the world each month.",
     s.imports,"line",v=>curFmt(v,s.imports.unit,0),v=>curFmt(v,s.imports.unit,1),"FRED series BOPTIMP · goods and services, SA (BEA/Census)");
   if(ti) chartPanel(null,"charts-trade","Trade intensity",
-    "Total trade (exports plus imports) as a share of GDP — a measure of how open the economy is.",
+    "Total trade (exports plus imports) as a share of GDP: a measure of how open the economy is.",
     ti,"line",v=>v+"%",pct,"Calculated from FRED series BOPTEXP, BOPTIMP and GDP · complete calendar years");
 
   if(s.debt_gdp) chartPanel("debt_gdp","charts-public","Federal debt, % of GDP",
@@ -1251,7 +1251,7 @@ function rerender(){
     const fx = PAGE_DATA.fx_to_usd;
     notes.push(`All currency figures converted at ${fx.pair} = ${fx.rate} (as of ${fx.as_of})`);
   } else if(TOGGLE_STATE.dollar){
-    notes.push("Exchange rate not available yet — showing original currency");
+    notes.push("Exchange rate not available yet: showing original currency");
   }
   if(TOGGLE_STATE.real) notes.push("GDP shown in real terms (chained volume / constant prices)");
   note.textContent = notes.join(" · ");
@@ -1274,12 +1274,12 @@ fetch("data-us.json",{cache:"no-store"})
 (function(){
 "use strict";
 
-// Illustrative fallback only — used if the live Comtrade fetch fails or
+// Illustrative fallback only, used if the live Comtrade fetch fails or
 // COMTRADE_API_KEY isn't set yet. See tpmBanner for the live/fallback text.
-// Illustrative fallback only — used if the live Comtrade fetch fails or
+// Illustrative fallback only, used if the live Comtrade fetch fails or
 // COMTRADE_API_KEY isn't set yet. Export/import splits here are invented
 // but plausible (e.g. UK goods deficit with China/Germany, surplus with
-// Ireland/UAE) — not derived from any real source, purely to make the
+// Ireland/UAE), not derived from any real source, purely to make the
 // Total/Exports/Imports toggle demonstrate something sensible before live
 // data loads. See tpmBanner for the live/fallback indicator.
 var FALLBACK_PARTNERS = [
@@ -1583,7 +1583,7 @@ function applyLivePartners(payload){
     covnote.textContent = "All " + payload.partners.length + " partners UN Comtrade reports US goods trade "
       + "with are included, " + payload.period + " (US dollars). The radial view shows the top " + RADIAL_TOP_N
       + " by the selected metric; the map and the ranking list both show the top 50. "
-      + "Goods only — services trade isn't shown here.";
+      + "Goods only: services trade isn't shown here.";
   }
   var rankSubtitle = document.getElementById("tpmRankSubtitle");
   if(rankSubtitle) rankSubtitle.textContent = "Goods trade, " + payload.period + " (US$bn, UN Comtrade)";

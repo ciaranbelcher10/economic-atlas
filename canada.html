@@ -409,7 +409,7 @@ document.addEventListener("DOMContentLoaded", function(){
           var flag = flagEmoji(ALPHA2[f.id]);
           var name = (f.properties && f.properties.name) || "This country";
           var status = CURRENT.has(f.id) ? "You are here"
-            : dest(f.id) ? "Live — click to explore" : "On the roadmap";
+            : dest(f.id) ? "Live: click to explore" : "On the roadmap";
           tip.innerHTML = "<span style=\"font-size:20px;line-height:1;\">" + flag + "</span> "
             + "<strong>" + name + "</strong><br><span style=\"color:var(--ink2);font-size:12px;\">" + status + "</span>";
           tip.style.left = (e.offsetX + 16) + "px";
@@ -508,7 +508,7 @@ document.addEventListener("DOMContentLoaded", function(){
   <p class="lightskey compact" aria-label="Key to freshness lights"><span><span class="led green" aria-hidden="true"></span>&nbsp;updated on schedule</span><span><span class="led orange" aria-hidden="true"></span>&nbsp;awaiting next release</span></p>
   <div class="grid" id="charts-inflation"></div>
   <p class="secnote">CPI is sourced from OECD's own live prices system, not the dead FRED mirror
-    (CPALCY01CAM661N/CPALTT01CAM659N) that stopped updating in March 2025 — see the README for details.</p>
+    (CPALCY01CAM661N/CPALTT01CAM659N) that stopped updating in March 2025; see the README for details.</p>
 </section>
 <section class="sec" id="sec-labour" hidden>
   <div class="hero mini" id="tiles-labour"></div>
@@ -524,7 +524,7 @@ document.addEventListener("DOMContentLoaded", function(){
   <div class="tpm-head"><h3>Canada goods trade &mdash; top partners</h3></div>
   <p class="tpm-scopenote"><strong>Goods trade only.</strong> Services aren't covered by this data source and aren't shown here &mdash; so relationships that lean heavily on services may be understated.</p>
   <div class="tpm-banner" id="tpmBanner"><span class="dot2" aria-hidden="true"></span>
-  <span id="tpmBannerText">Illustrative data — approximate 2025 goods-trade shares, not a live feed. Real bilateral figures pending a UN Comtrade API key.</span></div>
+  <span id="tpmBannerText">Illustrative data: approximate 2025 goods-trade shares, not a live feed. Real bilateral figures pending a UN Comtrade API key.</span></div>
   <nav class="viztoggle">
     <button type="button" class="vtbtn" data-view="geo">Geographic</button>
     <button type="button" class="vtbtn active" data-view="radial">Radial</button>
@@ -577,7 +577,7 @@ document.addEventListener("DOMContentLoaded", function(){
   Data: <a href="https://fred.stlouisfed.org">FRED, Federal Reserve Bank of St. Louis</a> (IMF, OECD),
   the <a href="https://www.oecd.org">OECD</a> and the <a href="https://data.worldbank.org">World Bank</a>. Series codes are shown with each metric;
   figures are the latest published observations and are subject to revision.
-  CPI, and exports/imports individually, are known gaps, not yet wired to a verified live source —
+  CPI, and exports/imports individually, are known gaps, not yet wired to a verified live source;
   see the notes on the Inflation &amp; rates and Trade tabs.
   Ideas or corrections: <a href="contact.html">get in touch</a>.
   <span id="lastUpdated" class="lastupdated"></span>
@@ -877,13 +877,13 @@ function statTile(el, key, title, series, opts){
   const pts=series.points, last=pts[pts.length-1], prev=pts[pts.length-2];
   const d=+(last[1]-prev[1]).toFixed(2);
   const dir=d===0?"flat":((d>0)===opts.upIsGood?"good":"bad");
-  const arrow=d===0?"—":(d>0?"▲":"▼");
+  const arrow=d===0?"▬":(d>0?"▲":"▼");
   const led=freshness(series);
   const _lastP=series.points[series.points.length-1][0];
   const _ageDays=(Date.now()-periodEnd(_lastP).getTime())/86400000;
   let ledTitle=led==="green"?"Updated on schedule":
     (_ageDays>3*(STALE_DAYS[series.freq]||90)
-      ?"Source series stale — last data "+fmtPeriod(_lastP)
+      ?"Source series stale: last data "+fmtPeriod(_lastP)
       :"Awaiting next release");
   if(series.next) ledTitle+=" · next release "+series.next;
   const clickable=!!ANCHORS[key];
@@ -893,7 +893,7 @@ function statTile(el, key, title, series, opts){
   if(clickable){
     div.setAttribute("role","link");
     div.setAttribute("tabindex","0");
-    div.setAttribute("aria-label",title+" — view chart");
+    div.setAttribute("aria-label",title+", view chart");
     const go=()=>{const a=ANCHORS[key]; showSec(a.sec);
       setTimeout(()=>a.panelEl.scrollIntoView({behavior:"smooth",block:"start"}),60);};
     div.addEventListener("click",go);
@@ -988,7 +988,7 @@ function renderLastUpdated(updatedIso){
 
 function render(data){
   const s=data.series;
-  if(data.sample){const sb=document.getElementById("sampleBadge");sb.textContent="Sample data — run fetch_ca.py for live figures";sb.classList.add("show");}
+  if(data.sample){const sb=document.getElementById("sampleBadge");sb.textContent="Sample data: run fetch_ca.py for live figures";sb.classList.add("show");}
   const gdpAnnual = s.gdp_level ? annualGDP(s.gdp_level) : null;   /* FIX (7.6.3): this series is the literal quarterly level (IMF IFS), NOT a seasonally-adjusted-annual-rate like UK/US -- must roll up 4 quarters, was previously used raw and inflated headline GDP ~4x */
   const gdpYoY = s.gdp_real ? yoyGDP(s.gdp_real) : null;
 
@@ -1186,7 +1186,7 @@ function rerender(){
     const fx = PAGE_DATA.fx_to_usd;
     notes.push(`All currency figures converted at ${fx.pair} = ${fx.rate} (as of ${fx.as_of})`);
   } else if(TOGGLE_STATE.dollar){
-    notes.push("Exchange rate not available yet — showing original currency");
+    notes.push("Exchange rate not available yet: showing original currency");
   }
   if(TOGGLE_STATE.real) notes.push("GDP shown in real terms (chained volume / constant prices)");
   note.textContent = notes.join(" · ");
@@ -1209,12 +1209,12 @@ fetch("data-ca.json",{cache:"no-store"})
 (function(){
 "use strict";
 
-// Illustrative fallback only — used if the live Comtrade fetch fails or
+// Illustrative fallback only, used if the live Comtrade fetch fails or
 // COMTRADE_API_KEY isn't set yet. See tpmBanner for the live/fallback text.
-// Illustrative fallback only — used if the live Comtrade fetch fails or
+// Illustrative fallback only, used if the live Comtrade fetch fails or
 // COMTRADE_API_KEY isn't set yet. Export/import splits here are invented
 // but plausible (e.g. UK goods deficit with China/Germany, surplus with
-// Ireland/UAE) — not derived from any real source, purely to make the
+// Ireland/UAE), not derived from any real source, purely to make the
 // Total/Exports/Imports toggle demonstrate something sensible before live
 // data loads. See tpmBanner for the live/fallback indicator.
 var FALLBACK_PARTNERS = [
@@ -1518,7 +1518,7 @@ function applyLivePartners(payload){
     covnote.textContent = "All " + payload.partners.length + " partners UN Comtrade reports Canada goods trade "
       + "with are included, " + payload.period + " (US dollars). The radial view shows the top " + RADIAL_TOP_N
       + " by the selected metric; the map and the ranking list both show the top 50. "
-      + "Goods only — services trade isn't shown here.";
+      + "Goods only: services trade isn't shown here.";
   }
   var rankSubtitle = document.getElementById("tpmRankSubtitle");
   if(rankSubtitle) rankSubtitle.textContent = "Goods trade, " + payload.period + " (US$bn, UN Comtrade)";

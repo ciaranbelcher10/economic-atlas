@@ -333,7 +333,7 @@ document.addEventListener("DOMContentLoaded", function(){
           var flag = flagEmoji(ALPHA2[f.id]);
           var name = (f.properties && f.properties.name) || "This country";
           var status = CURRENT.has(f.id) ? "You are here"
-            : dest(f.id) ? "Live — click to explore" : "On the roadmap";
+            : dest(f.id) ? "Live: click to explore" : "On the roadmap";
           tip.innerHTML = "<span style=\"font-size:20px;line-height:1;\">" + flag + "</span> "
             + "<strong>" + name + "</strong><br><span style=\"color:var(--ink2);font-size:12px;\">" + status + "</span>";
           tip.style.left = (e.offsetX + 16) + "px";
@@ -762,13 +762,13 @@ function statTile(el, key, title, series, opts){
   const pts=series.points, last=pts[pts.length-1], prev=pts[pts.length-2];
   const d=+(last[1]-prev[1]).toFixed(2);
   const dir=d===0?"flat":((d>0)===opts.upIsGood?"good":"bad");
-  const arrow=d===0?"—":(d>0?"▲":"▼");
+  const arrow=d===0?"▬":(d>0?"▲":"▼");
   const led=freshness(series);
   const _lastP=series.points[series.points.length-1][0];
   const _ageDays=(Date.now()-periodEnd(_lastP).getTime())/86400000;
   let ledTitle=led==="green"?"Updated on schedule":
     (_ageDays>3*(STALE_DAYS[series.freq]||90)
-      ?"Source series stale — last data "+fmtPeriod(_lastP)
+      ?"Source series stale: last data "+fmtPeriod(_lastP)
       :"Awaiting next release");
   if(series.next) ledTitle+=" · next release "+series.next;
   const clickable=!!ANCHORS[key];
@@ -778,7 +778,7 @@ function statTile(el, key, title, series, opts){
   if(clickable){
     div.setAttribute("role","link");
     div.setAttribute("tabindex","0");
-    div.setAttribute("aria-label",title+" — view chart");
+    div.setAttribute("aria-label",title+", view chart");
     const go=()=>{const a=ANCHORS[key]; showSec(a.sec);
       setTimeout(()=>a.panelEl.scrollIntoView({behavior:"smooth",block:"start"}),60);};
     div.addEventListener("click",go);
@@ -873,7 +873,7 @@ function renderLastUpdated(updatedIso){
 
 function render(data){
   const s=data.series;
-  if(data.sample){const sb=document.getElementById("sampleBadge");sb.textContent="Sample data — run fetch_ez.py for live figures";sb.classList.add("show");}
+  if(data.sample){const sb=document.getElementById("sampleBadge");sb.textContent="Sample data: run fetch_ez.py for live figures";sb.classList.add("show");}
   const gdpAnnual = s.gdp_level ? annualGDP(s.gdp_level) : null;
   const gdpYoY = s.gdp_real ? yoyGDP(s.gdp_real) : null;
 
@@ -1082,7 +1082,7 @@ function rerender(){
     const fx = PAGE_DATA.fx_to_usd;
     notes.push(`All currency figures converted at ${fx.pair} = ${fx.rate} (as of ${fx.as_of})`);
   } else if(TOGGLE_STATE.dollar){
-    notes.push("Exchange rate not available yet — showing original currency");
+    notes.push("Exchange rate not available yet: showing original currency");
   }
   if(TOGGLE_STATE.real) notes.push("GDP shown in real terms (chained volume / constant prices)");
   note.textContent = notes.join(" · ");
