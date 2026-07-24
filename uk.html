@@ -18,7 +18,7 @@
 <link href="https://fonts.googleapis.com/css2?family=Nunito+Sans:wght@400;600;700&display=swap" rel="stylesheet">
 <link rel="icon" type="image/png" sizes="32x32" href="favicon-32.png">
 <link rel="apple-touch-icon" href="apple-touch-icon.png">
-<link rel="stylesheet" href="style.css?v=12">
+<link rel="stylesheet" href="style.css?v=14">
 <style>
 .led{display:inline-block; width:9px; height:9px; border-radius:50%;
   margin-right:9px; vertical-align:middle; position:relative; top:-3px;}
@@ -373,8 +373,65 @@ nav.viztoggle label{font-size:12.5px; color:var(--ink2); font-weight:600; margin
       updateThemeIcon();
     });
   }
+
+  /* ---------------------------- cookie consent / GA4 ------------------------- */
+  // GA4 only ever loads after an explicit Accept click (or a previously
+  // saved "granted" choice) -- never on page load by default, since
+  // that's the actual UK GDPR/PECR requirement: consent BEFORE
+  // non-essential cookies are set, not implied consent with an opt-out.
+  var GA_MEASUREMENT_ID = "G-M2RL6QF83G"; // TODO: replace with the real GA4 Measurement ID once the property is created
+  var CONSENT_KEY = "eatlas_cookie_consent";
+
+  function loadGA(){
+    if(window._gaLoaded || GA_MEASUREMENT_ID.indexOf("XXXX") !== -1) return;
+    window._gaLoaded = true;
+    var s = document.createElement("script");
+    s.async = true;
+    s.src = "https://www.googletagmanager.com/gtag/js?id=" + GA_MEASUREMENT_ID;
+    document.head.appendChild(s);
+    window.dataLayer = window.dataLayer || [];
+    function gtag(){ window.dataLayer.push(arguments); }
+    window.gtag = gtag;
+    gtag("js", new Date());
+    gtag("config", GA_MEASUREMENT_ID);
+  }
+
+  var cookieBanner = document.getElementById("cookieBanner");
+  var consent = null;
+  try { consent = localStorage.getItem(CONSENT_KEY); } catch(e){}
+
+  if(consent === "granted"){
+    loadGA();
+  } else if(consent !== "denied" && cookieBanner){
+    cookieBanner.classList.add("show");
+  }
+
+  var cookieAccept = document.getElementById("cookieAccept");
+  var cookieReject = document.getElementById("cookieReject");
+  if(cookieAccept){
+    cookieAccept.addEventListener("click", function(){
+      try{ localStorage.setItem(CONSENT_KEY, "granted"); }catch(e){}
+      cookieBanner.classList.remove("show");
+      loadGA();
+    });
+  }
+  if(cookieReject){
+    cookieReject.addEventListener("click", function(){
+      try{ localStorage.setItem(CONSENT_KEY, "denied"); }catch(e){}
+      cookieBanner.classList.remove("show");
+    });
+  }
 })();
 </script>
+<div id="cookieBanner" role="region" aria-label="Cookie consent">
+  <div class="cookie-inner">
+    <p class="cookie-text"><strong>Cookies:</strong> we'd like to use Google Analytics to see how the site is used (visits, which pages people read). This only runs if you agree, and sets cookies to do it. No personal data is sold or shared. Questions? <a href="contact.html">Get in touch</a>.</p>
+    <div class="cookie-actions">
+      <button type="button" class="btn ghost" id="cookieReject">Reject</button>
+      <button type="button" class="btn" id="cookieAccept">Accept</button>
+    </div>
+  </div>
+</div>
 
 <script src="https://cdnjs.cloudflare.com/ajax/libs/d3/7.8.5/d3.min.js"></script>
 <script src="https://cdnjs.cloudflare.com/ajax/libs/topojson/3.0.2/topojson.min.js"></script>
