@@ -2,6 +2,14 @@
 <html lang="en-GB">
 <head>
 <meta charset="utf-8">
+<script>(function(){
+  try{
+    var saved = localStorage.getItem("eatlas_theme");
+    if(saved === "dark" || (!saved && window.matchMedia && window.matchMedia("(prefers-color-scheme: dark)").matches)){
+      document.documentElement.setAttribute("data-theme", "dark");
+    }
+  }catch(e){}
+})();</script>
 <meta name="viewport" content="width=device-width, initial-scale=1">
 <title>Contact · Economic Atlas</title>
 <link rel="preconnect" href="https://fonts.googleapis.com">
@@ -14,16 +22,81 @@
 <body>
 <nav class="top"><div class="wrap">
   <a class="brand" href="index.html"><img src="logo-64.png" alt="" width="26" height="26" style="display:block;border-radius:50%;background:#fff;padding:1px;">Economic Atlas</a>
-  <a class="item" href="index.html">Macro</a>
+  <div class="dropdown">
+    <button type="button" class="dropbtn" id="macroBtn" aria-haspopup="true" aria-expanded="false">Country Breakdowns <span class="caret">&#9662;</span></button>
+    <div class="dropdown-panel" id="macroPanel">
+      <div class="doverview">
+        <a href="index.html">Overview</a>
+      </div>
+      <div class="dcol">
+        <p class="dhead">Europe</p>
+        <a href="uk.html">UK</a>
+        <a href="eurozone.html">Eurozone</a>
+      </div>
+      <div class="dcol">
+        <p class="dhead">North America</p>
+        <a href="us.html">U.S.</a>
+        <a href="canada.html">Canada</a>
+      </div>
+      <div class="dcol">
+        <p class="dhead">Asia</p>
+        <a href="japan.html">Japan</a>
+        <a href="india.html">India</a>
+        <a href="southkorea.html">South Korea</a>
+      </div>
+      <div class="dcol">
+        <p class="dhead">Oceania</p>
+        <a href="australia.html">Australia</a>
+      </div>
+    </div>
+  </div>
+  <a class="item" href="compare.html">Compare</a>
+  <a class="item" href="dashboard.html">My Dashboard</a>
   <a class="item active" href="contact.html">Contact</a>
+  <button type="button" class="theme-toggle" id="themeToggle" aria-label="Switch to dark mode" title="Switch to dark mode">&#127769;</button>
 </div></nav>
-<nav class="sub"><div class="wrap">
-  <a class="item" href="index.html">Overview</a>
-  <a class="item" href="uk.html">UK</a>
-  <a class="item" href="us.html">U.S.</a>
-  <a class="item" href="eurozone.html">Eurozone</a>
-  <a class="item" href="japan.html">Japan</a>
-</div></nav>
+<script>
+(function(){
+  var btn = document.getElementById("macroBtn");
+  var panel = document.getElementById("macroPanel");
+  function close(){
+    panel.classList.remove("open"); btn.classList.remove("open");
+    btn.setAttribute("aria-expanded","false");
+  }
+  btn.addEventListener("click", function(e){
+    e.stopPropagation();
+    var isOpen = panel.classList.toggle("open");
+    btn.classList.toggle("open", isOpen);
+    btn.setAttribute("aria-expanded", isOpen ? "true" : "false");
+  });
+  document.addEventListener("click", function(e){
+    if(!panel.contains(e.target) && e.target !== btn) close();
+  });
+  document.addEventListener("keydown", function(e){ if(e.key === "Escape") close(); });
+
+  var themeBtn = document.getElementById("themeToggle");
+  function updateThemeIcon(){
+    var isDark = document.documentElement.getAttribute("data-theme") === "dark";
+    themeBtn.innerHTML = isDark ? "&#9728;&#65039;" : "&#127769;";
+    themeBtn.setAttribute("aria-label", isDark ? "Switch to light mode" : "Switch to dark mode");
+    themeBtn.setAttribute("title", isDark ? "Switch to light mode" : "Switch to dark mode");
+  }
+  if(themeBtn){
+    updateThemeIcon();
+    themeBtn.addEventListener("click", function(){
+      var isDark = document.documentElement.getAttribute("data-theme") === "dark";
+      if(isDark){
+        document.documentElement.removeAttribute("data-theme");
+        try{ localStorage.setItem("eatlas_theme", "light"); }catch(e){}
+      } else {
+        document.documentElement.setAttribute("data-theme", "dark");
+        try{ localStorage.setItem("eatlas_theme", "dark"); }catch(e){}
+      }
+      updateThemeIcon();
+    });
+  }
+})();
+</script>
 <div class="wrap">
 <header class="page">
   <p class="eyebrow"><span class="dot" aria-hidden="true"></span>Economic Atlas</p>
