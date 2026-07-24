@@ -70,6 +70,10 @@
         <p class="dhead">Oceania</p>
         <a href="australia.html">Australia</a>
       </div>
+      <div class="dcol">
+        <p class="dhead">Middle East</p>
+        <a href="israel.html">Israel</a>
+      </div>
     </div>
   </div>
   <a class="item" href="compare.html">Compare</a>
@@ -82,7 +86,7 @@
   <div class="cookie-inner">
     <div>
       <p class="cookie-icon" aria-hidden="true">&#127850;</p>
-      <p class="cookie-text"><strong>A quick cookie question.</strong><br>We'd like to use Google Analytics to see how the site is used &mdash; which pages people find useful, roughly how many visits we get. It only runs if you say yes, and no personal data is sold or shared either way. <a href="contact.html">Questions? Get in touch</a>.</p>
+      <p class="cookie-text"><strong>A quick cookie question.</strong><br>We'd like to use Google Analytics to see how the site is used, which pages people find useful, roughly how many visits we get. It only runs if you say yes, and no personal data is sold or shared either way. <a href="contact.html">Questions? Get in touch</a>.</p>
     </div>
     <div class="cookie-actions">
       <button type="button" class="btn ghost" id="cookieReject">Reject</button>
@@ -234,6 +238,7 @@ const IN = new Set(["356"]);
 const CA = new Set(["124"]);
 const AU = new Set(["036"]);
 const KR = new Set(["410"]);
+const IL = new Set(["376"]);
 /* G7: US, UK, Canada, Japan, France, Germany, Italy -- shown as a darker
    shade on every map across the site, live or not, to stand out as the
    largest advanced economies. */
@@ -241,7 +246,8 @@ const G7 = new Set(["840","826","124","392","250","276","380"]);
 const dest = id => UK.has(id) ? "uk.html" : US.has(id) ? "us.html"
                  : EZ.has(id) ? "eurozone.html" : JP.has(id) ? "japan.html"
                  : IN.has(id) ? "india.html" : CA.has(id) ? "canada.html"
-                 : AU.has(id) ? "australia.html" : KR.has(id) ? "southkorea.html" : null;
+                 : AU.has(id) ? "australia.html" : KR.has(id) ? "southkorea.html"
+                 : IL.has(id) ? "israel.html" : null;
 
 /* ISO 3166-1 numeric id -> alpha-2, for turning a hovered country into a flag
    emoji. NOT exhaustive -- covers the countries most people will hover over
@@ -298,7 +304,7 @@ fetch("https://cdn.jsdelivr.net/npm/world-atlas@2/countries-110m.json")
       .on("mousemove", (e, f) => {
         const flag = flagEmoji(ALPHA2[f.id]);
         const name = (f.properties && f.properties.name) || "This country";
-        const status = dest(f.id) ? "Live \u2014 click to explore" : "On the roadmap";
+        const status = dest(f.id) ? "Live: click to explore" : "On the roadmap";
         tip.innerHTML = `<span style="font-size:20px;line-height:1;">${flag}</span> `
           + `<strong>${name}</strong><br><span style="color:var(--ink2);font-size:12px;">${status}</span>`;
         tip.style.left = (e.offsetX + 16) + "px";
