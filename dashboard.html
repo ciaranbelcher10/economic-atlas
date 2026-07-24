@@ -250,14 +250,14 @@ function wireRangePresets(scopeEl, pts, kind, chart){
     });
   });
 }
-function buildChartConfig(kind, pts, refLine, unit){
+function buildChartConfig(kind, pts, refLine, unit, key){
   var data = kind === "bar"
     ? {labels: pts.map(function(p){ return p[0]; }), datasets: [{data: pts.map(function(p){ return p[1]; }),
         backgroundColor: "#37659E", borderRadius: 2}]}
     : {labels: pts.map(function(p){ return p[0]; }), datasets: [{data: pts.map(function(p){ return p[1]; }),
         borderColor: "#37659E", backgroundColor: "rgba(55,101,158,0.12)", borderWidth: 2,
         pointRadius: 0, pointHitRadius: 8, tension: 0.25, fill: true}]};
-  var fmtY = function(v){ return fmtVal(v, unit); };
+  var fmtY = function(v){ return fmtVal(v, unit, key); };
   return {
     type: kind,
     data: data,
@@ -270,7 +270,7 @@ function buildChartConfig(kind, pts, refLine, unit){
           borderColor: "#E4E6E1", borderWidth: 1,
           callbacks: {
             title: function(items){ return fmtPeriod(items[0].label); },
-            label: function(ctx){ return fmtVal(ctx.parsed.y, unit); }
+            label: function(ctx){ return fmtVal(ctx.parsed.y, unit, key); }
           }},
         zoom: zoomOpts(),
         refLine: {value: refLine == null ? null : refLine}
@@ -379,9 +379,17 @@ function curFmt(rawValue, unitStr, decimals){
 function isCurrencyUnit(u){
   return u !== "%" && u !== "index" && /(m|bn|tn)$/.test(u);
 }
-function fmtVal(v, unit){
+// Rates and yields specifically use 2 decimal places everywhere on the
+// site (confirmed across all 8 country pages: boe_rate, fed_funds,
+// ecb_rate, boj_rate, overnight_rate, bond_yield_10y all use
+// v.toFixed(2)) since they often move in quarter-point steps that a
+// single decimal would erase -- 3.75% would otherwise round to "3.8%".
+// Everything else percentage-based (GDP growth, CPI, unemployment,
+// debt/GDP) uses 1 decimal, matching the site's generic pct() helper.
+var TWO_DECIMAL_KEYS = {boe_rate: 1, fed_funds: 1, ecb_rate: 1, boj_rate: 1, overnight_rate: 1, bond_yield_10y: 1};
+function fmtVal(v, unit, key){
   if(!unit) return String(v);
-  if(unit === "%") return v.toFixed(1) + "%";
+  if(unit === "%") return v.toFixed(key && TWO_DECIMAL_KEYS[key] ? 2 : 1) + "%";
   if(isCurrencyUnit(unit)) return curFmt(v, unit, 1);
   return v + " " + unit;
 }
@@ -402,7 +410,7 @@ function renderDash(){
     tile.innerHTML = "<button type=\"button\" class=\"remove\" aria-label=\"Remove\">&times;</button>"
       + "<p class=\"country\">" + m.country + "</p>"
       + "<p class=\"label\">" + m.series.label + "</p>"
-      + "<p class=\"value\">" + fmtVal(m.value, m.series.unit) + "</p>"
+      + "<p class=\"value\">" + fmtVal(m.value, m.series.unit, m.key) + "</p>"
       + "<p class=\"period\">" + fmtPeriod(m.period) + "</p>"
       + "<button type=\"button\" class=\"chartbtn\">&#128200; View chart</button>"
       + "<div class=\"chartbox\"><canvas></canvas></div>"
@@ -426,7 +434,7 @@ function renderDash(){
         var pts = m.series.points;
         var kind = BAR_KEYS[m.key] ? "bar" : "line";
         var refLine = REF_LINE_FOR[m.key] == null ? null : REF_LINE_FOR[m.key];
-        var chart = new Chart(canvas, buildChartConfig(kind, pts, refLine, m.series.unit));
+        var chart = new Chart(canvas, buildChartConfig(kind, pts, refLine, m.series.unit, m.key));
         tileCharts[id] = chart;
         wireRangePresets(tile, pts, kind, chart);
         tile.querySelector(".resetzoom").addEventListener("click", function(){
