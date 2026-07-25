@@ -9,6 +9,13 @@ before wiring in -- NOT a live end-to-end run, per the same discipline as
 every other country -- treat every one of these as "expected to work,
 confirm in the first Actions log"):
 
+- CONFIRMED BUG (found on the live site, now fixed): gdp_level/gdp_real
+  used scale=1e-6, incorrectly carried over from Mexico's script. FRED's
+  own page for NGDPRSAXDCZAQ documents units as "Millions of Domestic
+  Currency" already -- the extra 1e-6 divided GDP by another million,
+  showing "$8m" instead of the correct trillions. Fixed to scale=1.0,
+  matching the actual FRED units rather than assuming Mexico's
+  convention (raw currency units, not millions) applied here too.
 - gdp_level (NGDPSAXDCZAQ) and gdp_real (NGDPRSAXDCZAQ): both checked
   directly and BOTH live through Q4 2025, updated Mar 2026. Unlike Brazil,
   the standard seasonally-adjusted nominal series is not dead here --
@@ -46,8 +53,8 @@ import requests
 
 # key: (fred_id, freq 'm'|'q'|'a', label, unit, transform None|'yoy'|'mom'|'qoq', scale)
 FRED_SERIES = {
-    "gdp_level": ("NGDPSAXDCZAQ", "q", "GDP nominal, SA", "$m", None, 1e-6),
-    "gdp_real": ("NGDPRSAXDCZAQ", "q", "Real GDP, SA", "$m", None, 1e-6),
+    "gdp_level": ("NGDPSAXDCZAQ", "q", "GDP nominal, SA", "$m", None, 1.0),
+    "gdp_real": ("NGDPRSAXDCZAQ", "q", "Real GDP, SA", "$m", None, 1.0),
     "unemployment": ("LRUN64TTZAQ156S", "q", "Unemployment rate, 15-64, SA", "%", None, 1.0),
     "bond_yield_10y": ("IRLTLT01ZAM156N", "m", "10-year government bond yield", "%", None, 1.0),
     "debt_gdp": ("GGGDTAZAA188N", "a", "General government gross debt, % of GDP", "%", None, 1.0),

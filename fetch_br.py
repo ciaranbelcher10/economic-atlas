@@ -9,6 +9,17 @@ before wiring in -- NOT a live end-to-end run, per the same discipline as
 every other country -- treat every one of these as "expected to work,
 confirm in the first Actions log"):
 
+- CONFIRMED BUG (found on the live site, now fixed): gdp_level/gdp_real
+  used scale=1e-6, carried over from Mexico's script without checking
+  whether it actually applied here. Mexico's FRED series reports GDP in
+  raw currency units, needing that 1e-6 conversion to reach the site's
+  "$m" (millions) storage convention. Brazil's NGDPNSAXDCBRQ/
+  NGDPRSAXDCBRQ are already documented on FRED as "Millions of Domestic
+  Currency" -- applying 1e-6 on top divided GDP by another million,
+  showing "$13m" instead of the correct trillions. Fixed to scale=1.0.
+  Lesson: FRED's own reporting units vary by country/series even within
+  the same IMF IFS family; check each one rather than assume the
+  convention from a previously-working country carries over.
 - gdp_level uses NGDPNSAXDCBRQ (NOT-seasonally-adjusted), a deliberate
   departure from the "NGDPSAXDCxxQ" pattern every other country uses.
   Checked directly: the seasonally-adjusted nominal series
@@ -20,12 +31,20 @@ confirm in the first Actions log"):
   slightly different seasonal-adjustment basis than gdp_real; noted in
   the label rather than hidden.
 - fx_to_usd (DEXBZUS): checked directly, live daily H.10 series.
-- unemployment (LRUNTTTTBRM156S): monthly, matches the standard naming
-  convention directly (unlike Mexico, which needed a quarterly
-  substitute) -- checked directly, exists.
-- bond_yield_10y (IRLTLT01BRM156N): follows the exact OECD MEI naming
-  convention already confirmed working for Mexico/India/etc, but NOT
-  individually opened and checked -- confirm in the log.
+- unemployment: the LRUNTTTTBRM156S FRED mirror actually confirmed DEAD on the
+  first live run -- it stops at Nov 2015, over a decade stale, despite
+  looking like a normal monthly series when checked beforehand (checking
+  a series exists is not the same as checking it's still updating, a
+  distinction this build missed). No live FRED/OECD monthly or quarterly
+  mirror was found for Brazilian unemployment (PNAD Continua isn't
+  mirrored there); switched to World Bank's annual indicator instead,
+  using the same fetch_worldbank() already proven for fdi/current_account
+  below -- lower resolution, but honest and confirmed live.
+- bond_yield_10y: the guessed FRED ID (IRLTLT01BRM156N) came back as a
+  flat 400 Bad Request on the first live run -- unlike Mexico, India,
+  Australia etc, no OECD MEI 10-year bond yield series appears to exist
+  for Brazil on FRED at all. Removed rather than guess again; this is a
+  genuine gap, not a wrong ID to fix.
 - debt_gdp (GGGDTABRA188N): checked directly, exists, but only through
   2023 -- two years stale. This is roughly in line with several other
   countries' debt_gdp series on this site already (annual fiscal data is
@@ -55,10 +74,8 @@ import requests
 
 # key: (fred_id, freq 'm'|'q'|'a', label, unit, transform None|'yoy'|'mom'|'qoq', scale)
 FRED_SERIES = {
-    "gdp_level": ("NGDPNSAXDCBRQ", "q", "GDP nominal, NSA", "$m", None, 1e-6),
-    "gdp_real": ("NGDPRSAXDCBRQ", "q", "Real GDP, SA", "$m", None, 1e-6),
-    "unemployment": ("LRUNTTTTBRM156S", "m", "Unemployment rate, 15+, SA", "%", None, 1.0),
-    "bond_yield_10y": ("IRLTLT01BRM156N", "m", "10-year government bond yield", "%", None, 1.0),
+    "gdp_level": ("NGDPNSAXDCBRQ", "q", "GDP nominal, NSA", "$m", None, 1.0),
+    "gdp_real": ("NGDPRSAXDCBRQ", "q", "Real GDP, SA", "$m", None, 1.0),
     "debt_gdp": ("GGGDTABRA188N", "a", "General government gross debt, % of GDP", "%", None, 1.0),
     "deficit": ("GGNLBABRA188N", "a", "General government net lending/borrowing, % of GDP", "%", None, 1.0),
     "trade_balance": ("XTNTVA01BRQ667S", "q", "Trade balance, goods, $", "$m", None, 1e-6),
@@ -333,6 +350,8 @@ def main() -> int:
          "FDI net inflows, % of GDP (World Bank)", "%", "years"),
         ("current_account", lambda: fetch_worldbank("BN.CAB.XOKA.GD.ZS"),
          "Current account balance, % of GDP (World Bank)", "%", "years"),
+        ("unemployment", lambda: fetch_worldbank("SL.UEM.TOTL.ZS"),
+         "Unemployment, % of total labor force (World Bank, annual)", "%", "years"),
     ]
     for name, fn, label, unit, fr in extras:
         try:
