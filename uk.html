@@ -465,13 +465,25 @@ document.addEventListener("DOMContentLoaded", function(){
       EZ=new Set(["040","056","191","196","233","246","250","276","300","372",
                   "380","428","440","442","470","528","620","703","705","724"]),
       JP=new Set(["392"]), IN=new Set(["356"]), CA=new Set(["124"]), AU=new Set(["036"]),
-      KR=new Set(["410"]);
+      KR=new Set(["410"]), IL=new Set(["376"]), MX=new Set(["484"]), BR=new Set(["076"]),
+      ZA=new Set(["710"]), MA=new Set(["504"]), DE=new Set(["276"]), FRc=new Set(["250"]),
+      ITc=new Set(["380"]), ESc=new Set(["724"]), NLc=new Set(["528"]);
+  /* FIX (9.15.3): this page's mini-map predates the Tier 1/Tier 2 country
+     batch and never had the 10 new countries added to its own local dest()
+     -- clicking Germany/France/Italy/Spain/Netherlands here misrouted to
+     eurozone.html (they were already inside the shared EZ set with no
+     individual check ahead of it), and Israel/Mexico/Brazil/South
+     Africa/Morocco did nothing at all (not in any set, dest() returned
+     null). This mirrors the exact fix already applied on every page built
+     this session -- see germany.html etc. for the same pattern. */
   var G7=new Set(["840","826","124","392","250","276","380"]);
   var CURRENT=new Set(["826"]);
   function dest(id){
-    return UK.has(id)?"uk.html":US.has(id)?"us.html":EZ.has(id)?"eurozone.html"
+    return UK.has(id)?"uk.html":US.has(id)?"us.html":NLc.has(id)?"netherlands.html":ESc.has(id)?"spain.html":ITc.has(id)?"italy.html":FRc.has(id)?"france.html":DE.has(id)?"germany.html":EZ.has(id)?"eurozone.html"
       :JP.has(id)?"japan.html":IN.has(id)?"india.html":CA.has(id)?"canada.html"
-      :AU.has(id)?"australia.html":KR.has(id)?"southkorea.html":null;
+      :AU.has(id)?"australia.html":KR.has(id)?"southkorea.html":IL.has(id)?"israel.html"
+      :MX.has(id)?"mexico.html":BR.has(id)?"brazil.html":ZA.has(id)?"southafrica.html"
+      :MA.has(id)?"morocco.html":null;
   }
 
   /* Same flag lookup and rendering logic as the homepage map -- kept
