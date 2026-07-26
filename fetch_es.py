@@ -20,15 +20,21 @@ touching anything:
   (ESPGDPRQPSMEI) is confirmed live through Q3 2025, but the sibling
   NOMINAL GDP level series (ESPGDPNQDSMEI) is stale, stuck at Q3 2023.
 - Net result: no confirmed-live GDP LEVEL series in euros exists for
-  Spain via either of the two patterns that worked for every other
-  Eurozone country built so far. gdp_level and gdp_real both come from
-  World Bank ANNUAL data instead (same honest fallback used for
-  Israel/Morocco), and gdp_growth is NOT derived from a level series
-  here -- it's fetched DIRECTLY from the confirmed-live OECD quarterly
-  series (ESPGDPRQPSMEI), which is already a YoY growth rate, not a
-  level. This means Spain's "GDP growth" tile is YoY, not QoQ like every
-  other country's -- labelled accordingly rather than presented as if
-  it were the same metric.
+  Spain via either of the two FRED/OECD patterns that worked for every
+  other Eurozone country built so far. FIX (9.15.4): rather than accept
+  World Bank's annual USD data as the primary source (which shipped in
+  9.15.2 and left Spain's GDP in $ instead of € -- inconsistent with
+  every other Eurozone-member page and making the Dollarise toggle a
+  no-op), gdp_level and gdp_real now query Eurostat's namq_10_gdp table
+  directly for genuine EUR-denominated quarterly data, since Eurostat is
+  the origin these FRED/OECD mirrors are built from in the first place.
+  World Bank annual USD remains as a documented fallback only if that
+  Eurostat query fails on a given run. gdp_growth is still NOT derived
+  from a level series here -- it's fetched DIRECTLY from the
+  confirmed-live OECD quarterly series (ESPGDPRQPSMEI), which is already
+  a YoY growth rate, not a level. This means Spain's "GDP growth" tile
+  is YoY, not QoQ like every other country's -- labelled accordingly
+  rather than presented as if it were the same metric.
 
 VERIFICATION NOTES for the rest:
 
@@ -242,6 +248,42 @@ def _parse_jsonstat(text: str, tag: str) -> list | None:
     return pts
 
 
+def fetch_eurostat_gdp(unit: str, s_adj: str = "SCA") -> list | None:
+    """FIX (9.15.4): GDP at market prices for Spain, direct from Eurostat's
+    national accounts table (namq_10_gdp) -- quarterly, genuinely
+    EUR-denominated, unlike the World Bank annual USD fallback this
+    replaces as the primary source. Neither FRED nor OECD have a working
+    EUR level series for Spain (see module docstring), but Eurostat is
+    the origin of the data those mirrors are themselves built from, so
+    querying it directly was always the more correct fix.
+
+    unit="CP_MEUR" -> nominal, current prices, million EUR (gdp_level).
+    unit="CLV20_MEUR" -> real, chain-linked volumes, 2020 reference year,
+    million EUR (gdp_real). Eurostat periodically rebases the CLV
+    reference year (e.g. CLV15_MEUR before a prior rebase) -- if this
+    specific unit code returns 0 points, that rebase is the first thing
+    to check against Eurostat's current namq_10_gdp metadata before
+    assuming the whole approach is wrong.
+    """
+    url = (f"{EUROSTAT_STATS_BASE}/namq_10_gdp?format=JSON&lang=EN"
+          f"&geo=ES&na_item=B1GQ&unit={unit}&s_adj={s_adj}"
+          f"&sinceTimePeriod=1995")
+    tag = f"eurostat-gdp-{unit}-ES"
+    try:
+        r = requests.get(url, timeout=60,
+                         headers={"User-Agent": "economic-atlas/0.1"})
+        print(f"  [{tag}] status={r.status_code}")
+        r.raise_for_status()
+    except Exception as exc:
+        print(f"  [{tag}] request failed: {exc}")
+        return None
+    try:
+        return _parse_jsonstat(r.text, tag)
+    except Exception as exc:
+        print(f"  [{tag}] parsing failed: {exc}; first 300 chars: {r.text[:300]!r}")
+        return None
+
+
 def fetch_eurostat_unemployment() -> list | None:
     url = (f"{EUROSTAT_STATS_BASE}/une_rt_m?format=JSON&lang=EN"
           f"&geo=ES&sex=T&age=TOTAL&unit=PC_ACT&s_adj=SA"
@@ -365,10 +407,6 @@ def main() -> int:
          "General government gross debt, % of GDP (Eurostat)", "%", "years"),
         ("deficit", lambda: fetch_eurostat_govfinance("B9"),
          "General government net lending/borrowing, % of GDP (Eurostat)", "%", "years"),
-        ("gdp_level", lambda: fetch_worldbank("NY.GDP.MKTP.CD"),
-         "GDP, nominal, current US$ (World Bank, annual)", "$", "years"),
-        ("gdp_real", lambda: fetch_worldbank("NY.GDP.MKTP.KD"),
-         "GDP, real, constant 2015 US$ (World Bank, annual)", "$", "years"),
     ]
     for name, fn, label, unit, fr in extras:
         try:
@@ -397,6 +435,61 @@ def main() -> int:
                     failures.remove("unemployment")
         except Exception as exc:
             print(f"FAIL  unemployment (eurostat fallback) {exc}")
+
+    # gdp_level / gdp_real: FIX (9.15.4) -- prefer genuine EUR-denominated
+    # quarterly data direct from Eurostat (consistent with every other
+    # Eurozone-member page); fall back to World Bank annual USD only if
+    # Eurostat's namq_10_gdp doesn't resolve. The World Bank fallback is
+    # what shipped in 9.15.2 and is why GDP showed in $ instead of €,
+    # making Dollarise a no-op -- this makes the € source primary.
+    try:
+        pts = fetch_eurostat_gdp("CP_MEUR")
+        if pts:
+            out["series"]["gdp_level"] = {
+                "label": "GDP, nominal, SA (Eurostat namq_10_gdp, CP_MEUR)",
+                "unit": "\u20acm", "freq": "quarters", "points": pts}
+            print(f"  ok  gdp_level (eurostat) {len(pts)} observations")
+        else:
+            raise ValueError("no observations from Eurostat namq_10_gdp")
+    except Exception as exc:
+        print(f"FAIL  gdp_level (eurostat) {exc} -- falling back to World Bank USD")
+        try:
+            pts = fetch_worldbank("NY.GDP.MKTP.CD")
+            if not pts:
+                raise ValueError("no usable response")
+            out["series"]["gdp_level"] = {
+                "label": "GDP, nominal, current US$ (World Bank, annual -- "
+                         "Eurostat EUR series unavailable this run)",
+                "unit": "$", "freq": "years", "points": pts}
+            print(f"  ok  gdp_level (world bank fallback) {len(pts)} observations")
+        except Exception as exc2:
+            failures.append("gdp_level")
+            print(f"FAIL  gdp_level (world bank fallback) {exc2}")
+
+    try:
+        pts = fetch_eurostat_gdp("CLV20_MEUR")
+        if pts:
+            out["series"]["gdp_real"] = {
+                "label": "Real GDP, chain-linked volume, SA (Eurostat "
+                         "namq_10_gdp, CLV20_MEUR)",
+                "unit": "\u20acm", "freq": "quarters", "points": pts}
+            print(f"  ok  gdp_real (eurostat) {len(pts)} observations")
+        else:
+            raise ValueError("no observations from Eurostat namq_10_gdp")
+    except Exception as exc:
+        print(f"FAIL  gdp_real (eurostat) {exc} -- falling back to World Bank USD")
+        try:
+            pts = fetch_worldbank("NY.GDP.MKTP.KD")
+            if not pts:
+                raise ValueError("no usable response")
+            out["series"]["gdp_real"] = {
+                "label": "GDP, real, constant 2015 US$ (World Bank, annual -- "
+                         "Eurostat EUR series unavailable this run)",
+                "unit": "$", "freq": "years", "points": pts}
+            print(f"  ok  gdp_real (world bank fallback) {len(pts)} observations")
+        except Exception as exc2:
+            failures.append("gdp_real")
+            print(f"FAIL  gdp_real (world bank fallback) {exc2}")
 
     es_exp, es_imp = fetch_eurostat_trade_pair()
     if es_exp and es_imp:
