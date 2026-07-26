@@ -53,8 +53,12 @@ VERIFICATION NOTES for the rest:
   every other country.
 - fx_to_usd (DEXUSEU): same series and direction as the Eurozone
   aggregate, Germany and France -- the euro is worth more than a dollar,
-  so converting a raw-USD-sourced series into local currency means
-  dividing by the rate, not multiplying.
+  so converting a EUR-denominated value into USD means multiplying by
+  the rate, not dividing (opposite of weaker-currency countries like
+  Mexico/Brazil/South Africa, where the pair is quoted the other way
+  round and conversion divides). FIX (9.15.1): this note previously said
+  "dividing", which was stale/backwards -- the code below has always
+  correctly set direction="multiply"; only the comment was wrong.
 """
 
 from __future__ import annotations
@@ -116,6 +120,36 @@ def transform(points: list, kind: str | None) -> list:
 def gdp_growth_from_level(points: list) -> list:
     return [[points[i][0], round((points[i][1] / points[i - 1][1] - 1) * 100, 2)]
             for i in range(1, len(points)) if points[i - 1][1]]
+
+
+# ---- World Bank (Spain) -- free API, no key. FIX (9.15.1): this function
+# and WB_URL were referenced by the extras list below (gdp_level, gdp_real)
+# but never actually defined in this file -- every run silently raised
+# NameError, caught by the generic except-Exception in the extras loop, so
+# Spain has never had a GDP figure since this page was built. Copied from
+# the same pattern already proven for Morocco/Israel, with Spain's ISO3
+# code. ----
+WB_URL = ("https://api.worldbank.org/v2/country/ESP/indicator/"
+          "{code}?format=json&per_page=200")
+
+
+def fetch_worldbank(code: str) -> list | None:
+    r = requests.get(WB_URL.format(code=code), timeout=60,
+                     headers={"User-Agent": "economic-atlas/0.1"})
+    r.raise_for_status()
+    payload = r.json()
+    if not isinstance(payload, list) or len(payload) < 2 or not payload[1]:
+        return None
+    points = []
+    for row in payload[1]:
+        try:
+            if row.get("value") is None:
+                continue
+            points.append([str(row["date"]), float(row["value"])])
+        except (KeyError, ValueError, TypeError):
+            continue
+    points.sort(key=lambda p: p[0])
+    return points or None
 
 
 # ---- OECD business confidence (Spain) ----
