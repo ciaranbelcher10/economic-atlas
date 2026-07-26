@@ -16,7 +16,18 @@ VERIFICATION NOTES:
   (no NGDPSAXDCNLQ was found for the Netherlands) -- this is the SAME
   Eurostat-QNA family the Eurozone AGGREGATE itself uses on this site
   (CPMNACSCAB1GQEA19), just with "NL" instead of "EA19".
-- gdp_real (NAEXKP01NLQ657S): checked directly, live through Q1 2026.
+- gdp_real: FIX (9.15.1) -- NAEXKP01NLQ657S was live and returning data, but the
+  values (0.2-0.9) turned out to be a QoQ % growth rate, not a GDP level in
+  euros, despite the label/unit metadata claiming otherwise. Site-wide
+  yoyGDP() expects a level series and silently produced a nonsensical result
+  (ratio of two small percentages). Switched to CLVMNACSCAB1GQNL, the
+  chain-linked-volume ("real") counterpart of the CPMNACSCAB1GQNL nominal
+  series already used for gdp_level here, following the same Eurostat-QNA
+  naming family the Eurozone aggregate itself uses for real GDP
+  (CLVMEURSCAB1GQEA19). Confirm this ID resolves and returns level-scale
+  values (hundreds of thousands, matching gdp_level's magnitude) on the
+  first live workflow run -- FRED is not reachable from this sandbox to
+  verify in advance.
   A different (OECD MEI) naming family than gdp_level above -- the
   direct Eurostat-QNA analogue for real GDP was not confirmed to exist
   under the expected ID, so this confirmed-live alternative was used
@@ -60,7 +71,7 @@ import requests
 
 FRED_SERIES = {
     "gdp_level": ("CPMNACSCAB1GQNL", "q", "GDP nominal, SA", "\u20acm", None, 1.0),
-    "gdp_real": ("NAEXKP01NLQ657S", "q", "Real GDP, SA", "\u20acm", None, 1.0),
+    "gdp_real": ("CLVMNACSCAB1GQNL", "q", "Real GDP, chain-linked volume, SA", "\u20acm", None, 1.0),
     "unemployment": ("LRHUTTTTNLM156N", "m", "Unemployment rate, 15+, SA", "%", None, 1.0),
     "bond_yield_10y": ("IRLTLT01NLM156N", "m", "10-year government bond yield", "%", None, 1.0),
     "cpi": ("CP0000NLM086NEST", "m", "HICP, all items, YoY", "%", "yoy", 1.0),

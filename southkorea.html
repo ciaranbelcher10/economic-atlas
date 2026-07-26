@@ -663,16 +663,23 @@ function freshness(series){
 /* --------------------------- derived series ------------------------------ */
 /* Annual GDP: rolling sum of the last four quarterly levels, in \u20acm */
 function annualGDP(gdp){
+  /* FIX (9.15.1): gdp_level is sometimes annual (World Bank) rather than
+     quarterly (IMF IFS) -- e.g. Morocco, Israel. Rolling up 4 "quarters" of
+     annual data silently summed 4 years into one figure (~4x inflation). */
+  if(gdp.freq === "years") return gdp;
   const p=gdp.points, out=[];
   for(let i=3;i<p.length;i++)
     out.push([p[i][0], p[i][1]+p[i-1][1]+p[i-2][1]+p[i-3][1]]);
   return {label:"GDP, rolling four quarters", unit:"\u20acm", freq:"quarters", points:out};
 }
 function yoyGDP(gdpReal){
+  /* FIX (9.15.1): for annual series, one prior observation is one year ago,
+     not four -- offsetting by 4 was comparing against 4 years prior. */
+  const lag = gdpReal.freq === "years" ? 1 : 4;
   const p=gdpReal.points, out=[];
-  for(let i=4;i<p.length;i++)
-    out.push([p[i][0], +((p[i][1]/p[i-4][1]-1)*100).toFixed(1)]);
-  return {label:"Real GDP growth, year on year", unit:"%", freq:"quarters", points:out};
+  for(let i=lag;i<p.length;i++)
+    out.push([p[i][0], +((p[i][1]/p[i-lag][1]-1)*100).toFixed(1)]);
+  return {label:"Real GDP growth, year on year", unit:"%", freq:gdpReal.freq, points:out};
 }
 
 /* --------------- fallback sample data (until fetch_data.py) -------------- */

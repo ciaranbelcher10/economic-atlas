@@ -805,16 +805,20 @@ function freshness(series){
 
 /* --------------------------- derived series ------------------------------ */
 function annualGDP(gdp){
+  /* FIX (9.15.1): guard for annual-source GDP, consistent with other pages. */
+  if(gdp.freq === "years") return gdp;
   const p=gdp.points, out=[];
   for(let i=3;i<p.length;i++)
     out.push([p[i][0], p[i][1]+p[i-1][1]+p[i-2][1]+p[i-3][1]]);
   return {label:"GDP, rolling four quarters", unit:"£m", freq:"quarters", points:out};
 }
 function yoyGDP(gdp){
+  /* FIX (9.15.1): guard for annual-source GDP, consistent with other pages. */
+  const lag = gdp.freq === "years" ? 1 : 4;
   const p=gdp.points, out=[];
-  for(let i=4;i<p.length;i++)
-    out.push([p[i][0], +((p[i][1]/p[i-4][1]-1)*100).toFixed(1)]);
-  return {label:"GDP growth, year on year", unit:"%", freq:"quarters", points:out};
+  for(let i=lag;i<p.length;i++)
+    out.push([p[i][0], +((p[i][1]/p[i-lag][1]-1)*100).toFixed(1)]);
+  return {label:"GDP growth, year on year", unit:"%", freq:gdp.freq, points:out};
 }
 function tradeIntensity(exp, imp, gdp){
   const sumBy=(pts,len)=>{const m={}; for(const [p,v] of pts){const y=p.slice(0,4);
