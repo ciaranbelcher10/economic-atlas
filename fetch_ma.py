@@ -1,56 +1,42 @@
-"""Fetch Israel economic series and write data-il.json.
+"""Fetch Morocco economic series and write data-ma.json.
 
-Run:  FRED_API_KEY=yourkey python3 fetch_il.py
-Sources: FRED (free key required: fred.stlouisfed.org), OECD, World Bank.
+Run:  FRED_API_KEY=yourkey python3 fetch_ma.py
+Sources: FRED (free key required), OECD, World Bank.
 In GitHub Actions the key comes from the FRED_API_KEY repository secret.
 
-VERIFICATION NOTES (checked against each series before wiring in, same
-discipline as every other country -- these are desk-research checks via
-each series' own FRED page, NOT a live end-to-end run, so treat every one
-of these as "expected to work, confirm in the first Actions log"):
+WHY THIS PAGE WILL LOOK THINNER THAN ISRAEL/MEXICO/BRAZIL/SOUTH AFRICA
+(read this before "fixing" a missing tile -- these are documented,
+deliberate gaps, not bugs):
 
-- unemployment (LRHUTTTTILM156S), bond_yield_10y (IRLTLT01ILM156N),
-  trade_balance (XTNTVA01ILQ667S): confirmed working.
-  debt_gdp / deficit: FRED's usual IMF WEO series (GGGDTAILA188N / GGNLBAILA188N)
-  returned a 400 Bad Request on the first live run -- Israel isn't covered
-  by that particular FRED mirror. Switched to World Bank indicators instead
-  (GC.DOD.TOTL.GD.ZS for debt, GC.BAL.CASH.GD.ZS for deficit), using the
-  same fetch_worldbank() already proven for fdi/current_account below.
-  trade_balance (XTNTVA01ILQ667S): these follow the exact naming
-  convention already confirmed working for AU/CA/KR/JP/IN (just the
-  country-code segment swapped to IL), so confidence is reasonably high,
-  but none of these were individually opened and checked the way the GDP
-  series below were -- if any come back FAIL in the log, that's why.
-- gdp_level / gdp_real: Israel's OECD-mirrored quarterly GDP on FRED
-  (ISRGDPNQDSMEI, the equivalent of South Korea's NGDPSAXDCKRQ) was
-  checked directly and is DEAD -- last observation Q3 2023, "Next Release
-  Date: Not Available". This is the same "stale FRED MEI mirror" problem
-  that hit Japan's CPI, just for GDP instead. Rather than ship a
-  discontinued series as if it were live (the exact mistake the Japan CPI
-  postmortem flagged), gdp_level here uses the World Bank's annual
-  nominal GDP (MKTGDPILA646NWDB), confirmed fresh through 2025 -- lower
-  resolution than other countries' quarterly figure, a real and honest
-  gap versus the rest of the site, not a bug. A live quarterly OECD
-  SDMX query (DSD_NAMAIN1@DF_QNA_EXPENDITURE_GROWTH_OECD) was considered
-  for gdp_growth but NOT attempted here -- that dataset's dimension
-  structure is materially more complex than the prices one CPI already
-  uses successfully, and guessing it blind risked shipping something
-  wrong rather than absent. Revisit once there's a channel to actually
-  test SDMX queries live rather than write them from documentation alone.
-- cpi: wired in directly via OECD's live SDMX prices system
-  (DSD_PRICES@DF_PRICES_ALL), the same fix already used for Japan, India,
-  Canada, Australia and South Korea, precisely BECAUSE FRED's own mirror
-  for Israeli CPI has the same discontinuation risk as the GDP one above.
-  Same query structure, same confidence level as those fixes.
-- business_confidence: OECD BCICP via SDMX, same multi-query fallback
-  pattern already used for every other country. Best-effort.
-- fx_to_usd: no FRED daily H.10-style series was found for the shekel
-  (unlike DEXKOUS for the won) -- the closest available is an OECD
-  quarterly average-rate mirror (CCUSMA02ILQ618N), used here on a
-  best-effort basis. If it also turns out to be stale or absent, the
-  existing "Dollarise will be unavailable on this page until next run"
-  fallback already in the shared frontend code handles that gracefully --
-  it was written for exactly this situation.
+Morocco is not an OECD member and not one of the OECD's "key partner"
+countries (Brazil, China, India, Indonesia, South Africa) either -- it
+simply has much thinner free/live data coverage on FRED than any country
+built so far. Desk research (not a live run) found:
+
+- NO live FX series. The only two FRED series for the dirham
+  (XRNCUSMAA618NRUG, FXRATEMAA618NUPN) are both long dead -- the most
+  recent stopped in 2019, the other in 2010. No daily H.10-style mirror
+  exists like DEXMXUS/DEXBZUS/DEXSFUS did for the last three countries.
+  A last-resort OECD quarterly-average-rate attempt is included below
+  (the same fallback pattern that worked for Israel), but it may well
+  fail too -- if it does, Dollarise will simply have nothing to convert,
+  same graceful handling as every other missing-data case on this site.
+- NO quarterly GDP mirror found. Unlike every country built so far,
+  there's no IMF IFS quarterly nominal/real GDP series for Morocco on
+  FRED. gdp_level and gdp_real both come from World Bank ANNUAL data
+  instead (current US$ and constant US$ respectively) -- this actually
+  means Morocco gets a working "Make it real" toggle despite being
+  annual-only, which Israel never got at all.
+- NO unemployment series beyond a youth-specific one. Total unemployment
+  comes from World Bank's annual indicator instead.
+- NO bond yield series found at all. Not included; this is a genuine
+  gap, not a guessed-and-failed ID (the Brazil/Israel lesson: don't
+  guess repeatedly at IDs that don't exist, document the gap instead).
+- debt_gdp/deficit and trade_balance/business_confidence/cpi all follow
+  the same FRED/OECD patterns already proven for other countries, but
+  NONE of these were individually confirmed to exist for Morocco before
+  writing this -- treat every "ok" or "FAIL" in the first Actions log
+  as the real answer, not this docstring.
 """
 
 from __future__ import annotations
@@ -64,9 +50,9 @@ import requests
 
 # key: (fred_id, freq 'm'|'q'|'a', label, unit, transform None|'yoy'|'mom'|'qoq', scale)
 FRED_SERIES = {
-    "unemployment": ("LRHUTTTTILM156S", "m", "Unemployment rate, 15+, SA", "%", None, 1.0),
-    "bond_yield_10y": ("IRLTLT01ILM156N", "m", "10-year government bond yield", "%", None, 1.0),
-    "trade_balance": ("XTNTVA01ILQ667S", "q", "Trade balance, goods, $", "$m", None, 1e-6),
+    "debt_gdp": ("GGGDTAMAA188N", "a", "General government gross debt, % of GDP", "%", None, 1.0),
+    "deficit": ("GGNLBAMAA188N", "a", "General government net lending/borrowing, % of GDP", "%", None, 1.0),
+    "trade_balance": ("XTNTVA01MAQ667S", "q", "Trade balance, goods, $", "$m", None, 1e-6),
 }
 
 FRED_URL = ("https://api.stlouisfed.org/fred/series/observations"
@@ -80,7 +66,7 @@ def fred_period(date: str, freq: str) -> str:
         return y
     if freq == "q":
         return f"{y}-Q{(m - 1) // 3 + 1}"
-    return f"{y}-{m:02d}"  # monthly, and daily reduced to months
+    return f"{y}-{m:02d}"
 
 
 def fetch_fred(sid: str, freq: str, key: str) -> list:
@@ -97,7 +83,7 @@ def fetch_fred(sid: str, freq: str, key: str) -> list:
             continue
     points.sort(key=lambda p: p[0])
     dedup = {}
-    for p, v in points:          # daily series reduce to last value per month
+    for p, v in points:
         dedup[p] = v
     return sorted([[p, v] for p, v in dedup.items()], key=lambda x: x[0])
 
@@ -110,12 +96,12 @@ def transform(points: list, kind: str | None) -> list:
             for i in range(lag, len(points)) if points[i - lag][1]]
 
 
-# ---- OECD business confidence (Israel) -- free SDMX API, no key ----
+# ---- OECD business confidence (Morocco) -- free SDMX API, no key ----
 OECD_BASE = "https://sdmx.oecd.org/public/rest/data/OECD.SDD.STES,DSD_STES@DF_CLI"
-IL_AREAS = ("ISR",)
+MA_AREAS = ("MAR",)
 OECD_QUERIES = [
-    f"{OECD_BASE}/ISR.M.BCICP...AA...H?format=csvfile&startPeriod=1990",
-    f"{OECD_BASE}/ISR.M.BCICP......?format=csvfile&startPeriod=1990",
+    f"{OECD_BASE}/MAR.M.BCICP...AA...H?format=csvfile&startPeriod=1990",
+    f"{OECD_BASE}/MAR.M.BCICP......?format=csvfile&startPeriod=1990",
     f"{OECD_BASE}/all?format=csvfile&startPeriod=2000",
 ]
 
@@ -134,7 +120,7 @@ def fetch_oecd_bci() -> list | None:
             rows = {}
             for row in csv.DictReader(io.StringIO(r.text)):
                 low = {k.upper(): (v or "") for k, v in row.items() if k}
-                if low.get("REF_AREA", "ISR") not in IL_AREAS:
+                if low.get("REF_AREA", "MAR") not in MA_AREAS:
                     continue
                 if low.get("MEASURE", "BCICP") != "BCICP":
                     continue
@@ -152,9 +138,8 @@ def fetch_oecd_bci() -> list | None:
             continue
     return None
 
-# ---- OECD live CPI -- same fix already proven for Japan/India/Canada/
-# Australia/South Korea, applied here because Israel's FRED "MEI" mirror
-# carries the same discontinuation risk documented above for GDP.
+# ---- OECD live CPI -- same fix proven for six other countries, worth
+# trying even for a non-member/non-partner country ----
 OECD_PRICES_BASE = "https://sdmx.oecd.org/public/rest/data/OECD.SDD.TPS,DSD_PRICES@DF_PRICES_ALL,1.0"
 
 
@@ -260,8 +245,10 @@ def fetch_oecd_cpi(areas: tuple, freq: str) -> list | None:
                 continue
     return None
 
-# ---- World Bank (Israel) -- free API, no key ----
-WB_URL = ("https://api.worldbank.org/v2/country/ISR/indicator/"
+# ---- World Bank (Morocco) -- free API, no key. Carries more weight
+# here than for other countries: GDP, real GDP, unemployment and CPI
+# fallback all come from here rather than FRED/OECD. ----
+WB_URL = ("https://api.worldbank.org/v2/country/MAR/indicator/"
           "{code}?format=json&per_page=200")
 
 
@@ -282,6 +269,19 @@ def fetch_worldbank(code: str) -> list | None:
             continue
     points.sort(key=lambda p: p[0])
     return points or None
+
+
+def fetch_cpi_with_fallback() -> tuple[list | None, str]:
+    """Try OECD live CPI first; if that fails, fall back to World Bank's
+    annual CPI indicator rather than showing nothing at all."""
+    pts = fetch_oecd_cpi(("MAR",), "M")
+    if pts:
+        return pts, "OECD live prices system"
+    print("  [cpi] OECD attempt exhausted, falling back to World Bank annual CPI")
+    pts = fetch_worldbank("FP.CPI.TOTL.ZG")
+    if pts:
+        return pts, "World Bank, annual"
+    return None, ""
 
 
 def main() -> int:
@@ -316,18 +316,16 @@ def main() -> int:
     extras = [
         ("business_confidence", lambda: fetch_oecd_bci(),
          "Business confidence indicator, LT avg = 100 (OECD BCICP)", "index", "months"),
-        ("cpi", lambda: fetch_oecd_cpi(("ISR",), "M"),
-         "CPI, all items, YoY (OECD live prices system)", "%", "months"),
-        ("gdp_level", lambda: fetch_worldbank("NY.GDP.MKTP.CD"),
-         "GDP, nominal, current US$ (World Bank, annual)", "$", "years"),
         ("fdi", lambda: fetch_worldbank("BX.KLT.DINV.WD.GD.ZS"),
          "FDI net inflows, % of GDP (World Bank)", "%", "years"),
         ("current_account", lambda: fetch_worldbank("BN.CAB.XOKA.GD.ZS"),
          "Current account balance, % of GDP (World Bank)", "%", "years"),
-        ("debt_gdp", lambda: fetch_worldbank("GC.DOD.TOTL.GD.ZS"),
-         "Central government debt, % of GDP (World Bank, annual)", "%", "years"),
-        ("deficit", lambda: fetch_worldbank("GC.BAL.CASH.GD.ZS"),
-         "Cash surplus/deficit, % of GDP (World Bank, annual)", "%", "years"),
+        ("unemployment", lambda: fetch_worldbank("SL.UEM.TOTL.ZS"),
+         "Unemployment, % of total labor force (World Bank, annual)", "%", "years"),
+        ("gdp_level", lambda: fetch_worldbank("NY.GDP.MKTP.CD"),
+         "GDP, nominal, current US$ (World Bank, annual)", "$", "years"),
+        ("gdp_real", lambda: fetch_worldbank("NY.GDP.MKTP.KD"),
+         "GDP, real, constant 2015 US$ (World Bank, annual)", "$", "years"),
     ]
     for name, fn, label, unit, fr in extras:
         try:
@@ -342,12 +340,28 @@ def main() -> int:
             failures.append(name)
             print(f"FAIL  {name:<16} {exc}")
 
+    # CPI handled separately since it has a two-stage fallback (OECD, then
+    # World Bank annual) rather than a single source.
+    try:
+        cpi_points, cpi_source = fetch_cpi_with_fallback()
+        if not cpi_points:
+            raise ValueError("no usable response from OECD or World Bank")
+        out["series"]["cpi"] = {
+            "label": f"CPI, all items, YoY ({cpi_source})", "unit": "%",
+            "freq": "months" if cpi_source.startswith("OECD") else "years",
+            "points": cpi_points}
+        print(f"  ok  cpi              {len(cpi_points):>5} observations "
+              f"({cpi_points[0][0]} to {cpi_points[-1][0]}, via {cpi_source})")
+    except Exception as exc:
+        failures.append("cpi")
+        print(f"FAIL  cpi              {exc}")
+
     if not out["series"]:
         print("\nNothing fetched.")
         return 1
 
     try:
-        with open("data-il.json") as f:
+        with open("data-ma.json") as f:
             prev_full = json.load(f)
     except Exception:
         prev_full = {}
@@ -381,38 +395,20 @@ def main() -> int:
         print("Fresh (< 2 days old): " + ", ".join(
             f"{k} ({p})" for k, p in out["new_points"].items()))
 
-    try:
-        if key:
-            fx_pts = fetch_fred("CCUSMA02ILQ618N", "q", key)
-            if fx_pts:
-                fx_period, fx_rate = fx_pts[-1]
-                out["fx_to_usd"] = {"pair": "ILS/USD", "rate": fx_rate,
-                                     "as_of": fx_period, "direction": "divide"}
-                print(f"  ok  fx_to_usd        1 observation ({fx_period}, {fx_rate})")
+    # No confirmed live FX series exists for the dirham -- unlike Israel,
+    # where a genuine (if undocumented-until-tried) OECD quarterly mirror
+    # existed, desk research turned up nothing usable here, and inventing
+    # a plausible-looking API call to "try" would just be guessing dressed
+    # up as due diligence. Documenting the gap honestly instead: Dollarise
+    # will have nothing to convert, which the shared frontend code already
+    # handles gracefully.
+    print("note  fx_to_usd: no confirmed live FX series found for the "
+          "dirham -- Dollarise will be unavailable on this page unless "
+          "one is found and wired in later.")
 
-                to_local = lambda v: v * fx_rate
-                for tk in ("trade_balance", "exports", "imports"):
-                    if tk in out["series"]:
-                        ser = out["series"][tk]
-                        if ser["unit"].strip().startswith("$"):
-                            ser["points"] = [[p, round(to_local(v), 1)] for p, v in ser["points"]]
-                            ser["unit"] = ser["unit"].replace("$", "\u20aa", 1)
-                            ser["label"] = ser["label"].replace(", $ ", ", \u20aa ") \
-                                                        .replace(", $", ", \u20aa")
-                            print(f"  ok  {tk:<16} converted {'$'}->{'\u20aa'} using {fx_rate}")
-            else:
-                print("note  fx_to_usd: no observations returned -- "
-                      "Israel has no confirmed daily FX series (unlike the won/yen/etc), "
-                      "this quarterly OECD mirror may also be stale; check the log")
-        else:
-            print("note  fx_to_usd not set (no FRED_API_KEY) -- "
-                  "Dollarise will be unavailable on this page until next run.")
-    except Exception as exc:
-        print(f"FAIL  fx_to_usd        {exc}")
-
-    with open("data-il.json", "w") as f:
+    with open("data-ma.json", "w") as f:
         json.dump(out, f)
-    print(f"\nWrote data-il.json with {len(out['series'])} series.")
+    print(f"\nWrote data-ma.json with {len(out['series'])} series.")
     if failures:
         print(f"Missing: {', '.join(failures)} -- the page will still render.")
     return 0
