@@ -379,6 +379,7 @@ var _cs = getComputedStyle(document.documentElement);
 var TOOLTIP_BG = _cs.getPropertyValue("--panel").trim() || "#fff";
 var TOOLTIP_INK = _cs.getPropertyValue("--ink").trim() || "#171B1E";
 var TOOLTIP_HAIR = _cs.getPropertyValue("--hair").trim() || "#E4E6E1";
+var MUTED_INK = _cs.getPropertyValue("--ink2").trim() || "#8A9099";
 
 /* ------------------------------ live data layer ---------------------------- */
 // FIX (9.15.7): Compare used to embed a hand-maintained static snapshot
@@ -707,7 +708,7 @@ var horizon = "0";
 // same way My Dashboard persists its pinned tiles (a plain array in
 // localStorage, loaded once at startup, falling back quietly to the
 // original five if nothing's saved or storage is unavailable).
-var DEFAULT_CONCEPTS = ["gdp_growth", "cpi", "unemployment", "debt_gdp", "policy_rate"];
+var DEFAULT_CONCEPTS = ["gdp_level", "gdp_growth", "cpi", "unemployment", "debt_gdp", "policy_rate"];
 var METRICS_KEY = "eatlas_compare_concepts_v2";
 var visibleMetrics = DEFAULT_CONCEPTS.slice();
 try {
@@ -863,6 +864,38 @@ document.getElementById("pickerClearAll").addEventListener("click", function(){
 });
 
 /* ------------------------------ bar charts ------------------------------- */
+// Draws "No data" directly in the empty column for any country with a
+// null value, rotated to fit narrow columns when many countries are
+// selected. Previously a missing country was only distinguishable from
+// a rendering bug by hovering over the empty gap; this makes the reason
+// visible without any interaction at all.
+var noDataPlugin = {
+  id: "noDataLabel",
+  afterDatasetsDraw: function(chart){
+    var meta = chart.getDatasetMeta(0);
+    var data = chart.data.datasets[0].data;
+    var ctx = chart.ctx;
+    var area = chart.chartArea;
+    ctx.save();
+    ctx.font = "10px \"Avenir Next\",\"Avenir\",\"Nunito Sans\",sans-serif";
+    ctx.fillStyle = MUTED_INK;
+    ctx.textAlign = "center";
+    ctx.textBaseline = "middle";
+    for(var i=0; i<data.length; i++){
+      if(data[i] != null) continue;
+      var el = meta.data[i];
+      if(!el) continue;
+      var x = el.x;
+      var y = (area.top + area.bottom) / 2;
+      ctx.save();
+      ctx.translate(x, y);
+      ctx.rotate(-Math.PI / 2);
+      ctx.fillText("No data", 0, 0);
+      ctx.restore();
+    }
+    ctx.restore();
+  }
+};
 var charts = {};
 function renderCharts(){
   var grid = document.getElementById("chartGrid");
@@ -897,6 +930,7 @@ function renderCharts(){
     var canvas = card.querySelector("canvas");
     var chart = new Chart(canvas, {
       type: "bar",
+      plugins: [noDataPlugin],
       data: {
         labels: rows.map(function(r){ return r.country; }),
         datasets: [{

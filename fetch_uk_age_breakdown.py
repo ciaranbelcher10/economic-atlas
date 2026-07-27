@@ -19,12 +19,17 @@ likely covers many age bands (16-17, 18-24, 25-34, 35-49, 50-64, 65+, and
 various combined bands) across levels and rates for employment,
 unemployment and inactivity -- almost certainly a larger, multi-sheet
 workbook than INAC01. Unlike INAC01/COFOG, no dataset identifier codes
-have been confirmed for this file yet, so this parses by searching for
-text combining a metric name ("unemployment rate", "inactivity rate")
-with an age-band label, and dumps raw content for diagnosis if that
-doesn't find enough matches -- same discipline as every other fetch
-script on this site: search for anchor text, don't guess positions, and
-show real failures rather than guessing blindly.
+have been confirmed for this file yet, so this tries two strategies in
+order: (1) search for a single cell combining a metric name with an
+age-band label, same as before; (2) if that finds nothing, look for a
+row of short alphanumeric codes (e.g. LF64-style), the same "Dataset
+identifier code" row convention CONFIRMED working on the sibling INAC01
+script from the same ONS team -- this doesn't assume any specific codes,
+it just surfaces candidate code rows explicitly in the log rather than
+leaving them buried in a blind row dump. If neither strategy finds
+anything, this still dumps raw content for diagnosis, same discipline as
+every other fetch script on this site: search for anchors, don't guess
+positions, and show real failures rather than guessing blindly.
 
 IMPORTANT: the age bands actually available in this file may not match
 "25-49"/"50-64" (the illustrative placeholders currently used on the
@@ -149,9 +154,10 @@ def fetch_and_parse() -> dict | None:
         last_grid, last_sheet = grid, sheet_name
         print(f"  [a05] trying sheet '{sheet_name}': {len(grid)} rows")
 
-        # Look for header cells combining a metric with an age band --
-        # collect candidate (row, col, metric, band) hits across the
-        # whole sheet, since we don't know the layout yet.
+        # Strategy 1: look for header cells combining a metric with an
+        # age band in the SAME cell -- collect candidate (row, col,
+        # metric, band) hits across the whole sheet, since we don't know
+        # the layout yet.
         hits = []
         for r, row in enumerate(grid[:60]):  # header block is almost certainly near the top
             for c, val in enumerate(row):
@@ -169,6 +175,34 @@ def fetch_and_parse() -> dict | None:
             # what was found so the next round can wire up extraction
             # against the real confirmed positions, rather than guessing
             # at a value-extraction rule with no confirmed layout.
+            continue
+
+        # Strategy 2: the sibling INAC01 script (same ONS team, same
+        # Labour Force Survey family, CONFIRMED working) uses a distinct
+        # "Dataset identifier code" row instead of free-text headers --
+        # a row of short alphanumeric codes (e.g. LF64, LF66) that map
+        # columns to categories far less ambiguously than label text.
+        # Strategy 1 alone has found zero hits across every run so far,
+        # which is exactly what you'd expect if this file uses the same
+        # identifier-code convention instead of (or as well as) text
+        # labels. This doesn't assume any specific codes -- A05 SA's own
+        # codes haven't been confirmed yet -- it just surfaces any
+        # candidate code row explicitly, rather than leaving it buried
+        # in a blind dump of the first 40 rows.
+        code_pattern = re.compile(r"^[A-Z][A-Z0-9]{2,4}$")
+        code_hits = []
+        for r, row in enumerate(grid[:60]):
+            row_codes = [(c, val.strip()) for c, val in enumerate(row)
+                         if isinstance(val, str) and code_pattern.match(val.strip())]
+            if len(row_codes) >= 3:
+                code_hits.append((r, row_codes))
+        if code_hits:
+            print(f"  [a05] sheet '{sheet_name}': no metric+band text hits, but found "
+                  f"{len(code_hits)} row(s) that look like an ONS dataset-identifier-code "
+                  f"row (same pattern as the working INAC01 script) -- these are the codes "
+                  f"to map next, not yet confirmed against ONS's own code list:")
+            for r, row_codes in code_hits:
+                print(f"  [a05] row {r+1} candidate codes: {row_codes}")
             continue
 
     print("  [a05] no sheet produced confirmed metric+age-band header hits — "
