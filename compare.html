@@ -626,9 +626,15 @@ function toUSDMillions(country, rawValue, unitStr){
   return toUSDValue(country, normalized);
 }
 var CURRENT_YEAR = null;
+function fetchWithTimeout(url, ms){
+  return Promise.race([
+    fetch(url, {cache: "no-store"}),
+    new Promise(function(_, reject){ setTimeout(function(){ reject(new Error("timed out after " + ms + "ms")); }, ms); })
+  ]);
+}
 function loadAll(){
   return Promise.all(ALL_COUNTRIES.map(function(country){
-    return fetch(FILES[country], {cache: "no-store"})
+    return fetchWithTimeout(FILES[country], 12000)
       .then(function(r){ if(!r.ok) throw new Error(r.status); return r.json(); })
       .then(function(payload){
         var series = payload.series || {};
@@ -846,14 +852,16 @@ function renderMetricPicker(){
     wrap.appendChild(empty);
   }
 }
-document.getElementById("addMetricTile").addEventListener("click", function(){
-  var picker = document.getElementById("metricPicker");
-  picker.classList.toggle("open");
-  if(picker.classList.contains("open")) renderMetricPicker();
-});
-document.getElementById("metricPickerDone").addEventListener("click", function(){
-  document.getElementById("metricPicker").classList.remove("open");
-});
+try {
+  document.getElementById("addMetricTile").addEventListener("click", function(){
+    var picker = document.getElementById("metricPicker");
+    picker.classList.toggle("open");
+    if(picker.classList.contains("open")) renderMetricPicker();
+  });
+  document.getElementById("metricPickerDone").addEventListener("click", function(){
+    document.getElementById("metricPicker").classList.remove("open");
+  });
+} catch(e) { console.error("Add-metric tile wiring failed:", e); }
 
 function toggleCountry(c){
   if(selected.indexOf(c) !== -1){
@@ -926,18 +934,20 @@ function closeCountryModal(){
   document.getElementById("countryModal").hidden = true;
   document.body.style.overflow = "";
 }
-document.getElementById("countryClose").addEventListener("click", closeCountryModal);
-document.getElementById("countryBackdrop").addEventListener("click", closeCountryModal);
-document.getElementById("pickerSelectAll").addEventListener("click", function(){
-  selected = ALL_COUNTRIES.slice();
-  renderAll();
-  renderCountryPicker();
-});
-document.getElementById("pickerClearAll").addEventListener("click", function(){
-  selected = [];
-  renderAll();
-  renderCountryPicker();
-});
+try {
+  document.getElementById("countryClose").addEventListener("click", closeCountryModal);
+  document.getElementById("countryBackdrop").addEventListener("click", closeCountryModal);
+  document.getElementById("pickerSelectAll").addEventListener("click", function(){
+    selected = ALL_COUNTRIES.slice();
+    renderAll();
+    renderCountryPicker();
+  });
+  document.getElementById("pickerClearAll").addEventListener("click", function(){
+    selected = [];
+    renderAll();
+    renderCountryPicker();
+  });
+} catch(e) { console.error("Country picker wiring failed:", e); }
 
 /* ------------------------------ bar charts ------------------------------- */
 // Draws "No data" directly in the empty column for any country with a
@@ -1341,17 +1351,19 @@ function renderTable(){
 }
 
 /* ------------------------------ horizon toggle ---------------------------- */
-document.querySelectorAll(".hbtn").forEach(function(btn){
-  btn.addEventListener("click", function(){
-    document.querySelectorAll(".hbtn").forEach(function(b){ b.classList.remove("active"); });
-    btn.classList.add("active");
-    horizon = btn.dataset.h;
-    renderCharts();
-    renderTable();
-    updateMapCardSub();
-    drawHeatmap();
+try {
+  document.querySelectorAll(".hbtn").forEach(function(btn){
+    btn.addEventListener("click", function(){
+      document.querySelectorAll(".hbtn").forEach(function(b){ b.classList.remove("active"); });
+      btn.classList.add("active");
+      horizon = btn.dataset.h;
+      renderCharts();
+      renderTable();
+      updateMapCardSub();
+      drawHeatmap();
+    });
   });
-});
+} catch(e) { console.error("Horizon toggle wiring failed:", e); }
 
 /* ------------------------------- history helpers ---------------------------- */
 // Resolves a country's actual historical points for a concept. gdp_growth
@@ -1375,22 +1387,25 @@ function historySeriesUnit(country, concept){
 }
 
 function renderAll(){
-  renderChips();
-  renderCharts();
-  renderTable();
-  renderMapMetricRow();
-  updateMapCardSub();
-  drawHeatmap();
+  // Each piece runs independently -- if one throws, the page still ends
+  // up with everything else rendered and a clear console error, rather
+  // than one broken piece silently leaving the whole page inert.
+  [renderChips, renderCharts, renderTable, renderMapMetricRow, updateMapCardSub, drawHeatmap].forEach(function(fn){
+    try { fn(); } catch(e) { console.error(fn.name + " failed:", e); }
+  });
 }
 loadAll().then(function(){
   document.getElementById("loadMsg").style.display = "none";
   document.getElementById("mainContent").style.display = "block";
   document.getElementById("metricPicker").style.display = "";
-  initMapYearSlider();
-  fetch("https://cdn.jsdelivr.net/npm/world-atlas@2/countries-110m.json")
+  try { initMapYearSlider(); } catch(e) { console.error("initMapYearSlider failed:", e); }
+  fetchWithTimeout("https://cdn.jsdelivr.net/npm/world-atlas@2/countries-110m.json", 12000)
     .then(function(r){ return r.json(); })
     .then(function(world){ worldData = world; renderAll(); })
     .catch(function(){ renderAll(); }); // map card just stays empty if this fails; everything else still works
+}).catch(function(e){
+  console.error("Failed to load country data:", e);
+  document.getElementById("loadMsg").textContent = "Something went wrong loading the country data. Try reloading the page.";
 });
 
 /* -------------------------------- map card -------------------------------- */
@@ -1567,16 +1582,18 @@ function drawHeatmap(){
   if(mapZoomTransform) svg.call(mapZoomBehavior.transform, mapZoomTransform);
 }
 
-document.getElementById("mapZoomIn").addEventListener("click", function(){
-  d3.select("#heatmapSvg").transition().duration(200).call(mapZoomBehavior.scaleBy, 1.5);
-});
-document.getElementById("mapZoomOut").addEventListener("click", function(){
-  d3.select("#heatmapSvg").transition().duration(200).call(mapZoomBehavior.scaleBy, 1/1.5);
-});
-document.getElementById("mapZoomReset").addEventListener("click", function(){
-  mapZoomTransform = d3.zoomIdentity;
-  d3.select("#heatmapSvg").transition().duration(200).call(mapZoomBehavior.transform, d3.zoomIdentity);
-});
+try {
+  document.getElementById("mapZoomIn").addEventListener("click", function(){
+    d3.select("#heatmapSvg").transition().duration(200).call(mapZoomBehavior.scaleBy, 1.5);
+  });
+  document.getElementById("mapZoomOut").addEventListener("click", function(){
+    d3.select("#heatmapSvg").transition().duration(200).call(mapZoomBehavior.scaleBy, 1/1.5);
+  });
+  document.getElementById("mapZoomReset").addEventListener("click", function(){
+    mapZoomTransform = d3.zoomIdentity;
+    d3.select("#heatmapSvg").transition().duration(200).call(mapZoomBehavior.transform, d3.zoomIdentity);
+  });
+} catch(e) { console.error("Map zoom button wiring failed:", e); }
 
 function updateMapCardSub(){
   var mappableCount = selected.filter(function(c){ return ISO_OF[c]; }).length;
