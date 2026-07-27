@@ -76,10 +76,36 @@
   border:1px solid var(--hair); background:var(--paper); color:var(--ink2); font-size:14px;
   line-height:1; cursor:pointer; display:flex; align-items:center; justify-content:center;}
 .card-remove:hover{border-color:#C0533E; color:#C0533E;}
-.addmetric-row{display:flex; align-items:center; gap:10px; margin:14px 0 4px; flex-wrap:wrap;}
-.addmetric-row select{border:1px solid var(--hair); background:var(--panel); color:var(--ink);
-  font:600 12.5px "Avenir Next","Avenir","Nunito Sans",sans-serif; padding:7px 12px; border-radius:8px; cursor:pointer;}
-.addmetric-row .hint{font-size:12px; color:var(--ink2);}
+.charttoggle{display:flex; gap:6px; margin:2px 0 10px;}
+.charttoggle button{border:1px solid var(--hair); background:var(--paper); color:var(--ink2);
+  font:600 11px "Avenir Next","Avenir","Nunito Sans",sans-serif; padding:4px 11px; border-radius:999px; cursor:pointer;}
+.charttoggle button.active{background:var(--blue); border-color:var(--blue); color:#fff;}
+.charttoggle button:hover:not(.active){border-color:var(--blue); color:var(--navy);}
+.addtile{background:var(--panel); border:2px dashed var(--hair); border-radius:14px; padding:18px 20px;
+  display:flex; flex-direction:column; align-items:center; justify-content:center; gap:8px; cursor:pointer;
+  color:var(--ink2); min-height:118px;}
+.addtile:hover{border-color:var(--blue); color:var(--navy);}
+.addtile .plus{font-size:28px; line-height:1;}
+.addtile .txt{font-size:13px; font-weight:600;}
+.picker{display:none; background:var(--panel); border:1px solid var(--hair); border-radius:14px;
+  padding:20px 22px; margin:14px 0 20px;}
+.picker.open{display:block;}
+.pickerhead{display:flex; align-items:center; justify-content:space-between; margin-bottom:6px;}
+.picker h3{font-size:15px; margin:0;}
+.pickerdone{border:1px solid var(--navy); background:var(--navy); color:#fff;
+  font:600 12.5px "Avenir Next","Avenir","Nunito Sans",sans-serif; padding:6px 16px; border-radius:999px; cursor:pointer;}
+.pickerdone:hover{background:var(--navy-2); border-color:var(--navy-2);}
+.pickerhint{font-size:12.5px; color:var(--ink2); margin:0 0 14px;}
+.pickercat{font-size:11px; font-weight:700; color:var(--ink2); text-transform:uppercase; letter-spacing:.04em;
+  margin:14px 0 8px; grid-column:1 / -1;}
+.pickercat:first-child{margin-top:0;}
+.pickergrid{display:grid; grid-template-columns:repeat(2,1fr); gap:10px; max-height:440px; overflow-y:auto; padding-right:4px;}
+.pickeritem{border:1px solid var(--hair); border-radius:10px; padding:10px 12px; cursor:pointer; font-size:13px;
+  background:var(--paper); grid-column:span 1;}
+.pickeritem:hover{border-color:var(--blue); background:#F0F6FA;}
+.pickeritem.added{opacity:.45; cursor:default; pointer-events:none;}
+.pickeritem .e{font-size:12px; color:var(--ink2); margin-top:4px; font-weight:400;}
+.pickerempty{font-size:13px; color:var(--ink2); font-style:italic; grid-column:1 / -1;}
 
 .rank-table{width:100%; border-collapse:collapse; font-size:13.5px; margin-top:6px;}
 .rank-table th{text-align:left; font-size:11.5px; text-transform:uppercase; letter-spacing:.03em;
@@ -282,7 +308,7 @@ footer.cmp-foot{margin-top:36px; font-size:12.5px; color:var(--ink2); border-top
 </script>
 
 <div class="wrap" style="max-width:1080px; padding:30px 24px 60px;">
-  <h1 style="font-size:28px; letter-spacing:-.01em; margin-bottom:6px;">Compare Countries <span class="premium">Free feature</span></h1>
+  <h1 style="font-size:28px; letter-spacing:-.01em; margin-bottom:6px;">Compare Countries</h1>
   <p style="color:var(--ink2); font-size:14.5px; max-width:74ch; margin:8px 0 0;">Pick any of the 18 tracked countries and any of the metrics tracked on their own pages -- GDP, inflation, unemployment, debt, trade, rates and more -- side by side, each anchored to the exact same year, or how each has changed over the last 1, 2, 5 or 10 years.</p>
   <p class="loadmsg" id="loadMsg">Loading every country&#39;s data&hellip;</p>
 
@@ -298,23 +324,40 @@ footer.cmp-foot{margin-top:36px; font-size:12.5px; color:var(--ink2); border-top
     <button type="button" class="hbtn" data-h="2">Change vs 2Y ago</button>
     <button type="button" class="hbtn" data-h="5">Change vs 5Y ago</button>
     <button type="button" class="hbtn" data-h="10">Change vs 10Y ago</button>
-    <button type="button" class="mapbtn" id="openMapBtn">&#128506; Show as map</button>
   </div>
 
-  <div class="cmp-grid" id="chartGrid"></div>
-  <div class="addmetric-row" id="addMetricRow"></div>
-
-  <div class="cmp-card wide" style="margin-top:18px;">
-    <h3>Over time</h3>
-    <p class="expl" id="overTimeExpl">Full history for the selected countries, one metric at a time: shows the trajectory, not just a snapshot.</p>
-    <div class="mapmetric" id="overTimeMetricRow"></div>
-    <div style="height:320px; position:relative;">
-      <canvas id="overTimeChart"></canvas>
+  <div class="cmp-grid" id="chartGrid">
+    <div class="addtile" id="addMetricTile">
+      <span class="plus">+</span><span class="txt">Add a metric</span>
+    </div>
+    <div class="cmp-card wide map-card" id="mapCard">
+      <h3>Map</h3>
+      <p class="expl" id="mapCardSub">Darker = higher.</p>
+      <div class="mapmetric" id="mapMetricRow"></div>
+      <p class="expl" id="heatNoMetric" style="display:none;">Add a metric card to see it here — the map always mirrors whatever's currently shown in the comparison.</p>
+      <div style="position:relative;">
+        <svg id="heatmapSvg" viewBox="0 0 960 500"></svg>
+        <div id="heatTip"></div>
+      </div>
+      <div class="legend-grad">
+        <span id="legendLo">low</span>
+        <div class="legend-bar"></div>
+        <span id="legendHi">high</span>
+      </div>
     </div>
   </div>
 
+  <div class="picker" id="metricPicker" style="display:none;">
+    <div class="pickerhead">
+      <h3>Add a metric</h3>
+      <button type="button" id="metricPickerDone" class="pickerdone">Done</button>
+    </div>
+    <p class="pickerhint">Click as many as you like; they'll keep appearing above without closing this panel.</p>
+    <div id="metricPickerGrid"></div>
+  </div>
+
   <div class="cmp-card wide" style="margin-top:18px;">
-    <h3>Ranking</h3>
+    <h3>Summary</h3>
     <p class="expl">Click any column to sort. Shows whatever time horizon is selected above. The highest value in each column is underlined in navy, the lowest in blue: a neutral marker of the extremes, not a judgement on which is better. Every figure is anchored to the exact same calendar year for every country and metric shown &mdash; the small year under each number is that reference year, computed by averaging each country's own real observations within it, so nothing here compares figures from different points in time.</p>
     <div style="overflow-x:auto;">
       <table class="rank-table" id="rankTable"></table>
@@ -322,7 +365,7 @@ footer.cmp-foot{margin-top:36px; font-size:12.5px; color:var(--ink2); border-top
   </div>
 
   <footer class="cmp-foot">
-    Figures: ONS, FRED, Eurostat, e-Stat/Bank of Japan, MoSPI, Bank of Korea and OECD, the same sources already cited on each country&#39;s own page. Every figure on this page is anchored to a specific calendar year -- shown at "Now" is the most recent year with real data across the tracked countries; each other horizon steps back that many years. Where a metric is published more often than annually, the year's figure is the average of that year's real observations, not a single point-in-time reading. GDP growth at a horizon shows total real growth over that period, compounded from each country's own real GDP level. Because "Now" is set by whichever metrics report fastest (inflation and policy rates report monthly, so they usually set it), a slower annual-only metric like FDI, current account or the government deficit can show "n/a" across every horizon if its own latest published year hasn't caught up yet -- that's a real, honest gap in the underlying data's timing, not a missing figure or a bug. Currency-denominated figures (GDP, government debt, trade) are converted to US dollars at today's exchange rate so every country is shown in the same unit; changes over a horizon are shown as a % instead, which doesn't need converting since the ratio is the same in any currency. Morocco has no live exchange-rate source for the dirham, so its currency figures show "n/a" rather than a converted guess. The Eurozone is excluded from the map view since it isn&#39;t a single country UN Comtrade or world-atlas can plot; it still appears in every chart and table above.
+    Figures: ONS, FRED, Eurostat, e-Stat/Bank of Japan, MoSPI, Bank of Korea and OECD, the same sources already cited on each country&#39;s own page. Every figure on this page is anchored to a specific calendar year -- shown at "Now" is the most recent year with real data across the tracked countries; each other horizon steps back that many years. Where a metric is published more often than annually, the year's figure is the average of that year's real observations, not a single point-in-time reading. GDP growth at a horizon shows total real growth over that period, compounded from each country's own real GDP level. Because "Now" is set by whichever metrics report fastest (inflation and policy rates report monthly, so they usually set it), a slower annual-only metric like FDI, current account or the government deficit can show "n/a" across every horizon if its own latest published year hasn't caught up yet -- that's a real, honest gap in the underlying data's timing, not a missing figure or a bug. Currency-denominated figures (GDP, government debt, trade) are converted to US dollars at today's exchange rate so every country is shown in the same unit; changes over a horizon are shown as a % instead, which doesn't need converting since the ratio is the same in any currency. Morocco has no live exchange-rate source for the dirham, so its currency figures show "n/a" rather than a converted guess. Historical lines (Line view) are also converted to USD at today's rate throughout, so older years are an approximation. The Eurozone is excluded from the map card since it isn&#39;t a single country UN Comtrade or world-atlas can plot; it still appears in every chart and table above.
     <br><br>Free to use for now, this may move behind a paid tier as the site develops.
   </footer>
   </div>
@@ -339,26 +382,6 @@ footer.cmp-foot{margin-top:36px; font-size:12.5px; color:var(--ink2); border-top
       <button type="button" id="pickerClearAll">Clear all</button>
     </div>
     <div id="pickerRegions"></div>
-  </div>
-</div>
-
-<div class="modal" id="mapModal" hidden>
-  <div class="modal-backdrop" id="mapBackdrop"></div>
-  <div class="modal-content">
-    <button type="button" class="modal-close" id="mapClose" aria-label="Close">&times;</button>
-    <h2>Heatmap view</h2>
-    <p class="modal-sub" id="mapModalSub">Darker = higher.</p>
-    <div class="mapmetric" id="mapMetricRow"></div>
-    <p class="modal-sub" id="heatNoMetric" style="display:none;">Add a metric card above to see it here &mdash; the map always mirrors whatever's currently shown in the comparison.</p>
-    <div style="position:relative;">
-      <svg id="heatmapSvg" viewBox="0 0 960 500"></svg>
-      <div id="heatTip"></div>
-    </div>
-    <div class="legend-grad">
-      <span id="legendLo">low</span>
-      <div class="legend-bar"></div>
-      <span id="legendHi">high</span>
-    </div>
   </div>
 </div>
 
@@ -626,7 +649,7 @@ function yearAggregate(country, concept, year){
 }
 function getDisplayValue(country, concept){
   var nowYear = CURRENT_YEAR;
-  var thenYear = CURRENT_YEAR - (+horizon);
+  var targetYear = CURRENT_YEAR - (+horizon);
   if(concept === "gdp_growth"){
     var real = REGISTRY[country] && REGISTRY[country].gdp_real;
     if(!real) return null;
@@ -638,30 +661,36 @@ function getDisplayValue(country, concept){
       var g = Math.round((nowLevel / prevLevel - 1) * 1000) / 10;
       return {value: g, isDelta:false, isCumulative:false, year: nowYear, unit:"%"};
     }
-    var thenLevel = yearAggregate_raw(real.points, thenYear);
+    var thenLevel = yearAggregate_raw(real.points, targetYear);
     if(thenLevel == null || !thenLevel) return null;
     var cum = Math.round((nowLevel / thenLevel - 1) * 1000) / 10;
-    return {value: cum, isDelta:true, isCumulative:true, year: thenYear, unit:"%"};
+    return {value: cum, isDelta:true, isCumulative:true, year: targetYear, unit:"%"};
   }
+
+  // FIX: currency concepts (GDP level, net debt, trade balance, exports,
+  // imports) now always show the actual level AT whichever year the
+  // horizon points to -- "5Y" means "this country's GDP 5 years ago, in
+  // dollars," a plain snapshot, never a % change. Growth is what the
+  // separate gdp_growth concept above is for; conflating the two here
+  // was the bug. Every horizon still shares the same target year across
+  // every country and concept, same as before.
+  if(CONCEPT_UNIT[concept] === "currency"){
+    var agg = yearAggregate(country, concept, targetYear);
+    if(!agg) return null;
+    var usdVal = toUSDValue(country, agg.value);
+    if(usdVal == null) return null;
+    return {value: Math.round(usdVal*100)/100, isDelta:false, isCumulative:false, year: targetYear, unit: "currency", rawUnit: forceUSDUnit(agg.unit)};
+  }
+
   var nowAgg = yearAggregate(country, concept, nowYear);
   if(!nowAgg) return null;
   if(horizon === "0"){
-    if(CONCEPT_UNIT[concept] === "currency"){
-      var usdVal = toUSDValue(country, nowAgg.value);
-      if(usdVal == null) return null;
-      return {value: Math.round(usdVal*100)/100, isDelta:false, isCumulative:false, year: nowYear, unit: "currency", rawUnit: forceUSDUnit(nowAgg.unit)};
-    }
     return {value: Math.round(nowAgg.value*100)/100, isDelta:false, isCumulative:false, year: nowYear, unit: CONCEPT_UNIT[concept], rawUnit: nowAgg.unit};
   }
-  var thenAgg = yearAggregate(country, concept, thenYear);
+  var thenAgg = yearAggregate(country, concept, targetYear);
   if(!thenAgg) return null;
-  if(CONCEPT_UNIT[concept] === "currency"){
-    if(!thenAgg.value) return null;
-    var pct = Math.round((nowAgg.value / thenAgg.value - 1) * 1000) / 10;
-    return {value: pct, isDelta:true, isCumulative:true, year: thenYear, unit:"%"};
-  }
   var diff = Math.round((nowAgg.value - thenAgg.value) * 100) / 100;
-  return {value: diff, isDelta:true, isCumulative:false, year: thenYear, unit: CONCEPT_UNIT[concept]};
+  return {value: diff, isDelta:true, isCumulative:false, year: targetYear, unit: CONCEPT_UNIT[concept]};
 }
 // Not every metric is a percentage: business_confidence/productivity are
 // plain indices (100 = long-term average, no "%"), and currency
@@ -732,52 +761,45 @@ function removeMetric(key){
   renderAll();
 }
 var ALL_CONCEPT_KEYS = Object.keys(CONCEPT_LABEL);
-function renderAddMetricControl(){
-  var wrap = document.getElementById("addMetricRow");
+function renderMetricPicker(){
+  var wrap = document.getElementById("metricPickerGrid");
   if(!wrap) return;
   wrap.innerHTML = "";
-  var available = ALL_CONCEPT_KEYS.filter(function(k){ return visibleMetrics.indexOf(k) === -1; });
-  if(!available.length){
-    var hint = document.createElement("span");
-    hint.className = "hint";
-    hint.textContent = "All available metrics are already shown above.";
-    wrap.appendChild(hint);
-    return;
-  }
-  var byCategory = {};
-  CATEGORY_ORDER.forEach(function(cat){ byCategory[cat] = []; });
-  available.forEach(function(k){
-    var cat = CONCEPT_CATEGORY[k] || "Other";
-    if(!byCategory[cat]) byCategory[cat] = [];
-    byCategory[cat].push(k);
-  });
-  var select = document.createElement("select");
-  var placeholder = document.createElement("option");
-  placeholder.textContent = "+ Add a metric\u2026";
-  placeholder.value = "";
-  select.appendChild(placeholder);
+  var any = false;
   CATEGORY_ORDER.forEach(function(cat){
-    var keys = byCategory[cat];
-    if(!keys || !keys.length) return;
-    var optgroup = document.createElement("optgroup");
-    optgroup.label = cat;
+    var keys = ALL_CONCEPT_KEYS.filter(function(k){ return (CONCEPT_CATEGORY[k] || "Other") === cat; });
+    if(!keys.length) return;
+    any = true;
+    var heading = document.createElement("div");
+    heading.className = "pickercat";
+    heading.textContent = cat;
+    wrap.appendChild(heading);
     keys.forEach(function(k){
-      var opt = document.createElement("option");
-      opt.value = k;
-      opt.textContent = CONCEPT_LABEL[k];
-      optgroup.appendChild(opt);
+      var added = visibleMetrics.indexOf(k) !== -1;
+      var item = document.createElement("div");
+      item.className = "pickeritem" + (added ? " added" : "");
+      item.innerHTML = "<div>" + CONCEPT_LABEL[k] + "</div><div class=\"e\">" + (added ? "Already shown above" : CONCEPT_EXPLAINER[k]) + "</div>";
+      if(!added){
+        item.addEventListener("click", function(){ addMetric(k); renderMetricPicker(); });
+      }
+      wrap.appendChild(item);
     });
-    select.appendChild(optgroup);
   });
-  select.addEventListener("change", function(){
-    if(select.value) addMetric(select.value);
-  });
-  wrap.appendChild(select);
-  var hint = document.createElement("span");
-  hint.className = "hint";
-  hint.textContent = available.length + " more available, grouped like My Dashboard.";
-  wrap.appendChild(hint);
+  if(!any){
+    var empty = document.createElement("div");
+    empty.className = "pickerempty";
+    empty.textContent = "No metrics found.";
+    wrap.appendChild(empty);
+  }
 }
+document.getElementById("addMetricTile").addEventListener("click", function(){
+  var picker = document.getElementById("metricPicker");
+  picker.classList.toggle("open");
+  if(picker.classList.contains("open")) renderMetricPicker();
+});
+document.getElementById("metricPickerDone").addEventListener("click", function(){
+  document.getElementById("metricPicker").classList.remove("open");
+});
 
 function toggleCountry(c){
   if(selected.indexOf(c) !== -1){
@@ -896,77 +918,198 @@ var noDataPlugin = {
     ctx.restore();
   }
 };
+var cardChartType = {}; // concept -> "bar" | "line", default "bar"
 var charts = {};
-function renderCharts(){
-  var grid = document.getElementById("chartGrid");
-  grid.innerHTML = "";
-  Object.keys(charts).forEach(function(k){ charts[k].destroy(); });
-  charts = {};
 
-  var metricsToShow = visibleMetrics;
-  metricsToShow.forEach(function(concept){
-    var rows = selected.map(function(c){
-      var dv = getDisplayValue(c, concept);
-      return {country: c, dv: dv};
-    });
-    if(!rows.some(function(r){ return r.dv != null; })) return;
+function metricHasHistory(concept){
+  return ALL_COUNTRIES.some(function(c){ var p = historyPoints(c, concept); return p && p.length > 1; });
+}
 
-    var firstReal = rows.filter(function(r){ return r.dv != null; })[0].dv;
-    var card = document.createElement("div");
-    card.className = "cmp-card";
-    var isCumulative = firstReal.isCumulative;
-    var title = isCumulative ? CONCEPT_LABEL[concept] + " (cumulative change)" : (CONCEPT_LABEL[concept] + (horizon !== "0" ? " (change)" : ""));
-    var horizonNote = horizon === "0" ? "Figure for " + CURRENT_YEAR + ", averaged across the year's real observations where more than one exists."
-      : isCumulative ? "Cumulative % change from " + (CURRENT_YEAR - (+horizon)) + " to " + CURRENT_YEAR + "."
-      : "Change from " + (CURRENT_YEAR - (+horizon)) + " to " + CURRENT_YEAR + ".";
-    var expl = CONCEPT_EXPLAINER[concept] + " " + horizonNote;
-    card.innerHTML = "<button type=\"button\" class=\"card-remove\" data-metric=\"" + concept + "\" aria-label=\"Remove this card\" title=\"Remove this card\">&times;</button>"
-      + "<h3>" + title + "</h3>"
-      + "<p class=\"expl\">" + expl + "</p>"
-      + "<div class=\"cbox\"><canvas></canvas></div>";
-    grid.appendChild(card);
-    card.querySelector(".card-remove").addEventListener("click", function(){ removeMetric(concept); });
+function buildBarChart(canvas, concept){
+  var rows = selected.map(function(c){
+    var dv = getDisplayValue(c, concept);
+    return {country: c, dv: dv};
+  });
+  if(!rows.some(function(r){ return r.dv != null; })) return null;
+  var firstReal = rows.filter(function(r){ return r.dv != null; })[0].dv;
+  var isCumulative = firstReal.isCumulative;
+  var isDelta = firstReal.isDelta;
+  var targetYear = CURRENT_YEAR - (+horizon);
+  var horizonNote = isCumulative ? "Cumulative % change from " + targetYear + " to " + CURRENT_YEAR + "."
+    : isDelta ? "Change from " + targetYear + " to " + CURRENT_YEAR + "."
+    : horizon === "0" ? "Figure for " + CURRENT_YEAR + ", averaged across the year's real observations where more than one exists."
+    : "Figure for " + targetYear + ", averaged across the year's real observations where more than one exists.";
+  var titleSuffix = isCumulative ? " (cumulative change)" : isDelta ? " (change)" : "";
 
-    var canvas = card.querySelector("canvas");
-    var chart = new Chart(canvas, {
-      type: "bar",
-      plugins: [noDataPlugin],
-      data: {
-        labels: rows.map(function(r){ return r.country; }),
-        datasets: [{
-          data: rows.map(function(r){ return r.dv ? r.dv.value : null; }),
-          backgroundColor: rows.map(function(r){ return COUNTRY_COLOR[r.country]; }),
-          borderRadius: 5
-        }]
-      },
-      options: {
-        responsive: true, maintainAspectRatio: false,
-        interaction: {mode: "index", intersect: false},
-        plugins: {
-          legend: {display: false},
-          tooltip: {
-            backgroundColor: TOOLTIP_BG, titleColor: TOOLTIP_INK, bodyColor: TOOLTIP_INK,
-            borderColor: TOOLTIP_HAIR, borderWidth: 1,
-            callbacks: {
-              label: function(ctx){
-                var r = rows[ctx.dataIndex];
-                if(!r.dv) return "No data for " + r.country;
-                return displayString(r.dv) + " (" + periodLabelFor(r.dv) + ")";
-              }
+  var chart = new Chart(canvas, {
+    type: "bar",
+    plugins: [noDataPlugin],
+    data: {
+      labels: rows.map(function(r){ return r.country; }),
+      datasets: [{
+        data: rows.map(function(r){ return r.dv ? r.dv.value : null; }),
+        backgroundColor: rows.map(function(r){ return COUNTRY_COLOR[r.country]; }),
+        borderRadius: 5
+      }]
+    },
+    options: {
+      responsive: true, maintainAspectRatio: false,
+      interaction: {mode: "index", intersect: false},
+      plugins: {
+        legend: {display: false},
+        tooltip: {
+          backgroundColor: TOOLTIP_BG, titleColor: TOOLTIP_INK, bodyColor: TOOLTIP_INK,
+          borderColor: TOOLTIP_HAIR, borderWidth: 1,
+          callbacks: {
+            label: function(ctx){
+              var r = rows[ctx.dataIndex];
+              if(!r.dv) return "No data for " + r.country;
+              return displayString(r.dv) + " (" + periodLabelFor(r.dv) + ")";
             }
           }
-        },
-        scales: {
-          y: {grid: {color: "#E4E6E1"}, border: {display: false},
-              ticks: {callback: function(v){
-                if(CONCEPT_UNIT[concept] === "currency" && !isCumulative) return curFmt(v, firstReal.rawUnit || "$bn", 0);
-                return axisTickLabel(v, concept, isCumulative);
-              }}},
-          x: {grid: {display: false}, border: {color: "#E4E6E1"}}
         }
+      },
+      scales: {
+        y: {grid: {color: "#E4E6E1"}, border: {display: false},
+            ticks: {callback: function(v){
+              if(CONCEPT_UNIT[concept] === "currency" && !isCumulative) return curFmt(v, firstReal.rawUnit || "$m", 0);
+              return axisTickLabel(v, concept, isCumulative);
+            }}},
+        x: {grid: {display: false}, border: {color: "#E4E6E1"}}
       }
+    }
+  });
+  return {chart: chart, titleSuffix: titleSuffix, horizonNote: horizonNote};
+}
+
+function buildLineChart(canvas, concept){
+  var isCurrencyMetric = CONCEPT_UNIT[concept] === "currency";
+  var datasets = [];
+  selected.forEach(function(c){
+    var pts = historyPoints(c, concept);
+    if(!pts || !pts.length) return;
+    var seriesUnit = isCurrencyMetric ? historySeriesUnit(c, concept) : null;
+    var scale = seriesUnit ? scaleOf(seriesUnit) / 1e6 : 1;
+    var plotPts = pts.map(function(p){
+      var y = p[1] * scale;
+      if(isCurrencyMetric){
+        y = toUSDValue(c, y);
+        if(y == null) return null;
+      }
+      return {x: p[0], y: y};
+    }).filter(function(p){ return p != null; });
+    if(!plotPts.length) return;
+    datasets.push({
+      label: c,
+      data: plotPts,
+      borderColor: COUNTRY_COLOR[c],
+      backgroundColor: "transparent",
+      borderWidth: 2, pointRadius: 0, pointHitRadius: 8, tension: 0.15
     });
-    charts[concept] = chart;
+  });
+  if(!datasets.length) return null;
+
+  var allLabels = {};
+  datasets.forEach(function(ds){ ds.data.forEach(function(p){ allLabels[p.x] = true; }); });
+  var labels = Object.keys(allLabels).sort();
+
+  var chart = new Chart(canvas, {
+    type: "line",
+    data: {labels: labels, datasets: datasets},
+    options: {
+      responsive: true, maintainAspectRatio: false,
+      interaction: {mode: "nearest", axis: "x", intersect: false},
+      plugins: {
+        legend: {position: "bottom", labels: {boxWidth: 10, font: {size: 11}}},
+        tooltip: {
+          backgroundColor: TOOLTIP_BG, titleColor: TOOLTIP_INK, bodyColor: TOOLTIP_INK,
+          borderColor: TOOLTIP_HAIR, borderWidth: 1,
+          callbacks: {
+            title: function(items){ return fmtPeriod(items[0].label); },
+            label: function(ctx){
+              if(isCurrencyMetric) return ctx.dataset.label + ": " + curFmt(ctx.parsed.y, "$m", 2);
+              return ctx.dataset.label + ": " + axisTickLabel(ctx.parsed.y, concept);
+            }
+          }
+        }
+      },
+      scales: {
+        x: {type: "category", grid: {display: false}, border: {color: "#E4E6E1"},
+            ticks: {maxTicksLimit: 8, callback: function(v){ return this.getLabelForValue(v).slice(0,4); }}},
+        y: {grid: {color: "#E4E6E1"}, border: {display: false}, ticks: {callback: function(v){
+          if(isCurrencyMetric) return curFmt(v, "$m", 0);
+          return axisTickLabel(v, concept);
+        }}}
+      }
+    }
+  });
+  return {chart: chart, isCurrencyMetric: isCurrencyMetric};
+}
+
+function renderCharts(){
+  var grid = document.getElementById("chartGrid");
+  var addTileEl = document.getElementById("addMetricTile");
+  grid.querySelectorAll(".metric-card").forEach(function(el){ el.remove(); });
+  Object.keys(charts).forEach(function(k){ if(charts[k]) charts[k].destroy(); });
+  charts = {};
+
+  visibleMetrics.forEach(function(concept){
+    var hasHistory = metricHasHistory(concept);
+    var barHasData = selected.some(function(c){ return getDisplayValue(c, concept) != null; });
+    if(!hasHistory && !barHasData) return; // truly nothing to show for this concept at all
+
+    var mode = cardChartType[concept] || "bar";
+    if(mode === "line" && !hasHistory) mode = "bar";
+    if(mode === "bar" && !barHasData && hasHistory) mode = "line";
+
+    var card = document.createElement("div");
+    card.className = "cmp-card metric-card";
+    card.innerHTML = "<button type=\"button\" class=\"card-remove\" aria-label=\"Remove this card\" title=\"Remove this card\">&times;</button>"
+      + "<h3 class=\"card-title\"></h3>"
+      + (hasHistory ? "<div class=\"charttoggle\"><button type=\"button\" data-mode=\"bar\">Bar</button><button type=\"button\" data-mode=\"line\">Line</button></div>" : "")
+      + "<p class=\"expl card-expl\"></p>"
+      + "<div class=\"cbox\"><canvas></canvas></div>";
+    grid.insertBefore(card, addTileEl);
+    card.querySelector(".card-remove").addEventListener("click", function(){ removeMetric(concept); });
+
+    if(hasHistory){
+      card.querySelectorAll(".charttoggle button").forEach(function(btn){
+        btn.classList.toggle("active", btn.dataset.mode === mode);
+        btn.addEventListener("click", function(){
+          cardChartType[concept] = btn.dataset.mode;
+          renderCharts();
+        });
+      });
+    }
+
+    var canvas = card.querySelector("canvas");
+    var titleEl = card.querySelector(".card-title");
+    var explEl = card.querySelector(".card-expl");
+
+    if(mode === "line"){
+      var lineResult = buildLineChart(canvas, concept);
+      if(!lineResult){
+        titleEl.textContent = CONCEPT_LABEL[concept] + " (over time)";
+        explEl.textContent = "None of the currently selected countries have this metric's history tracked.";
+        card.querySelector(".cbox").style.display = "none";
+        return;
+      }
+      titleEl.textContent = CONCEPT_LABEL[concept] + " (over time)";
+      explEl.textContent = CONCEPT_EXPLAINER[concept] + " Full published history, for each selected country that tracks it." +
+        (lineResult.isCurrencyMetric ? " Converted to USD at today's exchange rate throughout, including older years, since historical rates aren't available -- treat older figures as an approximation." : "");
+      charts[concept] = lineResult.chart;
+    } else {
+      var barResult = buildBarChart(canvas, concept);
+      if(!barResult){
+        titleEl.textContent = CONCEPT_LABEL[concept];
+        explEl.textContent = "None of the currently selected countries have data for the current horizon.";
+        card.querySelector(".cbox").style.display = "none";
+        return;
+      }
+      titleEl.textContent = CONCEPT_LABEL[concept] + barResult.titleSuffix;
+      explEl.textContent = CONCEPT_EXPLAINER[concept] + " " + barResult.horizonNote;
+      charts[concept] = barResult.chart;
+    }
   });
 }
 
@@ -1055,15 +1198,12 @@ document.querySelectorAll(".hbtn").forEach(function(btn){
     horizon = btn.dataset.h;
     renderCharts();
     renderTable();
-    if(!document.getElementById("mapModal").hidden){
-      updateMapModalSub();
-      drawHeatmap();
-    }
+    updateMapCardSub();
+    drawHeatmap();
   });
 });
 
-/* ------------------------------- over time --------------------------------- */
-var overTimeMetric = "gdp_growth";
+/* ------------------------------- history helpers ---------------------------- */
 // Resolves a country's actual historical points for a concept. gdp_growth
 // is special-cased to use the country's own natively-published growth-
 // rate series directly (where one exists) rather than the level-based
@@ -1078,118 +1218,31 @@ function historyPoints(country, concept){
   var key = resolveKey(country, concept);
   return key ? REGISTRY[country][key].points : null;
 }
-function metricHasHistory(m){
-  return ALL_COUNTRIES.some(function(c){ var p = historyPoints(c, m); return p && p.length > 1; });
-}
-// Tracks whatever's currently visible in the metric cards above, but
-// only offers the ones that actually have real historical data behind
-// them for at least one country.
-function getOverTimeMetricsAvailable(){
-  return visibleMetrics.filter(metricHasHistory);
-}
-var overTimeChart = null;
-
-function renderOverTimeMetricRow(){
-  var row = document.getElementById("overTimeMetricRow");
-  row.innerHTML = "";
-  var available = getOverTimeMetricsAvailable();
-  if(available.indexOf(overTimeMetric) === -1) overTimeMetric = available[0] || null;
-  available.forEach(function(m){
-    var b = document.createElement("button");
-    b.type = "button";
-    b.className = "hbtn" + (m === overTimeMetric ? " active" : "");
-    b.textContent = CONCEPT_LABEL[m];
-    b.addEventListener("click", function(){
-      overTimeMetric = m;
-      renderOverTimeMetricRow();
-      renderOverTime();
-    });
-    row.appendChild(b);
-  });
-}
-
-function renderOverTime(){
-  var canvas = document.getElementById("overTimeChart");
-  if(!canvas || typeof Chart === "undefined") return;
-
-  var datasets = [];
-  selected.forEach(function(c){
-    var pts = overTimeMetric ? historyPoints(c, overTimeMetric) : null;
-    if(!pts || !pts.length) return;
-    datasets.push({
-      label: c,
-      data: pts.map(function(p){ return {x: p[0], y: p[1]}; }),
-      borderColor: COUNTRY_COLOR[c],
-      backgroundColor: "transparent",
-      borderWidth: 2, pointRadius: 0, pointHitRadius: 8, tension: 0.15
-    });
-  });
-
-  var explEl = document.getElementById("overTimeExpl");
-  if(explEl){
-    explEl.textContent = datasets.length
-      ? CONCEPT_EXPLAINER[overTimeMetric] + " Full published history, for each selected country that tracks it."
-      : "None of the currently selected countries have this metric tracked.";
-  }
-
-  if(overTimeChart) overTimeChart.destroy();
-  if(!datasets.length) return;
-
-  // All labels across all selected countries' series, deduplicated and
-  // sorted, so every line plots against the same shared x-axis even
-  // when countries report at different frequencies (monthly vs
-  // quarterly vs annual).
-  var allLabels = {};
-  datasets.forEach(function(ds){ ds.data.forEach(function(p){ allLabels[p.x] = true; }); });
-  var labels = Object.keys(allLabels).sort();
-
-  overTimeChart = new Chart(canvas, {
-    type: "line",
-    data: {labels: labels, datasets: datasets},
-    options: {
-      responsive: true, maintainAspectRatio: false,
-      interaction: {mode: "nearest", axis: "x", intersect: false},
-      plugins: {
-        legend: {position: "bottom", labels: {boxWidth: 10, font: {size: 11}}},
-        tooltip: {
-          backgroundColor: TOOLTIP_BG, titleColor: TOOLTIP_INK, bodyColor: TOOLTIP_INK,
-          borderColor: TOOLTIP_HAIR, borderWidth: 1,
-          callbacks: {
-            title: function(items){ return fmtPeriod(items[0].label); },
-            label: function(ctx){ return ctx.dataset.label + ": " + axisTickLabel(ctx.parsed.y, overTimeMetric); }
-          }
-        }
-      },
-      scales: {
-        x: {type: "category", grid: {display: false}, border: {color: "#E4E6E1"},
-            ticks: {maxTicksLimit: 8, callback: function(v){ return this.getLabelForValue(v).slice(0,4); }}},
-        y: {grid: {color: "#E4E6E1"}, border: {display: false}, ticks: {callback: function(v){ return axisTickLabel(v, overTimeMetric); }}}
-      }
-    }
-  });
+function historySeriesUnit(country, concept){
+  if(concept === "gdp_growth") return "%";
+  var key = resolveKey(country, concept);
+  return key ? REGISTRY[country][key].unit : null;
 }
 
 function renderAll(){
   renderChips();
   renderCharts();
-  renderAddMetricControl();
   renderTable();
-  renderOverTimeMetricRow();
-  renderOverTime();
-  if(!document.getElementById("mapModal").hidden){
-    renderMapMetricRow();
-    updateMapModalSub();
-    drawHeatmap();
-  }
+  renderMapMetricRow();
+  updateMapCardSub();
+  drawHeatmap();
 }
 loadAll().then(function(){
   document.getElementById("loadMsg").style.display = "none";
   document.getElementById("mainContent").style.display = "block";
-  renderOverTimeMetricRow();
-  renderAll();
+  document.getElementById("metricPicker").style.display = "";
+  fetch("https://cdn.jsdelivr.net/npm/world-atlas@2/countries-110m.json")
+    .then(function(r){ return r.json(); })
+    .then(function(world){ worldData = world; renderAll(); })
+    .catch(function(){ renderAll(); }); // map card just stays empty if this fails; everything else still works
 });
 
-/* -------------------------------- map modal -------------------------------- */
+/* -------------------------------- map card -------------------------------- */
 var mapMetric = "gdp_growth";
 // This always mirrors visibleMetrics directly, so any metric added to
 // the comparison is automatically available on the map too, and any
@@ -1281,34 +1334,14 @@ function drawHeatmap(){
     .on("mouseleave", function(){ tip.style.display = "none"; });
 }
 
-function updateMapModalSub(){
+function updateMapCardSub(){
   var mappableCount = selected.filter(function(c){ return ISO_OF[c]; }).length;
-  var el = document.getElementById("mapModalSub");
+  var el = document.getElementById("mapCardSub");
   if(!el) return;
   el.textContent = "Darker = higher. " + (mappableCount
     ? "Showing " + mappableCount + " of your " + selected.length + " selected countries with a single geography; everywhere else is left blank."
     : "None of your currently selected countries have a single geography to colour (e.g. only the Eurozone is selected).");
 }
-document.getElementById("openMapBtn").addEventListener("click", function(){
-  document.getElementById("mapModal").hidden = false;
-  document.body.style.overflow = "hidden";
-  renderMapMetricRow();
-  updateMapModalSub();
-  if(!worldData){
-    fetch("https://cdn.jsdelivr.net/npm/world-atlas@2/countries-110m.json")
-      .then(function(r){ return r.json(); })
-      .then(function(world){ worldData = world; drawHeatmap(); });
-  } else {
-    drawHeatmap();
-  }
-});
-function closeMap(){
-  document.getElementById("mapModal").hidden = true;
-  document.body.style.overflow = "";
-}
-document.getElementById("mapClose").addEventListener("click", closeMap);
-document.getElementById("mapBackdrop").addEventListener("click", closeMap);
-document.addEventListener("keydown", function(e){ if(e.key === "Escape") closeMap(); });
 
 })();
 </script>
