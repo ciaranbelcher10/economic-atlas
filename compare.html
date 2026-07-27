@@ -109,7 +109,7 @@
 .addtile .plus{font-size:28px; line-height:1;}
 .addtile .txt{font-size:13px; font-weight:600;}
 .picker{display:none; background:var(--panel); border:1px solid var(--hair); border-radius:14px;
-  padding:20px 22px; margin:14px 0 20px;}
+  padding:20px 22px; margin:14px 0 20px; grid-column:1 / -1;}
 .picker.open{display:block;}
 .pickerhead{display:flex; align-items:center; justify-content:space-between; margin-bottom:6px;}
 .picker h3{font-size:15px; margin:0;}
@@ -361,6 +361,14 @@ footer.cmp-foot{margin-top:36px; font-size:12.5px; color:var(--ink2); border-top
     <div class="addtile" id="addMetricTile">
       <span class="plus">+</span><span class="txt">Add a metric</span>
     </div>
+    <div class="picker" id="metricPicker" style="display:none;">
+      <div class="pickerhead">
+        <h3>Add a metric</h3>
+        <button type="button" id="metricPickerDone" class="pickerdone">Done</button>
+      </div>
+      <p class="pickerhint">Click as many as you like; they'll keep appearing above without closing this panel.</p>
+      <div id="metricPickerGrid"></div>
+    </div>
     <div class="cmp-card wide map-card" id="mapCard">
       <h3>Map</h3>
       <p class="expl" id="mapCardSub">Darker = higher.</p>
@@ -385,15 +393,6 @@ footer.cmp-foot{margin-top:36px; font-size:12.5px; color:var(--ink2); border-top
         <span id="legendHi">high</span>
       </div>
     </div>
-  </div>
-
-  <div class="picker" id="metricPicker" style="display:none;">
-    <div class="pickerhead">
-      <h3>Add a metric</h3>
-      <button type="button" id="metricPickerDone" class="pickerdone">Done</button>
-    </div>
-    <p class="pickerhint">Click as many as you like; they'll keep appearing above without closing this panel.</p>
-    <div id="metricPickerGrid"></div>
   </div>
 
   <div class="cmp-card wide" style="margin-top:18px;">
@@ -856,7 +855,10 @@ try {
   document.getElementById("addMetricTile").addEventListener("click", function(){
     var picker = document.getElementById("metricPicker");
     picker.classList.toggle("open");
-    if(picker.classList.contains("open")) renderMetricPicker();
+    if(picker.classList.contains("open")){
+      renderMetricPicker();
+      picker.scrollIntoView({behavior: "smooth", block: "nearest"});
+    }
   });
   document.getElementById("metricPickerDone").addEventListener("click", function(){
     document.getElementById("metricPicker").classList.remove("open");
