@@ -81,6 +81,27 @@
   font:600 11px "Avenir Next","Avenir","Nunito Sans",sans-serif; padding:4px 11px; border-radius:999px; cursor:pointer;}
 .charttoggle button.active{background:var(--blue); border-color:var(--blue); color:#fff;}
 .charttoggle button:hover:not(.active){border-color:var(--blue); color:var(--navy);}
+
+/* Left/right layout for each metric card, mirroring the Trade tab's
+   radial-chart + ranked-list pairing exactly, per explicit request. */
+.tpm-layout{display:flex; gap:20px; align-items:flex-start; flex-wrap:wrap;}
+.tpm-left{flex:1 1 360px; min-width:260px;}
+.tpm-right{flex:1 1 220px; min-width:200px;}
+.tpm-ranking{background:var(--paper); border:1px solid var(--hair); border-radius:12px;
+  padding:14px 16px 6px;}
+.tpm-ranking h4{font-size:13px; margin:0; color:var(--ink2); text-transform:uppercase; letter-spacing:.03em;}
+.tpm-ranksubtitle{font-size:11.5px; color:var(--ink2); margin:4px 0 4px;}
+.tpm-ranklist{list-style:none; padding:0; margin:8px 0 0;}
+.tpm-rankrow{display:flex; align-items:center; gap:9px; padding:8px 0;
+  border-bottom:1px solid var(--hair); cursor:default;}
+.tpm-rankrow:last-child{border-bottom:none;}
+.tpm-rankrow.hi{background:#F7F9F6; margin:0 -8px; padding:8px; border-radius:8px;}
+.tpm-ranknum{font-weight:700; font-size:12px; color:var(--ink2); width:15px; flex:none;}
+.tpm-rankswatch{width:9px; height:9px; border-radius:50%; flex:none;}
+.tpm-rankname{flex:1; font-weight:600; font-size:13px; min-width:0; overflow:hidden;
+  text-overflow:ellipsis; white-space:nowrap;}
+.tpm-rankvalue{font-weight:700; font-size:13px; color:var(--ink); white-space:nowrap; flex:none; text-align:right;}
+.tpm-rankvalue .per{display:block; font-weight:400; font-size:10.5px; color:var(--ink2);}
 .addtile{background:var(--panel); border:2px dashed var(--hair); border-radius:14px; padding:18px 20px;
   display:flex; flex-direction:column; align-items:center; justify-content:center; gap:8px; cursor:pointer;
   color:var(--ink2); min-height:118px;}
@@ -140,6 +161,16 @@
 .mapmetric button.active{background:var(--navy); border-color:var(--navy); color:#fff;}
 #heatmapSvg{width:100%; height:auto; display:block;}
 .legend-grad{display:flex; align-items:center; gap:10px; margin-top:10px; font-size:12px; color:var(--ink2);}
+.mapyear-row{display:flex; align-items:center; gap:12px; margin:10px 0 4px;}
+.mapyear-label{font-size:12.5px; color:var(--ink2); white-space:nowrap;}
+.mapyear-label strong{color:var(--ink); font-weight:700;}
+.mapyear-row input[type="range"]{flex:1; accent-color:var(--blue); cursor:pointer;}
+.mapzoom-controls{position:absolute; top:10px; right:10px; display:flex; flex-direction:column; gap:4px; z-index:2;}
+.mapzoom-controls button{width:26px; height:26px; border-radius:6px; border:1px solid var(--hair);
+  background:var(--panel); color:var(--ink); font:700 15px "Avenir Next","Avenir","Nunito Sans",sans-serif;
+  cursor:pointer; line-height:1;}
+.mapzoom-controls button:hover{border-color:var(--blue); color:var(--navy);}
+#mapZoomReset{width:auto; font-size:10px; padding:0 6px;}
 .legend-bar{width:180px; height:10px; border-radius:5px;
   background:linear-gradient(90deg,#EAF3E9,#8AD9B1,#348FA7,#37659E,#2E1E3B);}
 #heatTip{position:absolute; pointer-events:none; background:var(--panel); color:var(--ink); border:1px solid var(--hair); border-radius:8px;
@@ -334,10 +365,19 @@ footer.cmp-foot{margin-top:36px; font-size:12.5px; color:var(--ink2); border-top
       <h3>Map</h3>
       <p class="expl" id="mapCardSub">Darker = higher.</p>
       <div class="mapmetric" id="mapMetricRow"></div>
+      <div class="mapyear-row">
+        <span class="mapyear-label">Year: <strong id="mapYearLabel"></strong></span>
+        <input type="range" id="mapYearSlider" step="1">
+      </div>
       <p class="expl" id="heatNoMetric" style="display:none;">Add a metric card to see it here — the map always mirrors whatever's currently shown in the comparison.</p>
       <div style="position:relative;">
         <svg id="heatmapSvg" viewBox="0 0 960 500"></svg>
         <div id="heatTip"></div>
+        <div class="mapzoom-controls">
+          <button type="button" id="mapZoomIn" aria-label="Zoom in">+</button>
+          <button type="button" id="mapZoomOut" aria-label="Zoom out">−</button>
+          <button type="button" id="mapZoomReset" aria-label="Reset zoom">Reset</button>
+        </div>
       </div>
       <div class="legend-grad">
         <span id="legendLo">low</span>
@@ -571,6 +611,20 @@ function forceUSDUnit(unitStr){
   var m = /(?:tn|bn|m)$/.exec(unitStr || "m");
   return "$" + (m ? m[0] : "m");
 }
+// FIX: countries report the same currency concept in genuinely
+// different native scales -- e.g. UK/India report GDP in millions,
+// US/Japan report it in billions. Converting to USD without first
+// normalising to one common scale meant any cross-country comparison
+// (map colour scale, map legend lo/hi, table highest/lowest
+// highlighting) was comparing numbers that looked comparable but
+// weren't -- a $bn-scale number and a $m-scale number differ by 1000x
+// even before the actual size difference. This is the single place
+// that combines both steps correctly; every currency conversion in the
+// app should go through this, not toUSDValue alone.
+function toUSDMillions(country, rawValue, unitStr){
+  var normalized = rawValue * (scaleOf(unitStr) / 1e6);
+  return toUSDValue(country, normalized);
+}
 var CURRENT_YEAR = null;
 function loadAll(){
   return Promise.all(ALL_COUNTRIES.map(function(country){
@@ -677,9 +731,9 @@ function getDisplayValue(country, concept){
   if(CONCEPT_UNIT[concept] === "currency"){
     var agg = yearAggregate(country, concept, targetYear);
     if(!agg) return null;
-    var usdVal = toUSDValue(country, agg.value);
+    var usdVal = toUSDMillions(country, agg.value, agg.unit);
     if(usdVal == null) return null;
-    return {value: Math.round(usdVal*100)/100, isDelta:false, isCumulative:false, year: targetYear, unit: "currency", rawUnit: forceUSDUnit(agg.unit)};
+    return {value: Math.round(usdVal*100)/100, isDelta:false, isCumulative:false, year: targetYear, unit: "currency", rawUnit: "$m"};
   }
 
   var nowAgg = yearAggregate(country, concept, nowYear);
@@ -979,7 +1033,7 @@ function buildBarChart(canvas, concept){
       }
     }
   });
-  return {chart: chart, titleSuffix: titleSuffix, horizonNote: horizonNote};
+  return {chart: chart, titleSuffix: titleSuffix, horizonNote: horizonNote, rows: rows};
 }
 
 function buildLineChart(canvas, concept){
@@ -1043,7 +1097,95 @@ function buildLineChart(canvas, concept){
       }
     }
   });
-  return {chart: chart, isCurrencyMetric: isCurrencyMetric};
+  return {chart: chart, isCurrencyMetric: isCurrencyMetric, datasets: datasets};
+}
+
+function renderBarRankList(container, concept, rows, chart){
+  var sorted = rows.filter(function(r){ return r.dv != null; }).slice()
+    .sort(function(a, b){ return b.dv.value - a.dv.value; });
+  var list = document.createElement("ol");
+  list.className = "tpm-ranklist";
+  sorted.forEach(function(r, i){
+    var idx = rows.indexOf(r);
+    var li = document.createElement("li");
+    li.className = "tpm-rankrow";
+    li.innerHTML = "<span class=\"tpm-ranknum\">" + (i + 1) + "</span>"
+      + "<span class=\"tpm-rankswatch\" style=\"background:" + COUNTRY_COLOR[r.country] + ";\"></span>"
+      + "<span class=\"tpm-rankname\">" + r.country + "</span>"
+      + "<span class=\"tpm-rankvalue\">" + displayString(r.dv) + "<span class=\"per\">" + periodLabelFor(r.dv) + "</span></span>";
+    li.addEventListener("mouseenter", function(){ highlightBarIndex(chart, idx, true); });
+    li.addEventListener("mouseleave", function(){ highlightBarIndex(chart, idx, false); });
+    list.appendChild(li);
+  });
+  container.appendChild(list);
+  if(!sorted.length){
+    var empty = document.createElement("p");
+    empty.className = "tpm-ranksubtitle";
+    empty.textContent = "No countries with data to rank at this horizon.";
+    container.appendChild(empty);
+  }
+}
+
+function renderLineRankList(container, concept, datasets, chart){
+  var ranked = datasets.map(function(ds, idx){
+    var last = ds.data[ds.data.length - 1];
+    return {label: ds.label, value: last ? last.y : null, period: last ? last.x : null, idx: idx};
+  }).filter(function(r){ return r.value != null; })
+    .sort(function(a, b){ return b.value - a.value; });
+  var isCurrencyMetric = CONCEPT_UNIT[concept] === "currency";
+  var list = document.createElement("ol");
+  list.className = "tpm-ranklist";
+  ranked.forEach(function(r, i){
+    var valText = isCurrencyMetric ? curFmt(r.value, "$m", 2) : axisTickLabel(r.value, concept);
+    var li = document.createElement("li");
+    li.className = "tpm-rankrow";
+    li.innerHTML = "<span class=\"tpm-ranknum\">" + (i + 1) + "</span>"
+      + "<span class=\"tpm-rankswatch\" style=\"background:" + COUNTRY_COLOR[r.label] + ";\"></span>"
+      + "<span class=\"tpm-rankname\">" + r.label + "</span>"
+      + "<span class=\"tpm-rankvalue\">" + valText + "<span class=\"per\">" + fmtPeriod(r.period) + "</span></span>";
+    li.addEventListener("mouseenter", function(){ highlightLineIndex(chart, r.idx, true); });
+    li.addEventListener("mouseleave", function(){ highlightLineIndex(chart, r.idx, false); });
+    list.appendChild(li);
+  });
+  container.appendChild(list);
+  if(!ranked.length){
+    var empty = document.createElement("p");
+    empty.className = "tpm-ranksubtitle";
+    empty.textContent = "No countries with recent data to rank.";
+    container.appendChild(empty);
+  }
+}
+
+// Dims every bar except the hovered one, restoring on mouseleave --
+// deliberately simple (recolour + chart.update("none"), no animation)
+// rather than using Chart.js's own active-element API, since this needs
+// to be driven from the ranking list, not from hovering the chart itself.
+function highlightBarIndex(chart, idx, on){
+  if(!chart || !chart.data || !chart.data.datasets[0]) return;
+  var ds = chart.data.datasets[0];
+  if(!ds._origColors) ds._origColors = ds.backgroundColor.slice();
+  ds.backgroundColor = ds._origColors.map(function(c, i){
+    if(!on) return c;
+    return i === idx ? c : c + "33"; // dim non-hovered bars via alpha suffix
+  });
+  chart.update("none");
+}
+function highlightLineIndex(chart, idx, on){
+  if(!chart || !chart.data) return;
+  chart.data.datasets.forEach(function(ds, i){
+    if(ds._origColor === undefined){ ds._origColor = ds.borderColor; ds._origWidth = ds.borderWidth; }
+    if(!on){
+      ds.borderColor = ds._origColor;
+      ds.borderWidth = ds._origWidth;
+    } else if(i === idx){
+      ds.borderColor = ds._origColor;
+      ds.borderWidth = 3;
+    } else {
+      ds.borderColor = ds._origColor + "33";
+      ds.borderWidth = ds._origWidth;
+    }
+  });
+  chart.update("none");
 }
 
 function renderCharts(){
@@ -1063,12 +1205,15 @@ function renderCharts(){
     if(mode === "bar" && !barHasData && hasHistory) mode = "line";
 
     var card = document.createElement("div");
-    card.className = "cmp-card metric-card";
+    card.className = "cmp-card metric-card wide";
     card.innerHTML = "<button type=\"button\" class=\"card-remove\" aria-label=\"Remove this card\" title=\"Remove this card\">&times;</button>"
       + "<h3 class=\"card-title\"></h3>"
       + (hasHistory ? "<div class=\"charttoggle\"><button type=\"button\" data-mode=\"bar\">Bar</button><button type=\"button\" data-mode=\"line\">Line</button></div>" : "")
       + "<p class=\"expl card-expl\"></p>"
-      + "<div class=\"cbox\"><canvas></canvas></div>";
+      + "<div class=\"tpm-layout\">"
+      + "<div class=\"tpm-left\"><div class=\"cbox\"><canvas></canvas></div></div>"
+      + "<div class=\"tpm-right\"><div class=\"tpm-ranking\"><h4>Ranking</h4><p class=\"tpm-ranksubtitle\" id=\"rankSub\"></p></div></div>"
+      + "</div>";
     grid.insertBefore(card, addTileEl);
     card.querySelector(".card-remove").addEventListener("click", function(){ removeMetric(concept); });
 
@@ -1085,30 +1230,35 @@ function renderCharts(){
     var canvas = card.querySelector("canvas");
     var titleEl = card.querySelector(".card-title");
     var explEl = card.querySelector(".card-expl");
+    var rankingContainer = card.querySelector(".tpm-ranking");
 
     if(mode === "line"){
       var lineResult = buildLineChart(canvas, concept);
       if(!lineResult){
         titleEl.textContent = CONCEPT_LABEL[concept] + " (over time)";
         explEl.textContent = "None of the currently selected countries have this metric's history tracked.";
-        card.querySelector(".cbox").style.display = "none";
+        card.querySelector(".tpm-layout").style.display = "none";
         return;
       }
       titleEl.textContent = CONCEPT_LABEL[concept] + " (over time)";
       explEl.textContent = CONCEPT_EXPLAINER[concept] + " Full published history, for each selected country that tracks it." +
         (lineResult.isCurrencyMetric ? " Converted to USD at today's exchange rate throughout, including older years, since historical rates aren't available -- treat older figures as an approximation." : "");
       charts[concept] = lineResult.chart;
+      card.querySelector("#rankSub").textContent = "Latest available value per country.";
+      renderLineRankList(rankingContainer, concept, lineResult.datasets, lineResult.chart);
     } else {
       var barResult = buildBarChart(canvas, concept);
       if(!barResult){
         titleEl.textContent = CONCEPT_LABEL[concept];
         explEl.textContent = "None of the currently selected countries have data for the current horizon.";
-        card.querySelector(".cbox").style.display = "none";
+        card.querySelector(".tpm-layout").style.display = "none";
         return;
       }
       titleEl.textContent = CONCEPT_LABEL[concept] + barResult.titleSuffix;
       explEl.textContent = CONCEPT_EXPLAINER[concept] + " " + barResult.horizonNote;
       charts[concept] = barResult.chart;
+      card.querySelector("#rankSub").textContent = "Highest to lowest, current selection.";
+      renderBarRankList(rankingContainer, concept, barResult.rows, barResult.chart);
     }
   });
 }
@@ -1236,6 +1386,7 @@ loadAll().then(function(){
   document.getElementById("loadMsg").style.display = "none";
   document.getElementById("mainContent").style.display = "block";
   document.getElementById("metricPicker").style.display = "";
+  initMapYearSlider();
   fetch("https://cdn.jsdelivr.net/npm/world-atlas@2/countries-110m.json")
     .then(function(r){ return r.json(); })
     .then(function(world){ worldData = world; renderAll(); })
@@ -1269,9 +1420,69 @@ function renderMapMetricRow(){
   });
 }
 
+// Decoupled from the page-wide horizon toggle -- the map has its own
+// year, controlled by the slider, so it can scrub year-by-year rather
+// than being limited to the 5 fixed horizon buttons. gdp_growth is
+// still computed as a genuine year-over-year rate from real GDP levels,
+// same logic as getDisplayValue, just anchored to an arbitrary
+// slider-chosen year instead of "now minus a fixed horizon."
+function getMapValueForYear(country, concept, year){
+  if(concept === "gdp_growth"){
+    var real = REGISTRY[country] && REGISTRY[country].gdp_real;
+    if(!real) return null;
+    var level = yearAggregate_raw(real.points, year);
+    var prevLevel = yearAggregate_raw(real.points, year - 1);
+    if(level == null || prevLevel == null || !prevLevel) return null;
+    var g = Math.round((level / prevLevel - 1) * 1000) / 10;
+    return {value: g, isDelta: false, isCumulative: false, year: year, unit: "%"};
+  }
+  var agg = yearAggregate(country, concept, year);
+  if(!agg) return null;
+  if(CONCEPT_UNIT[concept] === "currency"){
+    var usdVal = toUSDMillions(country, agg.value, agg.unit);
+    if(usdVal == null) return null;
+    return {value: Math.round(usdVal*100)/100, isDelta: false, isCumulative: false, year: year, unit: "currency", rawUnit: "$m"};
+  }
+  return {value: Math.round(agg.value*100)/100, isDelta: false, isCumulative: false, year: year, unit: CONCEPT_UNIT[concept], rawUnit: agg.unit};
+}
+
+function computeEarliestYear(){
+  var minYear = 9999;
+  ALL_COUNTRIES.forEach(function(c){
+    var reg = REGISTRY[c] || {};
+    Object.keys(reg).forEach(function(k){
+      var pts = reg[k].points;
+      if(pts.length){
+        var y = yearOf(pts[0][0]);
+        if(y && y < minYear) minYear = y;
+      }
+    });
+  });
+  return minYear === 9999 ? CURRENT_YEAR - 20 : minYear;
+}
+
+var mapYear = null;
+var mapZoomBehavior = null;
+var mapZoomTransform = null;
+
+function initMapYearSlider(){
+  var slider = document.getElementById("mapYearSlider");
+  var min = computeEarliestYear();
+  slider.min = min;
+  slider.max = CURRENT_YEAR;
+  mapYear = CURRENT_YEAR;
+  slider.value = mapYear;
+  document.getElementById("mapYearLabel").textContent = mapYear;
+  slider.addEventListener("input", function(){
+    mapYear = +slider.value;
+    document.getElementById("mapYearLabel").textContent = mapYear;
+    drawHeatmap();
+  });
+}
+
 var worldData = null;
 function drawHeatmap(){
-  if(!worldData) return;
+  if(!worldData || mapYear == null) return;
   var svg = d3.select("#heatmapSvg");
   svg.selectAll("*").remove();
 
@@ -1286,12 +1497,11 @@ function drawHeatmap(){
 
   // The heatmap only ever colours countries actually selected in the
   // comparison above -- "chosen countries" and "map view" are the same
-  // set, not two disconnected ones. It also follows the same year/
-  // horizon currently selected on the rest of the page, rather than
-  // always showing "latest" regardless of what's picked elsewhere.
+  // set, not two disconnected ones. Its year is set by the slider, not
+  // the page-wide horizon toggle, so it can scrub year-by-year.
   var mappable = selected.filter(function(c){ return ISO_OF[c]; });
   var dvByCountry = {};
-  mappable.forEach(function(c){ dvByCountry[c] = getDisplayValue(c, mapMetric); });
+  mappable.forEach(function(c){ dvByCountry[c] = getMapValueForYear(c, mapMetric, mapYear); });
   var vals = mappable
     .map(function(c){ return dvByCountry[c] ? dvByCountry[c].value : null; })
     .filter(function(v){ return v != null; });
@@ -1299,9 +1509,18 @@ function drawHeatmap(){
   var hi = vals.length ? Math.max.apply(null, vals) : 0;
   var colorScale = d3.scaleSequential().domain([lo, hi]).interpolator(d3.interpolateRgbBasis(["#EAF3E9", "#8AD9B1", "#348FA7", "#37659E", "#2E1E3B"]));
 
-  var unitSuffix = CONCEPT_UNIT[mapMetric] === "%" ? "%" : "";
-  document.getElementById("legendLo").textContent = vals.length ? lo.toFixed(1) + unitSuffix : "n/a";
-  document.getElementById("legendHi").textContent = vals.length ? hi.toFixed(1) + unitSuffix : "n/a";
+  // FIX: this used to show a raw, unformatted number for currency
+  // concepts (e.g. "1051131.6" for GDP with no "$" or scale at all) --
+  // now uses the same curFmt used everywhere else on the page.
+  var lowRep = dvByCountry[mappable.filter(function(c){ return dvByCountry[c] && dvByCountry[c].value === lo; })[0]];
+  var hiRep = dvByCountry[mappable.filter(function(c){ return dvByCountry[c] && dvByCountry[c].value === hi; })[0]];
+  function legendText(v, rep){
+    if(!vals.length) return "n/a";
+    if(CONCEPT_UNIT[mapMetric] === "currency") return curFmt(v, (rep && rep.rawUnit) || "$m", 1);
+    return axisTickLabel(v, mapMetric);
+  }
+  document.getElementById("legendLo").textContent = legendText(lo, lowRep);
+  document.getElementById("legendHi").textContent = legendText(hi, hiRep);
 
   var isoToCountry = {};
   mappable.forEach(function(c){ isoToCountry[ISO_OF[c]] = c; });
@@ -1311,7 +1530,13 @@ function drawHeatmap(){
   var countries = topojson.feature(worldData, worldData.objects.countries).features;
   var tip = document.getElementById("heatTip");
 
-  svg.selectAll("path").data(countries).join("path")
+  // Zoomable layer: a <g> wrapping all the country paths, transformed
+  // by D3's zoom behaviour (wheel/pinch/drag) and the +/-/Reset buttons.
+  // The transform persists across redraws (year/metric/selection
+  // changes) rather than snapping back to the default view each time.
+  var g = svg.append("g").attr("class", "zoom-layer");
+
+  g.selectAll("path").data(countries).join("path")
     .attr("d", path)
     .attr("fill", function(f){
       var c = isoToCountry[f.id];
@@ -1328,11 +1553,30 @@ function drawHeatmap(){
       tip.style.display = "block";
       tip.style.left = (e.offsetX + 14) + "px";
       tip.style.top = (e.offsetY + 10) + "px";
-      var periodBit = dv ? " <span style=\"color:var(--ink2);\">(" + periodLabelFor(dv) + ")</span>" : "";
-      tip.innerHTML = "<strong>" + c + "</strong><br>" + CONCEPT_LABEL[mapMetric] + ": " + (dv ? displayString(dv) : "n/a") + periodBit;
+      tip.innerHTML = "<strong>" + c + "</strong><br>" + CONCEPT_LABEL[mapMetric] + ": " + (dv ? displayString(dv) : "n/a");
     })
     .on("mouseleave", function(){ tip.style.display = "none"; });
+
+  if(!mapZoomBehavior){
+    mapZoomBehavior = d3.zoom().scaleExtent([1, 8]).on("zoom", function(e){
+      mapZoomTransform = e.transform;
+      d3.select("#heatmapSvg").select(".zoom-layer").attr("transform", e.transform);
+    });
+  }
+  svg.call(mapZoomBehavior);
+  if(mapZoomTransform) svg.call(mapZoomBehavior.transform, mapZoomTransform);
 }
+
+document.getElementById("mapZoomIn").addEventListener("click", function(){
+  d3.select("#heatmapSvg").transition().duration(200).call(mapZoomBehavior.scaleBy, 1.5);
+});
+document.getElementById("mapZoomOut").addEventListener("click", function(){
+  d3.select("#heatmapSvg").transition().duration(200).call(mapZoomBehavior.scaleBy, 1/1.5);
+});
+document.getElementById("mapZoomReset").addEventListener("click", function(){
+  mapZoomTransform = d3.zoomIdentity;
+  d3.select("#heatmapSvg").transition().duration(200).call(mapZoomBehavior.transform, d3.zoomIdentity);
+});
 
 function updateMapCardSub(){
   var mappableCount = selected.filter(function(c){ return ISO_OF[c]; }).length;
