@@ -116,7 +116,7 @@
 .legend-grad{display:flex; align-items:center; gap:10px; margin-top:10px; font-size:12px; color:var(--ink2);}
 .legend-bar{width:180px; height:10px; border-radius:5px;
   background:linear-gradient(90deg,#EAF3E9,#8AD9B1,#348FA7,#37659E,#2E1E3B);}
-#heatTip{position:absolute; pointer-events:none; background:#fff; border:1px solid var(--hair); border-radius:8px;
+#heatTip{position:absolute; pointer-events:none; background:var(--panel); color:var(--ink); border:1px solid var(--hair); border-radius:8px;
   padding:8px 11px; font-size:12.5px; box-shadow:0 6px 18px rgba(0,0,0,.12); display:none; z-index:5;}
 
 footer.cmp-foot{margin-top:36px; font-size:12.5px; color:var(--ink2); border-top:1px solid var(--hair); padding-top:16px;}
@@ -322,7 +322,7 @@ footer.cmp-foot{margin-top:36px; font-size:12.5px; color:var(--ink2); border-top
   </div>
 
   <footer class="cmp-foot">
-    Figures: ONS, FRED, Eurostat, e-Stat/Bank of Japan, MoSPI, Bank of Korea and OECD, the same sources already cited on each country&#39;s own page. Every figure on this page is anchored to a specific calendar year -- shown at "Now" is the most recent year with real data across the tracked countries; each other horizon steps back that many years. Where a metric is published more often than annually, the year's figure is the average of that year's real observations, not a single point-in-time reading. GDP growth at a horizon shows total real growth over that period, compounded from each country's own real GDP level. Because "Now" is set by whichever metrics report fastest (inflation and policy rates report monthly, so they usually set it), a slower annual-only metric like FDI, current account or the government deficit can show "n/a" across every horizon if its own latest published year hasn't caught up yet -- that's a real, honest gap in the underlying data's timing, not a missing figure or a bug. The Eurozone is excluded from the map view since it isn&#39;t a single country UN Comtrade or world-atlas can plot; it still appears in every chart and table above.
+    Figures: ONS, FRED, Eurostat, e-Stat/Bank of Japan, MoSPI, Bank of Korea and OECD, the same sources already cited on each country&#39;s own page. Every figure on this page is anchored to a specific calendar year -- shown at "Now" is the most recent year with real data across the tracked countries; each other horizon steps back that many years. Where a metric is published more often than annually, the year's figure is the average of that year's real observations, not a single point-in-time reading. GDP growth at a horizon shows total real growth over that period, compounded from each country's own real GDP level. Because "Now" is set by whichever metrics report fastest (inflation and policy rates report monthly, so they usually set it), a slower annual-only metric like FDI, current account or the government deficit can show "n/a" across every horizon if its own latest published year hasn't caught up yet -- that's a real, honest gap in the underlying data's timing, not a missing figure or a bug. Currency-denominated figures (GDP, government debt, trade) are converted to US dollars at today's exchange rate so every country is shown in the same unit; changes over a horizon are shown as a % instead, which doesn't need converting since the ratio is the same in any currency. Morocco has no live exchange-rate source for the dirham, so its currency figures show "n/a" rather than a converted guess. The Eurozone is excluded from the map view since it isn&#39;t a single country UN Comtrade or world-atlas can plot; it still appears in every chart and table above.
     <br><br>Free to use for now, this may move behind a paid tier as the site develops.
   </footer>
   </div>
@@ -527,6 +527,26 @@ function curFmt(rawValue, unitStr, decimals){
 /* ----------------------------- live data registry --------------------------- */
 var REGISTRY = {}; // REGISTRY[country][key] = {label, unit, freq, points}
 var FX_RATES = {};
+// Converts a raw currency-denominated value (still in the country's own
+// native units, e.g. millions of GBP) into the equivalent raw value in
+// USD, using the same current spot rate and multiply/divide convention
+// already established for the site's own Dollarise toggle. Returns null
+// if no rate is available for that country (e.g. Morocco, which has no
+// live FX source) -- distinguished from "US, which needs no conversion
+// at all" by checking the country name explicitly.
+function toUSDValue(country, rawValue){
+  if(country === "US") return rawValue;
+  var fx = FX_RATES[country];
+  if(!fx || !fx.rate) return null;
+  return fx.direction === "multiply" ? rawValue * fx.rate : rawValue / fx.rate;
+}
+// Keeps the tn/bn/m scale suffix from the original unit string (so
+// curFmt still auto-tiers the output correctly) but forces the currency
+// symbol to $, since every currency concept is now shown in USD.
+function forceUSDUnit(unitStr){
+  var m = /(?:tn|bn|m)$/.exec(unitStr || "m");
+  return "$" + (m ? m[0] : "m");
+}
 var CURRENT_YEAR = null;
 function loadAll(){
   return Promise.all(ALL_COUNTRIES.map(function(country){
@@ -625,6 +645,11 @@ function getDisplayValue(country, concept){
   var nowAgg = yearAggregate(country, concept, nowYear);
   if(!nowAgg) return null;
   if(horizon === "0"){
+    if(CONCEPT_UNIT[concept] === "currency"){
+      var usdVal = toUSDValue(country, nowAgg.value);
+      if(usdVal == null) return null;
+      return {value: Math.round(usdVal*100)/100, isDelta:false, isCumulative:false, year: nowYear, unit: "currency", rawUnit: forceUSDUnit(nowAgg.unit)};
+    }
     return {value: Math.round(nowAgg.value*100)/100, isDelta:false, isCumulative:false, year: nowYear, unit: CONCEPT_UNIT[concept], rawUnit: nowAgg.unit};
   }
   var thenAgg = yearAggregate(country, concept, thenYear);
@@ -641,6 +666,19 @@ function getDisplayValue(country, concept){
 // plain indices (100 = long-term average, no "%"), and currency
 // concepts show their delta as a % change (isCumulative) rather than a
 // raw currency-unit difference, which is why they're excluded here too.
+// Chart.js auto-computes y-axis tick values from the data range, and for
+// %/index axes with an unusual spread this can land on a long floating-
+// point tail (2.9000000000000004) rather than a clean number -- rounds
+// to the site's own established precision convention (2 decimals for
+// rates/yields, which move in small steps; 1 decimal everywhere else)
+// before the tick is ever rendered, rather than concatenating the raw
+// value straight into the label.
+function axisTickLabel(v, concept, forcePercent){
+  var decimals = (concept === "policy_rate" || concept === "bond_yield_10y") ? 2 : 1;
+  var rounded = +v.toFixed(decimals);
+  var suffix = (forcePercent || CONCEPT_UNIT[concept] === "%") ? "%" : "";
+  return rounded + suffix;
+}
 function suffixFor(dv){
   if(!dv) return "";
   if(dv.unit === "%") return (dv.isDelta && !dv.isCumulative) ? "pp" : "%";
@@ -837,12 +875,13 @@ function renderCharts(){
     var rows = selected.map(function(c){
       var dv = getDisplayValue(c, concept);
       return {country: c, dv: dv};
-    }).filter(function(r){ return r.dv != null; });
-    if(!rows.length) return;
+    });
+    if(!rows.some(function(r){ return r.dv != null; })) return;
 
+    var firstReal = rows.filter(function(r){ return r.dv != null; })[0].dv;
     var card = document.createElement("div");
     card.className = "cmp-card";
-    var isCumulative = rows[0].dv.isCumulative;
+    var isCumulative = firstReal.isCumulative;
     var title = isCumulative ? CONCEPT_LABEL[concept] + " (cumulative change)" : (CONCEPT_LABEL[concept] + (horizon !== "0" ? " (change)" : ""));
     var horizonNote = horizon === "0" ? "Figure for " + CURRENT_YEAR + ", averaged across the year's real observations where more than one exists."
       : isCumulative ? "Cumulative % change from " + (CURRENT_YEAR - (+horizon)) + " to " + CURRENT_YEAR + "."
@@ -861,13 +900,14 @@ function renderCharts(){
       data: {
         labels: rows.map(function(r){ return r.country; }),
         datasets: [{
-          data: rows.map(function(r){ return r.dv.value; }),
+          data: rows.map(function(r){ return r.dv ? r.dv.value : null; }),
           backgroundColor: rows.map(function(r){ return COUNTRY_COLOR[r.country]; }),
           borderRadius: 5
         }]
       },
       options: {
         responsive: true, maintainAspectRatio: false,
+        interaction: {mode: "index", intersect: false},
         plugins: {
           legend: {display: false},
           tooltip: {
@@ -876,6 +916,7 @@ function renderCharts(){
             callbacks: {
               label: function(ctx){
                 var r = rows[ctx.dataIndex];
+                if(!r.dv) return "No data for " + r.country;
                 return displayString(r.dv) + " (" + periodLabelFor(r.dv) + ")";
               }
             }
@@ -884,8 +925,8 @@ function renderCharts(){
         scales: {
           y: {grid: {color: "#E4E6E1"}, border: {display: false},
               ticks: {callback: function(v){
-                if(CONCEPT_UNIT[concept] === "currency" && !isCumulative) return curFmt(v, rows[0].dv.rawUnit || "$bn", 0);
-                return v + (CONCEPT_UNIT[concept] === "%" || isCumulative ? "%" : "");
+                if(CONCEPT_UNIT[concept] === "currency" && !isCumulative) return curFmt(v, firstReal.rawUnit || "$bn", 0);
+                return axisTickLabel(v, concept, isCumulative);
               }}},
           x: {grid: {display: false}, border: {color: "#E4E6E1"}}
         }
@@ -1081,14 +1122,14 @@ function renderOverTime(){
           borderColor: TOOLTIP_HAIR, borderWidth: 1,
           callbacks: {
             title: function(items){ return fmtPeriod(items[0].label); },
-            label: function(ctx){ return ctx.dataset.label + ": " + ctx.parsed.y + (CONCEPT_UNIT[overTimeMetric] === "%" ? "%" : ""); }
+            label: function(ctx){ return ctx.dataset.label + ": " + axisTickLabel(ctx.parsed.y, overTimeMetric); }
           }
         }
       },
       scales: {
         x: {type: "category", grid: {display: false}, border: {color: "#E4E6E1"},
             ticks: {maxTicksLimit: 8, callback: function(v){ return this.getLabelForValue(v).slice(0,4); }}},
-        y: {grid: {color: "#E4E6E1"}, border: {display: false}, ticks: {callback: function(v){ return v + (CONCEPT_UNIT[overTimeMetric] === "%" ? "%" : ""); }}}
+        y: {grid: {color: "#E4E6E1"}, border: {display: false}, ticks: {callback: function(v){ return axisTickLabel(v, overTimeMetric); }}}
       }
     }
   });
@@ -1200,7 +1241,7 @@ function drawHeatmap(){
       tip.style.display = "block";
       tip.style.left = (e.offsetX + 14) + "px";
       tip.style.top = (e.offsetY + 10) + "px";
-      var periodBit = dv ? " <span style=\"color:#B7BDC4;\">(" + periodLabelFor(dv) + ")</span>" : "";
+      var periodBit = dv ? " <span style=\"color:var(--ink2);\">(" + periodLabelFor(dv) + ")</span>" : "";
       tip.innerHTML = "<strong>" + c + "</strong><br>" + CONCEPT_LABEL[mapMetric] + ": " + (dv ? displayString(dv) : "n/a") + periodBit;
     })
     .on("mouseleave", function(){ tip.style.display = "none"; });
