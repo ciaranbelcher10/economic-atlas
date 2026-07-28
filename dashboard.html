@@ -23,6 +23,8 @@
 <script src="https://cdnjs.cloudflare.com/ajax/libs/Chart.js/4.4.1/chart.umd.min.js"></script>
 <script src="https://cdnjs.cloudflare.com/ajax/libs/hammer.js/2.0.8/hammer.min.js"></script>
 <script src="https://cdnjs.cloudflare.com/ajax/libs/chartjs-plugin-zoom/2.0.1/chartjs-plugin-zoom.min.js"></script>
+<script src="https://cdnjs.cloudflare.com/ajax/libs/d3/7.8.5/d3.min.js"></script>
+<script src="https://cdnjs.cloudflare.com/ajax/libs/topojson/3.0.2/topojson.min.js"></script>
 <style>
 .premium{display:inline-flex; align-items:center; gap:5px; font-size:10.5px; font-weight:700; text-transform:uppercase;
   letter-spacing:.04em; background:var(--navy); color:#fff; padding:3px 10px; border-radius:999px; vertical-align:middle;}
@@ -45,6 +47,11 @@
   font:600 12px "Avenir Next","Avenir","Nunito Sans",sans-serif; padding:6px 13px; border-radius:999px; cursor:pointer;
   display:inline-flex; align-items:center; gap:6px;}
 .tile .chartbtn:hover{border-color:var(--blue);}
+.tile .fullscreenbtn{margin-top:12px; margin-left:8px; border:1px solid var(--hair); background:var(--paper);
+  color:var(--ink2); font:600 12px "Avenir Next","Avenir","Nunito Sans",sans-serif; padding:6px 10px;
+  border-radius:999px; cursor:pointer; display:none; align-items:center; gap:6px;}
+.tile.expanded .fullscreenbtn{display:inline-flex;}
+.tile .fullscreenbtn:hover{border-color:var(--blue); color:var(--navy);}
 .tile .chartbox{height:220px; margin-top:14px; position:relative; display:none;}
 .tile .charttools{display:none; align-items:center; justify-content:space-between; gap:10px; margin:10px 0 2px;}
 .tile.expanded .charttools{display:flex;}
@@ -109,6 +116,67 @@
 .pickeritem.added{opacity:.45; cursor:default; pointer-events:none;}
 .pickeritem .e{font-size:12px; color:var(--ink2); margin-top:4px; font-weight:400; text-transform:none;}
 .pickerempty{font-size:13px; color:var(--ink2); font-style:italic; grid-column:1 / -1;}
+
+/* ---- fullscreen chart modal, ported from each country page's own ---- */
+/* ---- "enlarge" modal so a pinned tile's chart matches exactly ------- */
+.chart-modal{position:fixed; inset:0; z-index:100; display:flex; align-items:center;
+  justify-content:center; padding:30px;}
+.chart-modal[hidden]{display:none;}
+.chart-modal-backdrop{position:absolute; inset:0; background:rgba(20,26,22,.55);}
+.chart-modal-content{position:relative; background:var(--paper); border-radius:16px;
+  padding:26px 30px 22px; width:min(1000px, 92vw); max-height:88vh; display:flex;
+  flex-direction:column; box-shadow:0 20px 60px rgba(0,0,0,.3);}
+.chart-modal-close{position:absolute; top:16px; right:18px; width:32px; height:32px;
+  border-radius:50%; border:1px solid var(--hair); background:var(--panel); color:var(--ink2);
+  font-size:18px; cursor:pointer; display:flex; align-items:center; justify-content:center;}
+.chart-modal-close:hover{border-color:var(--blue); color:var(--navy);}
+.chart-modal-content h2{margin:0 24px 0 0;}
+.chart-modal-content p.chart-modal-country{font-size:12.5px; font-weight:700; color:var(--blue);
+  text-transform:uppercase; letter-spacing:.04em; margin:2px 0 0;}
+.chart-modal-box{flex:1; min-height:0; position:relative; margin:14px 0;}
+.chart-modal-box canvas{max-height:100%;}
+.chart-modal-src{font-size:12.5px; color:var(--ink2); margin:0;}
+
+/* ---- cross-country map card, ported from Compare ---- */
+.map-card{background:var(--panel); border:1px solid var(--hair); border-radius:14px;
+  padding:18px 20px; position:relative; margin-top:18px; display:none;}
+.map-card h3{font-size:14.5px; margin:0 0 4px;}
+.map-card .expl{font-size:12px; color:var(--ink2); margin:0 0 12px;}
+.mapmetric{display:flex; gap:8px; margin-bottom:14px; flex-wrap:wrap;}
+.mapmetric button{border:1px solid var(--hair); background:var(--panel); color:var(--ink2);
+  font:600 12.5px "Avenir Next","Avenir","Nunito Sans",sans-serif; padding:6px 14px; border-radius:999px; cursor:pointer;}
+.mapmetric button.active{background:var(--navy); border-color:var(--navy); color:#fff;}
+.mapmetric button:hover:not(.active){border-color:var(--blue); color:var(--navy);}
+#heatmapSvg{width:100%; height:auto; display:block;}
+.legend-grad{display:flex; align-items:center; gap:10px; margin-top:10px; font-size:12px; color:var(--ink2);}
+.mapyear-row{display:flex; align-items:center; gap:12px; margin:10px 0 4px;}
+.mapyear-label{font-size:12.5px; color:var(--ink2); white-space:nowrap;}
+.mapyear-label strong{color:var(--ink); font-weight:700;}
+.mapyear-row input[type="range"]{flex:1; accent-color:var(--blue); cursor:pointer;}
+.mapzoom-controls{position:absolute; top:10px; right:10px; display:flex; flex-direction:column; gap:4px; z-index:2;}
+.mapzoom-controls button{width:26px; height:26px; border-radius:6px; border:1px solid var(--hair);
+  background:var(--panel); color:var(--ink); font:700 15px "Avenir Next","Avenir","Nunito Sans",sans-serif;
+  cursor:pointer; line-height:1;}
+.mapzoom-controls button:hover{border-color:var(--blue); color:var(--navy);}
+#mapZoomReset{width:auto; font-size:10px; padding:0 6px;}
+.legend-bar{width:180px; height:10px; border-radius:5px;
+  background:linear-gradient(90deg,#EAF3E9,#8AD9B1,#348FA7,#37659E,#2E1E3B);}
+#heatTip{position:absolute; pointer-events:none; background:var(--panel); color:var(--ink); border:1px solid var(--hair); border-radius:8px;
+  padding:8px 11px; font-size:12.5px; box-shadow:0 6px 18px rgba(0,0,0,.12); display:none; z-index:5;}
+
+/* ---- Add-metric "others track this too" nudge ---- */
+.nudge{display:none; background:#F0F6FA; border:1px solid var(--blue); border-radius:10px;
+  padding:10px 14px; margin:0 0 14px; font-size:12.5px; color:var(--ink2);}
+.nudge.show{display:block;}
+.nudge .nudgehead{font-weight:700; color:var(--navy); margin-bottom:7px; display:flex;
+  align-items:center; justify-content:space-between;}
+.nudge .nudgeclose{border:none; background:none; color:var(--ink2); font-size:15px; cursor:pointer; line-height:1; padding:2px;}
+.nudge .nudgeclose:hover{color:var(--navy);}
+.nudge .nudgechips{display:flex; gap:8px; flex-wrap:wrap;}
+.nudge .nudgechip{border:1px solid var(--blue); background:var(--paper); color:var(--navy);
+  font:600 12px "Avenir Next","Avenir","Nunito Sans",sans-serif; padding:5px 12px; border-radius:999px; cursor:pointer;}
+.nudge .nudgechip:hover{background:var(--blue); color:#fff;}
+.nudge .nudgechip.added{opacity:.5; cursor:default; pointer-events:none;}
 
 footer.dash-foot{margin-top:36px; font-size:12.5px; color:var(--ink2); border-top:1px solid var(--hair); padding-top:16px;}
 </style>
@@ -286,12 +354,41 @@ footer.dash-foot{margin-top:36px; font-size:12.5px; color:var(--ink2); border-to
   <div id="loadMsg" class="loadmsg">Loading every country&#39;s data&hellip;</div>
   <div class="dashgrid" id="dashGrid" style="display:none;"></div>
 
+  <div class="map-card" id="mapCard">
+    <h3>Map</h3>
+    <p class="expl" id="mapCardSub">Darker = higher.</p>
+    <div class="mapmetric" id="mapMetricRow"></div>
+    <div class="mapyear-row">
+      <span class="mapyear-label">Year: <strong id="mapYearLabel"></strong></span>
+      <input type="range" id="mapYearSlider" step="1">
+    </div>
+    <div style="position:relative;">
+      <svg id="heatmapSvg" viewBox="0 0 960 500"></svg>
+      <div id="heatTip"></div>
+      <div class="mapzoom-controls">
+        <button type="button" id="mapZoomIn" aria-label="Zoom in">+</button>
+        <button type="button" id="mapZoomOut" aria-label="Zoom out">&minus;</button>
+        <button type="button" id="mapZoomReset" aria-label="Reset zoom">Reset</button>
+      </div>
+    </div>
+    <div class="legend-grad">
+      <span id="legendLo">low</span>
+      <div class="legend-bar"></div>
+      <span id="legendHi">high</span>
+    </div>
+  </div>
+
   <div class="modal" id="picker" hidden>
     <div class="modal-backdrop" id="pickerBackdrop"></div>
     <div class="modal-content">
       <button type="button" class="modal-close" id="pickerClose" aria-label="Close">&times;</button>
       <h2>Add a metric</h2>
       <p class="modal-sub">Click as many as you like; they'll keep appearing on your dashboard without closing this window. Choose by country first, or by metric first, whichever's easier to think in.</p>
+      <div class="nudge" id="pickerNudge">
+        <div class="nudgehead"><span id="nudgeTitle"></span>
+          <button type="button" class="nudgeclose" id="nudgeClose" aria-label="Dismiss">&times;</button></div>
+        <div class="nudgechips" id="nudgeChips"></div>
+      </div>
       <input type="text" id="pickerSearch" class="pickersearch" placeholder="Search all metrics and countries&hellip; (e.g. &quot;inflation&quot;, &quot;Japan&quot;)">
       <div class="modetoggle" id="modeToggle">
         <button type="button" class="active" data-mode="country">By country</button>
@@ -307,6 +404,23 @@ footer.dash-foot{margin-top:36px; font-size:12.5px; color:var(--ink2); border-to
     </div>
   </div>
 
+  <div class="chart-modal" id="chartModal" hidden>
+    <div class="chart-modal-backdrop" id="chartModalBackdrop"></div>
+    <div class="chart-modal-content">
+      <button type="button" class="chart-modal-close" id="chartModalClose" aria-label="Close">&times;</button>
+      <h2 id="chartModalTitle"></h2>
+      <p class="chart-modal-country" id="chartModalCountry"></p>
+      <div class="charttools">
+        <div class="rangepresets" id="chartModalPresets"></div>
+        <button type="button" class="resetzoom" id="chartModalReset">Reset zoom</button>
+      </div>
+      <div class="chart-modal-box">
+        <canvas id="chartModalCanvas"></canvas>
+      </div>
+      <p class="chart-modal-src" id="chartModalSrc"></p>
+    </div>
+  </div>
+
   <footer class="dash-foot">
     Every figure and chart here is read live from the same data files each country's own page uses (ONS, FRED, Eurostat, e-Stat/Bank of Japan, MoSPI, Bank of Korea, OECD, World Bank); nothing is hand-picked or invented. Your pinned tiles are remembered in this browser between visits, on this device only, since there's no account system yet to sync a selection across devices.
     <br><br>Free to use for now, this may move behind a paid tier as the site develops.
@@ -318,12 +432,18 @@ footer.dash-foot{margin-top:36px; font-size:12.5px; color:var(--ink2); border-to
 "use strict";
 
 var _cs = getComputedStyle(document.documentElement);
-var TOOLTIP_BG = _cs.getPropertyValue("--panel").trim() || "#fff";
-var TOOLTIP_INK = _cs.getPropertyValue("--ink").trim() || "#171B1E";
-var TOOLTIP_HAIR = _cs.getPropertyValue("--hair").trim() || "#E4E6E1";
+var INK = _cs.getPropertyValue("--ink").trim() || "#171B1E";
+var INK2 = _cs.getPropertyValue("--ink2").trim() || "#5A6167";
+var HAIR = _cs.getPropertyValue("--hair").trim() || "#E7E9E4";
+var PANEL_BG = _cs.getPropertyValue("--panel").trim() || "#fff";
+var MAKO = {deep: "#2E1E3B", indigo: "#413D7B", blue: "#37659E", sea: "#348FA7", teal: "#40B7AD", mint: "#8AD9B1"};
+var LINE = MAKO.blue, BAR_UP = MAKO.sea, BAR_DOWN = MAKO.indigo;
+function year(p){ return p.slice(0, 4); }
 
-/* --------------------- chart interactivity (shared with the ------------- */
-/* --------------------- main site's country pages) ----------------------- */
+/* --------------------- chart interactivity -------------------------------- */
+/* Ported EXACTLY from each country's own page (same refLine plugin, same   */
+/* base scales/options, same bar-vs-line rendering) so a pinned tile's      */
+/* chart is visually identical to the same chart on its home country page. */
 function periodEnd(p){
   if(/^\d{4}-\d{2}$/.test(p)) return new Date(+p.slice(0,4), +p.slice(5), 0);
   if(/^\d{4}-Q\d$/.test(p)) return new Date(+p.slice(0,4), +p.slice(6)*3, 0);
@@ -385,6 +505,7 @@ function rangePresetsHtml(){
 function updateChartData(chart, pts, kind){
   chart.data.labels = pts.map(function(p){ return p[0]; });
   chart.data.datasets[0].data = pts.map(function(p){ return p[1]; });
+  if(kind === "bar") chart.data.datasets[0].backgroundColor = pts.map(function(p){ return p[1] < 0 ? BAR_DOWN : BAR_UP; });
   if(chart.resetZoom) chart.resetZoom();
   chart.update();
 }
@@ -399,39 +520,86 @@ function wireRangePresets(scopeEl, pts, kind, chart){
     });
   });
 }
-function buildChartConfig(kind, pts, refLine, unit, key){
-  var data = kind === "bar"
-    ? {labels: pts.map(function(p){ return p[0]; }), datasets: [{data: pts.map(function(p){ return p[1]; }),
-        backgroundColor: "#37659E", borderRadius: 2}]}
-    : {labels: pts.map(function(p){ return p[0]; }), datasets: [{data: pts.map(function(p){ return p[1]; }),
-        borderColor: "#37659E", backgroundColor: "rgba(55,101,158,0.12)", borderWidth: 2,
-        pointRadius: 0, pointHitRadius: 8, tension: 0.25, fill: true}]};
-  var fmtY = function(v){ return fmtVal(v, unit, key); };
+var baseScales = function(fmtY){
   return {
-    type: kind,
-    data: data,
-    options: {
-      responsive: true, maintainAspectRatio: false,
-      interaction: {mode: "index", intersect: false},
-      plugins: {
-        legend: {display: false},
-        tooltip: {backgroundColor: TOOLTIP_BG, titleColor: TOOLTIP_INK, bodyColor: TOOLTIP_INK,
-          borderColor: "#E4E6E1", borderWidth: 1,
-          callbacks: {
-            title: function(items){ return fmtPeriod(items[0].label); },
-            label: function(ctx){ return fmtVal(ctx.parsed.y, unit, key); }
-          }},
-        zoom: zoomOpts(),
-        refLine: {value: refLine == null ? null : refLine}
-      },
-      scales: {
-        x: {grid: {display: false}, border: {color: "#E4E6E1"}, ticks: {maxTicksLimit: 8, maxRotation: 0,
-            callback: function(v){ return this.getLabelForValue(v).slice(0, 4); }}},
-        y: {grid: {color: "#E4E6E1"}, border: {display: false}, ticks: {callback: fmtY}}
-      }
+    x: {grid: {display: false}, border: {color: HAIR},
+        ticks: {color: INK2, font: {family: "'Avenir Next','Nunito Sans',sans-serif", size: 11.5},
+                maxTicksLimit: 7, maxRotation: 0,
+                callback(v){ return year(this.getLabelForValue(v)); }}},
+    y: {grid: {color: HAIR}, border: {display: false},
+        ticks: {color: INK2, font: {family: "'Avenir Next','Nunito Sans',sans-serif", size: 11.5},
+                maxTicksLimit: 6, callback: function(v){ return fmtY(v); }}}
+  };
+};
+function baseOpts(fmtTip, refLine){
+  return {
+    responsive: true, maintainAspectRatio: false, animation: false,
+    interaction: {mode: "index", intersect: false},
+    plugins: {
+      legend: {display: false},
+      tooltip: {backgroundColor: PANEL_BG, titleColor: INK, bodyColor: INK, borderColor: HAIR, borderWidth: 1,
+        titleFont: {family: "'Avenir Next','Nunito Sans',sans-serif", weight: "600"},
+        bodyFont: {family: "'Avenir Next','Nunito Sans',sans-serif"}, displayColors: false,
+        callbacks: {
+          title: function(items){ return fmtPeriod(items[0].label); },
+          label: function(ctx){ return fmtTip(ctx.parsed.y); }
+        }},
+      zoom: zoomOpts(),
+      refLine: {value: refLine == null ? null : refLine}
     }
   };
 }
+function chartConfig(kind, pts, fmtY, fmtTip, refLine){
+  var data = kind === "bar"
+    ? {labels: pts.map(function(p){ return p[0]; }), datasets: [{data: pts.map(function(p){ return p[1]; }),
+        backgroundColor: pts.map(function(p){ return p[1] < 0 ? BAR_DOWN : BAR_UP; }),
+        borderRadius: 2, categoryPercentage: 0.9, barPercentage: 1.0}]}
+    : {labels: pts.map(function(p){ return p[0]; }), datasets: [{data: pts.map(function(p){ return p[1]; }),
+        borderColor: LINE, borderWidth: 2, pointRadius: 0, pointHitRadius: 8, tension: 0.25}]};
+  var opts = baseOpts(fmtTip, refLine);
+  opts.scales = baseScales(fmtY);
+  return {type: kind === "bar" ? "bar" : "line", data: data, options: opts};
+}
+function lineChart(canvas, pts, fmtY, fmtTip, refLine){ return new Chart(canvas, chartConfig("line", pts, fmtY, fmtTip, refLine)); }
+function barChart(canvas, pts, fmtY, fmtTip, refLine){ return new Chart(canvas, chartConfig("bar", pts, fmtY, fmtTip, refLine)); }
+function buildChartConfig(kind, pts, refLine, unit, key){
+  var fmt = function(v){ return fmtVal(v, unit, key); };
+  return chartConfig(kind, pts, fmt, fmt, refLine);
+}
+
+/* ------------------------------ fullscreen modal --------------------------- */
+// Same "enlarge" pattern already used on every country page: a registry
+// keyed by tile id, so opening the modal re-creates the identical chart
+// (same points, same kind, same ref line) at a much larger size, with its
+// own independent range presets and zoom, rather than just scaling up the
+// inline canvas.
+var CHART_REGISTRY = {};
+var modalChart = null;
+function openChartModal(id){
+  var entry = CHART_REGISTRY[id];
+  if(!entry) return;
+  var modal = document.getElementById("chartModal");
+  document.getElementById("chartModalTitle").textContent = entry.title;
+  document.getElementById("chartModalCountry").textContent = entry.country;
+  document.getElementById("chartModalSrc").textContent = "Source: " + entry.srcNote;
+  var presetsEl = document.getElementById("chartModalPresets");
+  presetsEl.innerHTML = rangePresetsHtml();
+  if(modalChart){ modalChart.destroy(); modalChart = null; }
+  var canvas = document.getElementById("chartModalCanvas");
+  modalChart = (entry.kind === "bar" ? barChart : lineChart)(canvas, entry.pts, entry.fmtY, entry.fmtTip, entry.refLine);
+  wireRangePresets(modal, entry.pts, entry.kind, modalChart);
+  document.getElementById("chartModalReset").onclick = function(){ if(modalChart.resetZoom) modalChart.resetZoom(); };
+  modal.hidden = false;
+  document.body.style.overflow = "hidden";
+}
+function closeChartModal(){
+  document.getElementById("chartModal").hidden = true;
+  document.body.style.overflow = "";
+  if(modalChart){ modalChart.destroy(); modalChart = null; }
+}
+document.getElementById("chartModalClose").addEventListener("click", closeChartModal);
+document.getElementById("chartModalBackdrop").addEventListener("click", closeChartModal);
+document.addEventListener("keydown", function(e){ if(e.key === "Escape") closeChartModal(); });
 
 var FILES = {
   UK: "data.json", US: "data-us.json", Eurozone: "data-ez.json", Japan: "data-jp.json",
@@ -533,6 +701,397 @@ function loadAll(){
 }
 
 var ALL_COUNTRIES = Object.keys(FILES);
+
+/* ==================== cross-country concept engine + map ==================== */
+/* Ported from Compare: the exact same candidate-key resolution, GDP          */
+/* annualisation fix (SAAR vs trailing-4-quarter-sum), and USD normalisation   */
+/* fix (scale-then-convert) that the map there already relies on -- reused    */
+/* here rather than reinvented, so the two maps can never drift apart.        */
+var CONCEPT_KEYS = {
+  gdp_level: ["gdp_level"], gdp_real: ["gdp_real"], gdp_growth: null,
+  cpi: ["cpi"], core_cpi: ["core_cpi"], cpi_mom: ["cpi_mom"], cpih: ["cpih"],
+  unemployment: ["unemployment"], employment: ["employment"], inactivity: ["inactivity"],
+  participation: ["participation"], unemployment_1624: ["unemployment_1624"],
+  debt_gdp: ["debt_gdp"], deficit: ["deficit"], net_debt: ["net_debt"], debt_interest: ["debt_interest"],
+  current_account: ["current_account"], fdi: ["fdi"],
+  trade_balance: ["trade_balance"], exports: ["exports"], imports: ["imports"],
+  business_confidence: ["business_confidence"], productivity: ["productivity"],
+  bond_yield_10y: ["bond_yield_10y"],
+  policy_rate: ["boe_rate", "fed_funds", "ecb_rate", "boj_rate", "overnight_rate", "rate"]
+};
+var CONCEPT_LABEL = {
+  gdp_level: "GDP level", gdp_real: "Real GDP level", gdp_growth: "GDP growth (annual, real)",
+  cpi: "Inflation (CPI)", core_cpi: "Core inflation", cpi_mom: "Inflation (month on month)", cpih: "Inflation (CPIH)",
+  unemployment: "Unemployment rate", employment: "Employment rate", inactivity: "Economic inactivity",
+  participation: "Labour force participation", unemployment_1624: "Youth unemployment (16-24)",
+  debt_gdp: "Government debt, % of GDP", deficit: "Government deficit, % of GDP",
+  net_debt: "Government net debt", debt_interest: "Government debt interest",
+  current_account: "Current account, % of GDP", fdi: "FDI, % of GDP",
+  trade_balance: "Trade balance", exports: "Exports", imports: "Imports",
+  business_confidence: "Business confidence", productivity: "Productivity",
+  bond_yield_10y: "10-year bond yield", policy_rate: "Policy rate"
+};
+var CONCEPT_UNIT = {
+  gdp_level:"currency", gdp_real:"currency", gdp_growth:"%", cpi:"%", core_cpi:"%", cpi_mom:"%", cpih:"%",
+  unemployment:"%", employment:"%", inactivity:"%", participation:"%", unemployment_1624:"%",
+  debt_gdp:"%", deficit:"%", net_debt:"currency", debt_interest:"currency",
+  current_account:"%", fdi:"%", trade_balance:"currency", exports:"currency", imports:"currency",
+  business_confidence:"index", productivity:"index", bond_yield_10y:"%", policy_rate:"%"
+};
+
+// Reverse-maps a raw series key (e.g. "boe_rate") back to its canonical
+// concept ("policy_rate") -- this is what lets the Add-metric nudge and
+// the map both recognise "these two different keys are really the same
+// underlying thing" for any key pinned onto the dashboard. gdp_growth
+// has no candidate-key list in CONCEPT_KEYS (Compare derives it from
+// gdp_real instead), but the raw gdp_growth key still deserves to be
+// recognised as that same concept here, since pinning it is exactly the
+// signal that the map/nudge should react to.
+var KEY_TO_CONCEPT = {gdp_growth: "gdp_growth"};
+Object.keys(CONCEPT_KEYS).forEach(function(concept){
+  var keys = CONCEPT_KEYS[concept];
+  if(!keys) return;
+  keys.forEach(function(k){ if(!KEY_TO_CONCEPT[k]) KEY_TO_CONCEPT[k] = concept; });
+});
+function conceptForKey(key){ return KEY_TO_CONCEPT[key] || null; }
+
+var ISO_OF = {UK:"826", US:"840", Eurozone:null, Japan:"392", India:"356", Canada:"124", Australia:"036",
+  "South Korea":"410", Israel:"376", Mexico:"484", Brazil:"076", "South Africa":"710", Morocco:"504",
+  Germany:"276", France:"250", Italy:"380", Spain:"724", Netherlands:"528"};
+
+function resolveKey(country, concept){
+  var candidates = CONCEPT_KEYS[concept];
+  if(!candidates) return null;
+  var reg = REGISTRY[country] || {};
+  for(var i = 0; i < candidates.length; i++){
+    if(reg[candidates[i]]) return candidates[i];
+  }
+  return null;
+}
+function yearOfPeriod(period){
+  var m = /^(\d{4})/.exec(period);
+  return m ? +m[1] : null;
+}
+var CURRENT_YEAR = null;
+function computeCurrentYear(){
+  var maxYear = 0;
+  ALL_COUNTRIES.forEach(function(c){
+    var reg = REGISTRY[c] || {};
+    Object.keys(reg).forEach(function(k){
+      var pts = reg[k].points;
+      if(pts.length){
+        var y = yearOfPeriod(pts[pts.length - 1][0]);
+        if(y && y > maxYear) maxYear = y;
+      }
+    });
+  });
+  return maxYear || new Date().getFullYear();
+}
+function yearAggregate_raw(points, y){
+  var matches = points.filter(function(p){ return yearOfPeriod(p[0]) === y; });
+  if(!matches.length) return null;
+  var sum = 0;
+  matches.forEach(function(p){ sum += p[1]; });
+  return sum / matches.length;
+}
+var SAAR_COUNTRIES = {US: true, Japan: true};
+function yearAggregateGDP(country, series, y){
+  if(series.freq !== "quarters" || SAAR_COUNTRIES[country]){
+    var yearPoints = series.points.filter(function(p){ return yearOfPeriod(p[0]) === y; });
+    if(!yearPoints.length) return null;
+    return yearPoints[yearPoints.length - 1][1];
+  }
+  var eligible = series.points.filter(function(p){ return yearOfPeriod(p[0]) <= y; });
+  if(eligible.length < 4) return null;
+  var last4 = eligible.slice(-4);
+  if(yearOfPeriod(last4[last4.length - 1][0]) !== y) return null;
+  var sum = 0;
+  last4.forEach(function(p){ sum += p[1]; });
+  return sum;
+}
+function yearAggregate(country, concept, y){
+  var key = resolveKey(country, concept);
+  if(!key) return null;
+  var series = REGISTRY[country][key];
+  var val = (concept === "gdp_level" || concept === "gdp_real")
+    ? yearAggregateGDP(country, series, y)
+    : yearAggregate_raw(series.points, y);
+  if(val == null) return null;
+  return {value: val, unit: series.unit};
+}
+function toUSDValue(country, rawValue){
+  if(country === "US") return rawValue;
+  var fx = FX_RATES[country];
+  if(!fx || !fx.rate) return null;
+  return fx.direction === "multiply" ? rawValue * fx.rate : rawValue / fx.rate;
+}
+function toUSDMillions(country, rawValue, unitStr){
+  var normalized = rawValue * (scaleOf(unitStr) / 1e6);
+  return toUSDValue(country, normalized);
+}
+function axisTickLabel(v, concept, forcePercent){
+  var decimals = (concept === "policy_rate" || concept === "bond_yield_10y") ? 2 : 1;
+  var rounded = +v.toFixed(decimals);
+  var suffix = (forcePercent || CONCEPT_UNIT[concept] === "%") ? "%" : "";
+  return rounded + suffix;
+}
+function suffixFor(dv){
+  if(!dv) return "";
+  if(dv.unit === "%") return (dv.isDelta && !dv.isCumulative) ? "pp" : "%";
+  if(dv.unit === "index") return dv.isDelta ? " pts" : "";
+  return "";
+}
+function displayString(dv){
+  if(!dv) return "n/a";
+  var sign = dv.isDelta && dv.value > 0 ? "+" : "";
+  if(dv.unit === "currency" && !dv.isDelta) return curFmt(dv.value, dv.rawUnit || "$bn", 2);
+  return sign + dv.value + suffixFor(dv);
+}
+function annualizedGDPHistory(country, series){
+  if(series.freq !== "quarters" || SAAR_COUNTRIES[country]) return series.points;
+  var out = [];
+  for(var i = 3; i < series.points.length; i++){
+    var sum = series.points[i][1] + series.points[i-1][1] + series.points[i-2][1] + series.points[i-3][1];
+    out.push([series.points[i][0], sum]);
+  }
+  return out;
+}
+function historyPoints(country, concept){
+  if(concept === "gdp_growth"){
+    var reg = REGISTRY[country];
+    return (reg && reg.gdp_growth) ? reg.gdp_growth.points : null;
+  }
+  if(concept === "gdp_level" || concept === "gdp_real"){
+    var key1 = resolveKey(country, concept);
+    if(!key1) return null;
+    return annualizedGDPHistory(country, REGISTRY[country][key1]);
+  }
+  var key2 = resolveKey(country, concept);
+  return key2 ? REGISTRY[country][key2].points : null;
+}
+function getMapValueForYear(country, concept, y){
+  if(concept === "gdp_growth"){
+    var real = REGISTRY[country] && REGISTRY[country].gdp_real;
+    if(!real) return null;
+    var level = yearAggregate_raw(real.points, y);
+    var prevLevel = yearAggregate_raw(real.points, y - 1);
+    if(level == null || prevLevel == null || !prevLevel) return null;
+    var g = Math.round((level / prevLevel - 1) * 1000) / 10;
+    return {value: g, isDelta: false, isCumulative: false, year: y, unit: "%"};
+  }
+  var agg = yearAggregate(country, concept, y);
+  if(!agg) return null;
+  if(CONCEPT_UNIT[concept] === "currency"){
+    var usdVal = toUSDMillions(country, agg.value, agg.unit);
+    if(usdVal == null) return null;
+    return {value: Math.round(usdVal * 100) / 100, isDelta: false, isCumulative: false, year: y, unit: "currency", rawUnit: "$m"};
+  }
+  return {value: Math.round(agg.value * 100) / 100, isDelta: false, isCumulative: false, year: y, unit: CONCEPT_UNIT[concept], rawUnit: agg.unit};
+}
+function comparableYearsForMetric(concept){
+  var mappable = selected.filter(function(c){ return ISO_OF[c]; });
+  var countPerYear = {};
+  mappable.forEach(function(c){
+    var pts = historyPoints(c, concept);
+    if(!pts || !pts.length) return;
+    var yearsSeen = {};
+    pts.forEach(function(p){ yearsSeen[yearOfPeriod(p[0])] = true; });
+    Object.keys(yearsSeen).forEach(function(y){ countPerYear[y] = (countPerYear[y] || 0) + 1; });
+  });
+  return Object.keys(countPerYear)
+    .filter(function(y){ return countPerYear[y] >= 2; })
+    .map(Number).sort(function(a, b){ return a - b; });
+}
+function computeEarliestYearForMetric(concept){
+  var validYears = comparableYearsForMetric(concept);
+  return validYears.length ? validYears[0] : CURRENT_YEAR - 10;
+}
+function metricHasComparableYear(concept){
+  return comparableYearsForMetric(concept).length > 0;
+}
+
+// `selected` = the distinct countries currently represented among pinned
+// tiles; `dashConcepts` = the distinct canonical concepts currently
+// represented (via conceptForKey), deduping e.g. UK's boe_rate and US's
+// fed_funds into the single concept "policy_rate". Both are recomputed
+// every time the pinned set changes, immediately before the map re-renders,
+// so the map always mirrors exactly what's currently pinned -- never a
+// separately-maintained selection of its own.
+var selected = [];
+var dashConcepts = [];
+function updateMapSelectionFromPinned(){
+  var countrySet = {}, conceptSet = {};
+  pinned.forEach(function(id){
+    var m = tileFromId(id);
+    if(!m) return;
+    countrySet[m.country] = true;
+    var concept = conceptForKey(m.key);
+    if(concept) conceptSet[concept] = true;
+  });
+  selected = Object.keys(countrySet);
+  dashConcepts = Object.keys(conceptSet);
+}
+function getMapMetricsAvailable(){
+  return dashConcepts.filter(metricHasComparableYear);
+}
+
+var mapMetric = null;
+function renderMapMetricRow(){
+  var row = document.getElementById("mapMetricRow");
+  row.innerHTML = "";
+  var available = getMapMetricsAvailable();
+  if(available.indexOf(mapMetric) === -1) mapMetric = available[0] || null;
+  available.forEach(function(concept){
+    var b = document.createElement("button");
+    b.type = "button";
+    b.className = "" + (concept === mapMetric ? " active" : "");
+    b.textContent = CONCEPT_LABEL[concept];
+    b.addEventListener("click", function(){
+      mapMetric = concept;
+      renderMapMetricRow();
+      updateMapYearSliderBounds();
+      drawHeatmap();
+    });
+    row.appendChild(b);
+  });
+}
+
+var mapYear = null;
+var mapZoomBehavior = null;
+var mapZoomTransform = null;
+function updateMapYearSliderBounds(){
+  var slider = document.getElementById("mapYearSlider");
+  if(!slider || !mapMetric) return;
+  var min = computeEarliestYearForMetric(mapMetric);
+  slider.min = min;
+  if(mapYear == null || mapYear < min) mapYear = min;
+  slider.value = mapYear;
+  document.getElementById("mapYearLabel").textContent = mapYear;
+}
+function initMapYearSlider(){
+  var slider = document.getElementById("mapYearSlider");
+  slider.max = CURRENT_YEAR;
+  mapYear = CURRENT_YEAR;
+  updateMapYearSliderBounds();
+  slider.addEventListener("input", function(){
+    mapYear = +slider.value;
+    document.getElementById("mapYearLabel").textContent = mapYear;
+    drawHeatmap();
+  });
+}
+
+var worldData = null;
+function drawHeatmap(){
+  if(!worldData || mapYear == null) return;
+  var svg = d3.select("#heatmapSvg");
+  svg.selectAll("*").remove();
+
+  if(!mapMetric){
+    document.getElementById("legendLo").textContent = "";
+    document.getElementById("legendHi").textContent = "";
+    return;
+  }
+
+  var mappable = selected.filter(function(c){ return ISO_OF[c]; });
+  var dvByCountry = {};
+  mappable.forEach(function(c){ dvByCountry[c] = getMapValueForYear(c, mapMetric, mapYear); });
+  var vals = mappable
+    .map(function(c){ return dvByCountry[c] ? dvByCountry[c].value : null; })
+    .filter(function(v){ return v != null; });
+  var lo = vals.length ? Math.min.apply(null, vals) : 0;
+  var hi = vals.length ? Math.max.apply(null, vals) : 0;
+  var colorScale = d3.scaleSequential().domain([lo, hi]).interpolator(d3.interpolateRgbBasis(["#EAF3E9", "#8AD9B1", "#348FA7", "#37659E", "#2E1E3B"]));
+
+  var lowRep = dvByCountry[mappable.filter(function(c){ return dvByCountry[c] && dvByCountry[c].value === lo; })[0]];
+  var hiRep = dvByCountry[mappable.filter(function(c){ return dvByCountry[c] && dvByCountry[c].value === hi; })[0]];
+  function legendText(v, rep){
+    if(!vals.length) return "n/a";
+    if(CONCEPT_UNIT[mapMetric] === "currency") return curFmt(v, (rep && rep.rawUnit) || "$m", 1);
+    return axisTickLabel(v, mapMetric);
+  }
+  document.getElementById("legendLo").textContent = legendText(lo, lowRep);
+  document.getElementById("legendHi").textContent = legendText(hi, hiRep);
+
+  var isoToCountry = {};
+  mappable.forEach(function(c){ isoToCountry[ISO_OF[c]] = c; });
+
+  var projection = d3.geoNaturalEarth1().fitSize([960, 500], {type: "Sphere"});
+  var path = d3.geoPath(projection);
+  var countries = topojson.feature(worldData, worldData.objects.countries).features;
+  var tip = document.getElementById("heatTip");
+
+  var g = svg.append("g").attr("class", "zoom-layer");
+
+  g.selectAll("path").data(countries).join("path")
+    .attr("d", path)
+    .attr("fill", function(f){
+      var c = isoToCountry[f.id];
+      if(!c) return "#E9EBE7";
+      var dv = dvByCountry[c];
+      return dv ? colorScale(dv.value) : "#E9EBE7";
+    })
+    .attr("stroke", "#fff").attr("stroke-width", 0.6)
+    .style("cursor", function(f){ return isoToCountry[f.id] ? "pointer" : "default"; })
+    .on("mousemove", function(e, f){
+      var c = isoToCountry[f.id];
+      if(!c){ tip.style.display = "none"; return; }
+      var dv = dvByCountry[c];
+      tip.style.display = "block";
+      tip.style.left = (e.offsetX + 14) + "px";
+      tip.style.top = (e.offsetY + 10) + "px";
+      tip.innerHTML = "<strong>" + c + "</strong><br>" + CONCEPT_LABEL[mapMetric] + ": " + (dv ? displayString(dv) : "n/a");
+    })
+    .on("mouseleave", function(){ tip.style.display = "none"; });
+
+  if(!mapZoomBehavior){
+    mapZoomBehavior = d3.zoom().scaleExtent([1, 8]).on("zoom", function(e){
+      mapZoomTransform = e.transform;
+      d3.select("#heatmapSvg").select(".zoom-layer").attr("transform", e.transform);
+    });
+  }
+  svg.call(mapZoomBehavior);
+  if(mapZoomTransform) svg.call(mapZoomBehavior.transform, mapZoomTransform);
+}
+try {
+  document.getElementById("mapZoomIn").addEventListener("click", function(){
+    d3.select("#heatmapSvg").transition().duration(200).call(mapZoomBehavior.scaleBy, 1.5);
+  });
+  document.getElementById("mapZoomOut").addEventListener("click", function(){
+    d3.select("#heatmapSvg").transition().duration(200).call(mapZoomBehavior.scaleBy, 1/1.5);
+  });
+  document.getElementById("mapZoomReset").addEventListener("click", function(){
+    mapZoomTransform = d3.zoomIdentity;
+    d3.select("#heatmapSvg").transition().duration(200).call(mapZoomBehavior.transform, d3.zoomIdentity);
+  });
+} catch(e) { console.error("Map zoom button wiring failed:", e); }
+
+function updateMapCardSub(){
+  var mappableCount = selected.filter(function(c){ return ISO_OF[c]; }).length;
+  var el = document.getElementById("mapCardSub");
+  if(!el) return;
+  el.textContent = "Darker = higher. " + (mappableCount
+    ? "Showing " + mappableCount + " of your " + selected.length + " pinned countries with a single geography; everywhere else is left blank."
+    : "None of your currently pinned countries have a single geography to colour (e.g. only the Eurozone is pinned).");
+}
+
+// The map card only appears once 2+ pinned tiles genuinely share a
+// concept with a comparable year -- otherwise it stays hidden rather
+// than showing an empty, confusing map.
+function renderMapCard(){
+  updateMapSelectionFromPinned();
+  var card = document.getElementById("mapCard");
+  var available = getMapMetricsAvailable();
+  if(!available.length){
+    card.style.display = "none";
+    return;
+  }
+  card.style.display = "block";
+  renderMapMetricRow();
+  updateMapYearSliderBounds();
+  updateMapCardSub();
+  drawHeatmap();
+}
+/* ==================== end cross-country concept engine + map ================ */
 
 function tileId(country, key){ return country + "::" + key; }
 function tileFromId(id){
@@ -651,12 +1210,19 @@ function expandTile(tile, id, m){
     var chartUnit = toDisplayUnit(0, m.series.unit, m.country).unit;
     var kind = BAR_KEYS[m.key] ? "bar" : "line";
     var refLine = REF_LINE_FOR[m.key] == null ? null : REF_LINE_FOR[m.key];
-    var chart = new Chart(canvas, buildChartConfig(kind, pts, refLine, chartUnit, m.key));
+    var fmt = function(v){ return fmtVal(v, chartUnit, m.key); };
+    var chart = (kind === "bar" ? barChart : lineChart)(canvas, pts, fmt, fmt, refLine);
     tileCharts[id] = chart;
     wireRangePresets(tile, pts, kind, chart);
     tile.querySelector(".resetzoom").addEventListener("click", function(){
       if(chart.resetZoom) chart.resetZoom();
     });
+    CHART_REGISTRY[id] = {
+      pts: pts, kind: kind, fmtY: fmt, fmtTip: fmt, refLine: refLine,
+      title: m.series.label + (dollarise && chartUnit !== m.series.unit ? " (USD)" : ""),
+      country: m.country,
+      srcNote: m.series.label + ", " + m.country + " (live data feed)."
+    };
   }
 }
 
@@ -676,6 +1242,7 @@ function renderDash(){
       + "<p class=\"value\">" + fmtVal(disp.value, disp.unit, m.key) + "</p>"
       + "<p class=\"period\">" + fmtPeriod(m.period) + "</p>"
       + "<button type=\"button\" class=\"chartbtn\">&#128200; View chart</button>"
+      + "<button type=\"button\" class=\"fullscreenbtn\" aria-label=\"Fullscreen chart\" title=\"Fullscreen\">&#9974; Fullscreen</button>"
       + "<div class=\"chartbox\"><canvas></canvas></div>"
       + "<div class=\"charttools\">"
       + "<div class=\"rangepresets\">" + rangePresetsHtml() + "</div>"
@@ -689,6 +1256,7 @@ function renderDash(){
       savePinned();
       delete expandedTiles[id];
       if(tileCharts[id]){ tileCharts[id].destroy(); delete tileCharts[id]; }
+      delete CHART_REGISTRY[id];
       renderDash();
     });
     tile.querySelector(".chartbtn").addEventListener("click", function(){
@@ -700,6 +1268,10 @@ function renderDash(){
         delete expandedTiles[id];
         tile.querySelector(".chartbtn").innerHTML = "&#128200; View chart";
       }
+    });
+    tile.querySelector(".fullscreenbtn").addEventListener("click", function(){
+      if(!tileCharts[id]) expandTile(tile, id, m);
+      openChartModal(id);
     });
 
     if(expandedTiles[id]) expandTile(tile, id, m);
@@ -713,9 +1285,15 @@ function renderDash(){
   addTile.addEventListener("click", function(){
     document.getElementById("picker").hidden = false;
     document.body.style.overflow = "hidden";
+    hideNudge();
     refreshPicker();
   });
   grid.appendChild(addTile);
+
+  // The map always mirrors whatever's currently pinned, so it re-renders
+  // (or hides itself) on every single call to renderDash -- add a metric,
+  // remove one, or toggle Dollarise, and the map is never out of sync.
+  renderMapCard();
 }
 
 /* -------------------------------- picker ----------------------------------- */
@@ -725,6 +1303,7 @@ document.getElementById("pickerSearch").addEventListener("input", refreshPickerG
 function closeDashPicker(){
   document.getElementById("picker").hidden = true;
   document.body.style.overflow = "";
+  hideNudge();
 }
 document.getElementById("pickerClose").addEventListener("click", closeDashPicker);
 document.getElementById("pickerBackdrop").addEventListener("click", closeDashPicker);
@@ -828,6 +1407,57 @@ function refreshPickerGrid(){
 // groupFn(it) returns the section a given item belongs in; groupOrder is
 // the full, ordered list of possible section names (some may have no
 // items at all this time round, and are simply skipped).
+// Nudge, ported conceptually from the map's own concept engine: once a
+// metric is pinned, checks whether the SAME canonical concept exists for
+// any other country (e.g. pinning UK's boe_rate surfaces US's fed_funds,
+// the ECB's ecb_rate, etc., all recognised as "policy_rate" via
+// conceptForKey) and offers one-click chips to pin those too -- a nudge
+// toward building genuinely comparable, map-ready sets rather than a
+// silent hope the user discovers this themselves.
+function resolveKeyForNudge(country, concept){
+  if(concept === "gdp_growth") return (REGISTRY[country] && REGISTRY[country].gdp_growth) ? "gdp_growth" : null;
+  return resolveKey(country, concept);
+}
+function hideNudge(){
+  document.getElementById("pickerNudge").classList.remove("show");
+}
+function showNudgeFor(country, key){
+  var concept = conceptForKey(key);
+  if(!concept){ hideNudge(); return; }
+  var others = ALL_COUNTRIES.filter(function(c){
+    return c !== country && resolveKeyForNudge(c, concept) != null;
+  });
+  if(!others.length){ hideNudge(); return; }
+  document.getElementById("nudgeTitle").textContent =
+    "\uD83C\uDF0D " + CONCEPT_LABEL[concept] + " is also tracked for " + others.length
+    + (others.length === 1 ? " other country:" : " other countries:");
+  var chipsEl = document.getElementById("nudgeChips");
+  chipsEl.innerHTML = "";
+  others.forEach(function(c){
+    var k = resolveKeyForNudge(c, concept);
+    var s = REGISTRY[c][k];
+    var last = s.points[s.points.length - 1];
+    var id = tileId(c, k);
+    var added = pinned.indexOf(id) !== -1;
+    var chip = document.createElement("button");
+    chip.type = "button";
+    chip.className = "nudgechip" + (added ? " added" : "");
+    chip.textContent = c + ": " + fmtVal(last[1], s.unit, k) + (added ? " \u2713" : " +");
+    if(!added){
+      chip.addEventListener("click", function(){
+        pinned.push(id);
+        savePinned();
+        renderDash();
+        refreshPickerGrid();
+        showNudgeFor(country, key); // refresh chip states in place (now shows as added)
+      });
+    }
+    chipsEl.appendChild(chip);
+  });
+  document.getElementById("pickerNudge").classList.add("show");
+}
+document.getElementById("nudgeClose").addEventListener("click", hideNudge);
+
 function renderPickerItems(items, pgrid, groupFn, groupOrder, isSearchMode){
   if(!items.length){
     pgrid.innerHTML = "<p class=\"pickerempty\">" + (isSearchMode ? "Nothing matches that search." : "Nothing available here yet.") + "</p>";
@@ -859,6 +1489,7 @@ function renderPickerItems(items, pgrid, groupFn, groupOrder, isSearchMode){
           // out without losing your search text, mode, or country/
           // category selection.
           refreshPickerGrid();
+          showNudgeFor(it.country, it.key);
         });
       }
       pgrid.appendChild(div);
@@ -870,9 +1501,16 @@ function renderPickerItems(items, pgrid, groupFn, groupOrder, isSearchMode){
 }
 
 /* --------------------------------- boot ------------------------------------ */
+function fetchWithTimeout(url, ms){
+  return Promise.race([
+    fetch(url, {cache: "no-store"}),
+    new Promise(function(_, reject){ setTimeout(function(){ reject(new Error("timed out after " + ms + "ms")); }, ms); })
+  ]);
+}
 loadAll().then(function(){
   document.getElementById("loadMsg").style.display = "none";
   document.getElementById("dashGrid").style.display = "grid";
+  CURRENT_YEAR = computeCurrentYear();
 
   var dollarBtn = document.getElementById("dollariseBtn");
   function updateDollarBtn(){
@@ -905,7 +1543,18 @@ loadAll().then(function(){
     // the same change made to Compare.
     pinned = [];
   }
+  try { initMapYearSlider(); } catch(e) { console.error("initMapYearSlider failed:", e); }
   renderDash();
+
+  // The map card's metric row / year slider work immediately (they only
+  // need REGISTRY, already loaded); the actual coloured geography needs
+  // the world-atlas topojson, fetched separately so a slow/blocked CDN
+  // can't hold up the rest of the dashboard. If it fails, the map card
+  // still shows its controls with a blank map rather than not appearing.
+  fetchWithTimeout("https://cdn.jsdelivr.net/npm/world-atlas@2/countries-110m.json", 12000)
+    .then(function(r){ return r.json(); })
+    .then(function(world){ worldData = world; renderMapCard(); })
+    .catch(function(err){ console.warn("World map data failed to load:", err); });
 }).catch(function(err){
   document.getElementById("loadMsg").textContent = "Couldn't load the site's data files. If you're viewing this locally, make sure data.json, data-us.json, data-ez.json, data-jp.json, data-in.json, data-ca.json, data-au.json, data-kr.json, data-il.json, data-mx.json, data-br.json, data-za.json, data-ma.json, data-de.json, data-fr.json, data-it.json, data-es.json and data-nl.json are in the same folder as this page.";
   console.error(err);
