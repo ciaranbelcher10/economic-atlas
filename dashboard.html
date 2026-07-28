@@ -43,11 +43,13 @@
 .tile .label{font-size:13px; color:var(--ink2); margin:6px 0 8px; padding-right:26px;}
 .tile .value{font-size:26px; font-weight:700; color:var(--ink);}
 .tile .period{font-size:11.5px; color:var(--ink2); margin-top:4px;}
-.tile .chartbtn{margin-top:12px; border:1px solid var(--hair); background:var(--paper); color:var(--blue);
+.tile .chartactions{margin-top:12px;}
+.tile.expanded .chartactions{display:flex; justify-content:flex-end; gap:8px; margin-top:14px;}
+.tile .chartbtn{border:1px solid var(--hair); background:var(--paper); color:var(--blue);
   font:600 12px "Avenir Next","Avenir","Nunito Sans",sans-serif; padding:6px 13px; border-radius:999px; cursor:pointer;
   display:inline-flex; align-items:center; gap:6px;}
 .tile .chartbtn:hover{border-color:var(--blue);}
-.tile .fullscreenbtn{margin-top:12px; margin-left:8px; border:1px solid var(--hair); background:var(--paper);
+.tile .fullscreenbtn{border:1px solid var(--hair); background:var(--paper);
   color:var(--ink2); font:600 12px "Avenir Next","Avenir","Nunito Sans",sans-serif; padding:6px 10px;
   border-radius:999px; cursor:pointer; display:none; align-items:center; gap:6px;}
 .tile.expanded .fullscreenbtn{display:inline-flex;}
@@ -110,6 +112,11 @@
   margin:14px 0 8px; grid-column:1 / -1;}
 .pickercat:first-child{margin-top:0;}
 .pickergrid{display:grid; grid-template-columns:repeat(2,1fr); gap:10px; max-height:400px; overflow-y:auto; padding-right:4px;}
+.pickergrid-wrap{position:relative;}
+.pickerletter{position:absolute; top:10px; right:6px; width:26px; height:26px; border-radius:50%;
+  background:var(--navy); color:#fff; font:700 12.5px "Avenir Next","Avenir","Nunito Sans",sans-serif;
+  display:none; align-items:center; justify-content:center; pointer-events:none; box-shadow:0 2px 8px rgba(0,0,0,.25); z-index:2;}
+.pickerletter.show{display:flex;}
 .pickeritem{border:1px solid var(--hair); border-radius:10px; padding:10px 12px; cursor:pointer; font-size:13px;
   background:var(--paper);}
 .pickeritem:hover{border-color:var(--blue); background:#F0F6FA;}
@@ -138,6 +145,8 @@
 .chart-modal-src{font-size:12.5px; color:var(--ink2); margin:0;}
 
 /* ---- cross-country map card, ported from Compare ---- */
+:root{ --map-nodata: #E9EBE7; }
+html[data-theme="dark"]{ --map-nodata: #3A3F44; }
 .map-card{background:var(--panel); border:1px solid var(--hair); border-radius:14px;
   padding:18px 20px; position:relative; margin-top:18px; display:none;}
 .map-card h3{font-size:14.5px; margin:0 0 4px;}
@@ -160,7 +169,7 @@
 .mapzoom-controls button:hover{border-color:var(--blue); color:var(--navy);}
 #mapZoomReset{width:auto; font-size:10px; padding:0 6px;}
 .legend-bar{width:180px; height:10px; border-radius:5px;
-  background:linear-gradient(90deg,#EAF3E9,#8AD9B1,#348FA7,#37659E,#2E1E3B);}
+  background:linear-gradient(90deg, var(--mako-7), var(--mako-6), var(--mako-4), var(--mako-3), var(--mako-1));}
 #heatTip{position:absolute; pointer-events:none; background:var(--panel); color:var(--ink); border:1px solid var(--hair); border-radius:8px;
   padding:8px 11px; font-size:12.5px; box-shadow:0 6px 18px rgba(0,0,0,.12); display:none; z-index:5;}
 
@@ -400,7 +409,10 @@ footer.dash-foot{margin-top:36px; font-size:12.5px; color:var(--ink2); border-to
           <select id="pickerSelect"></select>
         </div>
       </div>
-      <div class="pickergrid" id="pickerGrid"></div>
+      <div class="pickergrid-wrap">
+        <div class="pickergrid" id="pickerGrid"></div>
+        <div class="pickerletter" id="pickerLetterBadge"></div>
+      </div>
     </div>
   </div>
 
@@ -436,6 +448,17 @@ var INK = _cs.getPropertyValue("--ink").trim() || "#171B1E";
 var INK2 = _cs.getPropertyValue("--ink2").trim() || "#5A6167";
 var HAIR = _cs.getPropertyValue("--hair").trim() || "#E7E9E4";
 var PANEL_BG = _cs.getPropertyValue("--panel").trim() || "#fff";
+// Map gradient/no-data colours read live from the same --mako-*/--hair-
+// style CSS variables the rest of the site's dark mode already defines,
+// rather than hardcoded hex -- in light mode these resolve to the exact
+// same values that were hardcoded before, but in dark mode the lightest
+// gradient stop becomes a genuinely dark, saturated colour (not a pale
+// near-white), so it no longer blends into the no-data grey the way the
+// old hardcoded light-mode-only palette did.
+var MAP_STOPS = ["--mako-7", "--mako-6", "--mako-4", "--mako-3", "--mako-1"].map(function(v){
+  return _cs.getPropertyValue(v).trim() || "#EAF3E9";
+});
+var MAP_NODATA = _cs.getPropertyValue("--map-nodata").trim() || "#E9EBE7";
 var MAKO = {deep: "#2E1E3B", indigo: "#413D7B", blue: "#37659E", sea: "#348FA7", teal: "#40B7AD", mint: "#8AD9B1"};
 var LINE = MAKO.blue, BAR_UP = MAKO.sea, BAR_DOWN = MAKO.indigo;
 function year(p){ return p.slice(0, 4); }
@@ -700,7 +723,7 @@ function loadAll(){
   }));
 }
 
-var ALL_COUNTRIES = Object.keys(FILES);
+var ALL_COUNTRIES = Object.keys(FILES).sort();
 
 /* ==================== cross-country concept engine + map ==================== */
 /* Ported from Compare: the exact same candidate-key resolution, GDP          */
@@ -1000,7 +1023,7 @@ function drawHeatmap(){
     .filter(function(v){ return v != null; });
   var lo = vals.length ? Math.min.apply(null, vals) : 0;
   var hi = vals.length ? Math.max.apply(null, vals) : 0;
-  var colorScale = d3.scaleSequential().domain([lo, hi]).interpolator(d3.interpolateRgbBasis(["#EAF3E9", "#8AD9B1", "#348FA7", "#37659E", "#2E1E3B"]));
+  var colorScale = d3.scaleSequential().domain([lo, hi]).interpolator(d3.interpolateRgbBasis(MAP_STOPS));
 
   var lowRep = dvByCountry[mappable.filter(function(c){ return dvByCountry[c] && dvByCountry[c].value === lo; })[0]];
   var hiRep = dvByCountry[mappable.filter(function(c){ return dvByCountry[c] && dvByCountry[c].value === hi; })[0]];
@@ -1026,9 +1049,9 @@ function drawHeatmap(){
     .attr("d", path)
     .attr("fill", function(f){
       var c = isoToCountry[f.id];
-      if(!c) return "#E9EBE7";
+      if(!c) return MAP_NODATA;
       var dv = dvByCountry[c];
-      return dv ? colorScale(dv.value) : "#E9EBE7";
+      return dv ? colorScale(dv.value) : MAP_NODATA;
     })
     .attr("stroke", "#fff").attr("stroke-width", 0.6)
     .style("cursor", function(f){ return isoToCountry[f.id] ? "pointer" : "default"; })
@@ -1131,7 +1154,17 @@ function curFmt(rawValue, unitStr, decimals){
   return sign + symbol + (a/1e6).toFixed(0) + "m";
 }
 function isCurrencyUnit(u){
-  return u !== "%" && u !== "index" && /(m|bn|tn)$/.test(u);
+  if(u === "%" || u === "index") return false;
+  // Most currency series already carry a tn/bn/m scale suffix (e.g.
+  // "£bn"), but a few (Israel and Morocco's World Bank GDP, pulled as
+  // NY.GDP.MKTP.CD "current US$") come through as a plain currency
+  // symbol with no scale suffix at all, since the raw figure is already
+  // a full dollar amount rather than pre-scaled millions/billions. That
+  // second form was falling through fmtVal's generic "v + unit" branch
+  // instead of curFmt's tn/bn/m auto-tiering -- this now recognises
+  // both: an explicit scale suffix, OR a unit that's just a bare
+  // currency symbol (starts with a non-alphanumeric character).
+  return /(m|bn|tn)$/.test(u) || /^[^a-zA-Z0-9]/.test(u);
 }
 // Rates and yields specifically use 2 decimal places everywhere on the
 // site (confirmed across all 8 country pages: boe_rate, fed_funds,
@@ -1145,6 +1178,10 @@ function fmtVal(v, unit, key){
   if(!unit) return String(v);
   if(unit === "%") return v.toFixed(key && TWO_DECIMAL_KEYS[key] ? 2 : 1) + "%";
   if(isCurrencyUnit(unit)) return curFmt(v, unit, 1);
+  // Plain indices (business confidence, productivity) were falling
+  // through to raw, unrounded values (e.g. "97.63978 index") -- rounds
+  // to the same 1-decimal convention used everywhere else on the site.
+  if(unit === "index") return v.toFixed(1) + " index";
   return v + " " + unit;
 }
 
@@ -1241,8 +1278,10 @@ function renderDash(){
       + "<p class=\"label\">" + m.series.label + (dollarise && disp.unit !== m.series.unit ? " (USD)" : "") + "</p>"
       + "<p class=\"value\">" + fmtVal(disp.value, disp.unit, m.key) + "</p>"
       + "<p class=\"period\">" + fmtPeriod(m.period) + "</p>"
+      + "<div class=\"chartactions\">"
       + "<button type=\"button\" class=\"chartbtn\">&#128200; View chart</button>"
       + "<button type=\"button\" class=\"fullscreenbtn\" aria-label=\"Fullscreen chart\" title=\"Fullscreen\">&#9974; Fullscreen</button>"
+      + "</div>"
       + "<div class=\"chartbox\"><canvas></canvas></div>"
       + "<div class=\"charttools\">"
       + "<div class=\"rangepresets\">" + rangePresetsHtml() + "</div>"
@@ -1461,6 +1500,7 @@ document.getElementById("nudgeClose").addEventListener("click", hideNudge);
 function renderPickerItems(items, pgrid, groupFn, groupOrder, isSearchMode){
   if(!items.length){
     pgrid.innerHTML = "<p class=\"pickerempty\">" + (isSearchMode ? "Nothing matches that search." : "Nothing available here yet.") + "</p>";
+    updateLetterBadge();
     return;
   }
   var any = false;
@@ -1498,7 +1538,31 @@ function renderPickerItems(items, pgrid, groupFn, groupOrder, isSearchMode){
   if(!any){
     pgrid.innerHTML = "<p class=\"pickerempty\">" + (isSearchMode ? "Nothing matches that search." : "Nothing available here yet.") + "</p>";
   }
+  updateLetterBadge();
 }
+// Floating "current letter" badge over the scrollable picker grid --
+// tracks whichever section heading (a country name in "By metric" mode,
+// a category in "By country" mode, or the country a search result
+// belongs to) is currently at the top of the visible scroll area, so
+// scrolling a long alphabetical list stays orientated the way an
+// address-book-style A-Z index does.
+function updateLetterBadge(){
+  var grid = document.getElementById("pickerGrid");
+  var badge = document.getElementById("pickerLetterBadge");
+  var headings = Array.prototype.slice.call(grid.querySelectorAll(".pickercat"));
+  if(!headings.length || grid.scrollHeight <= grid.clientHeight + 2){
+    badge.classList.remove("show");
+    return;
+  }
+  var gridTop = grid.getBoundingClientRect().top;
+  var current = headings[0];
+  headings.forEach(function(h){
+    if(h.getBoundingClientRect().top - gridTop <= 6) current = h;
+  });
+  badge.textContent = current.textContent.trim().charAt(0).toUpperCase();
+  badge.classList.add("show");
+}
+document.getElementById("pickerGrid").addEventListener("scroll", updateLetterBadge);
 
 /* --------------------------------- boot ------------------------------------ */
 function fetchWithTimeout(url, ms){
