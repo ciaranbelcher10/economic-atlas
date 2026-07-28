@@ -98,11 +98,14 @@
 .pickerselect label{display:block; font-size:11.5px; font-weight:700; color:var(--ink2); text-transform:uppercase;
   letter-spacing:.03em; margin-bottom:6px;}
 
+.pickercat{font-size:11px; font-weight:700; color:var(--ink2); text-transform:uppercase; letter-spacing:.04em;
+  margin:14px 0 8px; grid-column:1 / -1;}
+.pickercat:first-child{margin-top:0;}
 .pickergrid{display:grid; grid-template-columns:repeat(2,1fr); gap:10px; max-height:400px; overflow-y:auto; padding-right:4px;}
 .pickeritem{border:1px solid var(--hair); border-radius:10px; padding:10px 12px; cursor:pointer; font-size:13px;
   background:var(--paper);}
 .pickeritem:hover{border-color:var(--blue); background:#F0F6FA;}
-.pickeritem .c{font-size:10px; font-weight:700; color:var(--blue); text-transform:uppercase;}
+.pickeritem.added{opacity:.45; cursor:default; pointer-events:none;}
 .pickeritem .e{font-size:12px; color:var(--ink2); margin-top:4px; font-weight:400; text-transform:none;}
 .pickerempty{font-size:13px; color:var(--ink2); font-style:italic; grid-column:1 / -1;}
 
@@ -773,81 +776,96 @@ function refreshPickerGrid(){
   if(searchTerm){
     // Search overrides the browse mode entirely -- matches against
     // country name, category, and the metric's own real label, across
-    // every country and every metric at once.
+    // every country and every metric at once. Still shows already-
+    // pinned matches (greyed out) rather than hiding them, same as
+    // browse mode, so a search doesn't quietly disappear something
+    // you'd already added.
     pickerSelectWrap.style.display = "none";
     modeToggle.style.opacity = "0.4";
     ALL_COUNTRIES.forEach(function(country){
       Object.keys(REGISTRY[country] || {}).forEach(function(key){
-        var id = tileId(country, key);
-        if(pinned.indexOf(id) !== -1) return;
         var s = REGISTRY[country][key];
         var haystack = (country + " " + categoryOf(key) + " " + s.label).toLowerCase();
-        if(haystack.indexOf(searchTerm) !== -1) items.push({id: id, country: country, key: key});
+        if(haystack.indexOf(searchTerm) !== -1) items.push({id: tileId(country, key), country: country, key: key});
       });
     });
     items.sort(function(a, b){
       if(a.country !== b.country) return a.country.localeCompare(b.country);
       return REGISTRY[a.country][a.key].label.localeCompare(REGISTRY[b.country][b.key].label);
     });
-    renderPickerItems(items, pgrid, true);
+    renderPickerItems(items, pgrid, function(it){ return it.country; }, ALL_COUNTRIES, true);
     return;
   }
   pickerSelectWrap.style.display = "";
   modeToggle.style.opacity = "1";
 
   if(pickerMode === "country"){
+    // Grouped by category, matching Compare's picker exactly -- a
+    // section heading per category, with that country's metrics inside
+    // it, rather than a small per-item tag repeating the category name
+    // on every single card.
     var country = sel.value;
     Object.keys(REGISTRY[country] || {}).forEach(function(key){
-      var id = tileId(country, key);
-      if(pinned.indexOf(id) === -1) items.push({id: id, country: country, key: key});
+      items.push({id: tileId(country, key), country: country, key: key});
     });
-    items.sort(function(a, b){
-      var ca = categoryOf(a.key), cb = categoryOf(b.key);
-      if(ca !== cb) return CATEGORY_ORDER.indexOf(ca) - CATEGORY_ORDER.indexOf(cb);
-      return REGISTRY[country][a.key].label.localeCompare(REGISTRY[country][b.key].label);
-    });
+    renderPickerItems(items, pgrid, function(it){ return categoryOf(it.key); }, CATEGORY_ORDER, false);
   } else {
+    // Grouped by country instead, since this mode is browsing one
+    // metric category across every country -- a section heading per
+    // country that actually tracks something in this category.
     var cat = sel.value;
     ALL_COUNTRIES.forEach(function(country){
       Object.keys(REGISTRY[country] || {}).forEach(function(key){
         if(categoryOf(key) !== cat) return;
-        var id = tileId(country, key);
-        if(pinned.indexOf(id) === -1) items.push({id: id, country: country, key: key});
+        items.push({id: tileId(country, key), country: country, key: key});
       });
     });
-    items.sort(function(a, b){ return a.country.localeCompare(b.country); });
+    renderPickerItems(items, pgrid, function(it){ return it.country; }, ALL_COUNTRIES, false);
   }
-
-  renderPickerItems(items, pgrid, false);
 }
 
-function renderPickerItems(items, pgrid, isSearchMode){
+// groupFn(it) returns the section a given item belongs in; groupOrder is
+// the full, ordered list of possible section names (some may have no
+// items at all this time round, and are simply skipped).
+function renderPickerItems(items, pgrid, groupFn, groupOrder, isSearchMode){
   if(!items.length){
-    pgrid.innerHTML = "<p class=\"pickerempty\">" + (isSearchMode ? "Nothing matches that search." : "Everything available here is already pinned.") + "</p>";
+    pgrid.innerHTML = "<p class=\"pickerempty\">" + (isSearchMode ? "Nothing matches that search." : "Nothing available here yet.") + "</p>";
     return;
   }
-
-  items.forEach(function(it){
-    var s = REGISTRY[it.country][it.key];
-    var div = document.createElement("div");
-    div.className = "pickeritem";
-    var top = isSearchMode ? (it.country + " \u00b7 " + categoryOf(it.key)) : (pickerMode === "country" ? categoryOf(it.key) : it.country);
-    div.innerHTML = "<p class=\"c\">" + top + "</p>" + s.label
-      + "<p class=\"e\">" + explainerOf(it.key) + "</p>";
-    div.addEventListener("click", function(){
-      pinned.push(it.id);
-      savePinned();
-      renderDash();
-      // Deliberately doesn't close the picker -- add as many metrics as
-      // you want in one go, then close it yourself (the "Add a metric"
-      // button toggles it, or the Escape/outside-click handlers below).
-      // Just refresh this same grid so the just-added item drops off the
-      // "still available" list without losing your search text, mode,
-      // or country/category selection.
-      refreshPickerGrid();
+  var any = false;
+  groupOrder.forEach(function(group){
+    var groupItems = items.filter(function(it){ return groupFn(it) === group; });
+    if(!groupItems.length) return;
+    any = true;
+    var heading = document.createElement("div");
+    heading.className = "pickercat";
+    heading.textContent = group;
+    pgrid.appendChild(heading);
+    groupItems.forEach(function(it){
+      var s = REGISTRY[it.country][it.key];
+      var added = pinned.indexOf(it.id) !== -1;
+      var div = document.createElement("div");
+      div.className = "pickeritem" + (added ? " added" : "");
+      div.innerHTML = "<div>" + s.label + "</div><div class=\"e\">" + (added ? "Already shown above" : explainerOf(it.key)) + "</div>";
+      if(!added){
+        div.addEventListener("click", function(){
+          pinned.push(it.id);
+          savePinned();
+          renderDash();
+          // Deliberately doesn't close the picker -- add as many
+          // metrics as you want in one go, then close it yourself.
+          // Just refresh this same grid so the just-added item greys
+          // out without losing your search text, mode, or country/
+          // category selection.
+          refreshPickerGrid();
+        });
+      }
+      pgrid.appendChild(div);
     });
-    pgrid.appendChild(div);
   });
+  if(!any){
+    pgrid.innerHTML = "<p class=\"pickerempty\">" + (isSearchMode ? "Nothing matches that search." : "Nothing available here yet.") + "</p>";
+  }
 }
 
 /* --------------------------------- boot ------------------------------------ */
