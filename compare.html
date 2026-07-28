@@ -694,17 +694,59 @@ function yearAggregate_raw(points, year){
   matches.forEach(function(p){ sum += p[1]; });
   return sum / matches.length;
 }
+// FIX: GDP level/real were being averaged across a year's quarters,
+// same as every other metric on this page -- correct for a rate (CPI,
+// unemployment), wrong for a quarterly GDP level. Most countries'
+// national statistics offices publish GDP as a genuine per-quarter
+// level, which their own individual page on this site has always
+// summed across 4 quarters to get the annual total (see e.g. uk.html's
+// own annualGDP()). The US and Japan are the confirmed exception: BEA
+// and Japan's Cabinet Office both publish GDP as a seasonally-adjusted
+// ANNUAL RATE already for each quarter (each reading already represents
+// "this quarter's pace over a full year"), which is why those two
+// pages use the raw value directly with no rollup at all. Averaging
+// everyone the same way (the previous behaviour here) happened to look
+// roughly right for the US/Japan, since averaging several already-
+// annualised readings still lands near the right annualised magnitude,
+// but understated every other country by roughly 4x, since a raw
+// quarterly level is only about a quarter of the true annual figure.
+var SAAR_COUNTRIES = {US: true, Japan: true};
+function yearAggregateGDP(country, series, year){
+  if(series.freq !== "quarters" || SAAR_COUNTRIES[country]){
+    var yearPoints = series.points.filter(function(p){ return yearOf(p[0]) === year; });
+    if(!yearPoints.length) return null;
+    // Already annual, or already an annualised rate each quarter --
+    // use the latest available reading within the year directly.
+    return yearPoints[yearPoints.length - 1][1];
+  }
+  // Genuine raw quarterly levels: a trailing 4-quarter sum ending at
+  // the latest quarter at or before the end of the target year -- not
+  // a strict "only quarters literally inside this calendar year" sum,
+  // which would badly understate the current, not-yet-complete year
+  // (e.g. only Q1 published so far would sum to just Q1's own level,
+  // roughly a quarter of the true annual figure). For a complete past
+  // year this gives the identical calendar-year-aligned answer anyway.
+  var eligible = series.points.filter(function(p){ return yearOf(p[0]) <= year; });
+  if(eligible.length < 4) return null;
+  var last4 = eligible.slice(-4);
+  if(yearOf(last4[last4.length - 1][0]) !== year) return null;
+  var sum = 0;
+  last4.forEach(function(p){ sum += p[1]; });
+  return sum;
+}
 // The core fix: every figure shown anywhere on this page is anchored to
-// an explicit calendar year, computed by averaging whatever real
-// observations exist within that year for that country and concept --
-// not "whatever the closest available release happens to be." Two
+// an explicit calendar year, computed from whatever real observations
+// exist within that year for that country and concept -- not
+// "whatever the closest available release happens to be." Two
 // countries and two different metrics at the same horizon always carry
 // the exact same reference year.
 function yearAggregate(country, concept, year){
   var key = resolveKey(country, concept);
   if(!key) return null;
   var series = REGISTRY[country][key];
-  var val = yearAggregate_raw(series.points, year);
+  var val = (concept === "gdp_level" || concept === "gdp_real")
+    ? yearAggregateGDP(country, series, year)
+    : yearAggregate_raw(series.points, year);
   if(val == null) return null;
   return {value: val, unit: series.unit};
 }
@@ -791,14 +833,14 @@ function periodLabelFor(dv){
   return String(dv.year);
 }
 
-var selected = [];
+var selected = ["UK", "US", "Germany", "Japan"];
 var horizon = "0";
 
 // Which concept cards are currently shown -- customisable, persisted the
 // same way My Dashboard persists its pinned tiles (a plain array in
 // localStorage, loaded once at startup, falling back quietly to the
 // original five if nothing's saved or storage is unavailable).
-var DEFAULT_CONCEPTS = [];
+var DEFAULT_CONCEPTS = ["gdp_level", "gdp_growth", "cpi", "unemployment"];
 var METRICS_KEY = "eatlas_compare_concepts_v2";
 var visibleMetrics = DEFAULT_CONCEPTS.slice();
 try {
@@ -1381,8 +1423,28 @@ function historyPoints(country, concept){
     var reg = REGISTRY[country];
     return (reg && reg.gdp_growth) ? reg.gdp_growth.points : null;
   }
+  if(concept === "gdp_level" || concept === "gdp_real"){
+    var key = resolveKey(country, concept);
+    if(!key) return null;
+    return annualizedGDPHistory(country, REGISTRY[country][key]);
+  }
   var key = resolveKey(country, concept);
   return key ? REGISTRY[country][key].points : null;
+}
+// Applies the same SAAR-vs-trailing-4-quarter-sum logic used for the
+// Bar/Ranking view to the full historical trend too -- without this,
+// the Over Time line (and its "latest value" ranking list) plotted raw
+// single-quarter levels for non-SAAR countries, so the same country's
+// GDP could show two wildly different figures depending on which
+// toggle was selected.
+function annualizedGDPHistory(country, series){
+  if(series.freq !== "quarters" || SAAR_COUNTRIES[country]) return series.points;
+  var out = [];
+  for(var i = 3; i < series.points.length; i++){
+    var sum = series.points[i][1] + series.points[i-1][1] + series.points[i-2][1] + series.points[i-3][1];
+    out.push([series.points[i][0], sum]);
+  }
+  return out;
 }
 function historySeriesUnit(country, concept){
   if(concept === "gdp_growth") return "%";
