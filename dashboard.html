@@ -67,11 +67,17 @@
 .addtile .plus{font-size:28px; line-height:1;}
 .addtile .txt{font-size:13px; font-weight:600;}
 
-.picker{display:none; background:var(--panel); border:1px solid var(--hair); border-radius:14px;
-  padding:20px 22px; margin-bottom:20px;}
-.picker.open{display:block;}
+.modal{position:fixed; inset:0; z-index:200; display:flex; align-items:center; justify-content:center; padding:24px;}
+.modal[hidden]{display:none;}
+.modal-backdrop{position:absolute; inset:0; background:rgba(20,26,22,.6);}
+.modal-content{position:relative; background:var(--paper); border-radius:16px; padding:24px 28px;
+  width:min(920px, 94vw); max-height:90vh; overflow:auto; box-shadow:0 20px 60px rgba(0,0,0,.35);}
+.modal-close{position:absolute; top:14px; right:16px; width:32px; height:32px; border-radius:50%;
+  border:1px solid var(--hair); background:var(--panel); color:var(--ink2); font-size:18px; cursor:pointer;}
+.modal-close:hover{border-color:var(--blue); color:var(--navy);}
+.modal-content h2{margin:0 30px 4px 0; font-size:19px;}
+.modal-sub{font-size:13px; color:var(--ink2); margin:0 0 14px;}
 .pickerhead{display:flex; align-items:center; justify-content:space-between; margin-bottom:6px;}
-.picker h3{font-size:15px; margin:0;}
 .pickerdone{border:1px solid var(--navy); background:var(--navy); color:#fff;
   font:600 12.5px "Avenir Next","Avenir","Nunito Sans",sans-serif; padding:6px 16px; border-radius:999px; cursor:pointer;}
 .pickerdone:hover{background:var(--navy-2); border-color:var(--navy-2);}
@@ -276,24 +282,25 @@ footer.dash-foot{margin-top:36px; font-size:12.5px; color:var(--ink2); border-to
   <div id="loadMsg" class="loadmsg">Loading every country&#39;s data&hellip;</div>
   <div class="dashgrid" id="dashGrid" style="display:none;"></div>
 
-  <div class="picker" id="picker" style="display:none;">
-    <div class="pickerhead">
-      <h3>Add a metric</h3>
-      <button type="button" id="pickerDone" class="pickerdone">Done</button>
-    </div>
-    <p class="pickerhint">Click as many as you like; they'll keep appearing on your dashboard below without closing this panel.</p>
-    <input type="text" id="pickerSearch" class="pickersearch" placeholder="Search all metrics and countries&hellip; (e.g. &quot;inflation&quot;, &quot;Japan&quot;)">
-    <div class="modetoggle" id="modeToggle">
-      <button type="button" class="active" data-mode="country">By country</button>
-      <button type="button" data-mode="metric">By metric</button>
-    </div>
-    <div class="pickerselect" id="pickerSelectWrap">
-      <div>
-        <label id="pickerSelectLabel">Country</label>
-        <select id="pickerSelect"></select>
+  <div class="modal" id="picker" hidden>
+    <div class="modal-backdrop" id="pickerBackdrop"></div>
+    <div class="modal-content">
+      <button type="button" class="modal-close" id="pickerClose" aria-label="Close">&times;</button>
+      <h2>Add a metric</h2>
+      <p class="modal-sub">Click as many as you like; they'll keep appearing on your dashboard without closing this window. Choose by country first, or by metric first, whichever's easier to think in.</p>
+      <input type="text" id="pickerSearch" class="pickersearch" placeholder="Search all metrics and countries&hellip; (e.g. &quot;inflation&quot;, &quot;Japan&quot;)">
+      <div class="modetoggle" id="modeToggle">
+        <button type="button" class="active" data-mode="country">By country</button>
+        <button type="button" data-mode="metric">By metric</button>
       </div>
+      <div class="pickerselect" id="pickerSelectWrap">
+        <div>
+          <label id="pickerSelectLabel">Country</label>
+          <select id="pickerSelect"></select>
+        </div>
+      </div>
+      <div class="pickergrid" id="pickerGrid"></div>
     </div>
-    <div class="pickergrid" id="pickerGrid"></div>
   </div>
 
   <footer class="dash-foot">
@@ -700,9 +707,9 @@ function renderDash(){
   addTile.className = "addtile";
   addTile.innerHTML = "<span class=\"plus\">+</span><span class=\"txt\">Add a metric</span>";
   addTile.addEventListener("click", function(){
-    var picker = document.getElementById("picker");
-    picker.classList.toggle("open");
-    if(picker.classList.contains("open")) refreshPicker();
+    document.getElementById("picker").hidden = false;
+    document.body.style.overflow = "hidden";
+    refreshPicker();
   });
   grid.appendChild(addTile);
 }
@@ -711,9 +718,12 @@ function renderDash(){
 var pickerMode = "country";
 
 document.getElementById("pickerSearch").addEventListener("input", refreshPickerGrid);
-document.getElementById("pickerDone").addEventListener("click", function(){
-  document.getElementById("picker").classList.remove("open");
-});
+function closeDashPicker(){
+  document.getElementById("picker").hidden = true;
+  document.body.style.overflow = "";
+}
+document.getElementById("pickerClose").addEventListener("click", closeDashPicker);
+document.getElementById("pickerBackdrop").addEventListener("click", closeDashPicker);
 
 document.querySelectorAll("#modeToggle button").forEach(function(btn){
   btn.addEventListener("click", function(){
@@ -844,7 +854,6 @@ function renderPickerItems(items, pgrid, isSearchMode){
 loadAll().then(function(){
   document.getElementById("loadMsg").style.display = "none";
   document.getElementById("dashGrid").style.display = "grid";
-  document.getElementById("picker").style.display = "";
 
   var dollarBtn = document.getElementById("dollariseBtn");
   function updateDollarBtn(){
