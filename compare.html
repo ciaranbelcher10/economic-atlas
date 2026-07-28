@@ -1256,9 +1256,16 @@ function renderCharts(){
     var barHasData = selected.some(function(c){ return getDisplayValue(c, concept) != null; });
     if(!hasHistory && !barHasData) return; // truly nothing to show for this concept at all
 
-    var mode = cardChartType[concept] || "bar";
+    var explicitMode = cardChartType[concept]; // undefined if the user hasn't chosen for this card yet
+    var mode = explicitMode || "bar";
     if(mode === "line" && !hasHistory) mode = "bar";
-    if(mode === "bar" && !barHasData && hasHistory) mode = "line";
+    // Only auto-pick Line as a helpful default when the user hasn't
+    // explicitly chosen a mode for this card -- previously this ran
+    // unconditionally, silently flipping back to Line every time
+    // someone clicked "Bar" on a metric that currently has no data for
+    // this horizon (e.g. FDI, which often lags behind faster-reporting
+    // metrics), making the Bar button look broken.
+    if(!explicitMode && mode === "bar" && !barHasData && hasHistory) mode = "line";
 
     var card = document.createElement("div");
     card.className = "cmp-card metric-card wide";
@@ -1479,7 +1486,7 @@ var mapMetric = "gdp_growth";
 // the comparison is automatically available on the map too, and any
 // metric removed disappears from here in the same render.
 function getMapMetricsAvailable(){
-  return visibleMetrics;
+  return visibleMetrics.filter(metricHasComparableYear);
 }
 function renderMapMetricRow(){
   var row = document.getElementById("mapMetricRow");
@@ -1536,7 +1543,7 @@ function getMapValueForYear(country, concept, year){
 // selected, mappable countries have real data for the specific metric
 // on the map, so the slider's range is only ever as wide as it's
 // actually useful.
-function computeEarliestYearForMetric(concept){
+function comparableYearsForMetric(concept){
   var mappable = selected.filter(function(c){ return ISO_OF[c]; });
   var countPerYear = {};
   mappable.forEach(function(c){
@@ -1546,10 +1553,21 @@ function computeEarliestYearForMetric(concept){
     pts.forEach(function(p){ yearsSeen[yearOf(p[0])] = true; });
     Object.keys(yearsSeen).forEach(function(y){ countPerYear[y] = (countPerYear[y] || 0) + 1; });
   });
-  var validYears = Object.keys(countPerYear)
+  return Object.keys(countPerYear)
     .filter(function(y){ return countPerYear[y] >= 2; })
     .map(Number).sort(function(a, b){ return a - b; });
+}
+function computeEarliestYearForMetric(concept){
+  var validYears = comparableYearsForMetric(concept);
   return validYears.length ? validYears[0] : CURRENT_YEAR - 10;
+}
+// FIX: a metric only belongs on the map at all if there's some year
+// where 2 or more of the currently selected countries can actually be
+// compared -- otherwise selecting it just shows a near-empty map with
+// a meaningless fallback range, which looked like a real option but
+// never had anything genuine to show.
+function metricHasComparableYear(concept){
+  return comparableYearsForMetric(concept).length > 0;
 }
 
 var mapYear = null;
