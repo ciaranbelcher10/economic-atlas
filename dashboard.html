@@ -32,6 +32,13 @@
 .dollarrow{margin:16px 0 22px;}
 
 .dashgrid{display:grid; grid-template-columns:repeat(3,1fr); gap:14px; margin-bottom:8px;}
+.led{display:inline-block; width:9px; height:9px; border-radius:50%;
+  margin-right:9px; vertical-align:middle; position:relative; top:-1px;}
+.led.green{background:#2FA463; box-shadow:0 0 0 3px rgba(47,164,99,.16);}
+.led.orange{background:#E39B2D; box-shadow:0 0 0 3px rgba(227,155,45,.16);}
+.lightskey{font-size:12.5px; color:var(--ink2); margin:0 0 16px;
+  display:flex; gap:20px; flex-wrap:wrap; justify-content:center;}
+.lightskey span{display:flex; align-items:center; gap:9px;}
 .tile{background:var(--panel); border:1px solid var(--hair); border-radius:14px; padding:18px 20px; position:relative;
   grid-column:span 1;}
 .tile.expanded{grid-column:span 3;}
@@ -153,7 +160,7 @@
 
 /* ---- cross-country map card, ported from Compare ---- */
 :root{ --map-nodata: #E9EBE7; }
-html[data-theme="dark"]{ --map-nodata: #9BA39B; }
+html[data-theme="dark"]{ --map-nodata: #C4CAC0; }
 .map-card{background:var(--panel); border:1px solid var(--hair); border-radius:14px;
   padding:18px 20px; position:relative; margin-top:18px; display:none;}
 .map-card h3{font-size:14.5px; margin:0 0 4px;}
@@ -368,6 +375,10 @@ footer.dash-foot{margin-top:36px; font-size:12.5px; color:var(--ink2); border-to
   </div>
 
   <div id="loadMsg" class="loadmsg">Loading every country&#39;s data&hellip;</div>
+  <p class="lightskey" id="dashLightskey" aria-label="Key to freshness lights" style="display:none;">
+    <span><span class="led green" aria-hidden="true"></span>Latest version of the data is live</span>
+    <span><span class="led orange" aria-hidden="true"></span>Data may be outdated, awaiting next update</span>
+  </p>
   <div class="dashgrid" id="dashGrid" style="display:none;"></div>
 
   <div class="map-card" id="mapCard">
@@ -442,7 +453,6 @@ footer.dash-foot{margin-top:36px; font-size:12.5px; color:var(--ink2); border-to
 
   <footer class="dash-foot">
     Every figure and chart here is read live from the same data files each country's own page uses (ONS, FRED, Eurostat, e-Stat/Bank of Japan, MoSPI, Bank of Korea, OECD, World Bank); nothing is hand-picked or invented. Your pinned tiles are remembered in this browser between visits, on this device only, since there's no account system yet to sync a selection across devices.
-    <br><br>Free to use for now, this may move behind a paid tier as the site develops.
   </footer>
 </div>
 
@@ -473,6 +483,24 @@ function periodEnd(p){
   if(/^\d{4}-\d{2}$/.test(p)) return new Date(+p.slice(0,4), +p.slice(5), 0);
   if(/^\d{4}-Q\d$/.test(p)) return new Date(+p.slice(0,4), +p.slice(6)*3, 0);
   return new Date(+p.slice(0,4), 11, 31);
+}
+/* ------------------------- freshness lights -------------------------- */
+/* Same rule already used on every country's own page: green if the
+   series' latest point is within its normal publication cadence,
+   orange if we're past that cadence and awaiting the next release --
+   NOT a claim that the figure itself is wrong, just that a newer one
+   probably exists upstream and hasn't been picked up by our fetch yet. */
+var STALE_DAYS = {months: 75, quarters: 150, years: 660};
+function freshness(series){
+  var last = series.points[series.points.length - 1][0];
+  var age = (Date.now() - periodEnd(last).getTime()) / 86400000;
+  return age <= (STALE_DAYS[series.freq] || 90) ? "green" : "orange";
+}
+function freshnessTitle(series){
+  var last = series.points[series.points.length - 1][0];
+  var age = (Date.now() - periodEnd(last).getTime()) / 86400000;
+  if(age <= (STALE_DAYS[series.freq] || 90)) return "Latest version of the data is live";
+  return "Data may be outdated -- awaiting next update (last published " + fmtPeriod(last) + ")";
 }
 var refLinePlugin = {
   id: "refLine",
@@ -1272,6 +1300,8 @@ function renderDash(){
     var m = tileFromId(id);
     if(!m) return;
     var disp = toDisplayUnit(m.value, m.series.unit, m.country);
+    var led = freshness(m.series);
+    var ledTitle = freshnessTitle(m.series);
     var tile = document.createElement("div");
     tile.className = "tile";
     tile.dataset.id = id;
@@ -1279,7 +1309,7 @@ function renderDash(){
       + "<button type=\"button\" class=\"collapsebtn\" aria-label=\"Hide chart\" title=\"Hide chart\">&#8722;</button>"
       + "<p class=\"country\">" + m.country + "</p>"
       + "<p class=\"label\">" + m.series.label + (dollarise && disp.unit !== m.series.unit ? " (USD)" : "") + "</p>"
-      + "<p class=\"value\">" + fmtVal(disp.value, disp.unit, m.key) + "</p>"
+      + "<p class=\"value\"><span class=\"led " + led + "\" title=\"" + ledTitle + "\" role=\"img\" aria-label=\"" + ledTitle + "\"></span>" + fmtVal(disp.value, disp.unit, m.key) + "</p>"
       + "<p class=\"period\">" + fmtPeriod(m.period) + "</p>"
       + "<div class=\"chartactions\">"
       + "<button type=\"button\" class=\"chartbtn\">&#128200; View chart</button>"
@@ -1587,6 +1617,7 @@ function fetchWithTimeout(url, ms){
 loadAll().then(function(){
   document.getElementById("loadMsg").style.display = "none";
   document.getElementById("dashGrid").style.display = "grid";
+  document.getElementById("dashLightskey").style.display = "flex";
   CURRENT_YEAR = computeCurrentYear();
 
   var dollarBtn = document.getElementById("dollariseBtn");

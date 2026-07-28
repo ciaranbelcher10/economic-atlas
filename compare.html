@@ -21,6 +21,15 @@
 <link rel="apple-touch-icon" href="apple-touch-icon.png">
 <link rel="stylesheet" href="style.css?v=15">
 <style>
+:root{ --map-nodata: #E9EBE7; }
+html[data-theme="dark"]{ --map-nodata: #C4CAC0; }
+.led{display:inline-block; width:9px; height:9px; border-radius:50%;
+  margin-right:2px; vertical-align:middle; position:relative; flex-shrink:0;}
+.led.green{background:#2FA463; box-shadow:0 0 0 3px rgba(47,164,99,.16);}
+.led.orange{background:#E39B2D; box-shadow:0 0 0 3px rgba(227,155,45,.16);}
+.lightskey{font-size:12.5px; color:var(--ink2); margin:0 0 16px;
+  display:flex; gap:20px; flex-wrap:wrap; justify-content:center;}
+.lightskey span{display:flex; align-items:center; gap:9px;}
 .premium{display:inline-flex; align-items:center; gap:5px; font-size:10.5px; font-weight:700; text-transform:uppercase;
   letter-spacing:.04em; background:var(--navy); color:#fff; padding:3px 10px; border-radius:999px; vertical-align:middle;}
 
@@ -358,6 +367,11 @@ footer.cmp-foot{margin-top:36px; font-size:12.5px; color:var(--ink2); border-top
     <button type="button" class="hbtn" data-h="10">Change vs 10Y ago</button>
   </div>
 
+  <p class="lightskey" aria-label="Key to freshness lights">
+    <span><span class="led green" aria-hidden="true"></span>Latest version of the data is live</span>
+    <span><span class="led orange" aria-hidden="true"></span>Data may be outdated, awaiting next update</span>
+  </p>
+
   <div class="cmp-grid" id="chartGrid">
     <div class="addtile" id="addMetricTile">
       <span class="plus">+</span><span class="txt">Add a metric</span>
@@ -398,7 +412,6 @@ footer.cmp-foot{margin-top:36px; font-size:12.5px; color:var(--ink2); border-top
 
   <footer class="cmp-foot">
     Figures: ONS, FRED, Eurostat, e-Stat/Bank of Japan, MoSPI, Bank of Korea and OECD, the same sources already cited on each country&#39;s own page. Every figure on this page is anchored to a specific calendar year -- shown at "Now" is the most recent year with real data across the tracked countries; each other horizon steps back that many years. Where a metric is published more often than annually, the year's figure is the average of that year's real observations, not a single point-in-time reading. GDP growth at a horizon shows total real growth over that period, compounded from each country's own real GDP level. Because "Now" is set by whichever metrics report fastest (inflation and policy rates report monthly, so they usually set it), a slower annual-only metric like FDI, current account or the government deficit can show "n/a" across every horizon if its own latest published year hasn't caught up yet -- that's a real, honest gap in the underlying data's timing, not a missing figure or a bug. Currency-denominated figures (GDP, government debt, trade) are converted to US dollars at today's exchange rate so every country is shown in the same unit; changes over a horizon are shown as a % instead, which doesn't need converting since the ratio is the same in any currency. Morocco has no live exchange-rate source for the dirham, so its currency figures show "n/a" rather than a converted guess. Historical lines (Line view) are also converted to USD at today's rate throughout, so older years are an approximation. The Eurozone is excluded from the map card since it isn&#39;t a single country UN Comtrade or world-atlas can plot; it still appears in every chart and table above.
-    <br><br>Free to use for now, this may move behind a paid tier as the site develops.
   </footer>
   </div>
 </div>
@@ -445,6 +458,10 @@ var TOOLTIP_BG = _cs.getPropertyValue("--panel").trim() || "#fff";
 var TOOLTIP_INK = _cs.getPropertyValue("--ink").trim() || "#171B1E";
 var TOOLTIP_HAIR = _cs.getPropertyValue("--hair").trim() || "#E4E6E1";
 var MUTED_INK = _cs.getPropertyValue("--ink2").trim() || "#8A9099";
+// No-data map fill is theme-aware (a plain grey that reads fine on a
+// white page is nearly invisible on a dark one) -- matches the same
+// variable/value used on My Dashboard's own copy of this map.
+var MAP_NODATA = _cs.getPropertyValue("--map-nodata").trim() || "#E9EBE7";
 
 /* ------------------------------ live data layer ---------------------------- */
 // FIX (9.15.7): Compare used to embed a hand-maintained static snapshot
@@ -687,6 +704,38 @@ function resolveKey(country, concept){
 function hasConcept(country, concept){
   if(concept === "gdp_growth") return !!(REGISTRY[country] && REGISTRY[country].gdp_real);
   return resolveKey(country, concept) !== null;
+}
+/* ------------------------- freshness lights -------------------------- */
+/* Same rule already used on every country's own page: green if the
+   series' latest point is within its normal publication cadence,
+   orange if we're past that cadence and awaiting the next release --
+   NOT a claim that the figure itself is wrong, just that a newer one
+   probably exists upstream and hasn't been picked up by our fetch yet. */
+function periodEnd(p){
+  if(/^\d{4}-\d{2}$/.test(p)) return new Date(+p.slice(0,4), +p.slice(5), 0);
+  if(/^\d{4}-Q\d$/.test(p)) return new Date(+p.slice(0,4), +p.slice(6)*3, 0);
+  return new Date(+p.slice(0,4), 11, 31);
+}
+var STALE_DAYS = {months: 75, quarters: 150, years: 660};
+function freshness(series){
+  var last = series.points[series.points.length - 1][0];
+  var age = (Date.now() - periodEnd(last).getTime()) / 86400000;
+  return age <= (STALE_DAYS[series.freq] || 90) ? "green" : "orange";
+}
+function freshnessTitle(series){
+  var last = series.points[series.points.length - 1][0];
+  var age = (Date.now() - periodEnd(last).getTime()) / 86400000;
+  if(age <= (STALE_DAYS[series.freq] || 90)) return "Latest version of the data is live";
+  return "Data may be outdated -- awaiting next update (last published " + fmtPeriod(last) + ")";
+}
+// concept-aware wrapper: gdp_growth has no raw series of its own here
+// (derived from gdp_real), everything else resolves via resolveKey the
+// same way the map and rank lists already do.
+function countryFreshness(country, concept){
+  var key = concept === "gdp_growth" ? "gdp_real" : resolveKey(country, concept);
+  var series = key && REGISTRY[country] ? REGISTRY[country][key] : null;
+  if(!series) return null;
+  return {led: freshness(series), title: freshnessTitle(series)};
 }
 function yearAggregate_raw(points, year){
   var matches = points.filter(function(p){ return yearOf(p[0]) === year; });
@@ -1166,8 +1215,10 @@ function renderBarRankList(container, concept, rows, chart){
     var idx = rows.indexOf(r);
     var li = document.createElement("li");
     li.className = "tpm-rankrow";
+    var fresh = countryFreshness(r.country, concept);
     li.innerHTML = "<span class=\"tpm-ranknum\">" + (i + 1) + "</span>"
       + "<span class=\"tpm-rankswatch\" style=\"background:" + COUNTRY_COLOR[r.country] + ";\"></span>"
+      + (fresh ? "<span class=\"led " + fresh.led + "\" title=\"" + fresh.title + "\" role=\"img\" aria-label=\"" + fresh.title + "\"></span>" : "")
       + "<span class=\"tpm-rankname\">" + r.country + "</span>"
       + "<span class=\"tpm-rankvalue\">" + displayString(r.dv) + "<span class=\"per\">" + periodLabelFor(r.dv) + "</span></span>";
     li.addEventListener("mouseenter", function(){ highlightBarIndex(chart, idx, true); });
@@ -1196,8 +1247,10 @@ function renderLineRankList(container, concept, datasets, chart){
     var valText = isCurrencyMetric ? curFmt(r.value, "$m", 2) : axisTickLabel(r.value, concept);
     var li = document.createElement("li");
     li.className = "tpm-rankrow";
+    var fresh = countryFreshness(r.label, concept);
     li.innerHTML = "<span class=\"tpm-ranknum\">" + (i + 1) + "</span>"
       + "<span class=\"tpm-rankswatch\" style=\"background:" + COUNTRY_COLOR[r.label] + ";\"></span>"
+      + (fresh ? "<span class=\"led " + fresh.led + "\" title=\"" + fresh.title + "\" role=\"img\" aria-label=\"" + fresh.title + "\"></span>" : "")
       + "<span class=\"tpm-rankname\">" + r.label + "</span>"
       + "<span class=\"tpm-rankvalue\">" + valText + "<span class=\"per\">" + fmtPeriod(r.period) + "</span></span>";
     li.addEventListener("mouseenter", function(){ highlightLineIndex(chart, r.idx, true); });
@@ -1663,9 +1716,9 @@ function drawHeatmap(){
     .attr("d", path)
     .attr("fill", function(f){
       var c = isoToCountry[f.id];
-      if(!c) return "#E9EBE7";
+      if(!c) return MAP_NODATA;
       var dv = dvByCountry[c];
-      return dv ? colorScale(dv.value) : "#E9EBE7";
+      return dv ? colorScale(dv.value) : MAP_NODATA;
     })
     .attr("stroke", "#fff").attr("stroke-width", 0.6)
     .style("cursor", function(f){ return isoToCountry[f.id] ? "pointer" : "default"; })
