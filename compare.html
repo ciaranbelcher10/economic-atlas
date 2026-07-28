@@ -361,14 +361,6 @@ footer.cmp-foot{margin-top:36px; font-size:12.5px; color:var(--ink2); border-top
     <div class="addtile" id="addMetricTile">
       <span class="plus">+</span><span class="txt">Add a metric</span>
     </div>
-    <div class="picker" id="metricPicker" style="display:none;">
-      <div class="pickerhead">
-        <h3>Add a metric</h3>
-        <button type="button" id="metricPickerDone" class="pickerdone">Done</button>
-      </div>
-      <p class="pickerhint">Click as many as you like; they'll keep appearing above without closing this panel.</p>
-      <div id="metricPickerGrid"></div>
-    </div>
     <div class="cmp-card wide map-card" id="mapCard">
       <h3>Map</h3>
       <p class="expl" id="mapCardSub">Darker = higher.</p>
@@ -407,6 +399,16 @@ footer.cmp-foot{margin-top:36px; font-size:12.5px; color:var(--ink2); border-top
     Figures: ONS, FRED, Eurostat, e-Stat/Bank of Japan, MoSPI, Bank of Korea and OECD, the same sources already cited on each country&#39;s own page. Every figure on this page is anchored to a specific calendar year -- shown at "Now" is the most recent year with real data across the tracked countries; each other horizon steps back that many years. Where a metric is published more often than annually, the year's figure is the average of that year's real observations, not a single point-in-time reading. GDP growth at a horizon shows total real growth over that period, compounded from each country's own real GDP level. Because "Now" is set by whichever metrics report fastest (inflation and policy rates report monthly, so they usually set it), a slower annual-only metric like FDI, current account or the government deficit can show "n/a" across every horizon if its own latest published year hasn't caught up yet -- that's a real, honest gap in the underlying data's timing, not a missing figure or a bug. Currency-denominated figures (GDP, government debt, trade) are converted to US dollars at today's exchange rate so every country is shown in the same unit; changes over a horizon are shown as a % instead, which doesn't need converting since the ratio is the same in any currency. Morocco has no live exchange-rate source for the dirham, so its currency figures show "n/a" rather than a converted guess. Historical lines (Line view) are also converted to USD at today's rate throughout, so older years are an approximation. The Eurozone is excluded from the map card since it isn&#39;t a single country UN Comtrade or world-atlas can plot; it still appears in every chart and table above.
     <br><br>Free to use for now, this may move behind a paid tier as the site develops.
   </footer>
+  </div>
+</div>
+
+<div class="modal" id="metricPicker" hidden>
+  <div class="modal-backdrop" id="metricPickerBackdrop"></div>
+  <div class="modal-content">
+    <button type="button" class="modal-close" id="metricPickerClose" aria-label="Close">&times;</button>
+    <h2>Add a metric</h2>
+    <p class="modal-sub">Click as many as you like; they'll keep appearing on the page without closing this window.</p>
+    <div id="metricPickerGrid"></div>
   </div>
 </div>
 
@@ -789,14 +791,14 @@ function periodLabelFor(dv){
   return String(dv.year);
 }
 
-var selected = ["UK", "US", "Japan", "India", "Eurozone"];
+var selected = [];
 var horizon = "0";
 
 // Which concept cards are currently shown -- customisable, persisted the
 // same way My Dashboard persists its pinned tiles (a plain array in
 // localStorage, loaded once at startup, falling back quietly to the
 // original five if nothing's saved or storage is unavailable).
-var DEFAULT_CONCEPTS = ["gdp_level", "gdp_growth", "cpi", "unemployment", "debt_gdp", "policy_rate"];
+var DEFAULT_CONCEPTS = [];
 var METRICS_KEY = "eatlas_compare_concepts_v2";
 var visibleMetrics = DEFAULT_CONCEPTS.slice();
 try {
@@ -853,16 +855,16 @@ function renderMetricPicker(){
 }
 try {
   document.getElementById("addMetricTile").addEventListener("click", function(){
-    var picker = document.getElementById("metricPicker");
-    picker.classList.toggle("open");
-    if(picker.classList.contains("open")){
-      renderMetricPicker();
-      picker.scrollIntoView({behavior: "smooth", block: "nearest"});
-    }
+    document.getElementById("metricPicker").hidden = false;
+    document.body.style.overflow = "hidden";
+    renderMetricPicker();
   });
-  document.getElementById("metricPickerDone").addEventListener("click", function(){
-    document.getElementById("metricPicker").classList.remove("open");
-  });
+  function closeMetricPicker(){
+    document.getElementById("metricPicker").hidden = true;
+    document.body.style.overflow = "";
+  }
+  document.getElementById("metricPickerClose").addEventListener("click", closeMetricPicker);
+  document.getElementById("metricPickerBackdrop").addEventListener("click", closeMetricPicker);
 } catch(e) { console.error("Add-metric tile wiring failed:", e); }
 
 function toggleCountry(c){
@@ -1392,14 +1394,13 @@ function renderAll(){
   // Each piece runs independently -- if one throws, the page still ends
   // up with everything else rendered and a clear console error, rather
   // than one broken piece silently leaving the whole page inert.
-  [renderChips, renderCharts, renderTable, renderMapMetricRow, updateMapCardSub, drawHeatmap].forEach(function(fn){
+  [renderChips, renderCharts, renderTable, renderMapMetricRow, updateMapYearSliderBounds, updateMapCardSub, drawHeatmap].forEach(function(fn){
     try { fn(); } catch(e) { console.error(fn.name + " failed:", e); }
   });
 }
 loadAll().then(function(){
   document.getElementById("loadMsg").style.display = "none";
   document.getElementById("mainContent").style.display = "block";
-  document.getElementById("metricPicker").style.display = "";
   try { initMapYearSlider(); } catch(e) { console.error("initMapYearSlider failed:", e); }
   fetchWithTimeout("https://cdn.jsdelivr.net/npm/world-atlas@2/countries-110m.json", 12000)
     .then(function(r){ return r.json(); })
@@ -1431,6 +1432,7 @@ function renderMapMetricRow(){
     b.addEventListener("click", function(){
       mapMetric = m;
       renderMapMetricRow();
+      updateMapYearSliderBounds();
       drawHeatmap();
     });
     row.appendChild(b);
@@ -1463,33 +1465,56 @@ function getMapValueForYear(country, concept, year){
   return {value: Math.round(agg.value*100)/100, isDelta: false, isCumulative: false, year: year, unit: CONCEPT_UNIT[concept], rawUnit: agg.unit};
 }
 
-function computeEarliestYear(){
-  var minYear = 9999;
-  ALL_COUNTRIES.forEach(function(c){
-    var reg = REGISTRY[c] || {};
-    Object.keys(reg).forEach(function(k){
-      var pts = reg[k].points;
-      if(pts.length){
-        var y = yearOf(pts[0][0]);
-        if(y && y < minYear) minYear = y;
-      }
-    });
+// FIX: the slider used to go back to the single earliest year found
+// across ANY country's ANY series (e.g. 1948 from the UK), regardless
+// of the metric actually being mapped or which countries are selected
+// -- meaning most of that range showed an almost-entirely-blank map
+// for metrics or countries that don't go back nearly that far. This
+// now finds the earliest year where at least 2 of the currently
+// selected, mappable countries have real data for the specific metric
+// on the map, so the slider's range is only ever as wide as it's
+// actually useful.
+function computeEarliestYearForMetric(concept){
+  var mappable = selected.filter(function(c){ return ISO_OF[c]; });
+  var countPerYear = {};
+  mappable.forEach(function(c){
+    var pts = historyPoints(c, concept);
+    if(!pts || !pts.length) return;
+    var yearsSeen = {};
+    pts.forEach(function(p){ yearsSeen[yearOf(p[0])] = true; });
+    Object.keys(yearsSeen).forEach(function(y){ countPerYear[y] = (countPerYear[y] || 0) + 1; });
   });
-  return minYear === 9999 ? CURRENT_YEAR - 20 : minYear;
+  var validYears = Object.keys(countPerYear)
+    .filter(function(y){ return countPerYear[y] >= 2; })
+    .map(Number).sort(function(a, b){ return a - b; });
+  return validYears.length ? validYears[0] : CURRENT_YEAR - 10;
 }
 
 var mapYear = null;
 var mapZoomBehavior = null;
 var mapZoomTransform = null;
 
-function initMapYearSlider(){
+// Recomputes the slider's lower bound whenever the mapped metric or the
+// country selection changes (both affect what counts as "2 or more
+// countries with data"), and pulls the current position forward if it
+// would otherwise sit outside the new range.
+function updateMapYearSliderBounds(){
   var slider = document.getElementById("mapYearSlider");
-  var min = computeEarliestYear();
+  if(!slider || !mapMetric) return;
+  var min = computeEarliestYearForMetric(mapMetric);
   slider.min = min;
-  slider.max = CURRENT_YEAR;
-  mapYear = CURRENT_YEAR;
+  if(mapYear == null || mapYear < min){
+    mapYear = min;
+  }
   slider.value = mapYear;
   document.getElementById("mapYearLabel").textContent = mapYear;
+}
+
+function initMapYearSlider(){
+  var slider = document.getElementById("mapYearSlider");
+  slider.max = CURRENT_YEAR;
+  mapYear = CURRENT_YEAR;
+  updateMapYearSliderBounds();
   slider.addEventListener("input", function(){
     mapYear = +slider.value;
     document.getElementById("mapYearLabel").textContent = mapYear;
