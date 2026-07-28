@@ -39,6 +39,12 @@
   border:1px solid var(--hair); background:var(--paper); color:var(--ink2); font-size:13px; cursor:pointer;
   display:flex; align-items:center; justify-content:center;}
 .tile .remove:hover{border-color:#C0392B; color:#C0392B;}
+.tile.expanded .remove{display:none;}
+.tile .collapsebtn{position:absolute; top:10px; right:10px; width:22px; height:22px; border-radius:50%;
+  border:1px solid var(--hair); background:var(--paper); color:var(--ink2); font-size:13px; cursor:pointer;
+  display:none; align-items:center; justify-content:center;}
+.tile.expanded .collapsebtn{display:flex;}
+.tile .collapsebtn:hover{border-color:var(--blue); color:var(--navy);}
 .tile .country{font-size:11px; font-weight:700; color:var(--blue); text-transform:uppercase; letter-spacing:.04em;}
 .tile .label{font-size:13px; color:var(--ink2); margin:6px 0 8px; padding-right:26px;}
 .tile .value{font-size:26px; font-weight:700; color:var(--ink);}
@@ -48,6 +54,7 @@
 .tile .chartbtn{border:1px solid var(--hair); background:var(--paper); color:var(--blue);
   font:600 12px "Avenir Next","Avenir","Nunito Sans",sans-serif; padding:6px 13px; border-radius:999px; cursor:pointer;
   display:inline-flex; align-items:center; gap:6px;}
+.tile.expanded .chartbtn{display:none;}
 .tile .chartbtn:hover{border-color:var(--blue);}
 .tile .fullscreenbtn{border:1px solid var(--hair); background:var(--paper);
   color:var(--ink2); font:600 12px "Avenir Next","Avenir","Nunito Sans",sans-serif; padding:6px 10px;
@@ -1269,6 +1276,7 @@ function renderDash(){
     tile.className = "tile";
     tile.dataset.id = id;
     tile.innerHTML = "<button type=\"button\" class=\"remove\" aria-label=\"Remove\">&times;</button>"
+      + "<button type=\"button\" class=\"collapsebtn\" aria-label=\"Hide chart\" title=\"Hide chart\">&#8722;</button>"
       + "<p class=\"country\">" + m.country + "</p>"
       + "<p class=\"label\">" + m.series.label + (dollarise && disp.unit !== m.series.unit ? " (USD)" : "") + "</p>"
       + "<p class=\"value\">" + fmtVal(disp.value, disp.unit, m.key) + "</p>"
@@ -1293,15 +1301,25 @@ function renderDash(){
       delete CHART_REGISTRY[id];
       renderDash();
     });
+    function collapseThisTile(){
+      tile.classList.remove("expanded");
+      delete expandedTiles[id];
+      tile.querySelector(".chartbtn").innerHTML = "&#128200; View chart";
+    }
     tile.querySelector(".chartbtn").addEventListener("click", function(){
-      var isNowExpanded = tile.classList.toggle("expanded");
-      if(isNowExpanded){
-        expandedTiles[id] = true;
-        expandTile(tile, id, m);
-      } else {
-        delete expandedTiles[id];
-        tile.querySelector(".chartbtn").innerHTML = "&#128200; View chart";
-      }
+      tile.classList.add("expanded");
+      expandedTiles[id] = true;
+      expandTile(tile, id, m);
+    });
+    // Hide-chart now lives in the same top-right corner spot the delete
+    // (x) button occupies when collapsed -- swapped in only while a
+    // tile is expanded, so the one spot people instinctively reach for
+    // to "close" the enlarged chart can no longer delete the metric by
+    // mistake. Deleting an expanded tile is still possible, just via
+    // collapsing it first.
+    tile.querySelector(".collapsebtn").addEventListener("click", function(e){
+      e.stopPropagation();
+      collapseThisTile();
     });
     tile.querySelector(".fullscreenbtn").addEventListener("click", function(){
       if(!tileCharts[id]) expandTile(tile, id, m);
