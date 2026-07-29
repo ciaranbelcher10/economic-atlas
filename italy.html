@@ -1329,7 +1329,14 @@ function computeScales(){
   colorScale = d3.scaleSequential(function(t){
     return d3.interpolateRgbBasis(["#DEF5E5","#8AD9B1","#40B7AD","#348FA7","#37659E","#413D7B","#2E1E3B"])(t);
   }).domain([minV, maxV]);
-  widthScale = d3.scaleSqrt().domain([minV, maxV]).range([1.5, 9]);
+  widthScale = d3.scaleLinear().domain([minV, maxV]).range([1.5, 9]);
+  // Linear rather than sqrt: sqrt compresses the high end of the range,
+  // which was making genuinely large trade-value differences look only
+  // subtly different in stroke width. A log scale was tried before this
+  // and reverted (it over-corrected the other way, making smaller
+  // partners' lines too thin/faint to read) -- linear is the middle
+  // ground between the two, giving a bigger, more honest visual gap
+  // between big and small trading partners without exaggerating it.
 }
 
 var activeHighlightFn = null;

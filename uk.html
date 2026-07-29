@@ -269,6 +269,34 @@ nav.viztoggle label{font-size:12.5px; color:var(--ink2); font-weight:600; margin
 .mpc-row .bar .mpc-arrow{font-size:12px;}
 .mpc-row .result{font-size:13px; color:var(--ink2); text-align:right;}
 .mpc-row .result strong{color:var(--ink); font-weight:700;}
+@media (max-width:700px){
+  /* The legend was a single flex row of multi-word phrases with no
+     white-space control -- at phone width the phrases themselves were
+     wrapping mid-word ("Voted" / "to cut"), and because flex-wrap
+     wraps at the line level, those broken half-lines interleaved with
+     the NEXT item's own wrapped half-line, scrambling the reading
+     order entirely. Stacking one item per line sidesteps the problem
+     rather than trying to control the wrap point. */
+  .mpc-legend{flex-direction:column; gap:8px; align-items:flex-start;}
+  .mpc-history{padding:16px 18px;}
+  /* The row was a fixed 100px/145px/200px/56px column grid -- on a
+     342px-wide phone column that's already ~500px of fixed-width
+     tracks before the flexible bar column gets anything, so content
+     (especially the "Minutes" link) was overflowing off the right
+     edge. Date+result share a line since they read naturally together
+     ("Jun 2026 ... held at 3.75%"); the bar, context, and minutes link
+     each get their own full-width line below. */
+  .mpc-row{
+    grid-template-columns:1fr auto;
+    grid-template-areas:"date result" "bar bar" "context context" "srclink srclink";
+    row-gap:7px; padding:14px 0;
+  }
+  .mpc-row .date{grid-area:date;}
+  .mpc-row .result{grid-area:result; text-align:right;}
+  .mpc-row .bar{grid-area:bar;}
+  .mpc-row .context{grid-area:context;}
+  .mpc-row .srclink{grid-area:srclink; text-align:left;}
+}
 .mpc-covnote{font-size:12.5px; color:var(--ink2); margin:14px 2px 0;}
 .tpm-scopenote{font-size:13.5px; color:var(--ink); background:#EEF3F0; border:1px solid #D7E3DA;
   border-radius:10px; padding:11px 15px; margin:0 0 14px;}
@@ -1563,7 +1591,14 @@ function computeScales(){
   colorScale = d3.scaleSequential(function(t){
     return d3.interpolateRgbBasis(["#DEF5E5","#8AD9B1","#40B7AD","#348FA7","#37659E","#413D7B","#2E1E3B"])(t);
   }).domain([minV, maxV]);
-  widthScale = d3.scaleSqrt().domain([minV, maxV]).range([1.5, 9]);
+  widthScale = d3.scaleLinear().domain([minV, maxV]).range([1.5, 9]);
+  // Linear rather than sqrt: sqrt compresses the high end of the range,
+  // which was making genuinely large trade-value differences look only
+  // subtly different in stroke width. A log scale was tried before this
+  // and reverted (it over-corrected the other way, making smaller
+  // partners' lines too thin/faint to read) -- linear is the middle
+  // ground between the two, giving a bigger, more honest visual gap
+  // between big and small trading partners without exaggerating it.
 }
 
 var activeHighlightFn = null;
