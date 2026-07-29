@@ -19,7 +19,7 @@
 <link href="https://fonts.googleapis.com/css2?family=Nunito+Sans:wght@400;600;700&display=swap" rel="stylesheet">
 <link rel="icon" type="image/png" sizes="32x32" href="favicon-32.png">
 <link rel="apple-touch-icon" href="apple-touch-icon.png">
-<link rel="stylesheet" href="style.css?v=15">
+<link rel="stylesheet" href="style.css?v=16">
 <script src="https://cdnjs.cloudflare.com/ajax/libs/Chart.js/4.4.1/chart.umd.min.js"></script>
 <script src="https://cdnjs.cloudflare.com/ajax/libs/hammer.js/2.0.8/hammer.min.js"></script>
 <script src="https://cdnjs.cloudflare.com/ajax/libs/chartjs-plugin-zoom/2.0.1/chartjs-plugin-zoom.min.js"></script>
@@ -207,6 +207,10 @@ footer.dash-foot{margin-top:36px; font-size:12.5px; color:var(--ink2); border-to
 <body>
 <nav class="top"><div class="wrap">
   <a class="brand" href="index.html"><img src="logo-64.png" alt="" width="26" height="26" style="display:block;border-radius:50%;background:#fff;padding:1px;">Economic Atlas</a>
+  <button type="button" class="navtoggle" id="navToggle" aria-label="Menu" aria-expanded="false" aria-controls="navLinks">
+    <span></span><span></span><span></span>
+  </button>
+  <div class="navlinks" id="navLinks">
   <div class="dropdown">
     <button type="button" class="dropbtn" id="macroBtn" aria-haspopup="true" aria-expanded="false">Country Breakdowns <span class="caret">&#9662;</span></button>
     <div class="dropdown-panel" id="macroPanel">
@@ -259,6 +263,7 @@ footer.dash-foot{margin-top:36px; font-size:12.5px; color:var(--ink2); border-to
   <a class="item" href="roadmap.html">Roadmap</a>
   <a class="item" href="contact.html">Contact</a>
   <button type="button" class="theme-toggle" id="themeToggle" aria-label="Switch to dark mode" title="Switch to dark mode">&#127769;</button>
+  </div>
 </div></nav>
 <div id="cookieBanner" role="region" aria-label="Cookie consent">
   <div class="cookie-inner">
@@ -290,6 +295,27 @@ footer.dash-foot{margin-top:36px; font-size:12.5px; color:var(--ink2); border-to
     if(!panel.contains(e.target) && e.target !== btn) close();
   });
   document.addEventListener("keydown", function(e){ if(e.key === "Escape") close(); });
+
+  // Mobile hamburger menu -- independent of the country-breakdown
+  // dropdown above (which still works exactly the same way, just
+  // nested inside this menu once it's open on narrow screens).
+  var navToggle = document.getElementById("navToggle");
+  var navLinks = document.getElementById("navLinks");
+  function closeNavMenu(){
+    navLinks.classList.remove("open");
+    navToggle.classList.remove("open");
+    navToggle.setAttribute("aria-expanded", "false");
+  }
+  navToggle.addEventListener("click", function(e){
+    e.stopPropagation();
+    var isOpen = navLinks.classList.toggle("open");
+    navToggle.classList.toggle("open", isOpen);
+    navToggle.setAttribute("aria-expanded", isOpen ? "true" : "false");
+  });
+  document.addEventListener("click", function(e){
+    if(!navLinks.contains(e.target) && e.target !== navToggle) closeNavMenu();
+  });
+  document.addEventListener("keydown", function(e){ if(e.key === "Escape") closeNavMenu(); });
 
   var themeBtn = document.getElementById("themeToggle");
   function updateThemeIcon(){
