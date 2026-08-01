@@ -19,7 +19,7 @@
 <link href="https://fonts.googleapis.com/css2?family=Nunito+Sans:wght@400;600;700&display=swap" rel="stylesheet">
 <link rel="icon" type="image/png" sizes="32x32" href="favicon-32.png">
 <link rel="apple-touch-icon" href="apple-touch-icon.png">
-<link rel="stylesheet" href="style.css?v=17">
+<link rel="stylesheet" href="style.css?v=16">
 <style>
 :root{ --map-nodata: #E9EBE7; }
 html[data-theme="dark"]{ --map-nodata: #C4CAC0; }
@@ -1241,9 +1241,8 @@ function renderBarRankList(container, concept, rows, chart){
     var fresh = countryFreshness(r.country, concept);
     li.innerHTML = "<span class=\"tpm-ranknum\">" + (i + 1) + "</span>"
       + "<span class=\"tpm-rankswatch\" style=\"background:" + COUNTRY_COLOR[r.country] + ";\"></span>"
-      + (fresh ? "<span class=\"led " + fresh.led + "\" title=\"" + fresh.title + "\" role=\"img\" aria-label=\"" + fresh.title + "\"></span>" : "")
       + "<span class=\"tpm-rankname\">" + r.country + "</span>"
-      + "<span class=\"tpm-rankvalue\">" + displayString(r.dv) + "<span class=\"per\">" + periodLabelFor(r.dv) + "</span></span>";
+      + "<span class=\"tpm-rankvalue\">" + (fresh ? "<span class=\"led " + fresh.led + "\" title=\"" + fresh.title + "\" role=\"img\" aria-label=\"" + fresh.title + "\"></span>" : "") + displayString(r.dv) + "<span class=\"per\">" + periodLabelFor(r.dv) + "</span></span>";
     li.addEventListener("mouseenter", function(){ highlightBarIndex(chart, idx, true); });
     li.addEventListener("mouseleave", function(){ highlightBarIndex(chart, idx, false); });
     list.appendChild(li);
@@ -1273,9 +1272,8 @@ function renderLineRankList(container, concept, datasets, chart){
     var fresh = countryFreshness(r.label, concept);
     li.innerHTML = "<span class=\"tpm-ranknum\">" + (i + 1) + "</span>"
       + "<span class=\"tpm-rankswatch\" style=\"background:" + COUNTRY_COLOR[r.label] + ";\"></span>"
-      + (fresh ? "<span class=\"led " + fresh.led + "\" title=\"" + fresh.title + "\" role=\"img\" aria-label=\"" + fresh.title + "\"></span>" : "")
       + "<span class=\"tpm-rankname\">" + r.label + "</span>"
-      + "<span class=\"tpm-rankvalue\">" + valText + "<span class=\"per\">" + fmtPeriod(r.period) + "</span></span>";
+      + "<span class=\"tpm-rankvalue\">" + (fresh ? "<span class=\"led " + fresh.led + "\" title=\"" + fresh.title + "\" role=\"img\" aria-label=\"" + fresh.title + "\"></span>" : "") + valText + "<span class=\"per\">" + fmtPeriod(r.period) + "</span></span>";
     li.addEventListener("mouseenter", function(){ highlightLineIndex(chart, r.idx, true); });
     li.addEventListener("mouseleave", function(){ highlightLineIndex(chart, r.idx, false); });
     list.appendChild(li);
@@ -1353,12 +1351,6 @@ function renderCharts(){
       + "<div class=\"tpm-layout\">"
       + "<div class=\"tpm-left\"><div class=\"cbox\"><canvas></canvas></div></div>"
       + "<div class=\"tpm-right\"><div class=\"tpm-ranking\"><h4>Ranking</h4><p class=\"tpm-ranksubtitle\" id=\"rankSub\"></p></div></div>"
-      + "</div>"
-      + "<div class=\"lockedactions\">"
-      + "<a class=\"lockedbtn\" href=\"contact\" data-tip=\"Coming soon. Contact us to express interest.\">"
-      + "<span class=\"lockicon\">&#128274;</span> Download data</a>"
-      + "<a class=\"lockedbtn\" href=\"contact\" data-tip=\"Coming soon. Contact us to express interest.\">"
-      + "<span class=\"lockicon\">&#128274;</span> Customise &amp; export</a>"
       + "</div>";
     grid.insertBefore(card, addTileEl);
     card.querySelector(".card-remove").addEventListener("click", function(){ removeMetric(concept); });

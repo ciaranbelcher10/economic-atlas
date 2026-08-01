@@ -19,7 +19,7 @@
 <link href="https://fonts.googleapis.com/css2?family=Nunito+Sans:wght@400;600;700&display=swap" rel="stylesheet">
 <link rel="icon" type="image/png" sizes="32x32" href="favicon-32.png">
 <link rel="apple-touch-icon" href="apple-touch-icon.png">
-<link rel="stylesheet" href="style.css?v=17">
+<link rel="stylesheet" href="style.css?v=16">
 <script src="https://cdnjs.cloudflare.com/ajax/libs/Chart.js/4.4.1/chart.umd.min.js"></script>
 <script src="https://cdnjs.cloudflare.com/ajax/libs/hammer.js/2.0.8/hammer.min.js"></script>
 <script src="https://cdnjs.cloudflare.com/ajax/libs/chartjs-plugin-zoom/2.0.1/chartjs-plugin-zoom.min.js"></script>
@@ -475,12 +475,6 @@ footer.dash-foot{margin-top:36px; font-size:12.5px; color:var(--ink2); border-to
       <div class="charttools">
         <div class="rangepresets" id="chartModalPresets"></div>
         <button type="button" class="resetzoom" id="chartModalReset">Reset zoom</button>
-      </div>
-      <div class="lockedactions">
-        <a class="lockedbtn" href="contact" data-tip="Coming soon. Contact us to express interest.">
-          <span class="lockicon">&#128274;</span> Download data</a>
-        <a class="lockedbtn" href="contact" data-tip="Coming soon. Contact us to express interest.">
-          <span class="lockicon">&#128274;</span> Customise &amp; export</a>
       </div>
       <div class="chart-modal-box">
         <canvas id="chartModalCanvas"></canvas>
@@ -1212,9 +1206,22 @@ function currencySymbol(unitStr){
   var m = unitStr.match(/^[^a-zA-Z0-9]+/);
   return m ? m[0] : "";
 }
-function curFmt(rawValue, unitStr, decimals){
+// Several countries' raw data unit is a bare "$" even though their own
+// currency isn't the US dollar (FRED/OECD's own unit metadata doesn't
+// distinguish) -- Canada and Australia genuinely use a dollar sign
+// (just their own), Mexico's peso does too, but Brazil's real (R$) and
+// South Africa's rand (R) don't use a dollar sign at all, so leaving
+// them as bare "$" isn't just ambiguous, it's the wrong symbol. This
+// mirrors the same NATIVE_SYMBOL_OVERRIDE already used on each of
+// those five countries' own individual pages.
+var NATIVE_SYMBOL_OVERRIDES = {
+  Canada: "C$", Australia: "A$", Mexico: "MX$", Brazil: "R$", "South Africa": "R"
+};
+function curFmt(rawValue, unitStr, decimals, country){
   var scale = scaleOf(unitStr);
   var symbol = currencySymbol(unitStr);
+  var override = country && NATIVE_SYMBOL_OVERRIDES[country];
+  if(symbol === "$" && !dollarise && override) symbol = override;
   var a = Math.abs(rawValue) * scale;
   var sign = rawValue < 0 ? "\u2212" : "";
   if(a >= 1e12) return sign + symbol + (a/1e12).toFixed(decimals) + "tn";
@@ -1242,10 +1249,10 @@ function isCurrencyUnit(u){
 // Everything else percentage-based (GDP growth, CPI, unemployment,
 // debt/GDP) uses 1 decimal, matching the site's generic pct() helper.
 var TWO_DECIMAL_KEYS = {boe_rate: 1, fed_funds: 1, ecb_rate: 1, boj_rate: 1, overnight_rate: 1, bond_yield_10y: 1};
-function fmtVal(v, unit, key){
+function fmtVal(v, unit, key, country){
   if(!unit) return String(v);
   if(unit === "%") return v.toFixed(key && TWO_DECIMAL_KEYS[key] ? 2 : 1) + "%";
-  if(isCurrencyUnit(unit)) return curFmt(v, unit, 1);
+  if(isCurrencyUnit(unit)) return curFmt(v, unit, 1, country);
   // Plain indices (business confidence, productivity) were falling
   // through to raw, unrounded values (e.g. "97.63978 index") -- rounds
   // to the same 1-decimal convention used everywhere else on the site.
@@ -1315,7 +1322,7 @@ function expandTile(tile, id, m){
     var chartUnit = toDisplayUnit(0, m.series.unit, m.country).unit;
     var kind = BAR_KEYS[m.key] ? "bar" : "line";
     var refLine = REF_LINE_FOR[m.key] == null ? null : REF_LINE_FOR[m.key];
-    var fmt = function(v){ return fmtVal(v, chartUnit, m.key); };
+    var fmt = function(v){ return fmtVal(v, chartUnit, m.key, m.country); };
     var chart = (kind === "bar" ? barChart : lineChart)(canvas, pts, fmt, fmt, refLine);
     tileCharts[id] = chart;
     wireRangePresets(tile, pts, kind, chart);
@@ -1347,7 +1354,7 @@ function renderDash(){
       + "<button type=\"button\" class=\"collapsebtn\" aria-label=\"Hide chart\" title=\"Hide chart\">&#8722;</button>"
       + "<p class=\"country\">" + m.country + "</p>"
       + "<p class=\"label\">" + m.series.label + (dollarise && disp.unit !== m.series.unit ? " (USD)" : "") + "</p>"
-      + "<p class=\"value\"><span class=\"led " + led + "\" title=\"" + ledTitle + "\" role=\"img\" aria-label=\"" + ledTitle + "\"></span>" + fmtVal(disp.value, disp.unit, m.key) + "</p>"
+      + "<p class=\"value\"><span class=\"led " + led + "\" title=\"" + ledTitle + "\" role=\"img\" aria-label=\"" + ledTitle + "\"></span>" + fmtVal(disp.value, disp.unit, m.key, m.country) + "</p>"
       + "<p class=\"period\">" + fmtPeriod(m.period) + "</p>"
       + "<div class=\"chartactions\">"
       + "<button type=\"button\" class=\"chartbtn\">&#128200; View chart</button>"
@@ -1357,12 +1364,6 @@ function renderDash(){
       + "<div class=\"charttools\">"
       + "<div class=\"rangepresets\">" + rangePresetsHtml() + "</div>"
       + "<button type=\"button\" class=\"resetzoom\">Reset zoom</button>"
-      + "</div>"
-      + "<div class=\"lockedactions\">"
-      + "<a class=\"lockedbtn\" href=\"contact\" data-tip=\"Coming soon. Contact us to express interest.\">"
-      + "<span class=\"lockicon\">&#128274;</span> Download data</a>"
-      + "<a class=\"lockedbtn\" href=\"contact\" data-tip=\"Coming soon. Contact us to express interest.\">"
-      + "<span class=\"lockicon\">&#128274;</span> Customise &amp; export</a>"
       + "</div>"
       + "<p class=\"chartsrc\">" + m.series.points.length + " observations, " + fmtPeriod(m.period) + " is the latest.</p>";
 
@@ -1568,7 +1569,7 @@ function showNudgeFor(country, key){
     var chip = document.createElement("button");
     chip.type = "button";
     chip.className = "nudgechip" + (added ? " added" : "");
-    chip.textContent = c + ": " + fmtVal(last[1], s.unit, k) + (added ? " \u2713" : " +");
+    chip.textContent = c + ": " + fmtVal(last[1], s.unit, k, c) + (added ? " \u2713" : " +");
     if(!added){
       chip.addEventListener("click", function(){
         pinned.push(id);
