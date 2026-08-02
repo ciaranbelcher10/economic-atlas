@@ -704,6 +704,7 @@ html[data-theme="dark"] .tpm-scopenote strong{color:var(--blue);}
       authBtn.textContent = "Log in";
       authBtn.classList.remove("signed-in");
     }
+    if(window.EATLAS_DOWNLOAD) window.EATLAS_DOWNLOAD.setAuthState(!!(session && session.user));
   }
 
   authBtn.addEventListener("click", function(){
@@ -820,6 +821,94 @@ html[data-theme="dark"] .tpm-scopenote strong{color:var(--blue);}
   sb.auth.getSession().then(function(res){
     updateAuthUI(res.data.session);
   });
+
+  // Expose so any chart on this page can send someone straight into the
+  // signup/login flow when they click a download button while logged out.
+  window.EATLAS_OPEN_AUTH_MODAL = openAuthModal;
+
+  // Shared, page-wide helper: every chart's "Download data" button (built
+  // by completely different code on country pages, Dashboard and Compare)
+  // calls into this one place to register itself. It tracks every button
+  // it's ever seen so that logging in or out updates all of them at once,
+  // without needing a page reload -- rather than each surface re-deriving
+  // login state independently.
+  window.EATLAS_DOWNLOAD = (function(){
+    var loggedIn = false;
+    var wired = []; // {btn, kind:'series'|'multi', pts/rows, title}
+
+    function csvEscape(v){
+      var s = String(v);
+      return /[",\n]/.test(s) ? '"' + s.replace(/"/g, '""') + '"' : s;
+    }
+    function seriesToCSV(pts){
+      var lines = ["Date,Value"];
+      pts.forEach(function(p){ lines.push(csvEscape(p[0]) + "," + csvEscape(p[1])); });
+      return lines.join("\n");
+    }
+    function multiToCSV(rows){
+      var lines = ["Country,Date,Value"];
+      rows.forEach(function(r){ lines.push(csvEscape(r.country) + "," + csvEscape(r.date || "") + "," + csvEscape(r.value)); });
+      return lines.join("\n");
+    }
+    function filenameFor(title){
+      return title.toLowerCase().replace(/[^a-z0-9]+/g, "_").replace(/^_+|_+$/g, "") + ".csv";
+    }
+    function triggerDownload(csv, title){
+      var blob = new Blob([csv], { type: "text/csv;charset=utf-8;" });
+      var url = URL.createObjectURL(blob);
+      var a = document.createElement("a");
+      a.href = url;
+      a.download = filenameFor(title);
+      document.body.appendChild(a);
+      a.click();
+      document.body.removeChild(a);
+      setTimeout(function(){ URL.revokeObjectURL(url); }, 200);
+    }
+
+    function applyState(entry){
+      var btn = entry.btn;
+      if(loggedIn){
+        btn.classList.add("unlocked");
+        btn.setAttribute("data-tip", "Download this chart's data as a CSV file.");
+        btn.onclick = function(e){
+          e.preventDefault();
+          var csv = entry.kind === "multi" ? multiToCSV(entry.data) : seriesToCSV(entry.data);
+          triggerDownload(csv, entry.title);
+        };
+      } else {
+        btn.classList.remove("unlocked");
+        btn.setAttribute("data-tip", "Create a free account to unlock this feature.");
+        btn.onclick = function(e){
+          e.preventDefault();
+          window.EATLAS_OPEN_AUTH_MODAL();
+        };
+      }
+    }
+
+    function register(btn, kind, data, title){
+      var entry = null;
+      for(var i = 0; i < wired.length; i++){ if(wired[i].btn === btn){ entry = wired[i]; break; } }
+      if(!entry){
+        entry = { btn: btn, kind: kind, data: data, title: title };
+        wired.push(entry);
+      } else {
+        entry.kind = kind; entry.data = data; entry.title = title;
+      }
+      applyState(entry);
+    }
+
+    return {
+      // pts: array of [date, value] pairs -- a single time series.
+      wire: function(btn, pts, title){ register(btn, "series", pts, title); },
+      // rows: array of {country, date, value} -- a cross-country comparison.
+      wireMulti: function(btn, rows, title){ register(btn, "multi", rows, title); },
+      setAuthState: function(isLoggedIn){
+        loggedIn = isLoggedIn;
+        wired.forEach(applyState);
+      }
+    };
+  })();
+
 
   // If this page load is the redirect back from clicking "confirm your
   // email" in the inbox, Supabase appends #access_token=...&type=signup
@@ -1456,6 +1545,8 @@ function openChartModal(id){
   modalChart = (entry.kind==="bar"?barChart:lineChart)(canvas, entry.pts, entry.fmtY, entry.fmtTip, entry.refLine);
   wireRangePresets(modal, entry.pts, entry.kind, modalChart);
   document.getElementById("chartModalReset").onclick = ()=>{ if(modalChart.resetZoom) modalChart.resetZoom(); };
+  const modalDlBtn = document.getElementById("chartModalDlBtn");
+  if(modalDlBtn && window.EATLAS_DOWNLOAD) window.EATLAS_DOWNLOAD.wire(modalDlBtn, entry.pts, entry.title);
   modal.hidden = false;
   document.body.style.overflow = "hidden";
 }
@@ -1530,10 +1621,12 @@ function chartPanel(key, containerId, title, expl, series, kind, fmtY, fmtTip, s
         <div class="rangepresets">${rangePresetsHtml()}</div>
         <button type="button" class="resetzoom">Reset zoom</button>
       </div>
-      <div class="lockedactions"><a class="lockedbtn" href="contact" data-tip="Coming soon. Contact us to express interest."><span class="lockicon">&#128274;</span> Download data</a><a class="lockedbtn" href="contact" data-tip="Coming soon. Contact us to express interest."><span class="lockicon">&#128274;</span> Customise &amp; export</a></div>
+      <div class="lockedactions"><a class="lockedbtn dl-btn" href="contact" data-tip="Create a free account to unlock this feature."><span class="lockicon">&#128274;</span> Download data</a><a class="lockedbtn" href="contact" data-tip="Coming soon. Contact us to express interest."><span class="lockicon">&#128274;</span> Customise &amp; export</a></div>
       <p class="src">Source: ${srcNote}</p>`;
   container.appendChild(panel);
   if(key) ANCHORS[key]={sec:SEC_OF[containerId], panelEl:panel};
+  const dlBtn = panel.querySelector(".dl-btn");
+  if(dlBtn && window.EATLAS_DOWNLOAD) window.EATLAS_DOWNLOAD.wire(dlBtn, pts, title);
 
   const refLineVal = refLine==null ? null : refLine;
   const chart = (kind==="bar"?barChart:lineChart)(document.getElementById(id), pts, fmtY, fmtTip, refLineVal);
@@ -2458,7 +2551,7 @@ window.refreshMPCContext = refreshMPCContext;
       <div class="rangepresets" id="chartModalPresets"></div>
       <button type="button" class="resetzoom" id="chartModalReset">Reset zoom</button>
     </div>
-    <div class="lockedactions"><a class="lockedbtn" href="contact" data-tip="Coming soon. Contact us to express interest."><span class="lockicon">&#128274;</span> Download data</a><a class="lockedbtn" href="contact" data-tip="Coming soon. Contact us to express interest."><span class="lockicon">&#128274;</span> Customise &amp; export</a></div>
+    <div class="lockedactions"><a class="lockedbtn" href="contact" id="chartModalDlBtn" data-tip="Create a free account to unlock this feature."><span class="lockicon">&#128274;</span> Download data</a><a class="lockedbtn" href="contact" data-tip="Coming soon. Contact us to express interest."><span class="lockicon">&#128274;</span> Customise &amp; export</a></div>
     <div class="chart-modal-box">
       <canvas id="chartModalCanvas"></canvas>
     </div>
