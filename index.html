@@ -31,7 +31,7 @@
 <link href="https://fonts.googleapis.com/css2?family=Nunito+Sans:wght@400;600;700&display=swap" rel="stylesheet">
 <link rel="icon" type="image/png" sizes="32x32" href="favicon-32.png">
 <link rel="apple-touch-icon" href="apple-touch-icon.png">
-<link rel="stylesheet" href="style.css?v=19">
+<link rel="stylesheet" href="style.css?v=20">
 <style>
 .mapwrap{background:var(--panel); border:1px solid var(--hair); border-radius:16px;
   padding:14px; margin:22px 0 18px; position:relative; overflow:hidden;}
@@ -582,19 +582,51 @@
       setTimeout(function(){ URL.revokeObjectURL(url); }, 200);
     }
 
+    function setButtonLabel(btn, text, iconHtml){
+      btn.innerHTML = (iconHtml || "") + text;
+    }
+
+    function startDownload(entry){
+      var btn = entry.btn;
+      btn.classList.remove("unlocked", "dl-success");
+      btn.classList.add("dl-downloading");
+      setButtonLabel(btn, "Downloading\u2026");
+      btn.onclick = null; // ignore clicks mid-download rather than re-trigger
+
+      // The actual CSV build + browser download hand-off is effectively
+      // instant, but that means "Downloading..." would otherwise flash
+      // for a single frame -- this is about giving visible feedback for
+      // an action that's real but too fast to actually see, not about
+      // timing anything genuinely slow.
+      setTimeout(function(){
+        var csv = entry.kind === "multi" ? multiToCSV(entry.data) : seriesToCSV(entry.data);
+        triggerDownload(csv, entry.title);
+
+        btn.classList.remove("dl-downloading");
+        btn.classList.add("dl-success");
+        setButtonLabel(btn, "Downloaded \u2713");
+
+        setTimeout(function(){
+          btn.classList.remove("dl-success");
+          btn.classList.add("unlocked");
+          setButtonLabel(btn, "Download data");
+          btn.onclick = function(e){ e.preventDefault(); startDownload(entry); };
+        }, 1600);
+      }, 450);
+    }
+
     function applyState(entry){
       var btn = entry.btn;
+      btn.classList.remove("dl-downloading", "dl-success");
       if(loggedIn){
         btn.classList.add("unlocked");
         btn.setAttribute("data-tip", "Download this chart's data as a CSV file.");
-        btn.onclick = function(e){
-          e.preventDefault();
-          var csv = entry.kind === "multi" ? multiToCSV(entry.data) : seriesToCSV(entry.data);
-          triggerDownload(csv, entry.title);
-        };
+        setButtonLabel(btn, "Download data");
+        btn.onclick = function(e){ e.preventDefault(); startDownload(entry); };
       } else {
         btn.classList.remove("unlocked");
         btn.setAttribute("data-tip", "Create a free account to unlock this feature.");
+        setButtonLabel(btn, "Download data", '<span class="lockicon">&#128274;</span> ');
         btn.onclick = function(e){
           e.preventDefault();
           window.EATLAS_OPEN_AUTH_MODAL();
