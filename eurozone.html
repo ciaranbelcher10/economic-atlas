@@ -31,7 +31,7 @@
 <link href="https://fonts.googleapis.com/css2?family=Nunito+Sans:wght@400;600;700&display=swap" rel="stylesheet">
 <link rel="icon" type="image/png" sizes="32x32" href="favicon-32.png">
 <link rel="apple-touch-icon" href="apple-touch-icon.png">
-<link rel="stylesheet" href="style.css?v=17">
+<link rel="stylesheet" href="style.css?v=18">
 <style>
 .led{display:inline-block; width:9px; height:9px; border-radius:50%;
   margin-right:9px; vertical-align:middle; position:relative; top:-3px;}
@@ -183,6 +183,7 @@ nav.cat button.active{background:var(--blue); border-color:var(--blue); color:#f
   <a class="item" href="dashboard">My Dashboard</a>
   <a class="item" href="roadmap">Roadmap</a>
   <a class="item" href="contact">Contact</a>
+  <button type="button" class="authbtn" id="authBtn">Log in</button>
   <button type="button" class="theme-toggle" id="themeToggle" aria-label="Switch to dark mode" title="Switch to dark mode">&#127769;</button>
   </div>
 </div></nav>
@@ -195,6 +196,35 @@ nav.cat button.active{background:var(--blue); border-color:var(--blue); color:#f
     <div class="cookie-actions">
       <button type="button" class="btn ghost" id="cookieReject">Reject</button>
       <button type="button" class="btn" id="cookieAccept">Accept</button>
+    </div>
+  </div>
+</div>
+<div class="auth-modal" id="authModal" hidden>
+  <div class="auth-modal-backdrop" id="authModalBackdrop"></div>
+  <div class="auth-modal-content">
+    <button type="button" class="auth-modal-close" id="authModalClose" aria-label="Close">&times;</button>
+    <div id="authFormView">
+      <h2 id="authModalTitle">Log in</h2>
+      <p class="auth-modal-sub" id="authModalSub">Welcome back.</p>
+      <form id="authForm">
+        <div class="auth-field">
+          <label for="authEmail">Email</label>
+          <input type="email" id="authEmail" required autocomplete="email">
+        </div>
+        <div class="auth-field">
+          <label for="authPassword">Password</label>
+          <input type="password" id="authPassword" required autocomplete="current-password" minlength="6">
+        </div>
+        <button type="submit" class="btn auth-submit" id="authSubmitBtn">Log in</button>
+      </form>
+      <p class="auth-toggle" id="authToggleRow">Don't have an account? <button type="button" id="authToggleBtn">Sign up</button></p>
+      <p class="auth-msg" id="authMsg"></p>
+    </div>
+    <div id="authSignedInView" hidden class="auth-signedin-box">
+      <h2>Account</h2>
+      <p>Signed in as</p>
+      <p><strong id="authUserEmail"></strong></p>
+      <button type="button" class="btn ghost" id="authSignOutBtn">Log out</button>
     </div>
   </div>
 </div>
@@ -307,6 +337,155 @@ nav.cat button.active{background:var(--blue); border-color:var(--blue); color:#f
       cookieBanner.classList.remove("show");
     });
   }
+})();
+</script>
+<script src="https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2"></script>
+<script>
+(function(){
+  var SUPABASE_URL = "https://skluvrxnuibkordzgtmu.supabase.co";
+  var SUPABASE_KEY = "sb_publishable_p6_GqrC8qcNC6KwPE46hkw_qdWQTuyT";
+  var sb = supabase.createClient(SUPABASE_URL, SUPABASE_KEY);
+
+  var authBtn = document.getElementById("authBtn");
+  var authModal = document.getElementById("authModal");
+  var authModalBackdrop = document.getElementById("authModalBackdrop");
+  var authModalClose = document.getElementById("authModalClose");
+  var authForm = document.getElementById("authForm");
+  var authEmail = document.getElementById("authEmail");
+  var authPassword = document.getElementById("authPassword");
+  var authSubmitBtn = document.getElementById("authSubmitBtn");
+  var authMsg = document.getElementById("authMsg");
+  var authToggleRow = document.getElementById("authToggleRow");
+  var authModalTitle = document.getElementById("authModalTitle");
+  var authModalSub = document.getElementById("authModalSub");
+  var authFormView = document.getElementById("authFormView");
+  var authSignedInView = document.getElementById("authSignedInView");
+  var authUserEmail = document.getElementById("authUserEmail");
+  var authSignOutBtn = document.getElementById("authSignOutBtn");
+
+  var mode = "login";
+
+  function showMsg(text, kind){
+    authMsg.textContent = text;
+    authMsg.className = "auth-msg show " + kind;
+  }
+  function clearMsg(){
+    authMsg.className = "auth-msg";
+    authMsg.textContent = "";
+  }
+
+  function wireToggleBtn(label, nextMode){
+    var btn = document.createElement("button");
+    btn.type = "button";
+    btn.textContent = label;
+    btn.addEventListener("click", function(){ setMode(nextMode); });
+    return btn;
+  }
+
+  function setMode(newMode){
+    mode = newMode;
+    clearMsg();
+    authForm.reset();
+    if(mode === "login"){
+      authModalTitle.textContent = "Log in";
+      authModalSub.textContent = "Welcome back.";
+      authSubmitBtn.textContent = "Log in";
+      authToggleRow.textContent = "Don't have an account? ";
+      authToggleRow.appendChild(wireToggleBtn("Sign up", "signup"));
+    } else {
+      authModalTitle.textContent = "Sign up";
+      authModalSub.textContent = "Free, for now -- this may change in future.";
+      authSubmitBtn.textContent = "Sign up";
+      authToggleRow.textContent = "Already have an account? ";
+      authToggleRow.appendChild(wireToggleBtn("Log in", "login"));
+    }
+  }
+
+  function openAuthModal(){
+    authModal.hidden = false;
+    document.body.style.overflow = "hidden";
+    authFormView.hidden = false;
+    authSignedInView.hidden = true;
+    setMode("login");
+  }
+  function closeAuthModal(){
+    authModal.hidden = true;
+    document.body.style.overflow = "";
+  }
+
+  function updateAuthUI(session){
+    if(session && session.user){
+      authBtn.textContent = session.user.email;
+      authBtn.classList.add("signed-in");
+    } else {
+      authBtn.textContent = "Log in";
+      authBtn.classList.remove("signed-in");
+    }
+  }
+
+  authBtn.addEventListener("click", function(){
+    sb.auth.getSession().then(function(res){
+      var session = res.data.session;
+      if(session){
+        authModal.hidden = false;
+        document.body.style.overflow = "hidden";
+        authFormView.hidden = true;
+        authSignedInView.hidden = false;
+        authUserEmail.textContent = session.user.email;
+      } else {
+        openAuthModal();
+      }
+    });
+  });
+
+  authModalClose.addEventListener("click", closeAuthModal);
+  authModalBackdrop.addEventListener("click", closeAuthModal);
+  document.addEventListener("keydown", function(e){ if(e.key === "Escape" && !authModal.hidden) closeAuthModal(); });
+
+  authForm.addEventListener("submit", function(e){
+    e.preventDefault();
+    var email = authEmail.value.trim();
+    var password = authPassword.value;
+    authSubmitBtn.disabled = true;
+    clearMsg();
+
+    if(mode === "signup"){
+      sb.auth.signUp({ email: email, password: password }).then(function(res){
+        authSubmitBtn.disabled = false;
+        if(res.error){
+          showMsg(res.error.message, "error");
+        } else if(res.data.user && !res.data.session){
+          showMsg("Check your email to confirm your account before logging in.", "success");
+          authForm.reset();
+        } else {
+          showMsg("Account created.", "success");
+        }
+      });
+    } else {
+      sb.auth.signInWithPassword({ email: email, password: password }).then(function(res){
+        authSubmitBtn.disabled = false;
+        if(res.error){
+          showMsg(res.error.message, "error");
+        } else {
+          closeAuthModal();
+        }
+      });
+    }
+  });
+
+  authSignOutBtn.addEventListener("click", function(){
+    sb.auth.signOut().then(function(){
+      closeAuthModal();
+    });
+  });
+
+  sb.auth.onAuthStateChange(function(event, session){
+    updateAuthUI(session);
+  });
+
+  sb.auth.getSession().then(function(res){
+    updateAuthUI(res.data.session);
+  });
 })();
 </script>
 
