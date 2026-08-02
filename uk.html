@@ -31,7 +31,7 @@
 <link href="https://fonts.googleapis.com/css2?family=Nunito+Sans:wght@400;600;700&display=swap" rel="stylesheet">
 <link rel="icon" type="image/png" sizes="32x32" href="favicon-32.png">
 <link rel="apple-touch-icon" href="apple-touch-icon.png">
-<link rel="stylesheet" href="style.css?v=20">
+<link rel="stylesheet" href="style.css?v=21">
 <style>
 .led{display:inline-block; width:9px; height:9px; border-radius:50%;
   margin-right:9px; vertical-align:middle; position:relative; top:-3px;}
@@ -705,6 +705,7 @@ html[data-theme="dark"] .tpm-scopenote strong{color:var(--blue);}
       authBtn.classList.remove("signed-in");
     }
     if(window.EATLAS_DOWNLOAD) window.EATLAS_DOWNLOAD.setAuthState(!!(session && session.user));
+    if(window.EATLAS_PREFS) window.EATLAS_PREFS.setAuthState(!!(session && session.user), session && session.user ? session.user.id : null);
   }
 
   authBtn.addEventListener("click", function(){
@@ -941,6 +942,79 @@ html[data-theme="dark"] .tpm-scopenote strong{color:var(--blue);}
     };
   })();
 
+  // Shared, page-wide preferences store, backed by the profiles table's
+  // `preferences` jsonb column -- the actual replacement for what used
+  // to be per-device localStorage. Deliberately does NOT fall back to
+  // localStorage when logged out: nothing persists at all in that case,
+  // by design, since the whole point is making an account the only way
+  // to keep anything.
+  window.EATLAS_PREFS = (function(){
+    var loggedIn = false;
+    var userId = null;
+    var cache = null;
+    var readyDone = false;
+    var readyResolve;
+    var readyPromise = new Promise(function(res){ readyResolve = res; });
+    var banners = [];
+    var loginCallbacks = [];
+
+    function updateBanners(){
+      banners.forEach(function(el){ el.hidden = loggedIn; });
+    }
+
+    function resolveReady(){
+      if(!readyDone){ readyDone = true; readyResolve(); }
+    }
+
+    function fetchPrefs(wasLoggedOutBefore){
+      if(!loggedIn || !userId){
+        cache = {};
+        resolveReady();
+        return;
+      }
+      sb.from("profiles").select("preferences").eq("id", userId).single().then(function(res){
+        cache = (res.data && res.data.preferences) || {};
+        resolveReady();
+        // A live login (not the initial page load) -- whatever was
+        // already pinned/selected this session, while unsaved, shouldn't
+        // just vanish now that saving is actually possible.
+        if(wasLoggedOutBefore) loginCallbacks.forEach(function(cb){ cb(); });
+      }).catch(function(){
+        cache = {};
+        resolveReady();
+        if(wasLoggedOutBefore) loginCallbacks.forEach(function(cb){ cb(); });
+      });
+    }
+
+    return {
+      ready: readyPromise,
+      isLoggedIn: function(){ return loggedIn; },
+      get: function(key, fallback){
+        if(!cache || !(key in cache)) return fallback;
+        return cache[key];
+      },
+      set: function(key, value){
+        if(!cache) cache = {};
+        cache[key] = value;
+        if(!loggedIn || !userId) return; // logged out -- nothing to save, by design
+        sb.from("profiles").update({ preferences: cache }).eq("id", userId).then(function(res){
+          if(res.error) console.error("Failed to save preference:", res.error);
+        });
+      },
+      registerBanner: function(el){
+        banners.push(el);
+        updateBanners();
+      },
+      onLogin: function(cb){ loginCallbacks.push(cb); },
+      setAuthState: function(isLoggedIn, uid){
+        var wasLoggedOut = !loggedIn && isLoggedIn;
+        loggedIn = isLoggedIn;
+        userId = uid;
+        updateBanners();
+        fetchPrefs(wasLoggedOut);
+      }
+    };
+  })();
 
   // If this page load is the redirect back from clicking "confirm your
   // email" in the inbox, Supabase appends #access_token=...&type=signup

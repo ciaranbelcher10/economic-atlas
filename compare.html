@@ -31,7 +31,7 @@
 <link href="https://fonts.googleapis.com/css2?family=Nunito+Sans:wght@400;600;700&display=swap" rel="stylesheet">
 <link rel="icon" type="image/png" sizes="32x32" href="favicon-32.png">
 <link rel="apple-touch-icon" href="apple-touch-icon.png">
-<link rel="stylesheet" href="style.css?v=20">
+<link rel="stylesheet" href="style.css?v=21">
 <style>
 :root{ --map-nodata: #E9EBE7; }
 html[data-theme="dark"]{ --map-nodata: #C4CAC0; }
@@ -563,6 +563,7 @@ footer.cmp-foot{margin-top:36px; font-size:12.5px; color:var(--ink2); border-top
       authBtn.classList.remove("signed-in");
     }
     if(window.EATLAS_DOWNLOAD) window.EATLAS_DOWNLOAD.setAuthState(!!(session && session.user));
+    if(window.EATLAS_PREFS) window.EATLAS_PREFS.setAuthState(!!(session && session.user), session && session.user ? session.user.id : null);
   }
 
   authBtn.addEventListener("click", function(){
@@ -799,6 +800,79 @@ footer.cmp-foot{margin-top:36px; font-size:12.5px; color:var(--ink2); border-top
     };
   })();
 
+  // Shared, page-wide preferences store, backed by the profiles table's
+  // `preferences` jsonb column -- the actual replacement for what used
+  // to be per-device localStorage. Deliberately does NOT fall back to
+  // localStorage when logged out: nothing persists at all in that case,
+  // by design, since the whole point is making an account the only way
+  // to keep anything.
+  window.EATLAS_PREFS = (function(){
+    var loggedIn = false;
+    var userId = null;
+    var cache = null;
+    var readyDone = false;
+    var readyResolve;
+    var readyPromise = new Promise(function(res){ readyResolve = res; });
+    var banners = [];
+    var loginCallbacks = [];
+
+    function updateBanners(){
+      banners.forEach(function(el){ el.hidden = loggedIn; });
+    }
+
+    function resolveReady(){
+      if(!readyDone){ readyDone = true; readyResolve(); }
+    }
+
+    function fetchPrefs(wasLoggedOutBefore){
+      if(!loggedIn || !userId){
+        cache = {};
+        resolveReady();
+        return;
+      }
+      sb.from("profiles").select("preferences").eq("id", userId).single().then(function(res){
+        cache = (res.data && res.data.preferences) || {};
+        resolveReady();
+        // A live login (not the initial page load) -- whatever was
+        // already pinned/selected this session, while unsaved, shouldn't
+        // just vanish now that saving is actually possible.
+        if(wasLoggedOutBefore) loginCallbacks.forEach(function(cb){ cb(); });
+      }).catch(function(){
+        cache = {};
+        resolveReady();
+        if(wasLoggedOutBefore) loginCallbacks.forEach(function(cb){ cb(); });
+      });
+    }
+
+    return {
+      ready: readyPromise,
+      isLoggedIn: function(){ return loggedIn; },
+      get: function(key, fallback){
+        if(!cache || !(key in cache)) return fallback;
+        return cache[key];
+      },
+      set: function(key, value){
+        if(!cache) cache = {};
+        cache[key] = value;
+        if(!loggedIn || !userId) return; // logged out -- nothing to save, by design
+        sb.from("profiles").update({ preferences: cache }).eq("id", userId).then(function(res){
+          if(res.error) console.error("Failed to save preference:", res.error);
+        });
+      },
+      registerBanner: function(el){
+        banners.push(el);
+        updateBanners();
+      },
+      onLogin: function(cb){ loginCallbacks.push(cb); },
+      setAuthState: function(isLoggedIn, uid){
+        var wasLoggedOut = !loggedIn && isLoggedIn;
+        loggedIn = isLoggedIn;
+        userId = uid;
+        updateBanners();
+        fetchPrefs(wasLoggedOut);
+      }
+    };
+  })();
 
   // If this page load is the redirect back from clicking "confirm your
   // email" in the inbox, Supabase appends #access_token=...&type=signup
@@ -823,8 +897,14 @@ footer.cmp-foot{margin-top:36px; font-size:12.5px; color:var(--ink2); border-top
 </script>
 
 <div class="wrap" style="max-width:1080px; padding:30px 24px 60px;">
+  <div class="savebar" id="saveBar" hidden>
+    <span class="savebar-icon" aria-hidden="true">&#9888;&#65039;</span>
+    <p>Every comparison you build here resets the moment you leave. A free account (10 seconds) keeps it saved for next time.</p>
+    <button type="button" class="btn" id="saveBarSignup">Sign up free</button>
+    <button type="button" class="savebar-close" id="saveBarClose" aria-label="Dismiss">&times;</button>
+  </div>
   <h1 style="font-size:28px; letter-spacing:-.01em; margin-bottom:6px;">Compare Countries</h1>
-  <p style="color:var(--ink2); font-size:14.5px; max-width:74ch; margin:8px 0 0;">Pick any of the 18 tracked countries and any of the metrics tracked on their own pages -- GDP, inflation, unemployment, debt, trade, rates and more -- side by side, each anchored to the exact same year, or how each has changed over the last 1, 2, 5 or 10 years.</p>
+  <p style="color:var(--ink2); font-size:14.5px; margin:8px 0 0;">Compare any of the 18 tracked countries across GDP, inflation, unemployment, debt, trade, rates and more -- side by side, for one year or over the last 1, 2, 5 or 10 years.</p>
   <p class="loadmsg" id="loadMsg">Loading every country&#39;s data&hellip;</p>
 
   <div id="mainContent" style="display:none;">
@@ -1360,21 +1440,14 @@ function periodLabelFor(dv){
 var selected = ["UK", "US", "Germany", "Japan"];
 var horizon = "0";
 
-// Which concept cards are currently shown -- customisable, persisted the
-// same way My Dashboard persists its pinned tiles (a plain array in
-// localStorage, loaded once at startup, falling back quietly to the
-// original five if nothing's saved or storage is unavailable).
+// Which concept cards are currently shown -- customisable, persisted to
+// the visitor's account (via EATLAS_PREFS) if they're logged in.
+// Deliberately no localStorage fallback: logged out, this always starts
+// from the same defaults and never remembers anything, by design.
 var DEFAULT_CONCEPTS = ["gdp_level", "gdp_growth", "cpi", "unemployment"];
-var METRICS_KEY = "eatlas_compare_concepts_v2";
 var visibleMetrics = DEFAULT_CONCEPTS.slice();
-try {
-  var savedMetrics = JSON.parse(localStorage.getItem(METRICS_KEY) || "null");
-  if(Array.isArray(savedMetrics) && savedMetrics.length && savedMetrics.every(function(m){ return CONCEPT_LABEL[m]; })){
-    visibleMetrics = savedMetrics;
-  }
-} catch(e) { /* private browsing / storage disabled -- fall back quietly */ }
 function saveVisibleMetrics(){
-  try { localStorage.setItem(METRICS_KEY, JSON.stringify(visibleMetrics)); } catch(e) {}
+  if(window.EATLAS_PREFS) window.EATLAS_PREFS.set("compareMetrics", visibleMetrics);
 }
 function addMetric(key){
   if(visibleMetrics.indexOf(key) !== -1) return;
@@ -2014,6 +2087,32 @@ loadAll().then(function(){
   document.getElementById("loadMsg").style.display = "none";
   document.getElementById("mainContent").style.display = "block";
   try { initMapYearSlider(); } catch(e) { console.error("initMapYearSlider failed:", e); }
+
+  var saveBar = document.getElementById("saveBar");
+  if(saveBar && window.EATLAS_PREFS) window.EATLAS_PREFS.registerBanner(saveBar);
+  var saveBarSignup = document.getElementById("saveBarSignup");
+  if(saveBarSignup) saveBarSignup.addEventListener("click", function(){
+    if(window.EATLAS_OPEN_AUTH_MODAL) window.EATLAS_OPEN_AUTH_MODAL();
+  });
+  var saveBarClose = document.getElementById("saveBarClose");
+  if(saveBarClose) saveBarClose.addEventListener("click", function(){ saveBar.hidden = true; });
+
+  if(window.EATLAS_PREFS){
+    window.EATLAS_PREFS.ready.then(function(){
+      var saved = window.EATLAS_PREFS.get("compareMetrics", null);
+      if(Array.isArray(saved) && saved.length && saved.every(function(m){ return CONCEPT_LABEL[m]; })){
+        visibleMetrics = saved;
+      }
+      renderAll();
+    });
+    // Logging in mid-session (via the banner, having already customised
+    // the comparison while logged out) saves whatever's currently shown
+    // immediately, rather than losing it the moment the tab closes.
+    window.EATLAS_PREFS.onLogin(function(){
+      window.EATLAS_PREFS.set("compareMetrics", visibleMetrics);
+    });
+  }
+
   fetchWithTimeout("https://cdn.jsdelivr.net/npm/world-atlas@2/countries-110m.json", 12000)
     .then(function(r){ return r.json(); })
     .then(function(world){ worldData = world; renderAll(); })

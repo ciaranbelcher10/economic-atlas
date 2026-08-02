@@ -31,7 +31,7 @@
 <link href="https://fonts.googleapis.com/css2?family=Nunito+Sans:wght@400;600;700&display=swap" rel="stylesheet">
 <link rel="icon" type="image/png" sizes="32x32" href="favicon-32.png">
 <link rel="apple-touch-icon" href="apple-touch-icon.png">
-<link rel="stylesheet" href="style.css?v=20">
+<link rel="stylesheet" href="style.css?v=21">
 <script src="https://cdnjs.cloudflare.com/ajax/libs/Chart.js/4.4.1/chart.umd.min.js"></script>
 <script src="https://cdnjs.cloudflare.com/ajax/libs/hammer.js/2.0.8/hammer.min.js"></script>
 <script src="https://cdnjs.cloudflare.com/ajax/libs/chartjs-plugin-zoom/2.0.1/chartjs-plugin-zoom.min.js"></script>
@@ -587,6 +587,7 @@ footer.dash-foot{margin-top:36px; font-size:12.5px; color:var(--ink2); border-to
       authBtn.classList.remove("signed-in");
     }
     if(window.EATLAS_DOWNLOAD) window.EATLAS_DOWNLOAD.setAuthState(!!(session && session.user));
+    if(window.EATLAS_PREFS) window.EATLAS_PREFS.setAuthState(!!(session && session.user), session && session.user ? session.user.id : null);
   }
 
   authBtn.addEventListener("click", function(){
@@ -823,6 +824,79 @@ footer.dash-foot{margin-top:36px; font-size:12.5px; color:var(--ink2); border-to
     };
   })();
 
+  // Shared, page-wide preferences store, backed by the profiles table's
+  // `preferences` jsonb column -- the actual replacement for what used
+  // to be per-device localStorage. Deliberately does NOT fall back to
+  // localStorage when logged out: nothing persists at all in that case,
+  // by design, since the whole point is making an account the only way
+  // to keep anything.
+  window.EATLAS_PREFS = (function(){
+    var loggedIn = false;
+    var userId = null;
+    var cache = null;
+    var readyDone = false;
+    var readyResolve;
+    var readyPromise = new Promise(function(res){ readyResolve = res; });
+    var banners = [];
+    var loginCallbacks = [];
+
+    function updateBanners(){
+      banners.forEach(function(el){ el.hidden = loggedIn; });
+    }
+
+    function resolveReady(){
+      if(!readyDone){ readyDone = true; readyResolve(); }
+    }
+
+    function fetchPrefs(wasLoggedOutBefore){
+      if(!loggedIn || !userId){
+        cache = {};
+        resolveReady();
+        return;
+      }
+      sb.from("profiles").select("preferences").eq("id", userId).single().then(function(res){
+        cache = (res.data && res.data.preferences) || {};
+        resolveReady();
+        // A live login (not the initial page load) -- whatever was
+        // already pinned/selected this session, while unsaved, shouldn't
+        // just vanish now that saving is actually possible.
+        if(wasLoggedOutBefore) loginCallbacks.forEach(function(cb){ cb(); });
+      }).catch(function(){
+        cache = {};
+        resolveReady();
+        if(wasLoggedOutBefore) loginCallbacks.forEach(function(cb){ cb(); });
+      });
+    }
+
+    return {
+      ready: readyPromise,
+      isLoggedIn: function(){ return loggedIn; },
+      get: function(key, fallback){
+        if(!cache || !(key in cache)) return fallback;
+        return cache[key];
+      },
+      set: function(key, value){
+        if(!cache) cache = {};
+        cache[key] = value;
+        if(!loggedIn || !userId) return; // logged out -- nothing to save, by design
+        sb.from("profiles").update({ preferences: cache }).eq("id", userId).then(function(res){
+          if(res.error) console.error("Failed to save preference:", res.error);
+        });
+      },
+      registerBanner: function(el){
+        banners.push(el);
+        updateBanners();
+      },
+      onLogin: function(cb){ loginCallbacks.push(cb); },
+      setAuthState: function(isLoggedIn, uid){
+        var wasLoggedOut = !loggedIn && isLoggedIn;
+        loggedIn = isLoggedIn;
+        userId = uid;
+        updateBanners();
+        fetchPrefs(wasLoggedOut);
+      }
+    };
+  })();
 
   // If this page load is the redirect back from clicking "confirm your
   // email" in the inbox, Supabase appends #access_token=...&type=signup
@@ -847,8 +921,14 @@ footer.dash-foot{margin-top:36px; font-size:12.5px; color:var(--ink2); border-to
 </script>
 
 <div class="wrap" style="max-width:1080px; padding:30px 24px 60px;">
+  <div class="savebar" id="saveBar" hidden>
+    <span class="savebar-icon" aria-hidden="true">&#9888;&#65039;</span>
+    <p>Everything you pin here resets the moment you leave. A free account (10 seconds) keeps it saved for next time.</p>
+    <button type="button" class="btn" id="saveBarSignup">Sign up free</button>
+    <button type="button" class="savebar-close" id="saveBarClose" aria-label="Dismiss">&times;</button>
+  </div>
   <h1 style="font-size:28px; letter-spacing:-.01em; margin-bottom:6px;">My Dashboard</h1>
-  <p style="color:var(--ink2); font-size:14.5px; max-width:70ch; margin:8px 0 0;">Pin any metric from any of the 8 tracked countries into one personal view, with a chart on demand for any tile.</p>
+  <p style="color:var(--ink2); font-size:14.5px; margin:8px 0 0;">Pin any metric from any of the 18 tracked countries into one personal view, with a chart on demand for any tile.</p>
 
   <div class="metric-toggles" aria-label="Display options">
     <button type="button" class="mtoggle" id="dollariseBtn">
@@ -1742,24 +1822,13 @@ function toDisplayPoints(pts, unit, country){
 }
 
 /* --------------------------------- tiles ----------------------------------- */
-var STORAGE_KEY = "eatlas_dashboard_pins_v1";
 function savePinned(){
-  try {
-    localStorage.setItem(STORAGE_KEY, JSON.stringify(pinned));
-  } catch(e) {
-    // Private browsing / storage disabled -- fail quietly, the page
-    // still works, it just won't remember the selection next visit.
-  }
+  if(window.EATLAS_PREFS) window.EATLAS_PREFS.set("pinned", pinned);
 }
 function loadSavedPinned(){
-  try {
-    var raw = localStorage.getItem(STORAGE_KEY);
-    if(!raw) return null;
-    var arr = JSON.parse(raw);
-    return Array.isArray(arr) ? arr : null;
-  } catch(e) {
-    return null;
-  }
+  if(!window.EATLAS_PREFS) return null;
+  var arr = window.EATLAS_PREFS.get("pinned", null);
+  return Array.isArray(arr) ? arr : null;
 }
 
 var pinned = []; // set once data has loaded, see below
@@ -2141,21 +2210,42 @@ loadAll().then(function(){
     renderDash();
   });
 
-  var saved = loadSavedPinned();
-  if(saved && saved.length){
-    // Returning visitor -- restore their actual selection, but drop any
-    // saved id that no longer resolves (e.g. a metric that's since been
-    // renamed or removed from a country's file) rather than showing a
-    // broken tile.
-    pinned = saved.filter(function(id){ return tileFromId(id) != null; });
-  } else {
-    // First visit, or nothing usable was saved -- start with a genuine
-    // blank slate rather than a pre-filled example selection, matching
-    // the same change made to Compare.
-    pinned = [];
+  var saveBar = document.getElementById("saveBar");
+  if(saveBar && window.EATLAS_PREFS) window.EATLAS_PREFS.registerBanner(saveBar);
+  var saveBarSignup = document.getElementById("saveBarSignup");
+  if(saveBarSignup) saveBarSignup.addEventListener("click", function(){
+    if(window.EATLAS_OPEN_AUTH_MODAL) window.EATLAS_OPEN_AUTH_MODAL();
+  });
+  var saveBarClose = document.getElementById("saveBarClose");
+  if(saveBarClose) saveBarClose.addEventListener("click", function(){ saveBar.hidden = true; });
+
+  // Logging in mid-session (via the banner, having already pinned tiles
+  // while logged out) saves whatever's currently pinned immediately,
+  // rather than losing it the moment the tab closes.
+  if(window.EATLAS_PREFS) window.EATLAS_PREFS.onLogin(function(){ savePinned(); });
+
+  function bootPins(){
+    var saved = loadSavedPinned();
+    if(saved && saved.length){
+      // Returning visitor -- restore their actual selection, but drop any
+      // saved id that no longer resolves (e.g. a metric that's since been
+      // renamed or removed from a country's file) rather than showing a
+      // broken tile.
+      pinned = saved.filter(function(id){ return tileFromId(id) != null; });
+    } else {
+      // First visit (or logged out, where nothing ever persists) -- start
+      // with a genuine blank slate rather than a pre-filled example.
+      pinned = [];
+    }
+    try { initMapYearSlider(); } catch(e) { console.error("initMapYearSlider failed:", e); }
+    renderDash();
   }
-  try { initMapYearSlider(); } catch(e) { console.error("initMapYearSlider failed:", e); }
-  renderDash();
+
+  if(window.EATLAS_PREFS){
+    window.EATLAS_PREFS.ready.then(bootPins);
+  } else {
+    bootPins();
+  }
 
   // The map card's metric row / year slider work immediately (they only
   // need REGISTRY, already loaded); the actual coloured geography needs
