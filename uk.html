@@ -31,7 +31,7 @@
 <link href="https://fonts.googleapis.com/css2?family=Nunito+Sans:wght@400;600;700&display=swap" rel="stylesheet">
 <link rel="icon" type="image/png" sizes="32x32" href="favicon-32.png">
 <link rel="apple-touch-icon" href="apple-touch-icon.png">
-<link rel="stylesheet" href="style.css?v=18">
+<link rel="stylesheet" href="style.css?v=19">
 <style>
 .led{display:inline-block; width:9px; height:9px; border-radius:50%;
   margin-right:9px; vertical-align:middle; position:relative; top:-3px;}
@@ -670,7 +670,7 @@ html[data-theme="dark"] .tpm-scopenote strong{color:var(--blue);}
         if(res.error){
           showMsg(res.error.message, "error");
         } else if(res.data.user && !res.data.session){
-          showMsg("Check your email to confirm your account before logging in.", "success");
+          showMsg("Check your email (from Supabase, on The Economic Atlas' behalf) to confirm your account before logging in.", "success");
           authForm.reset();
         } else {
           showMsg("Account created.", "success");
@@ -701,6 +701,26 @@ html[data-theme="dark"] .tpm-scopenote strong{color:var(--blue);}
   sb.auth.getSession().then(function(res){
     updateAuthUI(res.data.session);
   });
+
+  // If this page load is the redirect back from clicking "confirm your
+  // email" in the inbox, Supabase appends #access_token=...&type=signup
+  // to the URL before supabase-js quietly consumes it into a real
+  // session. That hand-off is otherwise invisible -- a visitor lands
+  // back on the homepage with no indication anything happened besides
+  // the nav button subtly changing. This makes it unmissable instead.
+  (function checkEmailConfirmation(){
+    if(window.location.hash && window.location.hash.indexOf("type=signup") !== -1){
+      var toast = document.createElement("div");
+      toast.className = "auth-toast";
+      toast.textContent = "\u2713 Email confirmed \u2014 you're now signed in.";
+      document.body.appendChild(toast);
+      setTimeout(function(){ toast.classList.add("show"); }, 10);
+      setTimeout(function(){
+        toast.classList.remove("show");
+        setTimeout(function(){ toast.remove(); }, 400);
+      }, 5000);
+    }
+  })();
 })();
 </script>
 
