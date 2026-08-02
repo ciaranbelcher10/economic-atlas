@@ -432,13 +432,40 @@ html[data-theme="dark"] .tpm-scopenote strong{color:var(--blue);}
         </div>
         <button type="submit" class="btn auth-submit" id="authSubmitBtn">Log in</button>
       </form>
+      <p class="auth-toggle" id="authForgotRow"><button type="button" id="authForgotBtn">Forgot password?</button></p>
       <p class="auth-toggle" id="authToggleRow">Don't have an account? <button type="button" id="authToggleBtn">Sign up</button></p>
       <p class="auth-msg" id="authMsg"></p>
+    </div>
+    <div id="authForgotView" hidden>
+      <h2>Reset password</h2>
+      <p class="auth-modal-sub">Enter your email and we'll send a reset link.</p>
+      <form id="authForgotForm">
+        <div class="auth-field">
+          <label for="authForgotEmail">Email</label>
+          <input type="email" id="authForgotEmail" required autocomplete="email">
+        </div>
+        <button type="submit" class="btn auth-submit" id="authForgotSubmitBtn">Send reset link</button>
+      </form>
+      <p class="auth-toggle"><button type="button" id="authBackToLoginBtn">Back to log in</button></p>
+      <p class="auth-msg" id="authForgotMsg"></p>
+    </div>
+    <div id="authResetView" hidden>
+      <h2>Set a new password</h2>
+      <p class="auth-modal-sub">Choose a new password for your account.</p>
+      <form id="authResetForm">
+        <div class="auth-field">
+          <label for="authNewPassword">New password</label>
+          <input type="password" id="authNewPassword" required autocomplete="new-password" minlength="6">
+        </div>
+        <button type="submit" class="btn auth-submit" id="authResetSubmitBtn">Set new password</button>
+      </form>
+      <p class="auth-msg" id="authResetMsg"></p>
     </div>
     <div id="authSignedInView" hidden class="auth-signedin-box">
       <h2>Account</h2>
       <p>Signed in as</p>
       <p><strong id="authUserEmail"></strong></p>
+      <button type="button" class="btn ghost" id="authChangePasswordBtn" style="margin-bottom:10px;">Change password</button>
       <button type="button" class="btn ghost" id="authSignOutBtn">Log out</button>
     </div>
   </div>
@@ -577,16 +604,36 @@ html[data-theme="dark"] .tpm-scopenote strong{color:var(--blue);}
   var authSignedInView = document.getElementById("authSignedInView");
   var authUserEmail = document.getElementById("authUserEmail");
   var authSignOutBtn = document.getElementById("authSignOutBtn");
+  var authForgotBtn = document.getElementById("authForgotBtn");
+  var authForgotView = document.getElementById("authForgotView");
+  var authForgotForm = document.getElementById("authForgotForm");
+  var authForgotEmail = document.getElementById("authForgotEmail");
+  var authForgotSubmitBtn = document.getElementById("authForgotSubmitBtn");
+  var authForgotMsg = document.getElementById("authForgotMsg");
+  var authBackToLoginBtn = document.getElementById("authBackToLoginBtn");
+  var authResetView = document.getElementById("authResetView");
+  var authResetForm = document.getElementById("authResetForm");
+  var authNewPassword = document.getElementById("authNewPassword");
+  var authResetSubmitBtn = document.getElementById("authResetSubmitBtn");
+  var authResetMsg = document.getElementById("authResetMsg");
+  var authChangePasswordBtn = document.getElementById("authChangePasswordBtn");
 
   var mode = "login";
 
-  function showMsg(text, kind){
-    authMsg.textContent = text;
-    authMsg.className = "auth-msg show " + kind;
+  function showMsg(el, text, kind){
+    el.textContent = text;
+    el.className = "auth-msg show " + kind;
   }
-  function clearMsg(){
-    authMsg.className = "auth-msg";
-    authMsg.textContent = "";
+  function clearMsg(el){
+    el.className = "auth-msg";
+    el.textContent = "";
+  }
+
+  function hideAllViews(){
+    authFormView.hidden = true;
+    authForgotView.hidden = true;
+    authResetView.hidden = true;
+    authSignedInView.hidden = true;
   }
 
   function wireToggleBtn(label, nextMode){
@@ -599,7 +646,7 @@ html[data-theme="dark"] .tpm-scopenote strong{color:var(--blue);}
 
   function setMode(newMode){
     mode = newMode;
-    clearMsg();
+    clearMsg(authMsg);
     authForm.reset();
     if(mode === "login"){
       authModalTitle.textContent = "Log in";
@@ -616,12 +663,33 @@ html[data-theme="dark"] .tpm-scopenote strong{color:var(--blue);}
     }
   }
 
+  function showLoginView(){
+    hideAllViews();
+    authFormView.hidden = false;
+    setMode("login");
+  }
+  function showForgotView(){
+    hideAllViews();
+    authForgotView.hidden = false;
+    clearMsg(authForgotMsg);
+    authForgotForm.reset();
+  }
+  function showResetView(){
+    hideAllViews();
+    authResetView.hidden = false;
+    clearMsg(authResetMsg);
+    authResetForm.reset();
+  }
+  function showSignedInView(session){
+    hideAllViews();
+    authSignedInView.hidden = false;
+    authUserEmail.textContent = session.user.email;
+  }
+
   function openAuthModal(){
     authModal.hidden = false;
     document.body.style.overflow = "hidden";
-    authFormView.hidden = false;
-    authSignedInView.hidden = true;
-    setMode("login");
+    showLoginView();
   }
   function closeAuthModal(){
     authModal.hidden = true;
@@ -641,14 +709,12 @@ html[data-theme="dark"] .tpm-scopenote strong{color:var(--blue);}
   authBtn.addEventListener("click", function(){
     sb.auth.getSession().then(function(res){
       var session = res.data.session;
+      authModal.hidden = false;
+      document.body.style.overflow = "hidden";
       if(session){
-        authModal.hidden = false;
-        document.body.style.overflow = "hidden";
-        authFormView.hidden = true;
-        authSignedInView.hidden = false;
-        authUserEmail.textContent = session.user.email;
+        showSignedInView(session);
       } else {
-        openAuthModal();
+        showLoginView();
       }
     });
   });
@@ -662,31 +728,75 @@ html[data-theme="dark"] .tpm-scopenote strong{color:var(--blue);}
     var email = authEmail.value.trim();
     var password = authPassword.value;
     authSubmitBtn.disabled = true;
-    clearMsg();
+    clearMsg(authMsg);
 
     if(mode === "signup"){
       sb.auth.signUp({ email: email, password: password }).then(function(res){
         authSubmitBtn.disabled = false;
         if(res.error){
-          showMsg(res.error.message, "error");
+          showMsg(authMsg, res.error.message, "error");
         } else if(res.data.user && !res.data.session){
-          showMsg("Check your email (from Supabase, on The Economic Atlas' behalf) to confirm your account before logging in.", "success");
+          showMsg(authMsg, "Check your email to confirm your account before logging in.", "success");
           authForm.reset();
         } else {
-          showMsg("Account created.", "success");
+          showMsg(authMsg, "Account created.", "success");
         }
       });
     } else {
       sb.auth.signInWithPassword({ email: email, password: password }).then(function(res){
         authSubmitBtn.disabled = false;
         if(res.error){
-          showMsg(res.error.message, "error");
+          showMsg(authMsg, res.error.message, "error");
         } else {
           closeAuthModal();
         }
       });
     }
   });
+
+  // --- Forgot password ---
+  authForgotBtn.addEventListener("click", showForgotView);
+  authBackToLoginBtn.addEventListener("click", showLoginView);
+
+  authForgotForm.addEventListener("submit", function(e){
+    e.preventDefault();
+    var email = authForgotEmail.value.trim();
+    authForgotSubmitBtn.disabled = true;
+    clearMsg(authForgotMsg);
+    sb.auth.resetPasswordForEmail(email).then(function(res){
+      authForgotSubmitBtn.disabled = false;
+      if(res.error){
+        showMsg(authForgotMsg, res.error.message, "error");
+      } else {
+        showMsg(authForgotMsg, "Check your email for a password reset link.", "success");
+        authForgotForm.reset();
+      }
+    });
+  });
+
+  // --- Set / change password ---
+  // The same form and handler serve two different entry points: someone
+  // who clicked a "forgot password" reset link (Supabase creates a
+  // temporary session just for this) and someone who's already properly
+  // logged in and wants to change their password from the account view.
+  // Either way, updateUser() is exactly the same call.
+  authResetForm.addEventListener("submit", function(e){
+    e.preventDefault();
+    var password = authNewPassword.value;
+    authResetSubmitBtn.disabled = true;
+    clearMsg(authResetMsg);
+    sb.auth.updateUser({ password: password }).then(function(res){
+      authResetSubmitBtn.disabled = false;
+      if(res.error){
+        showMsg(authResetMsg, res.error.message, "error");
+      } else {
+        showMsg(authResetMsg, "Password updated.", "success");
+        authResetForm.reset();
+      }
+    });
+  });
+
+  authChangePasswordBtn.addEventListener("click", showResetView);
 
   authSignOutBtn.addEventListener("click", function(){
     sb.auth.signOut().then(function(){
@@ -696,6 +806,15 @@ html[data-theme="dark"] .tpm-scopenote strong{color:var(--blue);}
 
   sb.auth.onAuthStateChange(function(event, session){
     updateAuthUI(session);
+    if(event === "PASSWORD_RECOVERY"){
+      // Someone landed here via a password-reset email link -- open
+      // straight into the "set a new password" view rather than
+      // leaving them to notice they're now (temporarily) signed in
+      // and have to hunt for how to actually finish resetting it.
+      authModal.hidden = false;
+      document.body.style.overflow = "hidden";
+      showResetView();
+    }
   });
 
   sb.auth.getSession().then(function(res){
