@@ -913,7 +913,11 @@ footer.cmp-foot{margin-top:36px; font-size:12.5px; color:var(--ink2); border-top
         btn.setAttribute("data-tip", "Customise this chart and export it as an image.");
         btn.onclick = function(e){
           e.preventDefault();
-          if(entry.multi){
+          if(entry.multi && entry.snapshot){
+            if(window.EATLAS_OPEN_CUSTOMIZE_SNAPSHOT){
+              window.EATLAS_OPEN_CUSTOMIZE_SNAPSHOT(entry.rows, entry.title, entry.srcNote, entry.fmtY, entry.filenameBase);
+            }
+          } else if(entry.multi){
             if(window.EATLAS_OPEN_CUSTOMIZE_MULTI){
               window.EATLAS_OPEN_CUSTOMIZE_MULTI(entry.seriesList, entry.title, entry.srcNote, entry.fmtY, entry.filenameBase, entry.fmtPeriodFn);
             }
@@ -942,15 +946,26 @@ footer.cmp-foot{margin-top:36px; font-size:12.5px; color:var(--ink2); border-top
       var entry = null;
       for(var i = 0; i < wired.length; i++){ if(wired[i].btn === btn){ entry = wired[i]; break; } }
       if(!entry){ entry = { btn: btn }; wired.push(entry); }
-      entry.multi = true;
+      entry.multi = true; entry.snapshot = false;
       entry.seriesList = seriesList; entry.title = title; entry.srcNote = srcNote;
       entry.fmtY = fmtY; entry.filenameBase = filenameBase; entry.fmtPeriodFn = fmtPeriodFn;
+      applyState(entry);
+    }
+
+    function registerSnapshot(btn, rows, title, srcNote, fmtY, filenameBase){
+      var entry = null;
+      for(var i = 0; i < wired.length; i++){ if(wired[i].btn === btn){ entry = wired[i]; break; } }
+      if(!entry){ entry = { btn: btn }; wired.push(entry); }
+      entry.multi = true; entry.snapshot = true;
+      entry.rows = rows; entry.title = title; entry.srcNote = srcNote;
+      entry.fmtY = fmtY; entry.filenameBase = filenameBase;
       applyState(entry);
     }
 
     return {
       wire: register,
       wireMulti: registerMulti,
+      wireSnapshot: registerSnapshot,
       setAdmin: function(admin){
         isAdmin = admin;
         wired.forEach(applyState);
@@ -2036,6 +2051,19 @@ function renderCharts(){
           .map(function(r){ return {country: r.country, date: r.dv.period || "", value: r.dv.value}; });
         window.EATLAS_DOWNLOAD.wireMulti(dlBtnBar, barRows, CONCEPT_LABEL[concept]);
       }
+      var czBtnBar = card.querySelector(".cz-btn");
+      if(czBtnBar && window.EATLAS_CUSTOMIZE){
+        var czRealDv = barResult.rows.filter(function(r){ return r.dv != null; }).map(function(r){ return r.dv; });
+        var czIsCumulative = czRealDv.length ? czRealDv[0].isCumulative : false;
+        var czRawUnit = czRealDv.length ? czRealDv[0].rawUnit : null;
+        var czSnapshotRows = barResult.rows.map(function(r){
+          return { country: r.country, value: r.dv ? r.dv.value : null, color: COUNTRY_COLOR[r.country] };
+        });
+        var czSnapFmtY = (CONCEPT_UNIT[concept] === "currency" && !czIsCumulative)
+          ? function(v){ return curFmt(v, czRawUnit || "$m", 0); }
+          : function(v){ return axisTickLabel(v, concept, czIsCumulative); };
+        window.EATLAS_CUSTOMIZE.wireSnapshot(czBtnBar, czSnapshotRows, CONCEPT_LABEL[concept] + barResult.titleSuffix, CONCEPT_LABEL[concept] + ", current selection. " + barResult.horizonNote, czSnapFmtY, concept + "_snapshot");
+      }
     }
   });
 }
@@ -2530,7 +2558,7 @@ function updateMapCardSub(){
       </div>
 
       <div>
-        <div class="ctl-panel" style="background:var(--panel); border:1px solid var(--hair); border-radius:12px; padding:16px 18px;">
+        <div class="ctl-panel" id="czDateRangePanel" style="background:var(--panel); border:1px solid var(--hair); border-radius:12px; padding:16px 18px;">
           <h3 style="font-size:12px; text-transform:uppercase; letter-spacing:.05em; margin:0 0 12px; color:var(--ink2);">Date range</h3>
           <div style="display:flex; gap:8px;">
             <div style="flex:1;"><label style="display:block; font-size:12px; font-weight:600; color:var(--ink2); margin-bottom:5px;" for="czFromDate">From</label><select id="czFromDate" style="width:100%; padding:7px 9px; border:1px solid var(--hair); border-radius:7px; background:var(--paper); color:var(--ink); font:inherit; font-size:13px;"></select></div>
@@ -2538,13 +2566,15 @@ function updateMapCardSub(){
           </div>
         </div>
 
-        <div class="ctl-panel" style="margin-top:14px; background:var(--panel); border:1px solid var(--hair); border-radius:12px; padding:16px 18px;">
+        <div class="ctl-panel" id="czEventLinesPanel" style="margin-top:14px; background:var(--panel); border:1px solid var(--hair); border-radius:12px; padding:16px 18px;">
           <h3 style="font-size:12px; text-transform:uppercase; letter-spacing:.05em; margin:0 0 12px; color:var(--ink2);">Event lines &amp; arrows</h3>
           <div id="czAnnotList"></div>
           <button type="button" id="czAddAnnotBtn" style="width:100%; margin-top:2px; padding:8px 0; border:1.5px dashed var(--blue); background:none; color:var(--navy); font:600 12.5px inherit; border-radius:8px; cursor:pointer;">+ Add event</button>
           <p style="font-size:11px; color:var(--ink2); margin:8px 0 0; line-height:1.4;">Drag a line/arrow to move its date. Drag a label anywhere to reposition it, or click it to type directly on the chart. Enter in the label starts a new line. Click an event's summary to collapse it. Up to 6.</p>
         </div>
+        <p id="czSnapshotNote" hidden style="font-size:12px; color:var(--ink2); line-height:1.5; background:var(--panel); border:1px solid var(--hair); border-radius:12px; padding:16px 18px;">This view compares a single point in time across countries, so there's no date range or event annotations here -- just the chart's title, axis, and export options on the left.</p>
       </div>
+
     </div>
   </div>
 </div>
@@ -2677,7 +2707,89 @@ function updateMapCardSub(){
     };
   }
 
+  // Snapshot mode: a single point-in-time value per country (Compare's
+  // Bar view) -- a categorical country axis, not a timeline, so no
+  // date range and no event annotations apply here.
+  var SNAPSHOT_ROWS = []; // [{country, value, color}]
+  function czmSnapshotGeom(){
+    var padB = 60;
+    var vals = SNAPSHOT_ROWS.map(function(r){ return r.value; }).filter(function(v){ return v != null; });
+    if(vals.length === 0) vals = [0, 1];
+    if(czmState.refLine.enabled) vals.push(czmState.refLine.value);
+    var rawMin = Math.min(0, Math.min.apply(null, vals)), rawMax = Math.max(0, Math.max.apply(null, vals));
+    var nice = niceTicks(rawMin, rawMax, czmState.yTicks);
+    var padT = (czmState.yTitlePos === "above" ? G.padT + 18 : G.padT) + (czmState.chartTitle ? 24 : 0);
+    var plotW = G.W - G.padL - G.padR, plotH = G.H - padT - padB;
+    var n = Math.max(1, SNAPSHOT_ROWS.length);
+    var slot = plotW / n;
+    return {
+      minV: nice.min, maxV: nice.max, plotW: plotW, plotH: plotH, padB: padB, padT: padT,
+      yTickValues: nice.ticks,
+      xForIndex: function(i){ return G.padL + slot * (i + 0.5); },
+      barWidth: Math.min(64, slot * 0.6),
+      y: function(v){ return padT + plotH - ((v - nice.min) / (nice.max - nice.min)) * plotH; }
+    };
+  }
+  function czmBuildSVGSnapshot(theme, forExport){
+    var t = THEMES[theme];
+    var gm = czmSnapshotGeom();
+    if(SNAPSHOT_ROWS.length === 0) return "<svg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 " + G.W + " " + G.H + "'></svg>";
+
+    var svg = [];
+    svg.push("<svg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 " + G.W + " " + G.H + "' font-family='Helvetica, Arial, sans-serif'>");
+    svg.push("<rect x='0' y='0' width='" + G.W + "' height='" + G.H + "' fill='" + t.bg + "'/>");
+    if(czmState.chartTitle){
+      svg.push("<text x='" + (G.W / 2) + "' y='24' font-size='16' font-weight='700' fill='" + t.ink + "' text-anchor='middle'>" + escapeXML(czmState.chartTitle) + "</text>");
+    }
+    var axisColor = t.ink2;
+
+    gm.yTickValues.forEach(function(v){
+      var gy = gm.y(v);
+      svg.push("<line x1='" + G.padL + "' y1='" + gy.toFixed(1) + "' x2='" + (G.W - G.padR) + "' y2='" + gy.toFixed(1) + "' stroke='" + t.grid + "' stroke-width='1'/>");
+      svg.push("<line x1='" + (G.padL - 5) + "' y1='" + gy.toFixed(1) + "' x2='" + G.padL + "' y2='" + gy.toFixed(1) + "' stroke='" + axisColor + "' stroke-width='1.3'/>");
+      svg.push("<text x='" + (G.padL - 10) + "' y='" + (gy + 4).toFixed(1) + "' font-size='11' fill='" + t.ink2 + "' text-anchor='end'>" + czmAxisTickLabel(v, gm.yTickValues, czmState.fmtY) + "</text>");
+    });
+
+    var zeroY = gm.y(0);
+    svg.push("<line x1='" + G.padL + "' y1='" + gm.padT + "' x2='" + G.padL + "' y2='" + (gm.padT + gm.plotH) + "' stroke='" + axisColor + "' stroke-width='1.5'/>");
+    svg.push("<line x1='" + G.padL + "' y1='" + zeroY.toFixed(1) + "' x2='" + (G.W - G.padR) + "' y2='" + zeroY.toFixed(1) + "' stroke='" + axisColor + "' stroke-width='1.5'/>");
+
+    if(czmState.yTitlePos === "above"){
+      svg.push("<text x='4' y='18' font-size='11.5' font-weight='600' fill='" + t.ink2 + "'>" + escapeXML(czmState.yTitle) + "</text>");
+    } else {
+      var yTitleX = 16, yTitleY = gm.padT + gm.plotH / 2;
+      svg.push("<text x='" + yTitleX + "' y='" + yTitleY + "' font-size='11.5' font-weight='600' fill='" + t.ink2 + "' text-anchor='middle' transform='rotate(-90 " + yTitleX + " " + yTitleY + ")'>" + escapeXML(czmState.yTitle) + "</text>");
+    }
+
+    if(czmState.refLine.enabled){
+      var ry = gm.y(czmState.refLine.value);
+      svg.push("<line x1='" + G.padL + "' y1='" + ry.toFixed(1) + "' x2='" + (G.W - G.padR) + "' y2='" + ry.toFixed(1) + "' stroke='" + t.annot + "' stroke-width='1.3' stroke-dasharray='4,3'/>");
+      svg.push("<text x='" + (G.padL - 10) + "' y='" + (ry + 4).toFixed(1) + "' font-size='11' fill='" + t.ink2 + "' text-anchor='end'>" + czmAxisTickLabel(czmState.refLine.value, gm.yTickValues, czmState.fmtY) + "</text>");
+    }
+
+    SNAPSHOT_ROWS.forEach(function(r, i){
+      if(r.value == null) return;
+      var bx = gm.xForIndex(i);
+      var by = gm.y(r.value);
+      var top = Math.min(by, zeroY);
+      var h = Math.max(0.6, Math.abs(by - zeroY));
+      svg.push("<rect x='" + (bx - gm.barWidth / 2).toFixed(1) + "' y='" + top.toFixed(1) + "' width='" + gm.barWidth.toFixed(1) + "' height='" + h.toFixed(1) + "' rx='3' fill='" + r.color + "'/>");
+      svg.push("<text x='" + bx.toFixed(1) + "' y='" + (gm.padT + gm.plotH + 20) + "' font-size='11' fill='" + t.ink2 + "' text-anchor='middle'>" + escapeXML(r.country) + "</text>");
+    });
+
+    if(forExport){
+      var cursorY = gm.padT + gm.plotH + 40;
+      svg.push("<line x1='" + G.padL + "' y1='" + cursorY + "' x2='" + (G.W - G.padR) + "' y2='" + cursorY + "' stroke='" + t.grid + "' stroke-width='1'/>");
+      cursorY += 18;
+      svg.push("<text x='" + G.padL + "' y='" + cursorY + "' font-size='11' fill='" + t.ink2 + "'>Source: " + escapeXML(czmState.srcNote) + "</text>");
+      svg.push("<text x='" + (G.W - G.padR) + "' y='" + cursorY + "' font-size='11' fill='" + t.ink2 + "' text-anchor='end'>Made on theeconomicatlas.com</text>");
+    }
+    svg.push("</svg>");
+    return svg.join("");
+  }
+
   function czmBuildSVG(theme, forExport){
+    if(czmState.mode === "snapshot") return czmBuildSVGSnapshot(theme, forExport);
     var t = THEMES[theme];
     var gm = czmGeom();
     if(UNIFIED_DATES.length === 0) return "<svg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 " + G.W + " " + G.H + "'></svg>";
@@ -3164,6 +3276,11 @@ function updateMapCardSub(){
   // Entry point: seriesList is an array of {country, color, points}.
   window.EATLAS_OPEN_CUSTOMIZE_MULTI = function(seriesList, title, srcNote, fmtY, filenameBase, fmtPeriodFn){
     SERIES_LIST = seriesList;
+    czmState = czmState || {};
+    czmState.mode = "timeseries";
+    document.getElementById("czDateRangePanel").hidden = false;
+    document.getElementById("czEventLinesPanel").hidden = false;
+    document.getElementById("czSnapshotNote").hidden = true;
     if(fmtPeriodFn) czmFmtPeriodFn = fmtPeriodFn;
     var allDates = [];
     seriesList.forEach(function(s){ s.points.forEach(function(p){ allDates.push(p[0]); }); });
@@ -3201,6 +3318,43 @@ function updateMapCardSub(){
     czThemeSeg.querySelectorAll("button").forEach(function(b){ b.classList.toggle("active", b.dataset.theme === "light"); });
     czmState.annotations = [];
     czRenderAnnotList();
+    czRenderPreview();
+    document.getElementById("customizeModal").hidden = false;
+  };
+
+  // Entry point for Bar mode: rows is [{country, value, color}], one
+  // point-in-time value per country -- no dates, so no date range or
+  // event annotations apply; the modal hides those two panels and shows
+  // a short note instead.
+  window.EATLAS_OPEN_CUSTOMIZE_SNAPSHOT = function(rows, title, srcNote, fmtY, filenameBase){
+    SNAPSHOT_ROWS = rows;
+    var effectiveFmtY = fmtY || function(v){ return v.toFixed(1) + "%"; };
+    var guessedYTitle = "";
+    try { guessedYTitle = String(effectiveFmtY(1)).indexOf("%") !== -1 ? "%" : ""; } catch(e){ guessedYTitle = ""; }
+
+    czmState = {
+      mode: "snapshot",
+      showFill: false, refLine: { enabled: false, value: 0 },
+      yTitlePos: "along", yTicks: 5, xTicks: 3, chartTitle: title || "", legendTitle: "",
+      annotations: [], exportTheme: "light",
+      srcNote: srcNote, yTitle: guessedYTitle, fmtY: effectiveFmtY,
+      filenameBase: (filenameBase || title || "chart").toLowerCase().replace(/[^a-z0-9]+/g, "_").replace(/^_+|_+$/g, "")
+    };
+    document.getElementById("czModalCountry").textContent = title;
+    document.getElementById("czModalSrc").textContent = "Source: " + srcNote;
+    document.getElementById("czChartTitleInput").value = czmState.chartTitle;
+    document.getElementById("czYAxisTitleInput").value = czmState.yTitle;
+    document.getElementById("czLegendTitleInput").value = "";
+    document.getElementById("czReflineToggle").checked = false;
+    document.getElementById("czReflineValue").value = "0";
+
+    document.getElementById("czDateRangePanel").hidden = true;
+    document.getElementById("czEventLinesPanel").hidden = true;
+    document.getElementById("czSnapshotNote").hidden = false;
+
+    czYTitlePosSeg.querySelectorAll("button").forEach(function(b){ b.classList.toggle("active", b.dataset.pos === "along"); });
+    czYTickVal.textContent = "5"; czXTickVal.textContent = "3";
+    czThemeSeg.querySelectorAll("button").forEach(function(b){ b.classList.toggle("active", b.dataset.theme === "light"); });
     czRenderPreview();
     document.getElementById("customizeModal").hidden = false;
   };
