@@ -2303,6 +2303,10 @@ document.querySelectorAll(".mtbtn").forEach(function(btn){
             <label style="display:block; font-size:12px; font-weight:600; color:var(--ink2); margin-bottom:5px;" for="czChartTitleInput">Chart title (optional, shown at the top)</label>
             <input type="text" id="czChartTitleInput" maxlength="80" placeholder="e.g. ECB deposit facility rate" style="width:100%; padding:7px 9px; border:1px solid var(--hair); border-radius:7px; background:var(--paper); color:var(--ink); font:inherit; font-size:13px;">
           </div>
+          <div class="field" style="margin-bottom:14px;">
+            <label style="display:block; font-size:12px; font-weight:600; color:var(--ink2); margin-bottom:5px;" for="czYAxisTitleInput">Y-axis title</label>
+            <input type="text" id="czYAxisTitleInput" maxlength="40" placeholder="e.g. % change, year-on-year" style="width:100%; padding:7px 9px; border:1px solid var(--hair); border-radius:7px; background:var(--paper); color:var(--ink); font:inherit; font-size:13px;">
+          </div>
           <div style="display:grid; grid-template-columns:1fr 1fr; gap:10px 20px;">
             <div style="display:flex; align-items:center; justify-content:space-between; font-size:13px;">
               <span>Shade area under the line</span>
@@ -2413,18 +2417,55 @@ document.querySelectorAll(".mtbtn").forEach(function(btn){
     return FULL_SERIES.filter(function(p){ return p[0] >= czState.from && p[0] <= czState.to; });
   }
 
+  // Standard "nice numbers" axis algorithm (Talbot/Lin/Hanrahan-style):
+  // rather than evenly slicing the padded data range -- which produces
+  // arbitrary values like 0.335% or 3.085% -- this snaps both the tick
+  // step and the axis bounds themselves to round, human-chosen numbers
+  // (1/2/2.5/5/10 x a power of ten), the same approach real charting
+  // libraries use.
+  function niceNum(range, round){
+    var exponent = Math.floor(Math.log10(range));
+    var fraction = range / Math.pow(10, exponent);
+    var niceFraction;
+    if(round){
+      if(fraction < 1.5) niceFraction = 1;
+      else if(fraction < 3) niceFraction = 2;
+      else if(fraction < 7) niceFraction = 5;
+      else niceFraction = 10;
+    } else {
+      if(fraction <= 1) niceFraction = 1;
+      else if(fraction <= 2) niceFraction = 2;
+      else if(fraction <= 5) niceFraction = 5;
+      else niceFraction = 10;
+    }
+    return niceFraction * Math.pow(10, exponent);
+  }
+  function niceTicks(rawMin, rawMax, targetCount){
+    if(rawMin === rawMax){ rawMin -= 1; rawMax += 1; }
+    var range = niceNum(rawMax - rawMin, false);
+    var step = niceNum(range / Math.max(1, targetCount - 1), true);
+    var niceMin = Math.floor(rawMin / step) * step;
+    var niceMax = Math.ceil(rawMax / step) * step;
+    var ticks = [];
+    for(var v = niceMin; v <= niceMax + step * 0.5; v += step){
+      ticks.push(Math.round(v / step) * step);
+    }
+    return { ticks: ticks, min: niceMin, max: niceMax };
+  }
+
   function czGeom(){
     var pts = czFilteredSeries();
     var padB = 160;
     var allVals = pts.map(function(p){ return p[1]; });
     if(czState.refLine.enabled) allVals.push(czState.refLine.value);
-    var minV = Math.min.apply(null, allVals), maxV = Math.max.apply(null, allVals);
-    var span = maxV - minV || 1;
-    minV -= span * 0.12; maxV += span * 0.12;
+    var rawMin = Math.min.apply(null, allVals), rawMax = Math.max.apply(null, allVals);
+    var nice = niceTicks(rawMin, rawMax, czState.yTicks);
+    var minV = nice.min, maxV = nice.max;
     var padT = (czState.yTitlePos === "above" ? G.padT + 18 : G.padT) + (czState.chartTitle ? 24 : 0);
     var plotW = G.W - G.padL - G.padR, plotH = G.H - padT - padB;
     return {
       pts: pts, minV: minV, maxV: maxV, plotW: plotW, plotH: plotH, padB: padB, padT: padT,
+      yTickValues: nice.ticks,
       x: function(i){ return G.padL + (pts.length === 1 ? plotW / 2 : (i / (pts.length - 1)) * plotW); },
       y: function(v){ return padT + plotH - ((v - minV) / (maxV - minV)) * plotH; }
     };
@@ -2444,13 +2485,12 @@ document.querySelectorAll(".mtbtn").forEach(function(btn){
     }
     var axisColor = t.ink2;
 
-    for(var gi = 0; gi < czState.yTicks; gi++){
-      var v = gm.minV + (gm.maxV - gm.minV) * (gi / (czState.yTicks - 1));
+    gm.yTickValues.forEach(function(v){
       var gy = gm.y(v);
       svg.push("<line x1='" + G.padL + "' y1='" + gy.toFixed(1) + "' x2='" + (G.W - G.padR) + "' y2='" + gy.toFixed(1) + "' stroke='" + t.grid + "' stroke-width='1'/>");
       svg.push("<line x1='" + (G.padL - 5) + "' y1='" + gy.toFixed(1) + "' x2='" + G.padL + "' y2='" + gy.toFixed(1) + "' stroke='" + axisColor + "' stroke-width='1.3'/>");
       svg.push("<text x='" + (G.padL - 10) + "' y='" + (gy + 4).toFixed(1) + "' font-size='11' fill='" + t.ink2 + "' text-anchor='end'>" + czState.fmtY(Math.round(v * 100) / 100) + "</text>");
-    }
+    });
 
     var axisBottomY = gm.padT + gm.plotH;
     svg.push("<line x1='" + G.padL + "' y1='" + gm.padT + "' x2='" + G.padL + "' y2='" + axisBottomY + "' stroke='" + axisColor + "' stroke-width='1.5'/>");
@@ -2705,6 +2745,7 @@ document.querySelectorAll(".mtbtn").forEach(function(btn){
 
   document.getElementById("czFillToggle").addEventListener("change", function(e){ czState.showFill = e.target.checked; czRenderPreview(); });
   document.getElementById("czChartTitleInput").addEventListener("input", function(e){ czState.chartTitle = e.target.value; czRenderPreview(); });
+  document.getElementById("czYAxisTitleInput").addEventListener("input", function(e){ czState.yTitle = e.target.value; czRenderPreview(); });
   document.getElementById("czReflineToggle").addEventListener("change", function(e){ czState.refLine.enabled = e.target.checked; czRenderPreview(); });
   document.getElementById("czReflineValue").addEventListener("input", function(e){
     czState.refLine.value = parseFloat(e.target.value) || 0;
@@ -2907,17 +2948,27 @@ document.querySelectorAll(".mtbtn").forEach(function(btn){
   // admin clicks an unlocked "Customise & export" button.
   window.EATLAS_OPEN_CUSTOMIZE = function(pts, title, srcNote, fmtY, yTitle, filenameBase){
     FULL_SERIES = pts;
+    var effectiveFmtY = fmtY || function(v){ return v.toFixed(1) + "%"; };
+    // If no explicit y-axis title was passed in, take a reasonable guess:
+    // most of the site's charts are percentages, detectable by testing
+    // what the metric's own formatter does with a sample value.
+    var guessedYTitle = yTitle;
+    if(!guessedYTitle){
+      try { guessedYTitle = String(effectiveFmtY(1)).indexOf("%") !== -1 ? "%" : ""; }
+      catch(e){ guessedYTitle = ""; }
+    }
     czState = {
       from: pts[0][0], to: pts[pts.length - 1][0],
       showFill: true, refLine: { enabled: false, value: 0 },
       yTitlePos: "along", yTicks: 5, xTicks: 3, chartTitle: title || "",
       annotations: [], exportTheme: "light",
-      srcNote: srcNote, yTitle: yTitle || "", fmtY: fmtY || function(v){ return v.toFixed(1) + "%"; },
+      srcNote: srcNote, yTitle: guessedYTitle, fmtY: effectiveFmtY,
       filenameBase: (filenameBase || title || "chart").toLowerCase().replace(/[^a-z0-9]+/g, "_").replace(/^_+|_+$/g, "")
     };
     document.getElementById("czModalCountry").textContent = title;
     document.getElementById("czModalSrc").textContent = "Source: " + srcNote;
     document.getElementById("czChartTitleInput").value = czState.chartTitle;
+    document.getElementById("czYAxisTitleInput").value = czState.yTitle;
     var periodOptionsHtml = pts.map(function(p){ return "<option value='" + p[0] + "'>" + fmtPeriod(p[0]) + "</option>"; }).join("");
     document.getElementById("czFromDate").innerHTML = periodOptionsHtml;
     document.getElementById("czToDate").innerHTML = periodOptionsHtml;
