@@ -1,59 +1,162 @@
-# Economic Atlas
+# The Economic Atlas
 
-The world economy, country by country, in numbers.
+Official economic data, country by country, updated hourly, with no
+commentary. Live at [theeconomicatlas.com](https://theeconomicatlas.com).
+
+## What this actually is
+A fully static site (GitHub Pages, no server of its own) with an hourly
+GitHub Actions workflow that fetches official data directly from
+national statistical offices, central banks, the OECD, the World Bank
+and Eurostat, and commits the results straight into this repo as JSON.
+The frontend is vanilla HTML/CSS/JS — no framework, no build step.
+
+The one deliberate exception to "no server" is accounts: a Supabase
+project (Postgres + Auth, RLS locked down from the start) handles
+sign-up/login/password reset, reached client-side via `supabase-js`.
+Nothing else in the site depends on it.
 
 ## Structure
-- `index.html`  — front page: world map; UK, US and Eurozone are clickable
-- `uk.html`     — live UK snapshot (ONS data)
-- `us.html`, `eurozone.html`, `markets.html` — wireframe shells, content to come
-- `style.css`   — shared design: Avenir/Nunito Sans, wireframe blues, mako charts
-- `fetch_data.py` + `data.json` — data layer (see below)
+- `index.html` — homepage: clickable world map, links into every country
+- 18 country pages (`uk.html`, `us.html`, `eurozone.html`, `japan.html`,
+  `india.html`, `canada.html`, `australia.html`, `southkorea.html`,
+  `israel.html`, `mexico.html`, `brazil.html`, `southafrica.html`,
+  `morocco.html`, `germany.html`, `france.html`, `italy.html`,
+  `spain.html`, `netherlands.html`) — each with GDP, inflation, labour
+  market, trade and public finances tabs, all sourced from live data
+- `compare.html` — side-by-side comparison of up to five countries at
+  once across any tracked metric, bar or line view
+- `dashboard.html` — pin any metric from any country into one personal
+  view, with an on-demand chart per tile and a cross-country map
+- `contact.html`, `roadmap.html`, `privacy.html` — as named
+- `markets.html` — an old, unlinked stub; deliberately not part of the
+  current site (`robots.txt` disallows it), pending a decision on
+  whether to build it out properly or retire it
+- `style.css` — shared design system (see Design tokens below)
+- `fetch_*.py` — one script per country/dataset, run hourly by
+  `.github/workflows/update-data.yml`, each writing its own
+  `data-*.json`. `check_data_freshness.py` flags any series that's gone
+  stale relative to its own publication schedule and opens/closes a
+  GitHub issue automatically.
+- `og-image.png`, `logo*.png`, `favicon*.png`, `apple-touch-icon.png` —
+  brand assets
+- `sitemap.xml`, `robots.txt` — SEO plumbing, kept in sync with the
+  clean-URL scheme below
+
+## Accounts
+Real email/password accounts via Supabase (project `skluvrxnuibkordzgtmu`,
+`eu-west-2`/London). Email confirmation is required before an account
+works; forgot-password and change-password are both wired up, and auth
+emails send through a custom domain (Resend SMTP), not Supabase's
+generic shared sender.
+
+Everyone signs up on the free plan automatically — there's no plan
+picker, and no paid tier exists yet. A `plan` column on the `profiles`
+table (`free`/`pro`/`premium`) exists ready for when one does. One
+account is flagged `is_admin = true`, currently used only to gate the
+in-development Customise & Export feature below — nothing else checks
+this flag yet.
+
+**Preferences sync to the account**, not the browser: Dashboard's
+pinned tiles and Compare's selected metrics are stored in
+`profiles.preferences` and follow you across devices when logged in.
+Logged out, nothing persists at all — a visible nudge banner (styled
+like Office's "Enable Editing" bar, deliberately reappearing every
+visit rather than remembering it was dismissed) explains why and links
+straight into sign-up.
+
+**Note for local Postgres/Supabase work**: the `authenticated` role
+needs explicit `SELECT`/`INSERT`/`UPDATE` grants on `profiles` — RLS
+policies alone aren't enough; Postgres rejects the query at the grant
+level before RLS is even evaluated. This was actually missing in
+production for a stretch (a real, previously-undetected bug, not just
+a note for new setups) — see the grant statement in
+`grant_authenticated_role_profiles_access` if setting this up fresh.
+
+## Locked chart features
+Every chart has two buttons beneath it, unlocked independently:
+
+- **Download data** — real and unlocked for **any logged-in account**.
+  Exports that chart's own data as a CSV, entirely client-side. Logged
+  out, it's locked with a prompt to create a free account, and clicking
+  it opens the login/signup modal directly rather than a dead end.
+- **Customise & export** — currently unlocked **only for the one
+  account flagged `is_admin`**, regardless of anyone else's login
+  state, while still being tested. For everyone else it stays exactly
+  as it's always been: a "Coming soon" link to Contact.
+
+### What Customise & export actually does (country pages only, so far)
+A full in-browser chart editor, rendered with its own hand-built SVG
+engine (deliberately not dependent on the page's own Chart.js canvas,
+so it works even where the CDN can't load):
+- Custom date range, chart title, and Y-axis title (auto-detected as
+  "%" for percentage metrics, editable either way)
+- Switch any chart between line and bar view at will, with bar colours
+  matching the site's own up/green-down/indigo convention exactly
+- Up to 6 event annotations, either a full-height dashed line or an
+  arrow pointing at the exact data point — each with a freely
+  draggable label (drag anywhere, or click it to type directly on the
+  chart), adjustable font size, and left/centre/right alignment presets
+- A reference line at any value, styled to match the event lines rather
+  than standing out as a separate colour
+- Y/X axis tick-count controls, using a proper "nice numbers" algorithm
+  (the same approach real charting libraries use) rather than naively
+  slicing the range — so ticks land on 0/2/4/6/8, not 0.335/1.71/3.085
+- Export as PNG or SVG, in a light or dark theme independent of
+  whatever theme you're browsing in, with the source citation and a
+  "Made on theeconomicatlas.com" credit baked into the image itself
+
+**Not yet built**: the same feature on Dashboard and Compare. Compare
+in particular needs its own design pass before porting, since it shows
+several countries on one chart at once — a genuinely different shape
+of problem than a single country's single metric.
+
+## Clean URLs
+Every internal link and the sitemap use extensionless paths (`/uk`, not
+`/uk.html`) — GitHub Pages resolves these automatically since the repo
+runs its default Jekyll pipeline (confirmed via no `.nojekyll` file).
+Canonical tags, `sitemap.xml`, and `robots.txt` are all kept in this
+same clean-URL form.
+
+## Data freshness
+Every tracked figure gets a green or amber dot: green means the latest
+observation is as recent as that series' own publication schedule
+allows; amber means a newer release is overdue. The same freshness
+logic runs both client-side (the dot itself) and server-side
+(`check_data_freshness.py`, which flags anything 3x past its expected
+cadence and opens a tracking GitHub issue automatically, closing it
+once resolved).
 
 ## Run locally
 ```bash
-python3 fetch_data.py        # pulls live ONS data (needs `requests`)
+python3 fetch_data.py        # pulls live UK data (needs `requests`)
 python3 -m http.server 8000
 ```
-Open http://localhost:8000 — click the UK on the map.
+Open http://localhost:8000 and click any country on the map. Most
+other `fetch_*.py` scripts need their own API key as a repo secret
+(FRED_API_KEY at minimum; see the MoSPI section below for India's
+unemployment figure specifically) — without them, that page's fetch
+just logs a note and skips gracefully rather than failing the build.
 
 ## Design tokens
 - Nav / buttons: navy #1E4566, blue #4796CE
-- Background: cream #F5F6F3
+- Background: cream #F5F6F3 (light mode), dark navy/near-black (dark mode)
 - Charts: seaborn mako stops (#2E1E3B, #413D7B, #37659E, #348FA7, #40B7AD, #8AD9B1)
 - Type: Avenir Next / Avenir (macOS/iOS native) with Nunito Sans as web fallback
-
-## Site structure
-Front page: roadmap and link to the UK. Contact page:
-contact@economicatlas.co.uk. UK page: six sections via the category
-banner — Headline (tiles), GDP, Inflation & rates, Labour market,
-Trade, Public finances. Each section has its own summary tiles;
-headline tiles are clickable and jump to the relevant chart. Every
-chart carries a one-line plain-English explainer, unit-aware hover
-values and an explicit source. A green banner appears for ~3 days
-whenever a fetch brings in a new data point (diffed in fetch_data.py
-against the previous data.json). The US page is live (fetch_us.py -> data-us.json; FRED key
-required as the FRED_API_KEY repo secret). Eurozone and Markets
-pages exist but are unlinked until built. When a third country
-arrives, refactor the shared page machinery into a common JS file.
-
-## UK page data (verified series codes)
-Charts: ABMI (GDP), IHYQ (GDP growth), LZVB (productivity), MGSX
-(unemployment), LF24 (employment), LF2S (inactivity), D7G7 (CPI),
-HF6X (debt % of GDP). Tiles additionally: DZLS (monthly borrowing),
-AA6H (current account % of GDP).
-Tile lights: green = latest observation is as recent as the series'
-publication schedule allows; orange = a newer release is overdue.
-Additional series: L55O (CPIH), IKBH/IKBI (exports/imports), the OECD
-business confidence indicator (BCICP, free SDMX API — replaces the
-proprietary PMI), FDI net inflows % of GDP from the World Bank API,
-and Bank Rate (IUDBEDR) from the Bank of England's IADB CSV endpoint.
-Annual GDP and trade intensity are derived client-side from ABMI and
-IKBH/IKBI. All non-ONS fetchers fail gracefully: a failed source shows
-its tile as pending rather than breaking the page.
+- Both light and dark mode are fully supported sitewide, toggled via
+  the moon/sun icon in the nav and persisted in `localStorage`. Charts
+  currently use the same colours in both modes, matching the site's
+  existing convention rather than a separate dark-mode palette (an
+  acknowledged, deliberate gap, not an oversight)
 
 ## Deploy
-GitHub Pages + the included workflow (.github/workflows/update-data.yml),
-which refreshes data.json every weekday morning after ONS releases.
+GitHub Pages + `.github/workflows/update-data.yml`, which runs hourly,
+re-fetches every country's data, commits any changes, and runs the
+freshness check. The one file that must always be edited via the
+pencil icon in the GitHub web UI — never uploaded as part of a zip —
+is the workflow file itself.
+
+## Contact
+contact@theeconomicatlas.com
 
 ## Setting up the MoSPI API key (for India unemployment)
 India's unemployment figure comes from MoSPI's own PLFS survey via their
@@ -72,7 +175,7 @@ curl -X POST https://api.mospi.gov.in/api/users/usersignup \
   -d '{
     "username": "you@example.com",
     "password": "ChooseAStrongPassword123!",
-    "organization": "Economic Atlas",
+    "organization": "The Economic Atlas",
     "purpose": "View/Download the Data",
     "gender": "Male"
   }'
@@ -94,22 +197,41 @@ Until both secrets are set, `fetch_in.py` skips unemployment gracefully
 that one chart.
 
 ## Known data gaps
+Disclosed honestly on the relevant page's own footer, not hidden:
+- **Productivity** (GDP per hour worked): only tracked for the UK and US
+- **10-year government bond yield**: missing for the UK, US, Eurozone,
+  Japan and Canada specifically — the five largest economies, oddly
+  the ones never backfilled after later, smaller countries got it
+- **Business confidence**: missing for Germany and Morocco
 - **Eurozone trade** (exports/imports/trade balance): discontinued at
-  source (OECD) since April 2023, and this one remains genuinely
-  unresolved. Shown for historical reference with explicit "discontinued"
-  labelling; a live Eurostat SDMX replacement is on the roadmap.
-- **India RBI policy rate**: no live FRED series exists. The 10-year
-  government bond yield is used instead and honestly labelled as a bond
-  yield, not the policy rate.
-- **Canada trade**, **Australia trade**: only the combined trade balance is
-  wired in, not separate exports/imports -- the matching components either
-  don't exist live or looked stale relative to the headline series in
-  verification. Individual exports/imports remain a known gap.
-- **India RBI repo rate**, **Australia RBA cash rate**: no live FRED series
-  exists for either central bank's actual policy rate. The 10-year
-  government bond yield is shown instead in both cases, honestly labelled
-  as a bond yield rather than mislabelled as the policy rate.
+  source (OECD) since April 2023, shown for historical reference with
+  explicit "discontinued" labelling
+- **France's trade-partner data**: the live Comtrade fetch has never
+  once succeeded; the page runs on an honestly-labelled illustrative
+  fallback ("Illustrative data... not a live feed") rather than silently
+  showing nothing
+- **India RBI policy rate**, **Australia RBA cash rate**: no live FRED
+  series exists for either central bank's actual policy rate; the
+  10-year government bond yield is shown instead in both cases,
+  honestly labelled as a bond yield, not the policy rate
+- **Canada trade**, **Australia trade**, **India trade**: only the
+  combined trade balance is wired in for Canada/Australia, not separate
+  exports/imports; India shows exports/trade balance but not imports
+  individually — in each case because the matching component either
+  doesn't exist live or looked stale relative to the headline series
+- **UK unemployment/inactivity by age band** (25-49, 50-64, 65+):
+  `fetch_uk_age_breakdown.py` has never produced real data across
+  repeated attempts; only the 16-24 band is live
+- **South Korea's actual policy rate** (Bank of Korea base rate): a
+  10-year bond yield is shown instead, honestly labelled; exports and
+  imports aren't individually broken out, only the combined trade
+  balance
 
+## Archive: historical per-country data fixes
+The sections below predate the wider site rebuild (Compare, Dashboard,
+accounts, mobile redesign, clean URLs, the `.com` migration, and the
+Customise & Export feature) and are kept for reference on specific
+data-pipeline bugs, not as a description of the current site.
 ## Fixed in 7.6.9
 - **Eurozone unemployment/debt/deficit rebuilt from scratch, not patched.**
   A real user-run data audit found these three series had gone from
