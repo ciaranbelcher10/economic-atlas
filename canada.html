@@ -908,7 +908,7 @@ html[data-theme="dark"] .tpm-scopenote strong{color:var(--blue);}
         btn.onclick = function(e){
           e.preventDefault();
           if(window.EATLAS_OPEN_CUSTOMIZE){
-            window.EATLAS_OPEN_CUSTOMIZE(entry.pts, entry.title, entry.srcNote, entry.fmtY, entry.yTitle, entry.filenameBase);
+            window.EATLAS_OPEN_CUSTOMIZE(entry.pts, entry.title, entry.srcNote, entry.fmtY, entry.yTitle, entry.filenameBase, entry.kind);
           }
         };
       } else {
@@ -918,12 +918,12 @@ html[data-theme="dark"] .tpm-scopenote strong{color:var(--blue);}
       }
     }
 
-    function register(btn, pts, title, srcNote, fmtY, yTitle, filenameBase){
+    function register(btn, pts, title, srcNote, fmtY, yTitle, filenameBase, kind){
       var entry = null;
       for(var i = 0; i < wired.length; i++){ if(wired[i].btn === btn){ entry = wired[i]; break; } }
       if(!entry){ entry = { btn: btn }; wired.push(entry); }
       entry.pts = pts; entry.title = title; entry.srcNote = srcNote;
-      entry.fmtY = fmtY; entry.yTitle = yTitle; entry.filenameBase = filenameBase;
+      entry.fmtY = fmtY; entry.yTitle = yTitle; entry.filenameBase = filenameBase; entry.kind = kind;
       applyState(entry);
     }
 
@@ -1507,7 +1507,7 @@ function openChartModal(id){
   const modalDlBtn = document.getElementById("chartModalDlBtn");
   if(modalDlBtn && window.EATLAS_DOWNLOAD) window.EATLAS_DOWNLOAD.wire(modalDlBtn, entry.pts, entry.title);
   const modalCzBtn = document.getElementById("chartModalCzBtn");
-  if(modalCzBtn && window.EATLAS_CUSTOMIZE) window.EATLAS_CUSTOMIZE.wire(modalCzBtn, entry.pts, entry.title, entry.srcNote, entry.fmtY, "", entry.title);
+  if(modalCzBtn && window.EATLAS_CUSTOMIZE) window.EATLAS_CUSTOMIZE.wire(modalCzBtn, entry.pts, entry.title, entry.srcNote, entry.fmtY, "", entry.title, entry.kind);
   modal.hidden = false;
   document.body.style.overflow = "hidden";
 }
@@ -1589,7 +1589,7 @@ function chartPanel(key, containerId, title, expl, series, kind, fmtY, fmtTip, s
   const dlBtn = panel.querySelector(".dl-btn");
   if(dlBtn && window.EATLAS_DOWNLOAD) window.EATLAS_DOWNLOAD.wire(dlBtn, pts, title);
   const czBtn = panel.querySelector(".cz-btn");
-  if(czBtn && window.EATLAS_CUSTOMIZE) window.EATLAS_CUSTOMIZE.wire(czBtn, pts, title, srcNote, fmtY, "", title);
+  if(czBtn && window.EATLAS_CUSTOMIZE) window.EATLAS_CUSTOMIZE.wire(czBtn, pts, title, srcNote, fmtY, "", title, kind);
 
   const refLineVal = refLine==null ? null : refLine;
   const chart = (kind==="bar"?barChart:lineChart)(document.getElementById(id), pts, fmtY, fmtTip, refLineVal);
@@ -2316,6 +2316,13 @@ document.querySelectorAll(".mtbtn").forEach(function(btn){
           </div>
           <div style="display:grid; grid-template-columns:1fr 1fr; gap:10px 20px;">
             <div style="display:flex; align-items:center; justify-content:space-between; font-size:13px;">
+              <span>Chart type</span>
+              <div class="seg" id="czChartKindSeg" style="display:flex; border:1px solid var(--hair); border-radius:8px; overflow:hidden; width:110px;">
+                <button type="button" data-kind="line" class="active" style="flex:1; border:none; font:inherit; font-size:12px; font-weight:600; padding:7px 0; cursor:pointer;">Line</button>
+                <button type="button" data-kind="bar" style="flex:1; border:none; font:inherit; font-size:12px; font-weight:600; padding:7px 0; cursor:pointer;">Bar</button>
+              </div>
+            </div>
+            <div style="display:flex; align-items:center; justify-content:space-between; font-size:13px;">
               <span>Shade area under the line</span>
               <input type="checkbox" id="czFillToggle" checked style="width:16px; height:16px;">
             </div>
@@ -2460,6 +2467,24 @@ document.querySelectorAll(".mtbtn").forEach(function(btn){
     return { ticks: ticks, min: niceMin, max: niceMax };
   }
 
+  // Some of the site's own formatters (e.g. GDP level's currency
+  // tiering into tn/bn/m) pick a unit independently per value -- fine
+  // for a single number, but on an axis it means zero can land in a
+  // different, smaller tier than the rest ("0m" beside "400.00tn").
+  // Reusing the largest tick's tier for zero specifically keeps the
+  // whole axis reading in one consistent unit.
+  function czAxisTickLabel(v, allTicks, fmtY){
+    var raw = Math.round(v * 100) / 100;
+    if(raw !== 0) return fmtY(raw);
+    var refVal = allTicks.reduce(function(best, t){ return Math.abs(t) > Math.abs(best) ? t : best; }, allTicks[0]);
+    if(refVal === 0) return fmtY(0);
+    var refLabel = fmtY(Math.round(refVal * 100) / 100);
+    return refLabel.replace(/[\d.,]+/, function(numStr){
+      var decMatch = numStr.match(/\.(\d+)/);
+      return decMatch ? "0." + "0".repeat(decMatch[1].length) : "0";
+    });
+  }
+
   function czGeom(){
     var pts = czFilteredSeries();
     var padB = 160;
@@ -2496,7 +2521,7 @@ document.querySelectorAll(".mtbtn").forEach(function(btn){
       var gy = gm.y(v);
       svg.push("<line x1='" + G.padL + "' y1='" + gy.toFixed(1) + "' x2='" + (G.W - G.padR) + "' y2='" + gy.toFixed(1) + "' stroke='" + t.grid + "' stroke-width='1'/>");
       svg.push("<line x1='" + (G.padL - 5) + "' y1='" + gy.toFixed(1) + "' x2='" + G.padL + "' y2='" + gy.toFixed(1) + "' stroke='" + axisColor + "' stroke-width='1.3'/>");
-      svg.push("<text x='" + (G.padL - 10) + "' y='" + (gy + 4).toFixed(1) + "' font-size='11' fill='" + t.ink2 + "' text-anchor='end'>" + czState.fmtY(Math.round(v * 100) / 100) + "</text>");
+      svg.push("<text x='" + (G.padL - 10) + "' y='" + (gy + 4).toFixed(1) + "' font-size='11' fill='" + t.ink2 + "' text-anchor='end'>" + czAxisTickLabel(v, gm.yTickValues, czState.fmtY) + "</text>");
     });
 
     var axisBottomY = gm.padT + gm.plotH;
@@ -2534,13 +2559,29 @@ document.querySelectorAll(".mtbtn").forEach(function(btn){
       svg.push(czAnnotationSVG(a, ai, gm, t, forExport));
     });
 
-    var linePath = pts.map(function(p, i){ return (i === 0 ? "M" : "L") + gm.x(i).toFixed(1) + "," + gm.y(p[1]).toFixed(1); }).join(" ");
-    if(czState.showFill){
-      var areaPath = linePath + " L" + gm.x(pts.length - 1).toFixed(1) + "," + (gm.padT + gm.plotH) + " L" + gm.x(0).toFixed(1) + "," + (gm.padT + gm.plotH) + " Z";
-      svg.push("<path d='" + areaPath + "' fill='" + t.fill + "'/>");
+    if(czState.chartKind === "bar"){
+      // Same up/down colour convention as the real site's own bar charts
+      // (mako "sea" for positive, mako "indigo" for negative) -- not a
+      // separate palette invented for this tool.
+      var zeroY = Math.max(gm.padT, Math.min(gm.padT + gm.plotH, gm.y(0)));
+      var barW = Math.max(2, (gm.plotW / pts.length) * 0.62);
+      pts.forEach(function(p, i){
+        var bx = gm.x(i);
+        var by = gm.y(p[1]);
+        var top = Math.min(by, zeroY);
+        var h = Math.max(0.6, Math.abs(by - zeroY));
+        var color = p[1] < 0 ? "#413D7B" : t.line;
+        svg.push("<rect x='" + (bx - barW / 2).toFixed(1) + "' y='" + top.toFixed(1) + "' width='" + barW.toFixed(1) + "' height='" + h.toFixed(1) + "' fill='" + color + "'/>");
+      });
+    } else {
+      var linePath = pts.map(function(p, i){ return (i === 0 ? "M" : "L") + gm.x(i).toFixed(1) + "," + gm.y(p[1]).toFixed(1); }).join(" ");
+      if(czState.showFill){
+        var areaPath = linePath + " L" + gm.x(pts.length - 1).toFixed(1) + "," + (gm.padT + gm.plotH) + " L" + gm.x(0).toFixed(1) + "," + (gm.padT + gm.plotH) + " Z";
+        svg.push("<path d='" + areaPath + "' fill='" + t.fill + "'/>");
+      }
+      svg.push("<path d='" + linePath + "' fill='none' stroke='" + t.line + "' stroke-width='2.5' stroke-linejoin='round' stroke-linecap='round'/>");
+      pts.forEach(function(p, i){ svg.push("<circle cx='" + gm.x(i).toFixed(1) + "' cy='" + gm.y(p[1]).toFixed(1) + "' r='2.2' fill='" + t.line + "'/>"); });
     }
-    svg.push("<path d='" + linePath + "' fill='none' stroke='" + t.line + "' stroke-width='2.5' stroke-linejoin='round' stroke-linecap='round'/>");
-    pts.forEach(function(p, i){ svg.push("<circle cx='" + gm.x(i).toFixed(1) + "' cy='" + gm.y(p[1]).toFixed(1) + "' r='2.2' fill='" + t.line + "'/>"); });
 
     if(forExport){
       cursorY += 20;
@@ -2758,6 +2799,15 @@ document.querySelectorAll(".mtbtn").forEach(function(btn){
     czState.refLine.value = parseFloat(e.target.value) || 0;
     if(czState.refLine.enabled) czRenderPreview();
   });
+  var czChartKindSeg = document.getElementById("czChartKindSeg");
+  czChartKindSeg.querySelectorAll("button").forEach(function(btn){
+    btn.addEventListener("click", function(){
+      czChartKindSeg.querySelectorAll("button").forEach(function(b){ b.classList.remove("active"); });
+      btn.classList.add("active");
+      czState.chartKind = btn.dataset.kind;
+      czRenderPreview();
+    });
+  });
   var czYTitlePosSeg = document.getElementById("czYTitlePosSeg");
   czYTitlePosSeg.querySelectorAll("button").forEach(function(btn){
     btn.addEventListener("click", function(){
@@ -2953,7 +3003,7 @@ document.querySelectorAll(".mtbtn").forEach(function(btn){
 
   // Entry point: called with a specific chart's real data whenever an
   // admin clicks an unlocked "Customise & export" button.
-  window.EATLAS_OPEN_CUSTOMIZE = function(pts, title, srcNote, fmtY, yTitle, filenameBase){
+  window.EATLAS_OPEN_CUSTOMIZE = function(pts, title, srcNote, fmtY, yTitle, filenameBase, kind){
     FULL_SERIES = pts;
     var effectiveFmtY = fmtY || function(v){ return v.toFixed(1) + "%"; };
     // If no explicit y-axis title was passed in, take a reasonable guess:
@@ -2968,6 +3018,7 @@ document.querySelectorAll(".mtbtn").forEach(function(btn){
       from: pts[0][0], to: pts[pts.length - 1][0],
       showFill: true, refLine: { enabled: false, value: 0 },
       yTitlePos: "along", yTicks: 5, xTicks: 3, chartTitle: title || "",
+      chartKind: kind === "bar" ? "bar" : "line",
       annotations: [], exportTheme: "light",
       srcNote: srcNote, yTitle: guessedYTitle, fmtY: effectiveFmtY,
       filenameBase: (filenameBase || title || "chart").toLowerCase().replace(/[^a-z0-9]+/g, "_").replace(/^_+|_+$/g, "")
@@ -2976,6 +3027,7 @@ document.querySelectorAll(".mtbtn").forEach(function(btn){
     document.getElementById("czModalSrc").textContent = "Source: " + srcNote;
     document.getElementById("czChartTitleInput").value = czState.chartTitle;
     document.getElementById("czYAxisTitleInput").value = czState.yTitle;
+    czChartKindSeg.querySelectorAll("button").forEach(function(b){ b.classList.toggle("active", b.dataset.kind === czState.chartKind); });
     var periodOptionsHtml = pts.map(function(p){ return "<option value='" + p[0] + "'>" + fmtPeriod(p[0]) + "</option>"; }).join("");
     document.getElementById("czFromDate").innerHTML = periodOptionsHtml;
     document.getElementById("czToDate").innerHTML = periodOptionsHtml;
