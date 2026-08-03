@@ -1780,7 +1780,7 @@ fetch("data-ez.json",{cache:"no-store"})
 
 <div class="chart-modal" id="customizeModal" hidden>
   <div class="chart-modal-backdrop"></div>
-  <div class="chart-modal-content" style="width:min(1160px, 96vw); padding:26px 30px 22px;">
+  <div class="chart-modal-content" style="width:min(1160px, 96vw); padding:26px 30px 22px; max-height:92vh; overflow-y:auto; overscroll-behavior:contain; display:block;">
     <button type="button" class="chart-modal-close" id="customizeModalClose" aria-label="Close">&times;</button>
     <div style="display:flex; align-items:center; justify-content:space-between; gap:12px; margin:0 26px 2px 0;">
       <h2 style="margin:0; font-size:20px;">Customise &amp; export</h2>
@@ -1807,36 +1807,32 @@ fetch("data-ez.json",{cache:"no-store"})
         <div id="czPreviewBox" style="width:100%; border:1px solid var(--hair); border-radius:10px; overflow:hidden; background:#fff;"></div>
         <p id="czModalSrc" style="font-size:12px; color:var(--ink2); margin:10px 0 0;"></p>
 
-        <div style="display:flex; gap:14px; margin-top:16px; flex-wrap:wrap;">
-          <div class="ctl-panel" style="flex:1 1 260px; background:var(--panel); border:1px solid var(--hair); border-radius:12px; padding:16px 18px;">
-            <h3 style="font-size:12px; text-transform:uppercase; letter-spacing:.05em; margin:0 0 12px; color:var(--ink2);">Date range</h3>
-            <div style="display:flex; gap:8px;">
-              <div style="flex:1;"><label style="display:block; font-size:12px; font-weight:600; color:var(--ink2); margin-bottom:5px;" for="czFromDate">From</label><select id="czFromDate" style="width:100%; padding:7px 9px; border:1px solid var(--hair); border-radius:7px; background:var(--paper); color:var(--ink); font:inherit; font-size:13px;"></select></div>
-              <div style="flex:1;"><label style="display:block; font-size:12px; font-weight:600; color:var(--ink2); margin-bottom:5px;" for="czToDate">To</label><select id="czToDate" style="width:100%; padding:7px 9px; border:1px solid var(--hair); border-radius:7px; background:var(--paper); color:var(--ink); font:inherit; font-size:13px;"></select></div>
-            </div>
+        <div class="ctl-panel" style="margin-top:16px; background:var(--panel); border:1px solid var(--hair); border-radius:12px; padding:16px 18px;">
+          <h3 style="font-size:12px; text-transform:uppercase; letter-spacing:.05em; margin:0 0 12px; color:var(--ink2);">Chart style</h3>
+          <div class="field" style="margin-bottom:14px;">
+            <label style="display:block; font-size:12px; font-weight:600; color:var(--ink2); margin-bottom:5px;" for="czChartTitleInput">Chart title (optional, shown at the top)</label>
+            <input type="text" id="czChartTitleInput" maxlength="80" placeholder="e.g. ECB deposit facility rate" style="width:100%; padding:7px 9px; border:1px solid var(--hair); border-radius:7px; background:var(--paper); color:var(--ink); font:inherit; font-size:13px;">
           </div>
-
-          <div class="ctl-panel" style="flex:1 1 260px; background:var(--panel); border:1px solid var(--hair); border-radius:12px; padding:16px 18px;">
-            <h3 style="font-size:12px; text-transform:uppercase; letter-spacing:.05em; margin:0 0 12px; color:var(--ink2);">Chart style</h3>
-            <div style="display:flex; align-items:center; justify-content:space-between; font-size:13px; margin-bottom:10px;">
+          <div style="display:grid; grid-template-columns:1fr 1fr; gap:10px 20px;">
+            <div style="display:flex; align-items:center; justify-content:space-between; font-size:13px;">
               <span>Shade area under the line</span>
               <input type="checkbox" id="czFillToggle" checked style="width:16px; height:16px;">
             </div>
-            <div style="display:flex; align-items:center; justify-content:space-between; font-size:13px; margin-bottom:10px;">
+            <div style="display:flex; align-items:center; justify-content:space-between; font-size:13px;">
               <span>Reference line</span>
               <div style="display:flex; align-items:center; gap:6px;">
                 <input type="checkbox" id="czReflineToggle">
                 <input type="number" id="czReflineValue" value="0" step="0.1" style="width:64px; padding:5px 7px; border:1px solid var(--hair); border-radius:6px; background:var(--paper); font:inherit; font-size:12.5px;">
               </div>
             </div>
-            <div style="display:flex; align-items:center; justify-content:space-between; font-size:12.5px; color:var(--ink2); margin-bottom:10px;">
+            <div style="display:flex; align-items:center; justify-content:space-between; font-size:12.5px; color:var(--ink2);">
               <span>Y-axis title</span>
               <div class="seg" id="czYTitlePosSeg" style="display:flex; border:1px solid var(--hair); border-radius:8px; overflow:hidden; width:140px;">
                 <button type="button" data-pos="along" class="active" style="flex:1; border:none; font:inherit; font-size:12px; font-weight:600; padding:7px 0; cursor:pointer;">Alongside</button>
                 <button type="button" data-pos="above" style="flex:1; border:none; font:inherit; font-size:12px; font-weight:600; padding:7px 0; cursor:pointer;">Above</button>
               </div>
             </div>
-            <div style="display:flex; align-items:center; justify-content:space-between; font-size:12.5px; color:var(--ink2); margin-bottom:10px;">
+            <div style="display:flex; align-items:center; justify-content:space-between; font-size:12.5px; color:var(--ink2);">
               <span>Y-axis labels</span>
               <div style="display:flex; align-items:center; gap:6px;"><button type="button" class="cz-fs-btn" id="czYTickMinus" style="width:22px; height:22px; border:1px solid var(--hair); background:var(--paper); color:var(--ink); border-radius:6px; cursor:pointer; font-size:12px;">&minus;</button><span id="czYTickVal" style="font-size:12px; min-width:16px; text-align:center;">5</span><button type="button" class="cz-fs-btn" id="czYTickPlus" style="width:22px; height:22px; border:1px solid var(--hair); background:var(--paper); color:var(--ink); border-radius:6px; cursor:pointer; font-size:12px;">+</button></div>
             </div>
@@ -1850,15 +1846,24 @@ fetch("data-ez.json",{cache:"no-store"})
 
       <div>
         <div class="ctl-panel" style="background:var(--panel); border:1px solid var(--hair); border-radius:12px; padding:16px 18px;">
+          <h3 style="font-size:12px; text-transform:uppercase; letter-spacing:.05em; margin:0 0 12px; color:var(--ink2);">Date range</h3>
+          <div style="display:flex; gap:8px;">
+            <div style="flex:1;"><label style="display:block; font-size:12px; font-weight:600; color:var(--ink2); margin-bottom:5px;" for="czFromDate">From</label><select id="czFromDate" style="width:100%; padding:7px 9px; border:1px solid var(--hair); border-radius:7px; background:var(--paper); color:var(--ink); font:inherit; font-size:13px;"></select></div>
+            <div style="flex:1;"><label style="display:block; font-size:12px; font-weight:600; color:var(--ink2); margin-bottom:5px;" for="czToDate">To</label><select id="czToDate" style="width:100%; padding:7px 9px; border:1px solid var(--hair); border-radius:7px; background:var(--paper); color:var(--ink); font:inherit; font-size:13px;"></select></div>
+          </div>
+        </div>
+
+        <div class="ctl-panel" style="margin-top:14px; background:var(--panel); border:1px solid var(--hair); border-radius:12px; padding:16px 18px;">
           <h3 style="font-size:12px; text-transform:uppercase; letter-spacing:.05em; margin:0 0 12px; color:var(--ink2);">Event lines &amp; arrows</h3>
           <div id="czAnnotList"></div>
           <button type="button" id="czAddAnnotBtn" style="width:100%; margin-top:2px; padding:8px 0; border:1.5px dashed var(--blue); background:none; color:var(--navy); font:600 12.5px inherit; border-radius:8px; cursor:pointer;">+ Add event</button>
-          <p style="font-size:11px; color:var(--ink2); margin:8px 0 0; line-height:1.4;">Drag a line/arrow to move its date. Drag a label anywhere to reposition it, or click it to type directly on the chart. Enter in the label starts a new line. Up to 6.</p>
+          <p style="font-size:11px; color:var(--ink2); margin:8px 0 0; line-height:1.4;">Drag a line/arrow to move its date. Drag a label anywhere to reposition it, or click it to type directly on the chart. Enter in the label starts a new line. Click an event's summary to collapse it. Up to 6.</p>
         </div>
       </div>
     </div>
   </div>
 </div>
+
 
 <script>
 (function(){
@@ -1926,7 +1931,7 @@ fetch("data-ez.json",{cache:"no-store"})
     var minV = Math.min.apply(null, allVals), maxV = Math.max.apply(null, allVals);
     var span = maxV - minV || 1;
     minV -= span * 0.12; maxV += span * 0.12;
-    var padT = czState.yTitlePos === "above" ? G.padT + 18 : G.padT;
+    var padT = (czState.yTitlePos === "above" ? G.padT + 18 : G.padT) + (czState.chartTitle ? 24 : 0);
     var plotW = G.W - G.padL - G.padR, plotH = G.H - padT - padB;
     return {
       pts: pts, minV: minV, maxV: maxV, plotW: plotW, plotH: plotH, padB: padB, padT: padT,
@@ -1944,6 +1949,9 @@ fetch("data-ez.json",{cache:"no-store"})
     var svg = [];
     svg.push("<svg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 " + G.W + " " + G.H + "' font-family='Helvetica, Arial, sans-serif'>");
     svg.push("<rect x='0' y='0' width='" + G.W + "' height='" + G.H + "' fill='" + t.bg + "'/>");
+    if(czState.chartTitle){
+      svg.push("<text x='" + (G.W / 2) + "' y='24' font-size='16' font-weight='700' fill='" + t.ink + "' text-anchor='middle'>" + escapeXML(czState.chartTitle) + "</text>");
+    }
     var axisColor = t.ink2;
 
     for(var gi = 0; gi < czState.yTicks; gi++){
@@ -1951,7 +1959,7 @@ fetch("data-ez.json",{cache:"no-store"})
       var gy = gm.y(v);
       svg.push("<line x1='" + G.padL + "' y1='" + gy.toFixed(1) + "' x2='" + (G.W - G.padR) + "' y2='" + gy.toFixed(1) + "' stroke='" + t.grid + "' stroke-width='1'/>");
       svg.push("<line x1='" + (G.padL - 5) + "' y1='" + gy.toFixed(1) + "' x2='" + G.padL + "' y2='" + gy.toFixed(1) + "' stroke='" + axisColor + "' stroke-width='1.3'/>");
-      svg.push("<text x='" + (G.padL - 10) + "' y='" + (gy + 4).toFixed(1) + "' font-size='11' fill='" + t.ink2 + "' text-anchor='end'>" + czState.fmtY(v) + "</text>");
+      svg.push("<text x='" + (G.padL - 10) + "' y='" + (gy + 4).toFixed(1) + "' font-size='11' fill='" + t.ink2 + "' text-anchor='end'>" + czState.fmtY(Math.round(v * 100) / 100) + "</text>");
     }
 
     var axisBottomY = gm.padT + gm.plotH;
@@ -1982,7 +1990,7 @@ fetch("data-ez.json",{cache:"no-store"})
     if(czState.refLine.enabled){
       var ry = gm.y(czState.refLine.value);
       svg.push("<line x1='" + G.padL + "' y1='" + ry.toFixed(1) + "' x2='" + (G.W - G.padR) + "' y2='" + ry.toFixed(1) + "' stroke='" + t.annot + "' stroke-width='1.3' stroke-dasharray='4,3'/>");
-      svg.push("<text x='" + (G.padL - 10) + "' y='" + (ry + 4).toFixed(1) + "' font-size='11' fill='" + t.ink2 + "' text-anchor='end'>" + czState.fmtY(czState.refLine.value) + "</text>");
+      svg.push("<text x='" + (G.padL - 10) + "' y='" + (ry + 4).toFixed(1) + "' font-size='11' fill='" + t.ink2 + "' text-anchor='end'>" + czState.fmtY(Math.round(czState.refLine.value * 100) / 100) + "</text>");
     }
 
     czState.annotations.forEach(function(a, ai){
@@ -2206,6 +2214,7 @@ fetch("data-ez.json",{cache:"no-store"})
   });
 
   document.getElementById("czFillToggle").addEventListener("change", function(e){ czState.showFill = e.target.checked; czRenderPreview(); });
+  document.getElementById("czChartTitleInput").addEventListener("input", function(e){ czState.chartTitle = e.target.value; czRenderPreview(); });
   document.getElementById("czReflineToggle").addEventListener("change", function(e){ czState.refLine.enabled = e.target.checked; czRenderPreview(); });
   document.getElementById("czReflineValue").addEventListener("input", function(e){
     czState.refLine.value = parseFloat(e.target.value) || 0;
@@ -2237,10 +2246,37 @@ fetch("data-ez.json",{cache:"no-store"})
       var card = document.createElement("div");
       card.className = "cz-annot-card";
       card.style.cssText = "border:1px solid var(--hair); border-radius:9px; padding:10px 11px; margin-bottom:9px; background:var(--paper);";
-      card.innerHTML =
+
+      var summarySpan = document.createElement("span");
+      summarySpan.style.cssText = "font-size:12.5px; font-weight:600; overflow:hidden; text-overflow:ellipsis; white-space:nowrap; flex:1; cursor:pointer;";
+      function updateSummary(){
+        var firstLine = String(a.label || "Event").split("\n")[0];
+        summarySpan.textContent = firstLine + " \u00b7 " + fmtPeriod(a.date);
+      }
+      updateSummary();
+
+      var chevron = document.createElement("span");
+      chevron.style.cssText = "cursor:pointer; color:var(--ink2); font-size:12px; padding:0 2px;";
+      chevron.textContent = "\u25be";
+
+      var header = document.createElement("div");
+      header.style.cssText = "display:flex; align-items:center; gap:8px;";
+      var rmBtn = document.createElement("button");
+      rmBtn.type = "button";
+      rmBtn.className = "cz-rm";
+      rmBtn.title = "Remove";
+      rmBtn.style.cssText = "flex-shrink:0; width:24px; height:24px; border:1px solid var(--hair); background:var(--panel); color:var(--ink2); border-radius:6px; cursor:pointer; font-size:13px; line-height:1;";
+      rmBtn.textContent = "\u00d7";
+      header.appendChild(summarySpan);
+      header.appendChild(rmBtn);
+      header.appendChild(chevron);
+
+      var body = document.createElement("div");
+      body.className = "cz-annot-body";
+      body.style.cssText = "margin-top:9px;";
+      body.innerHTML =
         "<div style='display:flex; gap:6px; margin-bottom:8px;'>" +
           "<select class='cz-annot-date' style='flex:1; padding:6px 8px; border:1px solid var(--hair); border-radius:6px; background:var(--panel); font:inherit; font-size:12.5px;'>" + FULL_SERIES.map(function(p){ return "<option value='" + p[0] + "'" + (p[0] === a.date ? " selected" : "") + ">" + fmtPeriod(p[0]) + "</option>"; }).join("") + "</select>" +
-          "<button type='button' class='cz-rm' style='flex-shrink:0; width:28px; height:30px; border:1px solid var(--hair); background:var(--panel); color:var(--ink2); border-radius:6px; cursor:pointer; font-size:14px;'>&times;</button>" +
         "</div>" +
         "<div class='seg' style='display:flex; border:1px solid var(--hair); border-radius:6px; overflow:hidden; margin-bottom:8px;'>" +
           "<button type='button' data-type='line' class='" + (a.type === "line" ? "active" : "") + "' style='flex:1; border:none; font:inherit; font-size:12px; font-weight:600; padding:7px 0; cursor:pointer;'>Line</button>" +
@@ -2256,18 +2292,35 @@ fetch("data-ez.json",{cache:"no-store"})
           "<div style='display:flex; align-items:center; gap:6px; margin-left:auto;'><button type='button' class='cz-fs-btn cz-fs-minus' style='width:22px; height:22px; border:1px solid var(--hair); border-radius:6px; cursor:pointer; font-size:12px;'>&minus;</button><span class='cz-fs-val' style='font-size:11.5px; min-width:18px; text-align:center;'>" + a.fontSize + "</span><button type='button' class='cz-fs-btn cz-fs-plus' style='width:22px; height:22px; border:1px solid var(--hair); border-radius:6px; cursor:pointer; font-size:12px;'>+</button></div>" +
         "</div>";
 
-      card.querySelector(".cz-annot-date").addEventListener("change", function(e){ a.date = e.target.value; czRenderPreview(); });
-      card.querySelectorAll("[data-type]").forEach(function(btn){
+      card.appendChild(header);
+      card.appendChild(body);
+
+      // Collapsed by default only for events that were already set up
+      // before this render (freshly-added ones start open, so there's
+      // something to actually fill in first).
+      function setCollapsed(collapsed){
+        a._czCollapsed = collapsed;
+        body.style.display = collapsed ? "none" : "block";
+        chevron.textContent = collapsed ? "\u25b8" : "\u25be";
+      }
+      setCollapsed(!!a._czCollapsed);
+
+      function toggleCollapsed(){ setCollapsed(!a._czCollapsed); }
+      summarySpan.addEventListener("click", toggleCollapsed);
+      chevron.addEventListener("click", toggleCollapsed);
+
+      body.querySelector(".cz-annot-date").addEventListener("change", function(e){ a.date = e.target.value; updateSummary(); czRenderPreview(); });
+      body.querySelectorAll("[data-type]").forEach(function(btn){
         btn.addEventListener("click", function(){
           a.type = btn.dataset.type;
-          card.querySelectorAll("[data-type]").forEach(function(b){ b.classList.toggle("active", b === btn); });
+          body.querySelectorAll("[data-type]").forEach(function(b){ b.classList.toggle("active", b === btn); });
           czRenderPreview();
         });
       });
-      card.querySelectorAll("[data-align]").forEach(function(btn){
+      body.querySelectorAll("[data-align]").forEach(function(btn){
         btn.addEventListener("click", function(){
           a.align = btn.dataset.align;
-          card.querySelectorAll("[data-align]").forEach(function(b){ b.classList.toggle("active", b === btn); });
+          body.querySelectorAll("[data-align]").forEach(function(b){ b.classList.toggle("active", b === btn); });
           var gm = czGeom();
           var idx = nearestIndex(gm.pts, a.date);
           var ax = gm.x(idx);
@@ -2275,21 +2328,23 @@ fetch("data-ez.json",{cache:"no-store"})
           czRenderPreview();
         });
       });
-      var labelBoxEl = card.querySelector(".cz-annot-label-box");
+      var labelBoxEl = body.querySelector(".cz-annot-label-box");
       labelBoxEl.addEventListener("input", function(e){
         a.label = e.target.value || "Event";
         e.target.style.height = "auto";
         e.target.style.height = e.target.scrollHeight + "px";
+        updateSummary();
         czRenderPreview();
       });
-      card.querySelector(".cz-rm").addEventListener("click", function(){
+      card.querySelector(".cz-rm").addEventListener("click", function(e){
+        e.stopPropagation();
         czState.annotations.splice(i, 1);
         czRenderAnnotList();
         czRenderPreview();
       });
-      var fsVal = card.querySelector(".cz-fs-val");
-      card.querySelector(".cz-fs-minus").addEventListener("click", function(){ a.fontSize = Math.max(MIN_CZ_FS, a.fontSize - 1); fsVal.textContent = a.fontSize; czRenderPreview(); });
-      card.querySelector(".cz-fs-plus").addEventListener("click", function(){ a.fontSize = Math.min(MAX_CZ_FS, a.fontSize + 1); fsVal.textContent = a.fontSize; czRenderPreview(); });
+      var fsVal = body.querySelector(".cz-fs-val");
+      body.querySelector(".cz-fs-minus").addEventListener("click", function(){ a.fontSize = Math.max(MIN_CZ_FS, a.fontSize - 1); fsVal.textContent = a.fontSize; czRenderPreview(); });
+      body.querySelector(".cz-fs-plus").addEventListener("click", function(){ a.fontSize = Math.min(MAX_CZ_FS, a.fontSize + 1); fsVal.textContent = a.fontSize; czRenderPreview(); });
       czAnnotList.appendChild(card);
     });
     czAddAnnotBtn.disabled = czState.annotations.length >= MAX_CZ_ANNOTATIONS;
@@ -2365,13 +2420,14 @@ fetch("data-ez.json",{cache:"no-store"})
     czState = {
       from: pts[0][0], to: pts[pts.length - 1][0],
       showFill: true, refLine: { enabled: false, value: 0 },
-      yTitlePos: "along", yTicks: 5, xTicks: 3,
+      yTitlePos: "along", yTicks: 5, xTicks: 3, chartTitle: title || "",
       annotations: [], exportTheme: "light",
       srcNote: srcNote, yTitle: yTitle || "", fmtY: fmtY || function(v){ return v.toFixed(1) + "%"; },
       filenameBase: (filenameBase || title || "chart").toLowerCase().replace(/[^a-z0-9]+/g, "_").replace(/^_+|_+$/g, "")
     };
     document.getElementById("czModalCountry").textContent = title;
     document.getElementById("czModalSrc").textContent = "Source: " + srcNote;
+    document.getElementById("czChartTitleInput").value = czState.chartTitle;
     var periodOptionsHtml = pts.map(function(p){ return "<option value='" + p[0] + "'>" + fmtPeriod(p[0]) + "</option>"; }).join("");
     document.getElementById("czFromDate").innerHTML = periodOptionsHtml;
     document.getElementById("czToDate").innerHTML = periodOptionsHtml;
