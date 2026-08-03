@@ -650,6 +650,8 @@
     var readyPromise = new Promise(function(res){ readyResolve = res; });
     var banners = [];
     var loginCallbacks = [];
+    var settledCallbacks = [];
+    var adminFlag = false;
 
     function updateBanners(){
       banners.forEach(function(el){ el.hidden = loggedIn; });
@@ -662,26 +664,35 @@
     function fetchPrefs(wasLoggedOutBefore){
       if(!loggedIn || !userId){
         cache = {};
+        adminFlag = false;
         resolveReady();
+        settledCallbacks.forEach(function(cb){ cb(); });
         return;
       }
-      sb.from("profiles").select("preferences").eq("id", userId).single().then(function(res){
+      // Same query, same round-trip -- also grabs is_admin rather than
+      // firing a second request just for that.
+      sb.from("profiles").select("preferences, is_admin").eq("id", userId).single().then(function(res){
         cache = (res.data && res.data.preferences) || {};
+        adminFlag = !!(res.data && res.data.is_admin);
         resolveReady();
         // A live login (not the initial page load) -- whatever was
         // already pinned/selected this session, while unsaved, shouldn't
         // just vanish now that saving is actually possible.
         if(wasLoggedOutBefore) loginCallbacks.forEach(function(cb){ cb(); });
+        settledCallbacks.forEach(function(cb){ cb(); });
       }).catch(function(){
         cache = {};
+        adminFlag = false;
         resolveReady();
         if(wasLoggedOutBefore) loginCallbacks.forEach(function(cb){ cb(); });
+        settledCallbacks.forEach(function(cb){ cb(); });
       });
     }
 
     return {
       ready: readyPromise,
       isLoggedIn: function(){ return loggedIn; },
+      isAdmin: function(){ return loggedIn && adminFlag; },
       get: function(key, fallback){
         if(!cache || !(key in cache)) return fallback;
         return cache[key];
@@ -699,6 +710,7 @@
         updateBanners();
       },
       onLogin: function(cb){ loginCallbacks.push(cb); },
+      onSettled: function(cb){ settledCallbacks.push(cb); },
       setAuthState: function(isLoggedIn, uid){
         var wasLoggedOut = !loggedIn && isLoggedIn;
         loggedIn = isLoggedIn;
@@ -708,6 +720,54 @@
       }
     };
   })();
+
+  // "Customise & export" stays exactly as it already was -- a plain
+  // "Coming soon" link to Contact -- for absolutely everyone except a
+  // confirmed admin account. Deliberately narrower than the Download
+  // button, which unlocks for any logged-in account; this one is still
+  // being tested, so only the one account flagged is_admin can reach it.
+  window.EATLAS_CUSTOMIZE = (function(){
+    var isAdmin = false;
+    var wired = [];
+
+    function applyState(entry){
+      var btn = entry.btn;
+      if(isAdmin){
+        btn.classList.add("unlocked");
+        btn.setAttribute("data-tip", "Customise this chart and export it as an image.");
+        btn.onclick = function(e){
+          e.preventDefault();
+          if(window.EATLAS_OPEN_CUSTOMIZE){
+            window.EATLAS_OPEN_CUSTOMIZE(entry.pts, entry.title, entry.srcNote, entry.fmtY, entry.yTitle, entry.filenameBase);
+          }
+        };
+      } else {
+        btn.classList.remove("unlocked");
+        btn.setAttribute("data-tip", "Coming soon. Contact us to express interest.");
+        btn.onclick = null; // falls back to the plain href="contact" already on the link
+      }
+    }
+
+    function register(btn, pts, title, srcNote, fmtY, yTitle, filenameBase){
+      var entry = null;
+      for(var i = 0; i < wired.length; i++){ if(wired[i].btn === btn){ entry = wired[i]; break; } }
+      if(!entry){ entry = { btn: btn }; wired.push(entry); }
+      entry.pts = pts; entry.title = title; entry.srcNote = srcNote;
+      entry.fmtY = fmtY; entry.yTitle = yTitle; entry.filenameBase = filenameBase;
+      applyState(entry);
+    }
+
+    return {
+      wire: register,
+      setAdmin: function(admin){
+        isAdmin = admin;
+        wired.forEach(applyState);
+      }
+    };
+  })();
+  window.EATLAS_PREFS.onSettled(function(){
+    window.EATLAS_CUSTOMIZE.setAdmin(window.EATLAS_PREFS.isAdmin());
+  });
 
   // If this page load is the redirect back from clicking "confirm your
   // email" in the inbox, Supabase appends #access_token=...&type=signup

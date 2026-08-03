@@ -820,6 +820,8 @@ html[data-theme="dark"] .tpm-scopenote strong{color:var(--blue);}
     var readyPromise = new Promise(function(res){ readyResolve = res; });
     var banners = [];
     var loginCallbacks = [];
+    var settledCallbacks = [];
+    var adminFlag = false;
 
     function updateBanners(){
       banners.forEach(function(el){ el.hidden = loggedIn; });
@@ -832,26 +834,35 @@ html[data-theme="dark"] .tpm-scopenote strong{color:var(--blue);}
     function fetchPrefs(wasLoggedOutBefore){
       if(!loggedIn || !userId){
         cache = {};
+        adminFlag = false;
         resolveReady();
+        settledCallbacks.forEach(function(cb){ cb(); });
         return;
       }
-      sb.from("profiles").select("preferences").eq("id", userId).single().then(function(res){
+      // Same query, same round-trip -- also grabs is_admin rather than
+      // firing a second request just for that.
+      sb.from("profiles").select("preferences, is_admin").eq("id", userId).single().then(function(res){
         cache = (res.data && res.data.preferences) || {};
+        adminFlag = !!(res.data && res.data.is_admin);
         resolveReady();
         // A live login (not the initial page load) -- whatever was
         // already pinned/selected this session, while unsaved, shouldn't
         // just vanish now that saving is actually possible.
         if(wasLoggedOutBefore) loginCallbacks.forEach(function(cb){ cb(); });
+        settledCallbacks.forEach(function(cb){ cb(); });
       }).catch(function(){
         cache = {};
+        adminFlag = false;
         resolveReady();
         if(wasLoggedOutBefore) loginCallbacks.forEach(function(cb){ cb(); });
+        settledCallbacks.forEach(function(cb){ cb(); });
       });
     }
 
     return {
       ready: readyPromise,
       isLoggedIn: function(){ return loggedIn; },
+      isAdmin: function(){ return loggedIn && adminFlag; },
       get: function(key, fallback){
         if(!cache || !(key in cache)) return fallback;
         return cache[key];
@@ -869,6 +880,7 @@ html[data-theme="dark"] .tpm-scopenote strong{color:var(--blue);}
         updateBanners();
       },
       onLogin: function(cb){ loginCallbacks.push(cb); },
+      onSettled: function(cb){ settledCallbacks.push(cb); },
       setAuthState: function(isLoggedIn, uid){
         var wasLoggedOut = !loggedIn && isLoggedIn;
         loggedIn = isLoggedIn;
@@ -878,6 +890,54 @@ html[data-theme="dark"] .tpm-scopenote strong{color:var(--blue);}
       }
     };
   })();
+
+  // "Customise & export" stays exactly as it already was -- a plain
+  // "Coming soon" link to Contact -- for absolutely everyone except a
+  // confirmed admin account. Deliberately narrower than the Download
+  // button, which unlocks for any logged-in account; this one is still
+  // being tested, so only the one account flagged is_admin can reach it.
+  window.EATLAS_CUSTOMIZE = (function(){
+    var isAdmin = false;
+    var wired = [];
+
+    function applyState(entry){
+      var btn = entry.btn;
+      if(isAdmin){
+        btn.classList.add("unlocked");
+        btn.setAttribute("data-tip", "Customise this chart and export it as an image.");
+        btn.onclick = function(e){
+          e.preventDefault();
+          if(window.EATLAS_OPEN_CUSTOMIZE){
+            window.EATLAS_OPEN_CUSTOMIZE(entry.pts, entry.title, entry.srcNote, entry.fmtY, entry.yTitle, entry.filenameBase);
+          }
+        };
+      } else {
+        btn.classList.remove("unlocked");
+        btn.setAttribute("data-tip", "Coming soon. Contact us to express interest.");
+        btn.onclick = null; // falls back to the plain href="contact" already on the link
+      }
+    }
+
+    function register(btn, pts, title, srcNote, fmtY, yTitle, filenameBase){
+      var entry = null;
+      for(var i = 0; i < wired.length; i++){ if(wired[i].btn === btn){ entry = wired[i]; break; } }
+      if(!entry){ entry = { btn: btn }; wired.push(entry); }
+      entry.pts = pts; entry.title = title; entry.srcNote = srcNote;
+      entry.fmtY = fmtY; entry.yTitle = yTitle; entry.filenameBase = filenameBase;
+      applyState(entry);
+    }
+
+    return {
+      wire: register,
+      setAdmin: function(admin){
+        isAdmin = admin;
+        wired.forEach(applyState);
+      }
+    };
+  })();
+  window.EATLAS_PREFS.onSettled(function(){
+    window.EATLAS_CUSTOMIZE.setAdmin(window.EATLAS_PREFS.isAdmin());
+  });
 
   // If this page load is the redirect back from clicking "confirm your
   // email" in the inbox, Supabase appends #access_token=...&type=signup
@@ -1448,6 +1508,8 @@ function openChartModal(id){
   document.getElementById("chartModalReset").onclick = ()=>{ if(modalChart.resetZoom) modalChart.resetZoom(); };
   const modalDlBtn = document.getElementById("chartModalDlBtn");
   if(modalDlBtn && window.EATLAS_DOWNLOAD) window.EATLAS_DOWNLOAD.wire(modalDlBtn, entry.pts, entry.title);
+  const modalCzBtn = document.getElementById("chartModalCzBtn");
+  if(modalCzBtn && window.EATLAS_CUSTOMIZE) window.EATLAS_CUSTOMIZE.wire(modalCzBtn, entry.pts, entry.title, entry.srcNote, entry.fmtY, "", entry.title);
   modal.hidden = false;
   document.body.style.overflow = "hidden";
 }
@@ -1522,12 +1584,14 @@ function chartPanel(key, containerId, title, expl, series, kind, fmtY, fmtTip, s
         <div class="rangepresets">${rangePresetsHtml()}</div>
         <button type="button" class="resetzoom">Reset zoom</button>
       </div>
-      <div class="lockedactions"><a class="lockedbtn dl-btn" href="contact" data-tip="Create a free account to unlock this feature."><span class="lockicon">&#128274;</span> Download data</a><a class="lockedbtn" href="contact" data-tip="Coming soon. Contact us to express interest."><span class="lockicon">&#128274;</span> Customise &amp; export</a></div>
+      <div class="lockedactions"><a class="lockedbtn dl-btn" href="contact" data-tip="Create a free account to unlock this feature."><span class="lockicon">&#128274;</span> Download data</a><a class="lockedbtn cz-btn" href="contact" data-tip="Coming soon. Contact us to express interest."><span class="lockicon">&#128274;</span> Customise &amp; export</a></div>
       <p class="src">Source: ${srcNote}</p>`;
   container.appendChild(panel);
   if(key) ANCHORS[key]={sec:SEC_OF[containerId], panelEl:panel};
   const dlBtn = panel.querySelector(".dl-btn");
   if(dlBtn && window.EATLAS_DOWNLOAD) window.EATLAS_DOWNLOAD.wire(dlBtn, pts, title);
+  const czBtn = panel.querySelector(".cz-btn");
+  if(czBtn && window.EATLAS_CUSTOMIZE) window.EATLAS_CUSTOMIZE.wire(czBtn, pts, title, srcNote, fmtY, "", title);
 
   const refLineVal = refLine==null ? null : refLine;
   const chart = (kind==="bar"?barChart:lineChart)(document.getElementById(id), pts, fmtY, fmtTip, refLineVal);
@@ -2205,13 +2269,625 @@ document.querySelectorAll(".mtbtn").forEach(function(btn){
       <div class="rangepresets" id="chartModalPresets"></div>
       <button type="button" class="resetzoom" id="chartModalReset">Reset zoom</button>
     </div>
-    <div class="lockedactions"><a class="lockedbtn" href="contact" id="chartModalDlBtn" data-tip="Create a free account to unlock this feature."><span class="lockicon">&#128274;</span> Download data</a><a class="lockedbtn" href="contact" data-tip="Coming soon. Contact us to express interest."><span class="lockicon">&#128274;</span> Customise &amp; export</a></div>
+    <div class="lockedactions"><a class="lockedbtn" href="contact" id="chartModalDlBtn" data-tip="Create a free account to unlock this feature."><span class="lockicon">&#128274;</span> Download data</a><a class="lockedbtn" href="contact" id="chartModalCzBtn" data-tip="Coming soon. Contact us to express interest."><span class="lockicon">&#128274;</span> Customise &amp; export</a></div>
     <div class="chart-modal-box">
       <canvas id="chartModalCanvas"></canvas>
     </div>
     <p class="chart-modal-src" id="chartModalSrc"></p>
   </div>
 </div>
+
+<div class="chart-modal" id="customizeModal" hidden>
+  <div class="chart-modal-backdrop"></div>
+  <div class="chart-modal-content" style="width:min(1160px, 96vw); padding:26px 30px 22px;">
+    <button type="button" class="chart-modal-close" id="customizeModalClose" aria-label="Close">&times;</button>
+    <div style="display:flex; align-items:center; justify-content:space-between; gap:12px; margin:0 26px 2px 0;">
+      <h2 style="margin:0; font-size:20px;">Customise &amp; export</h2>
+      <div style="position:relative;">
+        <button type="button" class="export-opts-btn" id="czExportOptsBtn" style="display:inline-flex; align-items:center; gap:6px; border:1px solid var(--hair); background:var(--panel); color:var(--ink); font:600 13px inherit; padding:8px 14px; border-radius:8px; cursor:pointer;">Export &#9662;</button>
+        <div id="czExportOptsPopover" hidden style="position:absolute; top:calc(100% + 8px); right:0; z-index:20; width:230px; background:var(--panel); border:1px solid var(--hair); border-radius:12px; padding:16px; box-shadow:0 12px 32px rgba(0,0,0,.22);">
+          <h4 style="font-size:11.5px; text-transform:uppercase; letter-spacing:.05em; margin:0 0 8px; color:var(--ink2);">Export theme</h4>
+          <div class="seg" id="czThemeSeg" style="display:flex; border:1px solid var(--hair); border-radius:8px; overflow:hidden;">
+            <button type="button" data-theme="light" class="active" style="flex:1; border:none; font:inherit; font-size:12px; font-weight:600; padding:7px 0; cursor:pointer;">Light</button>
+            <button type="button" data-theme="dark" style="flex:1; border:none; font:inherit; font-size:12px; font-weight:600; padding:7px 0; cursor:pointer;">Dark</button>
+          </div>
+          <h4 style="font-size:11.5px; text-transform:uppercase; letter-spacing:.05em; margin:14px 0 8px; color:var(--ink2);">Export</h4>
+          <div style="display:flex; gap:8px;">
+            <button type="button" id="czExportPngBtn" style="flex:1; padding:8px 0; border:1px solid var(--hair); background:var(--paper); color:var(--ink); border-radius:6px; cursor:pointer; font:inherit; font-size:12px;">PNG</button>
+            <button type="button" id="czExportSvgBtn" style="flex:1; padding:8px 0; border:1px solid var(--hair); background:var(--paper); color:var(--ink); border-radius:6px; cursor:pointer; font:inherit; font-size:12px;">SVG</button>
+          </div>
+        </div>
+      </div>
+    </div>
+    <p id="czModalCountry" style="font-size:13px; color:var(--ink2); margin:0 0 18px;"></p>
+
+    <div style="display:grid; grid-template-columns:1fr 300px; gap:22px; align-items:start;">
+      <div>
+        <div id="czPreviewBox" style="width:100%; border:1px solid var(--hair); border-radius:10px; overflow:hidden; background:#fff;"></div>
+        <p id="czModalSrc" style="font-size:12px; color:var(--ink2); margin:10px 0 0;"></p>
+
+        <div style="display:flex; gap:14px; margin-top:16px; flex-wrap:wrap;">
+          <div class="ctl-panel" style="flex:1 1 260px; background:var(--panel); border:1px solid var(--hair); border-radius:12px; padding:16px 18px;">
+            <h3 style="font-size:12px; text-transform:uppercase; letter-spacing:.05em; margin:0 0 12px; color:var(--ink2);">Date range</h3>
+            <div style="display:flex; gap:8px;">
+              <div style="flex:1;"><label style="display:block; font-size:12px; font-weight:600; color:var(--ink2); margin-bottom:5px;" for="czFromDate">From</label><select id="czFromDate" style="width:100%; padding:7px 9px; border:1px solid var(--hair); border-radius:7px; background:var(--paper); color:var(--ink); font:inherit; font-size:13px;"></select></div>
+              <div style="flex:1;"><label style="display:block; font-size:12px; font-weight:600; color:var(--ink2); margin-bottom:5px;" for="czToDate">To</label><select id="czToDate" style="width:100%; padding:7px 9px; border:1px solid var(--hair); border-radius:7px; background:var(--paper); color:var(--ink); font:inherit; font-size:13px;"></select></div>
+            </div>
+          </div>
+
+          <div class="ctl-panel" style="flex:1 1 260px; background:var(--panel); border:1px solid var(--hair); border-radius:12px; padding:16px 18px;">
+            <h3 style="font-size:12px; text-transform:uppercase; letter-spacing:.05em; margin:0 0 12px; color:var(--ink2);">Chart style</h3>
+            <div style="display:flex; align-items:center; justify-content:space-between; font-size:13px; margin-bottom:10px;">
+              <span>Shade area under the line</span>
+              <input type="checkbox" id="czFillToggle" checked style="width:16px; height:16px;">
+            </div>
+            <div style="display:flex; align-items:center; justify-content:space-between; font-size:13px; margin-bottom:10px;">
+              <span>Reference line</span>
+              <div style="display:flex; align-items:center; gap:6px;">
+                <input type="checkbox" id="czReflineToggle">
+                <input type="number" id="czReflineValue" value="0" step="0.1" style="width:64px; padding:5px 7px; border:1px solid var(--hair); border-radius:6px; background:var(--paper); font:inherit; font-size:12.5px;">
+              </div>
+            </div>
+            <div style="display:flex; align-items:center; justify-content:space-between; font-size:12.5px; color:var(--ink2); margin-bottom:10px;">
+              <span>Y-axis title</span>
+              <div class="seg" id="czYTitlePosSeg" style="display:flex; border:1px solid var(--hair); border-radius:8px; overflow:hidden; width:140px;">
+                <button type="button" data-pos="along" class="active" style="flex:1; border:none; font:inherit; font-size:12px; font-weight:600; padding:7px 0; cursor:pointer;">Alongside</button>
+                <button type="button" data-pos="above" style="flex:1; border:none; font:inherit; font-size:12px; font-weight:600; padding:7px 0; cursor:pointer;">Above</button>
+              </div>
+            </div>
+            <div style="display:flex; align-items:center; justify-content:space-between; font-size:12.5px; color:var(--ink2); margin-bottom:10px;">
+              <span>Y-axis labels</span>
+              <div style="display:flex; align-items:center; gap:6px;"><button type="button" class="cz-fs-btn" id="czYTickMinus" style="width:22px; height:22px; border:1px solid var(--hair); background:var(--paper); color:var(--ink); border-radius:6px; cursor:pointer; font-size:12px;">&minus;</button><span id="czYTickVal" style="font-size:12px; min-width:16px; text-align:center;">5</span><button type="button" class="cz-fs-btn" id="czYTickPlus" style="width:22px; height:22px; border:1px solid var(--hair); background:var(--paper); color:var(--ink); border-radius:6px; cursor:pointer; font-size:12px;">+</button></div>
+            </div>
+            <div style="display:flex; align-items:center; justify-content:space-between; font-size:12.5px; color:var(--ink2);">
+              <span>X-axis labels</span>
+              <div style="display:flex; align-items:center; gap:6px;"><button type="button" class="cz-fs-btn" id="czXTickMinus" style="width:22px; height:22px; border:1px solid var(--hair); background:var(--paper); color:var(--ink); border-radius:6px; cursor:pointer; font-size:12px;">&minus;</button><span id="czXTickVal" style="font-size:12px; min-width:16px; text-align:center;">3</span><button type="button" class="cz-fs-btn" id="czXTickPlus" style="width:22px; height:22px; border:1px solid var(--hair); background:var(--paper); color:var(--ink); border-radius:6px; cursor:pointer; font-size:12px;">+</button></div>
+            </div>
+          </div>
+        </div>
+      </div>
+
+      <div>
+        <div class="ctl-panel" style="background:var(--panel); border:1px solid var(--hair); border-radius:12px; padding:16px 18px;">
+          <h3 style="font-size:12px; text-transform:uppercase; letter-spacing:.05em; margin:0 0 12px; color:var(--ink2);">Event lines &amp; arrows</h3>
+          <div id="czAnnotList"></div>
+          <button type="button" id="czAddAnnotBtn" style="width:100%; margin-top:2px; padding:8px 0; border:1.5px dashed var(--blue); background:none; color:var(--navy); font:600 12.5px inherit; border-radius:8px; cursor:pointer;">+ Add event</button>
+          <p style="font-size:11px; color:var(--ink2); margin:8px 0 0; line-height:1.4;">Drag a line/arrow to move its date. Drag a label anywhere to reposition it, or click it to type directly on the chart. Enter in the label starts a new line. Up to 6.</p>
+        </div>
+      </div>
+    </div>
+  </div>
+</div>
+
+<script>
+(function(){
+  "use strict";
+
+  var G = { W:820, H:520, padL:60, padR:24, padT:34 };
+  var THEMES = {
+    light: { bg:"#FFFFFF", ink:"#171B1E", ink2:"#5A6167", grid:"#E4E6E1", line:"#348FA7", fill:"rgba(52,143,167,0.12)", annot:"#9AA4A0", annotText:"#6B7470" },
+    dark:  { bg:"#12181A", ink:"#EDEFEA", ink2:"#9AA4A0", grid:"#2A3436", line:"#348FA7", fill:"rgba(52,143,167,0.16)", annot:"#8A9490", annotText:"#B7BEBA" }
+  };
+
+  var czState = null; // set fresh each time the modal opens, for a specific chart
+  var FULL_SERIES = []; // the real [date, value] points for whichever chart is currently open
+
+  function nearestIndex(pts, dateStr){
+    var idx = 0, bestDiff = Infinity;
+    for(var i = 0; i < pts.length; i++){
+      var diff = Math.abs(new Date(pts[i][0]) - new Date(dateStr));
+      if(diff < bestDiff){ bestDiff = diff; idx = i; }
+    }
+    return idx;
+  }
+  function escapeXML(s){
+    return String(s).replace(/&/g, "&amp;").replace(/</g, "&lt;").replace(/>/g, "&gt;").replace(/"/g, "&quot;");
+  }
+  function tickIndicesCz(n, len){
+    if(len <= 1) return [0];
+    n = Math.max(2, Math.min(n, len));
+    var idxs = [];
+    for(var k = 0; k < n; k++) idxs.push(Math.round((k / (n - 1)) * (len - 1)));
+    return idxs.filter(function(v, i, arr){ return arr.indexOf(v) === i; });
+  }
+  function estTextWidthCz(text, fontSize){
+    var lines = text.split("\n");
+    var longest = lines.reduce(function(m, l){ return Math.max(m, l.length); }, 0);
+    return longest * fontSize * 0.56;
+  }
+  function labelBoxCz(a){
+    var lines = String(a.label || "Event").split("\n").slice(0, 4);
+    var fs = a.fontSize || 11;
+    var lineH = fs * 1.25;
+    var w = estTextWidthCz(a.label || "Event", fs);
+    var h = lines.length * lineH;
+    var left, right;
+    if(a.align === "left"){ right = a.labelX; left = a.labelX - w; }
+    else if(a.align === "right"){ left = a.labelX; right = a.labelX + w; }
+    else { left = a.labelX - w / 2; right = a.labelX + w / 2; }
+    var top = a.labelY - fs * 0.85, bottom = a.labelY + h - fs * 0.85 + (fs * 0.3);
+    return { left: left, right: right, top: top, bottom: bottom, w: right - left, h: bottom - top };
+  }
+  function closestBoxPointCz(box, tx, ty){
+    return { x: Math.max(box.left, Math.min(box.right, tx)), y: Math.max(box.top, Math.min(box.bottom, ty)) };
+  }
+  function defaultLabelPosCz(ax){ return { labelX: ax, labelY: G.padT - 8 }; }
+
+  function czFilteredSeries(){
+    return FULL_SERIES.filter(function(p){ return p[0] >= czState.from && p[0] <= czState.to; });
+  }
+
+  function czGeom(){
+    var pts = czFilteredSeries();
+    var padB = 160;
+    var allVals = pts.map(function(p){ return p[1]; });
+    if(czState.refLine.enabled) allVals.push(czState.refLine.value);
+    var minV = Math.min.apply(null, allVals), maxV = Math.max.apply(null, allVals);
+    var span = maxV - minV || 1;
+    minV -= span * 0.12; maxV += span * 0.12;
+    var padT = czState.yTitlePos === "above" ? G.padT + 18 : G.padT;
+    var plotW = G.W - G.padL - G.padR, plotH = G.H - padT - padB;
+    return {
+      pts: pts, minV: minV, maxV: maxV, plotW: plotW, plotH: plotH, padB: padB, padT: padT,
+      x: function(i){ return G.padL + (pts.length === 1 ? plotW / 2 : (i / (pts.length - 1)) * plotW); },
+      y: function(v){ return padT + plotH - ((v - minV) / (maxV - minV)) * plotH; }
+    };
+  }
+
+  function czBuildSVG(theme, forExport){
+    var t = THEMES[theme];
+    var gm = czGeom();
+    var pts = gm.pts;
+    if(!pts.length) return "<svg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 " + G.W + " " + G.H + "'></svg>";
+
+    var svg = [];
+    svg.push("<svg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 " + G.W + " " + G.H + "' font-family='Helvetica, Arial, sans-serif'>");
+    svg.push("<rect x='0' y='0' width='" + G.W + "' height='" + G.H + "' fill='" + t.bg + "'/>");
+    var axisColor = t.ink2;
+
+    for(var gi = 0; gi < czState.yTicks; gi++){
+      var v = gm.minV + (gm.maxV - gm.minV) * (gi / (czState.yTicks - 1));
+      var gy = gm.y(v);
+      svg.push("<line x1='" + G.padL + "' y1='" + gy.toFixed(1) + "' x2='" + (G.W - G.padR) + "' y2='" + gy.toFixed(1) + "' stroke='" + t.grid + "' stroke-width='1'/>");
+      svg.push("<line x1='" + (G.padL - 5) + "' y1='" + gy.toFixed(1) + "' x2='" + G.padL + "' y2='" + gy.toFixed(1) + "' stroke='" + axisColor + "' stroke-width='1.3'/>");
+      svg.push("<text x='" + (G.padL - 10) + "' y='" + (gy + 4).toFixed(1) + "' font-size='11' fill='" + t.ink2 + "' text-anchor='end'>" + czState.fmtY(v) + "</text>");
+    }
+
+    var axisBottomY = gm.padT + gm.plotH;
+    svg.push("<line x1='" + G.padL + "' y1='" + gm.padT + "' x2='" + G.padL + "' y2='" + axisBottomY + "' stroke='" + axisColor + "' stroke-width='1.5'/>");
+    svg.push("<line x1='" + G.padL + "' y1='" + axisBottomY + "' x2='" + (G.W - G.padR) + "' y2='" + axisBottomY + "' stroke='" + axisColor + "' stroke-width='1.5'/>");
+
+    if(czState.yTitlePos === "above"){
+      svg.push("<text x='4' y='18' font-size='11.5' font-weight='600' fill='" + t.ink2 + "'>" + escapeXML(czState.yTitle) + "</text>");
+    } else {
+      var yTitleX = 16, yTitleY = gm.padT + gm.plotH / 2;
+      svg.push("<text x='" + yTitleX + "' y='" + yTitleY + "' font-size='11.5' font-weight='600' fill='" + t.ink2 + "' text-anchor='middle' transform='rotate(-90 " + yTitleX + " " + yTitleY + ")'>" + escapeXML(czState.yTitle) + "</text>");
+    }
+
+    tickIndicesCz(czState.xTicks, pts.length).forEach(function(idx, tickPos, allTicks){
+      var isFirst = tickPos === 0, isLast = tickPos === allTicks.length - 1;
+      var anchor = isFirst ? "start" : isLast ? "end" : "middle";
+      var tx = gm.x(idx);
+      svg.push("<line x1='" + tx.toFixed(1) + "' y1='" + axisBottomY + "' x2='" + tx.toFixed(1) + "' y2='" + (axisBottomY + 5) + "' stroke='" + axisColor + "' stroke-width='1.3'/>");
+    });
+
+    var cursorY = axisBottomY + 26;
+    tickIndicesCz(czState.xTicks, pts.length).forEach(function(idx, tickPos, allTicks){
+      var isFirst = tickPos === 0, isLast = tickPos === allTicks.length - 1;
+      var anchor = isFirst ? "start" : isLast ? "end" : "middle";
+      svg.push("<text x='" + gm.x(idx).toFixed(1) + "' y='" + cursorY + "' font-size='11' fill='" + t.ink2 + "' text-anchor='" + anchor + "'>" + fmtPeriod(pts[idx][0]) + "</text>");
+    });
+
+    if(czState.refLine.enabled){
+      var ry = gm.y(czState.refLine.value);
+      svg.push("<line x1='" + G.padL + "' y1='" + ry.toFixed(1) + "' x2='" + (G.W - G.padR) + "' y2='" + ry.toFixed(1) + "' stroke='" + t.annot + "' stroke-width='1.3' stroke-dasharray='4,3'/>");
+      svg.push("<text x='" + (G.padL - 10) + "' y='" + (ry + 4).toFixed(1) + "' font-size='11' fill='" + t.ink2 + "' text-anchor='end'>" + czState.fmtY(czState.refLine.value) + "</text>");
+    }
+
+    czState.annotations.forEach(function(a, ai){
+      svg.push(czAnnotationSVG(a, ai, gm, t, forExport));
+    });
+
+    var linePath = pts.map(function(p, i){ return (i === 0 ? "M" : "L") + gm.x(i).toFixed(1) + "," + gm.y(p[1]).toFixed(1); }).join(" ");
+    if(czState.showFill){
+      var areaPath = linePath + " L" + gm.x(pts.length - 1).toFixed(1) + "," + (gm.padT + gm.plotH) + " L" + gm.x(0).toFixed(1) + "," + (gm.padT + gm.plotH) + " Z";
+      svg.push("<path d='" + areaPath + "' fill='" + t.fill + "'/>");
+    }
+    svg.push("<path d='" + linePath + "' fill='none' stroke='" + t.line + "' stroke-width='2.5' stroke-linejoin='round' stroke-linecap='round'/>");
+    pts.forEach(function(p, i){ svg.push("<circle cx='" + gm.x(i).toFixed(1) + "' cy='" + gm.y(p[1]).toFixed(1) + "' r='2.2' fill='" + t.line + "'/>"); });
+
+    if(forExport){
+      cursorY += 20;
+      svg.push("<line x1='" + G.padL + "' y1='" + cursorY + "' x2='" + (G.W - G.padR) + "' y2='" + cursorY + "' stroke='" + t.grid + "' stroke-width='1'/>");
+      cursorY += 18;
+      svg.push("<text x='" + G.padL + "' y='" + cursorY + "' font-size='11' fill='" + t.ink2 + "'>Source: " + escapeXML(czState.srcNote) + "</text>");
+      svg.push("<text x='" + (G.W - G.padR) + "' y='" + cursorY + "' font-size='11' fill='" + t.ink2 + "' text-anchor='end'>Made on theeconomicatlas.com</text>");
+    }
+    svg.push("</svg>");
+    return svg.join("");
+  }
+
+  function czAnnotationSVG(a, ai, gm, t, forExport){
+    var pts = gm.pts;
+    if(a.date < pts[0][0] || a.date > pts[pts.length - 1][0]) return "";
+    var idx = nearestIndex(pts, a.date);
+    var ax = gm.x(idx);
+    var ay = gm.y(pts[idx][1]);
+    var s = ["<g data-cz-annot-group='" + ai + "'>"];
+
+    if(a.type === "line"){
+      s.push("<line data-cz-vline='" + ai + "' x1='" + ax.toFixed(1) + "' y1='" + gm.padT + "' x2='" + ax.toFixed(1) + "' y2='" + (gm.padT + gm.plotH) + "' stroke='" + t.annot + "' stroke-width='1.5' stroke-dasharray='4,3'/>");
+      if(!forExport) s.push("<rect data-cz-line-handle='" + ai + "' x='" + (ax - 7).toFixed(1) + "' y='" + gm.padT + "' width='14' height='" + gm.plotH + "' fill='transparent' cursor='ew-resize'/>");
+    } else {
+      var box = labelBoxCz(a);
+      var start = closestBoxPointCz(box, ax, ay);
+      var angle = Math.atan2(ay - start.y, ax - start.x);
+      var headLen = 8;
+      var hx1 = ax - headLen * Math.cos(angle - Math.PI / 7);
+      var hy1 = ay - headLen * Math.sin(angle - Math.PI / 7);
+      var hx2 = ax - headLen * Math.cos(angle + Math.PI / 7);
+      var hy2 = ay - headLen * Math.sin(angle + Math.PI / 7);
+      s.push("<line data-cz-vline='" + ai + "' x1='" + start.x.toFixed(1) + "' y1='" + start.y.toFixed(1) + "' x2='" + ax.toFixed(1) + "' y2='" + ay.toFixed(1) + "' stroke='" + t.annot + "' stroke-width='1.5'/>");
+      s.push("<path d='M" + ax.toFixed(1) + "," + ay.toFixed(1) + " L" + hx1.toFixed(1) + "," + hy1.toFixed(1) + " L" + hx2.toFixed(1) + "," + hy2.toFixed(1) + " Z' fill='" + t.annot + "'/>");
+      s.push("<circle cx='" + ax.toFixed(1) + "' cy='" + ay.toFixed(1) + "' r='3' fill='" + t.annot + "'/>");
+      if(!forExport) s.push("<circle data-cz-line-handle='" + ai + "' cx='" + ax.toFixed(1) + "' cy='" + ay.toFixed(1) + "' r='9' fill='transparent' cursor='ew-resize'/>");
+    }
+
+    var anchorMap = { left: "end", center: "middle", right: "start" };
+    var anchor = anchorMap[a.align] || "middle";
+    var lines = String(a.label || "Event").split("\n").slice(0, 4);
+    var fs = a.fontSize || 11;
+    var lineH = fs * 1.25;
+    s.push("<text data-cz-label='" + ai + "' x='" + a.labelX.toFixed(1) + "' y='" + a.labelY.toFixed(1) + "' font-size='" + fs + "' font-weight='600' fill='" + t.annotText + "' text-anchor='" + anchor + "'>");
+    lines.forEach(function(ln, li){
+      s.push("<tspan x='" + a.labelX.toFixed(1) + "' dy='" + (li === 0 ? 0 : lineH) + "'>" + escapeXML(ln) + "</tspan>");
+    });
+    s.push("</text>");
+    if(!forExport){
+      var box2 = labelBoxCz(a);
+      s.push("<rect data-cz-label-handle='" + ai + "' x='" + (box2.left - 4).toFixed(1) + "' y='" + (box2.top - 2).toFixed(1) + "' width='" + (box2.w + 8).toFixed(1) + "' height='" + (box2.h + 6).toFixed(1) + "' fill='transparent' cursor='grab'/>");
+    }
+    s.push("</g>");
+    return s.join("");
+  }
+
+  var czPreviewBox = document.getElementById("czPreviewBox");
+
+  function czRenderPreview(){
+    czPreviewBox.innerHTML = czBuildSVG(czState.exportTheme, false);
+    czWireDragHandles();
+  }
+
+  function czWireDragHandles(){
+    var svgEl = czPreviewBox.querySelector("svg");
+    if(!svgEl) return;
+
+    function svgPoint(ev){
+      var rect = svgEl.getBoundingClientRect();
+      var scale = G.W / rect.width;
+      return { x: (ev.clientX - rect.left) * scale, y: (ev.clientY - rect.top) * scale };
+    }
+
+    function refreshGroup(ai){
+      var gm = czGeom();
+      var t = THEMES[czState.exportTheme];
+      var group = svgEl.querySelector("[data-cz-annot-group='" + ai + "']");
+      if(!group) return;
+      var temp = document.createElementNS("http://www.w3.org/2000/svg", "g");
+      temp.innerHTML = czAnnotationSVG(czState.annotations[ai], ai, gm, t, false).replace(/^<g[^>]*>/, "").replace(/<\/g>$/, "");
+      group.replaceChildren.apply(group, temp.childNodes);
+      wireOneGroup(ai, group);
+    }
+
+    function wireOneGroup(ai, group){
+      var lineHandle = group.querySelector("[data-cz-line-handle='" + ai + "']");
+      var labelHandle = group.querySelector("[data-cz-label-handle='" + ai + "']");
+      if(lineHandle) lineHandle.addEventListener("pointerdown", function(e){ startLineDrag(e, ai); });
+      if(labelHandle) labelHandle.addEventListener("pointerdown", function(e){ startLabelDragOrClick(e, ai); });
+    }
+
+    function startLineDrag(e, ai){
+      e.preventDefault();
+      var gm = czGeom();
+      function move(ev){
+        var p = svgPoint(ev);
+        var frac = (p.x - G.padL) / gm.plotW;
+        var idx = Math.max(0, Math.min(gm.pts.length - 1, Math.round(frac * (gm.pts.length - 1))));
+        czState.annotations[ai].date = gm.pts[idx][0];
+        refreshGroup(ai);
+      }
+      function up(){
+        window.removeEventListener("pointermove", move);
+        window.removeEventListener("pointerup", up);
+        czSyncAnnotListInputs();
+        czRenderPreview();
+      }
+      window.addEventListener("pointermove", move);
+      window.addEventListener("pointerup", up);
+    }
+
+    function startLabelDragOrClick(e, ai){
+      e.preventDefault();
+      var a = czState.annotations[ai];
+      var startClient = { x: e.clientX, y: e.clientY };
+      var startSvg = svgPoint(e);
+      var offX = startSvg.x - a.labelX, offY = startSvg.y - a.labelY;
+      var moved = false;
+      function move(ev){
+        if(Math.abs(ev.clientX - startClient.x) > 4 || Math.abs(ev.clientY - startClient.y) > 4) moved = true;
+        if(!moved) return;
+        var p = svgPoint(ev);
+        a.labelX = Math.max(20, Math.min(G.W - 20, p.x - offX));
+        a.labelY = Math.max(16, Math.min(G.H - 16, p.y - offY));
+        refreshGroup(ai);
+      }
+      function up(){
+        window.removeEventListener("pointermove", move);
+        window.removeEventListener("pointerup", up);
+        if(moved){ czRenderPreview(); }
+        else { czOpenInlineEditor(ai); }
+      }
+      window.addEventListener("pointermove", move);
+      window.addEventListener("pointerup", up);
+    }
+
+    svgEl.querySelectorAll("[data-cz-annot-group]").forEach(function(group){
+      var ai = parseInt(group.getAttribute("data-cz-annot-group"), 10);
+      wireOneGroup(ai, group);
+    });
+  }
+
+  function czOpenInlineEditor(ai){
+    var a = czState.annotations[ai];
+    var svgEl = czPreviewBox.querySelector("svg");
+    var rect = svgEl.getBoundingClientRect();
+    var scale = rect.width / G.W;
+    var box = labelBoxCz(a);
+    var overlay = document.createElement("textarea");
+    overlay.className = "cz-inline-editor";
+    overlay.style.position = "fixed";
+    overlay.style.border = "1.5px dashed var(--blue)";
+    overlay.style.background = "rgba(255,255,255,.94)";
+    overlay.style.borderRadius = "3px";
+    overlay.style.padding = "1px 3px";
+    overlay.style.zIndex = "60";
+    overlay.style.resize = "none";
+    overlay.style.outline = "none";
+    overlay.value = a.label;
+    overlay.style.left = (rect.left + box.left * scale - 4) + "px";
+    overlay.style.top = (rect.top + box.top * scale - 2) + "px";
+    overlay.style.width = Math.max(70, box.w * scale + 8) + "px";
+    overlay.style.height = Math.max(24, box.h * scale + 6) + "px";
+    overlay.style.fontSize = Math.max(10, a.fontSize * scale) + "px";
+    overlay.style.fontWeight = "600";
+    overlay.style.fontFamily = "Helvetica, Arial, sans-serif";
+    overlay.style.color = THEMES[czState.exportTheme].annotText;
+    overlay.style.textAlign = a.align === "left" ? "right" : a.align === "right" ? "left" : "center";
+    document.body.appendChild(overlay);
+    overlay.focus();
+    overlay.select();
+
+    function syncSidebar(){
+      var boxes = document.querySelectorAll(".cz-annot-label-box");
+      if(boxes[ai]) boxes[ai].value = a.label;
+    }
+    overlay.addEventListener("input", function(){
+      a.label = overlay.value || "Event";
+      syncSidebar();
+    });
+    function commit(){
+      if(overlay.parentNode) overlay.remove();
+      czRenderPreview();
+    }
+    overlay.addEventListener("blur", commit);
+    overlay.addEventListener("keydown", function(e){
+      if(e.key === "Escape"){ e.preventDefault(); commit(); }
+    });
+  }
+
+  function czSyncAnnotListInputs(){
+    document.querySelectorAll(".cz-annot-date").forEach(function(input, i){
+      input.value = czState.annotations[i].date;
+    });
+  }
+
+  var czFromInput = document.getElementById("czFromDate");
+  var czToInput = document.getElementById("czToDate");
+  czFromInput.addEventListener("change", function(){
+    if(czFromInput.value > czToInput.value) czFromInput.value = czToInput.value;
+    czState.from = czFromInput.value;
+    czRenderPreview();
+  });
+  czToInput.addEventListener("change", function(){
+    if(czToInput.value < czFromInput.value) czToInput.value = czFromInput.value;
+    czState.to = czToInput.value;
+    czRenderPreview();
+  });
+
+  document.getElementById("czFillToggle").addEventListener("change", function(e){ czState.showFill = e.target.checked; czRenderPreview(); });
+  document.getElementById("czReflineToggle").addEventListener("change", function(e){ czState.refLine.enabled = e.target.checked; czRenderPreview(); });
+  document.getElementById("czReflineValue").addEventListener("input", function(e){
+    czState.refLine.value = parseFloat(e.target.value) || 0;
+    if(czState.refLine.enabled) czRenderPreview();
+  });
+  var czYTitlePosSeg = document.getElementById("czYTitlePosSeg");
+  czYTitlePosSeg.querySelectorAll("button").forEach(function(btn){
+    btn.addEventListener("click", function(){
+      czYTitlePosSeg.querySelectorAll("button").forEach(function(b){ b.classList.remove("active"); });
+      btn.classList.add("active");
+      czState.yTitlePos = btn.dataset.pos;
+      czRenderPreview();
+    });
+  });
+  var czYTickVal = document.getElementById("czYTickVal");
+  var czXTickVal = document.getElementById("czXTickVal");
+  document.getElementById("czYTickMinus").addEventListener("click", function(){ czState.yTicks = Math.max(2, czState.yTicks - 1); czYTickVal.textContent = czState.yTicks; czRenderPreview(); });
+  document.getElementById("czYTickPlus").addEventListener("click", function(){ czState.yTicks = Math.min(9, czState.yTicks + 1); czYTickVal.textContent = czState.yTicks; czRenderPreview(); });
+  document.getElementById("czXTickMinus").addEventListener("click", function(){ czState.xTicks = Math.max(2, czState.xTicks - 1); czXTickVal.textContent = czState.xTicks; czRenderPreview(); });
+  document.getElementById("czXTickPlus").addEventListener("click", function(){ czState.xTicks = Math.min(10, czState.xTicks + 1); czXTickVal.textContent = czState.xTicks; czRenderPreview(); });
+
+  var MAX_CZ_ANNOTATIONS = 6, MIN_CZ_FS = 9, MAX_CZ_FS = 20;
+  var czAnnotList = document.getElementById("czAnnotList");
+  var czAddAnnotBtn = document.getElementById("czAddAnnotBtn");
+
+  function czRenderAnnotList(){
+    czAnnotList.innerHTML = "";
+    czState.annotations.forEach(function(a, i){
+      var card = document.createElement("div");
+      card.className = "cz-annot-card";
+      card.style.cssText = "border:1px solid var(--hair); border-radius:9px; padding:10px 11px; margin-bottom:9px; background:var(--paper);";
+      card.innerHTML =
+        "<div style='display:flex; gap:6px; margin-bottom:8px;'>" +
+          "<select class='cz-annot-date' style='flex:1; padding:6px 8px; border:1px solid var(--hair); border-radius:6px; background:var(--panel); font:inherit; font-size:12.5px;'>" + FULL_SERIES.map(function(p){ return "<option value='" + p[0] + "'" + (p[0] === a.date ? " selected" : "") + ">" + fmtPeriod(p[0]) + "</option>"; }).join("") + "</select>" +
+          "<button type='button' class='cz-rm' style='flex-shrink:0; width:28px; height:30px; border:1px solid var(--hair); background:var(--panel); color:var(--ink2); border-radius:6px; cursor:pointer; font-size:14px;'>&times;</button>" +
+        "</div>" +
+        "<div class='seg' style='display:flex; border:1px solid var(--hair); border-radius:6px; overflow:hidden; margin-bottom:8px;'>" +
+          "<button type='button' data-type='line' class='" + (a.type === "line" ? "active" : "") + "' style='flex:1; border:none; font:inherit; font-size:12px; font-weight:600; padding:7px 0; cursor:pointer;'>Line</button>" +
+          "<button type='button' data-type='arrow' class='" + (a.type === "arrow" ? "active" : "") + "' style='flex:1; border:none; font:inherit; font-size:12px; font-weight:600; padding:7px 0; cursor:pointer;'>Arrow</button>" +
+        "</div>" +
+        "<textarea class='cz-annot-label-box' rows='1' maxlength='90' placeholder='Label (Enter for a new line)' style='width:100%; border:1px solid var(--hair); border-radius:6px; background:var(--panel); color:var(--ink); font:inherit; font-size:12.5px; padding:6px 8px; resize:vertical; min-height:40px; margin-bottom:8px;'>" + a.label.replace(/</g, "&lt;") + "</textarea>" +
+        "<div style='display:flex; align-items:center; gap:10px;'>" +
+          "<div class='align-seg' style='display:flex; border:1px solid var(--hair); border-radius:6px; overflow:hidden; flex-shrink:0;'>" +
+            "<button type='button' data-align='left' class='" + (a.align === "left" ? "active" : "") + "' style='width:26px; height:24px; border:none; cursor:pointer; font-size:12px;'>&#8676;</button>" +
+            "<button type='button' data-align='center' class='" + (a.align === "center" ? "active" : "") + "' style='width:26px; height:24px; border:none; cursor:pointer; font-size:12px;'>&#9679;</button>" +
+            "<button type='button' data-align='right' class='" + (a.align === "right" ? "active" : "") + "' style='width:26px; height:24px; border:none; cursor:pointer; font-size:12px;'>&#8677;</button>" +
+          "</div>" +
+          "<div style='display:flex; align-items:center; gap:6px; margin-left:auto;'><button type='button' class='cz-fs-btn cz-fs-minus' style='width:22px; height:22px; border:1px solid var(--hair); border-radius:6px; cursor:pointer; font-size:12px;'>&minus;</button><span class='cz-fs-val' style='font-size:11.5px; min-width:18px; text-align:center;'>" + a.fontSize + "</span><button type='button' class='cz-fs-btn cz-fs-plus' style='width:22px; height:22px; border:1px solid var(--hair); border-radius:6px; cursor:pointer; font-size:12px;'>+</button></div>" +
+        "</div>";
+
+      card.querySelector(".cz-annot-date").addEventListener("change", function(e){ a.date = e.target.value; czRenderPreview(); });
+      card.querySelectorAll("[data-type]").forEach(function(btn){
+        btn.addEventListener("click", function(){
+          a.type = btn.dataset.type;
+          card.querySelectorAll("[data-type]").forEach(function(b){ b.classList.toggle("active", b === btn); });
+          czRenderPreview();
+        });
+      });
+      card.querySelectorAll("[data-align]").forEach(function(btn){
+        btn.addEventListener("click", function(){
+          a.align = btn.dataset.align;
+          card.querySelectorAll("[data-align]").forEach(function(b){ b.classList.toggle("active", b === btn); });
+          var gm = czGeom();
+          var idx = nearestIndex(gm.pts, a.date);
+          var ax = gm.x(idx);
+          a.labelX = a.align === "left" ? ax - 50 : a.align === "right" ? ax + 50 : ax;
+          czRenderPreview();
+        });
+      });
+      var labelBoxEl = card.querySelector(".cz-annot-label-box");
+      labelBoxEl.addEventListener("input", function(e){
+        a.label = e.target.value || "Event";
+        e.target.style.height = "auto";
+        e.target.style.height = e.target.scrollHeight + "px";
+        czRenderPreview();
+      });
+      card.querySelector(".cz-rm").addEventListener("click", function(){
+        czState.annotations.splice(i, 1);
+        czRenderAnnotList();
+        czRenderPreview();
+      });
+      var fsVal = card.querySelector(".cz-fs-val");
+      card.querySelector(".cz-fs-minus").addEventListener("click", function(){ a.fontSize = Math.max(MIN_CZ_FS, a.fontSize - 1); fsVal.textContent = a.fontSize; czRenderPreview(); });
+      card.querySelector(".cz-fs-plus").addEventListener("click", function(){ a.fontSize = Math.min(MAX_CZ_FS, a.fontSize + 1); fsVal.textContent = a.fontSize; czRenderPreview(); });
+      czAnnotList.appendChild(card);
+    });
+    czAddAnnotBtn.disabled = czState.annotations.length >= MAX_CZ_ANNOTATIONS;
+  }
+
+  czAddAnnotBtn.addEventListener("click", function(){
+    if(czState.annotations.length >= MAX_CZ_ANNOTATIONS) return;
+    var gm = czGeom();
+    var idx = nearestIndex(gm.pts, czState.from);
+    var ax = gm.x(idx);
+    czState.annotations.push(Object.assign({ type: "line", date: czState.from, label: "New event", align: "center", fontSize: 11 }, defaultLabelPosCz(ax)));
+    czRenderAnnotList();
+    czRenderPreview();
+  });
+
+  function czFilenameBase(){ return czState.filenameBase + "_" + czState.from + "_to_" + czState.to; }
+  function czDownloadBlob(blob, filename){
+    var url = URL.createObjectURL(blob);
+    var a = document.createElement("a");
+    a.href = url; a.download = filename;
+    document.body.appendChild(a); a.click(); document.body.removeChild(a);
+    setTimeout(function(){ URL.revokeObjectURL(url); }, 200);
+  }
+  document.getElementById("czExportSvgBtn").addEventListener("click", function(){
+    var svgStr = czBuildSVG(czState.exportTheme, true);
+    czDownloadBlob(new Blob([svgStr], { type: "image/svg+xml;charset=utf-8" }), czFilenameBase() + ".svg");
+  });
+  document.getElementById("czExportPngBtn").addEventListener("click", function(){
+    var svgStr = czBuildSVG(czState.exportTheme, true);
+    var url = URL.createObjectURL(new Blob([svgStr], { type: "image/svg+xml;charset=utf-8" }));
+    var img = new Image();
+    img.onload = function(){
+      var scale = 2;
+      var canvas = document.createElement("canvas");
+      canvas.width = G.W * scale; canvas.height = G.H * scale;
+      var ctx = canvas.getContext("2d");
+      ctx.scale(scale, scale);
+      ctx.drawImage(img, 0, 0, G.W, G.H);
+      URL.revokeObjectURL(url);
+      canvas.toBlob(function(blob){ czDownloadBlob(blob, czFilenameBase() + ".png"); }, "image/png");
+    };
+    img.src = url;
+  });
+  var czThemeSeg = document.getElementById("czThemeSeg");
+  czThemeSeg.querySelectorAll("button").forEach(function(btn){
+    btn.addEventListener("click", function(){
+      czThemeSeg.querySelectorAll("button").forEach(function(b){ b.classList.remove("active"); });
+      btn.classList.add("active");
+      czState.exportTheme = btn.dataset.theme;
+      czRenderPreview();
+    });
+  });
+
+  var czExportOptsBtn = document.getElementById("czExportOptsBtn");
+  var czExportOptsPopover = document.getElementById("czExportOptsPopover");
+  czExportOptsBtn.addEventListener("click", function(e){
+    e.stopPropagation();
+    czExportOptsPopover.hidden = !czExportOptsPopover.hidden;
+  });
+  document.addEventListener("click", function(e){
+    if(!czExportOptsPopover.hidden && !czExportOptsPopover.contains(e.target) && e.target !== czExportOptsBtn){
+      czExportOptsPopover.hidden = true;
+    }
+  });
+  document.getElementById("customizeModalClose").addEventListener("click", function(){
+    document.getElementById("customizeModal").hidden = true;
+  });
+
+  // Entry point: called with a specific chart's real data whenever an
+  // admin clicks an unlocked "Customise & export" button.
+  window.EATLAS_OPEN_CUSTOMIZE = function(pts, title, srcNote, fmtY, yTitle, filenameBase){
+    FULL_SERIES = pts;
+    czState = {
+      from: pts[0][0], to: pts[pts.length - 1][0],
+      showFill: true, refLine: { enabled: false, value: 0 },
+      yTitlePos: "along", yTicks: 5, xTicks: 3,
+      annotations: [], exportTheme: "light",
+      srcNote: srcNote, yTitle: yTitle || "", fmtY: fmtY || function(v){ return v.toFixed(1) + "%"; },
+      filenameBase: (filenameBase || title || "chart").toLowerCase().replace(/[^a-z0-9]+/g, "_").replace(/^_+|_+$/g, "")
+    };
+    document.getElementById("czModalCountry").textContent = title;
+    document.getElementById("czModalSrc").textContent = "Source: " + srcNote;
+    var periodOptionsHtml = pts.map(function(p){ return "<option value='" + p[0] + "'>" + fmtPeriod(p[0]) + "</option>"; }).join("");
+    document.getElementById("czFromDate").innerHTML = periodOptionsHtml;
+    document.getElementById("czToDate").innerHTML = periodOptionsHtml;
+    document.getElementById("czFromDate").value = czState.from;
+    document.getElementById("czToDate").value = czState.to;
+    document.getElementById("czFillToggle").checked = true;
+    document.getElementById("czReflineToggle").checked = false;
+    document.getElementById("czReflineValue").value = "0";
+    czYTitlePosSeg.querySelectorAll("button").forEach(function(b){ b.classList.toggle("active", b.dataset.pos === "along"); });
+    czYTickVal.textContent = "5"; czXTickVal.textContent = "3";
+    czThemeSeg.querySelectorAll("button").forEach(function(b){ b.classList.toggle("active", b.dataset.theme === "light"); });
+    czRenderAnnotList();
+    czRenderPreview();
+    document.getElementById("customizeModal").hidden = false;
+  };
+})();
+</script>
 
 </body>
 </html>
