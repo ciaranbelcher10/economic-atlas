@@ -908,7 +908,7 @@ html[data-theme="dark"] .tpm-scopenote strong{color:var(--blue);}
         btn.onclick = function(e){
           e.preventDefault();
           if(window.EATLAS_OPEN_CUSTOMIZE){
-            window.EATLAS_OPEN_CUSTOMIZE(entry.pts, entry.title, entry.srcNote, entry.fmtY, entry.yTitle, entry.filenameBase, entry.kind);
+            window.EATLAS_OPEN_CUSTOMIZE(entry.pts, entry.title, entry.srcNote, entry.fmtY, entry.yTitle, entry.filenameBase, entry.kind, entry.fmtPeriodFn);
           }
         };
       } else {
@@ -918,12 +918,13 @@ html[data-theme="dark"] .tpm-scopenote strong{color:var(--blue);}
       }
     }
 
-    function register(btn, pts, title, srcNote, fmtY, yTitle, filenameBase, kind){
+    function register(btn, pts, title, srcNote, fmtY, yTitle, filenameBase, kind, fmtPeriodFn){
       var entry = null;
       for(var i = 0; i < wired.length; i++){ if(wired[i].btn === btn){ entry = wired[i]; break; } }
       if(!entry){ entry = { btn: btn }; wired.push(entry); }
       entry.pts = pts; entry.title = title; entry.srcNote = srcNote;
       entry.fmtY = fmtY; entry.yTitle = yTitle; entry.filenameBase = filenameBase; entry.kind = kind;
+      entry.fmtPeriodFn = fmtPeriodFn;
       applyState(entry);
     }
 
@@ -1512,7 +1513,7 @@ function openChartModal(id){
   const modalDlBtn = document.getElementById("chartModalDlBtn");
   if(modalDlBtn && window.EATLAS_DOWNLOAD) window.EATLAS_DOWNLOAD.wire(modalDlBtn, entry.pts, entry.title);
   const modalCzBtn = document.getElementById("chartModalCzBtn");
-  if(modalCzBtn && window.EATLAS_CUSTOMIZE) window.EATLAS_CUSTOMIZE.wire(modalCzBtn, entry.pts, entry.title, entry.srcNote, entry.fmtY, "", entry.title, entry.kind);
+  if(modalCzBtn && window.EATLAS_CUSTOMIZE) window.EATLAS_CUSTOMIZE.wire(modalCzBtn, entry.pts, entry.title, entry.srcNote, entry.fmtY, "", entry.title, entry.kind, fmtPeriod);
   modal.hidden = false;
   document.body.style.overflow = "hidden";
 }
@@ -1594,7 +1595,7 @@ function chartPanel(key, containerId, title, expl, series, kind, fmtY, fmtTip, s
   const dlBtn = panel.querySelector(".dl-btn");
   if(dlBtn && window.EATLAS_DOWNLOAD) window.EATLAS_DOWNLOAD.wire(dlBtn, pts, title);
   const czBtn = panel.querySelector(".cz-btn");
-  if(czBtn && window.EATLAS_CUSTOMIZE) window.EATLAS_CUSTOMIZE.wire(czBtn, pts, title, srcNote, fmtY, "", title, kind);
+  if(czBtn && window.EATLAS_CUSTOMIZE) window.EATLAS_CUSTOMIZE.wire(czBtn, pts, title, srcNote, fmtY, "", title, kind, fmtPeriod);
 
   const refLineVal = refLine==null ? null : refLine;
   const chart = (kind==="bar"?barChart:lineChart)(document.getElementById(id), pts, fmtY, fmtTip, refLineVal);
@@ -2411,6 +2412,18 @@ document.querySelectorAll(".mtbtn").forEach(function(btn){
 
   var czState = null; // set fresh each time the modal opens, for a specific chart
   var FULL_SERIES = []; // the real [date, value] points for whichever chart is currently open
+  // Some pages (Dashboard in particular) keep their own fmtPeriod inside
+  // a private closure, not a true global -- rather than assume it's
+  // reachable, the page passes its own version in explicitly, with this
+  // as a safe fallback if it ever isn't.
+  var czFmtPeriod = function(p){
+    if(/^\d{4}-\d{2}$/.test(p)){
+      var months = ["Jan","Feb","Mar","Apr","May","Jun","Jul","Aug","Sep","Oct","Nov","Dec"];
+      return months[+p.slice(5) - 1] + " " + p.slice(0, 4);
+    }
+    if(/^\d{4}-Q\d$/.test(p)) return p.slice(5) + " " + p.slice(0, 4);
+    return p;
+  };
 
   function nearestIndex(pts, dateStr){
     var idx = 0, bestDiff = Infinity;
@@ -2572,7 +2585,7 @@ document.querySelectorAll(".mtbtn").forEach(function(btn){
     tickIndicesCz(czState.xTicks, pts.length).forEach(function(idx, tickPos, allTicks){
       var isFirst = tickPos === 0, isLast = tickPos === allTicks.length - 1;
       var anchor = isFirst ? "start" : isLast ? "end" : "middle";
-      svg.push("<text x='" + gm.x(idx).toFixed(1) + "' y='" + cursorY + "' font-size='11' fill='" + t.ink2 + "' text-anchor='" + anchor + "'>" + fmtPeriod(pts[idx][0]) + "</text>");
+      svg.push("<text x='" + gm.x(idx).toFixed(1) + "' y='" + cursorY + "' font-size='11' fill='" + t.ink2 + "' text-anchor='" + anchor + "'>" + czFmtPeriod(pts[idx][0]) + "</text>");
     });
 
     if(czState.refLine.enabled){
@@ -2865,7 +2878,7 @@ document.querySelectorAll(".mtbtn").forEach(function(btn){
       summarySpan.style.cssText = "font-size:12.5px; font-weight:600; overflow:hidden; text-overflow:ellipsis; white-space:nowrap; flex:1; cursor:pointer;";
       function updateSummary(){
         var firstLine = String(a.label || "Event").split("\n")[0];
-        summarySpan.textContent = firstLine + " \u00b7 " + fmtPeriod(a.date);
+        summarySpan.textContent = firstLine + " \u00b7 " + czFmtPeriod(a.date);
       }
       updateSummary();
 
@@ -2890,7 +2903,7 @@ document.querySelectorAll(".mtbtn").forEach(function(btn){
       body.style.cssText = "margin-top:9px;";
       body.innerHTML =
         "<div style='display:flex; gap:6px; margin-bottom:8px;'>" +
-          "<select class='cz-annot-date' style='flex:1; padding:6px 8px; border:1px solid var(--hair); border-radius:6px; background:var(--panel); font:inherit; font-size:12.5px;'>" + FULL_SERIES.map(function(p){ return "<option value='" + p[0] + "'" + (p[0] === a.date ? " selected" : "") + ">" + fmtPeriod(p[0]) + "</option>"; }).join("") + "</select>" +
+          "<select class='cz-annot-date' style='flex:1; padding:6px 8px; border:1px solid var(--hair); border-radius:6px; background:var(--panel); font:inherit; font-size:12.5px;'>" + FULL_SERIES.map(function(p){ return "<option value='" + p[0] + "'" + (p[0] === a.date ? " selected" : "") + ">" + czFmtPeriod(p[0]) + "</option>"; }).join("") + "</select>" +
         "</div>" +
         "<div class='seg' style='display:flex; border:1px solid var(--hair); border-radius:6px; overflow:hidden; margin-bottom:8px;'>" +
           "<button type='button' data-type='line' class='" + (a.type === "line" ? "active" : "") + "' style='flex:1; border:none; font:inherit; font-size:12px; font-weight:600; padding:7px 0; cursor:pointer;'>Line</button>" +
@@ -3029,8 +3042,9 @@ document.querySelectorAll(".mtbtn").forEach(function(btn){
 
   // Entry point: called with a specific chart's real data whenever an
   // admin clicks an unlocked "Customise & export" button.
-  window.EATLAS_OPEN_CUSTOMIZE = function(pts, title, srcNote, fmtY, yTitle, filenameBase, kind){
+  window.EATLAS_OPEN_CUSTOMIZE = function(pts, title, srcNote, fmtY, yTitle, filenameBase, kind, fmtPeriodFn){
     FULL_SERIES = pts;
+    if(fmtPeriodFn) czFmtPeriod = fmtPeriodFn;
     var effectiveFmtY = fmtY || function(v){ return v.toFixed(1) + "%"; };
     // If no explicit y-axis title was passed in, take a reasonable guess:
     // most of the site's charts are percentages, detectable by testing
@@ -3054,7 +3068,7 @@ document.querySelectorAll(".mtbtn").forEach(function(btn){
     document.getElementById("czChartTitleInput").value = czState.chartTitle;
     document.getElementById("czYAxisTitleInput").value = czState.yTitle;
     czChartKindSeg.querySelectorAll("button").forEach(function(b){ b.classList.toggle("active", b.dataset.kind === czState.chartKind); });
-    var periodOptionsHtml = pts.map(function(p){ return "<option value='" + p[0] + "'>" + fmtPeriod(p[0]) + "</option>"; }).join("");
+    var periodOptionsHtml = pts.map(function(p){ return "<option value='" + p[0] + "'>" + czFmtPeriod(p[0]) + "</option>"; }).join("");
     document.getElementById("czFromDate").innerHTML = periodOptionsHtml;
     document.getElementById("czToDate").innerHTML = periodOptionsHtml;
     document.getElementById("czFromDate").value = czState.from;
