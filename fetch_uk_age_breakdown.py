@@ -203,12 +203,28 @@ def fetch_and_parse() -> dict | None:
                   f"to map next, not yet confirmed against ONS's own code list:")
             for r, row_codes in code_hits:
                 print(f"  [a05] row {r+1} candidate codes: {row_codes}")
+            # The codes alone are useless without whatever's labelling them --
+            # ONS timeseries workbooks almost always carry the human-readable
+            # series title in a row just above (or occasionally below) the
+            # CDID code row. Dumping the codes and moving on (as this used to
+            # do) threw away exactly the information needed to map them.
+            # Surface the rows immediately around the first code row too, so
+            # the *next* run gives us the title text directly instead of
+            # requiring a third round-trip.
+            first_code_row = code_hits[0][0]
+            dump_start = max(0, first_code_row - 6)
+            dump_end = min(len(grid), first_code_row + 4)
+            print(f"  [a05] sheet '{sheet_name}': dumping rows {dump_start + 1}-{dump_end} "
+                  f"around the code row for title context:")
+            for r in range(dump_start, dump_end):
+                print(f"  [a05] row {r+1}: {[repr(v) for v in grid[r][:20]]}")
             continue
 
     print("  [a05] no sheet produced confirmed metric+age-band header hits — "
-          "dumping the first sheet's header block for diagnosis:")
-    if sheet_order:
-        _dump(get_grid(sheet_order[0]), f"sheet '{sheet_order[0]}'")
+          "dumping the last sheet tried (not sheet_order[0], which was often an "
+          "unrelated 'Note'/disclaimer sheet and gave nothing useful):")
+    if last_grid is not None:
+        _dump(last_grid, f"sheet '{last_sheet}'")
     return None
 
 
