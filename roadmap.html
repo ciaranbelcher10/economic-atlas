@@ -96,6 +96,13 @@
   <button type="button" class="theme-toggle" id="themeToggle" aria-label="Switch to dark mode" title="Switch to dark mode">&#127769;</button>
   </div>
 </div></nav>
+<div class="wrap" style="padding-top:16px;">
+  <div class="savebar" id="alertBanner" hidden>
+    <span class="savebar-icon" aria-hidden="true">&#128276;</span>
+    <p>Want to know when new countries, indicators or features land? <a href="roadmap#alertSignupBox" style="color:inherit; text-decoration:underline;">Leave your email</a> -- no account needed.</p>
+    <button type="button" class="savebar-close" id="alertBannerClose" aria-label="Dismiss">&times;</button>
+  </div>
+</div>
 <div id="cookieBanner" role="region" aria-label="Cookie consent">
   <div class="cookie-inner">
     <div>
@@ -789,6 +796,43 @@
       }, 5000);
     }
   })();
+
+  // "Get notified" email capture -- insert-only table, no read access
+  // from the client at all (see the alert_signups RLS policy), so this
+  // is deliberately a one-way drop box rather than anything that could
+  // read emails back out. A unique_violation (code 23505) means the
+  // address is already on the list, which gets its own friendly message
+  // rather than being shown as an error.
+  var alertForm = document.getElementById("alertSignupForm");
+  if(alertForm){
+    var alertEmailInput = document.getElementById("alertSignupEmail");
+    var alertBtn = document.getElementById("alertSignupBtn");
+    var alertMsg = document.getElementById("alertSignupMsg");
+    alertForm.addEventListener("submit", function(e){
+      e.preventDefault();
+      var email = (alertEmailInput.value || "").trim();
+      if(!email) return;
+      alertBtn.disabled = true;
+      alertBtn.textContent = "Submitting\u2026";
+      alertMsg.hidden = true;
+      sb.from("alert_signups").insert({ email: email }).then(function(res){
+        alertBtn.disabled = false;
+        alertBtn.textContent = "Notify me";
+        alertMsg.hidden = false;
+        if(res.error){
+          alertMsg.textContent = (res.error.code === "23505")
+            ? "You're already on the list."
+            : "Something went wrong \u2014 please try again.";
+        } else {
+          alertForm.hidden = true;
+          alertMsg.textContent = "\u2713 You're on the list. We'll only email when there's something worth knowing.";
+          // Also stop nagging this visitor with the site-wide banner,
+          // since they've already done what it was asking for.
+          try{ localStorage.setItem("eatlas_alert_banner_dismissed", "1"); }catch(err){}
+        }
+      });
+    });
+  }
 })();
 </script>
 <div class="wrap">
@@ -809,7 +853,46 @@
     Have an idea or want an indicator added? <a href="contact" style="color:var(--navy-2);">Suggest it</a>;
     the roadmap is shaped by what readers ask for.</p>
 </div>
+<div class="roadmap-signup" id="alertSignupBox" style="background:var(--panel); border:1px solid var(--hair); border-radius:14px; padding:20px 22px; margin-top:24px;">
+  <h3 style="margin:0 0 6px; font-size:16px;">Get notified</h3>
+  <p style="margin:0; color:var(--ink2); font-size:14px;">Leave your email and we'll let you know when there's something worth knowing about &mdash; new countries, new indicators, or genuinely new features. No account needed, no spam, unsubscribe any time.</p>
+  <form id="alertSignupForm" style="display:flex; gap:8px; flex-wrap:wrap; margin-top:14px;">
+    <input type="email" id="alertSignupEmail" required placeholder="you@example.com" autocomplete="email" style="flex:1; min-width:220px; padding:9px 12px; border:1px solid var(--hair); border-radius:8px; background:var(--paper); color:var(--ink); font:inherit; font-size:14px;">
+    <button type="submit" class="btn" id="alertSignupBtn">Notify me</button>
+  </form>
+  <p id="alertSignupMsg" style="margin:10px 0 0; font-size:13px; color:var(--ink2);" hidden></p>
+</div>
 <footer>The Economic Atlas · Data from national statistical offices, used under open licences. <a href="privacy">Privacy</a></footer>
 </div>
+<script>
+(function(){
+  "use strict";
+  // Site-wide "get notified" banner -- logged-out visitors only (anyone
+  // with an account already gets updates through the account itself),
+  // and remembers a dismissal permanently via localStorage rather than
+  // just for the current page, since this shows on every page and would
+  // be genuinely annoying otherwise. Placed here (just before </body>)
+  // rather than immediately after the banner's own HTML because
+  // window.EATLAS_PREFS isn't defined until later in the page.
+  var DISMISS_KEY = "eatlas_alert_banner_dismissed";
+  var banner = document.getElementById("alertBanner");
+  if(!banner) return;
+  var dismissed = false;
+  try{ dismissed = localStorage.getItem(DISMISS_KEY) === "1"; }catch(e){}
+  if(dismissed) return;
+
+  var closeBtn = document.getElementById("alertBannerClose");
+  if(closeBtn){
+    closeBtn.addEventListener("click", function(){
+      banner.hidden = true;
+      try{ localStorage.setItem(DISMISS_KEY, "1"); }catch(e){}
+    });
+  }
+
+  if(window.EATLAS_PREFS && window.EATLAS_PREFS.registerBanner){
+    window.EATLAS_PREFS.registerBanner(banner);
+  }
+})();
+</script>
 </body>
 </html>

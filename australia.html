@@ -297,6 +297,13 @@ html[data-theme="dark"] .tpm-scopenote strong{color:var(--blue);}
   <button type="button" class="theme-toggle" id="themeToggle" aria-label="Switch to dark mode" title="Switch to dark mode">&#127769;</button>
   </div>
 </div></nav>
+<div class="wrap" style="padding-top:16px;">
+  <div class="savebar" id="alertBanner" hidden>
+    <span class="savebar-icon" aria-hidden="true">&#128276;</span>
+    <p>Want to know when new countries, indicators or features land? <a href="roadmap#alertSignupBox" style="color:inherit; text-decoration:underline;">Leave your email</a> -- no account needed.</p>
+    <button type="button" class="savebar-close" id="alertBannerClose" aria-label="Dismiss">&times;</button>
+  </div>
+</div>
 <div id="cookieBanner" role="region" aria-label="Cookie consent">
   <div class="cookie-inner">
     <div>
@@ -3180,5 +3187,35 @@ document.querySelectorAll(".mtbtn").forEach(function(btn){
 })();
 </script>
 
+<script>
+(function(){
+  "use strict";
+  // Site-wide "get notified" banner -- logged-out visitors only (anyone
+  // with an account already gets updates through the account itself),
+  // and remembers a dismissal permanently via localStorage rather than
+  // just for the current page, since this shows on every page and would
+  // be genuinely annoying otherwise. Placed here (just before </body>)
+  // rather than immediately after the banner's own HTML because
+  // window.EATLAS_PREFS isn't defined until later in the page.
+  var DISMISS_KEY = "eatlas_alert_banner_dismissed";
+  var banner = document.getElementById("alertBanner");
+  if(!banner) return;
+  var dismissed = false;
+  try{ dismissed = localStorage.getItem(DISMISS_KEY) === "1"; }catch(e){}
+  if(dismissed) return;
+
+  var closeBtn = document.getElementById("alertBannerClose");
+  if(closeBtn){
+    closeBtn.addEventListener("click", function(){
+      banner.hidden = true;
+      try{ localStorage.setItem(DISMISS_KEY, "1"); }catch(e){}
+    });
+  }
+
+  if(window.EATLAS_PREFS && window.EATLAS_PREFS.registerBanner){
+    window.EATLAS_PREFS.registerBanner(banner);
+  }
+})();
+</script>
 </body>
 </html>
