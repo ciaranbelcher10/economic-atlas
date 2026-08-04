@@ -3688,6 +3688,55 @@ function refreshDepthPass(){
 window.refreshDepthPass = refreshDepthPass;
 refreshDepthPass();
 
+/* --------------------- By age group: real ONS data ----------------------- */
+// Confirmed live 2026-08-04: data-uk-age-breakdown.json (ONS A05 SA) gives
+// unemployment_rate + inactivity_rate for 8 age bands, keyed by ONS's own
+// band names (e.g. "Aged 18-24", "Age 65+", inconsistent "Aged"/"Age"
+// wording and all). Two of those eight -- "Aged 16 and over" and
+// "Aged 16-64" -- are aggregate totals, not narrow bands, so they're
+// deliberately left out of REAL_AGE_ORDER below rather than shown as if
+// they were peers of "18-24" etc. If the fetch fails or the file doesn't
+// exist yet, the illustrative AGE_BANDS grid above stays as-is -- this
+// only overwrites it once real data is confirmed present.
+var REAL_AGE_ORDER = ["16-17", "18-24", "25-34", "35-49", "50-64", "65+"];
+
+function normalizeAgeBandLabel(raw){
+  return String(raw).replace(/^Aged?\s+/i, "").trim();
+}
+
+function renderAgeGridReal(ageBands){
+  var el = document.getElementById("ageGrid");
+  if(!el || !ageBands || typeof ageBands !== "object") return;
+  var byKey = {};
+  Object.keys(ageBands).forEach(function(raw){
+    byKey[normalizeAgeBandLabel(raw)] = ageBands[raw];
+  });
+  var cards = REAL_AGE_ORDER.filter(function(k){
+    var v = byKey[k];
+    return v && typeof v.unemployment_rate === "number" && typeof v.inactivity_rate === "number";
+  }).map(function(k){
+    var v = byKey[k];
+    var displayBand = k.replace(/^(\d+)-(\d+)$/, "$1\u2013$2");
+    return "<div class=\"agecard\">"
+      + "<p class=\"band\">" + displayBand + "</p>"
+      + "<p class=\"u\">" + v.unemployment_rate.toFixed(1) + "%<span class=\"tag real\">REAL</span></p>"
+      + "<p class=\"ulabel\">unemployment rate</p>"
+      + "<p class=\"i\">" + v.inactivity_rate.toFixed(1) + "%</p>"
+      + "<p class=\"ilabel\">inactivity rate</p>"
+      + "</div>";
+  });
+  if(!cards.length) return; // nothing recognisable -- leave the illustrative fallback in place
+  el.innerHTML = cards.join("");
+}
+
+fetch("data-uk-age-breakdown.json", {cache: "no-cache"})
+  .then(function(r){ if(!r.ok) throw new Error(r.status); return r.json(); })
+  .then(function(payload){
+    if(!payload || !payload.age_bands) return;
+    renderAgeGridReal(payload.age_bands);
+  })
+  .catch(function(){ /* fallback already rendered */ });
+
 /* ---------------------- Why people are inactive ------------------------ */
 var REASON_LABELS_DISPLAY = {
   long_term_sick: "Long-term/temporary sickness", student: "Student",
