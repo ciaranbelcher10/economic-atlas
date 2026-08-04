@@ -1034,29 +1034,60 @@ fetch("https://cdn.jsdelivr.net/npm/world-atlas@2/countries-110m.json")
 (function(){
   "use strict";
   // ------------------------- Onboarding tour --------------------------
-  // Phase A: engine + index.html steps only. The step list is written to
-  // be extended (each step names its own page) rather than assuming
-  // index.html is the whole tour -- later phases add uk.html/compare.html
-  // /dashboard.html/roadmap.html steps to this same array (duplicated
-  // per-page, same pattern as EATLAS_PREFS etc., since this is a static
-  // site with no shared JS file) and the engine itself doesn't change.
+  // Phase B: engine upgraded to support (1) function-based targets, for
+  // steps that need to point at a specific dynamically-built chart panel
+  // rather than a fixed ID (uk.html's charts are generated at runtime
+  // with auto-incrementing canvas IDs, so ANCHORS[key].panelEl is used
+  // instead -- see window.ANCHORS exposed near the top of this page's
+  // own render script), (2) function-based body text, for steps whose
+  // wording depends on login state (e.g. Download data), and (3) a
+  // showIf gate, for steps that only apply to some visitors (Customise &
+  // export is admin-only -- it's skipped entirely for everyone else,
+  // not shown as a locked teaser, since regular accounts never get it).
   //
-  // Every step keeps a manual Next/Prev/Exit rather than auto-advancing
-  // on a detected interaction (e.g. waiting for a real drag event) --
-  // auto-detection is fragile to verify across every real interaction
-  // path, and a stuck auto-wait step has no way forward. Manual controls
-  // always work.
+  // Every step still uses manual Next/Prev/Exit, never auto-detects a
+  // real interaction (e.g. waiting for a drag event) -- deliberate,
+  // since a stuck auto-wait step has no fallback.
   var STATE_KEY = "eatlas_tour_state";
   var SEEN_KEY = "eatlas_tour_seen";
   var THIS_PAGE = "index";
+
+  function resolvePanelChild(key, sel){
+    if(!window.ANCHORS || !window.ANCHORS[key]) return null;
+    return window.ANCHORS[key].panelEl.querySelector(sel);
+  }
+  function loggedIn(){
+    return !!(window.EATLAS_PREFS && window.EATLAS_PREFS.isLoggedIn && window.EATLAS_PREFS.isLoggedIn());
+  }
+  function isAdmin(){
+    return !!(window.EATLAS_PREFS && window.EATLAS_PREFS.isAdmin && window.EATLAS_PREFS.isAdmin());
+  }
 
   var TOUR_STEPS = [
     { page: "index", type: "center", title: "New here? A 2-minute tour.",
       body: "The Economic Atlas pulls hourly, official data across 18 countries \u2014 no commentary, just numbers. This short tour shows you around. Exit any time from the link in each box." },
     { page: "index", type: "anchor", target: "#exploreUkBtn", title: "Start with a country",
-      body: "Click through to the UK page to see headline figures, inflation, rates, trade and more, all in one place. That's the next stop on the tour." }
-    // Phase B (uk.html), Phase C (compare.html), Phase D (dashboard.html,
-    // roadmap.html/contact.html) steps continue here once built.
+      body: "Click through to the UK page to see headline figures, inflation, rates, trade and more, all in one place. That's the next stop on the tour." },
+
+    { page: "uk", type: "anchor", target: "nav.cat button[data-sec='inflation']", title: "Move between sections",
+      body: "Each country page is organised into sections \u2014 Headline, GDP, Inflation & rates, Labour market, Trade, Public finances. Click a tab to jump between them." },
+    { page: "uk", type: "anchor", target: "[data-key='cpi'].stat", title: "Headline tiles are shortcuts",
+      body: "These summary tiles are clickable \u2014 click one and it jumps straight to the matching chart, wherever it lives on the page." },
+    { page: "uk", type: "anchor", target: function(){ return resolvePanelChild("cpi", ".chartbox"); }, title: "Choose your own timeframe",
+      body: "Use the preset buttons above the chart for common ranges, or click and drag directly on the chart to zoom into any period you like. \u201cReset zoom\u201d brings you back out." },
+    { page: "uk", type: "anchor", target: function(){ return resolvePanelChild("cpi", ".expandBtn"); }, title: "Go full-size",
+      body: "This opens the same chart much bigger, with more room to explore. Close it with the \u00d7 in the corner whenever you're ready to carry on." },
+    { page: "uk", type: "anchor", target: function(){ return resolvePanelChild("cpi", ".dl-btn"); }, title: "Download the underlying data",
+      body: function(){
+        return loggedIn()
+          ? "Every chart's data is downloadable as a CSV, exactly as shown on the page."
+          : "Every chart's data is downloadable as a CSV \u2014 free, but it does need an account (10 seconds to set up, no card required).";
+      } },
+    { page: "uk", type: "anchor", target: function(){ return resolvePanelChild("boe_rate", ".cz-btn"); }, title: "Customise & export",
+      body: "Add a title, event markers and reference lines, then export as an image \u2014 try dragging an event marker around on this Bank Rate chart to see how it works.",
+      showIf: isAdmin }
+    // Phase C (compare.html) and Phase D (dashboard.html, roadmap.html/
+    // contact.html wrap-up) steps continue here once built.
   ];
 
   function getState(){
@@ -1073,6 +1104,21 @@ fetch("https://cdn.jsdelivr.net/npm/world-atlas@2/countries-110m.json")
   }
   function hasSeenBefore(){
     try{ return localStorage.getItem(SEEN_KEY) === "1"; }catch(e){ return true; }
+  }
+
+  function stepVisible(step){
+    return !step.showIf || step.showIf();
+  }
+  // Walks in `dir` (+1 or -1) from `from`, skipping any step whose
+  // showIf() says it doesn't apply to this visitor, and returns the
+  // first visible index found, or -1 if it runs off either end.
+  function nextVisibleIndex(from, dir){
+    var i = from;
+    while(i >= 0 && i < TOUR_STEPS.length){
+      if(stepVisible(TOUR_STEPS[i])) return i;
+      i += dir;
+    }
+    return -1;
   }
 
   var boxEl = null, highlightEl = null;
@@ -1096,44 +1142,66 @@ fetch("https://cdn.jsdelivr.net/npm/world-atlas@2/countries-110m.json")
     box.style.top = top + "px";
   }
 
+  function resolveTarget(step){
+    if(!step.target) return null;
+    return (typeof step.target === "function") ? step.target() : document.querySelector(step.target);
+  }
+  function resolveBody(step){
+    return (typeof step.body === "function") ? step.body() : step.body;
+  }
+
   function renderStep(index){
     removeBox();
-    var pageSteps = TOUR_STEPS.filter(function(s){ return s.page === THIS_PAGE; });
     var step = TOUR_STEPS[index];
     if(!step || step.page !== THIS_PAGE) return; // this step belongs to a page not yet reached/built
+    if(!stepVisible(step)){
+      // Shouldn't normally get here directly (advance() already skips
+      // hidden steps), but guard anyway rather than showing a step that
+      // doesn't apply to this visitor.
+      var alt = nextVisibleIndex(index + 1, 1);
+      if(alt !== -1) advance(alt); else exitTour();
+      return;
+    }
 
     var totalSoFar = TOUR_STEPS.length; // grows as later phases add steps
 
+    var target = null;
+    if(step.type === "anchor") target = resolveTarget(step);
+    var effectiveType = (step.type === "anchor" && !target) ? "center" : step.type;
+
     var box = document.createElement("div");
-    box.className = "tour-box" + (step.type === "center" ? " tour-center" : "");
+    box.className = "tour-box" + (effectiveType === "center" ? " tour-center" : "");
     box.innerHTML =
       "<h4>" + step.title + "</h4>" +
-      "<p>" + step.body + "</p>" +
+      "<p>" + resolveBody(step) + "</p>" +
       "<div class=\"tour-row\">" +
         "<span class=\"tour-step-count\">Step " + (index + 1) + " of " + totalSoFar + "</span>" +
         "<div class=\"tour-actions\">" +
-          (index > 0 ? "<button type=\"button\" class=\"tour-prev\">Back</button>" : "") +
-          "<button type=\"button\" class=\"tour-next\">" + (index === TOUR_STEPS.length - 1 ? "Got it" : "Next") + "</button>" +
+          (nextVisibleIndex(index - 1, -1) !== -1 ? "<button type=\"button\" class=\"tour-prev\">Back</button>" : "") +
+          "<button type=\"button\" class=\"tour-next\">" + (nextVisibleIndex(index + 1, 1) === -1 ? "Got it" : "Next") + "</button>" +
         "</div>" +
       "</div>" +
       "<div style=\"margin-top:10px; text-align:right;\"><button type=\"button\" class=\"tour-exit\">Exit tour</button></div>";
     document.body.appendChild(box);
 
-    if(step.type === "anchor" && step.target){
-      var target = document.querySelector(step.target);
-      if(target){
-        target.classList.add("tour-highlight");
-        highlightEl = target;
-        positionAnchorBox(box, target);
-      }
+    if(effectiveType === "anchor" && target){
+      target.classList.add("tour-highlight");
+      highlightEl = target;
+      positionAnchorBox(box, target);
     }
     requestAnimationFrame(function(){ box.classList.add("show"); });
 
     var nextBtn = box.querySelector(".tour-next");
     var prevBtn = box.querySelector(".tour-prev");
     var exitBtn = box.querySelector(".tour-exit");
-    if(nextBtn) nextBtn.addEventListener("click", function(){ advance(index + 1); });
-    if(prevBtn) prevBtn.addEventListener("click", function(){ advance(index - 1); });
+    if(nextBtn) nextBtn.addEventListener("click", function(){
+      var n = nextVisibleIndex(index + 1, 1);
+      advance(n === -1 ? TOUR_STEPS.length : n);
+    });
+    if(prevBtn) prevBtn.addEventListener("click", function(){
+      var p = nextVisibleIndex(index - 1, -1);
+      if(p !== -1) advance(p);
+    });
     if(exitBtn) exitBtn.addEventListener("click", exitTour);
 
     boxEl = box;
@@ -1148,8 +1216,7 @@ fetch("https://cdn.jsdelivr.net/npm/world-atlas@2/countries-110m.json")
     } else {
       // Next step lives on a different page than this one -- nothing
       // more to render here; that page's own copy of this engine picks
-      // up rendering when it loads (not yet true until later phases add
-      // that page's steps, but the state transition is already correct).
+      // up rendering when it loads.
       removeBox();
     }
   }
@@ -1162,8 +1229,9 @@ fetch("https://cdn.jsdelivr.net/npm/world-atlas@2/countries-110m.json")
 
   function startTour(){
     markSeen();
-    saveState({ active: true, stepIndex: 0 });
-    renderStep(0);
+    var first = nextVisibleIndex(0, 1);
+    saveState({ active: true, stepIndex: first === -1 ? 0 : first });
+    if(first !== -1) renderStep(first);
   }
   window.EATLAS_TOUR = { start: startTour, exit: exitTour };
 
