@@ -2436,12 +2436,15 @@ document.querySelectorAll(".mtbtn").forEach(function(btn){
     }
     return "<text x='" + x.toFixed(1) + "' y='" + y + "' font-size='11' fill='" + fill + "' text-anchor='middle'>" + escapeXML(text) + "</text>";
   }
+  function estProseWidth(text, fontSize){
+    return String(text).length * fontSize * 0.5;
+  }
   function czTruncSrcFooter(text){
-    var madeOnW = estTextWidthCz("Made on theeconomicatlas.com", 11);
-    var maxW = (G.W - G.padR) - G.padL - madeOnW - 24;
-    if(estTextWidthCz(text, 11) <= maxW) return text;
+    var madeOnW = estProseWidth("Made on theeconomicatlas.com", 11);
+    var maxW = (G.W - G.padR) - G.padL - madeOnW - 16;
+    if(estProseWidth(text, 11) <= maxW) return text;
     var t = text;
-    while(t.length > 1 && estTextWidthCz(t + "\u2026", 11) > maxW){ t = t.slice(0, -1); }
+    while(t.length > 1 && estProseWidth(t + "\u2026", 11) > maxW){ t = t.slice(0, -1); }
     return t + "\u2026";
   }
   function labelBoxCz(a){
@@ -2508,16 +2511,24 @@ document.querySelectorAll(".mtbtn").forEach(function(btn){
   // different, smaller tier than the rest ("0m" beside "400.00tn").
   // Reusing the largest tick's tier for zero specifically keeps the
   // whole axis reading in one consistent unit.
+  // Axis ticks are always "nice round numbers", so a formatter tuned for
+  // precise values (2dp currency, etc.) tends to print redundant
+  // trailing zeros here -- $35.00tn instead of $35tn. Trims them without
+  // touching the formatter itself, which still needs full precision for
+  // tooltips/downloads elsewhere. Same fix as Compare's czmTrimAxisZeros.
+  function czTrimAxisZeros(str){
+    return str.replace(/(\.\d*[1-9])0+(?!\d)|\.0+(?!\d)/g, function(m, keep){ return keep || ""; });
+  }
   function czAxisTickLabel(v, allTicks, fmtY){
     var raw = Math.round(v * 100) / 100;
-    if(raw !== 0) return fmtY(raw);
+    if(raw !== 0) return czTrimAxisZeros(fmtY(raw));
     var refVal = allTicks.reduce(function(best, t){ return Math.abs(t) > Math.abs(best) ? t : best; }, allTicks[0]);
-    if(refVal === 0) return fmtY(0);
+    if(refVal === 0) return czTrimAxisZeros(fmtY(0));
     var refLabel = fmtY(Math.round(refVal * 100) / 100);
-    return refLabel.replace(/[\d.,]+/, function(numStr){
+    return czTrimAxisZeros(refLabel.replace(/[\d.,]+/, function(numStr){
       var decMatch = numStr.match(/\.(\d+)/);
       return decMatch ? "0." + "0".repeat(decMatch[1].length) : "0";
-    });
+    }));
   }
 
   function czGeom(){

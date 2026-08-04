@@ -68,7 +68,14 @@ from datetime import datetime, timezone
 import requests
 
 COMTRADE_BASE = "https://comtradeapi.un.org/data/v1/get/C/A/HS"
-REPORTER = "250"  # France, Comtrade/M49 code (matches ISO 3166-1 numeric; not personally confirmed against a live Comtrade response -- check the [comtrade] log line on first run)
+REPORTER = "251"  # France, Comtrade/M49 reporter code (diverges from the ISO
+# code 250 -- this was the actual bug behind every live run failing: using
+# reporterCode=250 (ISO) instead of 251 (Comtrade's own code for France)
+# meant Comtrade never recognised the reporter, so every request came back
+# empty regardless of the no-partnerCode fix or retry logic below. Confirmed
+# against this same script's own COMTRADE_TO_ISO_OVERRIDES table, which
+# already correctly recorded "251": "250" for the partner-code direction --
+# this constant just wasn't using it for the reporter itself.
 
 COMTRADE_TO_ISO_OVERRIDES = {
     "842": "840",  # United States
