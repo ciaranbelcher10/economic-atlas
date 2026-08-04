@@ -31,7 +31,7 @@
 <link href="https://fonts.googleapis.com/css2?family=Nunito+Sans:wght@400;600;700&display=swap" rel="stylesheet">
 <link rel="icon" type="image/png" sizes="32x32" href="favicon-32.png">
 <link rel="apple-touch-icon" href="apple-touch-icon.png">
-<link rel="stylesheet" href="style.css?v=21">
+<link rel="stylesheet" href="style.css?v=22">
 <style>
 .led{display:inline-block; width:9px; height:9px; border-radius:50%;
   margin-right:9px; vertical-align:middle; position:relative; top:-3px;}
@@ -1044,6 +1044,7 @@ html[data-theme="dark"] .tpm-scopenote strong{color:var(--blue);}
       var btn = entry.btn;
       if(isAdmin){
         btn.classList.add("unlocked");
+        btn.innerHTML = "Customise &amp; export";
         btn.setAttribute("data-tip", "Customise this chart and export it as an image.");
         btn.onclick = function(e){
           e.preventDefault();
@@ -1053,6 +1054,7 @@ html[data-theme="dark"] .tpm-scopenote strong{color:var(--blue);}
         };
       } else {
         btn.classList.remove("unlocked");
+        btn.innerHTML = '<span class="lockicon">&#128274;</span> Customise &amp; export';
         btn.setAttribute("data-tip", "Coming soon. Contact us to express interest.");
         btn.onclick = null; // falls back to the plain href="contact" already on the link
       }
@@ -2794,6 +2796,10 @@ window.refreshMPCContext = refreshMPCContext;
             </div>
           </div>
           <div style="display:flex; align-items:center; justify-content:space-between; font-size:12.5px; margin-bottom:8px;">
+            <span>Show data point markers</span>
+            <input type="checkbox" id="czPointsToggle" checked style="width:15px; height:15px;">
+          </div>
+          <div style="display:flex; align-items:center; justify-content:space-between; font-size:12.5px; margin-bottom:8px;">
             <span>Reference line</span>
             <div style="display:flex; align-items:center; gap:6px;">
               <input type="checkbox" id="czReflineToggle">
@@ -3081,7 +3087,9 @@ window.refreshMPCContext = refreshMPCContext;
         svg.push("<path d='" + areaPath + "' fill='" + t.fill + "'/>");
       }
       svg.push("<path d='" + linePath + "' fill='none' stroke='" + t.line + "' stroke-width='2.5' stroke-linejoin='round' stroke-linecap='round'/>");
-      pts.forEach(function(p, i){ svg.push("<circle cx='" + gm.x(i).toFixed(1) + "' cy='" + gm.y(p[1]).toFixed(1) + "' r='2.2' fill='" + t.line + "'/>"); });
+      if(czState.showPoints !== false){
+        pts.forEach(function(p, i){ svg.push("<circle cx='" + gm.x(i).toFixed(1) + "' cy='" + gm.y(p[1]).toFixed(1) + "' r='2.2' fill='" + t.line + "'/>"); });
+      }
     }
 
     if(forExport){
@@ -3293,6 +3301,7 @@ window.refreshMPCContext = refreshMPCContext;
   });
 
   document.getElementById("czFillToggle").addEventListener("change", function(e){ czState.showFill = e.target.checked; czRenderPreview(); });
+  document.getElementById("czPointsToggle").addEventListener("change", function(e){ czState.showPoints = e.target.checked; czRenderPreview(); });
   document.getElementById("czChartTitleInput").addEventListener("input", function(e){ czState.chartTitle = e.target.value; czRenderPreview(); });
   document.getElementById("czYAxisTitleInput").addEventListener("input", function(e){ czState.yTitle = e.target.value; czRenderPreview(); });
   document.getElementById("czReflineToggle").addEventListener("change", function(e){ czState.refLine.enabled = e.target.checked; czRenderPreview(); });
@@ -3526,7 +3535,7 @@ window.refreshMPCContext = refreshMPCContext;
     }
     czState = {
       from: pts[0][0], to: pts[pts.length - 1][0],
-      showFill: true, refLine: { enabled: false, value: 0 },
+      showFill: true, showPoints: true, refLine: { enabled: false, value: 0 },
       yTitlePos: "along", yTicks: 5, xTicks: 3, xLabelAngle: "straight", chartTitle: title || "",
       chartKind: kind === "bar" ? "bar" : "line",
       annotations: [], exportTheme: "light",
@@ -3544,6 +3553,7 @@ window.refreshMPCContext = refreshMPCContext;
     document.getElementById("czFromDate").value = czState.from;
     document.getElementById("czToDate").value = czState.to;
     document.getElementById("czFillToggle").checked = true;
+    document.getElementById("czPointsToggle").checked = true;
     document.getElementById("czReflineToggle").checked = false;
     document.getElementById("czReflineValue").value = "0";
     czYTitlePosSeg.querySelectorAll("button").forEach(function(b){ b.classList.toggle("active", b.dataset.pos === "along"); });

@@ -31,7 +31,7 @@
 <link href="https://fonts.googleapis.com/css2?family=Nunito+Sans:wght@400;600;700&display=swap" rel="stylesheet">
 <link rel="icon" type="image/png" sizes="32x32" href="favicon-32.png">
 <link rel="apple-touch-icon" href="apple-touch-icon.png">
-<link rel="stylesheet" href="style.css?v=21">
+<link rel="stylesheet" href="style.css?v=22">
 <style>
 :root{ --map-nodata: #E9EBE7; }
 html[data-theme="dark"]{ --map-nodata: #C4CAC0; }
@@ -917,6 +917,7 @@ footer.cmp-foot{margin-top:36px; font-size:12.5px; color:var(--ink2); border-top
       var btn = entry.btn;
       if(isAdmin){
         btn.classList.add("unlocked");
+        btn.innerHTML = "Customise &amp; export";
         btn.setAttribute("data-tip", "Customise this chart and export it as an image.");
         btn.onclick = function(e){
           e.preventDefault();
@@ -934,6 +935,7 @@ footer.cmp-foot{margin-top:36px; font-size:12.5px; color:var(--ink2); border-top
         };
       } else {
         btn.classList.remove("unlocked");
+        btn.innerHTML = '<span class="lockicon">&#128274;</span> Customise &amp; export';
         btn.setAttribute("data-tip", "Coming soon. Contact us to express interest.");
         btn.onclick = null; // falls back to the plain href="contact" already on the link
       }
@@ -1993,8 +1995,17 @@ function renderCharts(){
       card.querySelectorAll(".charttoggle button").forEach(function(btn){
         btn.classList.toggle("active", btn.dataset.mode === mode);
         btn.addEventListener("click", function(){
+          // renderCharts() tears down and rebuilds every card (including
+          // the button just clicked), which drops focus back to <body>
+          // and can leave the browser's scroll position clamped to
+          // whatever the document's height happened to be mid-rebuild --
+          // felt as a jarring jump to the top. Rather than chase the
+          // exact reflow that causes it, just pin the scroll position
+          // across the rebuild and restore it once layout has settled.
+          var scrollY = window.scrollY;
           cardChartType[concept] = btn.dataset.mode;
           renderCharts();
+          requestAnimationFrame(function(){ window.scrollTo(0, scrollY); });
         });
       });
     }
@@ -2544,6 +2555,10 @@ function updateMapCardSub(){
             <span>Shade area under each line</span>
             <input type="checkbox" id="czFillToggle" style="width:15px; height:15px;">
           </div>
+          <div id="czPointsToggleField" style="display:flex; align-items:center; justify-content:space-between; font-size:12.5px; margin-bottom:8px;">
+            <span>Show data point markers</span>
+            <input type="checkbox" id="czPointsToggle" checked style="width:15px; height:15px;">
+          </div>
           <div style="display:flex; align-items:center; justify-content:space-between; font-size:12.5px; margin-bottom:8px;">
             <span>Reference line</span>
             <div style="display:flex; align-items:center; gap:6px;">
@@ -2663,16 +2678,25 @@ function updateMapCardSub(){
     }
     return { ticks: ticks, min: niceMin, max: niceMax };
   }
+  // Axis ticks are always "nice round numbers" (from niceTicks), so a
+  // formatter tuned for precise values (2dp currency, etc.) tends to
+  // print redundant trailing zeros here -- $35.00tn instead of $35tn.
+  // Trims them without touching the formatter itself, which still needs
+  // full precision for tooltips/downloads elsewhere.
+  function czmTrimAxisZeros(str){
+    return str.replace(/(\.\d*[1-9])0+(?!\d)|\.0+(?!\d)/g, function(m, keep){ return keep || ""; });
+  }
+
   function czmAxisTickLabel(v, allTicks, fmtY){
     var raw = Math.round(v * 100) / 100;
-    if(raw !== 0) return fmtY(raw);
+    if(raw !== 0) return czmTrimAxisZeros(fmtY(raw));
     var refVal = allTicks.reduce(function(best, t){ return Math.abs(t) > Math.abs(best) ? t : best; }, allTicks[0]);
-    if(refVal === 0) return fmtY(0);
+    if(refVal === 0) return czmTrimAxisZeros(fmtY(0));
     var refLabel = fmtY(Math.round(refVal * 100) / 100);
-    return refLabel.replace(/[\d.,]+/, function(numStr){
+    return czmTrimAxisZeros(refLabel.replace(/[\d.,]+/, function(numStr){
       var decMatch = numStr.match(/\.(\d+)/);
       return decMatch ? "0." + "0".repeat(decMatch[1].length) : "0";
-    });
+    }));
   }
 
   // A single sorted timeline built from every date any selected country
@@ -2876,6 +2900,9 @@ function updateMapCardSub(){
     var svg = [];
     svg.push("<svg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 " + G.W + " " + G.H + "' font-family='Helvetica, Arial, sans-serif'>");
     svg.push("<rect x='0' y='0' width='" + G.W + "' height='" + G.H + "' fill='" + t.bg + "'/>");
+    if(czmState.chartTitle){
+      svg.push("<text x='" + (G.W / 2) + "' y='24' font-size='16' font-weight='700' fill='" + t.ink + "' text-anchor='middle'>" + escapeXML(czmState.chartTitle) + "</text>");
+    }
     var axisColor = t.ink2;
 
     gm.yTickValues.forEach(function(v){
@@ -2954,7 +2981,9 @@ function updateMapCardSub(){
         svg.push("<path d='" + area + "' fill='" + s.color + "' fill-opacity='0.12'/>");
       }
       svg.push("<path d='" + path + "' fill='none' stroke='" + s.color + "' stroke-width='2.5' stroke-linejoin='round' stroke-linecap='round'/>");
-      pts.forEach(function(p){ svg.push("<circle cx='" + gm.xForDate(p[0]).toFixed(1) + "' cy='" + gm.y(p[1]).toFixed(1) + "' r='2' fill='" + s.color + "'/>"); });
+      if(czmState.showPoints !== false){
+        pts.forEach(function(p){ svg.push("<circle cx='" + gm.xForDate(p[0]).toFixed(1) + "' cy='" + gm.y(p[1]).toFixed(1) + "' r='2' fill='" + s.color + "'/>"); });
+      }
     });
 
     if(forExport){
@@ -3172,6 +3201,8 @@ function updateMapCardSub(){
   });
 
   document.getElementById("czFillToggle").addEventListener("change", function(e){ czmState.showFill = e.target.checked; czRenderPreview(); });
+  document.getElementById("czPointsToggle").addEventListener("change", function(e){ czmState.showPoints = e.target.checked; czRenderPreview(); });
+  var czPointsToggleField = document.getElementById("czPointsToggleField");
   document.getElementById("czChartTitleInput").addEventListener("input", function(e){ czmState.chartTitle = e.target.value; czRenderPreview(); });
   document.getElementById("czYAxisTitleInput").addEventListener("input", function(e){ czmState.yTitle = e.target.value; czRenderPreview(); });
   document.getElementById("czLegendTitleInput").addEventListener("input", function(e){ czmState.legendTitle = e.target.value; czRenderPreview(); });
@@ -3378,6 +3409,7 @@ function updateMapCardSub(){
     document.getElementById("czEventLinesPanel").hidden = false;
     czXTickField.hidden = false;
     czLegendTitleField.hidden = false;
+    czPointsToggleField.hidden = false;
     if(fmtPeriodFn) czmFmtPeriodFn = fmtPeriodFn;
     var allDates = [];
     seriesList.forEach(function(s){ s.points.forEach(function(p){ allDates.push(p[0]); }); });
@@ -3388,7 +3420,7 @@ function updateMapCardSub(){
 
     czmState = {
       from: allDates[0], to: allDates[allDates.length - 1],
-      showFill: false, refLine: { enabled: false, value: 0 },
+      showFill: false, showPoints: true, refLine: { enabled: false, value: 0 },
       yTitlePos: "along", yTicks: 5, xTicks: 3, xLabelAngle: "straight", chartTitle: title || "", legendTitle: "",
       annotations: [], exportTheme: "light",
       srcNote: srcNote, yTitle: guessedYTitle, fmtY: effectiveFmtY,
@@ -3400,6 +3432,7 @@ function updateMapCardSub(){
     document.getElementById("czYAxisTitleInput").value = czmState.yTitle;
     document.getElementById("czLegendTitleInput").value = "";
     document.getElementById("czFillToggle").checked = false;
+    document.getElementById("czPointsToggle").checked = true;
     document.getElementById("czReflineToggle").checked = false;
     document.getElementById("czReflineValue").value = "0";
 
@@ -3432,7 +3465,7 @@ function updateMapCardSub(){
 
     czmState = {
       mode: "snapshot",
-      showFill: false, refLine: { enabled: false, value: 0 },
+      showFill: false, showPoints: true, refLine: { enabled: false, value: 0 },
       yTitlePos: "along", yTicks: 5, xTicks: 3, xLabelAngle: "straight", chartTitle: title || "", legendTitle: "",
       annotations: [], exportTheme: "light",
       srcNote: srcNote, yTitle: guessedYTitle, fmtY: effectiveFmtY,
@@ -3450,6 +3483,7 @@ function updateMapCardSub(){
     document.getElementById("czEventLinesPanel").hidden = true;
     czXTickField.hidden = true;
     czLegendTitleField.hidden = true;
+    czPointsToggleField.hidden = true;
     czYTitlePosSeg.querySelectorAll("button").forEach(function(b){ b.classList.toggle("active", b.dataset.pos === "along"); });
     czYTickVal.textContent = "5"; czXTickVal.textContent = "3";
     czXAngleSeg.querySelectorAll("button").forEach(function(b){ b.classList.toggle("active", b.dataset.angle === "straight"); });
