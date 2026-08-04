@@ -882,8 +882,15 @@ footer.cmp-foot{margin-top:36px; font-size:12.5px; color:var(--ink2); border-top
         });
       },
       registerBanner: function(el){
+        // Deliberately does NOT call updateBanners() here: the element
+        // ships hidden by default in the HTML, and loggedIn defaults to
+        // false until the (async) auth check resolves. Calling
+        // updateBanners() immediately would use that not-yet-known
+        // default and briefly reveal the banner to logged-in users too.
+        // setAuthState() calls updateBanners() itself once the real
+        // answer is known, so this just waits for that.
         banners.push(el);
-        updateBanners();
+        if(readyDone) updateBanners();
       },
       onLogin: function(cb){ loginCallbacks.push(cb); },
       onSettled: function(cb){ settledCallbacks.push(cb); },
@@ -2521,7 +2528,7 @@ function updateMapCardSub(){
             <label style="display:block; font-size:11.5px; font-weight:600; color:var(--ink2); margin-bottom:3px;" for="czYAxisTitleInput">Y-axis title</label>
             <input type="text" id="czYAxisTitleInput" maxlength="40" placeholder="e.g. % change, year-on-year" style="width:100%; padding:5px 8px; border:1px solid var(--hair); border-radius:6px; background:var(--paper); color:var(--ink); font:inherit; font-size:12.5px;">
           </div>
-          <div class="field" style="margin-bottom:8px;">
+          <div class="field" id="czLegendTitleField" style="margin-bottom:8px;">
             <label style="display:block; font-size:11.5px; font-weight:600; color:var(--ink2); margin-bottom:3px;" for="czLegendTitleInput">Legend title (optional)</label>
             <input type="text" id="czLegendTitleInput" maxlength="30" placeholder="e.g. Countries" style="width:100%; padding:5px 8px; border:1px solid var(--hair); border-radius:6px; background:var(--paper); color:var(--ink); font:inherit; font-size:12.5px;">
           </div>
@@ -2544,11 +2551,17 @@ function updateMapCardSub(){
               <input type="number" id="czReflineValue" value="0" step="0.1" style="width:58px; padding:4px 6px; border:1px solid var(--hair); border-radius:5px; background:var(--paper); font:inherit; font-size:12px;">
             </div>
           </div>
-          <div style="display:flex; align-items:center; justify-content:space-between; font-size:12px; color:var(--ink2); margin-bottom:8px;">
-            <span>Y-axis labels</span>
-            <div style="display:flex; align-items:center; gap:6px;"><button type="button" class="cz-fs-btn" id="czYTickMinus" style="width:20px; height:20px; border:1px solid var(--hair); background:var(--paper); color:var(--ink); border-radius:5px; cursor:pointer; font-size:11.5px;">&minus;</button><span id="czYTickVal" style="font-size:11.5px; min-width:14px; text-align:center;">5</span><button type="button" class="cz-fs-btn" id="czYTickPlus" style="width:20px; height:20px; border:1px solid var(--hair); background:var(--paper); color:var(--ink); border-radius:5px; cursor:pointer; font-size:11.5px;">+</button></div>
+          <div style="display:grid; grid-template-columns:1fr 1fr; gap:6px 20px;">
+            <div style="display:flex; align-items:center; justify-content:space-between; font-size:12px; color:var(--ink2);">
+              <span>Y-axis labels</span>
+              <div style="display:flex; align-items:center; gap:6px;"><button type="button" class="cz-fs-btn" id="czYTickMinus" style="width:20px; height:20px; border:1px solid var(--hair); background:var(--paper); color:var(--ink); border-radius:5px; cursor:pointer; font-size:11.5px;">&minus;</button><span id="czYTickVal" style="font-size:11.5px; min-width:14px; text-align:center;">5</span><button type="button" class="cz-fs-btn" id="czYTickPlus" style="width:20px; height:20px; border:1px solid var(--hair); background:var(--paper); color:var(--ink); border-radius:5px; cursor:pointer; font-size:11.5px;">+</button></div>
+            </div>
+            <div id="czXTickField" style="display:flex; align-items:center; justify-content:space-between; font-size:12px; color:var(--ink2);">
+              <span>X-axis labels</span>
+              <div style="display:flex; align-items:center; gap:6px;"><button type="button" class="cz-fs-btn" id="czXTickMinus" style="width:20px; height:20px; border:1px solid var(--hair); background:var(--paper); color:var(--ink); border-radius:5px; cursor:pointer; font-size:11.5px;">&minus;</button><span id="czXTickVal" style="font-size:11.5px; min-width:14px; text-align:center;">3</span><button type="button" class="cz-fs-btn" id="czXTickPlus" style="width:20px; height:20px; border:1px solid var(--hair); background:var(--paper); color:var(--ink); border-radius:5px; cursor:pointer; font-size:11.5px;">+</button></div>
+            </div>
           </div>
-          <div style="display:flex; align-items:center; justify-content:space-between; font-size:12px; color:var(--ink2);">
+          <div style="display:flex; align-items:center; justify-content:space-between; font-size:12px; color:var(--ink2); margin-top:8px;">
             <span>X-axis label angle</span>
             <div class="seg" id="czXAngleSeg" style="display:flex; border:1px solid var(--hair); border-radius:7px; overflow:hidden;">
               <button type="button" data-angle="straight" class="active" style="border:none; font:inherit; font-size:11px; font-weight:600; padding:5px 8px; cursor:pointer;">Straight</button>
@@ -2677,21 +2690,58 @@ function updateMapCardSub(){
     return Object.keys(set).sort();
   }
   function nearestUnifiedIndex(dateStr){
-    var idx = 0, bestDiff = Infinity;
+    // Dates are strings like "1955-Q2" or "2026-04", which `new Date()`
+    // can't parse (Invalid Date -> NaN, and NaN comparisons are always
+    // false) -- that silently pinned every point's index at 0. Since
+    // UNIFIED_DATES is a sorted array of the exact same period strings
+    // and every point passed in is already restricted to that set, a
+    // direct lookup (falling back to lexicographic nearest, since the
+    // strings sort chronologically) is both correct and simpler.
+    var idx = UNIFIED_DATES.indexOf(dateStr);
+    if(idx !== -1) return idx;
+    var insertAt = 0;
     for(var i = 0; i < UNIFIED_DATES.length; i++){
-      var diff = Math.abs(new Date(UNIFIED_DATES[i]) - new Date(dateStr));
-      if(diff < bestDiff){ bestDiff = diff; idx = i; }
+      if(UNIFIED_DATES[i] < dateStr) insertAt = i + 1; else break;
     }
-    return idx;
+    if(insertAt <= 0) return 0;
+    if(insertAt >= UNIFIED_DATES.length) return UNIFIED_DATES.length - 1;
+    return insertAt;
   }
 
   function czmFilteredSeries(s){
     return s.points.filter(function(p){ return p[0] >= czmState.from && p[0] <= czmState.to; });
   }
 
+  // Single source of truth for the vertical stack below the plot area:
+  // axis tick labels -> (legend, timeseries mode only) -> footer divider
+  // + source/watermark line. Both geometry functions use this to size
+  // padB, and both render functions use the same offsets to place
+  // elements, so the two can never drift out of sync with each other.
+  function czmBottomLayout(hasLegend){
+    var angle = (czmState && czmState.xLabelAngle) || "straight";
+    var angleReserve = angle === "vertical" ? 54 : angle === "diagonal" ? 28 : 0;
+    var oLabels = 26;
+    var oAfterLabels = oLabels + 8 + angleReserve;
+    var oLegendTitle = null, oLegendRow;
+    var oAfterLegend;
+    if(hasLegend){
+      if(czmState.legendTitle){ oLegendTitle = oAfterLabels + 14; oLegendRow = oLegendTitle + 16; }
+      else { oLegendRow = oAfterLabels + 14; }
+      oAfterLegend = oLegendRow + 12;
+    } else {
+      oAfterLegend = oAfterLabels + 10;
+    }
+    var oDivider = oAfterLegend;
+    var oSource = oDivider + 18;
+    return {
+      oLabels: oLabels, oLegendTitle: oLegendTitle, oLegendRow: oLegendRow,
+      oDivider: oDivider, oSource: oSource, padB: oSource + 12
+    };
+  }
+
   function czmGeom(){
     UNIFIED_DATES = buildUnifiedDates();
-    var padB = 90;
+    var padB = czmBottomLayout(true).padB;
     var allVals = [];
     SERIES_LIST.forEach(function(s){
       czmFilteredSeries(s).forEach(function(p){ allVals.push(p[1]); });
@@ -2701,7 +2751,7 @@ function updateMapCardSub(){
     var rawMin = Math.min.apply(null, allVals), rawMax = Math.max.apply(null, allVals);
     var nice = niceTicks(rawMin, rawMax, czmState.yTicks);
     var minV = nice.min, maxV = nice.max;
-    var padT = (czmState.yTitlePos === "above" ? G.padT + 18 : G.padT) + (czmState.chartTitle ? 24 : 0) + 20; // +20 reserves the legend row above the plot
+    var padT = (czmState.yTitlePos === "above" ? G.padT + 18 : G.padT) + (czmState.chartTitle ? 24 : 0);
     var plotW = G.W - G.padL - G.padR, plotH = G.H - padT - padB;
     var n = Math.max(1, UNIFIED_DATES.length);
     return {
@@ -2721,7 +2771,7 @@ function updateMapCardSub(){
   // date range and no event annotations apply here.
   var SNAPSHOT_ROWS = []; // [{country, value, color}]
   function czmSnapshotGeom(){
-    var padB = 60;
+    var padB = czmBottomLayout(false).padB;
     var vals = SNAPSHOT_ROWS.map(function(r){ return r.value; }).filter(function(v){ return v != null; });
     if(vals.length === 0) vals = [0, 1];
     if(czmState.refLine.enabled) vals.push(czmState.refLine.value);
@@ -2791,6 +2841,8 @@ function updateMapCardSub(){
       svg.push("<text x='" + (G.padL - 10) + "' y='" + (ry + 4).toFixed(1) + "' font-size='11' fill='" + t.ink2 + "' text-anchor='end'>" + czmAxisTickLabel(czmState.refLine.value, gm.yTickValues, czmState.fmtY) + "</text>");
     }
 
+    var axisBottomY = gm.padT + gm.plotH;
+    var bl = czmBottomLayout(false);
     SNAPSHOT_ROWS.forEach(function(r, i){
       var bx = gm.xForIndex(i);
       if(r.value == null){
@@ -2802,15 +2854,14 @@ function updateMapCardSub(){
         var h = Math.max(0.6, Math.abs(by - zeroY));
         svg.push("<rect x='" + (bx - gm.barWidth / 2).toFixed(1) + "' y='" + top.toFixed(1) + "' width='" + gm.barWidth.toFixed(1) + "' height='" + h.toFixed(1) + "' rx='3' fill='" + r.color + "'/>");
       }
-      svg.push(czmXAxisLabelSVG(bx, gm.padT + gm.plotH + 20, r.country, t.ink2));
+      svg.push(czmXAxisLabelSVG(bx, axisBottomY + bl.oLabels, r.country, t.ink2));
     });
 
     if(forExport){
-      var cursorY = gm.padT + gm.plotH + 40;
-      svg.push("<line x1='" + G.padL + "' y1='" + cursorY + "' x2='" + (G.W - G.padR) + "' y2='" + cursorY + "' stroke='" + t.grid + "' stroke-width='1'/>");
-      cursorY += 18;
-      svg.push("<text x='" + G.padL + "' y='" + cursorY + "' font-size='11' fill='" + t.ink2 + "'>Source: " + escapeXML(czTruncSrcFooter(czmState.srcNote)) + "</text>");
-      svg.push("<text x='" + (G.W - G.padR) + "' y='" + cursorY + "' font-size='11' fill='" + t.ink2 + "' text-anchor='end'>Made on theeconomicatlas.com</text>");
+      var dividerY = axisBottomY + bl.oDivider, srcY = axisBottomY + bl.oSource;
+      svg.push("<line x1='" + G.padL + "' y1='" + dividerY + "' x2='" + (G.W - G.padR) + "' y2='" + dividerY + "' stroke='" + t.grid + "' stroke-width='1'/>");
+      svg.push("<text x='" + G.padL + "' y='" + srcY + "' font-size='11' fill='" + t.ink2 + "'>Source: " + escapeXML(czTruncSrcFooter(czmState.srcNote)) + "</text>");
+      svg.push("<text x='" + (G.W - G.padR) + "' y='" + srcY + "' font-size='11' fill='" + t.ink2 + "' text-anchor='end'>Made on theeconomicatlas.com</text>");
     }
     svg.push("</svg>");
     return svg.join("");
@@ -2865,10 +2916,13 @@ function updateMapCardSub(){
     });
 
     // legend: one entry per selected country, in its own established site
-    // colour, wrapping onto more than one line if 5 countries don't fit
-    var legY = gm.padT - 12 - (czmState.legendTitle ? 16 : 0);
+    // colour, wrapping onto more than one line if 5 countries don't fit.
+    // Placed below the x-axis labels rather than above the plot, using
+    // the same offsets czmGeom used to size padB, so the two can't drift.
+    var bl = czmBottomLayout(true);
+    var legY = axisBottomY + bl.oLegendRow;
     if(czmState.legendTitle){
-      svg.push("<text x='" + (G.W / 2) + "' y='" + (legY - 2) + "' font-size='11' font-weight='700' fill='" + t.ink2 + "' text-anchor='middle'>" + escapeXML(czmState.legendTitle) + "</text>");
+      svg.push("<text x='" + (G.W / 2) + "' y='" + (axisBottomY + bl.oLegendTitle) + "' font-size='11' font-weight='700' fill='" + t.ink2 + "' text-anchor='middle'>" + escapeXML(czmState.legendTitle) + "</text>");
     }
     var legItems = SERIES_LIST.map(function(s){ return { label: s.country, color: s.color, w: 18 + 6 + estTextWidth(s.country, 11) }; });
     var totalLegW = legItems.reduce(function(sum, it){ return sum + it.w; }, 0) + (legItems.length - 1) * 24;
@@ -2904,11 +2958,10 @@ function updateMapCardSub(){
     });
 
     if(forExport){
-      cursorY += 20;
-      svg.push("<line x1='" + G.padL + "' y1='" + cursorY + "' x2='" + (G.W - G.padR) + "' y2='" + cursorY + "' stroke='" + t.grid + "' stroke-width='1'/>");
-      cursorY += 18;
-      svg.push("<text x='" + G.padL + "' y='" + cursorY + "' font-size='11' fill='" + t.ink2 + "'>Source: " + escapeXML(czTruncSrcFooter(czmState.srcNote)) + "</text>");
-      svg.push("<text x='" + (G.W - G.padR) + "' y='" + cursorY + "' font-size='11' fill='" + t.ink2 + "' text-anchor='end'>Made on theeconomicatlas.com</text>");
+      var dividerY = axisBottomY + bl.oDivider, srcY = axisBottomY + bl.oSource;
+      svg.push("<line x1='" + G.padL + "' y1='" + dividerY + "' x2='" + (G.W - G.padR) + "' y2='" + dividerY + "' stroke='" + t.grid + "' stroke-width='1'/>");
+      svg.push("<text x='" + G.padL + "' y='" + srcY + "' font-size='11' fill='" + t.ink2 + "'>Source: " + escapeXML(czTruncSrcFooter(czmState.srcNote)) + "</text>");
+      svg.push("<text x='" + (G.W - G.padR) + "' y='" + srcY + "' font-size='11' fill='" + t.ink2 + "' text-anchor='end'>Made on theeconomicatlas.com</text>");
     }
     svg.push("</svg>");
     return svg.join("");
@@ -3137,8 +3190,13 @@ function updateMapCardSub(){
     });
   });
   var czYTickVal = document.getElementById("czYTickVal");
+  var czXTickVal = document.getElementById("czXTickVal");
   document.getElementById("czYTickMinus").addEventListener("click", function(){ czmState.yTicks = Math.max(2, czmState.yTicks - 1); czYTickVal.textContent = czmState.yTicks; czRenderPreview(); });
   document.getElementById("czYTickPlus").addEventListener("click", function(){ czmState.yTicks = Math.min(9, czmState.yTicks + 1); czYTickVal.textContent = czmState.yTicks; czRenderPreview(); });
+  document.getElementById("czXTickMinus").addEventListener("click", function(){ czmState.xTicks = Math.max(2, czmState.xTicks - 1); czXTickVal.textContent = czmState.xTicks; czRenderPreview(); });
+  document.getElementById("czXTickPlus").addEventListener("click", function(){ czmState.xTicks = Math.min(10, czmState.xTicks + 1); czXTickVal.textContent = czmState.xTicks; czRenderPreview(); });
+  var czXTickField = document.getElementById("czXTickField");
+  var czLegendTitleField = document.getElementById("czLegendTitleField");
   var czXAngleSeg = document.getElementById("czXAngleSeg");
   czXAngleSeg.querySelectorAll("button").forEach(function(b){
     b.addEventListener("click", function(){
@@ -3318,6 +3376,8 @@ function updateMapCardSub(){
     czmState.mode = "timeseries";
     document.getElementById("czDateRangePanel").hidden = false;
     document.getElementById("czEventLinesPanel").hidden = false;
+    czXTickField.hidden = false;
+    czLegendTitleField.hidden = false;
     if(fmtPeriodFn) czmFmtPeriodFn = fmtPeriodFn;
     var allDates = [];
     seriesList.forEach(function(s){ s.points.forEach(function(p){ allDates.push(p[0]); }); });
@@ -3351,7 +3411,7 @@ function updateMapCardSub(){
     document.getElementById("czToDate").value = czmState.to;
 
     czYTitlePosSeg.querySelectorAll("button").forEach(function(b){ b.classList.toggle("active", b.dataset.pos === "along"); });
-    czYTickVal.textContent = "5";
+    czYTickVal.textContent = "5"; czXTickVal.textContent = "3";
     czXAngleSeg.querySelectorAll("button").forEach(function(b){ b.classList.toggle("active", b.dataset.angle === "straight"); });
     czThemeSeg.querySelectorAll("button").forEach(function(b){ b.classList.toggle("active", b.dataset.theme === "light"); });
     czmState.annotations = [];
@@ -3388,8 +3448,10 @@ function updateMapCardSub(){
 
     document.getElementById("czDateRangePanel").hidden = true;
     document.getElementById("czEventLinesPanel").hidden = true;
+    czXTickField.hidden = true;
+    czLegendTitleField.hidden = true;
     czYTitlePosSeg.querySelectorAll("button").forEach(function(b){ b.classList.toggle("active", b.dataset.pos === "along"); });
-    czYTickVal.textContent = "5";
+    czYTickVal.textContent = "5"; czXTickVal.textContent = "3";
     czXAngleSeg.querySelectorAll("button").forEach(function(b){ b.classList.toggle("active", b.dataset.angle === "straight"); });
     czThemeSeg.querySelectorAll("button").forEach(function(b){ b.classList.toggle("active", b.dataset.theme === "light"); });
     czRenderPreview();
