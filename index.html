@@ -52,7 +52,7 @@
 <link href="https://fonts.googleapis.com/css2?family=Nunito+Sans:wght@400;600;700&display=swap" rel="stylesheet">
 <link rel="icon" type="image/png" sizes="32x32" href="favicon-32.png">
 <link rel="apple-touch-icon" href="apple-touch-icon.png">
-<link rel="stylesheet" href="style.css?v=22">
+<link rel="stylesheet" href="style.css?v=23">
 <style>
 .mapwrap{background:var(--panel); border:1px solid var(--hair); border-radius:16px;
   padding:14px; margin:22px 0 18px; position:relative; overflow:hidden;}
@@ -861,7 +861,7 @@
 </div>
 
 <div class="quick" style="display:flex;gap:10px;flex-wrap:wrap;margin:22px 0 8px;">
-  <a class="btn" href="uk">Explore the UK →</a>
+  <a class="btn" href="uk" id="exploreUkBtn">Explore the UK →</a>
   <a class="btn ghost" href="us">Explore the U.S. →</a>
   <a class="btn ghost" href="eurozone">Explore the Eurozone →</a>
   <a class="btn ghost" href="germany">Explore Germany →</a>
@@ -888,7 +888,7 @@
   <p>Spotted something missing, wrong, or worth adding? <a href="contact" style="color:var(--navy-2);">Get in touch</a>.</p>
 </div>
 
-<footer>The Economic Atlas · Data from national statistical offices, used under open licences. <a href="privacy">Privacy</a></footer>
+<footer>The Economic Atlas · Data from national statistical offices, used under open licences. <a href="privacy">Privacy</a> · <button type="button" id="tourReplayLink">Take the tour</button></footer>
 </div>
 
 <script src="https://cdnjs.cloudflare.com/ajax/libs/d3/7.8.5/d3.min.js"></script>
@@ -1027,6 +1027,156 @@ fetch("https://cdn.jsdelivr.net/npm/world-atlas@2/countries-110m.json")
 
   if(window.EATLAS_PREFS && window.EATLAS_PREFS.registerBanner){
     window.EATLAS_PREFS.registerBanner(banner);
+  }
+})();
+</script>
+<script>
+(function(){
+  "use strict";
+  // ------------------------- Onboarding tour --------------------------
+  // Phase A: engine + index.html steps only. The step list is written to
+  // be extended (each step names its own page) rather than assuming
+  // index.html is the whole tour -- later phases add uk.html/compare.html
+  // /dashboard.html/roadmap.html steps to this same array (duplicated
+  // per-page, same pattern as EATLAS_PREFS etc., since this is a static
+  // site with no shared JS file) and the engine itself doesn't change.
+  //
+  // Every step keeps a manual Next/Prev/Exit rather than auto-advancing
+  // on a detected interaction (e.g. waiting for a real drag event) --
+  // auto-detection is fragile to verify across every real interaction
+  // path, and a stuck auto-wait step has no way forward. Manual controls
+  // always work.
+  var STATE_KEY = "eatlas_tour_state";
+  var SEEN_KEY = "eatlas_tour_seen";
+  var THIS_PAGE = "index";
+
+  var TOUR_STEPS = [
+    { page: "index", type: "center", title: "New here? A 2-minute tour.",
+      body: "The Economic Atlas pulls hourly, official data across 18 countries \u2014 no commentary, just numbers. This short tour shows you around. Exit any time from the link in each box." },
+    { page: "index", type: "anchor", target: "#exploreUkBtn", title: "Start with a country",
+      body: "Click through to the UK page to see headline figures, inflation, rates, trade and more, all in one place. That's the next stop on the tour." }
+    // Phase B (uk.html), Phase C (compare.html), Phase D (dashboard.html,
+    // roadmap.html/contact.html) steps continue here once built.
+  ];
+
+  function getState(){
+    try{
+      var raw = localStorage.getItem(STATE_KEY);
+      return raw ? JSON.parse(raw) : { active: false, stepIndex: 0 };
+    }catch(e){ return { active: false, stepIndex: 0 }; }
+  }
+  function saveState(s){
+    try{ localStorage.setItem(STATE_KEY, JSON.stringify(s)); }catch(e){}
+  }
+  function markSeen(){
+    try{ localStorage.setItem(SEEN_KEY, "1"); }catch(e){}
+  }
+  function hasSeenBefore(){
+    try{ return localStorage.getItem(SEEN_KEY) === "1"; }catch(e){ return true; }
+  }
+
+  var boxEl = null, highlightEl = null;
+
+  function clearHighlight(){
+    if(highlightEl){ highlightEl.classList.remove("tour-highlight"); highlightEl = null; }
+  }
+
+  function removeBox(){
+    if(boxEl){ boxEl.remove(); boxEl = null; }
+    clearHighlight();
+  }
+
+  function positionAnchorBox(box, target){
+    var r = target.getBoundingClientRect();
+    var boxWidth = 340;
+    var left = Math.min(Math.max(12, r.left), window.innerWidth - boxWidth - 12);
+    var top = r.bottom + 12;
+    if(top + 160 > window.innerHeight){ top = Math.max(12, r.top - 172); }
+    box.style.left = left + "px";
+    box.style.top = top + "px";
+  }
+
+  function renderStep(index){
+    removeBox();
+    var pageSteps = TOUR_STEPS.filter(function(s){ return s.page === THIS_PAGE; });
+    var step = TOUR_STEPS[index];
+    if(!step || step.page !== THIS_PAGE) return; // this step belongs to a page not yet reached/built
+
+    var totalSoFar = TOUR_STEPS.length; // grows as later phases add steps
+
+    var box = document.createElement("div");
+    box.className = "tour-box" + (step.type === "center" ? " tour-center" : "");
+    box.innerHTML =
+      "<h4>" + step.title + "</h4>" +
+      "<p>" + step.body + "</p>" +
+      "<div class=\"tour-row\">" +
+        "<span class=\"tour-step-count\">Step " + (index + 1) + " of " + totalSoFar + "</span>" +
+        "<div class=\"tour-actions\">" +
+          (index > 0 ? "<button type=\"button\" class=\"tour-prev\">Back</button>" : "") +
+          "<button type=\"button\" class=\"tour-next\">" + (index === TOUR_STEPS.length - 1 ? "Got it" : "Next") + "</button>" +
+        "</div>" +
+      "</div>" +
+      "<div style=\"margin-top:10px; text-align:right;\"><button type=\"button\" class=\"tour-exit\">Exit tour</button></div>";
+    document.body.appendChild(box);
+
+    if(step.type === "anchor" && step.target){
+      var target = document.querySelector(step.target);
+      if(target){
+        target.classList.add("tour-highlight");
+        highlightEl = target;
+        positionAnchorBox(box, target);
+      }
+    }
+    requestAnimationFrame(function(){ box.classList.add("show"); });
+
+    var nextBtn = box.querySelector(".tour-next");
+    var prevBtn = box.querySelector(".tour-prev");
+    var exitBtn = box.querySelector(".tour-exit");
+    if(nextBtn) nextBtn.addEventListener("click", function(){ advance(index + 1); });
+    if(prevBtn) prevBtn.addEventListener("click", function(){ advance(index - 1); });
+    if(exitBtn) exitBtn.addEventListener("click", exitTour);
+
+    boxEl = box;
+  }
+
+  function advance(newIndex){
+    if(newIndex >= TOUR_STEPS.length || newIndex < 0){ exitTour(); return; }
+    saveState({ active: true, stepIndex: newIndex });
+    var step = TOUR_STEPS[newIndex];
+    if(step.page === THIS_PAGE){
+      renderStep(newIndex);
+    } else {
+      // Next step lives on a different page than this one -- nothing
+      // more to render here; that page's own copy of this engine picks
+      // up rendering when it loads (not yet true until later phases add
+      // that page's steps, but the state transition is already correct).
+      removeBox();
+    }
+  }
+
+  function exitTour(){
+    saveState({ active: false, stepIndex: 0 });
+    markSeen();
+    removeBox();
+  }
+
+  function startTour(){
+    markSeen();
+    saveState({ active: true, stepIndex: 0 });
+    renderStep(0);
+  }
+  window.EATLAS_TOUR = { start: startTour, exit: exitTour };
+
+  var replayBtn = document.getElementById("tourReplayLink");
+  if(replayBtn) replayBtn.addEventListener("click", startTour);
+
+  // Resume mid-tour if state says so and the current step belongs here;
+  // otherwise, auto-start once ever for a genuinely first-time visitor.
+  var state = getState();
+  if(state.active && TOUR_STEPS[state.stepIndex] && TOUR_STEPS[state.stepIndex].page === THIS_PAGE){
+    renderStep(state.stepIndex);
+  } else if(!state.active && !hasSeenBefore()){
+    startTour();
   }
 })();
 </script>
