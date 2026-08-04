@@ -2217,7 +2217,7 @@ function categoryOf(key){ return CATEGORY_OF[key] || "Other"; }
 function loadAll(){
   var entries = Object.keys(FILES);
   return Promise.all(entries.map(function(country){
-    return fetch(FILES[country], {cache: "no-store"})
+    return fetch(FILES[country], {cache: "no-cache"})
       .then(function(r){ if(!r.ok) throw new Error(r.status); return r.json(); })
       .then(function(payload){
         var series = payload.series || {};
@@ -3107,7 +3107,7 @@ document.getElementById("pickerGrid").addEventListener("scroll", updateLetterBad
 /* --------------------------------- boot ------------------------------------ */
 function fetchWithTimeout(url, ms){
   return Promise.race([
-    fetch(url, {cache: "no-store"}),
+    fetch(url, {cache: "no-cache"}),
     new Promise(function(_, reject){ setTimeout(function(){ reject(new Error("timed out after " + ms + "ms")); }, ms); })
   ]);
 }
