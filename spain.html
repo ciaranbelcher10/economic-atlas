@@ -2351,6 +2351,14 @@ document.querySelectorAll(".mtbtn").forEach(function(btn){
               <div style="display:flex; align-items:center; gap:6px;"><button type="button" class="cz-fs-btn" id="czXTickMinus" style="width:20px; height:20px; border:1px solid var(--hair); background:var(--paper); color:var(--ink); border-radius:5px; cursor:pointer; font-size:11.5px;">&minus;</button><span id="czXTickVal" style="font-size:11.5px; min-width:14px; text-align:center;">3</span><button type="button" class="cz-fs-btn" id="czXTickPlus" style="width:20px; height:20px; border:1px solid var(--hair); background:var(--paper); color:var(--ink); border-radius:5px; cursor:pointer; font-size:11.5px;">+</button></div>
             </div>
           </div>
+          <div style="display:flex; align-items:center; justify-content:space-between; font-size:12px; color:var(--ink2); margin-top:8px;">
+            <span>X-axis label angle</span>
+            <div class="seg" id="czXAngleSeg" style="display:flex; border:1px solid var(--hair); border-radius:7px; overflow:hidden;">
+              <button type="button" data-angle="straight" class="active" style="border:none; font:inherit; font-size:11px; font-weight:600; padding:5px 8px; cursor:pointer;">Straight</button>
+              <button type="button" data-angle="diagonal" style="border:none; font:inherit; font-size:11px; font-weight:600; padding:5px 8px; cursor:pointer;">Diagonal</button>
+              <button type="button" data-angle="vertical" style="border:none; font:inherit; font-size:11px; font-weight:600; padding:5px 8px; cursor:pointer;">Vertical</button>
+            </div>
+          </div>
         </div>
 
       </div>
@@ -2423,6 +2431,23 @@ document.querySelectorAll(".mtbtn").forEach(function(btn){
     var lines = text.split("\n");
     var longest = lines.reduce(function(m, l){ return Math.max(m, l.length); }, 0);
     return longest * fontSize * 0.56;
+  }
+  function czXAxisLabelSVG(x, y, text, fill, angle){
+    if(angle === "diagonal"){
+      return "<text x='" + x.toFixed(1) + "' y='" + (y - 2) + "' font-size='11' fill='" + fill + "' text-anchor='end' transform='rotate(-45 " + x.toFixed(1) + " " + (y - 2) + ")'>" + escapeXML(text) + "</text>";
+    }
+    if(angle === "vertical"){
+      return "<text x='" + x.toFixed(1) + "' y='" + (y - 2) + "' font-size='11' fill='" + fill + "' text-anchor='end' transform='rotate(-90 " + x.toFixed(1) + " " + (y - 2) + ")'>" + escapeXML(text) + "</text>";
+    }
+    return "<text x='" + x.toFixed(1) + "' y='" + y + "' font-size='11' fill='" + fill + "' text-anchor='middle'>" + escapeXML(text) + "</text>";
+  }
+  function czTruncSrcFooter(text){
+    var madeOnW = estTextWidthCz("Made on theeconomicatlas.com", 11);
+    var maxW = (G.W - G.padR) - G.padL - madeOnW - 24;
+    if(estTextWidthCz(text, 11) <= maxW) return text;
+    var t = text;
+    while(t.length > 1 && estTextWidthCz(t + "\u2026", 11) > maxW){ t = t.slice(0, -1); }
+    return t + "\u2026";
   }
   function labelBoxCz(a){
     var lines = String(a.label || "Event").split("\n").slice(0, 4);
@@ -2551,8 +2576,6 @@ document.querySelectorAll(".mtbtn").forEach(function(btn){
     }
 
     tickIndicesCz(czState.xTicks, pts.length).forEach(function(idx, tickPos, allTicks){
-      var isFirst = tickPos === 0, isLast = tickPos === allTicks.length - 1;
-      var anchor = isFirst ? "start" : isLast ? "end" : "middle";
       var tx = gm.x(idx);
       svg.push("<line x1='" + tx.toFixed(1) + "' y1='" + axisBottomY + "' x2='" + tx.toFixed(1) + "' y2='" + (axisBottomY + 5) + "' stroke='" + axisColor + "' stroke-width='1.3'/>");
     });
@@ -2560,8 +2583,12 @@ document.querySelectorAll(".mtbtn").forEach(function(btn){
     var cursorY = axisBottomY + 26;
     tickIndicesCz(czState.xTicks, pts.length).forEach(function(idx, tickPos, allTicks){
       var isFirst = tickPos === 0, isLast = tickPos === allTicks.length - 1;
-      var anchor = isFirst ? "start" : isLast ? "end" : "middle";
-      svg.push("<text x='" + gm.x(idx).toFixed(1) + "' y='" + cursorY + "' font-size='11' fill='" + t.ink2 + "' text-anchor='" + anchor + "'>" + czFmtPeriod(pts[idx][0]) + "</text>");
+      if((czState.xLabelAngle || "straight") === "straight"){
+        var anchor = isFirst ? "start" : isLast ? "end" : "middle";
+        svg.push("<text x='" + gm.x(idx).toFixed(1) + "' y='" + cursorY + "' font-size='11' fill='" + t.ink2 + "' text-anchor='" + anchor + "'>" + czFmtPeriod(pts[idx][0]) + "</text>");
+      } else {
+        svg.push(czXAxisLabelSVG(gm.x(idx), cursorY, czFmtPeriod(pts[idx][0]), t.ink2, czState.xLabelAngle));
+      }
     });
 
     if(czState.refLine.enabled){
@@ -2602,7 +2629,7 @@ document.querySelectorAll(".mtbtn").forEach(function(btn){
       cursorY += 20;
       svg.push("<line x1='" + G.padL + "' y1='" + cursorY + "' x2='" + (G.W - G.padR) + "' y2='" + cursorY + "' stroke='" + t.grid + "' stroke-width='1'/>");
       cursorY += 18;
-      svg.push("<text x='" + G.padL + "' y='" + cursorY + "' font-size='11' fill='" + t.ink2 + "'>Source: " + escapeXML(czState.srcNote) + "</text>");
+      svg.push("<text x='" + G.padL + "' y='" + cursorY + "' font-size='11' fill='" + t.ink2 + "'>Source: " + escapeXML(czTruncSrcFooter(czState.srcNote)) + "</text>");
       svg.push("<text x='" + (G.W - G.padR) + "' y='" + cursorY + "' font-size='11' fill='" + t.ink2 + "' text-anchor='end'>Made on theeconomicatlas.com</text>");
     }
     svg.push("</svg>");
@@ -2838,6 +2865,14 @@ document.querySelectorAll(".mtbtn").forEach(function(btn){
   document.getElementById("czYTickPlus").addEventListener("click", function(){ czState.yTicks = Math.min(9, czState.yTicks + 1); czYTickVal.textContent = czState.yTicks; czRenderPreview(); });
   document.getElementById("czXTickMinus").addEventListener("click", function(){ czState.xTicks = Math.max(2, czState.xTicks - 1); czXTickVal.textContent = czState.xTicks; czRenderPreview(); });
   document.getElementById("czXTickPlus").addEventListener("click", function(){ czState.xTicks = Math.min(10, czState.xTicks + 1); czXTickVal.textContent = czState.xTicks; czRenderPreview(); });
+  var czXAngleSeg = document.getElementById("czXAngleSeg");
+  czXAngleSeg.querySelectorAll("button").forEach(function(b){
+    b.addEventListener("click", function(){
+      czState.xLabelAngle = b.dataset.angle;
+      czXAngleSeg.querySelectorAll("button").forEach(function(bb){ bb.classList.toggle("active", bb === b); });
+      czRenderPreview();
+    });
+  });
 
   var MAX_CZ_ANNOTATIONS = 6, MIN_CZ_FS = 9, MAX_CZ_FS = 20;
   var czAnnotList = document.getElementById("czAnnotList");
@@ -3033,7 +3068,7 @@ document.querySelectorAll(".mtbtn").forEach(function(btn){
     czState = {
       from: pts[0][0], to: pts[pts.length - 1][0],
       showFill: true, refLine: { enabled: false, value: 0 },
-      yTitlePos: "along", yTicks: 5, xTicks: 3, chartTitle: title || "",
+      yTitlePos: "along", yTicks: 5, xTicks: 3, xLabelAngle: "straight", chartTitle: title || "",
       chartKind: kind === "bar" ? "bar" : "line",
       annotations: [], exportTheme: "light",
       srcNote: srcNote, yTitle: guessedYTitle, fmtY: effectiveFmtY,
@@ -3053,7 +3088,7 @@ document.querySelectorAll(".mtbtn").forEach(function(btn){
     document.getElementById("czReflineToggle").checked = false;
     document.getElementById("czReflineValue").value = "0";
     czYTitlePosSeg.querySelectorAll("button").forEach(function(b){ b.classList.toggle("active", b.dataset.pos === "along"); });
-    czYTickVal.textContent = "5"; czXTickVal.textContent = "3";
+    czYTickVal.textContent = "5"; czXTickVal.textContent = "3"; czState.xLabelAngle = "straight"; czXAngleSeg.querySelectorAll("button").forEach(function(b){ b.classList.toggle("active", b.dataset.angle === "straight"); });
     czThemeSeg.querySelectorAll("button").forEach(function(b){ b.classList.toggle("active", b.dataset.theme === "light"); });
     czRenderAnnotList();
     czRenderPreview();
