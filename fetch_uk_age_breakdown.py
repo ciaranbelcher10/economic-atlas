@@ -14,29 +14,30 @@ release (confirmed live 2026-07-21, current was "a05saapr2026.xls"), so
 this scrapes the landing page for the current edition link rather than
 hardcoding a filename.
 
-NOT YET CONFIRMED: the internal sheet/column layout. This file is ~1.5MB,
-likely covers many age bands (16-17, 18-24, 25-34, 35-49, 50-64, 65+, and
-various combined bands) across levels and rates for employment,
-unemployment and inactivity -- almost certainly a larger, multi-sheet
-workbook than INAC01. Unlike INAC01/COFOG, no dataset identifier codes
-have been confirmed for this file yet, so this tries two strategies in
-order: (1) search for a single cell combining a metric name with an
-age-band label, same as before; (2) if that finds nothing, look for a
-row of short alphanumeric codes (e.g. LF64-style), the same "Dataset
-identifier code" row convention CONFIRMED working on the sibling INAC01
-script from the same ONS team -- this doesn't assume any specific codes,
-it just surfaces candidate code rows explicitly in the log rather than
-leaving them buried in a blind row dump. If neither strategy finds
-anything, this still dumps raw content for diagnosis, same discipline as
-every other fetch script on this site: search for anchors, don't guess
-positions, and show real failures rather than guessing blindly.
+CONFIRMED LIVE (2026-08-04): the internal layout is a 4-row hierarchical
+header, not the single-cell "metric + age band" text this script
+originally searched for -- that's exactly why the first two live runs
+found nothing. Row 5 carries the age band (sparse: only the first column
+of each block is populated, e.g. "Aged 16 and over", "Aged 16-64 " --
+note the trailing space, "Aged 16-17"), row 6 carries the metric
+(Employment/Unemployment/Activity/Inactivity, also sparse), row 7 gives
+"level" or "rate (%)" for every column, and row 8 is the CDID code
+(informational only -- position, not the code itself, is what maps a
+column to its band+metric). Confirmed identical across the 'People',
+'Men', and 'Women' sheets; this uses 'People' (the blended total) since
+that matches what the site displays elsewhere. Data rows start at row
+10, most recent at the bottom.
 
-IMPORTANT: the age bands actually available in this file may not match
-"25-49"/"50-64" (the illustrative placeholders currently used on the
-site) -- ONS's actual published bands for A05 might be split differently
-(e.g. 18-24, 25-34, 35-49, 50-64, 65+). Whatever bands are actually found
-will be written out with their real labels; the frontend should be
-updated to match once this is confirmed live, not the other way around.
+Only 20 of the (at least) 64 data columns have been directly observed,
+covering bands "16 and over", "16-64", and "16-17" -- the remaining ~44
+columns almost certainly continue the same 8-columns-per-band pattern
+(Employment/Unemployment/Activity/Inactivity x level/rate) for the other
+bands ONS publishes here, but since that's still inference rather than
+something actually seen, extraction below reads the header rows at
+runtime and uses whatever bands it actually finds -- it never assumes a
+fixed set or fixed column count. If ONS's real bands differ from the
+"25-49"/"50-64" placeholders previously used on the site, whatever is
+actually found here is written out with its real label.
 """
 
 from __future__ import annotations
@@ -53,13 +54,11 @@ DATASET_PAGE = ("https://www.ons.gov.uk/employmentandlabourmarket/peopleinwork/"
                  "employmentandemployeetypes/datasets/"
                  "employmentunemploymentandeconomicinactivitybyagegroupseasonallyadjusteda05sa/current")
 
-# Age bands we're hoping to find -- matched flexibly against header text
-# since no identifier codes are confirmed yet for this file.
-AGE_BAND_PATTERNS = ["16-17", "18-24", "16-24", "25-34", "35-49", "25-49", "50-64", "65+"]
-METRIC_PATTERNS = {
-    "unemployment_rate": ["unemployment rate"],
-    "inactivity_rate": ["inactivity rate", "economic inactivity rate"],
-}
+# Confirmed live 2026-08-04 -- see module docstring. Only metric names
+# matching this set are trusted; anything else means the sheet layout has
+# changed and extraction should fail loudly rather than guess.
+KNOWN_METRICS = {"Employment", "Unemployment", "Activity", "Inactivity"}
+WANTED_METRICS = {"Unemployment": "unemployment_rate", "Inactivity": "inactivity_rate"}
 
 
 def _grid_from_openpyxl(ws):
@@ -84,6 +83,13 @@ def _to_float(v):
     return None
 
 
+def _s(v):
+    """Cell value as a stripped string, tolerant of None/non-str values."""
+    if v is None:
+        return ""
+    return str(v).strip()
+
+
 def find_current_xls_link(html: str) -> str | None:
     m = re.search(r'href="(/file\?uri=[^"]+\.xls)"', html)
     if m:
@@ -95,6 +101,80 @@ def _dump(grid, label, n=40, cols=14):
     print(f"  [a05] {label} — dumping first {n} rows, cols 1-{cols}:")
     for r in range(min(n, len(grid))):
         print(f"  [a05] row {r+1}: {[repr(v) for v in grid[r][:cols]]}")
+
+
+def _extract_from_people_sheet(grid):
+    """Row 5 (idx 4) = age band, row 6 (idx 5) = metric, row 7 (idx 6) =
+    level/rate, data from row 10 (idx 9) onward. Returns None if the
+    header doesn't match what was confirmed live, rather than guessing."""
+    if len(grid) < 10:
+        return None
+    band_row, metric_row, kind_row = grid[4], grid[5], grid[6]
+
+    def forward_fill(row):
+        out, last = [], None
+        for v in row:
+            sv = _s(v)
+            if sv:
+                last = sv
+            out.append(last)
+        return out
+
+    bands = forward_fill(band_row)
+    metrics = forward_fill(metric_row)
+
+    ncols = len(kind_row)
+    columns = []  # (col_index, band, metric, kind)
+    for c in range(1, ncols):
+        metric = (metrics[c] or "").strip()
+        kind = _s(kind_row[c])
+        if metric not in KNOWN_METRICS or kind not in ("level", "rate (%)"):
+            continue
+        band = (bands[c] or "").strip()
+        if not band:
+            continue
+        columns.append((c, band, metric, kind))
+
+    if not columns:
+        print("  [a05] header rows didn't match the confirmed layout "
+              "(no columns with a recognised metric+kind) -- ONS may "
+              "have changed the format since 2026-08-04.")
+        return None
+
+    # Most recent period: last row where the date-label column has text
+    # and at least one rate column has a numeric value.
+    period_row_idx = None
+    for r in range(len(grid) - 1, 8, -1):
+        label = _s(grid[r][0]) if grid[r] else ""
+        if not label:
+            continue
+        if any(_to_float(grid[r][c]) is not None for c, _, _, kind in columns if kind == "rate (%)" for c in [c]):
+            period_row_idx = r
+            break
+    if period_row_idx is None:
+        print("  [a05] found a valid header but no data row with usable rate values")
+        return None
+
+    period_label = _s(grid[period_row_idx][0])
+    by_band: dict[str, dict[str, float]] = {}
+    for c, band, metric, kind in columns:
+        if kind != "rate (%)" or metric not in WANTED_METRICS:
+            continue
+        val = _to_float(grid[period_row_idx][c])
+        if val is None:
+            continue
+        by_band.setdefault(band, {})[WANTED_METRICS[metric]] = round(val, 2)
+
+    # Only keep bands where we actually got both rates -- partial rows
+    # are more likely a layout misread than genuinely missing data given
+    # this is a fully populated ONS SA series.
+    by_band = {b: v for b, v in by_band.items() if "unemployment_rate" in v and "inactivity_rate" in v}
+    if not by_band:
+        return None
+
+    print(f"  [a05] extracted {len(by_band)} age band(s) for period '{period_label}': "
+          f"{list(by_band.keys())}")
+    return {"period": period_label, "age_bands": by_band}
 
 
 def fetch_and_parse() -> dict | None:
@@ -144,87 +224,19 @@ def fetch_and_parse() -> dict | None:
             print(f"  [a05] xlrd also failed to open it: {exc2}")
             return None
 
-    # We genuinely don't know which sheet(s) matter yet -- print the full
-    # sheet list so the first live run tells us what's actually in here,
-    # then try each one.
-    last_grid = None
-    last_sheet = None
-    for sheet_name in sheet_order:
-        grid = get_grid(sheet_name)
-        last_grid, last_sheet = grid, sheet_name
-        print(f"  [a05] trying sheet '{sheet_name}': {len(grid)} rows")
+    if "People" not in sheet_order:
+        print(f"  [a05] no 'People' sheet found (have: {sheet_order}) -- layout has changed")
+        return None
 
-        # Strategy 1: look for header cells combining a metric with an
-        # age band in the SAME cell -- collect candidate (row, col,
-        # metric, band) hits across the whole sheet, since we don't know
-        # the layout yet.
-        hits = []
-        for r, row in enumerate(grid[:60]):  # header block is almost certainly near the top
-            for c, val in enumerate(row):
-                if not isinstance(val, str):
-                    continue
-                label = val.strip().lower()
-                for metric, mpatterns in METRIC_PATTERNS.items():
-                    if any(mp in label for mp in mpatterns):
-                        for band in AGE_BAND_PATTERNS:
-                            if band.lower() in label:
-                                hits.append((r, c, metric, band))
-        if hits:
-            print(f"  [a05] sheet '{sheet_name}': found {len(hits)} metric+band header hits: {hits[:20]}")
-            # Not yet confirmed enough to auto-extract values -- surface
-            # what was found so the next round can wire up extraction
-            # against the real confirmed positions, rather than guessing
-            # at a value-extraction rule with no confirmed layout.
-            continue
+    grid = get_grid("People")
+    print(f"  [a05] 'People' sheet: {len(grid)} rows")
+    result = _extract_from_people_sheet(grid)
+    if result is not None:
+        return result
 
-        # Strategy 2: the sibling INAC01 script (same ONS team, same
-        # Labour Force Survey family, CONFIRMED working) uses a distinct
-        # "Dataset identifier code" row instead of free-text headers --
-        # a row of short alphanumeric codes (e.g. LF64, LF66) that map
-        # columns to categories far less ambiguously than label text.
-        # Strategy 1 alone has found zero hits across every run so far,
-        # which is exactly what you'd expect if this file uses the same
-        # identifier-code convention instead of (or as well as) text
-        # labels. This doesn't assume any specific codes -- A05 SA's own
-        # codes haven't been confirmed yet -- it just surfaces any
-        # candidate code row explicitly, rather than leaving it buried
-        # in a blind dump of the first 40 rows.
-        code_pattern = re.compile(r"^[A-Z][A-Z0-9]{2,4}$")
-        code_hits = []
-        for r, row in enumerate(grid[:60]):
-            row_codes = [(c, val.strip()) for c, val in enumerate(row)
-                         if isinstance(val, str) and code_pattern.match(val.strip())]
-            if len(row_codes) >= 3:
-                code_hits.append((r, row_codes))
-        if code_hits:
-            print(f"  [a05] sheet '{sheet_name}': no metric+band text hits, but found "
-                  f"{len(code_hits)} row(s) that look like an ONS dataset-identifier-code "
-                  f"row (same pattern as the working INAC01 script) -- these are the codes "
-                  f"to map next, not yet confirmed against ONS's own code list:")
-            for r, row_codes in code_hits:
-                print(f"  [a05] row {r+1} candidate codes: {row_codes}")
-            # The codes alone are useless without whatever's labelling them --
-            # ONS timeseries workbooks almost always carry the human-readable
-            # series title in a row just above (or occasionally below) the
-            # CDID code row. Dumping the codes and moving on (as this used to
-            # do) threw away exactly the information needed to map them.
-            # Surface the rows immediately around the first code row too, so
-            # the *next* run gives us the title text directly instead of
-            # requiring a third round-trip.
-            first_code_row = code_hits[0][0]
-            dump_start = max(0, first_code_row - 6)
-            dump_end = min(len(grid), first_code_row + 4)
-            print(f"  [a05] sheet '{sheet_name}': dumping rows {dump_start + 1}-{dump_end} "
-                  f"around the code row for title context:")
-            for r in range(dump_start, dump_end):
-                print(f"  [a05] row {r+1}: {[repr(v) for v in grid[r][:20]]}")
-            continue
-
-    print("  [a05] no sheet produced confirmed metric+age-band header hits — "
-          "dumping the last sheet tried (not sheet_order[0], which was often an "
-          "unrelated 'Note'/disclaimer sheet and gave nothing useful):")
-    if last_grid is not None:
-        _dump(last_grid, f"sheet '{last_sheet}'")
+    print("  [a05] extraction failed against the confirmed layout -- dumping "
+          "'People' sheet for diagnosis:")
+    _dump(grid, "sheet 'People'")
     return None
 
 
@@ -243,7 +255,7 @@ def main() -> int:
     }
     with open("data-uk-age-breakdown.json", "w") as f:
         json.dump(out, f)
-    print(f"  ok  a05  wrote age breakdown")
+    print(f"  ok  a05  wrote age breakdown for {len(result['age_bands'])} age band(s), period {result['period']}")
     return 0
 
 
