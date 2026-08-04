@@ -2563,11 +2563,33 @@ fetch("data-ez.json",{cache: "no-cache"})
     document.body.appendChild(a); a.click(); document.body.removeChild(a);
     setTimeout(function(){ URL.revokeObjectURL(url); }, 200);
   }
+  function czExportBtnState(btn, phase, label){
+    btn.textContent = label;
+    if(phase === "working"){
+      btn.disabled = true; btn.style.cursor = "wait";
+      btn.style.background = "var(--navy-2)"; btn.style.borderColor = "var(--navy-2)"; btn.style.color = "#fff";
+    } else if(phase === "success"){
+      btn.style.background = "#2FA463"; btn.style.borderColor = "#2FA463"; btn.style.color = "#fff";
+    } else {
+      btn.disabled = false; btn.style.cursor = "pointer";
+      btn.style.background = ""; btn.style.borderColor = ""; btn.style.color = "";
+    }
+  }
   document.getElementById("czExportSvgBtn").addEventListener("click", function(){
-    var svgStr = czBuildSVG(czState.exportTheme, true);
-    czDownloadBlob(new Blob([svgStr], { type: "image/svg+xml;charset=utf-8" }), czFilenameBase() + ".svg");
+    var btn = this;
+    if(btn.disabled) return;
+    czExportBtnState(btn, "working", "Exporting\u2026");
+    setTimeout(function(){
+      var svgStr = czBuildSVG(czState.exportTheme, true);
+      czDownloadBlob(new Blob([svgStr], { type: "image/svg+xml;charset=utf-8" }), czFilenameBase() + ".svg");
+      czExportBtnState(btn, "success", "Exported \u2713");
+      setTimeout(function(){ czExportBtnState(btn, "idle", "SVG"); }, 1600);
+    }, 450);
   });
   document.getElementById("czExportPngBtn").addEventListener("click", function(){
+    var btn = this;
+    if(btn.disabled) return;
+    czExportBtnState(btn, "working", "Exporting\u2026");
     var svgStr = czBuildSVG(czState.exportTheme, true);
     var url = URL.createObjectURL(new Blob([svgStr], { type: "image/svg+xml;charset=utf-8" }));
     var img = new Image();
@@ -2579,7 +2601,11 @@ fetch("data-ez.json",{cache: "no-cache"})
       ctx.scale(scale, scale);
       ctx.drawImage(img, 0, 0, G.W, G.H);
       URL.revokeObjectURL(url);
-      canvas.toBlob(function(blob){ czDownloadBlob(blob, czFilenameBase() + ".png"); }, "image/png");
+      canvas.toBlob(function(blob){
+        czDownloadBlob(blob, czFilenameBase() + ".png");
+        czExportBtnState(btn, "success", "Exported \u2713");
+        setTimeout(function(){ czExportBtnState(btn, "idle", "PNG"); }, 1600);
+      }, "image/png");
     };
     img.src = url;
   });
