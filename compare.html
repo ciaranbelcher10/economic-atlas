@@ -207,6 +207,15 @@ footer.cmp-foot{margin-top:36px; font-size:12.5px; color:var(--ink2); border-top
   border-radius:50%; border:1px solid var(--hair); background:var(--panel); color:var(--ink2);
   font-size:18px; cursor:pointer; display:flex; align-items:center; justify-content:center;}
 .chart-modal-close:hover{border-color:var(--blue); color:var(--navy);}
+/* These Chart Style rows use inline display:flex so their default
+   (visible) state doesn't depend on this stylesheet loading first --
+   but that same inline style silently beat the browser's own
+   [hidden]{display:none} rule whenever JS tried to hide them for the
+   current chart mode, since inline styles win over any stylesheet
+   selector on their own. This is the fix: an !important rule in an
+   author stylesheet is one of the few things that *can* override an
+   inline style, so toggling .hidden from JS actually works again. */
+#czXTickField[hidden], #czLegendTitleField[hidden], #czPointsToggleField[hidden], #czHideNoDataField[hidden]{display:none !important;}
 </style>
 </head>
 <body>
@@ -1753,8 +1762,18 @@ function buildBarChart(canvas, concept){
   var isCumulative = firstReal.isCumulative;
   var isDelta = firstReal.isDelta;
   var targetYear = CURRENT_YEAR - (+horizon);
+  // CURRENT_YEAR is the latest year ANY series on the site has data for
+  // (often a fast-reporting monthly metric like CPI) -- when it equals
+  // the real calendar year, that year is still in progress, and a
+  // slower/annual metric like GDP may only have one early observation
+  // for it so far. "Averaged across the year's observations" implied a
+  // completed year either way, which was misleading for the current,
+  // still-running one -- this only changes the wording, not which
+  // figure is shown (still whatever getDisplayValue actually resolved).
+  var yearInProgress = horizon === "0" && CURRENT_YEAR >= new Date().getFullYear();
   var horizonNote = isCumulative ? "Cumulative % change from " + targetYear + " to " + CURRENT_YEAR + "."
     : isDelta ? "Change from " + targetYear + " to " + CURRENT_YEAR + "."
+    : yearInProgress ? "Latest available reading for " + CURRENT_YEAR + " so far -- the year isn't complete yet."
     : horizon === "0" ? "Figure for " + CURRENT_YEAR + ", averaged across the year's real observations where more than one exists."
     : "Figure for " + targetYear + ", averaged across the year's real observations where more than one exists.";
   var titleSuffix = isCumulative ? " (cumulative change)" : isDelta ? " (change)" : "";
@@ -2559,6 +2578,10 @@ function updateMapCardSub(){
             <span>Show data point markers</span>
             <input type="checkbox" id="czPointsToggle" checked style="width:15px; height:15px;">
           </div>
+          <div id="czHideNoDataField" hidden style="display:flex; align-items:center; justify-content:space-between; font-size:12.5px; margin-bottom:8px;">
+            <span>Drop countries with no data</span>
+            <input type="checkbox" id="czHideNoDataToggle" style="width:15px; height:15px;">
+          </div>
           <div style="display:flex; align-items:center; justify-content:space-between; font-size:12.5px; margin-bottom:8px;">
             <span>Reference line</span>
             <div style="display:flex; align-items:center; gap:6px;">
@@ -2640,12 +2663,25 @@ function updateMapCardSub(){
     var longest = lines.reduce(function(m, l){ return Math.max(m, l.length); }, 0);
     return longest * fontSize * 0.56;
   }
+  // estTextWidth's 0.56/char factor is tuned to be safely conservative
+  // for short label text (axis ticks, legend entries) but runs noticeably
+  // wide for long lowercase-heavy prose like source notes, where real
+  // rendered width averages closer to 0.5em/char -- using the wider
+  // factor here was truncating source notes well before they'd actually
+  // reach the watermark, leaving visible empty space. A narrower,
+  // prose-tuned estimate (still applied identically to both sides of the
+  // comparison, so the safety margin against collision is unchanged)
+  // fixes that without touching estTextWidth's other, correctly-tuned
+  // uses elsewhere.
+  function estProseWidth(text, fontSize){
+    return String(text).length * fontSize * 0.5;
+  }
   function czTruncSrcFooter(text){
-    var madeOnW = estTextWidth("Made on theeconomicatlas.com", 11);
-    var maxW = (G.W - G.padR) - G.padL - madeOnW - 24;
-    if(estTextWidth(text, 11) <= maxW) return text;
+    var madeOnW = estProseWidth("Made on theeconomicatlas.com", 11);
+    var maxW = (G.W - G.padR) - G.padL - madeOnW - 16;
+    if(estProseWidth(text, 11) <= maxW) return text;
     var t = text;
-    while(t.length > 1 && estTextWidth(t + "\u2026", 11) > maxW){ t = t.slice(0, -1); }
+    while(t.length > 1 && estProseWidth(t + "\u2026", 11) > maxW){ t = t.slice(0, -1); }
     return t + "\u2026";
   }
 
@@ -2794,16 +2830,24 @@ function updateMapCardSub(){
   // Bar view) -- a categorical country axis, not a timeline, so no
   // date range and no event annotations apply here.
   var SNAPSHOT_ROWS = []; // [{country, value, color}]
+  // Single source of truth for which rows actually get drawn, so geom
+  // (which sizes slot width from row count) and the render loop (which
+  // iterates rows) can never end up looking at a different set.
+  function czmEffectiveSnapshotRows(){
+    return (czmState && czmState.hideNoData) ? SNAPSHOT_ROWS.filter(function(r){ return r.value != null; }) : SNAPSHOT_ROWS;
+  }
+
   function czmSnapshotGeom(){
+    var rows = czmEffectiveSnapshotRows();
     var padB = czmBottomLayout(false).padB;
-    var vals = SNAPSHOT_ROWS.map(function(r){ return r.value; }).filter(function(v){ return v != null; });
+    var vals = rows.map(function(r){ return r.value; }).filter(function(v){ return v != null; });
     if(vals.length === 0) vals = [0, 1];
     if(czmState.refLine.enabled) vals.push(czmState.refLine.value);
     var rawMin = Math.min(0, Math.min.apply(null, vals)), rawMax = Math.max(0, Math.max.apply(null, vals));
     var nice = niceTicks(rawMin, rawMax, czmState.yTicks);
     var padT = (czmState.yTitlePos === "above" ? G.padT + 18 : G.padT) + (czmState.chartTitle ? 24 : 0);
     var plotW = G.W - G.padL - G.padR, plotH = G.H - padT - padB;
-    var n = Math.max(1, SNAPSHOT_ROWS.length);
+    var n = Math.max(1, rows.length);
     var slot = plotW / n;
     return {
       minV: nice.min, maxV: nice.max, plotW: plotW, plotH: plotH, padB: padB, padT: padT,
@@ -2831,7 +2875,8 @@ function updateMapCardSub(){
   function czmBuildSVGSnapshot(theme, forExport){
     var t = THEMES[theme];
     var gm = czmSnapshotGeom();
-    if(SNAPSHOT_ROWS.length === 0) return "<svg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 " + G.W + " " + G.H + "'></svg>";
+    var rows = czmEffectiveSnapshotRows();
+    if(rows.length === 0) return "<svg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 " + G.W + " " + G.H + "'></svg>";
 
     var svg = [];
     svg.push("<svg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 " + G.W + " " + G.H + "' font-family='Helvetica, Arial, sans-serif'>");
@@ -2867,7 +2912,7 @@ function updateMapCardSub(){
 
     var axisBottomY = gm.padT + gm.plotH;
     var bl = czmBottomLayout(false);
-    SNAPSHOT_ROWS.forEach(function(r, i){
+    rows.forEach(function(r, i){
       var bx = gm.xForIndex(i);
       if(r.value == null){
         var midY = gm.padT + gm.plotH / 2;
@@ -3203,6 +3248,8 @@ function updateMapCardSub(){
   document.getElementById("czFillToggle").addEventListener("change", function(e){ czmState.showFill = e.target.checked; czRenderPreview(); });
   document.getElementById("czPointsToggle").addEventListener("change", function(e){ czmState.showPoints = e.target.checked; czRenderPreview(); });
   var czPointsToggleField = document.getElementById("czPointsToggleField");
+  var czHideNoDataField = document.getElementById("czHideNoDataField");
+  document.getElementById("czHideNoDataToggle").addEventListener("change", function(e){ czmState.hideNoData = e.target.checked; czRenderPreview(); });
   document.getElementById("czChartTitleInput").addEventListener("input", function(e){ czmState.chartTitle = e.target.value; czRenderPreview(); });
   document.getElementById("czYAxisTitleInput").addEventListener("input", function(e){ czmState.yTitle = e.target.value; czRenderPreview(); });
   document.getElementById("czLegendTitleInput").addEventListener("input", function(e){ czmState.legendTitle = e.target.value; czRenderPreview(); });
@@ -3408,6 +3455,7 @@ function updateMapCardSub(){
     document.getElementById("czDateRangePanel").hidden = false;
     document.getElementById("czEventLinesPanel").hidden = false;
     czXTickField.hidden = false;
+    czHideNoDataField.hidden = true;
     czLegendTitleField.hidden = false;
     czPointsToggleField.hidden = false;
     if(fmtPeriodFn) czmFmtPeriodFn = fmtPeriodFn;
@@ -3420,7 +3468,7 @@ function updateMapCardSub(){
 
     czmState = {
       from: allDates[0], to: allDates[allDates.length - 1],
-      showFill: false, showPoints: true, refLine: { enabled: false, value: 0 },
+      showFill: false, showPoints: true, hideNoData: false, refLine: { enabled: false, value: 0 },
       yTitlePos: "along", yTicks: 5, xTicks: 3, xLabelAngle: "straight", chartTitle: title || "", legendTitle: "",
       annotations: [], exportTheme: "light",
       srcNote: srcNote, yTitle: guessedYTitle, fmtY: effectiveFmtY,
@@ -3465,7 +3513,7 @@ function updateMapCardSub(){
 
     czmState = {
       mode: "snapshot",
-      showFill: false, showPoints: true, refLine: { enabled: false, value: 0 },
+      showFill: false, showPoints: true, hideNoData: false, refLine: { enabled: false, value: 0 },
       yTitlePos: "along", yTicks: 5, xTicks: 3, xLabelAngle: "straight", chartTitle: title || "", legendTitle: "",
       annotations: [], exportTheme: "light",
       srcNote: srcNote, yTitle: guessedYTitle, fmtY: effectiveFmtY,
@@ -3482,6 +3530,8 @@ function updateMapCardSub(){
     document.getElementById("czDateRangePanel").hidden = true;
     document.getElementById("czEventLinesPanel").hidden = true;
     czXTickField.hidden = true;
+    czHideNoDataField.hidden = false;
+    document.getElementById("czHideNoDataToggle").checked = false;
     czLegendTitleField.hidden = true;
     czPointsToggleField.hidden = true;
     czYTitlePosSeg.querySelectorAll("button").forEach(function(b){ b.classList.toggle("active", b.dataset.pos === "along"); });
