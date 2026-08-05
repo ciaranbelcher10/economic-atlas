@@ -3688,6 +3688,11 @@ function updateMapCardSub(){
       title: "Customise & export",
       body: "Add a title, event markers and reference lines, then export as an image \u2014 try dragging an event marker around on this Bank Rate chart to see how it works.",
       showIf: isAdmin },
+    { page: "uk", type: "anchor", onEnter: function(){ openModalFor("boe_rate"); }, target: "#chartModalClose",
+      title: "Back out when you're done",
+      body: "Click here (or press Escape) to close this full-size view and get back to the page." },
+    { page: "uk", type: "anchor", target: "nav a[href='compare']", title: "On to Compare",
+      body: "Click <strong>Compare</strong> in the menu above to see how multiple countries stack up side by side \u2014 the next stop on the tour." },
 
     { page: "compare", type: "anchor", target: ".addcountries-btn", title: "Add countries",
       body: "Click here to add or remove countries from the comparison \u2014 up to the full set of 18." },
@@ -3699,10 +3704,15 @@ function updateMapCardSub(){
         var addTile = document.getElementById("addMetricTile");
         if(picker && picker.hidden && addTile) addTile.click();
       },
-      target: ".pickeritem[data-key='gdp_growth']",
+      target: ".pickeritem[data-key='debt_gdp']",
       title: "Pick a metric to try",
-      body: "Try <strong>GDP growth</strong> \u2014 click it to add this card to your comparison." },
-    { page: "compare", type: "anchor", target: "#mapCard", title: "See it on the map, over time",
+      body: "Try <strong>Government debt, % of GDP</strong> \u2014 click it to add this card to your comparison. (GDP growth, GDP level, inflation and unemployment are already shown by default, so they're not clickable here.)" },
+    { page: "compare", type: "anchor",
+      onEnter: function(){
+        var picker = document.getElementById("metricPicker");
+        if(picker && !picker.hidden){ picker.hidden = true; document.body.style.overflow = ""; }
+      },
+      target: "#mapCard", title: "See it on the map, over time",
       body: "The map always mirrors whichever metric card is currently showing. Drag the year slider underneath it to see how the picture has changed over time." },
     { page: "compare", type: "anchor", target: "#rankTable", title: "The summary table",
       body: "Every selected country and metric, side by side, for whichever time horizon you've chosen above. Click any column to sort it." }
@@ -3739,17 +3749,10 @@ function updateMapCardSub(){
   }
   // Same as nextVisibleIndex, but stops (-1) the moment it would cross
   // onto a different page's steps. Used ONLY for deciding whether to
-  // show "Next"/"Got it" and whether "Back" appears -- the real bug
-  // this fixes: nextVisibleIndex alone would happily find the next
-  // step even if it lived on a completely different page (e.g. uk.html's
-  // last step correctly found compare.html's first step as "next"),
-  // so the button said "Next" even though clicking it can't render
-  // anything here -- the box just vanished with no explanation, since
-  // advance() correctly recognised the page mismatch and only saved
-  // state for later, without showing anything. The click-handlers
-  // themselves still use the page-agnostic nextVisibleIndex, since
-  // saving that cross-page state for later resume is correct -- only
-  // the button's own label/presence needed to be page-aware.
+  // show "Next"/"Got it" and whether "Back" appears -- the click
+  // handlers themselves still use the page-agnostic nextVisibleIndex,
+  // since saving that cross-page state for later resume is correct --
+  // only the button's own label/presence needed to be page-aware.
   function nextVisibleIndexOnPage(from, dir){
     var i = from;
     while(i >= 0 && i < TOUR_STEPS.length){
@@ -3770,7 +3773,12 @@ function updateMapCardSub(){
   }
 
   function removeBox(){
-    if(boxEl){ boxEl.remove(); boxEl = null; }
+    // Defensive: remove EVERY .tour-box in the document, not just the
+    // one boxEl happens to reference. Two boxes were seen stacked live;
+    // rather than chase the exact mechanism, this guarantees stacking
+    // simply can't happen regardless of cause.
+    document.querySelectorAll(".tour-box").forEach(function(el){ el.remove(); });
+    boxEl = null;
     clearHighlight();
     clearSiblingRestriction();
   }
@@ -3923,5 +3931,6 @@ function updateMapCardSub(){
   }
 })();
 </script>
+
 </body>
 </html>
