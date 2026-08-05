@@ -1034,20 +1034,29 @@ fetch("https://cdn.jsdelivr.net/npm/world-atlas@2/countries-110m.json")
 (function(){
   "use strict";
   // ------------------------- Onboarding tour --------------------------
-  // Phase B: engine upgraded to support (1) function-based targets, for
-  // steps that need to point at a specific dynamically-built chart panel
-  // rather than a fixed ID (uk.html's charts are generated at runtime
-  // with auto-incrementing canvas IDs, so ANCHORS[key].panelEl is used
-  // instead -- see window.ANCHORS exposed near the top of this page's
-  // own render script), (2) function-based body text, for steps whose
-  // wording depends on login state (e.g. Download data), and (3) a
-  // showIf gate, for steps that only apply to some visitors (Customise &
-  // export is admin-only -- it's skipped entirely for everyone else,
-  // not shown as a locked teaser, since regular accounts never get it).
-  //
-  // Every step still uses manual Next/Prev/Exit, never auto-detects a
-  // real interaction (e.g. waiting for a drag event) -- deliberate,
-  // since a stuck auto-wait step has no fallback.
+  // v3 (Phase B refinement): three fixes from the first real look at
+  // this live --
+  //  (1) Anchor box positioning previously guessed the box's height
+  //      (160px) to decide "below" vs "above" the target, which could
+  //      overlap the very thing being highlighted if the guess was
+  //      wrong. Now measures the box's REAL rendered size (it's already
+  //      in the DOM at this point, just invisible) before deciding.
+  //      Also scrolls the target into view first, since a target
+  //      offscreen produced a box with nothing meaningful to anchor to.
+  //  (2) restrictSiblings: some steps need to force a specific choice
+  //      (e.g. "click Inflation & rates", not any other tab) rather
+  //      than just highlighting one option among several equally
+  //      clickable ones. When set, every sibling matching the selector
+  //      except the step's own target gets temporarily disabled
+  //      (pointer-events:none + dimmed) for the duration of that step,
+  //      then restored.
+  //  (3) onEnter: an optional per-step function, called before the step
+  //      renders. Used to programmatically open the chart modal for
+  //      whichever chart a step needs (e.g. if a visitor clicks Next
+  //      without actually clicking Expand first, the modal still needs
+  //      to be open for the next few steps to have something to point
+  //      at) -- consistent with this engine never assuming a described
+  //      interaction actually happened.
   var STATE_KEY = "eatlas_tour_state";
   var SEEN_KEY = "eatlas_tour_seen";
   var THIS_PAGE = "index";
@@ -1055,6 +1064,11 @@ fetch("https://cdn.jsdelivr.net/npm/world-atlas@2/countries-110m.json")
   function resolvePanelChild(key, sel){
     if(!window.ANCHORS || !window.ANCHORS[key]) return null;
     return window.ANCHORS[key].panelEl.querySelector(sel);
+  }
+  function openModalFor(key){
+    if(!window.ANCHORS || !window.ANCHORS[key] || !window.openChartModal) return;
+    var canvas = window.ANCHORS[key].panelEl.querySelector("canvas");
+    if(canvas) window.openChartModal(canvas.id);
   }
   function loggedIn(){
     return !!(window.EATLAS_PREFS && window.EATLAS_PREFS.isLoggedIn && window.EATLAS_PREFS.isLoggedIn());
@@ -1069,21 +1083,26 @@ fetch("https://cdn.jsdelivr.net/npm/world-atlas@2/countries-110m.json")
     { page: "index", type: "anchor", target: "#exploreUkBtn", title: "Start with a country",
       body: "Click through to the UK page to see headline figures, inflation, rates, trade and more, all in one place. That's the next stop on the tour." },
 
-    { page: "uk", type: "anchor", target: "nav.cat button[data-sec='inflation']", title: "Move between sections",
-      body: "Each country page is organised into sections \u2014 Headline, GDP, Inflation & rates, Labour market, Trade, Public finances. Click a tab to jump between them." },
+    { page: "uk", type: "anchor", target: "nav.cat button[data-sec='inflation']", restrictSiblings: "nav.cat button",
+      title: "Move between sections",
+      body: "Each country page is organised into sections \u2014 Headline, GDP, Inflation & rates, Labour market, Trade, Public finances. Click <strong>Inflation &amp; rates</strong> to continue (the other tabs are disabled for this step, just so it's clear where to click)." },
     { page: "uk", type: "anchor", target: "[data-key='cpi'].stat", title: "Headline tiles are shortcuts",
-      body: "These summary tiles are clickable \u2014 click one and it jumps straight to the matching chart, wherever it lives on the page." },
-    { page: "uk", type: "anchor", target: function(){ return resolvePanelChild("cpi", ".chartbox"); }, title: "Choose your own timeframe",
-      body: "Use the preset buttons above the chart for common ranges, or click and drag directly on the chart to zoom into any period you like. \u201cReset zoom\u201d brings you back out." },
+      body: "These summary tiles are clickable \u2014 click this one and it jumps straight down to the matching CPI chart, wherever it lives on the page." },
     { page: "uk", type: "anchor", target: function(){ return resolvePanelChild("cpi", ".expandBtn"); }, title: "Go full-size",
-      body: "This opens the same chart much bigger, with more room to explore. Close it with the \u00d7 in the corner whenever you're ready to carry on." },
-    { page: "uk", type: "anchor", target: function(){ return resolvePanelChild("cpi", ".dl-btn"); }, title: "Download the underlying data",
+      body: "Click here to open a bigger, full-size view of this chart, with more room to explore." },
+    { page: "uk", type: "anchor", onEnter: function(){ openModalFor("cpi"); },
+      target: function(){ return document.querySelector(".chart-modal-box"); },
+      title: "Choose your own timeframe",
+      body: "Use the preset buttons above for common ranges, or click and drag directly on the chart to zoom into any period you like. \u201cReset zoom\u201d brings you back out." },
+    { page: "uk", type: "anchor", onEnter: function(){ openModalFor("cpi"); }, target: "#chartModalDlBtn",
+      title: "Download the underlying data",
       body: function(){
         return loggedIn()
-          ? "Every chart's data is downloadable as a CSV, exactly as shown on the page."
+          ? "Every chart's data is downloadable as a CSV, exactly as shown here."
           : "Every chart's data is downloadable as a CSV \u2014 free, but it does need an account (10 seconds to set up, no card required).";
       } },
-    { page: "uk", type: "anchor", target: function(){ return resolvePanelChild("boe_rate", ".cz-btn"); }, title: "Customise & export",
+    { page: "uk", type: "anchor", onEnter: function(){ openModalFor("boe_rate"); }, target: "#chartModalCzBtn",
+      title: "Customise & export",
       body: "Add a title, event markers and reference lines, then export as an image \u2014 try dragging an event marker around on this Bank Rate chart to see how it works.",
       showIf: isAdmin }
     // Phase C (compare.html) and Phase D (dashboard.html, roadmap.html/
@@ -1109,9 +1128,6 @@ fetch("https://cdn.jsdelivr.net/npm/world-atlas@2/countries-110m.json")
   function stepVisible(step){
     return !step.showIf || step.showIf();
   }
-  // Walks in `dir` (+1 or -1) from `from`, skipping any step whose
-  // showIf() says it doesn't apply to this visitor, and returns the
-  // first visible index found, or -1 if it runs off either end.
   function nextVisibleIndex(from, dir){
     var i = from;
     while(i >= 0 && i < TOUR_STEPS.length){
@@ -1121,23 +1137,50 @@ fetch("https://cdn.jsdelivr.net/npm/world-atlas@2/countries-110m.json")
     return -1;
   }
 
-  var boxEl = null, highlightEl = null;
+  var boxEl = null, highlightEl = null, restoreSiblingsFn = null;
 
   function clearHighlight(){
     if(highlightEl){ highlightEl.classList.remove("tour-highlight"); highlightEl = null; }
+  }
+  function clearSiblingRestriction(){
+    if(restoreSiblingsFn){ restoreSiblingsFn(); restoreSiblingsFn = null; }
   }
 
   function removeBox(){
     if(boxEl){ boxEl.remove(); boxEl = null; }
     clearHighlight();
+    clearSiblingRestriction();
+  }
+
+  function applySiblingRestriction(step, target){
+    clearSiblingRestriction();
+    if(!step.restrictSiblings || !target) return;
+    var els = document.querySelectorAll(step.restrictSiblings);
+    var saved = [];
+    els.forEach(function(el){
+      if(el !== target){
+        saved.push({ el: el, pe: el.style.pointerEvents, op: el.style.opacity });
+        el.style.pointerEvents = "none";
+        el.style.opacity = "0.4";
+      }
+    });
+    restoreSiblingsFn = function(){
+      saved.forEach(function(s){ s.el.style.pointerEvents = s.pe; s.el.style.opacity = s.op; });
+    };
   }
 
   function positionAnchorBox(box, target){
+    if(target.scrollIntoView) target.scrollIntoView({ block: "center", inline: "nearest", behavior: "auto" });
     var r = target.getBoundingClientRect();
-    var boxWidth = 340;
+    var boxRect = box.getBoundingClientRect();
+    var boxWidth = boxRect.width || 340;
+    var boxHeight = boxRect.height || 180;
     var left = Math.min(Math.max(12, r.left), window.innerWidth - boxWidth - 12);
     var top = r.bottom + 12;
-    if(top + 160 > window.innerHeight){ top = Math.max(12, r.top - 172); }
+    if(top + boxHeight + 12 > window.innerHeight){
+      top = r.top - boxHeight - 12;
+      if(top < 12) top = 12;
+    }
     box.style.left = left + "px";
     box.style.top = top + "px";
   }
@@ -1155,13 +1198,11 @@ fetch("https://cdn.jsdelivr.net/npm/world-atlas@2/countries-110m.json")
     var step = TOUR_STEPS[index];
     if(!step || step.page !== THIS_PAGE) return; // this step belongs to a page not yet reached/built
     if(!stepVisible(step)){
-      // Shouldn't normally get here directly (advance() already skips
-      // hidden steps), but guard anyway rather than showing a step that
-      // doesn't apply to this visitor.
       var alt = nextVisibleIndex(index + 1, 1);
       if(alt !== -1) advance(alt); else exitTour();
       return;
     }
+    if(step.onEnter) step.onEnter();
 
     var totalSoFar = TOUR_STEPS.length; // grows as later phases add steps
 
@@ -1171,6 +1212,7 @@ fetch("https://cdn.jsdelivr.net/npm/world-atlas@2/countries-110m.json")
 
     var box = document.createElement("div");
     box.className = "tour-box" + (effectiveType === "center" ? " tour-center" : "");
+    box.style.visibility = "hidden"; // measured before being positioned/shown, to avoid a visible jump
     box.innerHTML =
       "<h4>" + step.title + "</h4>" +
       "<p>" + resolveBody(step) + "</p>" +
@@ -1188,7 +1230,9 @@ fetch("https://cdn.jsdelivr.net/npm/world-atlas@2/countries-110m.json")
       target.classList.add("tour-highlight");
       highlightEl = target;
       positionAnchorBox(box, target);
+      applySiblingRestriction(step, target);
     }
+    box.style.visibility = "";
     requestAnimationFrame(function(){ box.classList.add("show"); });
 
     var nextBtn = box.querySelector(".tour-next");
@@ -1248,5 +1292,6 @@ fetch("https://cdn.jsdelivr.net/npm/world-atlas@2/countries-110m.json")
   }
 })();
 </script>
+
 </body>
 </html>
