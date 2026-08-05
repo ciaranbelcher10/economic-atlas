@@ -852,7 +852,7 @@
   <svg id="map" viewBox="0 0 960 500" role="img" aria-label="World map. 18 economies across Europe, the Americas, Asia, Africa and the Middle East are highlighted; selecting one opens its economy page."></svg>
   <div id="maptip" aria-hidden="true"></div>
   <span class="zoomhint">Scroll or pinch to zoom</span>
-  <p id="maperr">The map couldn't load (it needs an internet connection). Use the buttons below instead.</p>
+  <p id="maperr">The map couldn't load (it needs an internet connection). Use "Country Breakdowns" in the menu above instead.</p>
   <div class="legend">
     <span><span class="swatch" style="background:var(--mako-4)"></span>G7 economy (live)</span>
     <span><span class="swatch" style="background:var(--mako-3)"></span>Live (click to explore)</span>
@@ -860,26 +860,7 @@
   </div>
 </div>
 
-<div class="quick" style="display:flex;gap:10px;flex-wrap:wrap;margin:22px 0 8px;">
-  <a class="btn" href="uk" id="exploreUkBtn">Explore the UK →</a>
-  <a class="btn ghost" href="us">Explore the U.S. →</a>
-  <a class="btn ghost" href="eurozone">Explore the Eurozone →</a>
-  <a class="btn ghost" href="germany">Explore Germany →</a>
-  <a class="btn ghost" href="france">Explore France →</a>
-  <a class="btn ghost" href="italy">Explore Italy →</a>
-  <a class="btn ghost" href="spain">Explore Spain →</a>
-  <a class="btn ghost" href="netherlands">Explore the Netherlands →</a>
-  <a class="btn ghost" href="japan">Explore Japan →</a>
-  <a class="btn ghost" href="india">Explore India →</a>
-  <a class="btn ghost" href="canada">Explore Canada →</a>
-  <a class="btn ghost" href="mexico">Explore Mexico →</a>
-  <a class="btn ghost" href="australia">Explore Australia →</a>
-  <a class="btn ghost" href="southkorea">Explore South Korea →</a>
-  <a class="btn ghost" href="israel">Explore Israel →</a>
-  <a class="btn ghost" href="brazil">Explore Brazil →</a>
-  <a class="btn ghost" href="southafrica">Explore South Africa →</a>
-  <a class="btn ghost" href="morocco">Explore Morocco →</a>
-</div>
+
 
 <div class="roadmap">
   <h2>About The Economic Atlas</h2>
@@ -1034,29 +1015,27 @@ fetch("https://cdn.jsdelivr.net/npm/world-atlas@2/countries-110m.json")
 (function(){
   "use strict";
   // ------------------------- Onboarding tour --------------------------
-  // v3 (Phase B refinement): three fixes from the first real look at
-  // this live --
-  //  (1) Anchor box positioning previously guessed the box's height
-  //      (160px) to decide "below" vs "above" the target, which could
-  //      overlap the very thing being highlighted if the guess was
-  //      wrong. Now measures the box's REAL rendered size (it's already
-  //      in the DOM at this point, just invisible) before deciding.
-  //      Also scrolls the target into view first, since a target
-  //      offscreen produced a box with nothing meaningful to anchor to.
-  //  (2) restrictSiblings: some steps need to force a specific choice
-  //      (e.g. "click Inflation & rates", not any other tab) rather
-  //      than just highlighting one option among several equally
-  //      clickable ones. When set, every sibling matching the selector
-  //      except the step's own target gets temporarily disabled
-  //      (pointer-events:none + dimmed) for the duration of that step,
-  //      then restored.
-  //  (3) onEnter: an optional per-step function, called before the step
-  //      renders. Used to programmatically open the chart modal for
-  //      whichever chart a step needs (e.g. if a visitor clicks Next
-  //      without actually clicking Expand first, the modal still needs
-  //      to be open for the next few steps to have something to point
-  //      at) -- consistent with this engine never assuming a described
-  //      interaction actually happened.
+  // v4: fixes from a second round of live screenshot feedback --
+  //  (1) Auto-advance: previously every step needed a manual "Next"
+  //      click even after actually performing the described action
+  //      (e.g. clicking the real Inflation & rates tab). Now the
+  //      resolved target itself gets a real click listener that
+  //      advances the tour, in ADDITION to Next still working -- so
+  //      following the instruction IS the advance, but Next remains as
+  //      a fallback if a listener doesn't fire for some reason (it
+  //      always should, but this costs nothing and removes any chance
+  //      of a step feeling stuck).
+  //  (2) Anchor box horizontal position now centers under/over the
+  //      target's midpoint rather than starting flush at its left edge
+  //      -- flush-left meant a narrow target (like one tab in a row)
+  //      could leave the box's wide right portion drifting over
+  //      whatever sits to its right, which is what was happening here.
+  //  (3) findMapPath: a small helper so a tour step can target a
+  //      specific country's actual SVG path on the D3-rendered world
+  //      map (matched via the bound feature's .id, e.g. "826" for the
+  //      UK) -- the map has no per-feature DOM id/class to select by
+  //      directly, only data bound via d3, so this walks the rendered
+  //      paths and matches on the bound datum instead.
   var STATE_KEY = "eatlas_tour_state";
   var SEEN_KEY = "eatlas_tour_seen";
   var THIS_PAGE = "index";
@@ -1070,6 +1049,13 @@ fetch("https://cdn.jsdelivr.net/npm/world-atlas@2/countries-110m.json")
     var canvas = window.ANCHORS[key].panelEl.querySelector("canvas");
     if(canvas) window.openChartModal(canvas.id);
   }
+  function findMapPath(isoCode){
+    var paths = document.querySelectorAll("#map path");
+    for(var i = 0; i < paths.length; i++){
+      if(paths[i].__data__ && String(paths[i].__data__.id) === isoCode) return paths[i];
+    }
+    return null;
+  }
   function loggedIn(){
     return !!(window.EATLAS_PREFS && window.EATLAS_PREFS.isLoggedIn && window.EATLAS_PREFS.isLoggedIn());
   }
@@ -1080,13 +1066,13 @@ fetch("https://cdn.jsdelivr.net/npm/world-atlas@2/countries-110m.json")
   var TOUR_STEPS = [
     { page: "index", type: "center", title: "New here? A 2-minute tour.",
       body: "The Economic Atlas pulls hourly, official data across 18 countries \u2014 no commentary, just numbers. This short tour shows you around. Exit any time from the link in each box." },
-    { page: "index", type: "anchor", target: "#exploreUkBtn", title: "Start with a country",
-      body: "Click through to the UK page to see headline figures, inflation, rates, trade and more, all in one place. That's the next stop on the tour." },
+    { page: "index", type: "anchor", target: function(){ return findMapPath("826"); }, title: "Start with a country",
+      body: "Click the UK on the map to see headline figures, inflation, rates, trade and more, all in one place. That's the next stop on the tour." },
 
     { page: "uk", type: "anchor", target: "nav.cat button[data-sec='inflation']", restrictSiblings: "nav.cat button",
       title: "Move between sections",
       body: "Each country page is organised into sections \u2014 Headline, GDP, Inflation & rates, Labour market, Trade, Public finances. Click <strong>Inflation &amp; rates</strong> to continue (the other tabs are disabled for this step, just so it's clear where to click)." },
-    { page: "uk", type: "anchor", target: "[data-key='cpi'].stat", title: "Headline tiles are shortcuts",
+    { page: "uk", type: "anchor", target: "#tiles-inflation [data-key='cpi'].stat", title: "Headline tiles are shortcuts",
       body: "These summary tiles are clickable \u2014 click this one and it jumps straight down to the matching CPI chart, wherever it lives on the page." },
     { page: "uk", type: "anchor", target: function(){ return resolvePanelChild("cpi", ".expandBtn"); }, title: "Go full-size",
       body: "Click here to open a bigger, full-size view of this chart, with more room to explore." },
@@ -1175,7 +1161,8 @@ fetch("https://cdn.jsdelivr.net/npm/world-atlas@2/countries-110m.json")
     var boxRect = box.getBoundingClientRect();
     var boxWidth = boxRect.width || 340;
     var boxHeight = boxRect.height || 180;
-    var left = Math.min(Math.max(12, r.left), window.innerWidth - boxWidth - 12);
+    var centeredLeft = r.left + (r.width / 2) - (boxWidth / 2);
+    var left = Math.min(Math.max(12, centeredLeft), window.innerWidth - boxWidth - 12);
     var top = r.bottom + 12;
     if(top + boxHeight + 12 > window.innerHeight){
       top = r.top - boxHeight - 12;
@@ -1226,11 +1213,20 @@ fetch("https://cdn.jsdelivr.net/npm/world-atlas@2/countries-110m.json")
       "<div style=\"margin-top:10px; text-align:right;\"><button type=\"button\" class=\"tour-exit\">Exit tour</button></div>";
     document.body.appendChild(box);
 
+    var advanceToNext = function(){
+      var n = nextVisibleIndex(index + 1, 1);
+      advance(n === -1 ? TOUR_STEPS.length : n);
+    };
+
     if(effectiveType === "anchor" && target){
       target.classList.add("tour-highlight");
       highlightEl = target;
       positionAnchorBox(box, target);
       applySiblingRestriction(step, target);
+      // Following the instruction (clicking the real, live element the
+      // box is pointing at) advances the tour on its own -- Next stays
+      // available too, purely as a fallback.
+      target.addEventListener("click", advanceToNext, { once: true });
     }
     box.style.visibility = "";
     requestAnimationFrame(function(){ box.classList.add("show"); });
@@ -1238,10 +1234,7 @@ fetch("https://cdn.jsdelivr.net/npm/world-atlas@2/countries-110m.json")
     var nextBtn = box.querySelector(".tour-next");
     var prevBtn = box.querySelector(".tour-prev");
     var exitBtn = box.querySelector(".tour-exit");
-    if(nextBtn) nextBtn.addEventListener("click", function(){
-      var n = nextVisibleIndex(index + 1, 1);
-      advance(n === -1 ? TOUR_STEPS.length : n);
-    });
+    if(nextBtn) nextBtn.addEventListener("click", advanceToNext);
     if(prevBtn) prevBtn.addEventListener("click", function(){
       var p = nextVisibleIndex(index - 1, -1);
       if(p !== -1) advance(p);
@@ -1258,9 +1251,10 @@ fetch("https://cdn.jsdelivr.net/npm/world-atlas@2/countries-110m.json")
     if(step.page === THIS_PAGE){
       renderStep(newIndex);
     } else {
-      // Next step lives on a different page than this one -- nothing
-      // more to render here; that page's own copy of this engine picks
-      // up rendering when it loads.
+      // Next step lives on a different page than this one (e.g. a map
+      // click just navigated away) -- nothing more to render here;
+      // that page's own copy of this engine picks up rendering when it
+      // loads, using the state just saved above.
       removeBox();
     }
   }
@@ -1292,6 +1286,7 @@ fetch("https://cdn.jsdelivr.net/npm/world-atlas@2/countries-110m.json")
   }
 })();
 </script>
+
 
 </body>
 </html>
