@@ -1093,7 +1093,7 @@ footer.cmp-foot{margin-top:36px; font-size:12.5px; color:var(--ink2); border-top
   </div>
 
   <footer class="cmp-foot">
-    Figures: ONS, FRED, Eurostat, e-Stat/Bank of Japan, MoSPI, Bank of Korea and OECD, the same sources already cited on each country&#39;s own page. Every figure on this page is anchored to a specific calendar year -- shown at "Now" is the most recent year with real data across the tracked countries; each other horizon steps back that many years. Where a metric is published more often than annually, the year's figure is the average of that year's real observations, not a single point-in-time reading. GDP growth at a horizon shows total real growth over that period, compounded from each country's own real GDP level. Because "Now" is set by whichever metrics report fastest (inflation and policy rates report monthly, so they usually set it), a slower annual-only metric like FDI, current account or the government deficit can show "n/a" across every horizon if its own latest published year hasn't caught up yet -- that's a real, honest gap in the underlying data's timing, not a missing figure or a bug. Currency-denominated figures (GDP, government debt, trade) are converted to US dollars at today's exchange rate so every country is shown in the same unit; changes over a horizon are shown as a % instead, which doesn't need converting since the ratio is the same in any currency. Morocco has no live exchange-rate source for the dirham, so its currency figures show "n/a" rather than a converted guess. Historical lines (Line view) are also converted to USD at today's rate throughout, so older years are an approximation. The Eurozone is excluded from the map card since it isn&#39;t a single country UN Comtrade or world-atlas can plot; it still appears in every chart and table above. <a href="privacy">Privacy</a>.
+    Figures: ONS, FRED, Eurostat, e-Stat/Bank of Japan, MoSPI, Bank of Korea and OECD, the same sources already cited on each country&#39;s own page. Every figure on this page is anchored to a specific calendar year -- shown at "Now" is the most recent year with real data across the tracked countries; each other horizon steps back that many years. Where a metric is published more often than annually, the year's figure is the average of that year's real observations, not a single point-in-time reading. GDP growth at a horizon shows total real growth over that period, compounded from each country's own real GDP level. Because "Now" is set by whichever metrics report fastest (inflation and policy rates report monthly, so they usually set it), a slower annual-only metric like FDI, current account or the government deficit can show "n/a" across every horizon if its own latest published year hasn't caught up yet -- that's a real, honest gap in the underlying data's timing, not a missing figure or a bug. Currency-denominated figures (GDP, government debt, trade) are converted to US dollars at today's exchange rate so every country is shown in the same unit; changes over a horizon are shown as a % instead, which doesn't need converting since the ratio is the same in any currency. Morocco has no live exchange-rate source for the dirham, so its currency figures show "n/a" rather than a converted guess. Historical lines (Line view) are also converted to USD at today's rate throughout, so older years are an approximation. The Eurozone is excluded from the map card since it isn&#39;t a single country UN Comtrade or world-atlas can plot; it still appears in every chart and table above. <a href="privacy">Privacy</a> &middot; <button type="button" id="tourReplayLink">Take the tour</button>
   </footer>
   </div>
 </div>
@@ -1606,6 +1606,7 @@ function renderMetricPicker(){
       var added = visibleMetrics.indexOf(k) !== -1;
       var item = document.createElement("div");
       item.className = "pickeritem" + (added ? " added" : "");
+      item.dataset.key = k; // lets the tour engine target a specific metric reliably, rather than matching on label text
       item.innerHTML = "<div>" + CONCEPT_LABEL[k] + "</div><div class=\"e\">" + (added ? "Already shown above" : CONCEPT_EXPLAINER[k]) + "</div>";
       if(!added){
         item.addEventListener("click", function(){ addMetric(k); renderMetricPicker(); });
@@ -3604,6 +3605,299 @@ function updateMapCardSub(){
 
   if(window.EATLAS_PREFS && window.EATLAS_PREFS.registerBanner){
     window.EATLAS_PREFS.registerBanner(banner);
+  }
+})();
+</script>
+<script>
+(function(){
+  "use strict";
+  // ------------------------- Onboarding tour --------------------------
+  // v4: fixes from a second round of live screenshot feedback --
+  //  (1) Auto-advance: previously every step needed a manual "Next"
+  //      click even after actually performing the described action
+  //      (e.g. clicking the real Inflation & rates tab). Now the
+  //      resolved target itself gets a real click listener that
+  //      advances the tour, in ADDITION to Next still working -- so
+  //      following the instruction IS the advance, but Next remains as
+  //      a fallback if a listener doesn't fire for some reason (it
+  //      always should, but this costs nothing and removes any chance
+  //      of a step feeling stuck).
+  //  (2) Anchor box horizontal position now centers under/over the
+  //      target's midpoint rather than starting flush at its left edge
+  //      -- flush-left meant a narrow target (like one tab in a row)
+  //      could leave the box's wide right portion drifting over
+  //      whatever sits to its right, which is what was happening here.
+  //  (3) findMapPath: a small helper so a tour step can target a
+  //      specific country's actual SVG path on the D3-rendered world
+  //      map (matched via the bound feature's .id, e.g. "826" for the
+  //      UK) -- the map has no per-feature DOM id/class to select by
+  //      directly, only data bound via d3, so this walks the rendered
+  //      paths and matches on the bound datum instead.
+  var STATE_KEY = "eatlas_tour_state";
+  var SEEN_KEY = "eatlas_tour_seen";
+  var THIS_PAGE = "compare";
+
+  function resolvePanelChild(key, sel){
+    if(!window.ANCHORS || !window.ANCHORS[key]) return null;
+    return window.ANCHORS[key].panelEl.querySelector(sel);
+  }
+  function openModalFor(key){
+    if(!window.ANCHORS || !window.ANCHORS[key] || !window.openChartModal) return;
+    var canvas = window.ANCHORS[key].panelEl.querySelector("canvas");
+    if(canvas) window.openChartModal(canvas.id);
+  }
+  function findMapPath(isoCode){
+    var paths = document.querySelectorAll("#map path");
+    for(var i = 0; i < paths.length; i++){
+      if(paths[i].__data__ && String(paths[i].__data__.id) === isoCode) return paths[i];
+    }
+    return null;
+  }
+  function loggedIn(){
+    return !!(window.EATLAS_PREFS && window.EATLAS_PREFS.isLoggedIn && window.EATLAS_PREFS.isLoggedIn());
+  }
+  function isAdmin(){
+    return !!(window.EATLAS_PREFS && window.EATLAS_PREFS.isAdmin && window.EATLAS_PREFS.isAdmin());
+  }
+
+  var TOUR_STEPS = [
+    { page: "index", type: "center", title: "New here? A 2-minute tour.",
+      body: "The Economic Atlas pulls hourly, official data across 18 countries \u2014 no commentary, just numbers. This short tour shows you around. Exit any time from the link in each box." },
+    { page: "index", type: "anchor", target: function(){ return findMapPath("826"); }, title: "Start with a country",
+      body: "Click the UK on the map to see headline figures, inflation, rates, trade and more, all in one place. That's the next stop on the tour." },
+
+    { page: "uk", type: "anchor", target: "nav.cat button[data-sec='inflation']", restrictSiblings: "nav.cat button",
+      title: "Move between sections",
+      body: "Each country page is organised into sections \u2014 Headline, GDP, Inflation & rates, Labour market, Trade, Public finances. Click <strong>Inflation &amp; rates</strong> to continue (the other tabs are disabled for this step, just so it's clear where to click)." },
+    { page: "uk", type: "anchor", target: "#tiles-inflation [data-key='cpi'].stat", title: "Headline tiles are shortcuts",
+      body: "These summary tiles are clickable \u2014 click this one and it jumps straight down to the matching CPI chart, wherever it lives on the page." },
+    { page: "uk", type: "anchor", target: function(){ return resolvePanelChild("cpi", ".expandBtn"); }, title: "Go full-size",
+      body: "Click here to open a bigger, full-size view of this chart, with more room to explore." },
+    { page: "uk", type: "anchor", onEnter: function(){ openModalFor("cpi"); },
+      target: function(){ return document.querySelector(".chart-modal-box"); },
+      title: "Choose your own timeframe",
+      body: "Use the preset buttons above for common ranges, or click and drag directly on the chart to zoom into any period you like. \u201cReset zoom\u201d brings you back out." },
+    { page: "uk", type: "anchor", onEnter: function(){ openModalFor("cpi"); }, target: "#chartModalDlBtn",
+      title: "Download the underlying data",
+      body: function(){
+        return loggedIn()
+          ? "Every chart's data is downloadable as a CSV, exactly as shown here."
+          : "Every chart's data is downloadable as a CSV \u2014 free, but it does need an account (10 seconds to set up, no card required).";
+      } },
+    { page: "uk", type: "anchor", onEnter: function(){ openModalFor("boe_rate"); }, target: "#chartModalCzBtn",
+      title: "Customise & export",
+      body: "Add a title, event markers and reference lines, then export as an image \u2014 try dragging an event marker around on this Bank Rate chart to see how it works.",
+      showIf: isAdmin },
+
+    { page: "compare", type: "anchor", target: ".addcountries-btn", title: "Add countries",
+      body: "Click here to add or remove countries from the comparison \u2014 up to the full set of 18." },
+    { page: "compare", type: "anchor", target: "#addMetricTile", title: "Add a metric",
+      body: "Click here to add a comparison card for any tracked metric \u2014 GDP, inflation, unemployment, debt, trade and more." },
+    { page: "compare", type: "anchor",
+      onEnter: function(){
+        var picker = document.getElementById("metricPicker");
+        var addTile = document.getElementById("addMetricTile");
+        if(picker && picker.hidden && addTile) addTile.click();
+      },
+      target: ".pickeritem[data-key='gdp_growth']",
+      title: "Pick a metric to try",
+      body: "Try <strong>GDP growth</strong> \u2014 click it to add this card to your comparison." },
+    { page: "compare", type: "anchor", target: "#mapCard", title: "See it on the map, over time",
+      body: "The map always mirrors whichever metric card is currently showing. Drag the year slider underneath it to see how the picture has changed over time." },
+    { page: "compare", type: "anchor", target: "#rankTable", title: "The summary table",
+      body: "Every selected country and metric, side by side, for whichever time horizon you've chosen above. Click any column to sort it." }
+    // Phase D (dashboard.html, roadmap.html/contact.html wrap-up) steps
+    // continue here once built.
+  ];
+
+  function getState(){
+    try{
+      var raw = localStorage.getItem(STATE_KEY);
+      return raw ? JSON.parse(raw) : { active: false, stepIndex: 0 };
+    }catch(e){ return { active: false, stepIndex: 0 }; }
+  }
+  function saveState(s){
+    try{ localStorage.setItem(STATE_KEY, JSON.stringify(s)); }catch(e){}
+  }
+  function markSeen(){
+    try{ localStorage.setItem(SEEN_KEY, "1"); }catch(e){}
+  }
+  function hasSeenBefore(){
+    try{ return localStorage.getItem(SEEN_KEY) === "1"; }catch(e){ return true; }
+  }
+
+  function stepVisible(step){
+    return !step.showIf || step.showIf();
+  }
+  function nextVisibleIndex(from, dir){
+    var i = from;
+    while(i >= 0 && i < TOUR_STEPS.length){
+      if(stepVisible(TOUR_STEPS[i])) return i;
+      i += dir;
+    }
+    return -1;
+  }
+
+  var boxEl = null, highlightEl = null, restoreSiblingsFn = null;
+
+  function clearHighlight(){
+    if(highlightEl){ highlightEl.classList.remove("tour-highlight"); highlightEl = null; }
+  }
+  function clearSiblingRestriction(){
+    if(restoreSiblingsFn){ restoreSiblingsFn(); restoreSiblingsFn = null; }
+  }
+
+  function removeBox(){
+    if(boxEl){ boxEl.remove(); boxEl = null; }
+    clearHighlight();
+    clearSiblingRestriction();
+  }
+
+  function applySiblingRestriction(step, target){
+    clearSiblingRestriction();
+    if(!step.restrictSiblings || !target) return;
+    var els = document.querySelectorAll(step.restrictSiblings);
+    var saved = [];
+    els.forEach(function(el){
+      if(el !== target){
+        saved.push({ el: el, pe: el.style.pointerEvents, op: el.style.opacity });
+        el.style.pointerEvents = "none";
+        el.style.opacity = "0.4";
+      }
+    });
+    restoreSiblingsFn = function(){
+      saved.forEach(function(s){ s.el.style.pointerEvents = s.pe; s.el.style.opacity = s.op; });
+    };
+  }
+
+  function positionAnchorBox(box, target){
+    if(target.scrollIntoView) target.scrollIntoView({ block: "center", inline: "nearest", behavior: "auto" });
+    var r = target.getBoundingClientRect();
+    var boxRect = box.getBoundingClientRect();
+    var boxWidth = boxRect.width || 340;
+    var boxHeight = boxRect.height || 180;
+    var centeredLeft = r.left + (r.width / 2) - (boxWidth / 2);
+    var left = Math.min(Math.max(12, centeredLeft), window.innerWidth - boxWidth - 12);
+    var top = r.bottom + 12;
+    if(top + boxHeight + 12 > window.innerHeight){
+      top = r.top - boxHeight - 12;
+      if(top < 12) top = 12;
+    }
+    box.style.left = left + "px";
+    box.style.top = top + "px";
+  }
+
+  function resolveTarget(step){
+    if(!step.target) return null;
+    return (typeof step.target === "function") ? step.target() : document.querySelector(step.target);
+  }
+  function resolveBody(step){
+    return (typeof step.body === "function") ? step.body() : step.body;
+  }
+
+  function renderStep(index){
+    removeBox();
+    var step = TOUR_STEPS[index];
+    if(!step || step.page !== THIS_PAGE) return; // this step belongs to a page not yet reached/built
+    if(!stepVisible(step)){
+      var alt = nextVisibleIndex(index + 1, 1);
+      if(alt !== -1) advance(alt); else exitTour();
+      return;
+    }
+    if(step.onEnter) step.onEnter();
+
+    var totalSoFar = TOUR_STEPS.length; // grows as later phases add steps
+
+    var target = null;
+    if(step.type === "anchor") target = resolveTarget(step);
+    var effectiveType = (step.type === "anchor" && !target) ? "center" : step.type;
+
+    var box = document.createElement("div");
+    box.className = "tour-box" + (effectiveType === "center" ? " tour-center" : "");
+    box.style.visibility = "hidden"; // measured before being positioned/shown, to avoid a visible jump
+    box.innerHTML =
+      "<h4>" + step.title + "</h4>" +
+      "<p>" + resolveBody(step) + "</p>" +
+      "<div class=\"tour-row\">" +
+        "<span class=\"tour-step-count\">Step " + (index + 1) + " of " + totalSoFar + "</span>" +
+        "<div class=\"tour-actions\">" +
+          (nextVisibleIndex(index - 1, -1) !== -1 ? "<button type=\"button\" class=\"tour-prev\">Back</button>" : "") +
+          "<button type=\"button\" class=\"tour-next\">" + (nextVisibleIndex(index + 1, 1) === -1 ? "Got it" : "Next") + "</button>" +
+        "</div>" +
+      "</div>" +
+      "<div style=\"margin-top:10px; text-align:right;\"><button type=\"button\" class=\"tour-exit\">Exit tour</button></div>";
+    document.body.appendChild(box);
+
+    var advanceToNext = function(){
+      var n = nextVisibleIndex(index + 1, 1);
+      advance(n === -1 ? TOUR_STEPS.length : n);
+    };
+
+    if(effectiveType === "anchor" && target){
+      target.classList.add("tour-highlight");
+      highlightEl = target;
+      positionAnchorBox(box, target);
+      applySiblingRestriction(step, target);
+      // Following the instruction (clicking the real, live element the
+      // box is pointing at) advances the tour on its own -- Next stays
+      // available too, purely as a fallback.
+      target.addEventListener("click", advanceToNext, { once: true });
+    }
+    box.style.visibility = "";
+    requestAnimationFrame(function(){ box.classList.add("show"); });
+
+    var nextBtn = box.querySelector(".tour-next");
+    var prevBtn = box.querySelector(".tour-prev");
+    var exitBtn = box.querySelector(".tour-exit");
+    if(nextBtn) nextBtn.addEventListener("click", advanceToNext);
+    if(prevBtn) prevBtn.addEventListener("click", function(){
+      var p = nextVisibleIndex(index - 1, -1);
+      if(p !== -1) advance(p);
+    });
+    if(exitBtn) exitBtn.addEventListener("click", exitTour);
+
+    boxEl = box;
+  }
+
+  function advance(newIndex){
+    if(newIndex >= TOUR_STEPS.length || newIndex < 0){ exitTour(); return; }
+    saveState({ active: true, stepIndex: newIndex });
+    var step = TOUR_STEPS[newIndex];
+    if(step.page === THIS_PAGE){
+      renderStep(newIndex);
+    } else {
+      // Next step lives on a different page than this one (e.g. a map
+      // click just navigated away) -- nothing more to render here;
+      // that page's own copy of this engine picks up rendering when it
+      // loads, using the state just saved above.
+      removeBox();
+    }
+  }
+
+  function exitTour(){
+    saveState({ active: false, stepIndex: 0 });
+    markSeen();
+    removeBox();
+  }
+
+  function startTour(){
+    markSeen();
+    var first = nextVisibleIndex(0, 1);
+    saveState({ active: true, stepIndex: first === -1 ? 0 : first });
+    if(first !== -1) renderStep(first);
+  }
+  window.EATLAS_TOUR = { start: startTour, exit: exitTour };
+
+  var replayBtn = document.getElementById("tourReplayLink");
+  if(replayBtn) replayBtn.addEventListener("click", startTour);
+
+  // Resume mid-tour if state says so and the current step belongs here;
+  // otherwise, auto-start once ever for a genuinely first-time visitor.
+  var state = getState();
+  if(state.active && TOUR_STEPS[state.stepIndex] && TOUR_STEPS[state.stepIndex].page === THIS_PAGE){
+    renderStep(state.stepIndex);
+  } else if(!state.active && !hasSeenBefore()){
+    startTour();
   }
 })();
 </script>
