@@ -3737,6 +3737,28 @@ function updateMapCardSub(){
     }
     return -1;
   }
+  // Same as nextVisibleIndex, but stops (-1) the moment it would cross
+  // onto a different page's steps. Used ONLY for deciding whether to
+  // show "Next"/"Got it" and whether "Back" appears -- the real bug
+  // this fixes: nextVisibleIndex alone would happily find the next
+  // step even if it lived on a completely different page (e.g. uk.html's
+  // last step correctly found compare.html's first step as "next"),
+  // so the button said "Next" even though clicking it can't render
+  // anything here -- the box just vanished with no explanation, since
+  // advance() correctly recognised the page mismatch and only saved
+  // state for later, without showing anything. The click-handlers
+  // themselves still use the page-agnostic nextVisibleIndex, since
+  // saving that cross-page state for later resume is correct -- only
+  // the button's own label/presence needed to be page-aware.
+  function nextVisibleIndexOnPage(from, dir){
+    var i = from;
+    while(i >= 0 && i < TOUR_STEPS.length){
+      if(TOUR_STEPS[i].page !== THIS_PAGE) return -1;
+      if(stepVisible(TOUR_STEPS[i])) return i;
+      i += dir;
+    }
+    return -1;
+  }
 
   var boxEl = null, highlightEl = null, restoreSiblingsFn = null;
 
@@ -3821,8 +3843,8 @@ function updateMapCardSub(){
       "<div class=\"tour-row\">" +
         "<span class=\"tour-step-count\">Step " + (index + 1) + " of " + totalSoFar + "</span>" +
         "<div class=\"tour-actions\">" +
-          (nextVisibleIndex(index - 1, -1) !== -1 ? "<button type=\"button\" class=\"tour-prev\">Back</button>" : "") +
-          "<button type=\"button\" class=\"tour-next\">" + (nextVisibleIndex(index + 1, 1) === -1 ? "Got it" : "Next") + "</button>" +
+          (nextVisibleIndexOnPage(index - 1, -1) !== -1 ? "<button type=\"button\" class=\"tour-prev\">Back</button>" : "") +
+          "<button type=\"button\" class=\"tour-next\">" + (nextVisibleIndexOnPage(index + 1, 1) === -1 ? "Got it" : "Next") + "</button>" +
         "</div>" +
       "</div>" +
       "<div style=\"margin-top:10px; text-align:right;\"><button type=\"button\" class=\"tour-exit\">Exit tour</button></div>";
