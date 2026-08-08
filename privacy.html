@@ -32,7 +32,7 @@
 <link href="https://fonts.googleapis.com/css2?family=Nunito+Sans:wght@400;600;700&display=swap" rel="stylesheet">
 <link rel="icon" type="image/png" sizes="32x32" href="favicon-32.png">
 <link rel="apple-touch-icon" href="apple-touch-icon.png">
-<link rel="stylesheet" href="style.css?v=23">
+<link rel="stylesheet" href="style.css?v=24">
 </head>
 <body>
 <nav class="top"><div class="wrap">
@@ -166,6 +166,7 @@
       <h2>Account</h2>
       <p>Signed in as</p>
       <p><strong id="authUserEmail"></strong></p>
+      <div id="acctPlanBox" class="acct-plan-box"></div>
       <button type="button" class="btn ghost" id="authChangePasswordBtn" style="margin-bottom:10px;">Change password</button>
       <button type="button" class="btn ghost" id="authSignOutBtn">Log out</button>
     </div>
@@ -563,7 +564,7 @@
       btn.innerHTML = (iconHtml || "") + text;
     }
 
-    function startDownload(entry){
+    function doDownload(entry){
       var btn = entry.btn;
       btn.classList.remove("unlocked", "dl-success");
       btn.classList.add("dl-downloading");
@@ -583,24 +584,52 @@
         btn.classList.add("dl-success");
         setButtonLabel(btn, "Downloaded \u2713");
 
-        setTimeout(function(){
-          btn.classList.remove("dl-success");
-          btn.classList.add("unlocked");
-          setButtonLabel(btn, "Download data");
-          btn.onclick = function(e){ e.preventDefault(); startDownload(entry); };
-        }, 1600);
+        // Re-derive the real state after the brief "Downloaded" flash,
+        // rather than assuming "unlocked" -- a credits-balance download
+        // that just spent its last 50p should land back on the locked
+        // state, not stay looking unlocked.
+        setTimeout(function(){ applyState(entry); }, 1600);
       }, 450);
+    }
+
+    function startDownload(entry){
+      var prefs = window.EATLAS_PREFS;
+      if(prefs && prefs.isPro()){
+        doDownload(entry);
+        return;
+      }
+      // Not Pro: this click has to actually spend a credit first, via
+      // the spend_credit() RPC (row-locked server-side, so this can't be
+      // tricked into a double-spend by a fast double-click or two open
+      // tabs). Spend and download are two separate steps, so the button
+      // shows a distinct "using credit" state for the brief gap between
+      // them, rather than jumping straight to "Downloading...".
+      var btn = entry.btn;
+      btn.onclick = null;
+      setButtonLabel(btn, "Using credit\u2026");
+      sb.rpc("spend_credit", { action_kind: "download" }).then(function(res){
+        var ok = res.data && res.data.ok;
+        if(prefs && res.data && typeof res.data.balance === "number"){
+          prefs.setCreditsBalance(res.data.balance);
+        }
+        if(window.EATLAS_ACCOUNT) window.EATLAS_ACCOUNT.render();
+        if(!ok){
+          // Balance changed since this button was last rendered (spent
+          // elsewhere, another tab) -- reflect the real state instead of
+          // pretending the download happened.
+          applyState(entry);
+          return;
+        }
+        doDownload(entry);
+      }).catch(function(){ applyState(entry); });
     }
 
     function applyState(entry){
       var btn = entry.btn;
       btn.classList.remove("dl-downloading", "dl-success");
-      if(loggedIn){
-        btn.classList.add("unlocked");
-        btn.setAttribute("data-tip", "Download this chart's data as a CSV file.");
-        setButtonLabel(btn, "Download data");
-        btn.onclick = function(e){ e.preventDefault(); startDownload(entry); };
-      } else {
+      var prefs = window.EATLAS_PREFS;
+
+      if(!loggedIn){
         btn.classList.remove("unlocked");
         btn.setAttribute("data-tip", "Create a free account to unlock this feature.");
         setButtonLabel(btn, "Download data", '<span class="lockicon">&#128274;</span> ');
@@ -608,7 +637,35 @@
           e.preventDefault();
           window.EATLAS_OPEN_AUTH_MODAL();
         };
+        return;
       }
+
+      if(prefs && prefs.isPro()){
+        btn.classList.add("unlocked");
+        btn.setAttribute("data-tip", "Download this chart's data as a CSV file.");
+        setButtonLabel(btn, "Download data");
+        btn.onclick = function(e){ e.preventDefault(); startDownload(entry); };
+        return;
+      }
+
+      if(prefs && prefs.hasCreditsFor("download")){
+        btn.classList.add("unlocked");
+        btn.setAttribute("data-tip", "Uses 50p of credit to download this chart's data as a CSV file.");
+        setButtonLabel(btn, "Download data (50p)");
+        btn.onclick = function(e){ e.preventDefault(); startDownload(entry); };
+        return;
+      }
+
+      // Logged in, not Pro, no credits left: locked, but a different
+      // dead end than "create an account" -- clicking opens the account
+      // panel, where buying credits or upgrading actually happens.
+      btn.classList.remove("unlocked");
+      btn.setAttribute("data-tip", "Buy credits or upgrade to Pro to download data.");
+      setButtonLabel(btn, "Download data", '<span class="lockicon">&#128274;</span> ');
+      btn.onclick = function(e){
+        e.preventDefault();
+        window.EATLAS_OPEN_AUTH_MODAL();
+      };
     }
 
     function register(btn, kind, data, title){
@@ -631,6 +688,13 @@
       setAuthState: function(isLoggedIn){
         loggedIn = isLoggedIn;
         wired.forEach(applyState);
+      },
+      // Called from EATLAS_PREFS.onSettled once Pro/credits status is
+      // actually known -- setAuthState() alone fires as soon as login
+      // state resolves, which is often before that fetch completes, so
+      // this is what applies the real (not just logged-in) state.
+      refreshEntitlement: function(){
+        wired.forEach(applyState);
       }
     };
   })();
@@ -652,6 +716,9 @@
     var loginCallbacks = [];
     var settledCallbacks = [];
     var adminFlag = false;
+    var planFlag = "free";
+    var trialEndsAt = null;
+    var creditsBalancePence = 0;
 
     function updateBanners(){
       banners.forEach(function(el){ el.hidden = loggedIn; });
@@ -665,15 +732,22 @@
       if(!loggedIn || !userId){
         cache = {};
         adminFlag = false;
+        planFlag = "free";
+        trialEndsAt = null;
+        creditsBalancePence = 0;
         resolveReady();
         settledCallbacks.forEach(function(cb){ cb(); });
         return;
       }
-      // Same query, same round-trip -- also grabs is_admin rather than
-      // firing a second request just for that.
-      sb.from("profiles").select("preferences, is_admin").eq("id", userId).single().then(function(res){
+      // Same query, same round-trip -- also grabs is_admin, plan,
+      // trial_ends_at and the credits balance rather than firing
+      // separate requests just for those.
+      sb.from("profiles").select("preferences, is_admin, plan, trial_ends_at, credits_balance_pence").eq("id", userId).single().then(function(res){
         cache = (res.data && res.data.preferences) || {};
         adminFlag = !!(res.data && res.data.is_admin);
+        planFlag = (res.data && res.data.plan) || "free";
+        trialEndsAt = (res.data && res.data.trial_ends_at) || null;
+        creditsBalancePence = (res.data && res.data.credits_balance_pence) || 0;
         resolveReady();
         // A live login (not the initial page load) -- whatever was
         // already pinned/selected this session, while unsaved, shouldn't
@@ -683,6 +757,9 @@
       }).catch(function(){
         cache = {};
         adminFlag = false;
+        planFlag = "free";
+        trialEndsAt = null;
+        creditsBalancePence = 0;
         resolveReady();
         if(wasLoggedOutBefore) loginCallbacks.forEach(function(cb){ cb(); });
         settledCallbacks.forEach(function(cb){ cb(); });
@@ -693,6 +770,28 @@
       ready: readyPromise,
       isLoggedIn: function(){ return loggedIn; },
       isAdmin: function(){ return loggedIn && adminFlag; },
+      // Pro entitlements (unlimited downloads, unlimited Customise &
+      // export) unlock for an active paid/trial plan OR an admin account
+      // -- admin is always a superset of Pro, never a separate check
+      // callers need to add.
+      isPro: function(){ return loggedIn && (adminFlag || planFlag === "pro" || planFlag === "premium"); },
+      getPlan: function(){ return planFlag; },
+      getTrialEndsAt: function(){ return trialEndsAt; },
+      getCreditsBalance: function(){ return creditsBalancePence; },
+      // Called after a successful spend_credit() RPC or a credits
+      // top-up, so the UI reflects the new balance immediately without
+      // needing a full re-fetch (or, for a top-up, without needing to
+      // wait on the webhook -- the actual balance is still whatever the
+      // next page load confirms from the database either way).
+      setCreditsBalance: function(pence){ creditsBalancePence = pence; },
+      // Not logged in => no account => no access at all, per the pricing
+      // decision -- this and isPro() are the two checks Download and
+      // Customise & Export actually gate on.
+      hasCreditsFor: function(actionKind){
+        if(!loggedIn) return false;
+        var cost = actionKind === "customise_export" ? 100 : 50;
+        return creditsBalancePence >= cost;
+      },
       get: function(key, fallback){
         if(!cache || !(key in cache)) return fallback;
         return cache[key];
@@ -721,31 +820,238 @@
     };
   })();
 
-  // "Customise & export" stays exactly as it already was -- a plain
-  // "Coming soon" link to Contact -- for absolutely everyone except a
-  // confirmed admin account. Deliberately narrower than the Download
-  // button, which unlocks for any logged-in account; this one is still
-  // being tested, so only the one account flagged is_admin can reach it.
+  // Renders the Plan section inside the signed-in account view (trial
+  // countdown / Pro status / credits balance) and wires the three
+  // purchase-adjacent actions -- upgrade to Pro, manage subscription, buy
+  // credits -- to their Edge Functions. Reads all its state from
+  // EATLAS_PREFS rather than tracking anything independently, so it's
+  // always in sync with whatever gated Download/Customise & export.
+  window.EATLAS_ACCOUNT = (function(){
+    var FUNCTIONS_URL = "https://skluvrxnuibkordzgtmu.supabase.co/functions/v1";
+
+    function getAccessToken(){
+      return sb.auth.getSession().then(function(res){
+        return res.data.session ? res.data.session.access_token : null;
+      });
+    }
+
+    function callFunction(name, body){
+      return getAccessToken().then(function(token){
+        if(!token) return Promise.reject(new Error("Not signed in"));
+        return fetch(FUNCTIONS_URL + "/" + name, {
+          method: "POST",
+          headers: { "Authorization": "Bearer " + token, "Content-Type": "application/json" },
+          body: JSON.stringify(body || {})
+        }).then(function(r){
+          return r.json().then(function(data){ return { ok: r.ok, data: data }; });
+        });
+      });
+    }
+
+    function fmtPence(p){ return "\u00a3" + (p / 100).toFixed(2); }
+
+    function daysLeft(trialEndsAt){
+      if(!trialEndsAt) return 0;
+      var ms = new Date(trialEndsAt).getTime() - Date.now();
+      return Math.max(0, Math.ceil(ms / 86400000));
+    }
+
+    // Shared by all three buttons below: disable + show a redirecting
+    // state, call the function, then either navigate to the URL Stripe
+    // gave back or restore the button and surface the error. Nothing
+    // about this ever assumes success client-side -- the actual
+    // plan/credits change only ever happens via the webhook, confirmed
+    // on the next page load after returning from Stripe.
+    function redirectingAction(btn, functionName, body){
+      var original = btn.textContent;
+      btn.disabled = true;
+      btn.textContent = "Redirecting\u2026";
+      callFunction(functionName, body).then(function(res){
+        if(res.ok && res.data.url){
+          window.location.href = res.data.url;
+        } else {
+          btn.disabled = false;
+          btn.textContent = original;
+          alert(res.data.error || "Something went wrong. Please try again.");
+        }
+      }).catch(function(err){
+        btn.disabled = false;
+        btn.textContent = original;
+        alert(err.message || "Something went wrong. Please try again.");
+      });
+    }
+
+    function render(){
+      var box = document.getElementById("acctPlanBox");
+      if(!box) return;
+      var prefs = window.EATLAS_PREFS;
+      if(!prefs || !prefs.isLoggedIn()){ box.innerHTML = ""; return; }
+
+      if(prefs.isAdmin()){
+        box.innerHTML = '<p class="acct-plan-line"><strong>Admin account</strong> \u2014 full access to everything.</p>';
+        return;
+      }
+
+      var plan = prefs.getPlan();
+      var trialEndsAt = prefs.getTrialEndsAt();
+
+      // Still mid-trial: plan is already "pro" (unlimited access right
+      // now), but trial_ends_at being set is what distinguishes this
+      // from a real paid subscription -- the webhook always clears it on
+      // actual checkout completion.
+      if(plan === "pro" && trialEndsAt){
+        var d = daysLeft(trialEndsAt);
+        box.innerHTML =
+          '<p class="acct-plan-line"><strong>Free trial \u2014 ' + d + ' day' + (d === 1 ? "" : "s") + ' left.</strong><br>' +
+          'Unlimited downloads and Customise &amp; export, on us for now.</p>' +
+          '<button type="button" class="btn" id="acctUpgradeBtn" style="margin-bottom:10px;">Upgrade to Pro \u2014 keep it after your trial</button>';
+        var trialBtn = document.getElementById("acctUpgradeBtn");
+        if(trialBtn) trialBtn.addEventListener("click", function(){
+          redirectingAction(trialBtn, "create-checkout-session", { return_to: window.location.href });
+        });
+        return;
+      }
+
+      if(plan === "pro" || plan === "premium"){
+        box.innerHTML =
+          '<p class="acct-plan-line"><strong>' + (plan === "premium" ? "Premium" : "Pro") + '</strong> \u2014 unlimited downloads and Customise &amp; export.</p>' +
+          '<button type="button" class="btn ghost" id="acctManageBtn" style="margin-bottom:10px;">Manage subscription</button>';
+        var manageBtn = document.getElementById("acctManageBtn");
+        if(manageBtn) manageBtn.addEventListener("click", function(){
+          redirectingAction(manageBtn, "create-portal-session", { return_to: window.location.href });
+        });
+        return;
+      }
+
+      // Free plan: credits balance plus both paths forward.
+      var credits = prefs.getCreditsBalance();
+      box.innerHTML =
+        '<p class="acct-plan-line">Credits balance: <strong>' + fmtPence(credits) + '</strong><br>' +
+        '<span class="acct-plan-sub">50p per data download, \u00a31 per Customise &amp; export.</span></p>' +
+        '<div class="acct-credit-buttons" style="margin-bottom:10px;">' +
+        '<button type="button" class="btn ghost acct-credit-btn" data-pence="200">+ \u00a32</button>' +
+        '<button type="button" class="btn ghost acct-credit-btn" data-pence="500">+ \u00a35</button>' +
+        '<button type="button" class="btn ghost acct-credit-btn" data-pence="1000">+ \u00a310</button>' +
+        '</div>' +
+        '<button type="button" class="btn" id="acctUpgradeBtn" style="margin-bottom:10px;">Upgrade to Pro \u2014 unlimited for \u00a35.99/mo</button>';
+      var upgradeBtn = document.getElementById("acctUpgradeBtn");
+      if(upgradeBtn) upgradeBtn.addEventListener("click", function(){
+        redirectingAction(upgradeBtn, "create-checkout-session", { return_to: window.location.href });
+      });
+      box.querySelectorAll(".acct-credit-btn").forEach(function(cb){
+        cb.addEventListener("click", function(){
+          redirectingAction(cb, "create-credit-checkout-session", {
+            amount_pence: parseInt(cb.dataset.pence, 10),
+            return_to: window.location.href
+          });
+        });
+      });
+    }
+
+    return {
+      render: render,
+      callFunction: callFunction,
+      // Called after a successful spend_credit() RPC (see the Download /
+      // Customise & export gating) so the balance shown updates
+      // immediately rather than waiting for a page reload.
+      refreshAfterSpend: function(newBalancePence){
+        if(window.EATLAS_PREFS) window.EATLAS_PREFS.setCreditsBalance(newBalancePence);
+        render();
+      }
+    };
+  })();
+
+  // Confirms a just-completed Stripe redirect (upgrade or credits
+  // purchase) with a one-off message, then strips the query params so a
+  // refresh doesn't re-show it. The actual plan/credits change already
+  // happened server-side via the webhook before this redirect even
+  // occurred -- this is purely a "here's what just happened" courtesy,
+  // not what makes the upgrade/purchase real.
+  (function(){
+    var params = new URLSearchParams(window.location.search);
+    var hasRelevantParam = ["upgraded", "upgrade_cancelled", "credits_purchased", "credits_cancelled"]
+      .some(function(k){ return params.has(k); });
+    if(!hasRelevantParam) return;
+
+    window.EATLAS_PREFS.ready.then(function(){
+      setTimeout(function(){
+        if(params.get("upgraded") === "1"){
+          alert("You're on Pro! Unlimited downloads and Customise & export are unlocked.");
+        } else if(params.get("credits_purchased") === "1"){
+          alert("Credits added to your account.");
+        }
+      }, 300);
+    });
+
+    var url = new URL(window.location.href);
+    ["upgraded", "upgrade_cancelled", "credits_purchased", "credits_cancelled", "session_id"].forEach(function(k){
+      url.searchParams.delete(k);
+    });
+    window.history.replaceState({}, document.title, url.toString());
+  })();
+
+
+  // "Customise & export" unlocks for Pro (paid or trial), Pro-or-credits
+  // (spend 100p to unlock once), or an admin account. Previously
+  // admin-only while the feature was being tested; now a real Pro
+  // entitlement, per the pricing decision.
   window.EATLAS_CUSTOMIZE = (function(){
-    var isAdmin = false;
     var wired = [];
+
+    function openEditor(entry){
+      if(window.EATLAS_OPEN_CUSTOMIZE){
+        window.EATLAS_OPEN_CUSTOMIZE(entry.pts, entry.title, entry.srcNote, entry.fmtY, entry.yTitle, entry.filenameBase);
+      }
+    }
+
+    function openViaCredit(entry, btn){
+      var prefs = window.EATLAS_PREFS;
+      var original = btn.innerHTML;
+      btn.onclick = null;
+      btn.innerHTML = "Using credit\u2026";
+      sb.rpc("spend_credit", { action_kind: "customise_export" }).then(function(res){
+        var ok = res.data && res.data.ok;
+        if(prefs && res.data && typeof res.data.balance === "number"){
+          prefs.setCreditsBalance(res.data.balance);
+        }
+        if(window.EATLAS_ACCOUNT) window.EATLAS_ACCOUNT.render();
+        if(!ok){
+          applyState(entry); // balance changed since render -- reflect the real state
+          return;
+        }
+        openEditor(entry);
+        applyState(entry); // one-off unlock spent; next render reflects the new balance
+      }).catch(function(){
+        btn.innerHTML = original;
+        applyState(entry);
+      });
+    }
 
     function applyState(entry){
       var btn = entry.btn;
-      if(isAdmin){
+      var prefs = window.EATLAS_PREFS;
+
+      if(prefs && prefs.isPro()){
         btn.classList.add("unlocked");
         btn.setAttribute("data-tip", "Customise this chart and export it as an image.");
-        btn.onclick = function(e){
-          e.preventDefault();
-          if(window.EATLAS_OPEN_CUSTOMIZE){
-            window.EATLAS_OPEN_CUSTOMIZE(entry.pts, entry.title, entry.srcNote, entry.fmtY, entry.yTitle, entry.filenameBase);
-          }
-        };
-      } else {
-        btn.classList.remove("unlocked");
-        btn.setAttribute("data-tip", "Coming soon. Contact us to express interest.");
-        btn.onclick = null; // falls back to the plain href="contact" already on the link
+        btn.onclick = function(e){ e.preventDefault(); openEditor(entry); };
+        return;
       }
+
+      if(prefs && prefs.hasCreditsFor("customise_export")){
+        btn.classList.add("unlocked");
+        btn.setAttribute("data-tip", "Uses \u00a31 of credit to customise and export this chart as an image.");
+        btn.onclick = function(e){ e.preventDefault(); openViaCredit(entry, btn); };
+        return;
+      }
+
+      btn.classList.remove("unlocked");
+      btn.setAttribute("data-tip", prefs && prefs.isLoggedIn()
+        ? "Buy credits or upgrade to Pro to unlock this."
+        : "Create a free account, then buy credits or upgrade to Pro, to unlock this.");
+      btn.onclick = (prefs && prefs.isLoggedIn())
+        ? function(e){ e.preventDefault(); window.EATLAS_OPEN_AUTH_MODAL(); }
+        : null; // falls back to the plain href="contact" already on the link
     }
 
     function register(btn, pts, title, srcNote, fmtY, yTitle, filenameBase){
@@ -759,14 +1065,15 @@
 
     return {
       wire: register,
-      setAdmin: function(admin){
-        isAdmin = admin;
+      refreshEntitlement: function(){
         wired.forEach(applyState);
       }
     };
   })();
   window.EATLAS_PREFS.onSettled(function(){
-    window.EATLAS_CUSTOMIZE.setAdmin(window.EATLAS_PREFS.isAdmin());
+    window.EATLAS_ACCOUNT.render();
+    window.EATLAS_DOWNLOAD.refreshEntitlement();
+    window.EATLAS_CUSTOMIZE.refreshEntitlement();
   });
 
   // If this page load is the redirect back from clicking "confirm your
@@ -816,9 +1123,9 @@
   <p style="margin-bottom:6px;"><strong>Changes to this page</strong></p>
   <p style="margin-bottom:14px;">If what's collected or why ever changes, this page gets updated to match -- it's meant to describe reality, not a fixed legal document nobody rereads.</p>
 
-  <p>Questions about any of this: <a href="mailto:contact@theeconomicatlas.com">contact@theeconomicatlas.com</a>, or <a href="contact" style="color:var(--navy-2);">get in touch</a>.</p>
+  <p>Questions about any of this: <a href="mailto:contact@theeconomicatlas.com">contact@theeconomicatlas.com</a>, or <a href="contact" style="color:var(--navy-2);">get in touch</a>. See also our <a href="terms" style="color:var(--navy-2);">Terms of Service</a>.</p>
 </div>
-<footer>The Economic Atlas · Data from national statistical offices, used under open licences.</footer>
+<footer>The Economic Atlas · Data from national statistical offices, used under open licences. <a href="terms">Terms</a></footer>
 </div>
 <script>
 (function(){
