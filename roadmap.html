@@ -945,6 +945,22 @@
   function isAdmin(){
     return !!(window.EATLAS_PREFS && window.EATLAS_PREFS.isAdmin && window.EATLAS_PREFS.isAdmin());
   }
+  // Both pickers below are deliberately left open by the page's own code
+  // after adding a metric/country (so several can be added in one go) --
+  // these two helpers close them via a real click on the page's own close
+  // button where possible, only falling back to setting .hidden directly
+  // if that button isn't there for some reason.
+  function closeCompareMetricPickerIfOpen(){
+    var picker = document.getElementById("metricPicker");
+    if(picker && !picker.hidden){ picker.hidden = true; document.body.style.overflow = ""; }
+  }
+  function closeDashPickerIfOpen(){
+    var picker = document.getElementById("picker");
+    if(picker && !picker.hidden){
+      var closeBtn = document.getElementById("pickerClose");
+      if(closeBtn) closeBtn.click(); else { picker.hidden = true; document.body.style.overflow = ""; }
+    }
+  }
 
   var TOUR_STEPS = [
     { page: "index", type: "center", title: "New here? A 2-minute tour.",
@@ -981,7 +997,13 @@
       body: "Click <strong>Compare</strong> in the menu above to see how multiple countries stack up side by side \u2014 the next stop on the tour." },
 
     { page: "compare", type: "anchor", target: ".addcountries-btn", title: "Add countries",
-      body: "Click here to add or remove countries from the comparison \u2014 up to the full set of 18." },
+      body: "Click here to add or remove countries from the comparison \u2014 grouped by region, so it's just as easy to bring in Brazil or Morocco as it is another G7 economy." },
+    { page: "compare", type: "anchor", target: ".picker-item[data-country='Brazil']", title: "Try adding one",
+      body: "Click <strong>Brazil</strong> to add it \u2014 changes apply the moment you click, nothing to confirm." },
+    { page: "compare", type: "anchor", target: "#countryClose", title: "Close when you're happy",
+      body: "Click here (or just click outside the box) to get back to the comparison with Brazil now included." },
+    { page: "compare", type: "anchor", target: ".hbtn[data-h='5']", title: "Look further back",
+      body: "Everything's shown as of now by default. Click <strong>Change vs 5Y ago</strong> to see how far each metric has actually moved over five years instead of just where it stands today." },
     { page: "compare", type: "anchor", target: "#addMetricTile", title: "Add a metric",
       body: "Click here to add a comparison card for any tracked metric \u2014 GDP, inflation, unemployment, debt, trade and more." },
     { page: "compare", type: "anchor",
@@ -994,14 +1016,18 @@
       title: "Pick a metric to try",
       body: "Try <strong>Government debt, % of GDP</strong> \u2014 click it to add this card to your comparison. (GDP growth, GDP level, inflation and unemployment are already shown by default, so they're not clickable here.)" },
     { page: "compare", type: "anchor",
-      onEnter: function(){
-        var picker = document.getElementById("metricPicker");
-        if(picker && !picker.hidden){ picker.hidden = true; document.body.style.overflow = ""; }
-      },
-      target: "#mapCard", title: "See it on the map, over time",
-      body: "The map always mirrors whichever metric card is currently showing. Drag the year slider underneath it to see how the picture has changed over time." },
+      onEnter: closeCompareMetricPickerIfOpen,
+      target: "#mapMetricRow button[data-metric='debt_gdp']",
+      title: "Switch what the map shows",
+      body: "The map always mirrors whichever card you pick here \u2014 switch it to <strong>Government debt, % of GDP</strong>, the metric you just added, to see it plotted for every country instead." },
+    { page: "compare", type: "anchor", target: "#mapYearSlider", title: "Scrub through time",
+      body: "Drag this slider year by year to watch the map redraw for that exact year \u2014 a fast way to spot when a metric actually turned, not just where it stands today." },
+    { page: "compare", type: "anchor", target: "#mapZoomIn", title: "Zoom in on a region",
+      body: "Click to zoom in on the map \u2014 handy for comparing neighbouring countries closely, like the Eurozone members. \u201cReset\u201d underneath brings you back out." },
     { page: "compare", type: "anchor", target: "#rankTable", title: "The summary table",
-      body: "Every selected country and metric, side by side, for whichever time horizon you've chosen above. Click any column to sort it." },
+      body: "Every selected country and metric, side by side, for whichever time horizon you've chosen above." },
+    { page: "compare", type: "anchor", target: "#rankTable th[data-k='debt_gdp']", title: "Sort by any column",
+      body: "Click a column heading to sort by it \u2014 click it again to flip the order. Try the debt column you just added." },
     { page: "compare", type: "anchor", target: "nav a[href='dashboard']", title: "On to your Dashboard",
       body: "Click <strong>My Dashboard</strong> in the menu above to build a personal set of metrics from any country \u2014 the last stop on the tour." },
 
@@ -1038,13 +1064,17 @@
       title: "Now add the UK's",
       body: "Do the same for the UK \u2014 pin its GDP figure alongside the US's, ready to compare side by side." },
     { page: "dashboard", type: "anchor",
-      onEnter: function(){
-        var picker = document.getElementById("picker");
-        if(picker && !picker.hidden){
-          var closeBtn = document.getElementById("pickerClose");
-          if(closeBtn) closeBtn.click(); else { picker.hidden = true; document.body.style.overflow = ""; }
-        }
-      },
+      onEnter: closeDashPickerIfOpen,
+      target: "#mapYearSlider",
+      title: "Now there's a map too",
+      body: "Pin the same metric for two or more countries and a map appears automatically, mirroring whatever's pinned. Drag this slider year by year to watch it redraw." },
+    { page: "dashboard", type: "anchor",
+      onEnter: closeDashPickerIfOpen,
+      target: ".tile[data-id='US::gdp_level'] .chartbtn",
+      title: "See the chart behind any tile",
+      body: "Every pinned tile has its own chart, right there on your dashboard \u2014 click <strong>View chart</strong> to expand it inline." },
+    { page: "dashboard", type: "anchor",
+      onEnter: closeDashPickerIfOpen,
       target: "#dollariseBtn", title: "Dollarise",
       body: "Every currency figure on this page can be converted to US dollars at today's exchange rate, so figures from any country sit on the same footing. Toggle it on to see the US and UK GDP cards you just added, both in dollars." },
     { page: "dashboard", type: "anchor", target: "nav a[href='roadmap']", title: "One last stop",
