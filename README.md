@@ -1,5 +1,7 @@
 # The Economic Atlas
 
+**v1.0**
+
 Official economic data, country by country, updated hourly, with no
 commentary. Live at [theeconomicatlas.com](https://theeconomicatlas.com).
 
@@ -15,6 +17,35 @@ project (Postgres + Auth, RLS locked down from the start) handles
 sign-up/login/password reset, reached client-side via `supabase-js`.
 Nothing else in the site depends on it.
 
+**The editorial principle, unchanged since day one**: republish official
+statistics with explicit sourcing and zero interpretation. No AI-written
+summaries, no "what this means" commentary, no framing of whether a
+number is good or bad. Every chart traces back to a named official
+source, visible on the page.
+
+## How it actually works, end to end
+1. **Hourly, `.github/workflows/update-data.yml` runs every `fetch_*.py`
+   script** — one per country/dataset (FRED, OECD, Eurostat, ONS, BoE,
+   MoSPI, UN Comtrade). Each writes its own `data-*.json` directly into
+   the repo root. A script that can't get real data logs a note and
+   leaves the previous file in place rather than guessing or failing
+   the whole build.
+2. **`check_data_freshness.py` runs immediately after**, comparing each
+   series' latest observation against its own known publication
+   schedule (monthly CPI vs. quarterly GDP vs. annual FDI, etc.) and
+   opens or closes a GitHub issue automatically for anything that's
+   gone stale — this is how a real fetch failure gets noticed without
+   anyone having to check by hand.
+3. **The browser does the rest.** Every page is static HTML that
+   `fetch()`es the relevant `data-*.json` files directly and renders
+   client-side with Chart.js/D3 — there's no build step and no server
+   render, so "deploy" is just "commit changed files" and GitHub Pages
+   serves the result.
+4. **Accounts are the one live service.** Supabase (Postgres + Auth)
+   handles sign-up/login and stores each account's Dashboard pins and
+   Compare selections in `profiles.preferences`, synced across devices.
+   Logged out, nothing persists between visits.
+
 ## Structure
 - `index.html` — homepage: clickable world map, links into every country
 - 18 country pages (`uk.html`, `us.html`, `eurozone.html`, `japan.html`,
@@ -22,11 +53,18 @@ Nothing else in the site depends on it.
   `israel.html`, `mexico.html`, `brazil.html`, `southafrica.html`,
   `morocco.html`, `germany.html`, `france.html`, `italy.html`,
   `spain.html`, `netherlands.html`) — each with GDP, inflation, labour
-  market, trade and public finances tabs, all sourced from live data
-- `compare.html` — side-by-side comparison of up to five countries at
-  once across any tracked metric, bar or line view
+  market, trade and public finances tabs, all sourced from live data,
+  plus deeper category-specific features on some pages (see "Deep dives
+  beyond the charts" below)
+- `compare.html` — side-by-side comparison of any or all 18 tracked
+  countries at once across any tracked metric, with a live world map
+  (scrub through past years with the slider, switch which metric it
+  shows), a sortable summary table, and 1/2/5/10-year horizon
+  comparisons, not just a snapshot of "now"
 - `dashboard.html` — pin any metric from any country into one personal
-  view, with an on-demand chart per tile and a cross-country map
+  view (synced to your account when logged in), with an on-demand chart
+  per tile and a cross-country map that appears automatically once two
+  or more pinned tiles share a comparable metric
 - `contact.html`, `roadmap.html`, `privacy.html` — as named
 - `markets.html` — an old, unlinked stub; deliberately not part of the
   current site (`robots.txt` disallows it), pending a decision on
@@ -38,7 +76,8 @@ Nothing else in the site depends on it.
   stale relative to its own publication schedule and opens/closes a
   GitHub issue automatically.
 - `og-image.png`, `logo*.png`, `favicon*.png`, `apple-touch-icon.png` —
-  brand assets
+  brand assets, including the Open Graph/Twitter Card image shown when
+  any page is shared on social media or messaging apps
 - `sitemap.xml`, `robots.txt` — SEO plumbing, kept in sync with the
   clean-URL scheme below
 
@@ -84,7 +123,7 @@ Every chart has two buttons beneath it, unlocked independently:
   state, while still being tested. For everyone else it stays exactly
   as it's always been: a "Coming soon" link to Contact.
 
-### What Customise & export actually does (country pages only, so far)
+### What Customise & export actually does
 A full in-browser chart editor, rendered with its own hand-built SVG
 engine (deliberately not dependent on the page's own Chart.js canvas,
 so it works even where the CDN can't load):
@@ -105,10 +144,77 @@ so it works even where the CDN can't load):
   whatever theme you're browsing in, with the source citation and a
   "Made on theeconomicatlas.com" credit baked into the image itself
 
-**Not yet built**: the same feature on Dashboard and Compare. Compare
-in particular needs its own design pass before porting, since it shows
-several countries on one chart at once — a genuinely different shape
-of problem than a single country's single metric.
+**Corrected in this v1.0 review**: this README previously said the
+feature wasn't built on Dashboard or Compare yet. It actually is —
+`window.EATLAS_CUSTOMIZE` is wired on every tile's `.cz-btn` on
+Dashboard and on every card on Compare (`wireMulti`/`wireSnapshot`,
+adapted for showing several countries on one chart), unlocking for the
+same `is_admin`-flagged account exactly as it does on country pages.
+Everyone else still sees the same "Coming soon" locked state site-wide.
+Worth actually testing this live before calling it done, since this
+correction came from reading the code, not from clicking through it.
+
+## Deep dives beyond the charts
+Most sections are charts and tiles, but a few go further wherever the
+underlying data supports a genuinely richer story:
+- **Bank Rate decisions: MPC vote record** (UK, Inflation & rates tab) —
+  every Bank of England Monetary Policy Committee meeting, with the
+  actual hold/hike/cut vote split and the economic context (CPI, GDP
+  growth, unemployment) as of that meeting date, not just the resulting
+  rate.
+- **Trade partners** (Trade tab, most countries) — a full partner-by-
+  partner breakdown of goods trade from UN Comtrade, switchable between
+  a world map, a radial view, and a ranked list, not just a single
+  aggregate export/import figure.
+- **Where money goes** (Public finances tab, UK) — a COFOG functional
+  breakdown of government spending (health, education, defence, debt
+  interest, etc.) as a pie, not just a single deficit/debt figure.
+
+These are the exception, not the rule — most metrics are exactly what
+they look like: an official figure, charted, sourced. The onboarding
+tour (below) uses the MPC vote record as its example of this category,
+since it's the most detailed one currently live.
+
+## Onboarding tour
+A 31-step guided walkthrough (`EATLAS_TOUR`, duplicated per-page since
+this is a static site with no shared JS file — see `window.EATLAS_TOUR`
+in any page's own script block) that auto-starts once for a genuinely
+first-time visitor and can be replayed any time via "Take the tour" in
+the footer. It walks: the homepage map → a full country page tour (tabs,
+headline tiles, the full-size chart modal with drag-to-zoom, CSV
+download, Customise & Export, and the MPC vote record as an example of
+the deeper category features) → Compare (adding countries, the 1/2/5/10
+year horizon toggle, adding a metric, switching what the map shows,
+scrubbing the map's year slider, zooming in, sorting the summary table)
+→ Dashboard (adding metrics for two countries, the map that appears
+automatically once they share a comparable metric, viewing a tile's
+inline chart, Dollarise) → a closing note on Roadmap pointing to
+Contact. Every step targets a real, live element and advances either by
+clicking "Next" or by actually performing the described action (both
+work) — nothing in the tour is a mocked-up screenshot or a fake
+interaction.
+
+## Email alerts
+A no-account-required email signup (`alert_signups` table in Supabase,
+insert-only RLS — the email can never be read back via the client API,
+by design) for people who want to hear about new countries, indicators
+or features without creating a full account. Promoted via a dismissible
+orange banner site-wide (hidden once logged in) and a form on the
+Roadmap page.
+
+**⚠️ Known mismatch, found in a pre-v1.0 review, not yet resolved**:
+`privacy.html`'s "Email signup" section states addresses are stored with
+"Kit (our email delivery provider)" and describes an unsubscribe-link
+flow. Neither exists in the code — signups go straight into the
+Supabase `alert_signups` table, there's no Kit integration anywhere in
+the repo, and no automated emails are sent to this list at all yet (no
+double opt-in/confirmation flow is wired up — the `confirmed` column
+exists on the table but nothing sets it or acts on it). Since this
+banner is already live and collecting real addresses against a privacy
+policy that describes a different, non-existent data flow, this is
+worth resolving before promoting email capture any further — either by
+building the Kit integration the policy describes, or by rewriting that
+section of the policy to match what actually happens today.
 
 ## Clean URLs
 Every internal link and the sitemap use extensionless paths (`/uk`, not
@@ -202,7 +308,17 @@ Disclosed honestly on the relevant page's own footer, not hidden:
 - **10-year government bond yield**: missing for the UK, US, Eurozone,
   Japan and Canada specifically — the five largest economies, oddly
   the ones never backfilled after later, smaller countries got it
-- **Business confidence**: missing for Germany and Morocco
+- **Business confidence**: missing for Spain, France, Italy and
+  Morocco. (Germany was previously listed here too — re-checked in this
+  review and it's actually live now, so it's dropped from this list.)
+- **CPI/inflation**: missing entirely for **Mexico and South Africa** —
+  found in a pre-v1.0 review, not yet disclosed on either page's own
+  footer the way the other gaps here are. Worth fixing the footer text
+  even before a live series exists, so it's honestly flagged rather
+  than just silently absent.
+- **GDP growth**: missing for **Israel** (GDP level is tracked, but not
+  a live quarter-on-quarter growth series) — same "found, not yet
+  disclosed on the page" situation as the CPI gap above.
 - **Eurozone trade** (exports/imports/trade balance): discontinued at
   source (OECD) since April 2023, shown for historical reference with
   explicit "discontinued" labelling
@@ -219,13 +335,33 @@ Disclosed honestly on the relevant page's own footer, not hidden:
   exports/imports; India shows exports/trade balance but not imports
   individually — in each case because the matching component either
   doesn't exist live or looked stale relative to the headline series
-- **UK unemployment/inactivity by age band** (25-49, 50-64, 65+):
-  `fetch_uk_age_breakdown.py` has never produced real data across
-  repeated attempts; only the 16-24 band is live
 - **South Korea's actual policy rate** (Bank of Korea base rate): a
   10-year bond yield is shown instead, honestly labelled; exports and
   imports aren't individually broken out, only the combined trade
   balance
+- **Morocco**: the thinnest dataset on the site (6 of the ~11 usual
+  series) — no live GDP growth, government debt, trade balance, bond
+  yield or business confidence. No live exchange-rate source exists for
+  the dirham either, so currency-denominated figures show "n/a" rather
+  than a converted guess, consistent with how the site handles missing
+  FX everywhere else.
+
+### Fixed in this v1.0 review
+- **UK unemployment/inactivity by age band**: previously only the
+  16-24 band was live; `fetch_uk_age_breakdown.py` was fixed in a prior
+  session and is now confirmed producing real data across all bands
+  (16-17, 18-24, 25-34, 35-49, 50-64, 65+, plus the 16+ and 16-64
+  headline rates).
+- **UK inactivity-by-reason was silently mislabelled**: the fetch
+  script tried the ONS "People" (all-persons) sheet first, but on
+  failure fell through to the "Women" sheet and still wrote the output
+  labelled "all persons" — confirmed this had actually happened (the
+  live committed JSON's own `"sheet"` field said `"Women"`). Fixed to
+  fail loudly and leave the previous good file in place if "People"
+  specifically can't be parsed, rather than silently substituting
+  gendered data under an all-persons label. Needs one real run of the
+  hourly workflow to produce a corrected file.
+
 
 ## Archive: historical per-country data fixes
 The sections below predate the wider site rebuild (Compare, Dashboard,

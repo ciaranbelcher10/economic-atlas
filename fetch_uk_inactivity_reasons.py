@@ -68,7 +68,6 @@ CODE_TO_CATEGORY = {
     "LF6C": "retired",
     "LF6E": "other",
 }
-PREFERRED_SHEETS = ["People"]  # all-persons, not the Men/Women breakdowns
 
 
 def _grid_from_openpyxl(ws):
@@ -201,24 +200,28 @@ def fetch_and_parse():
             print(f"  [inac01] xlrd also failed to open it: {exc2}")
             return None
 
-    # Try the all-persons sheet first, then fall through to whatever else
-    # is there (skips nothing outright, in case naming changes in future
-    # editions) rather than assuming 'People' will always be present.
-    ordered = [s for s in PREFERRED_SHEETS if s in sheet_order] + \
-              [s for s in sheet_order if s not in PREFERRED_SHEETS]
+    # Only 'People' (all-persons) is acceptable here -- this dataset is
+    # published as 'all persons' on the site, and Men/Women are a
+    # different statistic, not a same-population fallback. Silently
+    # substituting one sheet for the other produced a real live bug:
+    # a 'People' parse failure fell through to 'Women' and the result
+    # was still written out labelled "all persons". If 'People' can't be
+    # parsed, that's a genuine failure -- fail loudly (main() leaves the
+    # previously-fetched file in place) rather than mislabel gendered
+    # data as the whole population, matching the stricter pattern
+    # fetch_uk_age_breakdown.py already uses for the same reason.
+    if "People" not in sheet_order:
+        print(f"  [inac01] no 'People' sheet found (have: {sheet_order}) -- layout has changed")
+        return None
 
-    last_grid = None
-    for sheet_name in ordered:
-        grid = get_grid(sheet_name)
-        last_grid = grid
-        print(f"  [inac01] trying sheet '{sheet_name}': {len(grid)} rows")
-        result = _parse_timeseries_grid(grid, quiet=True)
-        if result:
-            result["sheet"] = sheet_name
-            return result
+    grid = get_grid("People")
+    print(f"  [inac01] trying sheet 'People': {len(grid)} rows")
+    result = _parse_timeseries_grid(grid, quiet=False)
+    if result:
+        result["sheet"] = "People"
+        return result
 
-    print("  [inac01] no sheet produced usable data — dumping diagnostics from the last sheet tried:")
-    _parse_timeseries_grid(last_grid or [], quiet=False)
+    print("  [inac01] 'People' sheet found but produced no usable row.")
     return None
 
 
