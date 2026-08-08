@@ -351,15 +351,29 @@ Disclosed honestly on the relevant page's own footer, not hidden:
   session and is now confirmed producing real data across all bands
   (16-17, 18-24, 25-34, 35-49, 50-64, 65+, plus the 16+ and 16-64
   headline rates).
-- **UK inactivity-by-reason was silently mislabelled**: the fetch
-  script tried the ONS "People" (all-persons) sheet first, but on
-  failure fell through to the "Women" sheet and still wrote the output
-  labelled "all persons" — confirmed this had actually happened (the
-  live committed JSON's own `"sheet"` field said `"Women"`). Fixed to
-  fail loudly and leave the previous good file in place if "People"
-  specifically can't be parsed, rather than silently substituting
-  gendered data under an all-persons label. Needs one real run of the
-  hourly workflow to produce a corrected file.
+- **UK inactivity-by-reason was silently mislabelled — root cause now
+  fixed, not just the symptom**: the fetch script tried the ONS
+  "People" (all-persons) sheet first, but on failure fell through to
+  the "Women" sheet and still wrote the output labelled "all persons"
+  — confirmed this had actually happened (the live committed JSON's
+  own `"sheet"` field said `"Women"`). First fixed to fail loudly
+  instead of silently substituting gendered data under an all-persons
+  label — confirmed working via a real Actions run, which correctly
+  refused to mislabel anything and left the previous file in place.
+  That same run's diagnostic output revealed *why* "People" was
+  failing: ONS has restructured this specific download to be scoped
+  "People aged 16 to 64" rather than the original table, with every
+  series code shifted (`LF64`→`LF63`, `LF66`→`LF65`, `LF68`→`LF67`,
+  `LF6A`→`LF69`, `LFM3`→`LFL8`, `LF6C`→`LF6B`, `LF6E`→`LF6D`). Added
+  the new codes alongside the old ones (not replacing them, in case
+  the original table ever comes back), and confirmed against the
+  actual header row from that real run that parsing now succeeds.
+  Needs one more real workflow run to produce the actually-corrected
+  data file.
+- **Privacy policy named a provider the site never used**: it stated
+  email signups were stored with "Kit (our email delivery provider)"
+  — Kit was never integrated anywhere in the codebase. Corrected to
+  name the real providers: Supabase for storage, Resend for delivery.
 - **Five pages had stale "known gap" text describing data that's
   actually live now**: India's footer said unemployment was "a known
   gap awaiting a working MoSPI feed" (it's been live and current for a

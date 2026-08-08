@@ -59,6 +59,18 @@ DATASET_PAGE = ("https://www.ons.gov.uk/employmentandlabourmarket/peoplenotinwor
 # ONS dataset identifier codes -> our category keys. Confirmed live
 # (2026-07-21) against the actual "Dataset identifier code" row in the
 # real workbook, not guessed.
+#
+# A second, real live run (2026-08-08) against the "People" sheet
+# specifically showed a DIFFERENT set of codes than the ones below --
+# every one shifted (LF64->LF63, LF66->LF65, LF68->LF67, LF6A->LF69,
+# LFM3->LFL8, LF6C->LF6B, LF6E->LF6D). Row 1 of that sheet reads "People
+# aged 16 to 64 by reasons for inactivity", a different scope than
+# whatever table the original codes were confirmed against -- ONS
+# appears to have restructured this specific download since. Both sets
+# are kept here (not replaced) so whichever one the live sheet actually
+# has, the parser recognises it; only one set will ever be physically
+# present in a given sheet's identifier row, so there's no risk of the
+# two mappings colliding or double-counting.
 CODE_TO_CATEGORY = {
     "LF64": "student",
     "LF66": "looking_after_family",
@@ -67,6 +79,14 @@ CODE_TO_CATEGORY = {
     "LFM3": "other",            # "discouraged workers" folded into other
     "LF6C": "retired",
     "LF6E": "other",
+    # "People aged 16-64" variant, confirmed live 2026-08-08:
+    "LF63": "student",
+    "LF65": "looking_after_family",
+    "LF69": "long_term_sick",   # summed with LF67 below
+    "LF67": "long_term_sick",
+    "LFL8": "other",            # "discouraged workers" folded into other
+    "LF6B": "retired",
+    "LF6D": "other",
 }
 
 
