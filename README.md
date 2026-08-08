@@ -311,14 +311,14 @@ Disclosed honestly on the relevant page's own footer, not hidden:
 - **Business confidence**: missing for Spain, France, Italy and
   Morocco. (Germany was previously listed here too — re-checked in this
   review and it's actually live now, so it's dropped from this list.)
-- **CPI/inflation**: missing entirely for **Mexico and South Africa** —
-  found in a pre-v1.0 review, not yet disclosed on either page's own
-  footer the way the other gaps here are. Worth fixing the footer text
-  even before a live series exists, so it's honestly flagged rather
-  than just silently absent.
-- **GDP growth**: missing for **Israel** (GDP level is tracked, but not
-  a live quarter-on-quarter growth series) — same "found, not yet
-  disclosed on the page" situation as the CPI gap above.
+- **CPI/inflation**: missing entirely for **South Africa** — now
+  honestly disclosed on the page's own footer as of this review (it
+  wasn't before). Mexico's CPI gap was already correctly disclosed;
+  double-checked in this review and it's accurate as written.
+- **GDP growth**: missing for **Israel** as its own series, but this
+  follows from — and is already covered by — the page's existing footer
+  note about the missing real (inflation-adjusted) GDP series, since
+  growth is normally derived from that. No separate disclosure needed.
 - **Eurozone trade** (exports/imports/trade balance): discontinued at
   source (OECD) since April 2023, shown for historical reference with
   explicit "discontinued" labelling
@@ -330,15 +330,14 @@ Disclosed honestly on the relevant page's own footer, not hidden:
   series exists for either central bank's actual policy rate; the
   10-year government bond yield is shown instead in both cases,
   honestly labelled as a bond yield, not the policy rate
-- **Canada trade**, **Australia trade**, **India trade**: only the
-  combined trade balance is wired in for Canada/Australia, not separate
-  exports/imports; India shows exports/trade balance but not imports
-  individually — in each case because the matching component either
-  doesn't exist live or looked stale relative to the headline series
+- **Canada trade**, **Australia trade**, **India trade**, **South
+  Korea trade**: only the combined trade balance is wired in for
+  Canada/Australia/South Korea, not separate exports/imports; India
+  shows exports/trade balance but not imports individually — in each
+  case because the matching component either doesn't exist live or
+  looked stale relative to the headline series
 - **South Korea's actual policy rate** (Bank of Korea base rate): a
-  10-year bond yield is shown instead, honestly labelled; exports and
-  imports aren't individually broken out, only the combined trade
-  balance
+  10-year bond yield is shown instead, honestly labelled
 - **Morocco**: the thinnest dataset on the site (6 of the ~11 usual
   series) — no live GDP growth, government debt, trade balance, bond
   yield or business confidence. No live exchange-rate source exists for
@@ -361,6 +360,19 @@ Disclosed honestly on the relevant page's own footer, not hidden:
   specifically can't be parsed, rather than silently substituting
   gendered data under an all-persons label. Needs one real run of the
   hourly workflow to produce a corrected file.
+- **Five pages had stale "known gap" text describing data that's
+  actually live now**: India's footer said unemployment was "a known
+  gap awaiting a working MoSPI feed" (it's been live and current for a
+  while); Canada, Australia and South Korea's footers said CPI was "not
+  yet wired to a verified live source" (all three have current 2026
+  CPI data); Germany's footer said "no business confidence indicator
+  was found" (it's live). Each was checked against its actual live
+  `data-*.json` before being corrected — not assumed. The underlying
+  data was always fine; only the disclosure text was wrong, in some
+  cases likely since whenever the real fix landed.
+- **South Africa's CPI gap wasn't disclosed at all** — added to its
+  footer, matching the pattern Mexico already used correctly for the
+  same underlying gap (OECD's Mexico/South Africa CPI mirror situation).
 
 
 ## Archive: historical per-country data fixes
