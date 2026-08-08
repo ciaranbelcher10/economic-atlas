@@ -862,7 +862,7 @@
   </form>
   <p id="alertSignupMsg" style="margin:10px 0 0; font-size:13px; color:var(--ink2);" hidden></p>
 </div>
-<footer>The Economic Atlas · Data from national statistical offices, used under open licences. <a href="privacy">Privacy</a></footer>
+<footer>The Economic Atlas · Data from national statistical offices, used under open licences. <a href="privacy">Privacy</a> &middot; <button type="button" id="tourReplayLink">Take the tour</button></footer>
 </div>
 <script>
 (function(){
@@ -894,5 +894,378 @@
   }
 })();
 </script>
+<script>
+(function(){
+  "use strict";
+  // ------------------------- Onboarding tour --------------------------
+  // v4: fixes from a second round of live screenshot feedback --
+  //  (1) Auto-advance: previously every step needed a manual "Next"
+  //      click even after actually performing the described action
+  //      (e.g. clicking the real Inflation & rates tab). Now the
+  //      resolved target itself gets a real click listener that
+  //      advances the tour, in ADDITION to Next still working -- so
+  //      following the instruction IS the advance, but Next remains as
+  //      a fallback if a listener doesn't fire for some reason (it
+  //      always should, but this costs nothing and removes any chance
+  //      of a step feeling stuck).
+  //  (2) Anchor box horizontal position now centers under/over the
+  //      target's midpoint rather than starting flush at its left edge
+  //      -- flush-left meant a narrow target (like one tab in a row)
+  //      could leave the box's wide right portion drifting over
+  //      whatever sits to its right, which is what was happening here.
+  //  (3) findMapPath: a small helper so a tour step can target a
+  //      specific country's actual SVG path on the D3-rendered world
+  //      map (matched via the bound feature's .id, e.g. "826" for the
+  //      UK) -- the map has no per-feature DOM id/class to select by
+  //      directly, only data bound via d3, so this walks the rendered
+  //      paths and matches on the bound datum instead.
+  var STATE_KEY = "eatlas_tour_state";
+  var SEEN_KEY = "eatlas_tour_seen";
+  var THIS_PAGE = "roadmap";
+
+  function resolvePanelChild(key, sel){
+    if(!window.ANCHORS || !window.ANCHORS[key]) return null;
+    return window.ANCHORS[key].panelEl.querySelector(sel);
+  }
+  function openModalFor(key){
+    if(!window.ANCHORS || !window.ANCHORS[key] || !window.openChartModal) return;
+    var canvas = window.ANCHORS[key].panelEl.querySelector("canvas");
+    if(canvas) window.openChartModal(canvas.id);
+  }
+  function findMapPath(isoCode){
+    var paths = document.querySelectorAll("#map path");
+    for(var i = 0; i < paths.length; i++){
+      if(paths[i].__data__ && String(paths[i].__data__.id) === isoCode) return paths[i];
+    }
+    return null;
+  }
+  function loggedIn(){
+    return !!(window.EATLAS_PREFS && window.EATLAS_PREFS.isLoggedIn && window.EATLAS_PREFS.isLoggedIn());
+  }
+  function isAdmin(){
+    return !!(window.EATLAS_PREFS && window.EATLAS_PREFS.isAdmin && window.EATLAS_PREFS.isAdmin());
+  }
+
+  var TOUR_STEPS = [
+    { page: "index", type: "center", title: "New here? A 2-minute tour.",
+      body: "The Economic Atlas pulls hourly, official data across 18 countries \u2014 no commentary, just numbers. This short tour shows you around. Exit any time from the link in each box." },
+    { page: "index", type: "anchor", target: function(){ return findMapPath("826"); }, title: "Start with a country",
+      body: "Click the UK on the map to see headline figures, inflation, rates, trade and more, all in one place. That's the next stop on the tour." },
+
+    { page: "uk", type: "anchor", target: "nav.cat button[data-sec='inflation']", restrictSiblings: "nav.cat button",
+      title: "Move between sections",
+      body: "Each country page is organised into sections \u2014 Headline, GDP, Inflation & rates, Labour market, Trade, Public finances. Click <strong>Inflation &amp; rates</strong> to continue (the other tabs are disabled for this step, just so it's clear where to click)." },
+    { page: "uk", type: "anchor", target: "#tiles-inflation [data-key='cpi'].stat", title: "Headline tiles are shortcuts",
+      body: "These summary tiles are clickable \u2014 click this one and it jumps straight down to the matching CPI chart, wherever it lives on the page." },
+    { page: "uk", type: "anchor", target: function(){ return resolvePanelChild("cpi", ".expandBtn"); }, title: "Go full-size",
+      body: "Click here to open a bigger, full-size view of this chart, with more room to explore." },
+    { page: "uk", type: "anchor", onEnter: function(){ openModalFor("cpi"); },
+      target: function(){ return document.querySelector(".chart-modal-box"); },
+      title: "Choose your own timeframe",
+      body: "Use the preset buttons above for common ranges, or click and drag directly on the chart to zoom into any period you like. \u201cReset zoom\u201d brings you back out." },
+    { page: "uk", type: "anchor", onEnter: function(){ openModalFor("cpi"); }, target: "#chartModalDlBtn",
+      title: "Download the underlying data",
+      body: function(){
+        return loggedIn()
+          ? "Every chart's data is downloadable as a CSV, exactly as shown here."
+          : "Every chart's data is downloadable as a CSV \u2014 free, but it does need an account (10 seconds to set up, no card required).";
+      } },
+    { page: "uk", type: "anchor", onEnter: function(){ openModalFor("boe_rate"); }, target: "#chartModalCzBtn",
+      title: "Customise & export",
+      body: "Add a title, event markers and reference lines, then export as an image \u2014 try dragging an event marker around on this Bank Rate chart to see how it works.",
+      showIf: isAdmin },
+    { page: "uk", type: "anchor", onEnter: function(){ openModalFor("boe_rate"); }, target: "#chartModalClose",
+      title: "Back out when you're done",
+      body: "Click here (or press Escape) to close this full-size view and get back to the page." },
+    { page: "uk", type: "anchor", target: "nav a[href='compare']", title: "On to Compare",
+      body: "Click <strong>Compare</strong> in the menu above to see how multiple countries stack up side by side \u2014 the next stop on the tour." },
+
+    { page: "compare", type: "anchor", target: ".addcountries-btn", title: "Add countries",
+      body: "Click here to add or remove countries from the comparison \u2014 up to the full set of 18." },
+    { page: "compare", type: "anchor", target: "#addMetricTile", title: "Add a metric",
+      body: "Click here to add a comparison card for any tracked metric \u2014 GDP, inflation, unemployment, debt, trade and more." },
+    { page: "compare", type: "anchor",
+      onEnter: function(){
+        var picker = document.getElementById("metricPicker");
+        var addTile = document.getElementById("addMetricTile");
+        if(picker && picker.hidden && addTile) addTile.click();
+      },
+      target: ".pickeritem[data-key='debt_gdp']",
+      title: "Pick a metric to try",
+      body: "Try <strong>Government debt, % of GDP</strong> \u2014 click it to add this card to your comparison. (GDP growth, GDP level, inflation and unemployment are already shown by default, so they're not clickable here.)" },
+    { page: "compare", type: "anchor",
+      onEnter: function(){
+        var picker = document.getElementById("metricPicker");
+        if(picker && !picker.hidden){ picker.hidden = true; document.body.style.overflow = ""; }
+      },
+      target: "#mapCard", title: "See it on the map, over time",
+      body: "The map always mirrors whichever metric card is currently showing. Drag the year slider underneath it to see how the picture has changed over time." },
+    { page: "compare", type: "anchor", target: "#rankTable", title: "The summary table",
+      body: "Every selected country and metric, side by side, for whichever time horizon you've chosen above. Click any column to sort it." },
+    { page: "compare", type: "anchor", target: "nav a[href='dashboard']", title: "On to your Dashboard",
+      body: "Click <strong>My Dashboard</strong> in the menu above to build a personal set of metrics from any country \u2014 the last stop on the tour." },
+
+    { page: "dashboard", type: "anchor", target: "#addMetricTile", title: "Add a metric",
+      body: "Click here to pin any metric, from any country, onto your own dashboard." },
+    { page: "dashboard", type: "anchor",
+      onEnter: function(){
+        var picker = document.getElementById("picker");
+        if(picker && picker.hidden){
+          var addTile = document.getElementById("addMetricTile");
+          if(addTile) addTile.click();
+        }
+        var countryBtn = document.querySelector("#modeToggle button[data-mode='country']");
+        if(countryBtn && !countryBtn.classList.contains("active")) countryBtn.click();
+        var sel = document.getElementById("pickerSelect");
+        if(sel && sel.value !== "US"){ sel.value = "US"; sel.dispatchEvent(new Event("change")); }
+      },
+      target: ".pickeritem[data-country='US'][data-key='gdp_level']",
+      title: "Try US GDP",
+      body: "Click the US's headline GDP figure to pin it to your dashboard." },
+    { page: "dashboard", type: "anchor",
+      onEnter: function(){
+        var picker = document.getElementById("picker");
+        if(picker && picker.hidden){
+          var addTile = document.getElementById("addMetricTile");
+          if(addTile) addTile.click();
+        }
+        var countryBtn = document.querySelector("#modeToggle button[data-mode='country']");
+        if(countryBtn && !countryBtn.classList.contains("active")) countryBtn.click();
+        var sel = document.getElementById("pickerSelect");
+        if(sel && sel.value !== "UK"){ sel.value = "UK"; sel.dispatchEvent(new Event("change")); }
+      },
+      target: ".pickeritem[data-country='UK'][data-key='gdp_level']",
+      title: "Now add the UK's",
+      body: "Do the same for the UK \u2014 pin its GDP figure alongside the US's, ready to compare side by side." },
+    { page: "dashboard", type: "anchor",
+      onEnter: function(){
+        var picker = document.getElementById("picker");
+        if(picker && !picker.hidden){
+          var closeBtn = document.getElementById("pickerClose");
+          if(closeBtn) closeBtn.click(); else { picker.hidden = true; document.body.style.overflow = ""; }
+        }
+      },
+      target: "#dollariseBtn", title: "Dollarise",
+      body: "Every currency figure on this page can be converted to US dollars at today's exchange rate, so figures from any country sit on the same footing. Toggle it on to see the US and UK GDP cards you just added, both in dollars." },
+    { page: "dashboard", type: "anchor", target: "nav a[href='roadmap']", title: "One last stop",
+      body: "Click <strong>Roadmap</strong> in the menu above to see what's coming next \u2014 and how to get in touch." },
+
+    { page: "roadmap", type: "center", title: "That's the tour",
+      body: "That covers the essentials \u2014 a country page, Compare, and your own Dashboard. Got an idea for a metric or country we're missing? Get in touch any time from the <a href=\"contact\">Contact</a> page." }
+  ];
+
+  function getState(){
+    try{
+      var raw = localStorage.getItem(STATE_KEY);
+      return raw ? JSON.parse(raw) : { active: false, stepIndex: 0 };
+    }catch(e){ return { active: false, stepIndex: 0 }; }
+  }
+  function saveState(s){
+    try{ localStorage.setItem(STATE_KEY, JSON.stringify(s)); }catch(e){}
+  }
+  function markSeen(){
+    try{ localStorage.setItem(SEEN_KEY, "1"); }catch(e){}
+  }
+  function hasSeenBefore(){
+    try{ return localStorage.getItem(SEEN_KEY) === "1"; }catch(e){ return true; }
+  }
+
+  function stepVisible(step){
+    return !step.showIf || step.showIf();
+  }
+  function nextVisibleIndex(from, dir){
+    var i = from;
+    while(i >= 0 && i < TOUR_STEPS.length){
+      if(stepVisible(TOUR_STEPS[i])) return i;
+      i += dir;
+    }
+    return -1;
+  }
+  // Same as nextVisibleIndex, but stops (-1) the moment it would cross
+  // onto a different page's steps. Used ONLY for deciding whether to
+  // show "Next"/"Got it" and whether "Back" appears -- the click
+  // handlers themselves still use the page-agnostic nextVisibleIndex,
+  // since saving that cross-page state for later resume is correct --
+  // only the button's own label/presence needed to be page-aware.
+  function nextVisibleIndexOnPage(from, dir){
+    var i = from;
+    while(i >= 0 && i < TOUR_STEPS.length){
+      if(TOUR_STEPS[i].page !== THIS_PAGE) return -1;
+      if(stepVisible(TOUR_STEPS[i])) return i;
+      i += dir;
+    }
+    return -1;
+  }
+
+  var boxEl = null, highlightEl = null, restoreSiblingsFn = null;
+
+  function clearHighlight(){
+    if(highlightEl){ highlightEl.classList.remove("tour-highlight"); highlightEl = null; }
+  }
+  function clearSiblingRestriction(){
+    if(restoreSiblingsFn){ restoreSiblingsFn(); restoreSiblingsFn = null; }
+  }
+
+  function removeBox(){
+    // Defensive: remove EVERY .tour-box in the document, not just the
+    // one boxEl happens to reference. Two boxes were seen stacked live;
+    // rather than chase the exact mechanism, this guarantees stacking
+    // simply can't happen regardless of cause.
+    document.querySelectorAll(".tour-box").forEach(function(el){ el.remove(); });
+    boxEl = null;
+    clearHighlight();
+    clearSiblingRestriction();
+  }
+
+  function applySiblingRestriction(step, target){
+    clearSiblingRestriction();
+    if(!step.restrictSiblings || !target) return;
+    var els = document.querySelectorAll(step.restrictSiblings);
+    var saved = [];
+    els.forEach(function(el){
+      if(el !== target){
+        saved.push({ el: el, pe: el.style.pointerEvents, op: el.style.opacity });
+        el.style.pointerEvents = "none";
+        el.style.opacity = "0.4";
+      }
+    });
+    restoreSiblingsFn = function(){
+      saved.forEach(function(s){ s.el.style.pointerEvents = s.pe; s.el.style.opacity = s.op; });
+    };
+  }
+
+  function positionAnchorBox(box, target){
+    if(target.scrollIntoView) target.scrollIntoView({ block: "center", inline: "nearest", behavior: "auto" });
+    var r = target.getBoundingClientRect();
+    var boxRect = box.getBoundingClientRect();
+    var boxWidth = boxRect.width || 340;
+    var boxHeight = boxRect.height || 180;
+    var centeredLeft = r.left + (r.width / 2) - (boxWidth / 2);
+    var left = Math.min(Math.max(12, centeredLeft), window.innerWidth - boxWidth - 12);
+    var top = r.bottom + 12;
+    if(top + boxHeight + 12 > window.innerHeight){
+      top = r.top - boxHeight - 12;
+      if(top < 12) top = 12;
+    }
+    box.style.left = left + "px";
+    box.style.top = top + "px";
+  }
+
+  function resolveTarget(step){
+    if(!step.target) return null;
+    return (typeof step.target === "function") ? step.target() : document.querySelector(step.target);
+  }
+  function resolveBody(step){
+    return (typeof step.body === "function") ? step.body() : step.body;
+  }
+
+  function renderStep(index){
+    removeBox();
+    var step = TOUR_STEPS[index];
+    if(!step || step.page !== THIS_PAGE) return; // this step belongs to a page not yet reached/built
+    if(!stepVisible(step)){
+      var alt = nextVisibleIndex(index + 1, 1);
+      if(alt !== -1) advance(alt); else exitTour();
+      return;
+    }
+    if(step.onEnter) step.onEnter();
+
+    var totalSoFar = TOUR_STEPS.length; // grows as later phases add steps
+
+    var target = null;
+    if(step.type === "anchor") target = resolveTarget(step);
+    var effectiveType = (step.type === "anchor" && !target) ? "center" : step.type;
+
+    var box = document.createElement("div");
+    box.className = "tour-box" + (effectiveType === "center" ? " tour-center" : "");
+    box.style.visibility = "hidden"; // measured before being positioned/shown, to avoid a visible jump
+    box.innerHTML =
+      "<h4>" + step.title + "</h4>" +
+      "<p>" + resolveBody(step) + "</p>" +
+      "<div class=\"tour-row\">" +
+        "<span class=\"tour-step-count\">Step " + (index + 1) + " of " + totalSoFar + "</span>" +
+        "<div class=\"tour-actions\">" +
+          (nextVisibleIndexOnPage(index - 1, -1) !== -1 ? "<button type=\"button\" class=\"tour-prev\">Back</button>" : "") +
+          "<button type=\"button\" class=\"tour-next\">" + (nextVisibleIndexOnPage(index + 1, 1) === -1 ? "Got it" : "Next") + "</button>" +
+        "</div>" +
+      "</div>" +
+      "<div style=\"margin-top:10px; text-align:right;\"><button type=\"button\" class=\"tour-exit\">Exit tour</button></div>";
+    document.body.appendChild(box);
+
+    var advanceToNext = function(){
+      var n = nextVisibleIndex(index + 1, 1);
+      advance(n === -1 ? TOUR_STEPS.length : n);
+    };
+
+    if(effectiveType === "anchor" && target){
+      target.classList.add("tour-highlight");
+      highlightEl = target;
+      positionAnchorBox(box, target);
+      applySiblingRestriction(step, target);
+      // Following the instruction (clicking the real, live element the
+      // box is pointing at) advances the tour on its own -- Next stays
+      // available too, purely as a fallback.
+      target.addEventListener("click", advanceToNext, { once: true });
+    }
+    box.style.visibility = "";
+    requestAnimationFrame(function(){ box.classList.add("show"); });
+
+    var nextBtn = box.querySelector(".tour-next");
+    var prevBtn = box.querySelector(".tour-prev");
+    var exitBtn = box.querySelector(".tour-exit");
+    if(nextBtn) nextBtn.addEventListener("click", advanceToNext);
+    if(prevBtn) prevBtn.addEventListener("click", function(){
+      var p = nextVisibleIndex(index - 1, -1);
+      if(p !== -1) advance(p);
+    });
+    if(exitBtn) exitBtn.addEventListener("click", exitTour);
+
+    boxEl = box;
+  }
+
+  function advance(newIndex){
+    if(newIndex >= TOUR_STEPS.length || newIndex < 0){ exitTour(); return; }
+    saveState({ active: true, stepIndex: newIndex });
+    var step = TOUR_STEPS[newIndex];
+    if(step.page === THIS_PAGE){
+      renderStep(newIndex);
+    } else {
+      // Next step lives on a different page than this one (e.g. a map
+      // click just navigated away) -- nothing more to render here;
+      // that page's own copy of this engine picks up rendering when it
+      // loads, using the state just saved above.
+      removeBox();
+    }
+  }
+
+  function exitTour(){
+    saveState({ active: false, stepIndex: 0 });
+    markSeen();
+    removeBox();
+  }
+
+  function startTour(){
+    markSeen();
+    var first = nextVisibleIndex(0, 1);
+    saveState({ active: true, stepIndex: first === -1 ? 0 : first });
+    if(first !== -1) renderStep(first);
+  }
+  window.EATLAS_TOUR = { start: startTour, exit: exitTour };
+
+  var replayBtn = document.getElementById("tourReplayLink");
+  if(replayBtn) replayBtn.addEventListener("click", startTour);
+
+  // Resume mid-tour if state says so and the current step belongs here;
+  // otherwise, auto-start once ever for a genuinely first-time visitor.
+  var state = getState();
+  if(state.active && TOUR_STEPS[state.stepIndex] && TOUR_STEPS[state.stepIndex].page === THIS_PAGE){
+    renderStep(state.stepIndex);
+  } else if(!state.active && !hasSeenBefore()){
+    startTour();
+  }
+})();
+</script>
+
+
 </body>
 </html>

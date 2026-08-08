@@ -4088,9 +4088,57 @@ fetch("data-uk-spending-cofog.json", {cache: "no-cache"})
       target: "#mapCard", title: "See it on the map, over time",
       body: "The map always mirrors whichever metric card is currently showing. Drag the year slider underneath it to see how the picture has changed over time." },
     { page: "compare", type: "anchor", target: "#rankTable", title: "The summary table",
-      body: "Every selected country and metric, side by side, for whichever time horizon you've chosen above. Click any column to sort it." }
-    // Phase D (dashboard.html, roadmap.html/contact.html wrap-up) steps
-    // continue here once built.
+      body: "Every selected country and metric, side by side, for whichever time horizon you've chosen above. Click any column to sort it." },
+    { page: "compare", type: "anchor", target: "nav a[href='dashboard']", title: "On to your Dashboard",
+      body: "Click <strong>My Dashboard</strong> in the menu above to build a personal set of metrics from any country \u2014 the last stop on the tour." },
+
+    { page: "dashboard", type: "anchor", target: "#addMetricTile", title: "Add a metric",
+      body: "Click here to pin any metric, from any country, onto your own dashboard." },
+    { page: "dashboard", type: "anchor",
+      onEnter: function(){
+        var picker = document.getElementById("picker");
+        if(picker && picker.hidden){
+          var addTile = document.getElementById("addMetricTile");
+          if(addTile) addTile.click();
+        }
+        var countryBtn = document.querySelector("#modeToggle button[data-mode='country']");
+        if(countryBtn && !countryBtn.classList.contains("active")) countryBtn.click();
+        var sel = document.getElementById("pickerSelect");
+        if(sel && sel.value !== "US"){ sel.value = "US"; sel.dispatchEvent(new Event("change")); }
+      },
+      target: ".pickeritem[data-country='US'][data-key='gdp_level']",
+      title: "Try US GDP",
+      body: "Click the US's headline GDP figure to pin it to your dashboard." },
+    { page: "dashboard", type: "anchor",
+      onEnter: function(){
+        var picker = document.getElementById("picker");
+        if(picker && picker.hidden){
+          var addTile = document.getElementById("addMetricTile");
+          if(addTile) addTile.click();
+        }
+        var countryBtn = document.querySelector("#modeToggle button[data-mode='country']");
+        if(countryBtn && !countryBtn.classList.contains("active")) countryBtn.click();
+        var sel = document.getElementById("pickerSelect");
+        if(sel && sel.value !== "UK"){ sel.value = "UK"; sel.dispatchEvent(new Event("change")); }
+      },
+      target: ".pickeritem[data-country='UK'][data-key='gdp_level']",
+      title: "Now add the UK's",
+      body: "Do the same for the UK \u2014 pin its GDP figure alongside the US's, ready to compare side by side." },
+    { page: "dashboard", type: "anchor",
+      onEnter: function(){
+        var picker = document.getElementById("picker");
+        if(picker && !picker.hidden){
+          var closeBtn = document.getElementById("pickerClose");
+          if(closeBtn) closeBtn.click(); else { picker.hidden = true; document.body.style.overflow = ""; }
+        }
+      },
+      target: "#dollariseBtn", title: "Dollarise",
+      body: "Every currency figure on this page can be converted to US dollars at today's exchange rate, so figures from any country sit on the same footing. Toggle it on to see the US and UK GDP cards you just added, both in dollars." },
+    { page: "dashboard", type: "anchor", target: "nav a[href='roadmap']", title: "One last stop",
+      body: "Click <strong>Roadmap</strong> in the menu above to see what's coming next \u2014 and how to get in touch." },
+
+    { page: "roadmap", type: "center", title: "That's the tour",
+      body: "That covers the essentials \u2014 a country page, Compare, and your own Dashboard. Got an idea for a metric or country we're missing? Get in touch any time from the <a href=\"contact\">Contact</a> page." }
   ];
 
   function getState(){
