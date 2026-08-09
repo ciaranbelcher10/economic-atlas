@@ -522,6 +522,67 @@ html[data-theme="dark"] .tour-box{
 .acct-credit-buttons{display:flex; gap:8px; flex-wrap:wrap;}
 .acct-credit-buttons .btn{padding:7px 14px; font-size:13px;}
 
+/* Multiple dashboards: sidebar (desktop) / tab strip (mobile). Hidden by
+   default in markup -- JS decides whether to show either, based on
+   login state, since logged-out visitors get the single ephemeral
+   dashboard exactly as before, with no sidebar at all. */
+.dash-layout{display:flex; align-items:flex-start;}
+.dash-sidebar{width:220px; flex-shrink:0; background:var(--navy-2);
+  min-height:100vh; padding:20px 0;}
+.dash-sidebar[hidden]{display:none;}
+#dashMainWrap{flex:1; min-width:0; width:100%;}
+.dash-sidebar-item{
+  display:flex; align-items:center; justify-content:space-between;
+  padding:11px 20px; color:#D8E4EF; cursor:pointer; font-weight:600;
+  font-size:15px; gap:8px; position:relative;
+}
+.dash-sidebar-item:hover, .dash-sidebar-item.active{background:rgba(255,255,255,.12); color:#fff;}
+.dash-sidebar-item-name{overflow:hidden; text-overflow:ellipsis; white-space:nowrap; flex:1;}
+.dash-sidebar-menu-btn{background:none; border:none; color:inherit; opacity:.75;
+  cursor:pointer; padding:4px 6px; font-size:15px; line-height:1; flex-shrink:0;}
+.dash-sidebar-menu-btn:hover{opacity:1;}
+.dash-sidebar-menu{
+  display:none; position:absolute; right:14px; top:100%; z-index:30;
+  background:var(--panel); color:var(--ink); border-radius:10px;
+  box-shadow:0 10px 26px rgba(0,0,0,.28); min-width:140px; padding:6px; margin-top:2px;
+}
+.dash-sidebar-menu.open{display:block;}
+.dash-sidebar-menu button{
+  display:block; width:100%; text-align:left; background:none; border:none;
+  padding:9px 12px; font:inherit; font-size:13.5px; color:var(--ink); cursor:pointer;
+  border-radius:6px; white-space:nowrap;
+}
+.dash-sidebar-menu button:hover{background:var(--paper);}
+.dash-sidebar-menu button.danger{color:#C0392B;}
+.dash-sidebar-add{
+  display:flex; align-items:center; gap:8px; padding:11px 20px;
+  color:#D8E4EF; cursor:pointer; font-weight:600; font-size:14.5px;
+  border-top:1px solid rgba(255,255,255,.15); margin-top:6px; opacity:.9;
+}
+.dash-sidebar-add:hover{background:rgba(255,255,255,.1); color:#fff; opacity:1;}
+.dash-sidebar-add.locked{opacity:.55; cursor:pointer;}
+.dash-sidebar-add .plus{font-size:16px; line-height:1;}
+
+.dash-mobile-tabs{
+  display:none; overflow-x:auto; white-space:nowrap; gap:6px; padding:10px 16px;
+  background:var(--navy-2); scrollbar-width:none;
+}
+.dash-mobile-tabs::-webkit-scrollbar{display:none;}
+.dash-mobile-tabs[hidden]{display:none;}
+.dash-mobile-tab{
+  display:inline-flex; align-items:center; gap:6px; padding:8px 14px;
+  border-radius:20px; background:rgba(255,255,255,.1); color:#D8E4EF;
+  font-size:13.5px; font-weight:600; cursor:pointer; white-space:nowrap;
+}
+.dash-mobile-tab.active{background:#fff; color:var(--navy);}
+.dash-mobile-tab-add{background:rgba(255,255,255,.06); color:#D8E4EF; opacity:.9;}
+
+@media (max-width:900px){
+  .dash-layout{display:block;}
+  .dash-sidebar{display:none;}
+  .dash-mobile-tabs.show{display:flex;}
+}
+
 /* Generic modal (welcome-to-Pro popup, and reused by Compare's country
    picker / Dashboard's metric picker, which previously each defined
    this locally -- moved here since it's needed on plain content/country

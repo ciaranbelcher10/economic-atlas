@@ -32,7 +32,7 @@
 <link href="https://fonts.googleapis.com/css2?family=Nunito+Sans:wght@400;600;700&display=swap" rel="stylesheet">
 <link rel="icon" type="image/png" sizes="32x32" href="favicon-32.png">
 <link rel="apple-touch-icon" href="apple-touch-icon.png">
-<link rel="stylesheet" href="style.css?v=27">
+<link rel="stylesheet" href="style.css?v=28">
 <script src="https://cdnjs.cloudflare.com/ajax/libs/Chart.js/4.4.1/chart.umd.min.js"></script>
 <script src="https://cdnjs.cloudflare.com/ajax/libs/hammer.js/2.0.8/hammer.min.js"></script>
 <script src="https://cdnjs.cloudflare.com/ajax/libs/chartjs-plugin-zoom/2.0.1/chartjs-plugin-zoom.min.js"></script>
@@ -517,6 +517,8 @@ footer.dash-foot{margin-top:36px; font-size:12.5px; color:var(--ink2); border-to
   var SUPABASE_URL = "https://skluvrxnuibkordzgtmu.supabase.co";
   var SUPABASE_KEY = "sb_publishable_p6_GqrC8qcNC6KwPE46hkw_qdWQTuyT";
   var sb = supabase.createClient(SUPABASE_URL, SUPABASE_KEY);
+  window.sb = sb; // the multi-dashboard code lives in a later, separate
+  // <script> block and has no access to this closure's own `sb` otherwise
 
   var authBtn = document.getElementById("authBtn");
   var authModal = document.getElementById("authModal");
@@ -1412,6 +1414,11 @@ footer.dash-foot{margin-top:36px; font-size:12.5px; color:var(--ink2); border-to
     updateTrialBanner();
     maybeShowWelcomeProModal();
     updatePlanNavLink();
+    // renderSidebarAndTabs lives in a later, separate <script> block (the
+    // main dashboard app logic), so it's only reachable via window, not
+    // as a bare identifier from this closure -- exposed at the bottom of
+    // that block specifically so this call can reach it.
+    if(window.renderSidebarAndTabs) window.renderSidebarAndTabs();
   });
 
   // If this page load is the redirect back from clicking "confirm your
@@ -1436,7 +1443,12 @@ footer.dash-foot{margin-top:36px; font-size:12.5px; color:var(--ink2); border-to
 })();
 </script>
 
-<div class="wrap" style="max-width:1080px; padding:30px 24px 60px;">
+<div class="dash-layout" id="dashLayout">
+  <aside class="dash-sidebar" id="dashSidebar" hidden>
+    <div class="dash-sidebar-list" id="dashSidebarList" role="navigation" aria-label="Your dashboards"></div>
+  </aside>
+  <div class="dash-mobile-tabs" id="dashMobileTabs" hidden></div>
+<div class="wrap" id="dashMainWrap" style="max-width:1080px; padding:30px 24px 60px;">
   <div class="savebar" id="saveBar" hidden>
     <span class="savebar-icon" aria-hidden="true">&#9888;&#65039;</span>
     <p>Everything you pin here resets the moment you leave. A free account (10 seconds) keeps it saved for next time.</p>
@@ -1648,6 +1660,11 @@ footer.dash-foot{margin-top:36px; font-size:12.5px; color:var(--ink2); border-to
 <script>
 (function(){
   "use strict";
+
+  // Reuses the one Supabase client already created in the earlier
+  // <script> block (exposed via window.sb specifically for this) rather
+  // than creating a second client instance here.
+  var sb = window.sb;
 
   var G = { W:820, H:507, padL:60, padR:24, padT:34 };
   var THEMES = {
@@ -2402,6 +2419,7 @@ footer.dash-foot{margin-top:36px; font-size:12.5px; color:var(--ink2); border-to
   <footer class="dash-foot">
     Every figure and chart here is read live from the same data files each country's own page uses (ONS, FRED, Eurostat, e-Stat/Bank of Japan, MoSPI, Bank of Korea, OECD, World Bank); nothing is hand-picked or invented. Your pinned tiles are saved to your account and follow you across devices when logged in; logged out, nothing is remembered between visits. <a href="privacy">Privacy</a> &middot; <a href="terms">Terms</a> &middot; <button type="button" id="tourReplayLink">Take the tour</button>
   </footer>
+</div>
 </div>
 
 <script>
@@ -3209,16 +3227,25 @@ function toDisplayPoints(pts, unit, country){
 }
 
 /* --------------------------------- tiles ----------------------------------- */
+// Saves to whichever dashboard is currently open. Logged out: no-op --
+// there's no dashboards table access without an account (RLS requires
+// auth), matching the existing "nothing persists while logged out"
+// behaviour exactly.
 function savePinned(){
-  if(window.EATLAS_PREFS) window.EATLAS_PREFS.set("pinned", pinned);
-}
-function loadSavedPinned(){
-  if(!window.EATLAS_PREFS) return null;
-  var arr = window.EATLAS_PREFS.get("pinned", null);
-  return Array.isArray(arr) ? arr : null;
+  if(!window.EATLAS_PREFS || !window.EATLAS_PREFS.isLoggedIn() || !currentDashboardId) return;
+  sb.from("dashboards").update({ pinned: pinned }).eq("id", currentDashboardId).then(function(res){
+    if(res.error) console.error("Failed to save dashboard:", res.error);
+  });
+  // Keeps the in-memory list in sync too, so switching away and back
+  // within the same session reflects the latest state without a re-fetch.
+  var d = dashboardsList.find(function(x){ return x.id === currentDashboardId; });
+  if(d) d.pinned = pinned;
 }
 
 var pinned = []; // set once data has loaded, see below
+var dashboardsList = []; // [{id, name, pinned, is_default, sort_order}], logged-in only
+var currentDashboardId = null;
+var CURRENT_DASH_KEY = "eatlas_current_dashboard_id"; // last-viewed convenience only, never the source of truth
 var tileCharts = {};
 
 var expandedTiles = {}; // id -> true, survives renderDash() rebuilding the grid
@@ -3247,6 +3274,177 @@ function expandTile(tile, id, m){
     };
   }
 }
+
+function isProUser(){
+  return !!(window.EATLAS_PREFS && window.EATLAS_PREFS.isPro && window.EATLAS_PREFS.isPro());
+}
+
+// Switches the active dashboard and loads its pinned tiles. skipRender is
+// used only during initial boot, where the caller wants to set the right
+// starting state before the very first render rather than rendering
+// twice in a row.
+function switchToDashboard(id, skipRender){
+  var d = dashboardsList.find(function(x){ return x.id === id; });
+  if(!d) return;
+  currentDashboardId = id;
+  pinned = Array.isArray(d.pinned) ? d.pinned.filter(function(tid){ return tileFromId(tid) != null; }) : [];
+  try { localStorage.setItem(CURRENT_DASH_KEY, id); } catch(e){}
+  if(!skipRender){
+    renderSidebarAndTabs();
+    renderDash();
+  }
+}
+
+function createDashboard(){
+  if(!isProUser()){
+    if(window.EATLAS_OPEN_AUTH_MODAL) window.EATLAS_OPEN_AUTH_MODAL();
+    return;
+  }
+  var name = prompt("Name your new dashboard:", "Untitled");
+  if(!name || !name.trim()) return;
+  sb.auth.getUser().then(function(userRes){
+    var uid = userRes.data && userRes.data.user && userRes.data.user.id;
+    if(!uid) return null;
+    return sb.from("dashboards").insert({ user_id: uid, name: name.trim() }).select().single();
+  }).then(function(res){
+    if(!res) return;
+    if(res.error){
+      // The server-side limit trigger is the real enforcement (this
+      // client-side isProUser() check is just to avoid an unnecessary
+      // round-trip for the common case) -- if it somehow still rejects
+      // this, that's the trigger doing its job, not a bug.
+      alert(res.error.message && res.error.message.indexOf("limited to one dashboard") !== -1
+        ? "Free accounts are limited to one dashboard. Upgrade to Pro for unlimited dashboards."
+        : "Something went wrong creating the dashboard. Please try again.");
+      return;
+    }
+    dashboardsList.push(res.data);
+    switchToDashboard(res.data.id);
+  });
+}
+
+function renameDashboard(id){
+  var d = dashboardsList.find(function(x){ return x.id === id; });
+  if(!d) return;
+  var name = prompt("Rename dashboard:", d.name);
+  if(!name || !name.trim() || name.trim() === d.name) return;
+  d.name = name.trim();
+  renderSidebarAndTabs();
+  sb.from("dashboards").update({ name: d.name }).eq("id", id).then(function(res){
+    if(res.error) console.error("Failed to rename dashboard:", res.error);
+  });
+}
+
+function deleteDashboard(id){
+  var d = dashboardsList.find(function(x){ return x.id === id; });
+  // "Main" (is_default) can't be deleted -- RLS itself blocks this at
+  // the database level too, so this check is a UX nicety (no dead-end
+  // confirm dialog for something that would fail anyway), not the real
+  // enforcement.
+  if(!d || d.is_default) return;
+  if(!confirm('Delete "' + d.name + '"? This can\'t be undone.')) return;
+  sb.from("dashboards").delete().eq("id", id).then(function(res){
+    if(res.error){ console.error("Failed to delete dashboard:", res.error); return; }
+    dashboardsList = dashboardsList.filter(function(x){ return x.id !== id; });
+    if(currentDashboardId === id){
+      var fallback = dashboardsList.filter(function(x){ return x.is_default; })[0] || dashboardsList[0];
+      if(fallback) switchToDashboard(fallback.id);
+    } else {
+      renderSidebarAndTabs();
+    }
+  });
+}
+
+function renderSidebarAndTabs(){
+  var sidebar = document.getElementById("dashSidebar");
+  var sidebarList = document.getElementById("dashSidebarList");
+  var mobileTabs = document.getElementById("dashMobileTabs");
+  if(!sidebar || !sidebarList || !mobileTabs) return;
+
+  var loggedIn = !!(window.EATLAS_PREFS && window.EATLAS_PREFS.isLoggedIn());
+  if(!loggedIn){
+    // Logged out: no sidebar at all -- multiple dashboards is inherently
+    // an account feature, and this matches the page's existing "nothing
+    // persists while logged out" behaviour exactly.
+    sidebar.hidden = true;
+    mobileTabs.hidden = true;
+    mobileTabs.classList.remove("show");
+    return;
+  }
+
+  var pro = isProUser();
+  sidebar.hidden = false;
+  mobileTabs.hidden = false;
+  mobileTabs.classList.add("show");
+  sidebarList.innerHTML = "";
+  mobileTabs.innerHTML = "";
+
+  dashboardsList.forEach(function(d){
+    var item = document.createElement("div");
+    item.className = "dash-sidebar-item" + (d.id === currentDashboardId ? " active" : "");
+    var nameSpan = document.createElement("span");
+    nameSpan.className = "dash-sidebar-item-name";
+    nameSpan.textContent = d.name;
+    item.appendChild(nameSpan);
+    item.addEventListener("click", function(e){
+      if(e.target.closest(".dash-sidebar-menu-btn") || e.target.closest(".dash-sidebar-menu")) return;
+      switchToDashboard(d.id);
+    });
+
+    var menuBtn = document.createElement("button");
+    menuBtn.type = "button";
+    menuBtn.className = "dash-sidebar-menu-btn";
+    menuBtn.innerHTML = "&#8942;";
+    menuBtn.setAttribute("aria-label", "Dashboard options");
+    var menu = document.createElement("div");
+    menu.className = "dash-sidebar-menu";
+    var renameBtn = document.createElement("button");
+    renameBtn.type = "button";
+    renameBtn.textContent = "Rename";
+    renameBtn.addEventListener("click", function(e){ e.stopPropagation(); menu.classList.remove("open"); renameDashboard(d.id); });
+    menu.appendChild(renameBtn);
+    if(!d.is_default){
+      var deleteBtn = document.createElement("button");
+      deleteBtn.type = "button";
+      deleteBtn.className = "danger";
+      deleteBtn.textContent = "Delete";
+      deleteBtn.addEventListener("click", function(e){ e.stopPropagation(); menu.classList.remove("open"); deleteDashboard(d.id); });
+      menu.appendChild(deleteBtn);
+    }
+    menuBtn.addEventListener("click", function(e){
+      e.stopPropagation();
+      var wasOpen = menu.classList.contains("open");
+      document.querySelectorAll(".dash-sidebar-menu.open").forEach(function(m){ m.classList.remove("open"); });
+      if(!wasOpen) menu.classList.add("open");
+    });
+    item.appendChild(menuBtn);
+    item.appendChild(menu);
+    sidebarList.appendChild(item);
+
+    var tab = document.createElement("div");
+    tab.className = "dash-mobile-tab" + (d.id === currentDashboardId ? " active" : "");
+    tab.textContent = d.name;
+    tab.addEventListener("click", function(){ switchToDashboard(d.id); });
+    mobileTabs.appendChild(tab);
+  });
+
+  var addRow = document.createElement("div");
+  addRow.className = "dash-sidebar-add" + (pro ? "" : " locked");
+  addRow.innerHTML = '<span class="plus">+</span> ' + (pro ? "Add dashboard" : "Add dashboard (Pro)");
+  addRow.addEventListener("click", createDashboard);
+  sidebarList.appendChild(addRow);
+
+  var addTab = document.createElement("div");
+  addTab.className = "dash-mobile-tab dash-mobile-tab-add";
+  addTab.textContent = pro ? "+ Add" : "+ Add (Pro)";
+  addTab.addEventListener("click", createDashboard);
+  mobileTabs.appendChild(addTab);
+
+  document.addEventListener("click", function(){
+    document.querySelectorAll(".dash-sidebar-menu.open").forEach(function(m){ m.classList.remove("open"); });
+  }, { once: true });
+}
+window.renderSidebarAndTabs = renderSidebarAndTabs;
 
 function renderDash(){
   var grid = document.getElementById("dashGrid");
@@ -3616,31 +3814,58 @@ loadAll().then(function(){
   if(saveBarClose) saveBarClose.addEventListener("click", function(){ saveBar.hidden = true; });
 
   // Logging in mid-session (via the banner, having already pinned tiles
-  // while logged out) saves whatever's currently pinned immediately,
-  // rather than losing it the moment the tab closes.
-  if(window.EATLAS_PREFS) window.EATLAS_PREFS.onLogin(function(){ savePinned(); });
+  // while logged out) saves whatever's currently pinned into Main,
+  // rather than losing it the moment the tab closes. savePinned() alone
+  // can't do this here -- there's no currentDashboardId yet the moment
+  // login happens, since that only exists once the dashboards list has
+  // actually loaded.
+  if(window.EATLAS_PREFS) window.EATLAS_PREFS.onLogin(function(){
+    var sessionPinned = pinned.slice();
+    loadDashboardsList().then(function(){
+      if(sessionPinned.length){
+        pinned = sessionPinned.filter(function(id){ return tileFromId(id) != null; });
+        savePinned();
+        renderDash();
+      }
+    });
+  });
 
-  function bootPins(){
-    var saved = loadSavedPinned();
-    if(saved && saved.length){
-      // Returning visitor -- restore their actual selection, but drop any
-      // saved id that no longer resolves (e.g. a metric that's since been
-      // renamed or removed from a country's file) rather than showing a
-      // broken tile.
-      pinned = saved.filter(function(id){ return tileFromId(id) != null; });
-    } else {
-      // First visit (or logged out, where nothing ever persists) -- start
-      // with a genuine blank slate rather than a pre-filled example.
+  function loadDashboardsList(){
+    // Logged out: no dashboards table access at all (RLS requires an
+    // account) -- keep today's exact ephemeral, single-view behaviour,
+    // no sidebar shown.
+    if(!window.EATLAS_PREFS || !window.EATLAS_PREFS.isLoggedIn()){
+      dashboardsList = [];
+      currentDashboardId = null;
       pinned = [];
+      renderSidebarAndTabs();
+      try { initMapYearSlider(); } catch(e) { console.error("initMapYearSlider failed:", e); }
+      renderDash();
+      return Promise.resolve();
     }
-    try { initMapYearSlider(); } catch(e) { console.error("initMapYearSlider failed:", e); }
-    renderDash();
+    return sb.from("dashboards").select("id,name,pinned,is_default,sort_order").order("sort_order").then(function(res){
+      if(res.error || !res.data || !res.data.length){
+        console.error("Failed to load dashboards:", res.error);
+        dashboardsList = [];
+        pinned = [];
+      } else {
+        dashboardsList = res.data;
+        var lastId = null;
+        try { lastId = localStorage.getItem(CURRENT_DASH_KEY); } catch(e){}
+        var match = dashboardsList.filter(function(d){ return d.id === lastId; })[0];
+        var target = match || dashboardsList.filter(function(d){ return d.is_default; })[0] || dashboardsList[0];
+        switchToDashboard(target.id, /*skipRender*/ true);
+      }
+      renderSidebarAndTabs();
+      try { initMapYearSlider(); } catch(e) { console.error("initMapYearSlider failed:", e); }
+      renderDash();
+    });
   }
 
   if(window.EATLAS_PREFS){
-    window.EATLAS_PREFS.ready.then(bootPins);
+    window.EATLAS_PREFS.ready.then(loadDashboardsList);
   } else {
-    bootPins();
+    loadDashboardsList();
   }
 
   // The map card's metric row / year slider work immediately (they only
