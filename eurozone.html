@@ -60,7 +60,7 @@
 <link href="https://fonts.googleapis.com/css2?family=Nunito+Sans:wght@400;600;700&display=swap" rel="stylesheet">
 <link rel="icon" type="image/png" sizes="32x32" href="favicon-32.png">
 <link rel="apple-touch-icon" href="apple-touch-icon.png">
-<link rel="stylesheet" href="style.css?v=29">
+<link rel="stylesheet" href="style.css?v=30">
 <style>
 .led{display:inline-block; width:9px; height:9px; border-radius:50%;
   margin-right:9px; vertical-align:middle; position:relative; top:-3px;}
@@ -227,6 +227,26 @@ nav.cat button.active{background:var(--blue); border-color:var(--blue); color:#f
   <button type="button" class="theme-toggle" id="themeToggle" aria-label="Switch to dark mode" title="Switch to dark mode">&#127769;</button>
   </div>
 </div></nav>
+<script>
+// Optimistic Plan-link render: applies whatever we last confirmed about
+// this browser's Pro status immediately, before the real (async)
+// profile fetch even starts. Without this, the link always starts as
+// plain "Plan" on every single page load and only corrects to "Pro
+// Plan" once that fetch resolves -- visible as a flash/flicker on every
+// navigation for an actual Pro account. updatePlanNavLink() (later in
+// the page) overwrites this the moment real data arrives either way, so
+// a stale cached guess here is corrected within a normal page-load's
+// worth of time, never left wrong.
+(function(){
+  try{
+    var link = document.getElementById("planNavLink");
+    if(link && localStorage.getItem("eatlas_last_known_pro") === "1"){
+      link.textContent = "Pro Plan";
+      link.classList.add("is-pro");
+    }
+  }catch(e){}
+})();
+</script>
 <div class="wrap" style="padding-top:16px;">
   <div class="savebar" id="alertBanner" hidden>
     <span class="savebar-icon" aria-hidden="true">&#128276;</span>
@@ -1292,6 +1312,7 @@ nav.cat button.active{background:var(--blue); border-color:var(--blue); color:#f
     var isPro = !!(prefs && prefs.isPro());
     link.textContent = isPro ? "Pro Plan" : "Plan";
     link.classList.toggle("is-pro", isPro);
+    try{ localStorage.setItem("eatlas_last_known_pro", isPro ? "1" : "0"); }catch(e){}
   }
 
   function updateTrialBanner(){

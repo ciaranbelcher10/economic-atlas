@@ -71,6 +71,7 @@ nav.sub a.item:hover, nav.sub a.item.active{background:rgba(255,255,255,.18); co
 
 /* ------------------------------ dropdown nav ----------------------------- */
 nav.top{position:relative;}
+.dropdown{position:relative;}
 .dropbtn{
   color:#D8E4EF; background:none; border:none; cursor:pointer;
   font:inherit; font-weight:600; font-size:14px;
@@ -90,9 +91,18 @@ nav.top{position:relative;}
 }
 .dropdown-panel.open{display:flex;}
 @media (hover:hover){ .dropdown:hover .dropdown-panel{display:flex;} }
-/* Compact variant for a short link list (About: Roadmap, Contact) --
-   the mega-menu sizing above is deliberately wrong for two links. */
-.dropdown-panel.dropdown-panel-narrow{width:auto; min-width:160px; padding:10px;}
+/* Compact variant for a short link list (About: Roadmap, Contact). The
+   mega-menu rule above centers on nav.top (its own positioning
+   ancestor, since .dropdown had none of its own) -- correct for a wide
+   panel deliberately centered on the whole bar, wrong for a small one,
+   which needs to anchor to its OWN trigger button instead. Right-edge
+   anchored specifically because About sits at the end of the nav, right
+   before the account area -- centering it would risk overflowing past
+   the viewport edge on a narrower desktop width. */
+.dropdown-panel.dropdown-panel-narrow{
+  width:auto; min-width:160px; padding:10px;
+  left:auto; right:0; transform:none;
+}
 .doverview{padding-right:28px; border-right:1px solid rgba(255,255,255,.15);
   display:flex; align-items:flex-start;}
 .dcol{display:flex; flex-direction:column; gap:2px; min-width:130px;}
@@ -526,10 +536,12 @@ html[data-theme="dark"] .tour-box{
    default in markup -- JS decides whether to show either, based on
    login state, since logged-out visitors get the single ephemeral
    dashboard exactly as before, with no sidebar at all. */
-.dash-layout{display:flex; align-items:stretch;}
-.dash-sidebar{width:220px; flex-shrink:0; background:var(--navy-2); padding:20px 0;}
+.dash-layout{display:grid; grid-template-columns:220px 1fr; align-items:stretch;}
+.dash-sidebar{background:var(--navy-2); padding:20px 0;}
+.dash-sidebar-heading{color:#9FC2DC; text-transform:uppercase; font-size:11px;
+  letter-spacing:.08em; font-weight:700; margin:0 0 8px; padding:0 20px;}
 .dash-sidebar[hidden]{display:none;}
-#dashMainWrap{flex:1; min-width:0; width:100%;}
+#dashMainWrap{min-width:0; width:100%;}
 .dash-sidebar-item{
   display:flex; align-items:center; justify-content:space-between;
   padding:11px 20px; color:#D8E4EF; cursor:pointer; font-weight:600;
