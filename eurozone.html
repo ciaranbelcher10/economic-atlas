@@ -60,7 +60,7 @@
 <link href="https://fonts.googleapis.com/css2?family=Nunito+Sans:wght@400;600;700&display=swap" rel="stylesheet">
 <link rel="icon" type="image/png" sizes="32x32" href="favicon-32.png">
 <link rel="apple-touch-icon" href="apple-touch-icon.png">
-<link rel="stylesheet" href="style.css?v=25">
+<link rel="stylesheet" href="style.css?v=26">
 <style>
 .led{display:inline-block; width:9px; height:9px; border-radius:50%;
   margin-right:9px; vertical-align:middle; position:relative; top:-3px;}
@@ -213,9 +213,16 @@ nav.cat button.active{background:var(--blue); border-color:var(--blue); color:#f
   </div>
   <a class="item" href="compare">Compare</a>
   <a class="item" href="dashboard">My Dashboard</a>
-  <a class="item" href="pricing">Pricing</a>
-  <a class="item" href="roadmap">Roadmap</a>
-  <a class="item" href="contact">Contact</a>
+  <a class="item" href="pricing" id="planNavLink">Plan</a>
+  <div class="dropdown">
+    <button type="button" class="dropbtn" id="aboutBtn" aria-haspopup="true" aria-expanded="false">About <span class="caret">&#9662;</span></button>
+    <div class="dropdown-panel dropdown-panel-narrow" id="aboutPanel">
+      <div class="dcol">
+        <a href="roadmap">Roadmap</a>
+        <a href="contact">Contact</a>
+      </div>
+    </div>
+  </div>
   <button type="button" class="authbtn" id="authBtn">Log in</button>
   <button type="button" class="theme-toggle" id="themeToggle" aria-label="Switch to dark mode" title="Switch to dark mode">&#127769;</button>
   </div>
@@ -318,22 +325,30 @@ nav.cat button.active{background:var(--blue); border-color:var(--blue); color:#f
 </div>
 <script>
 (function(){
-  var btn = document.getElementById("macroBtn");
-  var panel = document.getElementById("macroPanel");
-  function close(){
-    panel.classList.remove("open"); btn.classList.remove("open");
-    btn.setAttribute("aria-expanded","false");
+  // Shared toggle behaviour for any nav dropdown -- originally written
+  // just for Country Breakdowns, now reused for About too rather than
+  // duplicating the same open/close/outside-click/Escape logic twice.
+  function wireDropdown(btnId, panelId){
+    var btn = document.getElementById(btnId);
+    var panel = document.getElementById(panelId);
+    if(!btn || !panel) return;
+    function close(){
+      panel.classList.remove("open"); btn.classList.remove("open");
+      btn.setAttribute("aria-expanded","false");
+    }
+    btn.addEventListener("click", function(e){
+      e.stopPropagation();
+      var isOpen = panel.classList.toggle("open");
+      btn.classList.toggle("open", isOpen);
+      btn.setAttribute("aria-expanded", isOpen ? "true" : "false");
+    });
+    document.addEventListener("click", function(e){
+      if(!panel.contains(e.target) && e.target !== btn) close();
+    });
+    document.addEventListener("keydown", function(e){ if(e.key === "Escape") close(); });
   }
-  btn.addEventListener("click", function(e){
-    e.stopPropagation();
-    var isOpen = panel.classList.toggle("open");
-    btn.classList.toggle("open", isOpen);
-    btn.setAttribute("aria-expanded", isOpen ? "true" : "false");
-  });
-  document.addEventListener("click", function(e){
-    if(!panel.contains(e.target) && e.target !== btn) close();
-  });
-  document.addEventListener("keydown", function(e){ if(e.key === "Escape") close(); });
+  wireDropdown("macroBtn", "macroPanel");
+  wireDropdown("aboutBtn", "aboutPanel");
 
   // Mobile hamburger menu -- independent of the country-breakdown
   // dropdown above (which still works exactly the same way, just
@@ -535,7 +550,21 @@ nav.cat button.active{background:var(--blue); border-color:var(--blue); color:#f
   function openAuthModal(){
     authModal.hidden = false;
     document.body.style.overflow = "hidden";
-    showLoginView();
+    // Was unconditionally showing the login form, even for an
+    // already-logged-in account -- every "locked, click to unlock"
+    // button (buy credits, upgrade to Pro) calls this, and for someone
+    // already signed in that meant clicking "buy credits" appeared to
+    // demand a login instead of showing the account panel where credits
+    // actually get bought. Check the real session first, same as the
+    // top-right account button's own handler already correctly does.
+    sb.auth.getSession().then(function(res){
+      var session = res.data.session;
+      if(session){
+        showSignedInView(session);
+      } else {
+        showLoginView();
+      }
+    });
   }
   function closeAuthModal(){
     authModal.hidden = true;
@@ -1253,6 +1282,18 @@ nav.cat button.active{background:var(--blue); border-color:var(--blue); color:#f
   // one has no close button in its markup at all. That's deliberate:
   // "cannot delete" is enforced by there being nothing to click, not by
   // JS re-showing something a user closed.
+  // Plan nav link: shows "Pro Plan" in gold for an active Pro account
+  // (paid or trial), plain "Plan" otherwise -- a visible status
+  // indicator, not just a link to the pricing page.
+  function updatePlanNavLink(){
+    var link = document.getElementById("planNavLink");
+    if(!link) return;
+    var prefs = window.EATLAS_PREFS;
+    var isPro = !!(prefs && prefs.isPro());
+    link.textContent = isPro ? "Pro Plan" : "Plan";
+    link.classList.toggle("is-pro", isPro);
+  }
+
   function updateTrialBanner(){
     var banner = document.getElementById("trialBanner");
     var text = document.getElementById("trialBannerText");
@@ -1312,6 +1353,7 @@ nav.cat button.active{background:var(--blue); border-color:var(--blue); color:#f
     window.EATLAS_CUSTOMIZE.refreshEntitlement();
     updateTrialBanner();
     maybeShowWelcomeProModal();
+    updatePlanNavLink();
   });
 
   // If this page load is the redirect back from clicking "confirm your
