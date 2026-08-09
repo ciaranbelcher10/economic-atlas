@@ -248,6 +248,19 @@ html[data-theme="dark"]{ --map-nodata: #C4CAC0; }
   background:linear-gradient(90deg,#EAF3E9,#8AD9B1,#348FA7,#37659E,#2E1E3B);}
 #heatTip{position:absolute; pointer-events:none; background:var(--panel); color:var(--ink); border:1px solid var(--hair); border-radius:8px;
   padding:8px 11px; font-size:12.5px; box-shadow:0 6px 18px rgba(0,0,0,.12); display:none; z-index:5;}
+/* Per-card map equivalents of the three ID-scoped rules above -- the
+   shared map's single #heatmapSvg/#mapZoomReset/#heatTip no longer
+   exist now that each card builds its own map instance dynamically, so
+   these class-based versions cover the same elements by class instead.
+   Every other map style above (.mapzoom-controls, .legend-grad,
+   .legend-bar etc.) already targets classes reused as-is in the new
+   per-card markup, so no equivalent was needed for those. */
+.cardmap-svg{width:100%; height:auto; display:block;}
+.cardmap-zoom-reset{width:auto; font-size:10px; padding:0 6px;}
+.cardmap-tip{position:absolute; pointer-events:none; background:var(--panel); color:var(--ink); border:1px solid var(--hair); border-radius:8px;
+  padding:8px 11px; font-size:12.5px; box-shadow:0 6px 18px rgba(0,0,0,.12); display:none; z-index:5;}
+.card-time-row{margin-top:12px;}
+.card-map-toggle{font-size:13px;}
 
 footer.cmp-foot{margin-top:36px; font-size:12.5px; color:var(--ink2); border-top:1px solid var(--hair); padding-top:16px;}.chart-modal{position:fixed; inset:0; z-index:100; display:flex; align-items:center;
   justify-content:center; padding:30px;}
@@ -1571,58 +1584,21 @@ footer.cmp-foot{margin-top:36px; font-size:12.5px; color:var(--ink2); border-top
   <div class="chiprow" id="chipRow"></div>
   <p class="chiphint" id="chipHint"></p>
 
-  <div class="horizonrow" id="timeControlRow">
-    <span class="hlabel">Compare:</span>
-    <div class="modeswitch" id="modeSwitch">
-      <button type="button" class="modebtn active" data-mode="snapshot">Point in time</button>
-      <button type="button" class="modebtn" data-mode="change">Change over time</button>
-    </div>
-  </div>
-  <div class="timeslider-wrap" id="snapshotSliderWrap">
-    <input type="range" id="snapshotSlider" class="timeslider">
-    <span class="timeslider-label" id="snapshotSliderLabel"></span>
-  </div>
-  <div class="timeslider-wrap timeslider-range" id="changeSliderWrap" hidden>
-    <div class="range-track"></div>
-    <div class="range-track-fill" id="changeTrackFill"></div>
-    <input type="range" id="changeStartSlider" class="timeslider range-thumb range-thumb-start">
-    <input type="range" id="changeEndSlider" class="timeslider range-thumb range-thumb-end">
-    <span class="timeslider-label timeslider-label-start" id="changeStartLabel"></span>
-    <span class="timeslider-label timeslider-label-end" id="changeEndLabel"></span>
-  </div>
-
   <p class="lightskey" aria-label="Key to freshness lights">
     <span><span class="led green" aria-hidden="true"></span>Latest version of the data is live</span>
     <span><span class="led orange" aria-hidden="true"></span>Data may be outdated, awaiting next update</span>
   </p>
 
+  <!-- Point-in-time vs Change-over-time is now a per-card control (see
+       buildCardShell()), not a single page-wide toggle -- each metric
+       card gets its own mode switch and slider, built dynamically.
+       Likewise the world map is no longer a single shared card: each
+       metric card has its own "Compare on a map" toggle that lazily
+       builds a small map scoped to that card's own metric and whatever
+       time selection that card currently has (see createCardMap()). -->
   <div class="cmp-grid" id="chartGrid">
     <div class="addtile" id="addMetricTile">
       <span class="plus">+</span><span class="txt">Add a metric</span>
-    </div>
-    <div class="cmp-card wide map-card" id="mapCard">
-      <h3>Map</h3>
-      <p class="expl" id="mapCardSub">Darker = higher.</p>
-      <div class="mapmetric" id="mapMetricRow"></div>
-      <div class="mapyear-row">
-        <span class="mapyear-label">Year: <strong id="mapYearLabel"></strong></span>
-        <input type="range" id="mapYearSlider" step="1">
-      </div>
-      <p class="expl" id="heatNoMetric" style="display:none;">Add a metric card to see it here — the map always mirrors whatever's currently shown in the comparison.</p>
-      <div style="position:relative;">
-        <svg id="heatmapSvg" viewBox="0 0 960 500"></svg>
-        <div id="heatTip"></div>
-        <div class="mapzoom-controls">
-          <button type="button" id="mapZoomIn" aria-label="Zoom in">+</button>
-          <button type="button" id="mapZoomOut" aria-label="Zoom out">−</button>
-          <button type="button" id="mapZoomReset" aria-label="Reset zoom">Reset</button>
-        </div>
-      </div>
-      <div class="legend-grad">
-        <span id="legendLo">low</span>
-        <div class="legend-bar"></div>
-        <span id="legendHi">high</span>
-      </div>
     </div>
   </div>
 
@@ -1635,7 +1611,7 @@ footer.cmp-foot{margin-top:36px; font-size:12.5px; color:var(--ink2); border-top
   </div>
 
   <footer class="cmp-foot">
-    Figures: ONS, FRED, Eurostat, e-Stat/Bank of Japan, MoSPI, Bank of Korea and OECD, the same sources already cited on each country&#39;s own page. Every figure on this page is anchored to a specific calendar year -- in <strong>Point in time</strong> mode, that's whichever year the slider is set to; in <strong>Change over time</strong> mode, it's the change between the two years the slider spans. Where a metric is published more often than annually, the year's figure is the average of that year's real observations, not a single point-in-time reading. GDP growth over a change window shows total real growth across that period, compounded from each country's own real GDP level. A slower annual-only metric like FDI, current account or the government deficit can show "n/a" for a given year if its own latest published figure hasn't caught up yet -- that's a real, honest gap in the underlying data's timing, not a missing figure or a bug. Currency-denominated figures (GDP, government debt, trade) are converted to US dollars at today's exchange rate so every country is shown in the same unit in Point in time mode; a Change over time window is shown as a % instead, which doesn't need converting since the ratio is the same in any currency. Morocco has no live exchange-rate source for the dirham, so its currency figures show "n/a" rather than a converted guess. Historical lines (Line view) are also converted to USD at today's rate throughout, so older years are an approximation. The Eurozone is excluded from the map card since it isn&#39;t a single country UN Comtrade or world-atlas can plot; it still appears in every chart and table above. <a href="privacy">Privacy</a> &middot; <a href="terms">Terms</a> &middot; <button type="button" id="tourReplayLink">Take the tour</button>
+    Figures: ONS, FRED, Eurostat, e-Stat/Bank of Japan, MoSPI, Bank of Korea and OECD, the same sources already cited on each country&#39;s own page. Every figure on this page is anchored to a specific calendar year -- in <strong>Point in time</strong> mode, that's whichever year the slider is set to; in <strong>Change over time</strong> mode, it's the change between the two years the slider spans. Where a metric is published more often than annually, the year's figure is the average of that year's real observations, not a single point-in-time reading. GDP growth over a change window shows total real growth across that period, compounded from each country's own real GDP level. A slower annual-only metric like FDI, current account or the government deficit can show "n/a" for a given year if its own latest published figure hasn't caught up yet -- that's a real, honest gap in the underlying data's timing, not a missing figure or a bug. Currency-denominated figures (GDP, government debt, trade) are converted to US dollars at today's exchange rate so every country is shown in the same unit in Point in time mode; a Change over time window is shown as a % instead, which doesn't need converting since the ratio is the same in any currency. Morocco has no live exchange-rate source for the dirham, so its currency figures show "n/a" rather than a converted guess. Historical lines (Line view) are also converted to USD at today's rate throughout, so older years are an approximation. The Eurozone doesn't appear on any card's map, since it isn&#39;t a single country UN Comtrade or world-atlas can plot; it still appears in every chart and table above. <a href="privacy">Privacy</a> &middot; <a href="terms">Terms</a> &middot; <button type="button" id="tourReplayLink">Take the tour</button>
   </footer>
   </div>
 </div>
@@ -2025,8 +2001,18 @@ function yearAggregate(country, concept, year){
   return {value: val, unit: series.unit};
 }
 function getDisplayValue(country, concept){
-  if(sliderMode === "snapshot") return getSnapshotValue(country, concept, snapshotYear);
-  return getChangeValue(country, concept, changeStartYear, changeEndYear);
+  var st = ensureCardTimeState(concept);
+  if(st.mode === "snapshot") return getSnapshotValue(country, concept, st.snapshotYear);
+  return getChangeValue(country, concept, st.changeStartYear, st.changeEndYear);
+}
+// The year a card's map (if open) should show for its own metric --
+// same rule the old shared map used, just per-card now: snapshot mode
+// maps to that exact year, change mode maps to the
+// end of the window, since "where did things end up" is the more useful
+// single point to colour a map with than the start of a change window.
+function effectiveMapYear(concept){
+  var st = ensureCardTimeState(concept);
+  return st.mode === "snapshot" ? st.snapshotYear : st.changeEndYear;
 }
 
 // Point-in-time reading, for any concept, at any chosen year -- the
@@ -2141,10 +2127,57 @@ var selected = ["UK", "US", "Germany", "Japan"];
 // "change" shows the change from changeStartYear to changeEndYear. The
 // slider itself changes shape between the two (one thumb vs two) so
 // which mode is active is visible at a glance, not just from a label.
-var sliderMode = "snapshot";
-var snapshotYear = CURRENT_YEAR;
-var changeStartYear = CURRENT_YEAR - 5;
-var changeEndYear = CURRENT_YEAR;
+// Fixed defaults per Ciaran's explicit instruction, rather than deriving
+// from CURRENT_YEAR (data-freshness-based "latest year with real data")
+// -- Point in time always opens on 2026, Change over time always opens
+// on the 2016-2026 window, regardless of how far the underlying data
+// pipelines have actually caught up to. These are TEMPLATE defaults
+// used to seed each card's own state when it's added; CURRENT_YEAR is
+// left untouched and still used elsewhere (freshness lights, "latest"
+// fallbacks, slider max bounds).
+var DEFAULT_SNAPSHOT_YEAR = 2026;
+var DEFAULT_CHANGE_START_YEAR = 2016;
+var DEFAULT_CHANGE_END_YEAR = 2026;
+
+// Per-card time state -- each metric card now has its own independent
+// Point-in-time/Change-over-time mode and year(s), rather than one
+// page-wide slider controlling every card at once. Keyed by concept.
+// cardTimeState[concept] = {mode, snapshotYear, changeStartYear, changeEndYear}
+var cardTimeState = {};
+function defaultCardTimeState(){
+  return {
+    mode: "snapshot",
+    snapshotYear: DEFAULT_SNAPSHOT_YEAR,
+    changeStartYear: DEFAULT_CHANGE_START_YEAR,
+    changeEndYear: DEFAULT_CHANGE_END_YEAR
+  };
+}
+function ensureCardTimeState(concept){
+  if(!cardTimeState[concept]) cardTimeState[concept] = defaultCardTimeState();
+  return cardTimeState[concept];
+}
+// Clamps a card's state into whatever range is actually valid for that
+// specific concept (a native range input silently clamps its own
+// displayed .value if out of bounds, but won't touch the state object
+// itself, so without this the visible slider and the year actually used
+// in calculations could silently disagree -- same class of bug as the
+// old single-slider clamp, just now needed per-card/per-concept since
+// different metrics can have different real minimum years).
+function clampCardTimeState(concept){
+  var st = ensureCardTimeState(concept);
+  var minYear = computeTimeSliderMinYear();
+  st.snapshotYear = Math.min(CURRENT_YEAR, Math.max(minYear, st.snapshotYear));
+  st.changeStartYear = Math.max(minYear, st.changeStartYear);
+  st.changeEndYear = Math.min(CURRENT_YEAR, Math.max(st.changeStartYear + 1, st.changeEndYear));
+  return st;
+}
+
+// Live per-card map instances, keyed by concept -- see createCardMap().
+// Only populated for cards where "Compare on a map" has actually been
+// toggled on (maps are opt-in per card, not built automatically), so a
+// page with many pinned metrics doesn't pay the cost of rendering a D3
+// map for every single one by default.
+var cardMapInstances = {};
 
 // Which concept cards are currently shown -- customisable, persisted to
 // the visitor's account (via EATLAS_PREFS) if they're logged in.
@@ -2158,11 +2191,21 @@ function saveVisibleMetrics(){
 function addMetric(key){
   if(visibleMetrics.indexOf(key) !== -1) return;
   visibleMetrics.push(key);
+  ensureCardTimeState(key);
   saveVisibleMetrics();
   renderAll();
 }
 function removeMetric(key){
   visibleMetrics = visibleMetrics.filter(function(m){ return m !== key; });
+  delete cardTimeState[key];
+  // Tear down that card's map instance too, if it had one open -- zoom
+  // listeners and the SVG both need to go, not just the state object,
+  // or repeatedly adding/removing the same metric across a session
+  // leaks a little more each time.
+  if(cardMapInstances[key]){
+    cardMapInstances[key].destroy();
+    delete cardMapInstances[key];
+  }
   saveVisibleMetrics();
   renderAll();
 }
@@ -2357,10 +2400,14 @@ function buildBarChart(canvas, concept){
   // completed year either way, which was misleading for the current,
   // still-running one -- this only changes the wording, not which
   // figure is shown (still whatever getDisplayValue actually resolved).
-  var yearInProgress = sliderMode === "snapshot" && snapshotYear >= new Date().getFullYear();
+  // Derived from firstReal itself (isDelta/year) rather than any global
+  // mode/year variable -- each card now has its own independent time
+  // state, so "which mode, which year" has to come from the value
+  // actually resolved for THIS card, not a page-wide variable.
+  var yearInProgress = !isDelta && firstReal.year >= new Date().getFullYear();
   var horizonNote = isCumulative ? "Cumulative % change from " + firstReal.year + " to " + firstReal.endYear + "."
     : isDelta ? "Change from " + firstReal.year + " to " + firstReal.endYear + "."
-    : yearInProgress ? "Latest available reading for " + snapshotYear + " so far -- the year isn't complete yet."
+    : yearInProgress ? "Latest available reading for " + firstReal.year + " so far -- the year isn't complete yet."
     : "Figure for " + firstReal.year + ", averaged across the year's real observations where more than one exists.";
   var titleSuffix = isCumulative ? " (cumulative change)" : isDelta ? " (change)" : "";
 
@@ -2559,6 +2606,283 @@ function highlightLineIndex(chart, idx, on){
   chart.update("none");
 }
 
+// Builds a card's stable outer shell -- title, remove button, chart-type
+// toggle, this card's OWN mode-switch + slider(s), and its "Compare on a
+// map" toggle -- once. This shell is deliberately NOT rebuilt every time
+// this card's own slider fires an 'input' event (see refreshOneCard):
+// doing so would destroy the very slider DOM the user is mid-drag on.
+// Only fillCardChart() (chart/ranking content) re-runs on that path.
+function buildCardShell(concept, hasHistory, mode){
+  var card = document.createElement("div");
+  card.className = "cmp-card metric-card wide";
+  card.dataset.concept = concept;
+  card.innerHTML = "<button type=\"button\" class=\"card-remove\" aria-label=\"Remove this card\" title=\"Remove this card\">&times;</button>"
+    + "<h3 class=\"card-title\"></h3>"
+    + (hasHistory ? "<div class=\"charttoggle\"><button type=\"button\" data-mode=\"bar\">Bar</button><button type=\"button\" data-mode=\"line\">Line</button></div>" : "")
+    + "<div class=\"horizonrow card-time-row\">"
+      + "<span class=\"hlabel\">Compare:</span>"
+      + "<div class=\"modeswitch card-mode-switch\">"
+        + "<button type=\"button\" class=\"modebtn\" data-mode=\"snapshot\">Point in time</button>"
+        + "<button type=\"button\" class=\"modebtn\" data-mode=\"change\">Change over time</button>"
+      + "</div>"
+    + "</div>"
+    + "<div class=\"timeslider-wrap card-snapshot-wrap\">"
+      + "<input type=\"range\" class=\"timeslider card-snapshot-slider\">"
+      + "<span class=\"timeslider-label card-snapshot-label\"></span>"
+    + "</div>"
+    + "<div class=\"timeslider-wrap timeslider-range card-change-wrap\">"
+      + "<div class=\"range-track\"></div>"
+      + "<div class=\"range-track-fill card-change-fill\"></div>"
+      + "<input type=\"range\" class=\"timeslider range-thumb range-thumb-start card-change-start-slider\">"
+      + "<input type=\"range\" class=\"timeslider range-thumb range-thumb-end card-change-end-slider\">"
+      + "<span class=\"timeslider-label timeslider-label-start card-change-start-label\"></span>"
+      + "<span class=\"timeslider-label timeslider-label-end card-change-end-label\"></span>"
+    + "</div>"
+    + "<p class=\"expl card-expl\"></p>"
+    + "<div class=\"tpm-layout\">"
+    + "<div class=\"tpm-left\"><div class=\"cbox\"><canvas></canvas></div></div>"
+    + "<div class=\"tpm-right\"><div class=\"tpm-ranking\"><h4>Ranking</h4><p class=\"tpm-ranksubtitle\" id=\"rankSub\"></p><div class=\"tpm-rank-body\"></div></div></div>"
+    + "</div>"
+    + "<div class=\"lockedactions\"><a class=\"lockedbtn dl-btn\" href=\"contact\" data-tip=\"Create a free account to unlock this feature.\"><span class=\"lockicon\">&#128274;</span> Download data</a><a class=\"lockedbtn cz-btn\" href=\"contact\" data-tip=\"Coming soon. Contact us to express interest.\"><span class=\"lockicon\">&#128274;</span> Customise &amp; export</a></div>"
+    + "<button type=\"button\" class=\"btn ghost card-map-toggle\" style=\"margin-top:10px;\">Compare on a map</button>"
+    + "<div class=\"card-map-container\" style=\"display:none; margin-top:10px;\"></div>";
+
+  card.querySelector(".card-remove").addEventListener("click", function(){ removeMetric(concept); });
+
+  if(hasHistory){
+    card.querySelectorAll(".charttoggle button").forEach(function(btn){
+      btn.classList.toggle("active", btn.dataset.mode === mode);
+      btn.addEventListener("click", function(){
+        cardChartType[concept] = btn.dataset.mode;
+        refreshOneCard(concept);
+      });
+    });
+  }
+
+  wireCardTimeControls(card, concept);
+
+  var mapToggleBtn = card.querySelector(".card-map-toggle");
+  var mapContainer = card.querySelector(".card-map-container");
+  mapToggleBtn.addEventListener("click", function(){
+    if(cardMapInstances[concept]){
+      cardMapInstances[concept].destroy();
+      delete cardMapInstances[concept];
+      mapContainer.style.display = "none";
+      mapToggleBtn.textContent = "Compare on a map";
+    } else {
+      mapContainer.style.display = "block";
+      mapToggleBtn.textContent = "Hide map";
+      cardMapInstances[concept] = createCardMap(concept, mapContainer);
+    }
+  });
+  // A full renderCharts() rebuild (add/remove another card, change
+  // countries) replaces this card's DOM even for cards whose map was
+  // already open -- rebuild that map fresh into the new container
+  // immediately, rather than silently leaving it closed.
+  if(cardMapInstances[concept]){
+    mapContainer.style.display = "block";
+    mapToggleBtn.textContent = "Hide map";
+    cardMapInstances[concept] = createCardMap(concept, mapContainer);
+  }
+
+  return card;
+}
+
+function updateCardChangeSliderVisuals(card, st){
+  var startSlider = card.querySelector(".card-change-start-slider");
+  var endSlider = card.querySelector(".card-change-end-slider");
+  var fill = card.querySelector(".card-change-fill");
+  var startLabel = card.querySelector(".card-change-start-label");
+  var endLabel = card.querySelector(".card-change-end-label");
+  if(!startSlider || !endSlider) return;
+  var min = +startSlider.min, max = +startSlider.max;
+  var span = Math.max(1, max - min);
+  var leftPct = ((st.changeStartYear - min) / span) * 100;
+  var rightPct = ((st.changeEndYear - min) / span) * 100;
+  fill.style.left = leftPct + "%";
+  fill.style.width = Math.max(0, rightPct - leftPct) + "%";
+  startLabel.textContent = st.changeStartYear;
+  endLabel.textContent = st.changeEndYear;
+}
+
+// Wires this one card's own mode-switch and slider(s) -- every listener
+// here calls refreshOneCard(concept), never the full renderCharts(), so
+// dragging this card's slider never touches any other card's DOM (or
+// its own slider DOM out from under the drag gesture).
+function wireCardTimeControls(card, concept){
+  var st = clampCardTimeState(concept);
+  var minYear = computeTimeSliderMinYear();
+
+  var modeSwitchEl = card.querySelector(".card-mode-switch");
+  var snapWrap = card.querySelector(".card-snapshot-wrap");
+  var changeWrap = card.querySelector(".card-change-wrap");
+  var snapSlider = card.querySelector(".card-snapshot-slider");
+  var snapLabel = card.querySelector(".card-snapshot-label");
+  var changeStartSlider = card.querySelector(".card-change-start-slider");
+  var changeEndSlider = card.querySelector(".card-change-end-slider");
+
+  modeSwitchEl.querySelectorAll(".modebtn").forEach(function(btn){
+    btn.classList.toggle("active", btn.dataset.mode === st.mode);
+    btn.addEventListener("click", function(){
+      modeSwitchEl.querySelectorAll(".modebtn").forEach(function(b){ b.classList.remove("active"); });
+      btn.classList.add("active");
+      st.mode = btn.dataset.mode;
+      snapWrap.hidden = st.mode !== "snapshot";
+      changeWrap.hidden = st.mode !== "change";
+      refreshOneCard(concept);
+    });
+  });
+  snapWrap.hidden = st.mode !== "snapshot";
+  changeWrap.hidden = st.mode !== "change";
+
+  snapSlider.min = minYear;
+  snapSlider.max = CURRENT_YEAR;
+  snapSlider.value = st.snapshotYear;
+  snapLabel.textContent = st.snapshotYear;
+  snapSlider.addEventListener("input", function(){
+    st.snapshotYear = +snapSlider.value;
+    snapLabel.textContent = st.snapshotYear;
+    refreshOneCard(concept);
+  });
+
+  [changeStartSlider, changeEndSlider].forEach(function(s){ s.min = minYear; s.max = CURRENT_YEAR; });
+  changeStartSlider.value = st.changeStartYear;
+  changeEndSlider.value = st.changeEndYear;
+  updateCardChangeSliderVisuals(card, st);
+
+  // Two independent thumbs on the same conceptual track can't be
+  // allowed to cross -- each nudges the other out of the way rather
+  // than letting start end up after end, matching the old shared
+  // slider's behaviour, just scoped to one card now.
+  changeStartSlider.addEventListener("input", function(){
+    var v = +changeStartSlider.value;
+    if(v >= st.changeEndYear){ v = st.changeEndYear - 1; changeStartSlider.value = v; }
+    st.changeStartYear = v;
+    updateCardChangeSliderVisuals(card, st);
+    refreshOneCard(concept);
+  });
+  changeEndSlider.addEventListener("input", function(){
+    var v = +changeEndSlider.value;
+    if(v <= st.changeStartYear){ v = st.changeStartYear + 1; changeEndSlider.value = v; }
+    st.changeEndYear = v;
+    updateCardChangeSliderVisuals(card, st);
+    refreshOneCard(concept);
+  });
+}
+
+// Fills (or refills) a card's chart/ranking content only -- never
+// touches the card's own outer shell, mode-switch or sliders. Safe to
+// call repeatedly on the same card (e.g. every time its own slider
+// moves) without disturbing the DOM the user is actively interacting
+// with.
+function fillCardChart(card, concept){
+  if(charts[concept]){ charts[concept].destroy(); delete charts[concept]; }
+
+  var hasHistory = metricHasHistory(concept);
+  var barHasData = selected.some(function(c){ return getDisplayValue(c, concept) != null; });
+  var explicitMode = cardChartType[concept];
+  var mode = explicitMode || "bar";
+  if(mode === "line" && !hasHistory) mode = "bar";
+  if(!explicitMode && mode === "bar" && !barHasData && hasHistory) mode = "line";
+
+  card.querySelectorAll(".charttoggle button").forEach(function(btn){
+    btn.classList.toggle("active", btn.dataset.mode === mode);
+  });
+
+  var canvas = card.querySelector("canvas");
+  var titleEl = card.querySelector(".card-title");
+  var explEl = card.querySelector(".card-expl");
+  var rankBody = card.querySelector(".tpm-rank-body");
+  rankBody.innerHTML = "";
+  // Reset from any previous "no data for this selection" state -- with
+  // a stable shell reused across refreshes, these need putting back
+  // explicitly rather than always starting fresh.
+  card.querySelector(".tpm-layout").style.display = "";
+  var lockedActionsEl = card.querySelector(".lockedactions");
+  if(lockedActionsEl) lockedActionsEl.style.display = "";
+
+  if(mode === "line"){
+    var lineResult = buildLineChart(canvas, concept);
+    if(!lineResult){
+      titleEl.textContent = CONCEPT_LABEL[concept] + " (over time)";
+      explEl.textContent = "None of the currently selected countries have this metric's history tracked.";
+      card.querySelector(".tpm-layout").style.display = "none";
+      if(lockedActionsEl) lockedActionsEl.style.display = "none";
+      return;
+    }
+    titleEl.textContent = CONCEPT_LABEL[concept] + " (over time)";
+    explEl.textContent = CONCEPT_EXPLAINER[concept] + " Full published history, for each selected country that tracks it." +
+      (lineResult.isCurrencyMetric ? " Converted to USD at today's exchange rate throughout, including older years, since historical rates aren't available -- treat older figures as an approximation." : "");
+    charts[concept] = lineResult.chart;
+    card.querySelector("#rankSub").textContent = "Latest available value per country.";
+    renderLineRankList(rankBody, concept, lineResult.datasets, lineResult.chart);
+    var dlBtnLine = card.querySelector(".dl-btn");
+    if(dlBtnLine && window.EATLAS_DOWNLOAD){
+      var lineRows = [];
+      lineResult.datasets.forEach(function(ds){
+        ds.data.forEach(function(pt){ lineRows.push({country: ds.label, date: pt.x, value: pt.y}); });
+      });
+      window.EATLAS_DOWNLOAD.wireMulti(dlBtnLine, lineRows, CONCEPT_LABEL[concept] + " over time");
+    }
+    var czBtnLine = card.querySelector(".cz-btn");
+    if(czBtnLine && window.EATLAS_CUSTOMIZE){
+      var czSeriesList = lineResult.datasets.map(function(ds){
+        return { country: ds.label, color: ds.borderColor, points: ds.data.map(function(p){ return [p.x, p.y]; }) };
+      });
+      var czFmtY = lineResult.isCurrencyMetric
+        ? function(v){ return curFmt(v, "$m", 2); }
+        : function(v){ return axisTickLabel(v, concept); };
+      var czSrcNote = CONCEPT_LABEL[concept] + " over time, " + lineResult.datasets.length + " countries" + (lineResult.isCurrencyMetric ? " (converted to USD)" : "") + ".";
+      window.EATLAS_CUSTOMIZE.wireMulti(czBtnLine, czSeriesList, CONCEPT_LABEL[concept] + " over time", czSrcNote, czFmtY, concept + "_comparison", fmtPeriod);
+    }
+  } else {
+    var barResult = buildBarChart(canvas, concept);
+    if(!barResult){
+      titleEl.textContent = CONCEPT_LABEL[concept];
+      explEl.textContent = "None of the currently selected countries have data for the current time selection.";
+      card.querySelector(".tpm-layout").style.display = "none";
+      if(lockedActionsEl) lockedActionsEl.style.display = "none";
+      return;
+    }
+    titleEl.textContent = CONCEPT_LABEL[concept] + barResult.titleSuffix;
+    explEl.textContent = CONCEPT_EXPLAINER[concept] + " " + barResult.horizonNote;
+    charts[concept] = barResult.chart;
+    card.querySelector("#rankSub").textContent = "Highest to lowest, current selection.";
+    renderBarRankList(rankBody, concept, barResult.rows, barResult.chart);
+    var dlBtnBar = card.querySelector(".dl-btn");
+    if(dlBtnBar && window.EATLAS_DOWNLOAD){
+      var barRows = barResult.rows.filter(function(r){ return r.dv != null; })
+        .map(function(r){ return {country: r.country, date: r.dv.period || "", value: r.dv.value}; });
+      window.EATLAS_DOWNLOAD.wireMulti(dlBtnBar, barRows, CONCEPT_LABEL[concept]);
+    }
+    var czBtnBar = card.querySelector(".cz-btn");
+    if(czBtnBar && window.EATLAS_CUSTOMIZE){
+      var czRealDv = barResult.rows.filter(function(r){ return r.dv != null; }).map(function(r){ return r.dv; });
+      var czIsCumulative = czRealDv.length ? czRealDv[0].isCumulative : false;
+      var czRawUnit = czRealDv.length ? czRealDv[0].rawUnit : null;
+      var czSnapshotRows = barResult.rows.map(function(r){
+        return { country: r.country, value: r.dv ? r.dv.value : null, color: COUNTRY_COLOR[r.country] };
+      });
+      var czSnapFmtY = (CONCEPT_UNIT[concept] === "currency" && !czIsCumulative)
+        ? function(v){ return curFmt(v, czRawUnit || "$m", 0); }
+        : function(v){ return axisTickLabel(v, concept, czIsCumulative); };
+      window.EATLAS_CUSTOMIZE.wireSnapshot(czBtnBar, czSnapshotRows, CONCEPT_LABEL[concept] + barResult.titleSuffix, CONCEPT_LABEL[concept] + ", current selection. " + barResult.horizonNote, czSnapFmtY, concept + "_snapshot");
+    }
+  }
+}
+
+// Used by a card's own time controls -- updates only that one card's
+// chart, ranking list, table row values, and (if open) its own map.
+// Never rebuilds the grid or any other card's DOM.
+function refreshOneCard(concept){
+  var grid = document.getElementById("chartGrid");
+  var card = grid.querySelector('.metric-card[data-concept="' + concept + '"]');
+  if(!card) return;
+  fillCardChart(card, concept);
+  if(cardMapInstances[concept]) cardMapInstances[concept].update();
+  renderTable();
+}
+
 function renderCharts(){
   var grid = document.getElementById("chartGrid");
   var addTileEl = document.getElementById("addMetricTile");
@@ -2571,123 +2895,14 @@ function renderCharts(){
     var barHasData = selected.some(function(c){ return getDisplayValue(c, concept) != null; });
     if(!hasHistory && !barHasData) return; // truly nothing to show for this concept at all
 
-    var explicitMode = cardChartType[concept]; // undefined if the user hasn't chosen for this card yet
+    var explicitMode = cardChartType[concept];
     var mode = explicitMode || "bar";
     if(mode === "line" && !hasHistory) mode = "bar";
-    // Only auto-pick Line as a helpful default when the user hasn't
-    // explicitly chosen a mode for this card -- previously this ran
-    // unconditionally, silently flipping back to Line every time
-    // someone clicked "Bar" on a metric that currently has no data for
-    // this horizon (e.g. FDI, which often lags behind faster-reporting
-    // metrics), making the Bar button look broken.
     if(!explicitMode && mode === "bar" && !barHasData && hasHistory) mode = "line";
 
-    var card = document.createElement("div");
-    card.className = "cmp-card metric-card wide";
-    card.innerHTML = "<button type=\"button\" class=\"card-remove\" aria-label=\"Remove this card\" title=\"Remove this card\">&times;</button>"
-      + "<h3 class=\"card-title\"></h3>"
-      + (hasHistory ? "<div class=\"charttoggle\"><button type=\"button\" data-mode=\"bar\">Bar</button><button type=\"button\" data-mode=\"line\">Line</button></div>" : "")
-      + "<p class=\"expl card-expl\"></p>"
-      + "<div class=\"tpm-layout\">"
-      + "<div class=\"tpm-left\"><div class=\"cbox\"><canvas></canvas></div></div>"
-      + "<div class=\"tpm-right\"><div class=\"tpm-ranking\"><h4>Ranking</h4><p class=\"tpm-ranksubtitle\" id=\"rankSub\"></p></div></div>"
-      + "</div>"
-      + "<div class=\"lockedactions\"><a class=\"lockedbtn dl-btn\" href=\"contact\" data-tip=\"Create a free account to unlock this feature.\"><span class=\"lockicon\">&#128274;</span> Download data</a><a class=\"lockedbtn cz-btn\" href=\"contact\" data-tip=\"Coming soon. Contact us to express interest.\"><span class=\"lockicon\">&#128274;</span> Customise &amp; export</a></div>";
+    var card = buildCardShell(concept, hasHistory, mode);
     grid.insertBefore(card, addTileEl);
-    card.querySelector(".card-remove").addEventListener("click", function(){ removeMetric(concept); });
-
-    if(hasHistory){
-      card.querySelectorAll(".charttoggle button").forEach(function(btn){
-        btn.classList.toggle("active", btn.dataset.mode === mode);
-        btn.addEventListener("click", function(){
-          // renderCharts() tears down and rebuilds every card (including
-          // the button just clicked), which drops focus back to <body>
-          // and can leave the browser's scroll position clamped to
-          // whatever the document's height happened to be mid-rebuild --
-          // felt as a jarring jump to the top. Rather than chase the
-          // exact reflow that causes it, just pin the scroll position
-          // across the rebuild and restore it once layout has settled.
-          var scrollY = window.scrollY;
-          cardChartType[concept] = btn.dataset.mode;
-          renderCharts();
-          requestAnimationFrame(function(){ window.scrollTo(0, scrollY); });
-        });
-      });
-    }
-
-    var canvas = card.querySelector("canvas");
-    var titleEl = card.querySelector(".card-title");
-    var explEl = card.querySelector(".card-expl");
-    var rankingContainer = card.querySelector(".tpm-ranking");
-
-    if(mode === "line"){
-      var lineResult = buildLineChart(canvas, concept);
-      if(!lineResult){
-        titleEl.textContent = CONCEPT_LABEL[concept] + " (over time)";
-        explEl.textContent = "None of the currently selected countries have this metric's history tracked.";
-        card.querySelector(".tpm-layout").style.display = "none";
-        var la1 = card.querySelector(".lockedactions"); if(la1) la1.style.display = "none";
-        return;
-      }
-      titleEl.textContent = CONCEPT_LABEL[concept] + " (over time)";
-      explEl.textContent = CONCEPT_EXPLAINER[concept] + " Full published history, for each selected country that tracks it." +
-        (lineResult.isCurrencyMetric ? " Converted to USD at today's exchange rate throughout, including older years, since historical rates aren't available -- treat older figures as an approximation." : "");
-      charts[concept] = lineResult.chart;
-      card.querySelector("#rankSub").textContent = "Latest available value per country.";
-      renderLineRankList(rankingContainer, concept, lineResult.datasets, lineResult.chart);
-      var dlBtnLine = card.querySelector(".dl-btn");
-      if(dlBtnLine && window.EATLAS_DOWNLOAD){
-        var lineRows = [];
-        lineResult.datasets.forEach(function(ds){
-          ds.data.forEach(function(pt){ lineRows.push({country: ds.label, date: pt.x, value: pt.y}); });
-        });
-        window.EATLAS_DOWNLOAD.wireMulti(dlBtnLine, lineRows, CONCEPT_LABEL[concept] + " over time");
-      }
-      var czBtnLine = card.querySelector(".cz-btn");
-      if(czBtnLine && window.EATLAS_CUSTOMIZE){
-        var czSeriesList = lineResult.datasets.map(function(ds){
-          return { country: ds.label, color: ds.borderColor, points: ds.data.map(function(p){ return [p.x, p.y]; }) };
-        });
-        var czFmtY = lineResult.isCurrencyMetric
-          ? function(v){ return curFmt(v, "$m", 2); }
-          : function(v){ return axisTickLabel(v, concept); };
-        var czSrcNote = CONCEPT_LABEL[concept] + " over time, " + lineResult.datasets.length + " countries" + (lineResult.isCurrencyMetric ? " (converted to USD)" : "") + ".";
-        window.EATLAS_CUSTOMIZE.wireMulti(czBtnLine, czSeriesList, CONCEPT_LABEL[concept] + " over time", czSrcNote, czFmtY, concept + "_comparison", fmtPeriod);
-      }
-    } else {
-      var barResult = buildBarChart(canvas, concept);
-      if(!barResult){
-        titleEl.textContent = CONCEPT_LABEL[concept];
-        explEl.textContent = "None of the currently selected countries have data for the current time selection.";
-        card.querySelector(".tpm-layout").style.display = "none";
-        var la2 = card.querySelector(".lockedactions"); if(la2) la2.style.display = "none";
-        return;
-      }
-      titleEl.textContent = CONCEPT_LABEL[concept] + barResult.titleSuffix;
-      explEl.textContent = CONCEPT_EXPLAINER[concept] + " " + barResult.horizonNote;
-      charts[concept] = barResult.chart;
-      card.querySelector("#rankSub").textContent = "Highest to lowest, current selection.";
-      renderBarRankList(rankingContainer, concept, barResult.rows, barResult.chart);
-      var dlBtnBar = card.querySelector(".dl-btn");
-      if(dlBtnBar && window.EATLAS_DOWNLOAD){
-        var barRows = barResult.rows.filter(function(r){ return r.dv != null; })
-          .map(function(r){ return {country: r.country, date: r.dv.period || "", value: r.dv.value}; });
-        window.EATLAS_DOWNLOAD.wireMulti(dlBtnBar, barRows, CONCEPT_LABEL[concept]);
-      }
-      var czBtnBar = card.querySelector(".cz-btn");
-      if(czBtnBar && window.EATLAS_CUSTOMIZE){
-        var czRealDv = barResult.rows.filter(function(r){ return r.dv != null; }).map(function(r){ return r.dv; });
-        var czIsCumulative = czRealDv.length ? czRealDv[0].isCumulative : false;
-        var czRawUnit = czRealDv.length ? czRealDv[0].rawUnit : null;
-        var czSnapshotRows = barResult.rows.map(function(r){
-          return { country: r.country, value: r.dv ? r.dv.value : null, color: COUNTRY_COLOR[r.country] };
-        });
-        var czSnapFmtY = (CONCEPT_UNIT[concept] === "currency" && !czIsCumulative)
-          ? function(v){ return curFmt(v, czRawUnit || "$m", 0); }
-          : function(v){ return axisTickLabel(v, concept, czIsCumulative); };
-        window.EATLAS_CUSTOMIZE.wireSnapshot(czBtnBar, czSnapshotRows, CONCEPT_LABEL[concept] + barResult.titleSuffix, CONCEPT_LABEL[concept] + ", current selection. " + barResult.horizonNote, czSnapFmtY, concept + "_snapshot");
-      }
-    }
+    fillCardChart(card, concept);
   });
 }
 
@@ -2792,109 +3007,6 @@ function computeTimeSliderMinYear(){
   return found ? earliest : CURRENT_YEAR - 10;
 }
 
-function syncMapToGlobalYear(){
-  var slider = document.getElementById("mapYearSlider");
-  if(!slider) return; // map card not present on every render path
-  mapYear = sliderMode === "snapshot" ? snapshotYear : changeEndYear;
-  updateMapYearSliderBounds();
-  drawHeatmap();
-}
-
-function renderAllForTimeChange(){
-  renderCharts();
-  renderTable();
-  updateMapCardSub();
-  syncMapToGlobalYear();
-}
-
-function updateChangeSliderVisuals(){
-  var startSlider = document.getElementById("changeStartSlider");
-  var endSlider = document.getElementById("changeEndSlider");
-  var fill = document.getElementById("changeTrackFill");
-  var startLabel = document.getElementById("changeStartLabel");
-  var endLabel = document.getElementById("changeEndLabel");
-  if(!startSlider || !endSlider) return;
-  var min = +startSlider.min, max = +startSlider.max;
-  var span = Math.max(1, max - min);
-  var leftPct = ((changeStartYear - min) / span) * 100;
-  var rightPct = ((changeEndYear - min) / span) * 100;
-  if(fill){ fill.style.left = leftPct + "%"; fill.style.width = Math.max(0, rightPct - leftPct) + "%"; }
-  if(startLabel) startLabel.textContent = changeStartYear;
-  if(endLabel) endLabel.textContent = changeEndYear;
-}
-
-function initTimeControls(){
-try {
-  var minYear = computeTimeSliderMinYear();
-
-  var snapshotSlider = document.getElementById("snapshotSlider");
-  var snapshotLabel = document.getElementById("snapshotSliderLabel");
-  if(snapshotSlider){
-    snapshotSlider.min = minYear;
-    snapshotSlider.max = CURRENT_YEAR;
-    snapshotSlider.value = snapshotYear;
-    if(snapshotLabel) snapshotLabel.textContent = snapshotYear;
-    snapshotSlider.addEventListener("input", function(){
-      snapshotYear = +snapshotSlider.value;
-      if(snapshotLabel) snapshotLabel.textContent = snapshotYear;
-      renderAllForTimeChange();
-    });
-  }
-
-  var changeStartSlider = document.getElementById("changeStartSlider");
-  var changeEndSlider = document.getElementById("changeEndSlider");
-  if(changeStartSlider && changeEndSlider){
-    [changeStartSlider, changeEndSlider].forEach(function(s){
-      s.min = minYear;
-      s.max = CURRENT_YEAR;
-    });
-    // Clamp defaults into the real available range -- CURRENT_YEAR - 5
-    // could sit before minYear for a metric/country combo with a short
-    // history.
-    changeStartYear = Math.max(minYear, changeStartYear);
-    changeEndYear = Math.min(CURRENT_YEAR, Math.max(changeStartYear + 1, changeEndYear));
-    changeStartSlider.value = changeStartYear;
-    changeEndSlider.value = changeEndYear;
-    updateChangeSliderVisuals();
-
-    // Two independent thumbs on the same conceptual track can't be
-    // allowed to cross -- each nudges the other out of the way rather
-    // than letting start end up after end, which would make "change
-    // from X to Y" nonsensical.
-    changeStartSlider.addEventListener("input", function(){
-      var v = +changeStartSlider.value;
-      if(v >= changeEndYear){ v = changeEndYear - 1; changeStartSlider.value = v; }
-      changeStartYear = v;
-      updateChangeSliderVisuals();
-      renderAllForTimeChange();
-    });
-    changeEndSlider.addEventListener("input", function(){
-      var v = +changeEndSlider.value;
-      if(v <= changeStartYear){ v = changeStartYear + 1; changeEndSlider.value = v; }
-      changeEndYear = v;
-      updateChangeSliderVisuals();
-      renderAllForTimeChange();
-    });
-  }
-
-  var modeSwitch = document.getElementById("modeSwitch");
-  if(modeSwitch){
-    modeSwitch.querySelectorAll(".modebtn").forEach(function(btn){
-      btn.addEventListener("click", function(){
-        modeSwitch.querySelectorAll(".modebtn").forEach(function(b){ b.classList.remove("active"); });
-        btn.classList.add("active");
-        sliderMode = btn.dataset.mode;
-        var snapWrap = document.getElementById("snapshotSliderWrap");
-        var changeWrap = document.getElementById("changeSliderWrap");
-        if(snapWrap) snapWrap.hidden = sliderMode !== "snapshot";
-        if(changeWrap) changeWrap.hidden = sliderMode !== "change";
-        renderAllForTimeChange();
-      });
-    });
-  }
-} catch(e) { console.error("Time control wiring failed:", e); }
-}
-
 /* ------------------------------- history helpers ---------------------------- */
 // Resolves a country's actual historical points for a concept. gdp_growth
 // is special-cased to use the country's own natively-published growth-
@@ -2939,15 +3051,18 @@ function historySeriesUnit(country, concept){
 function renderAll(){
   // Each piece runs independently -- if one throws, the page still ends
   // up with everything else rendered and a clear console error, rather
-  // than one broken piece silently leaving the whole page inert.
-  [renderChips, renderCharts, renderTable, renderMapMetricRow, updateMapYearSliderBounds, updateMapCardSub, drawHeatmap].forEach(function(fn){
+  // than one broken piece silently leaving the whole page inert. Any
+  // currently-open per-card maps redraw themselves afterwards, since a
+  // full renderCharts() rebuild replaces card DOM (including any open
+  // map's container) each time.
+  [renderChips, renderCharts, renderTable].forEach(function(fn){
     try { fn(); } catch(e) { console.error(fn.name + " failed:", e); }
   });
+  try { redrawAllOpenMaps(); } catch(e) { console.error("redrawAllOpenMaps failed:", e); }
 }
 loadAll().then(function(){
   document.getElementById("loadMsg").style.display = "none";
   document.getElementById("mainContent").style.display = "block";
-  try { initMapYearSlider(); } catch(e) { console.error("initMapYearSlider failed:", e); }
 
   var saveBar = document.getElementById("saveBar");
   if(saveBar && window.EATLAS_PREFS) window.EATLAS_PREFS.registerBanner(saveBar);
@@ -2964,12 +3079,9 @@ loadAll().then(function(){
       if(Array.isArray(saved) && saved.length && saved.every(function(m){ return CONCEPT_LABEL[m]; })){
         visibleMetrics = saved;
       }
-      // Runs here specifically, after visibleMetrics reflects whatever a
-      // logged-in visitor actually had saved -- computing the slider's
-      // year bounds any earlier would use the default 3 metrics instead
-      // of their real selection, understating how far back the slider
-      // should actually reach.
-      try { initTimeControls(); } catch(e) { console.error("initTimeControls failed:", e); }
+      // Each card's own time controls are now built per-card, inside
+      // buildCardShell(), as part of renderAll() -> renderCharts() --
+      // no separate page-wide init step needed before that runs.
       renderAll();
     });
     // Logging in mid-session (via the banner, having already customised
@@ -2978,8 +3090,6 @@ loadAll().then(function(){
     window.EATLAS_PREFS.onLogin(function(){
       window.EATLAS_PREFS.set("compareMetrics", visibleMetrics);
     });
-  } else {
-    try { initTimeControls(); } catch(e) { console.error("initTimeControls failed:", e); }
   }
 
   fetchWithTimeout("https://cdn.jsdelivr.net/npm/world-atlas@2/countries-110m.json", 12000)
@@ -2991,35 +3101,7 @@ loadAll().then(function(){
   document.getElementById("loadMsg").textContent = "Something went wrong loading the country data. Try reloading the page.";
 });
 
-/* -------------------------------- map card -------------------------------- */
-var mapMetric = "gdp_growth";
-// This always mirrors visibleMetrics directly, so any metric added to
-// the comparison is automatically available on the map too, and any
-// metric removed disappears from here in the same render.
-function getMapMetricsAvailable(){
-  return visibleMetrics.filter(metricHasComparableYear);
-}
-function renderMapMetricRow(){
-  var row = document.getElementById("mapMetricRow");
-  row.innerHTML = "";
-  var available = getMapMetricsAvailable();
-  if(available.indexOf(mapMetric) === -1) mapMetric = available[0] || null;
-  available.forEach(function(m){
-    var b = document.createElement("button");
-    b.type = "button";
-    b.className = "hbtn" + (m === mapMetric ? " active" : "");
-    b.dataset.metric = m; // lets the tour engine target a specific map metric reliably
-    b.textContent = CONCEPT_LABEL[m];
-    b.addEventListener("click", function(){
-      mapMetric = m;
-      renderMapMetricRow();
-      updateMapYearSliderBounds();
-      drawHeatmap();
-    });
-    row.appendChild(b);
-  });
-}
-
+/* -------------------------------- per-card maps -------------------------------- */
 // Decoupled from the page-wide horizon toggle -- the map has its own
 // year, controlled by the slider, so it can scrub year-by-year rather
 // than being limited to the 5 fixed horizon buttons. gdp_growth is
@@ -3082,145 +3164,165 @@ function metricHasComparableYear(concept){
   return comparableYearsForMetric(concept).length > 0;
 }
 
-var mapYear = null;
-var mapZoomBehavior = null;
-var mapZoomTransform = null;
-
-// Recomputes the slider's lower bound whenever the mapped metric or the
-// country selection changes (both affect what counts as "2 or more
-// countries with data"), and pulls the current position forward if it
-// would otherwise sit outside the new range.
-function updateMapYearSliderBounds(){
-  var slider = document.getElementById("mapYearSlider");
-  if(!slider || !mapMetric) return;
-  var min = computeEarliestYearForMetric(mapMetric);
-  slider.min = min;
-  if(mapYear == null || mapYear < min){
-    mapYear = min;
-  }
-  slider.value = mapYear;
-  document.getElementById("mapYearLabel").textContent = mapYear;
-}
-
-function initMapYearSlider(){
-  var slider = document.getElementById("mapYearSlider");
-  slider.max = CURRENT_YEAR;
-  mapYear = CURRENT_YEAR;
-  updateMapYearSliderBounds();
-  slider.addEventListener("input", function(){
-    mapYear = +slider.value;
-    document.getElementById("mapYearLabel").textContent = mapYear;
-    drawHeatmap();
-  });
-}
-
 var worldData = null;
-function drawHeatmap(){
-  if(!worldData || mapYear == null) return;
-  var svg = d3.select("#heatmapSvg");
-  svg.selectAll("*").remove();
 
-  var noMetricMsg = document.getElementById("heatNoMetric");
-  if(!mapMetric){
-    if(noMetricMsg) noMetricMsg.style.display = "block";
-    document.getElementById("legendLo").textContent = "";
-    document.getElementById("legendHi").textContent = "";
-    return;
+// One independently-instantiable map per card, rather than a single
+// shared map with module-level state -- each instance gets its own SVG,
+// its own zoom behaviour/transform, and always shows its own card's
+// concept at whatever year that card's own time control currently
+// implies (effectiveMapYear). Maps are opt-in per card ("Compare on a
+// map" toggle), not built automatically for every pinned metric, per
+// the agreed fallback for keeping many-cards-pinned pages light.
+//
+// Returns {update, destroy}. update() redraws using the current
+// `selected` countries and this card's current time state; destroy()
+// removes the zoom listener and the SVG contents, so repeatedly
+// toggling a card's map on/off across a session doesn't leak listeners.
+function createCardMap(concept, container){
+  container.innerHTML =
+    '<p class="expl cardmap-sub"></p>' +
+    '<p class="expl cardmap-empty" style="display:none;">Not enough of your currently selected countries have comparable data for this metric to colour a map.</p>' +
+    '<div style="position:relative;">' +
+      '<svg viewBox="0 0 960 500" class="cardmap-svg"></svg>' +
+      '<div class="heat-tip cardmap-tip"></div>' +
+      '<div class="mapzoom-controls">' +
+        '<button type="button" class="cardmap-zoom-in" aria-label="Zoom in">+</button>' +
+        '<button type="button" class="cardmap-zoom-out" aria-label="Zoom out">\u2212</button>' +
+        '<button type="button" class="cardmap-zoom-reset" aria-label="Reset zoom">Reset</button>' +
+      '</div>' +
+    '</div>' +
+    '<div class="legend-grad">' +
+      '<span class="cardmap-legend-lo">low</span>' +
+      '<div class="legend-bar"></div>' +
+      '<span class="cardmap-legend-hi">high</span>' +
+    '</div>';
+
+  var svgEl = container.querySelector(".cardmap-svg");
+  var svg = d3.select(svgEl);
+  var tip = container.querySelector(".cardmap-tip");
+  var subEl = container.querySelector(".cardmap-sub");
+  var emptyEl = container.querySelector(".cardmap-empty");
+  var legendLo = container.querySelector(".cardmap-legend-lo");
+  var legendHi = container.querySelector(".cardmap-legend-hi");
+
+  var zoomBehavior = null;
+  var zoomTransform = null;
+
+  function update(){
+    var year = effectiveMapYear(concept);
+    subEl.textContent = "Darker = higher. Shows " + year + ".";
+    svg.selectAll("*").remove();
+
+    if(!worldData || !metricHasComparableYear(concept)){
+      emptyEl.style.display = "block";
+      legendLo.textContent = "";
+      legendHi.textContent = "";
+      return;
+    }
+    emptyEl.style.display = "none";
+
+    // Only ever colours countries actually selected in the comparison
+    // above -- "chosen countries" and "map view" are always the same
+    // set, not two disconnected ones.
+    var mappable = selected.filter(function(c){ return ISO_OF[c]; });
+    var dvByCountry = {};
+    mappable.forEach(function(c){ dvByCountry[c] = getMapValueForYear(c, concept, year); });
+    var vals = mappable
+      .map(function(c){ return dvByCountry[c] ? dvByCountry[c].value : null; })
+      .filter(function(v){ return v != null; });
+    var lo = vals.length ? Math.min.apply(null, vals) : 0;
+    var hi = vals.length ? Math.max.apply(null, vals) : 0;
+    var colorScale = d3.scaleSequential().domain([lo, hi]).interpolator(d3.interpolateRgbBasis(["#EAF3E9", "#8AD9B1", "#348FA7", "#37659E", "#2E1E3B"]));
+
+    var lowRep = dvByCountry[mappable.filter(function(c){ return dvByCountry[c] && dvByCountry[c].value === lo; })[0]];
+    var hiRep = dvByCountry[mappable.filter(function(c){ return dvByCountry[c] && dvByCountry[c].value === hi; })[0]];
+    function legendText(v, rep){
+      if(!vals.length) return "n/a";
+      if(CONCEPT_UNIT[concept] === "currency") return curFmt(v, (rep && rep.rawUnit) || "$m", 1);
+      return axisTickLabel(v, concept);
+    }
+    legendLo.textContent = legendText(lo, lowRep);
+    legendHi.textContent = legendText(hi, hiRep);
+
+    var isoToCountry = {};
+    mappable.forEach(function(c){ isoToCountry[ISO_OF[c]] = c; });
+
+    var projection = d3.geoNaturalEarth1().fitSize([960, 500], {type: "Sphere"});
+    var path = d3.geoPath(projection);
+    var countries = topojson.feature(worldData, worldData.objects.countries).features;
+
+    // Zoomable layer: a <g> wrapping all the country paths, transformed
+    // by D3's zoom behaviour (wheel/pinch/drag) and the +/-/Reset
+    // buttons. The transform persists across redraws (year/selection
+    // changes) rather than snapping back to the default view each time.
+    var g = svg.append("g").attr("class", "zoom-layer");
+
+    g.selectAll("path").data(countries).join("path")
+      .attr("d", path)
+      .attr("fill", function(f){
+        var c = isoToCountry[f.id];
+        if(!c) return MAP_NODATA;
+        var dv = dvByCountry[c];
+        return dv ? colorScale(dv.value) : MAP_NODATA;
+      })
+      .attr("stroke", "#fff").attr("stroke-width", 0.6)
+      .style("cursor", function(f){ return isoToCountry[f.id] ? "pointer" : "default"; })
+      .on("mousemove", function(e, f){
+        var c = isoToCountry[f.id];
+        if(!c){ tip.style.display = "none"; return; }
+        var dv = dvByCountry[c];
+        tip.style.display = "block";
+        tip.style.left = (e.offsetX + 14) + "px";
+        tip.style.top = (e.offsetY + 10) + "px";
+        tip.innerHTML = "<strong>" + c + "</strong><br>" + CONCEPT_LABEL[concept] + ": " + (dv ? displayString(dv) : "n/a");
+      })
+      .on("mouseleave", function(){ tip.style.display = "none"; });
+
+    if(!zoomBehavior){
+      zoomBehavior = d3.zoom().scaleExtent([1, 8]).on("zoom", function(e){
+        zoomTransform = e.transform;
+        svg.select(".zoom-layer").attr("transform", e.transform);
+      });
+    }
+    svg.call(zoomBehavior);
+    if(zoomTransform) svg.call(zoomBehavior.transform, zoomTransform);
   }
-  if(noMetricMsg) noMetricMsg.style.display = "none";
 
-  // The heatmap only ever colours countries actually selected in the
-  // comparison above -- "chosen countries" and "map view" are the same
-  // set, not two disconnected ones. Its year is set by the slider, not
-  // the page-wide horizon toggle, so it can scrub year-by-year.
-  var mappable = selected.filter(function(c){ return ISO_OF[c]; });
-  var dvByCountry = {};
-  mappable.forEach(function(c){ dvByCountry[c] = getMapValueForYear(c, mapMetric, mapYear); });
-  var vals = mappable
-    .map(function(c){ return dvByCountry[c] ? dvByCountry[c].value : null; })
-    .filter(function(v){ return v != null; });
-  var lo = vals.length ? Math.min.apply(null, vals) : 0;
-  var hi = vals.length ? Math.max.apply(null, vals) : 0;
-  var colorScale = d3.scaleSequential().domain([lo, hi]).interpolator(d3.interpolateRgbBasis(["#EAF3E9", "#8AD9B1", "#348FA7", "#37659E", "#2E1E3B"]));
+  var zoomInBtn = container.querySelector(".cardmap-zoom-in");
+  var zoomOutBtn = container.querySelector(".cardmap-zoom-out");
+  var zoomResetBtn = container.querySelector(".cardmap-zoom-reset");
+  if(zoomInBtn) zoomInBtn.addEventListener("click", function(){
+    if(zoomBehavior) svg.transition().duration(200).call(zoomBehavior.scaleBy, 1.5);
+  });
+  if(zoomOutBtn) zoomOutBtn.addEventListener("click", function(){
+    if(zoomBehavior) svg.transition().duration(200).call(zoomBehavior.scaleBy, 1/1.5);
+  });
+  if(zoomResetBtn) zoomResetBtn.addEventListener("click", function(){
+    zoomTransform = d3.zoomIdentity;
+    if(zoomBehavior) svg.transition().duration(200).call(zoomBehavior.transform, d3.zoomIdentity);
+  });
 
-  // FIX: this used to show a raw, unformatted number for currency
-  // concepts (e.g. "1051131.6" for GDP with no "$" or scale at all) --
-  // now uses the same curFmt used everywhere else on the page.
-  var lowRep = dvByCountry[mappable.filter(function(c){ return dvByCountry[c] && dvByCountry[c].value === lo; })[0]];
-  var hiRep = dvByCountry[mappable.filter(function(c){ return dvByCountry[c] && dvByCountry[c].value === hi; })[0]];
-  function legendText(v, rep){
-    if(!vals.length) return "n/a";
-    if(CONCEPT_UNIT[mapMetric] === "currency") return curFmt(v, (rep && rep.rawUnit) || "$m", 1);
-    return axisTickLabel(v, mapMetric);
+  function destroy(){
+    // Detach the zoom behaviour's own event listeners before clearing
+    // the DOM -- removing the element alone doesn't unregister a D3
+    // zoom behaviour cleanly, so this is explicit rather than assumed.
+    if(zoomBehavior) svg.on(".zoom", null);
+    svg.selectAll("*").remove();
+    container.innerHTML = "";
   }
-  document.getElementById("legendLo").textContent = legendText(lo, lowRep);
-  document.getElementById("legendHi").textContent = legendText(hi, hiRep);
 
-  var isoToCountry = {};
-  mappable.forEach(function(c){ isoToCountry[ISO_OF[c]] = c; });
-
-  var projection = d3.geoNaturalEarth1().fitSize([960, 500], {type: "Sphere"});
-  var path = d3.geoPath(projection);
-  var countries = topojson.feature(worldData, worldData.objects.countries).features;
-  var tip = document.getElementById("heatTip");
-
-  // Zoomable layer: a <g> wrapping all the country paths, transformed
-  // by D3's zoom behaviour (wheel/pinch/drag) and the +/-/Reset buttons.
-  // The transform persists across redraws (year/metric/selection
-  // changes) rather than snapping back to the default view each time.
-  var g = svg.append("g").attr("class", "zoom-layer");
-
-  g.selectAll("path").data(countries).join("path")
-    .attr("d", path)
-    .attr("fill", function(f){
-      var c = isoToCountry[f.id];
-      if(!c) return MAP_NODATA;
-      var dv = dvByCountry[c];
-      return dv ? colorScale(dv.value) : MAP_NODATA;
-    })
-    .attr("stroke", "#fff").attr("stroke-width", 0.6)
-    .style("cursor", function(f){ return isoToCountry[f.id] ? "pointer" : "default"; })
-    .on("mousemove", function(e, f){
-      var c = isoToCountry[f.id];
-      if(!c){ tip.style.display = "none"; return; }
-      var dv = dvByCountry[c];
-      tip.style.display = "block";
-      tip.style.left = (e.offsetX + 14) + "px";
-      tip.style.top = (e.offsetY + 10) + "px";
-      tip.innerHTML = "<strong>" + c + "</strong><br>" + CONCEPT_LABEL[mapMetric] + ": " + (dv ? displayString(dv) : "n/a");
-    })
-    .on("mouseleave", function(){ tip.style.display = "none"; });
-
-  if(!mapZoomBehavior){
-    mapZoomBehavior = d3.zoom().scaleExtent([1, 8]).on("zoom", function(e){
-      mapZoomTransform = e.transform;
-      d3.select("#heatmapSvg").select(".zoom-layer").attr("transform", e.transform);
-    });
-  }
-  svg.call(mapZoomBehavior);
-  if(mapZoomTransform) svg.call(mapZoomBehavior.transform, mapZoomTransform);
+  update();
+  return {update: update, destroy: destroy};
 }
 
-try {
-  document.getElementById("mapZoomIn").addEventListener("click", function(){
-    d3.select("#heatmapSvg").transition().duration(200).call(mapZoomBehavior.scaleBy, 1.5);
+// Redraws every currently-open per-card map -- called when worldData
+// finishes loading (maps opened before that point had nothing to draw
+// yet) and after the country selection changes (every open map's
+// "mappable" set depends on `selected`).
+function redrawAllOpenMaps(){
+  Object.keys(cardMapInstances).forEach(function(concept){
+    cardMapInstances[concept].update();
   });
-  document.getElementById("mapZoomOut").addEventListener("click", function(){
-    d3.select("#heatmapSvg").transition().duration(200).call(mapZoomBehavior.scaleBy, 1/1.5);
-  });
-  document.getElementById("mapZoomReset").addEventListener("click", function(){
-    mapZoomTransform = d3.zoomIdentity;
-    d3.select("#heatmapSvg").transition().duration(200).call(mapZoomBehavior.transform, d3.zoomIdentity);
-  });
-} catch(e) { console.error("Map zoom button wiring failed:", e); }
-
-function updateMapCardSub(){
-  var mappableCount = selected.filter(function(c){ return ISO_OF[c]; }).length;
-  var el = document.getElementById("mapCardSub");
-  if(!el) return;
-  el.textContent = "Darker = higher. " + (mappableCount
-    ? "Showing " + mappableCount + " of your " + selected.length + " selected countries with a single geography; everywhere else is left blank."
-    : "None of your currently selected countries have a single geography to colour (e.g. only the Eurozone is selected).");
 }
 
 })();
