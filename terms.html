@@ -32,7 +32,7 @@
 <link href="https://fonts.googleapis.com/css2?family=Nunito+Sans:wght@400;600;700&display=swap" rel="stylesheet">
 <link rel="icon" type="image/png" sizes="32x32" href="favicon-32.png">
 <link rel="apple-touch-icon" href="apple-touch-icon.png">
-<link rel="stylesheet" href="style.css?v=24">
+<link rel="stylesheet" href="style.css?v=25">
 </head>
 <body>
 <nav class="top"><div class="wrap">
@@ -90,6 +90,7 @@
   </div>
   <a class="item" href="compare">Compare</a>
   <a class="item" href="dashboard">My Dashboard</a>
+  <a class="item" href="pricing">Pricing</a>
   <a class="item" href="roadmap">Roadmap</a>
   <a class="item" href="contact">Contact</a>
   <button type="button" class="authbtn" id="authBtn">Log in</button>
@@ -101,6 +102,11 @@
     <span class="savebar-icon" aria-hidden="true">&#128276;</span>
     <p>Want to know when new countries, indicators or features land? <a href="roadmap#alertSignupBox" style="color:inherit; text-decoration:underline;">Leave your email</a> -- no account needed.</p>
     <button type="button" class="savebar-close" id="alertBannerClose" aria-label="Dismiss">&times;</button>
+  </div>
+  <div class="savebar" id="trialBanner" hidden>
+    <span class="savebar-icon" aria-hidden="true">&#9203;</span>
+    <p id="trialBannerText"></p>
+    <a href="pricing" class="btn" style="padding:6px 14px; font-size:13px; flex-shrink:0;">Upgrade to Pro</a>
   </div>
 </div>
 <div id="cookieBanner" role="region" aria-label="Cookie consent">
@@ -170,6 +176,21 @@
       <button type="button" class="btn ghost" id="authChangePasswordBtn" style="margin-bottom:10px;">Change password</button>
       <button type="button" class="btn ghost" id="authSignOutBtn">Log out</button>
     </div>
+  </div>
+</div>
+
+<div class="modal" id="welcomeProModal" hidden>
+  <div class="modal-backdrop" id="welcomeProBackdrop"></div>
+  <div class="modal-content">
+    <button type="button" class="modal-close" id="welcomeProClose" aria-label="Close">&times;</button>
+    <h2>Welcome to Pro</h2>
+    <p class="modal-sub">You've got 14 days of Pro, free -- no card needed. That includes:</p>
+    <ul style="margin:0 0 20px; padding-left:20px; line-height:1.9; font-size:14.5px;">
+      <li><strong>Unlimited data downloads</strong>, on any chart, any country</li>
+      <li><strong>Unlimited Customise &amp; export</strong> -- annotate, style and export any chart as an image</li>
+    </ul>
+    <p style="color:var(--ink2); font-size:13px; margin-bottom:18px;">Your trial ends automatically after 14 days -- no card was taken, so nothing gets charged if you don't upgrade. You can see how many days are left any time from the banner at the top of the site, or from your account.</p>
+    <button type="button" class="btn" id="welcomeProGotIt" style="width:100%;">Got it</button>
   </div>
 </div>
 <script>
@@ -719,6 +740,7 @@
     var planFlag = "free";
     var trialEndsAt = null;
     var creditsBalancePence = 0;
+    var welcomeShown = true; // safe default: never show a false-positive popup before the real value loads
 
     function updateBanners(){
       banners.forEach(function(el){ el.hidden = loggedIn; });
@@ -735,19 +757,22 @@
         planFlag = "free";
         trialEndsAt = null;
         creditsBalancePence = 0;
+        welcomeShown = true;
         resolveReady();
         settledCallbacks.forEach(function(cb){ cb(); });
         return;
       }
       // Same query, same round-trip -- also grabs is_admin, plan,
-      // trial_ends_at and the credits balance rather than firing
-      // separate requests just for those.
-      sb.from("profiles").select("preferences, is_admin, plan, trial_ends_at, credits_balance_pence").eq("id", userId).single().then(function(res){
+      // trial_ends_at, the credits balance, and whether the welcome
+      // popup has already been shown, rather than firing separate
+      // requests just for those.
+      sb.from("profiles").select("preferences, is_admin, plan, trial_ends_at, credits_balance_pence, welcome_shown").eq("id", userId).single().then(function(res){
         cache = (res.data && res.data.preferences) || {};
         adminFlag = !!(res.data && res.data.is_admin);
         planFlag = (res.data && res.data.plan) || "free";
         trialEndsAt = (res.data && res.data.trial_ends_at) || null;
         creditsBalancePence = (res.data && res.data.credits_balance_pence) || 0;
+        welcomeShown = !!(res.data && res.data.welcome_shown);
         resolveReady();
         // A live login (not the initial page load) -- whatever was
         // already pinned/selected this session, while unsaved, shouldn't
@@ -760,6 +785,7 @@
         planFlag = "free";
         trialEndsAt = null;
         creditsBalancePence = 0;
+        welcomeShown = true;
         resolveReady();
         if(wasLoggedOutBefore) loginCallbacks.forEach(function(cb){ cb(); });
         settledCallbacks.forEach(function(cb){ cb(); });
@@ -784,6 +810,19 @@
       // wait on the webhook -- the actual balance is still whatever the
       // next page load confirms from the database either way).
       setCreditsBalance: function(pence){ creditsBalancePence = pence; },
+      hasSeenWelcome: function(){ return welcomeShown; },
+      // Fires once, right after the welcome popup is actually shown --
+      // a real column (not client-only), so a second device or a
+      // second browser never re-shows it. Fire-and-forget: worst case
+      // of the write failing is the popup shows once more than
+      // intended, never a functional problem.
+      markWelcomeShown: function(){
+        welcomeShown = true;
+        if(!loggedIn || !userId) return;
+        sb.from("profiles").update({ welcome_shown: true }).eq("id", userId).then(function(res){
+          if(res.error) console.error("Failed to mark welcome popup as shown:", res.error);
+        });
+      },
       // Not logged in => no account => no access at all, per the pricing
       // decision -- this and isPro() are the two checks Download and
       // Customise & Export actually gate on.
@@ -1070,10 +1109,70 @@
       }
     };
   })();
+  // Non-dismissible trial countdown banner -- unlike alertBanner (which
+  // has a close button and remembers dismissal via localStorage), this
+  // one has no close button in its markup at all. That's deliberate:
+  // "cannot delete" is enforced by there being nothing to click, not by
+  // JS re-showing something a user closed.
+  function updateTrialBanner(){
+    var banner = document.getElementById("trialBanner");
+    var text = document.getElementById("trialBannerText");
+    if(!banner || !text) return;
+    var prefs = window.EATLAS_PREFS;
+    if(!prefs || !prefs.isLoggedIn() || prefs.getPlan() !== "pro" || !prefs.getTrialEndsAt()){
+      banner.hidden = true;
+      return;
+    }
+    var ms = new Date(prefs.getTrialEndsAt()).getTime() - Date.now();
+    var days = Math.max(0, Math.ceil(ms / 86400000));
+    text.textContent = days === 0
+      ? "Your Pro trial ends today."
+      : "Your Pro trial ends in " + days + " day" + (days === 1 ? "" : "s") + ".";
+    banner.hidden = false;
+  }
+
+  // Welcome-to-Pro popup: fires exactly once per account, the first time
+  // EATLAS_PREFS resolves with an active, unseen trial -- which in
+  // practice means the first real page load after signing up (signup
+  // itself doesn't have full plan/trial data loaded yet at that exact
+  // moment, so this fires on the very next load rather than trying to
+  // catch the instant of signup itself).
+  function maybeShowWelcomeProModal(){
+    var prefs = window.EATLAS_PREFS;
+    if(!prefs || !prefs.isLoggedIn()) return;
+    if(prefs.getPlan() !== "pro" || !prefs.getTrialEndsAt()) return;
+    if(prefs.hasSeenWelcome()) return;
+    var modal = document.getElementById("welcomeProModal");
+    if(!modal) return;
+    modal.hidden = false;
+    document.body.style.overflow = "hidden";
+    prefs.markWelcomeShown();
+  }
+
+  (function(){
+    var modal = document.getElementById("welcomeProModal");
+    if(!modal) return;
+    function close(){
+      modal.hidden = true;
+      document.body.style.overflow = "";
+    }
+    var closeBtn = document.getElementById("welcomeProClose");
+    var backdrop = document.getElementById("welcomeProBackdrop");
+    var gotIt = document.getElementById("welcomeProGotIt");
+    if(closeBtn) closeBtn.addEventListener("click", close);
+    if(backdrop) backdrop.addEventListener("click", close);
+    if(gotIt) gotIt.addEventListener("click", close);
+    document.addEventListener("keydown", function(e){
+      if(e.key === "Escape" && !modal.hidden) close();
+    });
+  })();
+
   window.EATLAS_PREFS.onSettled(function(){
     window.EATLAS_ACCOUNT.render();
     window.EATLAS_DOWNLOAD.refreshEntitlement();
     window.EATLAS_CUSTOMIZE.refreshEntitlement();
+    updateTrialBanner();
+    maybeShowWelcomeProModal();
   });
 
   // If this page load is the redirect back from clicking "confirm your

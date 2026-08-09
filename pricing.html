@@ -11,22 +11,22 @@
   }catch(e){}
 })();</script>
 <meta name="viewport" content="width=device-width, initial-scale=1">
-<meta name="description" content="Ideas, corrections, or requests for a new country or indicator -- get in touch with The Economic Atlas.">
+<meta name="description" content="Free to browse, or Pro for unlimited data downloads and Customise & export -- see how The Economic Atlas's plans work.">
 <meta property="og:type" content="website">
 <meta property="og:site_name" content="The Economic Atlas">
-<meta property="og:title" content="Contact · The Economic Atlas">
-<meta property="og:description" content="Ideas, corrections, or requests for a new country or indicator -- get in touch with The Economic Atlas.">
-<meta property="og:url" content="https://theeconomicatlas.com/contact">
+<meta property="og:title" content="Pricing · The Economic Atlas">
+<meta property="og:description" content="Free to browse, or Pro for unlimited data downloads and Customise & export -- see how The Economic Atlas's plans work.">
+<meta property="og:url" content="https://theeconomicatlas.com/pricing">
 <meta property="og:image" content="https://theeconomicatlas.com/og-image.png">
 <meta property="og:image:width" content="1200">
 <meta property="og:image:height" content="630">
 <meta property="og:image:alt" content="The Economic Atlas -- hourly economic data, no commentary.">
 <meta name="twitter:card" content="summary_large_image">
-<meta name="twitter:title" content="Contact · The Economic Atlas">
-<meta name="twitter:description" content="Ideas, corrections, or requests for a new country or indicator -- get in touch with The Economic Atlas.">
+<meta name="twitter:title" content="Pricing · The Economic Atlas">
+<meta name="twitter:description" content="Free to browse, or Pro for unlimited data downloads and Customise & export -- see how The Economic Atlas's plans work.">
 <meta name="twitter:image" content="https://theeconomicatlas.com/og-image.png">
-<title>Contact · The Economic Atlas</title>
-<link rel="canonical" href="https://theeconomicatlas.com/contact">
+<title>Pricing · The Economic Atlas</title>
+<link rel="canonical" href="https://theeconomicatlas.com/pricing">
 <link rel="preconnect" href="https://fonts.googleapis.com">
 <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
 <link href="https://fonts.googleapis.com/css2?family=Nunito+Sans:wght@400;600;700&display=swap" rel="stylesheet">
@@ -90,9 +90,9 @@
   </div>
   <a class="item" href="compare">Compare</a>
   <a class="item" href="dashboard">My Dashboard</a>
-  <a class="item" href="pricing">Pricing</a>
+  <a class="item active" href="pricing">Pricing</a>
   <a class="item" href="roadmap">Roadmap</a>
-  <a class="item active" href="contact">Contact</a>
+  <a class="item" href="contact">Contact</a>
   <button type="button" class="authbtn" id="authBtn">Log in</button>
   <button type="button" class="theme-toggle" id="themeToggle" aria-label="Switch to dark mode" title="Switch to dark mode">&#127769;</button>
   </div>
@@ -1008,6 +1008,83 @@
     };
   })();
 
+  // Wires the three pricing-card buttons. Deliberately routes everything
+  // through EATLAS_ACCOUNT.callFunction (same Edge Functions the account
+  // panel uses) rather than duplicating the Stripe integration here --
+  // this page is just a second entry point into the same flows.
+  window.EATLAS_PREFS.onSettled(function(){
+    var freeBtn = document.getElementById("pricingFreeBtn");
+    var creditsBtn = document.getElementById("pricingCreditsBtn");
+    var proBtn = document.getElementById("pricingProBtn");
+    var proMsg = document.getElementById("pricingProMsg");
+    var prefs = window.EATLAS_PREFS;
+
+    // Free card: for a logged-out visitor this is a real signup prompt.
+    // For someone already logged in there's nothing to "create" -- relabel
+    // rather than leave a dead button.
+    if(freeBtn){
+      if(prefs.isLoggedIn()){
+        freeBtn.textContent = "You're signed in";
+        freeBtn.disabled = true;
+      } else {
+        freeBtn.addEventListener("click", function(){ window.EATLAS_OPEN_AUTH_MODAL(); });
+      }
+    }
+
+    // Credits card: opens the account panel either way -- that's where
+    // the actual buy-credits buttons live, so this doesn't duplicate
+    // that UI, just gets a logged-out visitor to a signup prompt first.
+    if(creditsBtn){
+      creditsBtn.addEventListener("click", function(){ window.EATLAS_OPEN_AUTH_MODAL(); });
+    }
+
+    // Pro card: the interesting one, since its correct behaviour depends
+    // on exactly which state the visitor is in.
+    if(proBtn){
+      if(!prefs.isLoggedIn()){
+        // Signing up alone starts the 14-day trial automatically -- no
+        // separate "upgrade" step needed to begin one.
+        proBtn.addEventListener("click", function(){ window.EATLAS_OPEN_AUTH_MODAL(); });
+      } else if(prefs.isAdmin()){
+        proBtn.textContent = "Admin account";
+        proBtn.disabled = true;
+      } else if(prefs.getPlan() === "pro" && prefs.getTrialEndsAt()){
+        proBtn.textContent = "Upgrade to keep Pro after your trial";
+        proBtn.addEventListener("click", function(){
+          var original = proBtn.textContent;
+          proBtn.disabled = true;
+          proBtn.textContent = "Redirecting\u2026";
+          window.EATLAS_ACCOUNT.callFunction("create-checkout-session", { return_to: window.location.href }).then(function(res){
+            if(res.ok && res.data.url){ window.location.href = res.data.url; }
+            else { proBtn.disabled = false; proBtn.textContent = original; if(proMsg){ proMsg.hidden = false; proMsg.textContent = res.data.error || "Something went wrong. Please try again."; } }
+          }).catch(function(err){
+            proBtn.disabled = false; proBtn.textContent = original;
+            if(proMsg){ proMsg.hidden = false; proMsg.textContent = err.message || "Something went wrong. Please try again."; }
+          });
+        });
+      } else if(prefs.getPlan() === "pro" || prefs.getPlan() === "premium"){
+        proBtn.textContent = "You're already on Pro";
+        proBtn.disabled = true;
+      } else {
+        // Free plan, no trial left (already used it) -- this is a real
+        // upgrade, not a trial start.
+        proBtn.textContent = "Upgrade to Pro";
+        proBtn.addEventListener("click", function(){
+          var original = proBtn.textContent;
+          proBtn.disabled = true;
+          proBtn.textContent = "Redirecting\u2026";
+          window.EATLAS_ACCOUNT.callFunction("create-checkout-session", { return_to: window.location.href }).then(function(res){
+            if(res.ok && res.data.url){ window.location.href = res.data.url; }
+            else { proBtn.disabled = false; proBtn.textContent = original; if(proMsg){ proMsg.hidden = false; proMsg.textContent = res.data.error || "Something went wrong. Please try again."; } }
+          }).catch(function(err){
+            proBtn.disabled = false; proBtn.textContent = original;
+            if(proMsg){ proMsg.hidden = false; proMsg.textContent = err.message || "Something went wrong. Please try again."; }
+          });
+        });
+      }
+    }
+  });
+
   // Confirms a just-completed Stripe redirect (upgrade or credits
   // purchase) with a one-off message, then strips the query params so a
   // refresh doesn't re-show it. The actual plan/credits change already
@@ -1202,18 +1279,114 @@
       }, 5000);
     }
   })();
+
+  // "Get notified" email capture -- insert-only table, no read access
+  // from the client at all (see the alert_signups RLS policy), so this
+  // is deliberately a one-way drop box rather than anything that could
+  // read emails back out. A unique_violation (code 23505) means the
+  // address is already on the list, which gets its own friendly message
+  // rather than being shown as an error.
+  var alertForm = document.getElementById("alertSignupForm");
+  if(alertForm){
+    var alertEmailInput = document.getElementById("alertSignupEmail");
+    var alertBtn = document.getElementById("alertSignupBtn");
+    var alertMsg = document.getElementById("alertSignupMsg");
+    alertForm.addEventListener("submit", function(e){
+      e.preventDefault();
+      var email = (alertEmailInput.value || "").trim();
+      if(!email) return;
+      alertBtn.disabled = true;
+      alertBtn.textContent = "Submitting\u2026";
+      alertMsg.hidden = true;
+      sb.from("alert_signups").insert({ email: email }).then(function(res){
+        alertBtn.disabled = false;
+        alertBtn.textContent = "Notify me";
+        alertMsg.hidden = false;
+        if(res.error){
+          alertMsg.textContent = (res.error.code === "23505")
+            ? "You're already on the list."
+            : "Something went wrong \u2014 please try again.";
+        } else {
+          alertForm.hidden = true;
+          alertMsg.textContent = "\u2713 You're on the list. We'll only email when there's something worth knowing.";
+          // Also stop nagging this visitor with the site-wide banner,
+          // since they've already done what it was asking for.
+          try{ localStorage.setItem("eatlas_alert_banner_dismissed", "1"); }catch(err){}
+        }
+      });
+    });
+  }
 })();
 </script>
 <div class="wrap">
 <header class="page">
   <p class="eyebrow"><span class="dot" aria-hidden="true"></span>The Economic Atlas</p>
-  <h1>Contact</h1>
+  <h1>Plans that fit how you use it</h1>
+  <p class="subline">Free to browse everything. Pay per use if you only need the occasional export. Pro if you're here regularly.</p>
 </header>
-<div class="roadmap">
-  <p style="margin-bottom:14px;">Ideas, corrections, requests for indicators or countries: all welcome.
-  The Economic Atlas is built in the open and shaped by what its readers ask for.</p>
-  <p><a class="btn" href="mailto:contact@theeconomicatlas.com">contact@theeconomicatlas.com</a></p>
+
+<div class="pricing-grid" style="display:grid; grid-template-columns:repeat(auto-fit, minmax(240px, 1fr)); gap:18px; margin:32px 0;">
+
+  <div class="pricing-card" style="background:var(--panel); border:1px solid var(--hair); border-radius:14px; padding:24px;">
+    <h2 style="margin:0 0 4px; font-size:19px;">Free</h2>
+    <p style="margin:0 0 16px; color:var(--ink2); font-size:14px;">Browse every chart, every country</p>
+    <p style="margin:0 0 18px;"><span style="font-size:30px; font-weight:800;">&pound;0</span></p>
+    <ul style="list-style:none; margin:0 0 20px; padding:0; font-size:14px; line-height:2;">
+      <li>&#10003; All 18 countries, every metric</li>
+      <li>&#10003; Compare and Dashboard tools</li>
+      <li>&#10003; Live, hourly-refreshed data</li>
+      <li style="color:var(--ink2);">&#10005; Data downloads</li>
+      <li style="color:var(--ink2);">&#10005; Customise &amp; export</li>
+    </ul>
+    <button type="button" class="btn ghost" id="pricingFreeBtn" style="width:100%;">Create a free account</button>
+  </div>
+
+  <div class="pricing-card" style="background:var(--panel); border:1px solid var(--hair); border-radius:14px; padding:24px;">
+    <h2 style="margin:0 0 4px; font-size:19px;">Pay as you go</h2>
+    <p style="margin:0 0 16px; color:var(--ink2); font-size:14px;">For the occasional download or export</p>
+    <p style="margin:0 0 18px;"><span style="font-size:30px; font-weight:800;">50p&ndash;&pound;1</span> <span style="color:var(--ink2); font-size:13px;">per use</span></p>
+    <ul style="list-style:none; margin:0 0 20px; padding:0; font-size:14px; line-height:2;">
+      <li>&#10003; Everything in Free, plus:</li>
+      <li>&#10003; 50p per data download</li>
+      <li>&#10003; &pound;1 per Customise &amp; export</li>
+      <li>&#10003; Top up from &pound;2, credits never expire</li>
+      <li>&#10003; No subscription, cancel nothing</li>
+    </ul>
+    <button type="button" class="btn ghost" id="pricingCreditsBtn" style="width:100%;">Buy credits</button>
+  </div>
+
+  <div class="pricing-card" style="background:var(--panel); border:2px solid var(--navy); border-radius:14px; padding:24px; position:relative;">
+    <p style="position:absolute; top:-11px; left:20px; background:var(--navy); color:#fff; font-size:11.5px; font-weight:700; padding:3px 10px; border-radius:20px; letter-spacing:.02em;">MOST POPULAR</p>
+    <h2 style="margin:0 0 4px; font-size:19px;">Pro</h2>
+    <p style="margin:0 0 16px; color:var(--ink2); font-size:14px;">For regular use -- research, reporting, dashboards</p>
+    <p style="margin:0 0 18px;"><span style="font-size:30px; font-weight:800;">&pound;5.99</span> <span style="color:var(--ink2); font-size:13px;">/ month</span></p>
+    <ul style="list-style:none; margin:0 0 20px; padding:0; font-size:14px; line-height:2;">
+      <li>&#10003; Everything in Free, plus:</li>
+      <li>&#10003; <strong>Unlimited</strong> data downloads</li>
+      <li>&#10003; <strong>Unlimited</strong> Customise &amp; export</li>
+      <li>&#10003; 14 days free to try, no card needed</li>
+      <li>&#10003; Cancel any time</li>
+    </ul>
+    <button type="button" class="btn" id="pricingProBtn" style="width:100%;">Start your free trial</button>
+    <p id="pricingProMsg" style="margin:10px 0 0; font-size:13px; color:var(--ink2);" hidden></p>
+  </div>
+
+  <div class="pricing-card" style="background:var(--panel); border:1px solid var(--hair); border-radius:14px; padding:24px; opacity:.6;">
+    <h2 style="margin:0 0 4px; font-size:19px;">Premium</h2>
+    <p style="margin:0 0 16px; color:var(--ink2); font-size:14px;">Coming soon</p>
+    <p style="margin:0 0 18px;"><span style="font-size:30px; font-weight:800;">&mdash;</span></p>
+    <ul style="list-style:none; margin:0 0 20px; padding:0; font-size:14px; line-height:2; color:var(--ink2);">
+      <li>Everything in Pro, plus:</li>
+      <li>Not decided yet</li>
+    </ul>
+    <button type="button" class="btn ghost" disabled style="width:100%; cursor:not-allowed;">Not available yet</button>
+  </div>
+
 </div>
+
+<p style="color:var(--ink2); font-size:13px; margin-bottom:32px;">
+  What's included in Pro and Premium may change over time as the site develops -- see our <a href="terms" style="color:var(--navy-2);">Terms of Service</a> for the detail. Prices shown include VAT where applicable. Questions: <a href="contact" style="color:var(--navy-2);">get in touch</a>.
+</p>
 <footer>The Economic Atlas · Data from national statistical offices, used under open licences. <a href="privacy">Privacy</a> &middot; <a href="terms">Terms</a></footer>
 </div>
 <script>
