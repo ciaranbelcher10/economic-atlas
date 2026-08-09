@@ -71,7 +71,16 @@ nav.sub a.item:hover, nav.sub a.item.active{background:rgba(255,255,255,.18); co
 
 /* ------------------------------ dropdown nav ----------------------------- */
 nav.top{position:relative;}
-.dropdown{position:relative;}
+/* Deliberately NOT position:relative on the base .dropdown class -- the
+   wide Country Breakdowns mega-menu relies on positioning relative to
+   nav.top (the whole bar) for its centered look, which only works if
+   .dropdown itself has no positioning context of its own. Giving .dropdown
+   position:relative generically broke that menu the first time (it
+   started centering on its own narrow trigger instead of the bar), so
+   this is scoped specifically to the About menu via its own class.
+   Genuinely two different, deliberately different behaviours, not an
+   inconsistency to unify. */
+.dropdown-narrow{position:relative;}
 .dropbtn{
   color:#D8E4EF; background:none; border:none; cursor:pointer;
   font:inherit; font-weight:600; font-size:14px;
@@ -536,15 +545,16 @@ html[data-theme="dark"] .tour-box{
    default in markup -- JS decides whether to show either, based on
    login state, since logged-out visitors get the single ephemeral
    dashboard exactly as before, with no sidebar at all. */
-.dash-layout{display:grid; grid-template-columns:220px 1fr; align-items:stretch;}
-.dash-sidebar{background:var(--navy-2); padding:20px 0;}
+.dash-layout{display:grid; grid-template-columns:230px 1fr; align-items:start;}
+.dash-sidebar{background:var(--navy-2); padding:14px 0; border-radius:14px;
+  margin:24px 16px 24px 20px; box-shadow:0 6px 20px rgba(0,0,0,.2);}
 .dash-sidebar-heading{color:#9FC2DC; text-transform:uppercase; font-size:11px;
-  letter-spacing:.08em; font-weight:700; margin:0 0 8px; padding:0 20px;}
+  letter-spacing:.08em; font-weight:700; margin:0 0 8px; padding:0 18px;}
 .dash-sidebar[hidden]{display:none;}
 #dashMainWrap{min-width:0; width:100%;}
 .dash-sidebar-item{
   display:flex; align-items:center; justify-content:space-between;
-  padding:11px 20px; color:#D8E4EF; cursor:pointer; font-weight:600;
+  padding:11px 18px; color:#D8E4EF; cursor:pointer; font-weight:600;
   font-size:15px; gap:8px; position:relative;
 }
 .dash-sidebar-item:hover, .dash-sidebar-item.active{background:rgba(255,255,255,.12); color:#fff;}
@@ -566,9 +576,10 @@ html[data-theme="dark"] .tour-box{
 .dash-sidebar-menu button:hover{background:var(--paper);}
 .dash-sidebar-menu button.danger{color:#C0392B;}
 .dash-sidebar-add{
-  display:flex; align-items:center; gap:8px; padding:11px 20px;
+  display:flex; align-items:center; gap:8px; padding:11px 18px;
   color:#D8E4EF; cursor:pointer; font-weight:600; font-size:14.5px;
   border-top:1px solid rgba(255,255,255,.15); margin-top:6px; opacity:.9;
+  border-radius:0 0 14px 14px;
 }
 .dash-sidebar-add:hover{background:rgba(255,255,255,.1); color:#fff; opacity:1;}
 .dash-sidebar-add.locked{opacity:.55; cursor:pointer;}
