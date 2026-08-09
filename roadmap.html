@@ -32,7 +32,7 @@
 <link href="https://fonts.googleapis.com/css2?family=Nunito+Sans:wght@400;600;700&display=swap" rel="stylesheet">
 <link rel="icon" type="image/png" sizes="32x32" href="favicon-32.png">
 <link rel="apple-touch-icon" href="apple-touch-icon.png">
-<link rel="stylesheet" href="style.css?v=32">
+<link rel="stylesheet" href="style.css?v=33">
 </head>
 <body>
 <nav class="top"><div class="wrap">
@@ -1472,8 +1472,8 @@
 
     { page: "compare", type: "anchor", target: ".addcountries-btn", title: "Add countries",
       body: "Click here to add or remove countries from the comparison \u2014 grouped by region, so it's just as easy to bring in Brazil or Morocco as it is another G7 economy." },
-    { page: "compare", type: "anchor", target: ".picker-item[data-country='Brazil']", title: "Try adding one",
-      body: "Click <strong>Brazil</strong> to add it \u2014 changes apply the moment you click, nothing to confirm." },
+    { page: "compare", type: "anchor", exploratory: true, target: ".picker-item[data-country='Brazil']", title: "Try adding one",
+      body: "Click <strong>Brazil</strong> to add it \u2014 changes apply the moment you click, nothing to confirm. Add a few more while you're in here if you like, then hit Next when you're ready." },
     { page: "compare", type: "anchor", target: "#countryClose", title: "Close when you're happy",
       body: "Click here (or just click outside the box) to get back to the comparison with Brazil now included." },
     { page: "compare", type: "anchor", target: ".hbtn[data-h='5']", title: "Look further back",
@@ -1494,10 +1494,10 @@
       target: "#mapMetricRow button[data-metric='debt_gdp']",
       title: "Switch what the map shows",
       body: "The map always mirrors whichever card you pick here \u2014 switch it to <strong>Government debt, % of GDP</strong>, the metric you just added, to see it plotted for every country instead." },
-    { page: "compare", type: "anchor", target: "#mapYearSlider", title: "Scrub through time",
-      body: "Drag this slider year by year to watch the map redraw for that exact year \u2014 a fast way to spot when a metric actually turned, not just where it stands today." },
-    { page: "compare", type: "anchor", target: "#mapZoomIn", title: "Zoom in on a region",
-      body: "Click to zoom in on the map \u2014 handy for comparing neighbouring countries closely, like the Eurozone members. \u201cReset\u201d underneath brings you back out." },
+    { page: "compare", type: "anchor", exploratory: true, target: "#mapYearSlider", title: "Scrub through time",
+      body: "Drag this slider year by year to watch the map redraw for that exact year \u2014 a fast way to spot when a metric actually turned, not just where it stands today. Have a proper play, then click Next when you're done." },
+    { page: "compare", type: "anchor", exploratory: true, target: "#mapZoomIn", title: "Zoom in on a region",
+      body: "Click to zoom in on the map \u2014 handy for comparing neighbouring countries closely, like the Eurozone members. \u201cReset\u201d underneath brings you back out. Take a look around, then click Next when you're ready." },
     { page: "compare", type: "anchor", target: "#rankTable", title: "The summary table",
       body: "Every selected country and metric, side by side, for whichever time horizon you've chosen above." },
     { page: "compare", type: "anchor", target: "#rankTable th[data-k='debt_gdp']", title: "Sort by any column",
@@ -1537,11 +1537,11 @@
       target: ".pickeritem[data-country='UK'][data-key='gdp_level']",
       title: "Now add the UK's",
       body: "Do the same for the UK \u2014 pin its GDP figure alongside the US's, ready to compare side by side." },
-    { page: "dashboard", type: "anchor",
+    { page: "dashboard", type: "anchor", exploratory: true,
       onEnter: closeDashPickerIfOpen,
       target: "#mapYearSlider",
       title: "Now there's a map too",
-      body: "Pin the same metric for two or more countries and a map appears automatically, mirroring whatever's pinned. Drag this slider year by year to watch it redraw." },
+      body: "Pin the same metric for two or more countries and a map appears automatically, mirroring whatever's pinned. Drag this slider year by year to watch it redraw \u2014 have a play, then click Next when you're ready." },
     { page: "dashboard", type: "anchor",
       onEnter: closeDashPickerIfOpen,
       target: ".tile[data-id='US::gdp_level'] .chartbtn",
@@ -1663,6 +1663,26 @@
     return (typeof step.body === "function") ? step.body() : step.body;
   }
 
+  // Some anchor targets (e.g. Compare's "Add countries" button) are
+  // created dynamically by the page's own JS, only after its own async
+  // data has loaded -- this script runs near the end of the document,
+  // but that doesn't mean everything on the page is actually ready yet;
+  // async fetches don't block synchronous script execution. Retrying
+  // briefly before falling back to a centered, unhighlighted box (which
+  // is what "the highlight doesn't appear" looked like) covers this
+  // without needing to know which specific steps are affected.
+  function renderStepWhenReady(index, attempts){
+    attempts = attempts || 0;
+    var step = TOUR_STEPS[index];
+    if(step && step.type === "anchor" && step.page === THIS_PAGE){
+      if(!resolveTarget(step) && attempts < 30){ // up to ~3s at 100ms
+        setTimeout(function(){ renderStepWhenReady(index, attempts + 1); }, 100);
+        return;
+      }
+    }
+    renderStep(index);
+  }
+
   function renderStep(index){
     removeBox();
     var step = TOUR_STEPS[index];
@@ -1705,8 +1725,15 @@
       applySiblingRestriction(step, target);
       // Following the instruction (clicking the real, live element the
       // box is pointing at) advances the tour on its own -- Next stays
-      // available too, purely as a fallback.
-      target.addEventListener("click", advanceToNext, { once: true });
+      // available too, purely as a fallback. Exception: steps marked
+      // exploratory (map zoom/pan, year-scrubbing, adding several
+      // countries) deliberately skip this -- a single click firing
+      // auto-advance cuts off exploration the moment someone starts,
+      // rather than after they're actually done playing with it. Next
+      // is the only way forward on these, on purpose.
+      if(!step.exploratory){
+        target.addEventListener("click", advanceToNext, { once: true });
+      }
     }
     box.style.visibility = "";
     requestAnimationFrame(function(){ box.classList.add("show"); });
@@ -1729,7 +1756,7 @@
     saveState({ active: true, stepIndex: newIndex });
     var step = TOUR_STEPS[newIndex];
     if(step.page === THIS_PAGE){
-      renderStep(newIndex);
+      renderStepWhenReady(newIndex);
     } else {
       // Next step lives on a different page than this one (e.g. a map
       // click just navigated away) -- nothing more to render here;
@@ -1749,7 +1776,7 @@
     markSeen();
     var first = nextVisibleIndex(0, 1);
     saveState({ active: true, stepIndex: first === -1 ? 0 : first });
-    if(first !== -1) renderStep(first);
+    if(first !== -1) renderStepWhenReady(first);
   }
   window.EATLAS_TOUR = { start: startTour, exit: exitTour };
 
@@ -1760,7 +1787,7 @@
   // otherwise, auto-start once ever for a genuinely first-time visitor.
   var state = getState();
   if(state.active && TOUR_STEPS[state.stepIndex] && TOUR_STEPS[state.stepIndex].page === THIS_PAGE){
-    renderStep(state.stepIndex);
+    renderStepWhenReady(state.stepIndex);
   } else if(!state.active && !hasSeenBefore()){
     startTour();
   }

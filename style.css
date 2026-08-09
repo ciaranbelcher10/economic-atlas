@@ -545,6 +545,15 @@ html[data-theme="dark"] .tour-box{
    login state, since logged-out visitors get the single ephemeral
    dashboard exactly as before, with no sidebar at all. */
 .dash-layout{display:grid; grid-template-columns:230px 1fr; align-items:start;}
+/* When the sidebar is hidden (logged out -- multiple dashboards is an
+   account feature), the grid still has two tracks defined, and the one
+   remaining visible child (#dashMainWrap) gets auto-placed into the
+   FIRST (230px) track rather than stretching to fill the row -- this is
+   what was actually causing the badly narrow, wrapped-to-nothing layout
+   for logged-out visitors. Collapsing to a single full-width column
+   specifically when the sidebar is hidden fixes it without needing a
+   JS-driven class toggle. */
+.dash-layout:has(.dash-sidebar[hidden]){grid-template-columns:1fr;}
 .dash-sidebar{background:var(--navy-2); padding:14px 0; border-radius:14px;
   margin:24px 16px 24px 20px; box-shadow:0 6px 20px rgba(0,0,0,.2);}
 .dash-sidebar-heading{color:#9FC2DC; text-transform:uppercase; font-size:11px;
