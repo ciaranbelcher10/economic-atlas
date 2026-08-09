@@ -91,9 +91,9 @@
   <a class="item" href="compare">Compare</a>
   <a class="item" href="dashboard">My Dashboard</a>
   <a class="item" href="pricing" id="planNavLink">Plan</a>
-  <div class="dropdown dropdown-narrow">
+  <div class="dropdown">
     <button type="button" class="dropbtn current" id="aboutBtn" aria-haspopup="true" aria-expanded="false">About <span class="caret">&#9662;</span></button>
-    <div class="dropdown-panel dropdown-panel-narrow" id="aboutPanel">
+    <div class="dropdown-panel" id="aboutPanel">
       <div class="dcol">
         <a href="roadmap" class="active">Roadmap</a>
         <a href="contact" >Contact</a>
@@ -1519,9 +1519,9 @@
         var sel = document.getElementById("pickerSelect");
         if(sel && sel.value !== "US"){ sel.value = "US"; sel.dispatchEvent(new Event("change")); }
       },
-      target: ".pickeritem[data-country='US'][data-key='gdp_level']",
-      title: "Try US GDP",
-      body: "Click the US's headline GDP figure to pin it to your dashboard." },
+      target: ".pickeritem[data-country='US'][data-key='unemployment']",
+      title: "Try US unemployment",
+      body: "Click the US's unemployment rate to pin it to your dashboard." },
     { page: "dashboard", type: "anchor",
       onEnter: function(){
         var picker = document.getElementById("picker");
@@ -1532,25 +1532,70 @@
         var countryBtn = document.querySelector("#modeToggle button[data-mode='country']");
         if(countryBtn && !countryBtn.classList.contains("active")) countryBtn.click();
         var sel = document.getElementById("pickerSelect");
-        if(sel && sel.value !== "UK"){ sel.value = "UK"; sel.dispatchEvent(new Event("change")); }
+        if(sel && sel.value !== "South Africa"){ sel.value = "South Africa"; sel.dispatchEvent(new Event("change")); }
       },
-      target: ".pickeritem[data-country='UK'][data-key='gdp_level']",
-      title: "Now add the UK's",
-      body: "Do the same for the UK \u2014 pin its GDP figure alongside the US's, ready to compare side by side." },
+      target: ".pickeritem[data-country='South Africa'][data-key='unemployment']",
+      title: "Now add South Africa's",
+      body: "Do the same for South Africa \u2014 its unemployment rate is dramatically higher than the US's, so pinning both side by side actually shows something." },
+    { page: "dashboard", type: "anchor", exploratory: true,
+      target: "#addMetricTile",
+      title: "Add a few more if you like",
+      body: "Try pinning unemployment for a few other countries too \u2014 the more you add, the more the map (next) has to show. Click Next whenever you're ready to move on." },
     { page: "dashboard", type: "anchor", exploratory: true,
       onEnter: closeDashPickerIfOpen,
       target: "#mapYearSlider",
       title: "Now there's a map too",
-      body: "Pin the same metric for two or more countries and a map appears automatically, mirroring whatever's pinned. Drag this slider year by year to watch it redraw \u2014 have a play, then click Next when you're ready." },
+      body: "Pin the same metric for two or more countries and a map appears automatically, mirroring whatever's pinned \u2014 with unemployment, the colour differences actually mean something. Drag this slider year by year to watch it redraw \u2014 have a play, then click Next when you're ready." },
     { page: "dashboard", type: "anchor",
       onEnter: closeDashPickerIfOpen,
-      target: ".tile[data-id='US::gdp_level'] .chartbtn",
+      target: ".tile[data-id='US::unemployment'] .chartbtn",
       title: "See the chart behind any tile",
       body: "Every pinned tile has its own chart, right there on your dashboard \u2014 click <strong>View chart</strong> to expand it inline." },
     { page: "dashboard", type: "anchor",
-      onEnter: closeDashPickerIfOpen,
+      onEnter: function(){
+        closeDashPickerIfOpen();
+        // Dollarise only converts currency figures (GDP, debt, trade),
+        // not percentage metrics like unemployment -- pinning a GDP tile
+        // here specifically, separate from the unemployment pair used
+        // for the map demo, so this step always has something real to
+        // demonstrate regardless of what else got pinned along the way.
+        if(!document.querySelector(".tile[data-id='UK::gdp_level']")){
+          var picker = document.getElementById("picker");
+          if(picker && picker.hidden){
+            var addTile = document.getElementById("addMetricTile");
+            if(addTile) addTile.click();
+          }
+          var countryBtn = document.querySelector("#modeToggle button[data-mode='country']");
+          if(countryBtn && !countryBtn.classList.contains("active")) countryBtn.click();
+          var sel = document.getElementById("pickerSelect");
+          if(sel && sel.value !== "UK"){ sel.value = "UK"; sel.dispatchEvent(new Event("change")); }
+          var item = document.querySelector(".pickeritem[data-country='UK'][data-key='gdp_level']");
+          if(item) item.click();
+          closeDashPickerIfOpen();
+        }
+      },
       target: "#dollariseBtn", title: "Dollarise",
-      body: "Every currency figure on this page can be converted to US dollars at today's exchange rate, so figures from any country sit on the same footing. Toggle it on to see the US and UK GDP cards you just added, both in dollars." },
+      body: "Every currency figure on this page can be converted to US dollars at today's exchange rate, so figures from any country sit on the same footing. Toggle it on to see the UK's GDP card in dollars." },
+    { page: "dashboard", type: "anchor",
+      onEnter: function(){
+        closeDashPickerIfOpen();
+        // Unlocks Customise & Export for the length of this step only,
+        // regardless of the account's real plan -- this is a genuinely
+        // powerful feature and worth showing everyone what it does, not
+        // just the accounts already entitled to use it. Nothing about
+        // the account's actual Pro status or credits changes; only the
+        // in-memory check used to decide how the button renders.
+        var prefs = window.EATLAS_PREFS;
+        if(prefs && !prefs.isPro()){
+          var original = prefs.isPro;
+          prefs.isPro = function(){ return true; };
+          bypassRestore = function(){ prefs.isPro = original; };
+          if(window.EATLAS_CUSTOMIZE) window.EATLAS_CUSTOMIZE.refreshEntitlement();
+        }
+      },
+      target: ".tile[data-id='US::unemployment'] .cz-btn",
+      title: "Customise & export",
+      body: "Every tile can be turned into a styled, annotated image \u2014 add a title, highlight a point, change the colours, then export it as a PNG. This is unlocked just for the tour; normally it's part of Pro." },
     { page: "dashboard", type: "anchor", target: "nav a[href='roadmap']", title: "One last stop",
       body: "Click <strong>Roadmap</strong> in the menu above to see what's coming next \u2014 and how to get in touch." },
 
@@ -1610,7 +1655,23 @@
     if(restoreSiblingsFn){ restoreSiblingsFn(); restoreSiblingsFn = null; }
   }
 
+  // Temporary bypass for demoing Customise & Export to non-Pro users
+  // during the tour, without touching real account state at all -- only
+  // the in-memory isPro() check is patched, and only for as long as
+  // that one step is showing. Reverted here rather than via a per-step
+  // "onExit" property so it's covered uniformly regardless of how the
+  // step is left (Next, clicking the target, or Exit tour) -- every one
+  // of those paths runs through removeBox() already.
+  var bypassRestore = null;
+  function revertCustomizeBypass(){
+    if(!bypassRestore) return;
+    bypassRestore();
+    bypassRestore = null;
+    if(window.EATLAS_CUSTOMIZE) window.EATLAS_CUSTOMIZE.refreshEntitlement();
+  }
+
   function removeBox(){
+    revertCustomizeBypass();
     // Defensive: remove EVERY .tour-box in the document, not just the
     // one boxEl happens to reference. Two boxes were seen stacked live;
     // rather than chase the exact mechanism, this guarantees stacking
