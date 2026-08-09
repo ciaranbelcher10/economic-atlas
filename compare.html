@@ -116,13 +116,26 @@ html[data-theme="dark"]{ --map-nodata: #C4CAC0; }
   transform:translateY(-50%); background:var(--hair); border-radius:2px;}
 .timeslider-range .range-track-fill{position:absolute; top:50%; height:4px;
   transform:translateY(-50%); background:var(--blue); border-radius:2px;}
-.timeslider-range .range-thumb{position:absolute; left:0; right:0; top:0;
-  width:100%; margin:0; background:transparent; accent-color:var(--blue);
+/* The input's own box is centered on the track using the exact same
+   top:50%/translateY(-50%) formula as .range-track itself -- previously
+   this was top:0 with no explicit height, leaving the actual thumb
+   vertically wherever the browser's unstyled default happened to place
+   it, which didn't line up with the track underneath. */
+.timeslider-range .range-thumb{position:absolute; left:0; right:0; top:50%; transform:translateY(-50%);
+  width:100%; height:16px; margin:0; background:transparent;
   -webkit-appearance:none; appearance:none; pointer-events:none;}
-.timeslider-range .range-thumb::-webkit-slider-thumb{pointer-events:auto;}
-.timeslider-range .range-thumb::-moz-range-thumb{pointer-events:auto;}
-.timeslider-range .range-thumb::-webkit-slider-runnable-track{background:transparent;}
-.timeslider-range .range-thumb::-moz-range-track{background:transparent;}
+.timeslider-range .range-thumb::-webkit-slider-thumb{
+  pointer-events:auto; -webkit-appearance:none; appearance:none;
+  width:16px; height:16px; border-radius:50%; background:var(--blue);
+  cursor:pointer; box-shadow:0 1px 3px rgba(0,0,0,.3); border:2px solid var(--panel);
+}
+.timeslider-range .range-thumb::-moz-range-thumb{
+  pointer-events:auto; width:16px; height:16px; border-radius:50%;
+  background:var(--blue); cursor:pointer; border:2px solid var(--panel);
+  box-shadow:0 1px 3px rgba(0,0,0,.3);
+}
+.timeslider-range .range-thumb::-webkit-slider-runnable-track{background:transparent; height:16px;}
+.timeslider-range .range-thumb::-moz-range-track{background:transparent; height:16px;}
 .timeslider-label-start{position:absolute; left:0; top:-18px; font-size:12px; font-weight:700; color:var(--ink2);}
 .timeslider-label-end{position:absolute; right:0; top:-18px; font-size:12px; font-weight:700; color:var(--ink2);}
 
@@ -2020,12 +2033,15 @@ function getSnapshotValue(country, concept, year){
 
 // Change from startYear to endYear, for any concept -- the direct
 // generalisation of the old "vs Ny ago" buttons to any window, not just
-// four fixed offsets from today. gdp_growth and currency levels express
-// their change as a cumulative %, since that's the meaningful way to
-// read "how much did this grow" for those two -- everything else (an
-// already-a-rate metric like inflation or unemployment) expresses it as
-// a plain point difference, which is the conventional way economists
-// read a change in a rate, not a confusing "% change of a %."
+// four fixed offsets from today. Only gdp_growth expresses its change as
+// a cumulative % -- it's already a growth-rate metric by definition,
+// and real GDP growth over a window is naturally read that way.
+// Currency levels (GDP level, net debt, trade balance) instead show the
+// plain $ difference -- "how much did GDP actually add," not a %
+// growth rate, which is what the separate gdp_growth card is for.
+// Already-a-rate metrics (inflation, unemployment) show a point
+// difference for the same reason: a % change of a % reads as confusing,
+// not informative.
 function getChangeValue(country, concept, startYear, endYear){
   if(concept === "gdp_growth"){
     var real = REGISTRY[country] && REGISTRY[country].gdp_real;
@@ -2042,9 +2058,9 @@ function getChangeValue(country, concept, startYear, endYear){
     if(!endAgg || !startAgg) return null;
     var endUsd = toUSDMillions(country, endAgg.value, endAgg.unit);
     var startUsd = toUSDMillions(country, startAgg.value, startAgg.unit);
-    if(endUsd == null || startUsd == null || !startUsd) return null;
-    var cum = Math.round((endUsd / startUsd - 1) * 1000) / 10;
-    return {value: cum, isDelta:true, isCumulative:true, year: startYear, endYear: endYear, unit:"%"};
+    if(endUsd == null || startUsd == null) return null;
+    var diff = Math.round((endUsd - startUsd) * 100) / 100;
+    return {value: diff, isDelta:true, isCumulative:false, year: startYear, endYear: endYear, unit: "currency", rawUnit: "$m"};
   }
   var endAgg = yearAggregate(country, concept, endYear);
   var startAgg = yearAggregate(country, concept, startYear);
@@ -2080,6 +2096,12 @@ function displayString(dv){
   var sign = dv.isDelta && dv.value > 0 ? "+" : "";
   if(dv.unit === "currency" && !dv.isDelta){
     return curFmt(dv.value, dv.rawUnit || "$bn", 2);
+  }
+  if(dv.unit === "currency" && dv.isDelta){
+    // A $ change can be negative (GDP shrank, debt fell) -- curFmt's own
+    // minus sign handles that; the "+" here only covers the positive
+    // case, matching how every other delta type signs its value.
+    return sign + curFmt(dv.value, dv.rawUnit || "$bn", 2);
   }
   return sign + dv.value + suffixFor(dv);
 }
