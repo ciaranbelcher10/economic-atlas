@@ -4561,7 +4561,7 @@ fetch("data-uk-spending-cofog.json", {cache: "no-cache"})
   //      paths and matches on the bound datum instead.
   var STATE_KEY = "eatlas_tour_state";
   var SEEN_KEY = "eatlas_tour_seen";
-  var THIS_PAGE = "uk";
+  var THIS_PAGE = "compare";
 
   function resolvePanelChild(key, sel){
     if(!window.ANCHORS || !window.ANCHORS[key]) return null;
@@ -4622,18 +4622,7 @@ fetch("data-uk-spending-cofog.json", {cache: "no-cache"})
       target: function(){ return document.querySelector(".chart-modal-box"); },
       title: "Choose your own timeframe",
       body: "Use the preset buttons above for common ranges, drag directly on the chart to zoom into any period you like, or pinch to zoom on a touchscreen. \u201cReset zoom\u201d brings you back out." },
-    { page: "uk", type: "anchor", onEnter: function(){ openModalFor("cpi"); }, target: "#chartModalDlBtn",
-      title: "Download the underlying data",
-      body: function(){
-        return loggedIn()
-          ? "Every chart's data is downloadable as a CSV, exactly as shown here."
-          : "Every chart's data is downloadable as a CSV \u2014 free, but it does need an account (10 seconds to set up, no card required).";
-      } },
-    { page: "uk", type: "anchor", onEnter: function(){ openModalFor("boe_rate"); }, target: "#chartModalCzBtn",
-      title: "Customise & export",
-      body: "Add a title, event markers and reference lines, then export as an image \u2014 try dragging an event marker around on this Bank Rate chart to see how it works.",
-      showIf: isPro },
-    { page: "uk", type: "anchor", onEnter: function(){ openModalFor("boe_rate"); }, target: "#chartModalClose",
+    { page: "uk", type: "anchor", onEnter: function(){ openModalFor("cpi"); }, target: "#chartModalClose",
       title: "Back out when you're done",
       body: "Tap here (or press Escape on desktop) to close this full-size view and get back to the page." },
     { page: "uk", type: "anchor", target: ".mpc-head", title: "Deep dives, not just charts",
@@ -4649,7 +4638,9 @@ fetch("data-uk-spending-cofog.json", {cache: "no-cache"})
         if(picker && picker.hidden) window.EATLAS_COMPARE.openCountryModal();
       },
       target: "#countryModal .modal-content", title: "Pick any you like",
-      body: "Tap any country here to add or remove it \u2014 changes apply the moment you click, nothing to confirm. Try Brazil or Morocco, then click Next (or just close this) whenever you're ready." },
+      suppressTargetHighlight: true,
+      suggestHighlight: { container: "#countryModal", selector: ".picker-item[data-country='Brazil']" },
+      body: "Tap any country here to add or remove it \u2014 try <strong>Brazil</strong>, highlighted below. Changes apply the moment you click, nothing to confirm. Click Next (or just close this) whenever you're ready." },
     { page: "compare", type: "anchor", target: "#countryClose", title: "Close when you're happy",
       body: "Click here (or just click outside the box) to get back to the comparison." },
     { page: "compare", type: "anchor", exploratory: true, target: ".metric-card[data-concept='gdp_level'] .card-mode-switch", title: "Point in time, or change over time",
@@ -4663,16 +4654,20 @@ fetch("data-uk-spending-cofog.json", {cache: "no-cache"})
           var addTile = document.getElementById("addMetricTile");
           if(addTile) addTile.click();
         }
-        // Defensively ensure there's something to demonstrate on the map
-        // step further down, regardless of what (if anything) gets
-        // picked here -- direct state mutation, not a simulated click,
-        // matching the more reliable pattern already used for Dollarise
-        // below.
-        window.EATLAS_COMPARE.addMetric("debt_gdp");
       },
       target: "#metricPicker .modal-content", title: "Pick any you like",
-      body: "Tap any metric here to add it \u2014 try <strong>Government debt, % of GDP</strong>. Changes apply the moment you click, nothing to confirm. Click Next (or just close this) whenever you're ready." },
-    { page: "compare", type: "anchor", target: "#metricPickerClose", title: "Close when you're happy",
+      suppressTargetHighlight: true,
+      suggestHighlight: { container: "#metricPicker", selector: ".pickeritem[data-key='debt_gdp']" },
+      body: "Tap any metric here to add it \u2014 try <strong>Government debt, % of GDP</strong>, highlighted below. Changes apply the moment you click, nothing to confirm. Click Next (or just close this) whenever you're ready." },
+    { page: "compare", type: "anchor",
+      onEnter: function(){
+        // Defensively ensure there's something to demonstrate on the map
+        // step below, regardless of what (if anything) got picked in the
+        // free-pick step above -- direct state mutation, not a simulated
+        // click, matching the pattern used for Dollarise on Dashboard.
+        window.EATLAS_COMPARE.addMetric("debt_gdp");
+      },
+      target: "#metricPickerClose", title: "Close when you're happy",
       body: "Click here (or just click outside the box) to get back to the comparison." },
     { page: "compare", type: "anchor",
       onEnter: closeCompareMetricPickerIfOpen,
@@ -4715,9 +4710,21 @@ fetch("data-uk-spending-cofog.json", {cache: "no-cache"})
           var addTile = document.getElementById("addMetricTile");
           if(addTile) addTile.click();
         }
+        // Browse mode only shows one country (or one metric) at a time --
+        // pre-filling the search box switches to search mode, which shows
+        // every match across every country at once, so both suggested
+        // items are visible together to highlight (see suggestHighlight
+        // below), not just whichever the picker happened to default to.
+        var search = document.getElementById("pickerSearch");
+        if(search && search.value !== "unemployment"){
+          search.value = "unemployment";
+          search.dispatchEvent(new Event("input"));
+        }
       },
       target: "#picker .modal-content", title: "Pick any you like",
-      body: "Tap any metric, for any country, to pin it \u2014 changes apply the moment you click, nothing to confirm. Try US and South Africa's unemployment rates (their gap actually shows something side by side), then click Next (or just close this) whenever you're ready." },
+      suppressTargetHighlight: true,
+      suggestHighlight: { container: "#picker", selector: ".pickeritem[data-key='unemployment'][data-country='US'], .pickeritem[data-key='unemployment'][data-country='South Africa']" },
+      body: "Tap any metric, for any country, to pin it \u2014 try US and South Africa's unemployment rates, highlighted below (their gap actually shows something side by side). Changes apply the moment you click, nothing to confirm. Click Next (or just close this) whenever you're ready." },
     { page: "dashboard", type: "anchor", target: "#pickerClose", title: "Close when you're happy",
       body: "Click here (or just click outside the box) to get back to your dashboard." },
     { page: "dashboard", type: "anchor", exploratory: true,
@@ -4798,7 +4805,40 @@ fetch("data-uk-spending-cofog.json", {cache: "no-cache"})
     return -1;
   }
 
-  var boxEl = null, highlightEl = null, restoreSiblingsFn = null, pollTimer = null;
+  var boxEl = null, highlightEl = null, restoreSiblingsFn = null;
+  var activeAdvanceTarget = null, activeAdvanceHandler = null;
+  var suggestObserver = null, suggestEls = [];
+
+  function clearSuggestHighlight(){
+    if(suggestObserver){ suggestObserver.disconnect(); suggestObserver = null; }
+    suggestEls.forEach(function(el){ el.classList.remove("tour-highlight"); });
+    suggestEls = [];
+  }
+  // Highlights whichever real, suggested item(s) currently match a
+  // selector inside a picker -- re-applied on every DOM mutation inside
+  // the container, since these items get destroyed and rebuilt on every
+  // selection (confirmed live: a plain one-time class-add loses the
+  // highlight the moment the picker re-renders for any reason). Matching
+  // by the item's own data-country/data-key attributes (set fresh on
+  // every rebuild) rather than holding a node reference is what makes
+  // this survive re-renders.
+  function applySuggestHighlight(step){
+    clearSuggestHighlight();
+    if(!step.suggestHighlight) return;
+    var containerEl = document.querySelector(step.suggestHighlight.container);
+    if(!containerEl) return;
+    var sel = step.suggestHighlight.selector;
+    function refresh(){
+      suggestEls.forEach(function(el){ el.classList.remove("tour-highlight"); });
+      suggestEls = Array.prototype.slice.call(document.querySelectorAll(sel));
+      suggestEls.forEach(function(el){ el.classList.add("tour-highlight"); });
+    }
+    refresh();
+    if(window.MutationObserver){
+      suggestObserver = new MutationObserver(refresh);
+      suggestObserver.observe(containerEl, { childList: true, subtree: true });
+    }
+  }
 
   function clearHighlight(){
     if(highlightEl){ highlightEl.classList.remove("tour-highlight"); highlightEl = null; }
@@ -4824,7 +4864,6 @@ fetch("data-uk-spending-cofog.json", {cache: "no-cache"})
 
   function removeBox(){
     revertCustomizeBypass();
-    if(pollTimer){ clearInterval(pollTimer); pollTimer = null; }
     // Defensive: remove EVERY .tour-box in the document, not just the
     // one boxEl happens to reference. Two boxes were seen stacked live;
     // rather than chase the exact mechanism, this guarantees stacking
@@ -4833,6 +4872,23 @@ fetch("data-uk-spending-cofog.json", {cache: "no-cache"})
     boxEl = null;
     clearHighlight();
     clearSiblingRestriction();
+    clearSuggestHighlight();
+    // The anchor click-to-advance listener below is only ever removed
+    // automatically when it actually FIRES (it's { once: true }) --
+    // leaving via Back, Exit, or a page change instead leaves it
+    // attached forever to a live, still-on-page element (nav links,
+    // #addMetricTile, etc. are never removed from the DOM). Confirmed
+    // live: pressing Back and later clicking that same element for an
+    // unrelated reason fired a stale advanceToNext() closured over the
+    // old step index, silently restarting/corrupting the tour and
+    // leaving an orphaned box on screen. removeBox() already runs on
+    // every single transition (forward, back, exit), so cleaning up
+    // here covers all of them in one place.
+    if(activeAdvanceTarget && activeAdvanceHandler){
+      activeAdvanceTarget.removeEventListener("click", activeAdvanceHandler);
+      activeAdvanceTarget = null;
+      activeAdvanceHandler = null;
+    }
   }
 
   function applySiblingRestriction(step, target){
@@ -4865,32 +4921,6 @@ fetch("data-uk-spending-cofog.json", {cache: "no-cache"})
         top = r.top - boxHeight - 12;
         if(top < 12) top = 12;
       }
-      // The box sits at a higher z-index than its own highlighted target
-      // (by design, so the box itself always renders on top of the glow
-      // ring) -- but that also means if the computed position ever ends
-      // up geometrically overlapping the target (a tall body of text in
-      // a short modal can leave neither "below" nor "above" with enough
-      // room), the box physically intercepts clicks meant for the real
-      // element underneath. Confirmed live: this produced exactly
-      // "clicking the highlighted thing doesn't work, only Next does".
-      // Detect that overlap directly and try beside the target instead
-      // of just above/below before accepting the clamped fallback.
-      var overlaps = left < r.right && left + boxWidth > r.left &&
-                      top < r.bottom && top + boxHeight > r.top;
-      if(overlaps){
-        var rightLeft = r.right + 12;
-        var leftLeft = r.left - boxWidth - 12;
-        var vTop = Math.min(Math.max(12, r.top), window.innerHeight - boxHeight - 12);
-        if(rightLeft + boxWidth + 12 <= window.innerWidth){
-          left = rightLeft; top = vTop;
-        } else if(leftLeft >= 12){
-          left = leftLeft; top = vTop;
-        }
-        // If neither side fits either (very small viewport), the
-        // original above/below clamp stands -- rare, and still better
-        // than nothing, but real overlap-free placement isn't always
-        // geometrically possible on a small enough screen.
-      }
       box.style.left = left + "px";
       box.style.top = top + "px";
       if(done) done();
@@ -4907,11 +4937,6 @@ fetch("data-uk-spending-cofog.json", {cache: "no-cache"})
     if(!step.target) return null;
     var el = (typeof step.target === "function") ? step.target() : document.querySelector(step.target);
     if(!el) return null;
-    // A hidden nav link (e.g. inside a collapsed mobile hamburger menu)
-    // still exists in the DOM but has zero rendered size -- anchoring or
-    // highlighting it produces a box with nothing real to point at, seen
-    // live as the tour box overlapping the hamburger icon instead of the
-    // link it meant to describe. Treat that the same as "not found".
     if(el.offsetWidth === 0 && el.offsetHeight === 0) return null;
     return el;
   }
@@ -4927,23 +4952,19 @@ fetch("data-uk-spending-cofog.json", {cache: "no-cache"})
   // briefly before falling back to a centered, unhighlighted box (which
   // is what "the highlight doesn't appear" looked like) covers this
   // without needing to know which specific steps are affected.
-  function renderStepWhenReady(index, attempts, onEnterDone){
+  function renderStepWhenReady(index, attempts){
     attempts = attempts || 0;
     var step = TOUR_STEPS[index];
-    if(!onEnterDone && step && step.page === THIS_PAGE && step.onEnter){
-      step.onEnter();
-      onEnterDone = true;
-    }
     if(step && step.type === "anchor" && step.page === THIS_PAGE){
       if(!resolveTarget(step) && attempts < 30){ // up to ~3s at 100ms
-        setTimeout(function(){ renderStepWhenReady(index, attempts + 1, onEnterDone); }, 100);
+        setTimeout(function(){ renderStepWhenReady(index, attempts + 1); }, 100);
         return;
       }
     }
-    renderStep(index, onEnterDone);
+    renderStep(index);
   }
 
-  function renderStep(index, onEnterAlreadyRan){
+  function renderStep(index){
     removeBox();
     var step = TOUR_STEPS[index];
     if(!step || step.page !== THIS_PAGE) return; // this step belongs to a page not yet reached/built
@@ -4952,7 +4973,7 @@ fetch("data-uk-spending-cofog.json", {cache: "no-cache"})
       if(alt !== -1) advance(alt); else exitTour();
       return;
     }
-    if(step.onEnter && !onEnterAlreadyRan) step.onEnter();
+    if(step.onEnter) step.onEnter();
 
     var target = null;
     if(step.type === "anchor") target = resolveTarget(step);
@@ -4979,13 +5000,16 @@ fetch("data-uk-spending-cofog.json", {cache: "no-cache"})
     };
 
     if(effectiveType === "anchor" && target){
-      target.classList.add("tour-highlight");
-      highlightEl = target;
+      if(!step.suppressTargetHighlight){
+        target.classList.add("tour-highlight");
+        highlightEl = target;
+      }
       positionAnchorBox(box, target, function(){
         box.style.visibility = "";
         requestAnimationFrame(function(){ box.classList.add("show"); });
       });
       applySiblingRestriction(step, target);
+      applySuggestHighlight(step);
       // Following the instruction (clicking the real, live element the
       // box is pointing at) advances the tour on its own -- Next stays
       // available too, purely as a fallback. Exception: steps marked
@@ -4995,19 +5019,9 @@ fetch("data-uk-spending-cofog.json", {cache: "no-cache"})
       // rather than after they're actually done playing with it. Next
       // is the only way forward on these, on purpose.
       if(!step.exploratory){
+        activeAdvanceTarget = target;
+        activeAdvanceHandler = advanceToNext;
         target.addEventListener("click", advanceToNext, { once: true });
-      }
-      if(step.watchOpen){
-        var pollAttempts = 0;
-        pollTimer = setInterval(function(){
-          pollAttempts++;
-          if(step.watchOpen()){
-            clearInterval(pollTimer); pollTimer = null;
-            advanceToNext();
-          } else if(pollAttempts > 100){
-            clearInterval(pollTimer); pollTimer = null;
-          }
-        }, 150);
       }
     } else {
       box.style.visibility = "";
@@ -5061,14 +5075,6 @@ fetch("data-uk-spending-cofog.json", {cache: "no-cache"})
   }
   window.EATLAS_TOUR = { start: startTour, exit: exitTour };
 
-  // The login/signup modal can open at any time, independent of the
-  // tour's own step sequence (e.g. from the "Download data" locked-
-  // feature prompt, or the nav's own Log in button) -- so a tour box
-  // from an unrelated step can end up sitting on top of it, physically
-  // blocking the email/password fields underneath (confirmed via a real
-  // mobile screenshot). Rather than deeply couple the tour to every
-  // place the auth modal gets opened, just watch for it and get out of
-  // the way the moment it appears.
   var authModalEl = document.getElementById("authModal");
   if(authModalEl && window.MutationObserver){
     new MutationObserver(function(){
