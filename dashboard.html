@@ -3960,15 +3960,18 @@ loadAll().then(function(){
   console.error(err);
 });
 
-
 window.EATLAS_DASH = {
   // pinned/savePinned/renderDash are private to this closure -- the
-  // tour engine runs in a separate <script> block and was throwing
-  // "pinned is not defined" (or savePinned/renderDash) every time it
-  // tried to reference them directly, which is why several tour steps
-  // that pin a tile have never actually worked. This exposes a single,
-  // safe entry point instead.
-  pinTile: function(id){
+  // tour engine runs in a separate <script> block and has no way to
+  // call them directly (this was the exact cause of the tour "freezing"
+  // on Dashboard: an onEnter that called these bare threw an uncaught
+  // ReferenceError, which aborted renderStepWhenReady before it ever
+  // reached renderStep()'s removeBox() call -- so the previous step's
+  // box just stayed on screen forever, looking exactly like a stuck
+  // tour rather than a crash). ensurePinned wraps the push/save/render
+  // sequence atomically, matching the idempotent pattern already used
+  // elsewhere (only pins if not already present).
+  ensurePinned: function(id){
     if(pinned.indexOf(id) === -1){
       pinned.push(id);
       savePinned();
@@ -4130,9 +4133,6 @@ window.EATLAS_DASH = {
     document.body.style.overflow = "";
   }
 
-  var compareAddCountriesBaseline = null;
-  var compareAddMetricBaseline = null;
-  var dashAddMetricBaseline = null;
   var TOUR_STEPS = [
     { page: "index", type: "center", title: "New here? A 2-minute tour.",
       body: "The Economic Atlas pulls hourly, official data across 18 countries \u2014 no commentary, just numbers. This short tour shows you around. Exit any time from the link in each box." },
@@ -4150,7 +4150,18 @@ window.EATLAS_DASH = {
       target: function(){ return document.querySelector(".chart-modal-box"); },
       title: "Choose your own timeframe",
       body: "Use the preset buttons above for common ranges, drag directly on the chart to zoom into any period you like, or pinch to zoom on a touchscreen. \u201cReset zoom\u201d brings you back out." },
-    { page: "uk", type: "anchor", onEnter: function(){ openModalFor("cpi"); }, target: "#chartModalClose",
+    { page: "uk", type: "anchor", onEnter: function(){ openModalFor("cpi"); }, target: "#chartModalDlBtn",
+      title: "Download the underlying data",
+      body: function(){
+        return loggedIn()
+          ? "Every chart's data is downloadable as a CSV, exactly as shown here."
+          : "Every chart's data is downloadable as a CSV \u2014 free, but it does need an account (10 seconds to set up, no card required).";
+      } },
+    { page: "uk", type: "anchor", onEnter: function(){ openModalFor("boe_rate"); }, target: "#chartModalCzBtn",
+      title: "Customise & export",
+      body: "Add a title, event markers and reference lines, then export as an image \u2014 try dragging an event marker around on this Bank Rate chart to see how it works.",
+      showIf: isPro },
+    { page: "uk", type: "anchor", onEnter: function(){ openModalFor("boe_rate"); }, target: "#chartModalClose",
       title: "Back out when you're done",
       body: "Tap here (or press Escape on desktop) to close this full-size view and get back to the page." },
     { page: "uk", type: "anchor", target: ".mpc-head", title: "Deep dives, not just charts",
@@ -4158,41 +4169,44 @@ window.EATLAS_DASH = {
     { page: "uk", type: "anchor", target: "nav a[href='compare']", title: "On to Compare",
       body: "Tap the menu icon (top-right) if the nav is not showing, then <strong>Compare</strong>, to see how multiple countries stack up side by side \u2014 the next stop on the tour." },
 
-    { page: "compare", type: "anchor", exploratory: true, target: ".addcountries-btn", title: "Add countries",
-      onEnter: function(){ compareAddCountriesBaseline = null; },
-      watchOpen: function(){
-        // Baseline is captured lazily on the FIRST poll, not in onEnter --
-        // onEnter can fire before compare.html's own initial data fetch
-        // resolves (chips render once that promise settles), so an
-        // onEnter-time snapshot could be 0 before the page's own default
-        // selection has even rendered. Confirmed live via screen recording:
-        // the default countries finishing their own render read as "the
-        // user just added one", and the step vanished before it was ever
-        // actually visible. Capturing on first poll instead guarantees the
-        // baseline reflects reality at the moment the user can actually see
-        // and act on this step.
-        var n = document.querySelectorAll("#chipRow .chip").length;
-        if(compareAddCountriesBaseline === null){ compareAddCountriesBaseline = n; return false; }
-        return n > compareAddCountriesBaseline;
-      },
-      body: "Just above the comparison, <strong>+ Add countries</strong> lets you bring in any of the 18 tracked countries \u2014 grouped by region, so it's just as easy to add Brazil or Morocco as another G7 economy. Click it and pick one to continue." },
-    { page: "compare", type: "anchor", exploratory: true,
-      onEnter: function(){ window.EATLAS_COMPARE.closeCountryModal(); },
-      target: ".metric-card[data-concept='gdp_level'] .card-mode-switch", title: "Point in time, or change over time",
-      body: "Every card has its own version of this now \u2014 switch this one to <strong>Change over time</strong> and its slider becomes a range: drag either end to see how much GDP actually moved between any two years, not just where it stands today. Have a play, then click Next when you're ready." },
-    { page: "compare", type: "anchor", exploratory: true, target: "#addMetricTile", title: "Add a metric",
-      onEnter: function(){ compareAddMetricBaseline = null; },
-      watchOpen: function(){
-        var n = document.querySelectorAll("#chartGrid .metric-card").length;
-        if(compareAddMetricBaseline === null){ compareAddMetricBaseline = n; return false; }
-        return n > compareAddMetricBaseline;
-      },
-      body: "Below the cards, <strong>+ Add a metric</strong> works the same way \u2014 any tracked metric, for any country, added straight to the comparison. Click it and pick one to continue." },
+    { page: "compare", type: "anchor", target: ".addcountries-btn", title: "Add countries",
+      body: "Click here to add or remove countries from the comparison \u2014 grouped by region, so it's just as easy to bring in Brazil or Morocco as it is another G7 economy." },
     { page: "compare", type: "anchor",
-      onEnter: function(){ closeCompareMetricPickerIfOpen(); window.EATLAS_COMPARE.addMetric("debt_gdp"); },
+      onEnter: function(){
+        var picker = document.getElementById("countryModal");
+        if(picker && picker.hidden) window.EATLAS_COMPARE.openCountryModal();
+      },
+      target: "#countryModal .modal-content", title: "Pick any you like",
+      body: "Tap any country here to add or remove it \u2014 changes apply the moment you click, nothing to confirm. Try Brazil or Morocco, then click Next (or just close this) whenever you're ready." },
+    { page: "compare", type: "anchor", target: "#countryClose", title: "Close when you're happy",
+      body: "Click here (or just click outside the box) to get back to the comparison." },
+    { page: "compare", type: "anchor", exploratory: true, target: ".metric-card[data-concept='gdp_level'] .card-mode-switch", title: "Point in time, or change over time",
+      body: "Every card has its own version of this now \u2014 switch this one to <strong>Change over time</strong> and its slider becomes a range: drag either end to see how much GDP actually moved between any two years, not just where it stands today. Have a play, then click Next when you're ready." },
+    { page: "compare", type: "anchor", target: "#addMetricTile", title: "Add a metric",
+      body: "Click here to add a comparison card for any tracked metric \u2014 GDP, inflation, unemployment, debt, trade and more." },
+    { page: "compare", type: "anchor",
+      onEnter: function(){
+        var picker = document.getElementById("metricPicker");
+        if(picker && picker.hidden){
+          var addTile = document.getElementById("addMetricTile");
+          if(addTile) addTile.click();
+        }
+        // Defensively ensure there's something to demonstrate on the map
+        // step further down, regardless of what (if anything) gets
+        // picked here -- direct state mutation, not a simulated click,
+        // matching the more reliable pattern already used for Dollarise
+        // below.
+        window.EATLAS_COMPARE.addMetric("debt_gdp");
+      },
+      target: "#metricPicker .modal-content", title: "Pick any you like",
+      body: "Tap any metric here to add it \u2014 try <strong>Government debt, % of GDP</strong>. Changes apply the moment you click, nothing to confirm. Click Next (or just close this) whenever you're ready." },
+    { page: "compare", type: "anchor", target: "#metricPickerClose", title: "Close when you're happy",
+      body: "Click here (or just click outside the box) to get back to the comparison." },
+    { page: "compare", type: "anchor",
+      onEnter: closeCompareMetricPickerIfOpen,
       target: ".metric-card[data-concept='debt_gdp'] .card-map-toggle",
       title: "See it on a map",
-      body: "Every card can show its own map now, on request \u2014 we've added <strong>Government debt, % of GDP</strong> alongside whatever you just picked so this bit always has something to show. Click here to see it plotted for every country you've selected." },
+      body: "Every card can show its own map now, on request \u2014 click here to see <strong>Government debt, % of GDP</strong> plotted for every country you've selected." },
     { page: "compare", type: "anchor", exploratory: true,
       onEnter: function(){
         var card = document.querySelector(".metric-card[data-concept='debt_gdp']");
@@ -4220,26 +4234,31 @@ window.EATLAS_DASH = {
     { page: "compare", type: "anchor", target: "nav a[href='dashboard']", title: "On to your Dashboard",
       body: "Tap the menu icon (top-right) if the nav is not showing, then <strong>My Dashboard</strong>, to build a personal set of metrics from any country \u2014 the last stop on the tour." },
 
-    { page: "dashboard", type: "anchor", exploratory: true, target: "#addMetricTile", title: "Add a metric",
-      onEnter: function(){ dashAddMetricBaseline = null; },
-      watchOpen: function(){
-        var n = document.querySelectorAll("#dashGrid .tile").length;
-        if(dashAddMetricBaseline === null){ dashAddMetricBaseline = n; return false; }
-        return n > dashAddMetricBaseline;
+    { page: "dashboard", type: "anchor", target: "#addMetricTile", title: "Add a metric",
+      body: "Click here to pin any metric, from any country, onto your own dashboard." },
+    { page: "dashboard", type: "anchor",
+      onEnter: function(){
+        var picker = document.getElementById("picker");
+        if(picker && picker.hidden){
+          var addTile = document.getElementById("addMetricTile");
+          if(addTile) addTile.click();
+        }
       },
-      body: "The <strong>+ Add a metric</strong> tile on your dashboard works the same way \u2014 pin any metric, from any country, straight onto your own view. Click it and pick one to continue." },
+      target: "#picker .modal-content", title: "Pick any you like",
+      body: "Tap any metric, for any country, to pin it \u2014 changes apply the moment you click, nothing to confirm. Try US and South Africa's unemployment rates (their gap actually shows something side by side), then click Next (or just close this) whenever you're ready." },
+    { page: "dashboard", type: "anchor", target: "#pickerClose", title: "Close when you're happy",
+      body: "Click here (or just click outside the box) to get back to your dashboard." },
     { page: "dashboard", type: "anchor", exploratory: true,
       onEnter: function(){
         closeDashPickerIfOpen();
-        // Both tiles were pinned by two SEPARATE earlier steps, with an
-        // exploratory "add a few more" step in between where the visitor
-        // could have removed either one -- without this check, the map
-        // card stays display:none (it only shows once 2+ pinned tiles
-        // share a comparable metric/year) and this step tries to
-        // highlight an invisible element, which looks like a broken
-        // tour rather than a missing prerequisite.
-        window.EATLAS_DASH.pinTile("US::unemployment");
-        window.EATLAS_DASH.pinTile("South Africa::unemployment");
+        // Defensively ensure there's something comparable to demonstrate
+        // on the map step below, regardless of what (if anything) got
+        // pinned in the free-pick step above -- direct state mutation via
+        // the exported helper (not a simulated click, and not a bare
+        // call, which threw an uncaught ReferenceError in production
+        // and froze the tour -- see EATLAS_DASH export for detail).
+        window.EATLAS_DASH.ensurePinned("US::unemployment");
+        window.EATLAS_DASH.ensurePinned("South Africa::unemployment");
       },
       target: "#mapYearSlider",
       title: "Now there's a map too",
@@ -4247,7 +4266,7 @@ window.EATLAS_DASH = {
     { page: "dashboard", type: "anchor",
       onEnter: function(){
         closeDashPickerIfOpen();
-        window.EATLAS_DASH.pinTile("US::unemployment");
+        window.EATLAS_DASH.ensurePinned("US::unemployment");
       },
       target: ".tile[data-id='US::unemployment'] .chartbtn",
       title: "See the chart behind any tile",
@@ -4255,12 +4274,10 @@ window.EATLAS_DASH = {
     { page: "dashboard", type: "anchor",
       onEnter: function(){
         closeDashPickerIfOpen();
-        window.EATLAS_DASH.pinTile("UK::gdp_level");
+        window.EATLAS_DASH.ensurePinned("UK::gdp_level");
       },
       target: "#dollariseBtn", title: "Dollarise",
       body: "Every currency figure on this page can be converted to US dollars at today's exchange rate, so figures from any country sit on the same footing. Toggle it on to see the UK's GDP card in dollars." },
-    { page: "dashboard", type: "anchor", target: "nav a[href='roadmap']", title: "One last stop",
-      body: "Click <strong>Roadmap</strong> in the menu above to see what's coming next \u2014 and how to get in touch." },
 
     { page: "roadmap", type: "center", title: "That's the tour",
       body: "That covers the essentials \u2014 a country page, Compare, and your own Dashboard. Got an idea for a metric or country we're missing? Get in touch any time from the <a href=\"contact\">Contact</a> page." }
@@ -4309,7 +4326,7 @@ window.EATLAS_DASH = {
     return -1;
   }
 
-  var boxEl = null, highlightEl = null, restoreSiblingsFn = null, pollTimer = null;
+  var boxEl = null, highlightEl = null, restoreSiblingsFn = null;
 
   function clearHighlight(){
     if(highlightEl){ highlightEl.classList.remove("tour-highlight"); highlightEl = null; }
@@ -4335,7 +4352,6 @@ window.EATLAS_DASH = {
 
   function removeBox(){
     revertCustomizeBypass();
-    if(pollTimer){ clearInterval(pollTimer); pollTimer = null; }
     // Defensive: remove EVERY .tour-box in the document, not just the
     // one boxEl happens to reference. Two boxes were seen stacked live;
     // rather than chase the exact mechanism, this guarantees stacking
@@ -4375,32 +4391,6 @@ window.EATLAS_DASH = {
       if(top + boxHeight + 12 > window.innerHeight){
         top = r.top - boxHeight - 12;
         if(top < 12) top = 12;
-      }
-      // The box sits at a higher z-index than its own highlighted target
-      // (by design, so the box itself always renders on top of the glow
-      // ring) -- but that also means if the computed position ever ends
-      // up geometrically overlapping the target (a tall body of text in
-      // a short modal can leave neither "below" nor "above" with enough
-      // room), the box physically intercepts clicks meant for the real
-      // element underneath. Confirmed live: this produced exactly
-      // "clicking the highlighted thing doesn't work, only Next does".
-      // Detect that overlap directly and try beside the target instead
-      // of just above/below before accepting the clamped fallback.
-      var overlaps = left < r.right && left + boxWidth > r.left &&
-                      top < r.bottom && top + boxHeight > r.top;
-      if(overlaps){
-        var rightLeft = r.right + 12;
-        var leftLeft = r.left - boxWidth - 12;
-        var vTop = Math.min(Math.max(12, r.top), window.innerHeight - boxHeight - 12);
-        if(rightLeft + boxWidth + 12 <= window.innerWidth){
-          left = rightLeft; top = vTop;
-        } else if(leftLeft >= 12){
-          left = leftLeft; top = vTop;
-        }
-        // If neither side fits either (very small viewport), the
-        // original above/below clamp stands -- rare, and still better
-        // than nothing, but real overlap-free placement isn't always
-        // geometrically possible on a small enough screen.
       }
       box.style.left = left + "px";
       box.style.top = top + "px";
@@ -4442,24 +4432,21 @@ window.EATLAS_DASH = {
   // briefly before falling back to a centered, unhighlighted box (which
   // is what "the highlight doesn't appear" looked like) covers this
   // without needing to know which specific steps are affected.
-  function renderStepWhenReady(index, attempts, onEnterDone){
+  function renderStepWhenReady(index, attempts){
     attempts = attempts || 0;
     var step = TOUR_STEPS[index];
-    if(!onEnterDone && step && step.page === THIS_PAGE && step.onEnter){
-      step.onEnter();
-      onEnterDone = true;
-    }
     if(step && step.type === "anchor" && step.page === THIS_PAGE){
       if(!resolveTarget(step) && attempts < 30){ // up to ~3s at 100ms
-        setTimeout(function(){ renderStepWhenReady(index, attempts + 1, onEnterDone); }, 100);
+        setTimeout(function(){ renderStepWhenReady(index, attempts + 1); }, 100);
         return;
       }
     }
-    renderStep(index, onEnterDone);
+    renderStep(index);
   }
 
-  function renderStep(index, onEnterAlreadyRan){
+  function renderStep(index){
     removeBox();
+    closeDashPickerIfOpen();
     var step = TOUR_STEPS[index];
     if(!step || step.page !== THIS_PAGE) return; // this step belongs to a page not yet reached/built
     if(!stepVisible(step)){
@@ -4467,7 +4454,7 @@ window.EATLAS_DASH = {
       if(alt !== -1) advance(alt); else exitTour();
       return;
     }
-    if(step.onEnter && !onEnterAlreadyRan) step.onEnter();
+    if(step.onEnter) step.onEnter();
 
     var target = null;
     if(step.type === "anchor") target = resolveTarget(step);
@@ -4511,18 +4498,6 @@ window.EATLAS_DASH = {
       // is the only way forward on these, on purpose.
       if(!step.exploratory){
         target.addEventListener("click", advanceToNext, { once: true });
-      }
-      if(step.watchOpen){
-        var pollAttempts = 0;
-        pollTimer = setInterval(function(){
-          pollAttempts++;
-          if(step.watchOpen()){
-            clearInterval(pollTimer); pollTimer = null;
-            advanceToNext();
-          } else if(pollAttempts > 100){
-            clearInterval(pollTimer); pollTimer = null;
-          }
-        }, 150);
       }
     } else {
       box.style.visibility = "";
