@@ -33,6 +33,7 @@ not a gate, matching check_data_freshness.py's own convention.
 import json
 import os
 import re
+import urllib.error
 import urllib.request
 
 RESEND_API_KEY = os.environ.get("RESEND_API_KEY")
@@ -151,6 +152,15 @@ def send_alert(subject, body):
     try:
         with urllib.request.urlopen(req, timeout=15) as resp:
             print(f"Alert email sent, Resend status {resp.status}")
+    except urllib.error.HTTPError as exc:
+        # Resend's error responses carry the real reason in the body
+        # (bad key, unverified domain, etc.) -- the bare status code
+        # alone isn't enough to diagnose a failure from the Actions log.
+        try:
+            detail = exc.read().decode("utf-8", errors="replace")
+        except Exception:
+            detail = "<could not read response body>"
+        print(f"Failed to send alert email: HTTP {exc.code} {exc.reason} -- {detail}")
     except Exception as exc:
         # Deliberately does not raise -- an alerting failure must never
         # fail the workflow itself.
