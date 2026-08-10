@@ -1470,7 +1470,7 @@
     { page: "compare", type: "center", title: "Add countries",
       body: "Just above the comparison, <strong>+ Add countries</strong> lets you bring in any of the 18 tracked countries \u2014 grouped by region, so it's just as easy to add Brazil or Morocco as another G7 economy. Click Next to see it in action." },
     { page: "compare", type: "center",
-      onEnter: function(){ toggleCountry("Brazil"); },
+      onEnter: function(){ window.EATLAS_COMPARE.toggleCountry("Brazil"); },
       title: "Brazil, added",
       body: "That's Brazil pinned to the comparison already \u2014 clicking any country inside <strong>Add countries</strong> works exactly the same way, applying the moment you click, nothing to confirm. Try a few more on your own whenever you like." },
     { page: "compare", type: "anchor", exploratory: true, target: ".metric-card[data-concept='gdp_level'] .card-mode-switch", title: "Point in time, or change over time",
@@ -1478,7 +1478,7 @@
     { page: "compare", type: "center", title: "Add a metric",
       body: "Below the cards, <strong>+ Add a metric</strong> works the same way \u2014 any tracked metric, for any country, added straight to the comparison. Click Next to see it in action." },
     { page: "compare", type: "center",
-      onEnter: function(){ addMetric("debt_gdp"); },
+      onEnter: function(){ window.EATLAS_COMPARE.addMetric("debt_gdp"); },
       title: "Government debt, added",
       body: "That's a new card added \u2014 <strong>Government debt, % of GDP</strong> \u2014 exactly the same way clicking any item inside <strong>Add a metric</strong> works: applied the moment you click." },
     { page: "compare", type: "anchor",
@@ -1517,11 +1517,8 @@
       body: "The <strong>+ Add a metric</strong> tile on your dashboard works the same way \u2014 pin any metric, from any country, straight onto your own view. Click Next to see it in action." },
     { page: "dashboard", type: "center",
       onEnter: function(){
-        ["US::unemployment", "South Africa::unemployment"].forEach(function(id){
-          if(pinned.indexOf(id) === -1) pinned.push(id);
-        });
-        savePinned();
-        renderDash();
+        window.EATLAS_DASH.pinTile("US::unemployment");
+        window.EATLAS_DASH.pinTile("South Africa::unemployment");
       },
       title: "US and South Africa, pinned",
       body: "Both unemployment rates are now on your dashboard \u2014 South Africa's is dramatically higher than the US's, so seeing them side by side actually shows something. Clicking any item inside <strong>Add a metric</strong> works exactly the same way, applying the moment you click \u2014 try pinning a few more on your own whenever you like." },
@@ -1535,11 +1532,8 @@
         // share a comparable metric/year) and this step tries to
         // highlight an invisible element, which looks like a broken
         // tour rather than a missing prerequisite.
-        ["US::unemployment", "South Africa::unemployment"].forEach(function(id){
-          if(pinned.indexOf(id) === -1) pinned.push(id);
-        });
-        savePinned();
-        renderDash();
+        window.EATLAS_DASH.pinTile("US::unemployment");
+        window.EATLAS_DASH.pinTile("South Africa::unemployment");
       },
       target: "#mapYearSlider",
       title: "Now there's a map too",
@@ -1547,13 +1541,7 @@
     { page: "dashboard", type: "anchor",
       onEnter: function(){
         closeDashPickerIfOpen();
-        // Same defensive re-pin as the map step above -- this tile could
-        // have been removed in between.
-        if(pinned.indexOf("US::unemployment") === -1){
-          pinned.push("US::unemployment");
-          savePinned();
-          renderDash();
-        }
+        window.EATLAS_DASH.pinTile("US::unemployment");
       },
       target: ".tile[data-id='US::unemployment'] .chartbtn",
       title: "See the chart behind any tile",
@@ -1561,20 +1549,7 @@
     { page: "dashboard", type: "anchor",
       onEnter: function(){
         closeDashPickerIfOpen();
-        // Dollarise only converts currency figures (GDP, debt, trade),
-        // not percentage metrics like unemployment -- pinning a GDP tile
-        // here specifically, separate from the unemployment pair used
-        // for the map demo, so this step always has something real to
-        // demonstrate regardless of what else got pinned along the way.
-        // Pins directly rather than simulating picker clicks (the
-        // previous approach) -- more reliable, and matches the same
-        // direct pinned.push()/savePinned()/renderDash() pattern the
-        // picker's own click handler uses internally.
-        if(pinned.indexOf("UK::gdp_level") === -1){
-          pinned.push("UK::gdp_level");
-          savePinned();
-          renderDash();
-        }
+        window.EATLAS_DASH.pinTile("UK::gdp_level");
       },
       target: "#dollariseBtn", title: "Dollarise",
       body: "Every currency figure on this page can be converted to US dollars at today's exchange rate, so figures from any country sit on the same footing. Toggle it on to see the UK's GDP card in dollars." },
