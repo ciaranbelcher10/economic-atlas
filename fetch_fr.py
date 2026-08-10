@@ -54,6 +54,7 @@ from datetime import datetime, timezone
 import requests
 
 FRED_SERIES = {
+    "trade_balance": ("XTNTVA01FRM667S", "m", "Trade balance, goods, $", "$m", None, 1e-6),
     "gdp_level": ("NGDPSAXDCFRQ", "q", "GDP nominal, SA", "\u20acm", None, 1.0),
     "gdp_real": ("NGDPRSAXDCFRQ", "q", "Real GDP, SA", "\u20acm", None, 1.0),
     "unemployment": ("LRHUTTTTFRM156S", "m", "Unemployment rate, 15+, SA", "%", None, 1.0),
@@ -345,28 +346,12 @@ def main() -> int:
         except Exception as exc:
             print(f"FAIL  unemployment (eurostat fallback) {exc}")
 
-    es_exp, es_imp = fetch_eurostat_trade_pair()
-    if es_exp and es_imp:
-        exp_map, imp_map = dict(es_exp), dict(es_imp)
-        common = sorted(set(exp_map) & set(imp_map))
-        if common:
-            trade_balance = [[p, round(exp_map[p] - imp_map[p], 1)] for p in common]
-            out["series"]["trade_balance"] = {
-                "label": "Trade balance, goods, total (Eurostat, EUR)", "unit": "€m",
-                "freq": "months", "points": trade_balance}
-            out["series"]["exports"] = {
-                "label": "Goods exports, total (Eurostat, EUR)", "unit": "€m",
-                "freq": "months", "points": [[p, exp_map[p]] for p in common]}
-            out["series"]["imports"] = {
-                "label": "Goods imports, total (Eurostat, EUR)", "unit": "€m",
-                "freq": "months", "points": [[p, imp_map[p]] for p in common]}
-            print(f"  ok  trade_balance    {len(trade_balance):>5} observations (derived)")
-        else:
-            failures.append("trade_balance")
-            print("FAIL  trade_balance    exports/imports periods don't overlap")
-    else:
-        failures.append("trade_balance")
-        print("FAIL  trade_balance    exports or imports missing from Eurostat")
+    # trade_balance now sourced via the FRED OECD '667S' series above
+    # (same proven pattern as Canada/Australia/South Korea) and converted
+    # from USD to EUR below -- the old Eurostat teiet010/teiet110 approach
+    # was removed: that dataset only supports EA-aggregate geo codes and a
+    # WRL_REST partner, never individual member states or a WORLD partner,
+    # so it could never have worked (confirmed empty on every live run).
 
     if not out["series"]:
         print("\nNothing fetched.")
@@ -420,6 +405,19 @@ def main() -> int:
                 out["fx_to_usd"] = {"pair": "EUR/USD", "rate": fx_rate,
                                      "as_of": fx_period, "direction": "multiply"}
                 print(f"  ok  fx_to_usd        1 observation ({fx_period}, {fx_rate})")
+
+                # DEXUSEU is USD per EUR, so USD -> EUR is a divide, not a
+                # multiply (the opposite direction from the Mexico/Brazil/
+                # South Africa pattern, where the FX series is local-per-USD).
+                if "trade_balance" in out["series"]:
+                    ser = out["series"]["trade_balance"]
+                    if ser["unit"].strip().startswith("$"):
+                        ser["points"] = [[p, round(v / fx_rate, 1)] for p, v in ser["points"]]
+                        ser["unit"] = "\u20acm"
+                        ser["label"] = ser["label"].replace(
+                            "Trade balance, goods, $", "Trade balance, goods, total")
+                        ser["label"] += " (OECD via FRED, converted to EUR)"
+                        print(f"  ok  trade_balance    converted $->\u20ac using {fx_rate}")
             else:
                 print("note  fx_to_usd: no observations returned")
         else:

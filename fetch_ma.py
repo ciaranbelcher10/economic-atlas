@@ -49,11 +49,15 @@ from datetime import datetime, timezone
 import requests
 
 # key: (fred_id, freq 'm'|'q'|'a', label, unit, transform None|'yoy'|'mom'|'qoq', scale)
-FRED_SERIES = {
-    "debt_gdp": ("GGGDTAMAA188N", "a", "General government gross debt, % of GDP", "%", None, 1.0),
-    "deficit": ("GGNLBAMAA188N", "a", "General government net lending/borrowing, % of GDP", "%", None, 1.0),
-    "trade_balance": ("XTNTVA01MAQ667S", "q", "Trade balance, goods, $", "$m", None, 1e-6),
-}
+# debt_gdp, deficit and trade_balance were removed from here after being
+# confirmed genuinely dead on FRED (400 Bad Request on every live run, not
+# a transient failure) -- GGGDTAMAA188N, GGNLBAMAA188N and XTNTVA01MAQ667S
+# do not exist as FRED series. debt_gdp/deficit are now sourced from World
+# Bank instead (see the extras list below); trade_balance has no clean
+# World Bank $ equivalent (only a %-of-GDP balance exists, which would be
+# a unit mismatch against every other country's $m-labeled trade_balance),
+# so it remains a documented gap rather than a guessed-at replacement.
+FRED_SERIES = {}
 
 FRED_URL = ("https://api.stlouisfed.org/fred/series/observations"
             "?series_id={sid}&api_key={key}&file_type=json"
@@ -326,6 +330,10 @@ def main() -> int:
          "GDP, nominal, current US$ (World Bank, annual)", "$", "years"),
         ("gdp_real", lambda: fetch_worldbank("NY.GDP.MKTP.KD"),
          "GDP, real, constant 2015 US$ (World Bank, annual)", "$", "years"),
+        ("debt_gdp", lambda: fetch_worldbank("GC.DOD.TOTL.GD.ZS"),
+         "Central government debt, total, % of GDP (World Bank, annual)", "%", "years"),
+        ("deficit", lambda: fetch_worldbank("GC.NLD.TOTL.GD.ZS"),
+         "Net lending/net borrowing, % of GDP (World Bank, annual)", "%", "years"),
     ]
     for name, fn, label, unit, fr in extras:
         try:

@@ -274,6 +274,20 @@ def fetch_worldbank(code: str) -> list | None:
     return points or None
 
 
+def fetch_cpi_with_fallback() -> tuple[list | None, str]:
+    """Try OECD live CPI first; if that fails (dead/stale/rate-limited),
+    fall back to World Bank's annual CPI indicator rather than showing
+    nothing at all -- same pattern proven working for Morocco."""
+    pts = fetch_oecd_cpi(("MEX",), "M")
+    if pts:
+        return pts, "OECD live prices system"
+    print("  [cpi] OECD attempt exhausted, falling back to World Bank annual CPI")
+    pts = fetch_worldbank("FP.CPI.TOTL.ZG")
+    if pts:
+        return pts, "World Bank, annual"
+    return None, ""
+
+
 def main() -> int:
     out = {
         "updated": datetime.now(timezone.utc).strftime("%Y-%m-%dT%H:%M:%SZ"),
@@ -318,9 +332,7 @@ def main() -> int:
     extras = [
         ("business_confidence", lambda: fetch_oecd_bci(),
          "Business confidence indicator, LT avg = 100 (OECD BCICP)", "index", "months"),
-        ("cpi", lambda: fetch_oecd_cpi(("MEX",), "M"),
-         "CPI, all items, YoY (OECD live prices system)", "%", "months"),
-        ("fdi", lambda: fetch_worldbank("BX.KLT.DINV.WD.GD.ZS"),
+                ("fdi", lambda: fetch_worldbank("BX.KLT.DINV.WD.GD.ZS"),
          "FDI net inflows, % of GDP (World Bank)", "%", "years"),
         ("current_account", lambda: fetch_worldbank("BN.CAB.XOKA.GD.ZS"),
          "Current account balance, % of GDP (World Bank)", "%", "years"),
@@ -337,6 +349,24 @@ def main() -> int:
         except Exception as exc:
             failures.append(name)
             print(f"FAIL  {name:<16} {exc}")
+
+    # CPI handled separately since it has a two-stage fallback (OECD, then
+    # World Bank annual) rather than a single source -- OECD's own data was
+    # observed rejected-as-stale or rate-limited on live runs, which
+    # previously meant no CPI at all rather than falling back cleanly.
+    try:
+        cpi_points, cpi_source = fetch_cpi_with_fallback()
+        if not cpi_points:
+            raise ValueError("no usable response from OECD or World Bank")
+        out["series"]["cpi"] = {
+            "label": f"CPI, all items, YoY ({cpi_source})", "unit": "%",
+            "freq": "months" if cpi_source.startswith("OECD") else "years",
+            "points": cpi_points}
+        print(f"  ok  cpi              {len(cpi_points):>5} observations "
+              f"({cpi_points[0][0]} to {cpi_points[-1][0]}, via {cpi_source})")
+    except Exception as exc:
+        failures.append("cpi")
+        print(f"FAIL  cpi              {exc}")
 
     if not out["series"]:
         print("\nNothing fetched.")

@@ -326,8 +326,8 @@ def main() -> int:
          "Current account balance, % of GDP (World Bank)", "%", "years"),
         ("debt_gdp", lambda: fetch_worldbank("GC.DOD.TOTL.GD.ZS"),
          "Central government debt, % of GDP (World Bank, annual)", "%", "years"),
-        ("deficit", lambda: fetch_worldbank("GC.BAL.CASH.GD.ZS"),
-         "Cash surplus/deficit, % of GDP (World Bank, annual)", "%", "years"),
+        ("deficit", lambda: fetch_worldbank("GC.NLD.TOTL.GD.ZS"),
+         "Net lending/net borrowing, % of GDP (World Bank, annual)", "%", "years"),
     ]
     for name, fn, label, unit, fr in extras:
         try:
