@@ -114,8 +114,10 @@ def fetch_oecd_bci() -> list | None:
         try:
             r = requests.get(url, timeout=60,
                              headers={"User-Agent": "economic-atlas/0.1"})
+            print(f"  [oecd-bci] status={r.status_code}")
             r.raise_for_status()
-        except Exception:
+        except Exception as exc:
+            print(f"  [oecd-bci] request failed: {exc}")
             continue
         try:
             rows = {}
@@ -135,7 +137,9 @@ def fetch_oecd_bci() -> list | None:
                         continue
             if rows:
                 return sorted([[p, v] for p, v in rows.items()], key=lambda x: x[0])
-        except Exception:
+            print(f"  [oecd-bci] {len(rows)} matching rows after filtering -- no usable data in this response")
+        except Exception as exc:
+            print(f"  [oecd-bci] parsing failed: {exc}")
             continue
     return None
 

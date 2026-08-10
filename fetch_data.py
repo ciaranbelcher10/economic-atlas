@@ -219,8 +219,10 @@ def fetch_oecd_bci(ref_area: str) -> tuple[str, list] | None:
     for url in queries:
         try:
             r = requests.get(url, timeout=60, headers=UA)
+            print(f"  [oecd-bci] {ref_area} status={r.status_code}")
             r.raise_for_status()
-        except Exception:
+        except Exception as exc:
+            print(f"  [oecd-bci] {ref_area} request failed: {exc}")
             continue
         try:
             rows = {}
@@ -241,7 +243,9 @@ def fetch_oecd_bci(ref_area: str) -> tuple[str, list] | None:
             if rows:
                 return "months", sorted(([p, v] for p, v in rows.items()),
                                         key=lambda x: x[0])
-        except Exception:
+            print(f"  [oecd-bci] {ref_area} {len(rows)} matching rows after filtering -- no usable data")
+        except Exception as exc:
+            print(f"  [oecd-bci] {ref_area} parsing failed: {exc}")
             continue
     return None
 
