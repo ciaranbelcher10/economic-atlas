@@ -32,7 +32,7 @@
 <link href="https://fonts.googleapis.com/css2?family=Nunito+Sans:wght@400;600;700&display=swap" rel="stylesheet">
 <link rel="icon" type="image/png" sizes="32x32" href="favicon-32.png">
 <link rel="apple-touch-icon" href="apple-touch-icon.png">
-<link rel="stylesheet" href="style.css?v=33">
+<link rel="stylesheet" href="style.css?v=34">
 <style>
 :root{ --map-nodata: #E9EBE7; }
 html[data-theme="dark"]{ --map-nodata: #C4CAC0; }
@@ -270,6 +270,22 @@ footer.cmp-foot{margin-top:36px; font-size:12.5px; color:var(--ink2); border-top
 @media (max-width:860px){
   .cz-layout-grid{ grid-template-columns:1fr !important; }
 }
+@media (max-width:700px){
+  /* Pinch-to-zoom on the map already works (d3.zoom has built-in touch
+     support) -- dedicated +/- buttons are a desktop-mouse convenience
+     that just eats screen space on a phone. Reset stays: there's no
+     obvious touch gesture to fully undo a zoom/pan, so it's still
+     useful. Confirmed via direct mobile feedback. */
+  .cardmap-zoom-in, .cardmap-zoom-out{display:none;}
+  /* The summary table's horizontal scroll container already existed
+     (overflow-x:auto), so the data was never actually cut off -- but on
+     a real phone there was no visual cue that scrolling right reveals
+     more columns, so it just looked truncated. This hint only shows on
+     narrow screens; desktop already sees every column without scrolling
+     most of the time. */
+  .rank-scroll-hint{display:block;}
+}
+.rank-scroll-hint{display:none; font-size:11.5px; color:var(--ink2); margin:2px 0 8px; text-align:right;}
 .chart-modal-close{position:absolute; top:16px; right:18px; width:32px; height:32px;
   border-radius:50%; border:1px solid var(--hair); background:var(--panel); color:var(--ink2);
   font-size:18px; cursor:pointer; display:flex; align-items:center; justify-content:center;}
@@ -1605,6 +1621,7 @@ footer.cmp-foot{margin-top:36px; font-size:12.5px; color:var(--ink2); border-top
   <div class="cmp-card wide" style="margin-top:18px;">
     <h3>Summary</h3>
     <p class="expl">Click any column to sort. Shows whatever point in time or change window is selected above. The highest value in each column is underlined in navy, the lowest in blue: a neutral marker of the extremes, not a judgement on which is better. Every figure is anchored to the exact same calendar year (or window) for every country and metric shown &mdash; the small year under each number is that reference year, computed by averaging each country's own real observations within it, so nothing here compares figures from different points in time.</p>
+    <p class="rank-scroll-hint">&larr; Swipe to see more columns &rarr;</p>
     <div style="overflow-x:auto;">
       <table class="rank-table" id="rankTable"></table>
     </div>
@@ -4552,7 +4569,7 @@ function redrawAllOpenMaps(){
     { page: "uk", type: "anchor", target: ".mpc-head", title: "Deep dives, not just charts",
       body: "Sections go beyond charts wherever there's a genuinely richer story in the data \u2014 here, every Bank Rate decision by the Bank of England's Monetary Policy Committee, with exactly how each member voted. Trade has the same idea with a full partner-by-partner breakdown, and Public finances shows precisely where government spending goes \u2014 worth exploring once you're browsing on your own." },
     { page: "uk", type: "anchor", target: "nav a[href='compare']", title: "On to Compare",
-      body: "Click <strong>Compare</strong> in the menu above to see how multiple countries stack up side by side \u2014 the next stop on the tour." },
+      body: "Tap the menu icon (top-right) if the nav is not showing, then <strong>Compare</strong>, to see how multiple countries stack up side by side \u2014 the next stop on the tour." },
 
     { page: "compare", type: "anchor", target: ".addcountries-btn", title: "Add countries",
       body: "Click here to add or remove countries from the comparison \u2014 grouped by region, so it's just as easy to bring in Brazil or Morocco as it is another G7 economy." },
@@ -4603,7 +4620,7 @@ function redrawAllOpenMaps(){
     { page: "compare", type: "anchor", target: "#rankTable th[data-k='debt_gdp']", title: "Sort by any column",
       body: "Click a column heading to sort by it \u2014 click it again to flip the order. Try the debt column you just added." },
     { page: "compare", type: "anchor", target: "nav a[href='dashboard']", title: "On to your Dashboard",
-      body: "Click <strong>My Dashboard</strong> in the menu above to build a personal set of metrics from any country \u2014 the last stop on the tour." },
+      body: "Tap the menu icon (top-right) if the nav is not showing, then <strong>My Dashboard</strong>, to build a personal set of metrics from any country \u2014 the last stop on the tour." },
 
     { page: "dashboard", type: "anchor", target: "#addMetricTile", title: "Add a metric",
       body: "Click here to pin any metric, from any country, onto your own dashboard." },
@@ -4843,7 +4860,10 @@ function redrawAllOpenMaps(){
 
   function resolveTarget(step){
     if(!step.target) return null;
-    return (typeof step.target === "function") ? step.target() : document.querySelector(step.target);
+    var el = (typeof step.target === "function") ? step.target() : document.querySelector(step.target);
+    if(!el) return null;
+    if(el.offsetWidth === 0 && el.offsetHeight === 0) return null;
+    return el;
   }
   function resolveBody(step){
     return (typeof step.body === "function") ? step.body() : step.body;
@@ -4965,6 +4985,13 @@ function redrawAllOpenMaps(){
     if(first !== -1) renderStepWhenReady(first);
   }
   window.EATLAS_TOUR = { start: startTour, exit: exitTour };
+
+  var authModalEl = document.getElementById("authModal");
+  if(authModalEl && window.MutationObserver){
+    new MutationObserver(function(){
+      if(!authModalEl.hidden) removeBox();
+    }).observe(authModalEl, { attributes: true, attributeFilter: ["hidden"] });
+  }
 
   var replayBtn = document.getElementById("tourReplayLink");
   if(replayBtn) replayBtn.addEventListener("click", startTour);

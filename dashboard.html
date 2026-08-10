@@ -32,7 +32,7 @@
 <link href="https://fonts.googleapis.com/css2?family=Nunito+Sans:wght@400;600;700&display=swap" rel="stylesheet">
 <link rel="icon" type="image/png" sizes="32x32" href="favicon-32.png">
 <link rel="apple-touch-icon" href="apple-touch-icon.png">
-<link rel="stylesheet" href="style.css?v=33">
+<link rel="stylesheet" href="style.css?v=34">
 <script src="https://cdnjs.cloudflare.com/ajax/libs/Chart.js/4.4.1/chart.umd.min.js"></script>
 <script src="https://cdnjs.cloudflare.com/ajax/libs/hammer.js/2.0.8/hammer.min.js"></script>
 <script src="https://cdnjs.cloudflare.com/ajax/libs/chartjs-plugin-zoom/2.0.1/chartjs-plugin-zoom.min.js"></script>
@@ -168,6 +168,11 @@
      essential functionality, so it's just hidden below this width
      rather than repositioned. */
   .pickerletter{display:none !important;}
+  /* Same reasoning as Compare's per-card maps: pinch-to-zoom already
+     works, dedicated +/- buttons just eat space on a phone. Reset
+     stays since there's no obvious touch gesture to fully undo a
+     zoom/pan. */
+  #mapZoomIn, #mapZoomOut{display:none;}
 }
 .pickeritem{border:1px solid var(--hair); border-radius:10px; padding:10px 12px; cursor:pointer; font-size:13px;
   background:var(--paper);}
@@ -4083,10 +4088,21 @@ loadAll().then(function(){
   }
   function closeDashPickerIfOpen(){
     var picker = document.getElementById("picker");
-    if(picker && !picker.hidden){
+    if(!picker || picker.hidden) return;
+    // Try the real close path first (it also calls hideNudge() and any
+    // other bookkeeping closeDashPicker does) -- but don't depend on it.
+    // If anything upstream of this point left the picker in an odd
+    // state, or the button's own handler doesn't run to completion,
+    // directly forcing hidden=true afterward guarantees the picker
+    // actually closes regardless of the exact cause, the same defensive
+    // approach already used for the tour-box-stacking bug elsewhere in
+    // this file.
+    try{
       var closeBtn = document.getElementById("pickerClose");
-      if(closeBtn) closeBtn.click(); else { picker.hidden = true; document.body.style.overflow = ""; }
-    }
+      if(closeBtn) closeBtn.click();
+    }catch(e){}
+    picker.hidden = true;
+    document.body.style.overflow = "";
   }
 
   var TOUR_STEPS = [
@@ -4123,7 +4139,7 @@ loadAll().then(function(){
     { page: "uk", type: "anchor", target: ".mpc-head", title: "Deep dives, not just charts",
       body: "Sections go beyond charts wherever there's a genuinely richer story in the data \u2014 here, every Bank Rate decision by the Bank of England's Monetary Policy Committee, with exactly how each member voted. Trade has the same idea with a full partner-by-partner breakdown, and Public finances shows precisely where government spending goes \u2014 worth exploring once you're browsing on your own." },
     { page: "uk", type: "anchor", target: "nav a[href='compare']", title: "On to Compare",
-      body: "Click <strong>Compare</strong> in the menu above to see how multiple countries stack up side by side \u2014 the next stop on the tour." },
+      body: "Tap the menu icon (top-right) if the nav is not showing, then <strong>Compare</strong>, to see how multiple countries stack up side by side \u2014 the next stop on the tour." },
 
     { page: "compare", type: "anchor", target: ".addcountries-btn", title: "Add countries",
       body: "Click here to add or remove countries from the comparison \u2014 grouped by region, so it's just as easy to bring in Brazil or Morocco as it is another G7 economy." },
@@ -4174,7 +4190,7 @@ loadAll().then(function(){
     { page: "compare", type: "anchor", target: "#rankTable th[data-k='debt_gdp']", title: "Sort by any column",
       body: "Click a column heading to sort by it \u2014 click it again to flip the order. Try the debt column you just added." },
     { page: "compare", type: "anchor", target: "nav a[href='dashboard']", title: "On to your Dashboard",
-      body: "Click <strong>My Dashboard</strong> in the menu above to build a personal set of metrics from any country \u2014 the last stop on the tour." },
+      body: "Tap the menu icon (top-right) if the nav is not showing, then <strong>My Dashboard</strong>, to build a personal set of metrics from any country \u2014 the last stop on the tour." },
 
     { page: "dashboard", type: "anchor", target: "#addMetricTile", title: "Add a metric",
       body: "Click here to pin any metric, from any country, onto your own dashboard." },
@@ -4414,7 +4430,10 @@ loadAll().then(function(){
 
   function resolveTarget(step){
     if(!step.target) return null;
-    return (typeof step.target === "function") ? step.target() : document.querySelector(step.target);
+    var el = (typeof step.target === "function") ? step.target() : document.querySelector(step.target);
+    if(!el) return null;
+    if(el.offsetWidth === 0 && el.offsetHeight === 0) return null;
+    return el;
   }
   function resolveBody(step){
     return (typeof step.body === "function") ? step.body() : step.body;
@@ -4442,6 +4461,7 @@ loadAll().then(function(){
 
   function renderStep(index){
     removeBox();
+    closeDashPickerIfOpen();
     var step = TOUR_STEPS[index];
     if(!step || step.page !== THIS_PAGE) return; // this step belongs to a page not yet reached/built
     if(!stepVisible(step)){
@@ -4536,6 +4556,13 @@ loadAll().then(function(){
     if(first !== -1) renderStepWhenReady(first);
   }
   window.EATLAS_TOUR = { start: startTour, exit: exitTour };
+
+  var authModalEl = document.getElementById("authModal");
+  if(authModalEl && window.MutationObserver){
+    new MutationObserver(function(){
+      if(!authModalEl.hidden) removeBox();
+    }).observe(authModalEl, { attributes: true, attributeFilter: ["hidden"] });
+  }
 
   var replayBtn = document.getElementById("tourReplayLink");
   if(replayBtn) replayBtn.addEventListener("click", startTour);
