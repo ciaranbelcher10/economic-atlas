@@ -4750,23 +4750,6 @@ fetch("data-uk-spending-cofog.json", {cache: "no-cache"})
       },
       target: "#dollariseBtn", title: "Dollarise",
       body: "Every currency figure on this page can be converted to US dollars at today's exchange rate, so figures from any country sit on the same footing \u2014 toggle it on to see Germany, Brazil and the UK's GDP side by side, properly comparable." },
-    { page: "dashboard", type: "anchor",
-      onEnter: function(){
-        closeDashPickerIfOpen();
-        window.EATLAS_DASH.ensurePinned("UK::gdp_level");
-        // The Fullscreen button only appears once a tile is already
-        // expanded (display:none until then) -- expand it defensively so
-        // the button this step targets is actually there to click,
-        // rather than chaining an extra "View chart first" step in.
-        var tile = document.querySelector(".tile[data-id='UK::gdp_level']");
-        if(tile && !tile.classList.contains("expanded")){
-          var chartBtn = tile.querySelector(".chartbtn");
-          if(chartBtn) chartBtn.click();
-        }
-      },
-      target: ".tile[data-id='UK::gdp_level'] .fullscreenbtn",
-      title: "See it fullscreen",
-      body: "Every pinned tile can go fullscreen too \u2014 click here for a bigger view of the UK's GDP, now properly comparable in dollars." },
     { page: "dashboard", type: "center", title: "That's the tour",
       body: "That's everything \u2014 a country page, Compare, and your own Dashboard, now showing Germany, Brazil and the UK's GDP side by side in dollars. Got an idea for a metric or country we're missing? Get in touch any time from the <a href=\"contact\">Contact</a> page." }
   ];
@@ -5075,18 +5058,9 @@ fetch("data-uk-spending-cofog.json", {cache: "no-cache"})
   }
 
   function startTour(){
-    // Belt-and-braces alongside the entry-point gating below: this is
-    // also exported on window.EATLAS_TOUR.start, so guard it here too
-    // in case anything ever calls it directly rather than through the
-    // replay link or the auto-start check.
-    if(!isAdmin()){
-      console.log("[EATLAS_TOUR] startTour() called but isAdmin() is false -- refusing to start.");
-      return;
-    }
     markSeen();
     var first = nextVisibleIndex(0, 1);
     if(first === -1){
-      console.log("[EATLAS_TOUR] startTour() found no visible steps at all (nextVisibleIndex returned -1).");
       saveState({ active: true, stepIndex: 0 });
       return;
     }
@@ -5097,8 +5071,7 @@ fetch("data-uk-spending-cofog.json", {cache: "no-cache"})
       // page -- clicking it from anywhere else silently did nothing
       // visible: renderStep() correctly refuses to render a step that
       // belongs to a different page, but nothing was navigating there
-      // first (confirmed live: an admin clicking replay from Dashboard
-      // saw no tour at all). Navigate to the right page first; the
+      // first (confirmed live). Navigate to the right page first; the
       // resume-on-load check at the bottom of this file picks the
       // saved state back up and shows the tour there.
       window.location.href = TOUR_STEPS[first].page;
@@ -5115,38 +5088,17 @@ fetch("data-uk-spending-cofog.json", {cache: "no-cache"})
     }).observe(authModalEl, { attributes: true, attributeFilter: ["hidden"] });
   }
 
-  // Admin-only for now (not ready for a general audience yet) -- gate
-  // every entry point behind the real admin flag: the manual replay
-  // link, auto-start for first-time visitors, and resuming an
-  // in-progress tour. window.EATLAS_PREFS.ready is used rather than
-  // calling isAdmin() directly here, since isAdmin() depends on an
-  // async Supabase profile fetch that may not have resolved yet at the
-  // point this script runs on a fresh page load -- checking too early
-  // would wrongly treat a genuine admin as a non-admin.
-  (window.EATLAS_PREFS ? window.EATLAS_PREFS.ready : Promise.resolve()).then(function(){
-    var replayBtn = document.getElementById("tourReplayLink");
-    if(!isAdmin()){
-      // Diagnostic only (no UI impact) -- this is the single most likely
-      // reason the replay link does nothing: EATLAS_PREFS.ready resolved
-      // before the real admin flag was confirmed, so this branch hid the
-      // button/never attached the listener. Logged so this is checkable
-      // in DevTools rather than guessed at blind next time.
-      console.log("[EATLAS_TOUR] replay link hidden -- isAdmin() was false when EATLAS_PREFS.ready resolved.",
-        "isLoggedIn:", !!(window.EATLAS_PREFS && window.EATLAS_PREFS.isLoggedIn && window.EATLAS_PREFS.isLoggedIn()));
-      if(replayBtn) replayBtn.style.display = "none";
-      return;
-    }
-    if(replayBtn) replayBtn.addEventListener("click", startTour);
+  var replayBtn = document.getElementById("tourReplayLink");
+  if(replayBtn) replayBtn.addEventListener("click", startTour);
 
-    // Resume mid-tour if state says so and the current step belongs here;
-    // otherwise, auto-start once ever for a genuinely first-time visitor.
-    var state = getState();
-    if(state.active && TOUR_STEPS[state.stepIndex] && TOUR_STEPS[state.stepIndex].page === THIS_PAGE){
-      renderStepWhenReady(state.stepIndex);
-    } else if(!state.active && !hasSeenBefore()){
-      startTour();
-    }
-  });
+  // Resume mid-tour if state says so and the current step belongs here;
+  // otherwise, auto-start once ever for a genuinely first-time visitor.
+  var state = getState();
+  if(state.active && TOUR_STEPS[state.stepIndex] && TOUR_STEPS[state.stepIndex].page === THIS_PAGE){
+    renderStepWhenReady(state.stepIndex);
+  } else if(!state.active && !hasSeenBefore()){
+    startTour();
+  }
 })();
 </script>
 
