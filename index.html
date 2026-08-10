@@ -1516,8 +1516,22 @@ fetch("https://cdn.jsdelivr.net/npm/world-atlas@2/countries-110m.json")
   var SESSION_KEY = "eatlas_mobile_banner_dismissed";
   var dismissedThisSession = false;
   try{ dismissedThisSession = sessionStorage.getItem(SESSION_KEY) === "1"; }catch(e){}
-  if(window.innerWidth < 768 && !dismissedThisSession){
+  // Real mobile screenshots showed this banner rendering at the same time
+  // as the onboarding tour's own tooltip box, plus the cookie banner --
+  // three overlays stacked on a small screen at once. The tour and this
+  // banner are set up independently (different scripts, no shared gate),
+  // so rather than couple them tightly, wait a moment and defer to
+  // whichever one actually shows up: if a .tour-box is on screen when
+  // the delay fires, skip showing this banner for now and let the tour
+  // own the screen -- it'll get another chance once the tour's gone.
+  function maybeShowMobileBanner(){
+    if(dismissedThisSession) return;
+    if(window.innerWidth >= 768) return;
+    if(document.querySelector(".tour-box")) return;
     mBanner.hidden = false;
+  }
+  if(window.innerWidth < 768 && !dismissedThisSession){
+    setTimeout(maybeShowMobileBanner, 1200);
   }
   var mClose = document.getElementById("mobileBannerClose");
   if(mClose){
@@ -1615,7 +1629,7 @@ fetch("https://cdn.jsdelivr.net/npm/world-atlas@2/countries-110m.json")
     { page: "uk", type: "anchor", onEnter: function(){ openModalFor("cpi"); },
       target: function(){ return document.querySelector(".chart-modal-box"); },
       title: "Choose your own timeframe",
-      body: "Use the preset buttons above for common ranges, or click and drag directly on the chart to zoom into any period you like. \u201cReset zoom\u201d brings you back out." },
+      body: "Use the preset buttons above for common ranges, drag directly on the chart to zoom into any period you like, or pinch to zoom on a touchscreen. \u201cReset zoom\u201d brings you back out." },
     { page: "uk", type: "anchor", onEnter: function(){ openModalFor("cpi"); }, target: "#chartModalDlBtn",
       title: "Download the underlying data",
       body: function(){
@@ -1629,7 +1643,7 @@ fetch("https://cdn.jsdelivr.net/npm/world-atlas@2/countries-110m.json")
       showIf: isPro },
     { page: "uk", type: "anchor", onEnter: function(){ openModalFor("boe_rate"); }, target: "#chartModalClose",
       title: "Back out when you're done",
-      body: "Click here (or press Escape) to close this full-size view and get back to the page." },
+      body: "Tap here (or press Escape on desktop) to close this full-size view and get back to the page." },
     { page: "uk", type: "anchor", target: ".mpc-head", title: "Deep dives, not just charts",
       body: "Sections go beyond charts wherever there's a genuinely richer story in the data \u2014 here, every Bank Rate decision by the Bank of England's Monetary Policy Committee, with exactly how each member voted. Trade has the same idea with a full partner-by-partner breakdown, and Public finances shows precisely where government spending goes \u2014 worth exploring once you're browsing on your own." },
     { page: "uk", type: "anchor", target: "nav a[href='compare']", title: "On to Compare",
