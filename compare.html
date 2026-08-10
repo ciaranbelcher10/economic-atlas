@@ -4546,8 +4546,8 @@ function redrawAllOpenMaps(){
       body: "Click <strong>Brazil</strong> to add it \u2014 changes apply the moment you click, nothing to confirm. Add a few more while you're in here if you like, then hit Next when you're ready." },
     { page: "compare", type: "anchor", target: "#countryClose", title: "Close when you're happy",
       body: "Click here (or just click outside the box) to get back to the comparison with Brazil now included." },
-    { page: "compare", type: "anchor", exploratory: true, target: "#modeSwitch", title: "Point in time, or change over time",
-      body: "Switch to <strong>Change over time</strong> and the slider below becomes a range \u2014 drag either end to see how much each metric actually moved between any two years, not just where it stands today. Have a play, then click Next when you're ready." },
+    { page: "compare", type: "anchor", exploratory: true, target: ".metric-card[data-concept='gdp_level'] .card-mode-switch", title: "Point in time, or change over time",
+      body: "Every card has its own version of this now \u2014 switch this one to <strong>Change over time</strong> and its slider becomes a range: drag either end to see how much GDP actually moved between any two years, not just where it stands today. Have a play, then click Next when you're ready." },
     { page: "compare", type: "anchor", target: "#addMetricTile", title: "Add a metric",
       body: "Click here to add a comparison card for any tracked metric \u2014 GDP, inflation, unemployment, debt, trade and more." },
     { page: "compare", type: "anchor",
@@ -4561,13 +4561,29 @@ function redrawAllOpenMaps(){
       body: "Try <strong>Government debt, % of GDP</strong> \u2014 click it to add this card to your comparison. (GDP growth, GDP level and inflation are already shown by default, so they're not clickable here.)" },
     { page: "compare", type: "anchor",
       onEnter: closeCompareMetricPickerIfOpen,
-      target: "#mapMetricRow button[data-metric='debt_gdp']",
-      title: "Switch what the map shows",
-      body: "The map always mirrors whichever card you pick here \u2014 switch it to <strong>Government debt, % of GDP</strong>, the metric you just added, to see it plotted for every country instead." },
-    { page: "compare", type: "anchor", exploratory: true, target: "#mapYearSlider", title: "Scrub through time",
-      body: "Drag this slider year by year to watch the map redraw for that exact year \u2014 a fast way to spot when a metric actually turned, not just where it stands today. Have a proper play, then click Next when you're done." },
-    { page: "compare", type: "anchor", exploratory: true, target: "#mapZoomIn", title: "Zoom in on a region",
-      body: "Click to zoom in on the map \u2014 handy for comparing neighbouring countries closely, like the Eurozone members. \u201cReset\u201d underneath brings you back out. Take a look around, then click Next when you're ready." },
+      target: ".metric-card[data-concept='debt_gdp'] .card-map-toggle",
+      title: "See it on a map",
+      body: "Every card can show its own map now, on request \u2014 click here to see <strong>Government debt, % of GDP</strong> plotted for every country you've selected." },
+    { page: "compare", type: "anchor", exploratory: true,
+      onEnter: function(){
+        var card = document.querySelector(".metric-card[data-concept='debt_gdp']");
+        if(!card) return;
+        var toggleBtn = card.querySelector(".card-map-toggle");
+        var mapContainer = card.querySelector(".card-map-container");
+        if(toggleBtn && mapContainer && mapContainer.style.display === "none") toggleBtn.click();
+      },
+      target: ".metric-card[data-concept='debt_gdp'] .card-snapshot-slider", title: "Scrub through time",
+      body: "Drag this and the chart above <em>and</em> the map you just opened redraw together \u2014 a card's map always mirrors whatever year that same card's own time control is set to. Have a proper play, then click Next when you're done." },
+    { page: "compare", type: "anchor", exploratory: true,
+      onEnter: function(){
+        var card = document.querySelector(".metric-card[data-concept='debt_gdp']");
+        if(!card) return;
+        var toggleBtn = card.querySelector(".card-map-toggle");
+        var mapContainer = card.querySelector(".card-map-container");
+        if(toggleBtn && mapContainer && mapContainer.style.display === "none") toggleBtn.click();
+      },
+      target: ".metric-card[data-concept='debt_gdp'] .cardmap-zoom-in", title: "Zoom in on a region",
+      body: "Click to zoom in on this card's map \u2014 handy for comparing neighbouring countries closely, like the Eurozone members. \u201cReset\u201d underneath brings you back out. Take a look around, then click Next when you're ready." },
     { page: "compare", type: "anchor", target: "#rankTable", title: "The summary table",
       body: "Every selected country and metric, side by side, for whichever point in time or change window you've chosen above." },
     { page: "compare", type: "anchor", target: "#rankTable th[data-k='debt_gdp']", title: "Sort by any column",
