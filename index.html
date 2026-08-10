@@ -1638,17 +1638,13 @@ fetch("https://cdn.jsdelivr.net/npm/world-atlas@2/countries-110m.json")
       target: function(){ return document.querySelector(".chart-modal-box"); },
       title: "Choose your own timeframe",
       body: "Use the preset buttons above for common ranges, drag directly on the chart to zoom into any period you like, or pinch to zoom on a touchscreen. \u201cReset zoom\u201d brings you back out." },
-    { page: "uk", type: "anchor", onEnter: function(){ openModalFor("cpi"); }, target: "#chartModalDlBtn",
-      title: "Download the underlying data",
-      body: function(){
-        return loggedIn()
-          ? "Every chart's data is downloadable as a CSV, exactly as shown here."
-          : "Every chart's data is downloadable as a CSV \u2014 free, but it does need an account (10 seconds to set up, no card required).";
-      } },
     { page: "uk", type: "anchor", onEnter: function(){ openModalFor("boe_rate"); }, target: "#chartModalCzBtn",
       title: "Customise & export",
-      body: "Add a title, event markers and reference lines, then export as an image \u2014 try dragging an event marker around on this Bank Rate chart to see how it works.",
-      showIf: isPro },
+      body: function(){
+        return isPro()
+          ? "Add a title, event markers and reference lines, then export as an image \u2014 try dragging an event marker around on this Bank Rate chart to see how it works."
+          : "Add a title, event markers and reference lines, then export as an image \u2014 this needs Pro, which everyone gets free for 14 days on signup, no card required.";
+      } },
     { page: "uk", type: "anchor", onEnter: function(){ openModalFor("boe_rate"); }, target: "#chartModalClose",
       title: "Back out when you're done",
       body: "Tap here (or press Escape on desktop) to close this full-size view and get back to the page." },
@@ -1659,9 +1655,21 @@ fetch("https://cdn.jsdelivr.net/npm/world-atlas@2/countries-110m.json")
 
     { page: "compare", type: "anchor", target: ".addcountries-btn", title: "Add countries",
       body: "Click here to add or remove countries from the comparison \u2014 grouped by region, so it's just as easy to bring in Brazil or Morocco as it is another G7 economy." },
-    { page: "compare", type: "anchor", exploratory: true, target: ".picker-item[data-country='Brazil']", title: "Try adding one",
+    { page: "compare", type: "anchor", exploratory: true,
+      onEnter: function(){
+        var modal = document.getElementById("countryModal");
+        var addBtn = document.querySelector(".addcountries-btn");
+        if(modal && modal.hidden && addBtn) addBtn.click();
+      },
+      target: ".picker-item[data-country='Brazil']", title: "Try adding one",
       body: "Click <strong>Brazil</strong> to add it \u2014 changes apply the moment you click, nothing to confirm. Add a few more while you're in here if you like, then hit Next when you're ready." },
-    { page: "compare", type: "anchor", target: "#countryClose", title: "Close when you're happy",
+    { page: "compare", type: "anchor",
+      onEnter: function(){
+        var modal = document.getElementById("countryModal");
+        var addBtn = document.querySelector(".addcountries-btn");
+        if(modal && modal.hidden && addBtn) addBtn.click();
+      },
+      target: "#countryClose", title: "Close when you're happy",
       body: "Click here (or just click outside the box) to get back to the comparison with Brazil now included." },
     { page: "compare", type: "anchor", exploratory: true, target: ".metric-card[data-concept='gdp_level'] .card-mode-switch", title: "Point in time, or change over time",
       body: "Every card has its own version of this now \u2014 switch this one to <strong>Change over time</strong> and its slider becomes a range: drag either end to see how much GDP actually moved between any two years, not just where it stands today. Have a play, then click Next when you're ready." },
@@ -1741,6 +1749,11 @@ fetch("https://cdn.jsdelivr.net/npm/world-atlas@2/countries-110m.json")
       title: "Now add South Africa's",
       body: "Do the same for South Africa \u2014 its unemployment rate is dramatically higher than the US's, so pinning both side by side actually shows something." },
     { page: "dashboard", type: "anchor", exploratory: true,
+      onEnter: function(){
+        var picker = document.getElementById("picker");
+        var addTile = document.getElementById("addMetricTile");
+        if(picker && picker.hidden && addTile) addTile.click();
+      },
       target: "#addMetricTile",
       title: "Add a few more if you like",
       body: "Try pinning unemployment for a few other countries too \u2014 the more you add, the more the map (next) has to show. Click Next whenever you're ready to move on." },
@@ -1939,6 +1952,32 @@ fetch("https://cdn.jsdelivr.net/npm/world-atlas@2/countries-110m.json")
       if(top + boxHeight + 12 > window.innerHeight){
         top = r.top - boxHeight - 12;
         if(top < 12) top = 12;
+      }
+      // The box sits at a higher z-index than its own highlighted target
+      // (by design, so the box itself always renders on top of the glow
+      // ring) -- but that also means if the computed position ever ends
+      // up geometrically overlapping the target (a tall body of text in
+      // a short modal can leave neither "below" nor "above" with enough
+      // room), the box physically intercepts clicks meant for the real
+      // element underneath. Confirmed live: this produced exactly
+      // "clicking the highlighted thing doesn't work, only Next does".
+      // Detect that overlap directly and try beside the target instead
+      // of just above/below before accepting the clamped fallback.
+      var overlaps = left < r.right && left + boxWidth > r.left &&
+                      top < r.bottom && top + boxHeight > r.top;
+      if(overlaps){
+        var rightLeft = r.right + 12;
+        var leftLeft = r.left - boxWidth - 12;
+        var vTop = Math.min(Math.max(12, r.top), window.innerHeight - boxHeight - 12);
+        if(rightLeft + boxWidth + 12 <= window.innerWidth){
+          left = rightLeft; top = vTop;
+        } else if(leftLeft >= 12){
+          left = leftLeft; top = vTop;
+        }
+        // If neither side fits either (very small viewport), the
+        // original above/below clamp stands -- rare, and still better
+        // than nothing, but real overlap-free placement isn't always
+        // geometrically possible on a small enough screen.
       }
       box.style.left = left + "px";
       box.style.top = top + "px";
