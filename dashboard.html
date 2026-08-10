@@ -1034,7 +1034,15 @@ footer.dash-foot{margin-top:36px; font-size:12.5px; color:var(--ink2); border-to
     var welcomeShown = true;
 
     function updateBanners(){
-      banners.forEach(function(el){ el.hidden = loggedIn; });
+      // Real screenshots showed this banner stacking on top of the
+      // onboarding tour's own tooltip, alongside the cookie banner --
+      // a separate bug from the mobile-notice-banner-vs-tour issue
+      // fixed elsewhere, since this banner system (alertBanner,
+      // trialBanner) is a different code path entirely. Same fix
+      // philosophy: don't reveal a banner while the tour currently has
+      // a box on screen.
+      var tourActive = !!document.querySelector(".tour-box");
+      banners.forEach(function(el){ el.hidden = loggedIn || tourActive; });
     }
 
     function resolveReady(){
@@ -4411,21 +4419,38 @@ loadAll().then(function(){
     };
   }
 
-  function positionAnchorBox(box, target){
-    if(target.scrollIntoView) target.scrollIntoView({ block: "center", inline: "nearest", behavior: "auto" });
-    var r = target.getBoundingClientRect();
-    var boxRect = box.getBoundingClientRect();
-    var boxWidth = boxRect.width || 340;
-    var boxHeight = boxRect.height || 180;
-    var centeredLeft = r.left + (r.width / 2) - (boxWidth / 2);
-    var left = Math.min(Math.max(12, centeredLeft), window.innerWidth - boxWidth - 12);
-    var top = r.bottom + 12;
-    if(top + boxHeight + 12 > window.innerHeight){
-      top = r.top - boxHeight - 12;
-      if(top < 12) top = 12;
+  function positionAnchorBox(box, target, done){
+    var place = function(){
+      var r = target.getBoundingClientRect();
+      var boxRect = box.getBoundingClientRect();
+      var boxWidth = boxRect.width || 340;
+      var boxHeight = boxRect.height || 180;
+      var centeredLeft = r.left + (r.width / 2) - (boxWidth / 2);
+      var left = Math.min(Math.max(12, centeredLeft), window.innerWidth - boxWidth - 12);
+      var top = r.bottom + 12;
+      if(top + boxHeight + 12 > window.innerHeight){
+        top = r.top - boxHeight - 12;
+        if(top < 12) top = 12;
+      }
+      box.style.left = left + "px";
+      box.style.top = top + "px";
+      if(done) done();
+    };
+    if(target.scrollIntoView){
+      target.scrollIntoView({ block: "center", inline: "nearest", behavior: "auto" });
+      // scrollIntoView doesn't guarantee the scroll has actually finished
+      // by the time this line returns -- especially relevant here since
+      // the target usually lives inside the metric picker's own
+      // scrollable overlay, not just the page itself. A double
+      // requestAnimationFrame (not just one) is the standard, reliable
+      // way to wait for a genuine layout+paint cycle to complete before
+      // measuring position -- one frame alone was observed to still
+      // sometimes read a stale rect, resulting in the tour box landing
+      // somewhere disconnected from where the target actually ended up.
+      requestAnimationFrame(function(){ requestAnimationFrame(place); });
+    } else {
+      place();
     }
-    box.style.left = left + "px";
-    box.style.top = top + "px";
   }
 
   function resolveTarget(step){
@@ -4498,7 +4523,10 @@ loadAll().then(function(){
     if(effectiveType === "anchor" && target){
       target.classList.add("tour-highlight");
       highlightEl = target;
-      positionAnchorBox(box, target);
+      positionAnchorBox(box, target, function(){
+        box.style.visibility = "";
+        requestAnimationFrame(function(){ box.classList.add("show"); });
+      });
       applySiblingRestriction(step, target);
       // Following the instruction (clicking the real, live element the
       // box is pointing at) advances the tour on its own -- Next stays
@@ -4511,9 +4539,10 @@ loadAll().then(function(){
       if(!step.exploratory){
         target.addEventListener("click", advanceToNext, { once: true });
       }
+    } else {
+      box.style.visibility = "";
+      requestAnimationFrame(function(){ box.classList.add("show"); });
     }
-    box.style.visibility = "";
-    requestAnimationFrame(function(){ box.classList.add("show"); });
 
     var nextBtn = box.querySelector(".tour-next");
     var prevBtn = box.querySelector(".tour-prev");
