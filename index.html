@@ -344,7 +344,7 @@
   // saved "granted" choice) -- never on page load by default, since
   // that's the actual UK GDPR/PECR requirement: consent BEFORE
   // non-essential cookies are set, not implied consent with an opt-out.
-  var GA_MEASUREMENT_ID = "G-PJSXJN5H6G"; // theeconomicatlas.com data stream (the canonical domain going forward)
+  var GA_MEASUREMENT_ID = "G-Z5D886NN3T"; // theeconomicatlas.com data stream (the canonical domain going forward)
   var CONSENT_KEY = "eatlas_cookie_consent";
 
   function loadGA(){
@@ -1723,12 +1723,35 @@ fetch("https://cdn.jsdelivr.net/npm/world-atlas@2/countries-110m.json")
       title: "Add a few more if you like",
       body: "Try pinning unemployment for a few other countries too \u2014 the more you add, the more the map (next) has to show. Click Next whenever you're ready to move on." },
     { page: "dashboard", type: "anchor", exploratory: true,
-      onEnter: closeDashPickerIfOpen,
+      onEnter: function(){
+        closeDashPickerIfOpen();
+        // Both tiles were pinned by two SEPARATE earlier steps, with an
+        // exploratory "add a few more" step in between where the visitor
+        // could have removed either one -- without this check, the map
+        // card stays display:none (it only shows once 2+ pinned tiles
+        // share a comparable metric/year) and this step tries to
+        // highlight an invisible element, which looks like a broken
+        // tour rather than a missing prerequisite.
+        ["US::unemployment", "South Africa::unemployment"].forEach(function(id){
+          if(pinned.indexOf(id) === -1) pinned.push(id);
+        });
+        savePinned();
+        renderDash();
+      },
       target: "#mapYearSlider",
       title: "Now there's a map too",
       body: "Pin the same metric for two or more countries and a map appears automatically, mirroring whatever's pinned \u2014 with unemployment, the colour differences actually mean something. Drag this slider year by year to watch it redraw \u2014 have a play, then click Next when you're ready." },
     { page: "dashboard", type: "anchor",
-      onEnter: closeDashPickerIfOpen,
+      onEnter: function(){
+        closeDashPickerIfOpen();
+        // Same defensive re-pin as the map step above -- this tile could
+        // have been removed in between.
+        if(pinned.indexOf("US::unemployment") === -1){
+          pinned.push("US::unemployment");
+          savePinned();
+          renderDash();
+        }
+      },
       target: ".tile[data-id='US::unemployment'] .chartbtn",
       title: "See the chart behind any tile",
       body: "Every pinned tile has its own chart, right there on your dashboard \u2014 click <strong>View chart</strong> to expand it inline." },
@@ -1740,19 +1763,14 @@ fetch("https://cdn.jsdelivr.net/npm/world-atlas@2/countries-110m.json")
         // here specifically, separate from the unemployment pair used
         // for the map demo, so this step always has something real to
         // demonstrate regardless of what else got pinned along the way.
-        if(!document.querySelector(".tile[data-id='UK::gdp_level']")){
-          var picker = document.getElementById("picker");
-          if(picker && picker.hidden){
-            var addTile = document.getElementById("addMetricTile");
-            if(addTile) addTile.click();
-          }
-          var countryBtn = document.querySelector("#modeToggle button[data-mode='country']");
-          if(countryBtn && !countryBtn.classList.contains("active")) countryBtn.click();
-          var sel = document.getElementById("pickerSelect");
-          if(sel && sel.value !== "UK"){ sel.value = "UK"; sel.dispatchEvent(new Event("change")); }
-          var item = document.querySelector(".pickeritem[data-country='UK'][data-key='gdp_level']");
-          if(item) item.click();
-          closeDashPickerIfOpen();
+        // Pins directly rather than simulating picker clicks (the
+        // previous approach) -- more reliable, and matches the same
+        // direct pinned.push()/savePinned()/renderDash() pattern the
+        // picker's own click handler uses internally.
+        if(pinned.indexOf("UK::gdp_level") === -1){
+          pinned.push("UK::gdp_level");
+          savePinned();
+          renderDash();
         }
       },
       target: "#dollariseBtn", title: "Dollarise",
@@ -1760,6 +1778,13 @@ fetch("https://cdn.jsdelivr.net/npm/world-atlas@2/countries-110m.json")
     { page: "dashboard", type: "anchor",
       onEnter: function(){
         closeDashPickerIfOpen();
+        // Same defensive re-pin as above -- could have been removed
+        // since the earlier steps that pinned it.
+        if(pinned.indexOf("US::unemployment") === -1){
+          pinned.push("US::unemployment");
+          savePinned();
+          renderDash();
+        }
         // Unlocks Customise & Export for the length of this step only,
         // regardless of the account's real plan -- this is a genuinely
         // powerful feature and worth showing everyone what it does, not
