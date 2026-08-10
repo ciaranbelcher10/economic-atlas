@@ -1983,7 +1983,10 @@ fetch("https://cdn.jsdelivr.net/npm/world-atlas@2/countries-110m.json")
   function renderStep(index){
     removeBox();
     var step = TOUR_STEPS[index];
-    if(!step || step.page !== THIS_PAGE) return; // this step belongs to a page not yet reached/built
+    if(!step || step.page !== THIS_PAGE){
+      if(step) console.log("[EATLAS_TOUR] renderStep() bailed -- step belongs to page '" + step.page + "' but THIS_PAGE is '" + THIS_PAGE + "'.");
+      return; // this step belongs to a page not yet reached/built
+    }
     if(!stepVisible(step)){
       var alt = nextVisibleIndex(index + 1, 1);
       if(alt !== -1) advance(alt); else exitTour();
@@ -2083,11 +2086,18 @@ fetch("https://cdn.jsdelivr.net/npm/world-atlas@2/countries-110m.json")
     // also exported on window.EATLAS_TOUR.start, so guard it here too
     // in case anything ever calls it directly rather than through the
     // replay link or the auto-start check.
-    if(!isAdmin()) return;
+    if(!isAdmin()){
+      console.log("[EATLAS_TOUR] startTour() called but isAdmin() is false -- refusing to start.");
+      return;
+    }
     markSeen();
     var first = nextVisibleIndex(0, 1);
-    saveState({ active: true, stepIndex: first === -1 ? 0 : first });
-    if(first === -1) return;
+    if(first === -1){
+      console.log("[EATLAS_TOUR] startTour() found no visible steps at all (nextVisibleIndex returned -1).");
+      saveState({ active: true, stepIndex: 0 });
+      return;
+    }
+    saveState({ active: true, stepIndex: first });
     if(TOUR_STEPS[first].page !== THIS_PAGE){
       // The tour always starts from its first step (currently the
       // index page), but "Take the tour" lives in the footer of every
@@ -2123,6 +2133,13 @@ fetch("https://cdn.jsdelivr.net/npm/world-atlas@2/countries-110m.json")
   (window.EATLAS_PREFS ? window.EATLAS_PREFS.ready : Promise.resolve()).then(function(){
     var replayBtn = document.getElementById("tourReplayLink");
     if(!isAdmin()){
+      // Diagnostic only (no UI impact) -- this is the single most likely
+      // reason the replay link does nothing: EATLAS_PREFS.ready resolved
+      // before the real admin flag was confirmed, so this branch hid the
+      // button/never attached the listener. Logged so this is checkable
+      // in DevTools rather than guessed at blind next time.
+      console.log("[EATLAS_TOUR] replay link hidden -- isAdmin() was false when EATLAS_PREFS.ready resolved.",
+        "isLoggedIn:", !!(window.EATLAS_PREFS && window.EATLAS_PREFS.isLoggedIn && window.EATLAS_PREFS.isLoggedIn()));
       if(replayBtn) replayBtn.style.display = "none";
       return;
     }
