@@ -4560,14 +4560,7 @@ function redrawAllOpenMaps(){
       target: function(){ return document.querySelector(".chart-modal-box"); },
       title: "Choose your own timeframe",
       body: "Use the preset buttons above for common ranges, drag directly on the chart to zoom into any period you like, or pinch to zoom on a touchscreen. \u201cReset zoom\u201d brings you back out." },
-    { page: "uk", type: "anchor", onEnter: function(){ openModalFor("boe_rate"); }, target: "#chartModalCzBtn",
-      title: "Customise & export",
-      body: function(){
-        return isPro()
-          ? "Add a title, event markers and reference lines, then export as an image \u2014 try dragging an event marker around on this Bank Rate chart to see how it works."
-          : "Add a title, event markers and reference lines, then export as an image \u2014 this needs Pro, which everyone gets free for 14 days on signup, no card required.";
-      } },
-    { page: "uk", type: "anchor", onEnter: function(){ openModalFor("boe_rate"); }, target: "#chartModalClose",
+    { page: "uk", type: "anchor", onEnter: function(){ openModalFor("cpi"); }, target: "#chartModalClose",
       title: "Back out when you're done",
       body: "Tap here (or press Escape on desktop) to close this full-size view and get back to the page." },
     { page: "uk", type: "anchor", target: ".mpc-head", title: "Deep dives, not just charts",
@@ -4732,33 +4725,6 @@ function redrawAllOpenMaps(){
       },
       target: "#dollariseBtn", title: "Dollarise",
       body: "Every currency figure on this page can be converted to US dollars at today's exchange rate, so figures from any country sit on the same footing. Toggle it on to see the UK's GDP card in dollars." },
-    { page: "dashboard", type: "anchor",
-      onEnter: function(){
-        closeDashPickerIfOpen();
-        // Same defensive re-pin as above -- could have been removed
-        // since the earlier steps that pinned it.
-        if(pinned.indexOf("US::unemployment") === -1){
-          pinned.push("US::unemployment");
-          savePinned();
-          renderDash();
-        }
-        // Unlocks Customise & Export for the length of this step only,
-        // regardless of the account's real plan -- this is a genuinely
-        // powerful feature and worth showing everyone what it does, not
-        // just the accounts already entitled to use it. Nothing about
-        // the account's actual Pro status or credits changes; only the
-        // in-memory check used to decide how the button renders.
-        var prefs = window.EATLAS_PREFS;
-        if(prefs && !prefs.isPro()){
-          var original = prefs.isPro;
-          prefs.isPro = function(){ return true; };
-          bypassRestore = function(){ prefs.isPro = original; };
-          if(window.EATLAS_CUSTOMIZE) window.EATLAS_CUSTOMIZE.refreshEntitlement();
-        }
-      },
-      target: ".tile[data-id='US::unemployment'] .cz-btn",
-      title: "Customise & export",
-      body: "Every tile can be turned into a styled, annotated image \u2014 add a title, highlight a point, change the colours, then export it as a PNG. This is unlocked just for the tour; normally it's part of Pro." },
     { page: "dashboard", type: "anchor", target: "nav a[href='roadmap']", title: "One last stop",
       body: "Click <strong>Roadmap</strong> in the menu above to see what's coming next \u2014 and how to get in touch." },
 
@@ -4932,22 +4898,24 @@ function redrawAllOpenMaps(){
   // briefly before falling back to a centered, unhighlighted box (which
   // is what "the highlight doesn't appear" looked like) covers this
   // without needing to know which specific steps are affected.
-  function renderStepWhenReady(index, attempts){
+  function renderStepWhenReady(index, attempts, onEnterDone){
     attempts = attempts || 0;
     var step = TOUR_STEPS[index];
+    if(!onEnterDone && step && step.page === THIS_PAGE && step.onEnter){
+      step.onEnter();
+      onEnterDone = true;
+    }
     if(step && step.type === "anchor" && step.page === THIS_PAGE){
       if(!resolveTarget(step) && attempts < 30){ // up to ~3s at 100ms
-        setTimeout(function(){ renderStepWhenReady(index, attempts + 1); }, 100);
+        setTimeout(function(){ renderStepWhenReady(index, attempts + 1, onEnterDone); }, 100);
         return;
       }
     }
-    renderStep(index);
+    renderStep(index, onEnterDone);
   }
 
-  function renderStep(index){
+  function renderStep(index, onEnterAlreadyRan){
     removeBox();
-    closeCompareMetricPickerIfOpen();
-    if(typeof closeCountryModal === "function") closeCountryModal();
     var step = TOUR_STEPS[index];
     if(!step || step.page !== THIS_PAGE) return; // this step belongs to a page not yet reached/built
     if(!stepVisible(step)){
@@ -4955,7 +4923,7 @@ function redrawAllOpenMaps(){
       if(alt !== -1) advance(alt); else exitTour();
       return;
     }
-    if(step.onEnter) step.onEnter();
+    if(step.onEnter && !onEnterAlreadyRan) step.onEnter();
 
     var target = null;
     if(step.type === "anchor") target = resolveTarget(step);
