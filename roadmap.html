@@ -1442,9 +1442,9 @@
     }
   }
 
-  var compareAddCountriesBaseline = 0;
-  var compareAddMetricBaseline = 0;
-  var dashAddMetricBaseline = 0;
+  var compareAddCountriesBaseline = null;
+  var compareAddMetricBaseline = null;
+  var dashAddMetricBaseline = null;
   var TOUR_STEPS = [
     { page: "index", type: "center", title: "New here? A 2-minute tour.",
       body: "The Economic Atlas pulls hourly, official data across 18 countries \u2014 no commentary, just numbers. This short tour shows you around. Exit any time from the link in each box." },
@@ -1471,14 +1471,34 @@
       body: "Tap the menu icon (top-right) if the nav is not showing, then <strong>Compare</strong>, to see how multiple countries stack up side by side \u2014 the next stop on the tour." },
 
     { page: "compare", type: "anchor", exploratory: true, target: ".addcountries-btn", title: "Add countries",
-      onEnter: function(){ compareAddCountriesBaseline = document.querySelectorAll("#chipRow .chip").length; },
-      watchOpen: function(){ return document.querySelectorAll("#chipRow .chip").length > compareAddCountriesBaseline; },
+      onEnter: function(){ compareAddCountriesBaseline = null; },
+      watchOpen: function(){
+        // Baseline is captured lazily on the FIRST poll, not in onEnter --
+        // onEnter can fire before compare.html's own initial data fetch
+        // resolves (chips render once that promise settles), so an
+        // onEnter-time snapshot could be 0 before the page's own default
+        // selection has even rendered. Confirmed live via screen recording:
+        // the default countries finishing their own render read as "the
+        // user just added one", and the step vanished before it was ever
+        // actually visible. Capturing on first poll instead guarantees the
+        // baseline reflects reality at the moment the user can actually see
+        // and act on this step.
+        var n = document.querySelectorAll("#chipRow .chip").length;
+        if(compareAddCountriesBaseline === null){ compareAddCountriesBaseline = n; return false; }
+        return n > compareAddCountriesBaseline;
+      },
       body: "Just above the comparison, <strong>+ Add countries</strong> lets you bring in any of the 18 tracked countries \u2014 grouped by region, so it's just as easy to add Brazil or Morocco as another G7 economy. Click it and pick one to continue." },
-    { page: "compare", type: "anchor", exploratory: true, target: ".metric-card[data-concept='gdp_level'] .card-mode-switch", title: "Point in time, or change over time",
+    { page: "compare", type: "anchor", exploratory: true,
+      onEnter: function(){ window.EATLAS_COMPARE.closeCountryModal(); },
+      target: ".metric-card[data-concept='gdp_level'] .card-mode-switch", title: "Point in time, or change over time",
       body: "Every card has its own version of this now \u2014 switch this one to <strong>Change over time</strong> and its slider becomes a range: drag either end to see how much GDP actually moved between any two years, not just where it stands today. Have a play, then click Next when you're ready." },
     { page: "compare", type: "anchor", exploratory: true, target: "#addMetricTile", title: "Add a metric",
-      onEnter: function(){ compareAddMetricBaseline = document.querySelectorAll("#chartGrid .metric-card").length; },
-      watchOpen: function(){ return document.querySelectorAll("#chartGrid .metric-card").length > compareAddMetricBaseline; },
+      onEnter: function(){ compareAddMetricBaseline = null; },
+      watchOpen: function(){
+        var n = document.querySelectorAll("#chartGrid .metric-card").length;
+        if(compareAddMetricBaseline === null){ compareAddMetricBaseline = n; return false; }
+        return n > compareAddMetricBaseline;
+      },
       body: "Below the cards, <strong>+ Add a metric</strong> works the same way \u2014 any tracked metric, for any country, added straight to the comparison. Click it and pick one to continue." },
     { page: "compare", type: "anchor",
       onEnter: function(){ closeCompareMetricPickerIfOpen(); window.EATLAS_COMPARE.addMetric("debt_gdp"); },
@@ -1513,8 +1533,12 @@
       body: "Tap the menu icon (top-right) if the nav is not showing, then <strong>My Dashboard</strong>, to build a personal set of metrics from any country \u2014 the last stop on the tour." },
 
     { page: "dashboard", type: "anchor", exploratory: true, target: "#addMetricTile", title: "Add a metric",
-      onEnter: function(){ dashAddMetricBaseline = document.querySelectorAll("#dashGrid .tile").length; },
-      watchOpen: function(){ return document.querySelectorAll("#dashGrid .tile").length > dashAddMetricBaseline; },
+      onEnter: function(){ dashAddMetricBaseline = null; },
+      watchOpen: function(){
+        var n = document.querySelectorAll("#dashGrid .tile").length;
+        if(dashAddMetricBaseline === null){ dashAddMetricBaseline = n; return false; }
+        return n > dashAddMetricBaseline;
+      },
       body: "The <strong>+ Add a metric</strong> tile on your dashboard works the same way \u2014 pin any metric, from any country, straight onto your own view. Click it and pick one to continue." },
     { page: "dashboard", type: "anchor", exploratory: true,
       onEnter: function(){
@@ -1843,6 +1867,11 @@
   }
 
   function startTour(){
+    // Belt-and-braces alongside the entry-point gating below: this is
+    // also exported on window.EATLAS_TOUR.start, so guard it here too
+    // in case anything ever calls it directly rather than through the
+    // replay link or the auto-start check.
+    if(!isAdmin()) return;
     markSeen();
     var first = nextVisibleIndex(0, 1);
     saveState({ active: true, stepIndex: first === -1 ? 0 : first });
@@ -1857,17 +1886,31 @@
     }).observe(authModalEl, { attributes: true, attributeFilter: ["hidden"] });
   }
 
-  var replayBtn = document.getElementById("tourReplayLink");
-  if(replayBtn) replayBtn.addEventListener("click", startTour);
+  // Admin-only for now (not ready for a general audience yet) -- gate
+  // every entry point behind the real admin flag: the manual replay
+  // link, auto-start for first-time visitors, and resuming an
+  // in-progress tour. window.EATLAS_PREFS.ready is used rather than
+  // calling isAdmin() directly here, since isAdmin() depends on an
+  // async Supabase profile fetch that may not have resolved yet at the
+  // point this script runs on a fresh page load -- checking too early
+  // would wrongly treat a genuine admin as a non-admin.
+  (window.EATLAS_PREFS ? window.EATLAS_PREFS.ready : Promise.resolve()).then(function(){
+    var replayBtn = document.getElementById("tourReplayLink");
+    if(!isAdmin()){
+      if(replayBtn) replayBtn.style.display = "none";
+      return;
+    }
+    if(replayBtn) replayBtn.addEventListener("click", startTour);
 
-  // Resume mid-tour if state says so and the current step belongs here;
-  // otherwise, auto-start once ever for a genuinely first-time visitor.
-  var state = getState();
-  if(state.active && TOUR_STEPS[state.stepIndex] && TOUR_STEPS[state.stepIndex].page === THIS_PAGE){
-    renderStepWhenReady(state.stepIndex);
-  } else if(!state.active && !hasSeenBefore()){
-    startTour();
-  }
+    // Resume mid-tour if state says so and the current step belongs here;
+    // otherwise, auto-start once ever for a genuinely first-time visitor.
+    var state = getState();
+    if(state.active && TOUR_STEPS[state.stepIndex] && TOUR_STEPS[state.stepIndex].page === THIS_PAGE){
+      renderStepWhenReady(state.stepIndex);
+    } else if(!state.active && !hasSeenBefore()){
+      startTour();
+    }
+  });
 })();
 </script>
 
