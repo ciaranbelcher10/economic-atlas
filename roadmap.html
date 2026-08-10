@@ -1908,7 +1908,21 @@
     markSeen();
     var first = nextVisibleIndex(0, 1);
     saveState({ active: true, stepIndex: first === -1 ? 0 : first });
-    if(first !== -1) renderStepWhenReady(first);
+    if(first === -1) return;
+    if(TOUR_STEPS[first].page !== THIS_PAGE){
+      // The tour always starts from its first step (currently the
+      // index page), but "Take the tour" lives in the footer of every
+      // page -- clicking it from anywhere else silently did nothing
+      // visible: renderStep() correctly refuses to render a step that
+      // belongs to a different page, but nothing was navigating there
+      // first (confirmed live: an admin clicking replay from Dashboard
+      // saw no tour at all). Navigate to the right page first; the
+      // resume-on-load check at the bottom of this file picks the
+      // saved state back up and shows the tour there.
+      window.location.href = TOUR_STEPS[first].page;
+      return;
+    }
+    renderStepWhenReady(first);
   }
   window.EATLAS_TOUR = { start: startTour, exit: exitTour };
 
