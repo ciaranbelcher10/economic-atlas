@@ -1469,35 +1469,18 @@
 
     { page: "compare", type: "anchor", target: ".addcountries-btn", title: "Add countries",
       body: "Click here to add or remove countries from the comparison \u2014 grouped by region, so it's just as easy to bring in Brazil or Morocco as it is another G7 economy." },
-    { page: "compare", type: "anchor", exploratory: true,
-      onEnter: function(){
-        var modal = document.getElementById("countryModal");
-        var addBtn = document.querySelector(".addcountries-btn");
-        if(modal && modal.hidden && addBtn) addBtn.click();
-      },
-      target: ".picker-item[data-country='Brazil']", title: "Try adding one",
-      body: "Click <strong>Brazil</strong> to add it \u2014 changes apply the moment you click, nothing to confirm. Add a few more while you're in here if you like, then hit Next when you're ready." },
-    { page: "compare", type: "anchor",
-      onEnter: function(){
-        var modal = document.getElementById("countryModal");
-        var addBtn = document.querySelector(".addcountries-btn");
-        if(modal && modal.hidden && addBtn) addBtn.click();
-      },
-      target: "#countryClose", title: "Close when you're happy",
-      body: "Click here (or just click outside the box) to get back to the comparison with Brazil now included." },
+    { page: "compare", type: "center",
+      onEnter: function(){ toggleCountry("Brazil"); },
+      title: "Brazil, added",
+      body: "That's Brazil pinned to the comparison already \u2014 clicking any country inside <strong>Add countries</strong> works exactly the same way, applying the moment you click, nothing to confirm. Try a few more on your own whenever you like." },
     { page: "compare", type: "anchor", exploratory: true, target: ".metric-card[data-concept='gdp_level'] .card-mode-switch", title: "Point in time, or change over time",
       body: "Every card has its own version of this now \u2014 switch this one to <strong>Change over time</strong> and its slider becomes a range: drag either end to see how much GDP actually moved between any two years, not just where it stands today. Have a play, then click Next when you're ready." },
     { page: "compare", type: "anchor", target: "#addMetricTile", title: "Add a metric",
       body: "Click here to add a comparison card for any tracked metric \u2014 GDP, inflation, unemployment, debt, trade and more." },
-    { page: "compare", type: "anchor",
-      onEnter: function(){
-        var picker = document.getElementById("metricPicker");
-        var addTile = document.getElementById("addMetricTile");
-        if(picker && picker.hidden && addTile) addTile.click();
-      },
-      target: ".pickeritem[data-key='debt_gdp']",
-      title: "Pick a metric to try",
-      body: "Try <strong>Government debt, % of GDP</strong> \u2014 click it to add this card to your comparison. (GDP growth, GDP level and inflation are already shown by default, so they're not clickable here.)" },
+    { page: "compare", type: "center",
+      onEnter: function(){ addMetric("debt_gdp"); },
+      title: "Government debt, added",
+      body: "That's a new card added \u2014 <strong>Government debt, % of GDP</strong> \u2014 exactly the same way clicking any item inside <strong>Add a metric</strong> works: applied the moment you click." },
     { page: "compare", type: "anchor",
       onEnter: closeCompareMetricPickerIfOpen,
       target: ".metric-card[data-concept='debt_gdp'] .card-map-toggle",
@@ -1532,45 +1515,16 @@
 
     { page: "dashboard", type: "anchor", target: "#addMetricTile", title: "Add a metric",
       body: "Click here to pin any metric, from any country, onto your own dashboard." },
-    { page: "dashboard", type: "anchor",
+    { page: "dashboard", type: "center",
       onEnter: function(){
-        var picker = document.getElementById("picker");
-        if(picker && picker.hidden){
-          var addTile = document.getElementById("addMetricTile");
-          if(addTile) addTile.click();
-        }
-        var countryBtn = document.querySelector("#modeToggle button[data-mode='country']");
-        if(countryBtn && !countryBtn.classList.contains("active")) countryBtn.click();
-        var sel = document.getElementById("pickerSelect");
-        if(sel && sel.value !== "US"){ sel.value = "US"; sel.dispatchEvent(new Event("change")); }
+        ["US::unemployment", "South Africa::unemployment"].forEach(function(id){
+          if(pinned.indexOf(id) === -1) pinned.push(id);
+        });
+        savePinned();
+        renderDash();
       },
-      target: ".pickeritem[data-country='US'][data-key='unemployment']",
-      title: "Try US unemployment",
-      body: "Click the US's unemployment rate to pin it to your dashboard." },
-    { page: "dashboard", type: "anchor",
-      onEnter: function(){
-        var picker = document.getElementById("picker");
-        if(picker && picker.hidden){
-          var addTile = document.getElementById("addMetricTile");
-          if(addTile) addTile.click();
-        }
-        var countryBtn = document.querySelector("#modeToggle button[data-mode='country']");
-        if(countryBtn && !countryBtn.classList.contains("active")) countryBtn.click();
-        var sel = document.getElementById("pickerSelect");
-        if(sel && sel.value !== "South Africa"){ sel.value = "South Africa"; sel.dispatchEvent(new Event("change")); }
-      },
-      target: ".pickeritem[data-country='South Africa'][data-key='unemployment']",
-      title: "Now add South Africa's",
-      body: "Do the same for South Africa \u2014 its unemployment rate is dramatically higher than the US's, so pinning both side by side actually shows something." },
-    { page: "dashboard", type: "anchor", exploratory: true,
-      onEnter: function(){
-        var picker = document.getElementById("picker");
-        var addTile = document.getElementById("addMetricTile");
-        if(picker && picker.hidden && addTile) addTile.click();
-      },
-      target: "#addMetricTile",
-      title: "Add a few more if you like",
-      body: "Try pinning unemployment for a few other countries too \u2014 the more you add, the more the map (next) has to show. Click Next whenever you're ready to move on." },
+      title: "US and South Africa, pinned",
+      body: "Both unemployment rates are now on your dashboard \u2014 South Africa's is dramatically higher than the US's, so seeing them side by side actually shows something. Clicking any item inside <strong>Add a metric</strong> works exactly the same way, applying the moment you click \u2014 try pinning a few more on your own whenever you like." },
     { page: "dashboard", type: "anchor", exploratory: true,
       onEnter: function(){
         closeDashPickerIfOpen();
