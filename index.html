@@ -1728,54 +1728,63 @@ fetch("https://cdn.jsdelivr.net/npm/world-atlas@2/countries-110m.json")
         }
         // Browse mode only shows one country (or one metric) at a time --
         // pre-filling the search box switches to search mode, which shows
-        // every match across every country at once, so both suggested
-        // items are visible together to highlight (see suggestHighlight
-        // below), not just whichever the picker happened to default to.
+        // every match across every country at once, so all three
+        // suggested items are visible together to highlight (see
+        // suggestHighlight below), not just whichever the picker happened
+        // to default to. Each country's own GDP label is a different raw
+        // source description (e.g. "GDP, current prices (YBHA)" for the
+        // UK, "GDP nominal, SA (...)" for Germany) -- "gdp" is the one
+        // term guaranteed to appear in all of them.
         var search = document.getElementById("pickerSearch");
-        if(search && search.value !== "unemployment"){
-          search.value = "unemployment";
+        if(search && search.value !== "gdp"){
+          search.value = "gdp";
           search.dispatchEvent(new Event("input"));
         }
       },
       target: "#picker .modal-content", title: "Pick any you like",
       suppressTargetHighlight: true,
-      suggestHighlight: { container: "#picker", selector: ".pickeritem[data-key='unemployment'][data-country='US'], .pickeritem[data-key='unemployment'][data-country='South Africa']" },
-      body: "Tap any metric, for any country, to pin it \u2014 try US and South Africa's unemployment rates, highlighted below (their gap actually shows something side by side). Changes apply the moment you click, nothing to confirm. Click Next (or just close this) whenever you're ready." },
-    { page: "dashboard", type: "anchor", target: "#pickerClose", title: "Close when you're happy",
-      body: "Click here (or just click outside the box) to get back to your dashboard." },
-    { page: "dashboard", type: "anchor", exploratory: true,
+      suggestHighlight: { container: "#picker", selector: ".pickeritem[data-key='gdp_level'][data-country='Germany'], .pickeritem[data-key='gdp_level'][data-country='Brazil'], .pickeritem[data-key='gdp_level'][data-country='UK']" },
+      body: "Tap any metric, for any country, to pin it \u2014 try Germany, Brazil and the UK's GDP, highlighted below, to see how differently these three economies compare. Changes apply the moment you click, nothing to confirm. Click Next (or just close this) whenever you're ready." },
+    { page: "dashboard", type: "anchor",
       onEnter: function(){
-        closeDashPickerIfOpen();
-        // Defensively ensure there's something comparable to demonstrate
-        // on the map step below, regardless of what (if anything) got
-        // pinned in the free-pick step above -- direct state mutation via
-        // the exported helper (not a simulated click, and not a bare
-        // call, which threw an uncaught ReferenceError in production
-        // and froze the tour -- see EATLAS_DASH export for detail).
-        window.EATLAS_DASH.ensurePinned("US::unemployment");
-        window.EATLAS_DASH.ensurePinned("South Africa::unemployment");
+        // Defensively ensure all three are pinned regardless of what (if
+        // anything) got picked above -- direct state mutation via the
+        // exported helper, not a simulated click (see EATLAS_DASH export
+        // for why a bare call here previously froze the tour entirely).
+        window.EATLAS_DASH.ensurePinned("Germany::gdp_level");
+        window.EATLAS_DASH.ensurePinned("Brazil::gdp_level");
+        window.EATLAS_DASH.ensurePinned("UK::gdp_level");
       },
-      target: "#mapYearSlider",
-      title: "Now there's a map too",
-      body: "Pin the same metric for two or more countries and a map appears automatically, mirroring whatever's pinned \u2014 with unemployment, the colour differences actually mean something. Drag this slider year by year to watch it redraw \u2014 have a play, then click Next when you're ready." },
+      target: "#pickerClose", title: "Close when you're happy",
+      body: "Click here (or just click outside the box) to get back to your dashboard." },
     { page: "dashboard", type: "anchor",
       onEnter: function(){
         closeDashPickerIfOpen();
-        window.EATLAS_DASH.ensurePinned("US::unemployment");
+        window.EATLAS_DASH.ensurePinned("Germany::gdp_level");
+        window.EATLAS_DASH.ensurePinned("Brazil::gdp_level");
+        window.EATLAS_DASH.ensurePinned("UK::gdp_level");
       },
-      target: ".tile[data-id='US::unemployment'] .chartbtn",
-      title: "See the chart behind any tile",
-      body: "Every pinned tile has its own chart, right there on your dashboard \u2014 click <strong>View chart</strong> to expand it inline." },
+      target: "#dollariseBtn", title: "Dollarise",
+      body: "Every currency figure on this page can be converted to US dollars at today's exchange rate, so figures from any country sit on the same footing \u2014 toggle it on to see Germany, Brazil and the UK's GDP side by side, properly comparable." },
     { page: "dashboard", type: "anchor",
       onEnter: function(){
         closeDashPickerIfOpen();
         window.EATLAS_DASH.ensurePinned("UK::gdp_level");
+        // The Fullscreen button only appears once a tile is already
+        // expanded (display:none until then) -- expand it defensively so
+        // the button this step targets is actually there to click,
+        // rather than chaining an extra "View chart first" step in.
+        var tile = document.querySelector(".tile[data-id='UK::gdp_level']");
+        if(tile && !tile.classList.contains("expanded")){
+          var chartBtn = tile.querySelector(".chartbtn");
+          if(chartBtn) chartBtn.click();
+        }
       },
-      target: "#dollariseBtn", title: "Dollarise",
-      body: "Every currency figure on this page can be converted to US dollars at today's exchange rate, so figures from any country sit on the same footing. Toggle it on to see the UK's GDP card in dollars." },
-
-    { page: "roadmap", type: "center", title: "That's the tour",
-      body: "That covers the essentials \u2014 a country page, Compare, and your own Dashboard. Got an idea for a metric or country we're missing? Get in touch any time from the <a href=\"contact\">Contact</a> page." }
+      target: ".tile[data-id='UK::gdp_level'] .fullscreenbtn",
+      title: "See it fullscreen",
+      body: "Every pinned tile can go fullscreen too \u2014 click here for a bigger view of the UK's GDP, now properly comparable in dollars." },
+    { page: "dashboard", type: "center", title: "That's the tour",
+      body: "That's everything \u2014 a country page, Compare, and your own Dashboard, now showing Germany, Brazil and the UK's GDP side by side in dollars. Got an idea for a metric or country we're missing? Get in touch any time from the <a href=\"contact\">Contact</a> page." }
   ];
 
   function getState(){
