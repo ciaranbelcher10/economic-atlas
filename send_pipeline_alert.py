@@ -146,6 +146,7 @@ def send_alert(subject, body):
         headers={
             "Authorization": f"Bearer {RESEND_API_KEY}",
             "Content-Type": "application/json",
+            "User-Agent": "EconomicAtlas-PipelineAlert/1.0",
         },
         method="POST",
     )
