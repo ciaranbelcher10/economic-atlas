@@ -4139,6 +4139,10 @@ loadAll().then(function(){
       body: "Tap the menu icon (top-right) if the nav is not showing, then <strong>Compare</strong>, to see how multiple countries stack up side by side \u2014 the next stop on the tour." },
 
     { page: "compare", type: "anchor", target: ".addcountries-btn", title: "Add countries",
+      watchOpen: function(){
+        var modal = document.getElementById("countryModal");
+        return !!(modal && !modal.hidden);
+      },
       body: "Click here to add or remove countries from the comparison \u2014 grouped by region, so it's just as easy to bring in Brazil or Morocco as it is another G7 economy." },
     { page: "compare", type: "center",
       onEnter: function(){ toggleCountry("Brazil"); },
@@ -4147,6 +4151,10 @@ loadAll().then(function(){
     { page: "compare", type: "anchor", exploratory: true, target: ".metric-card[data-concept='gdp_level'] .card-mode-switch", title: "Point in time, or change over time",
       body: "Every card has its own version of this now \u2014 switch this one to <strong>Change over time</strong> and its slider becomes a range: drag either end to see how much GDP actually moved between any two years, not just where it stands today. Have a play, then click Next when you're ready." },
     { page: "compare", type: "anchor", target: "#addMetricTile", title: "Add a metric",
+      watchOpen: function(){
+        var picker = document.getElementById("metricPicker");
+        return !!(picker && !picker.hidden);
+      },
       body: "Click here to add a comparison card for any tracked metric \u2014 GDP, inflation, unemployment, debt, trade and more." },
     { page: "compare", type: "center",
       onEnter: function(){ addMetric("debt_gdp"); },
@@ -4185,6 +4193,10 @@ loadAll().then(function(){
       body: "Tap the menu icon (top-right) if the nav is not showing, then <strong>My Dashboard</strong>, to build a personal set of metrics from any country \u2014 the last stop on the tour." },
 
     { page: "dashboard", type: "anchor", target: "#addMetricTile", title: "Add a metric",
+      watchOpen: function(){
+        var picker = document.getElementById("picker");
+        return !!(picker && !picker.hidden);
+      },
       body: "Click here to pin any metric, from any country, onto your own dashboard." },
     { page: "dashboard", type: "center",
       onEnter: function(){
@@ -4299,7 +4311,7 @@ loadAll().then(function(){
     return -1;
   }
 
-  var boxEl = null, highlightEl = null, restoreSiblingsFn = null;
+  var boxEl = null, highlightEl = null, restoreSiblingsFn = null, pollTimer = null;
 
   function clearHighlight(){
     if(highlightEl){ highlightEl.classList.remove("tour-highlight"); highlightEl = null; }
@@ -4325,6 +4337,7 @@ loadAll().then(function(){
 
   function removeBox(){
     revertCustomizeBypass();
+    if(pollTimer){ clearInterval(pollTimer); pollTimer = null; }
     // Defensive: remove EVERY .tour-box in the document, not just the
     // one boxEl happens to reference. Two boxes were seen stacked live;
     // rather than chase the exact mechanism, this guarantees stacking
@@ -4500,6 +4513,18 @@ loadAll().then(function(){
       // is the only way forward on these, on purpose.
       if(!step.exploratory){
         target.addEventListener("click", advanceToNext, { once: true });
+      }
+      if(step.watchOpen){
+        var pollAttempts = 0;
+        pollTimer = setInterval(function(){
+          pollAttempts++;
+          if(step.watchOpen()){
+            clearInterval(pollTimer); pollTimer = null;
+            advanceToNext();
+          } else if(pollAttempts > 100){
+            clearInterval(pollTimer); pollTimer = null;
+          }
+        }, 150);
       }
     } else {
       box.style.visibility = "";
