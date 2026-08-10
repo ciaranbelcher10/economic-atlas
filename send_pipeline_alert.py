@@ -49,6 +49,21 @@ TRACEBACK_RE = re.compile(
 # be attributed to a country even though all steps share one log file.
 RUNNING_RE = re.compile(r"^>>> RUNNING (\S+)$", re.MULTILINE)
 
+# Redact API keys embedded in URLs (api_key=..., apikey=..., key=..., token=...)
+# before anything reaches the email body. GitHub Actions only masks secrets
+# in the console log view -- it has no awareness that the same value ends up
+# inside a URL written to a file (pipeline_log.txt) that this script then
+# reads and emails. Without this, a real secret value can leak in plaintext
+# to an inbox even though the Actions UI showed "***".
+API_KEY_PARAM_RE = re.compile(
+    r"([?&](?:api_key|apikey|api-key|key|token|access_token)=)[^&\s]+",
+    re.IGNORECASE,
+)
+
+
+def redact(text):
+    return API_KEY_PARAM_RE.sub(r"\1[REDACTED]", text)
+
 
 def load_freshness():
     try:
@@ -82,13 +97,13 @@ def parse_log():
         soft_failures.append({
             "script": attribute_to_script(log, m.start()),
             "key": m.group(1),
-            "reason": m.group(2).strip(),
+            "reason": redact(m.group(2).strip()),
         })
 
     for m in TRACEBACK_RE.finditer(log):
         hard_crashes.append({
             "script": attribute_to_script(log, m.start()),
-            "error": m.group(1).strip(),
+            "error": redact(m.group(1).strip()),
         })
 
     return soft_failures, hard_crashes
