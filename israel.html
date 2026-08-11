@@ -66,6 +66,7 @@
   margin-right:9px; vertical-align:middle; position:relative; top:-3px;}
 .led.green{background:#2FA463; box-shadow:0 0 0 3px rgba(47,164,99,.16);}
 .led.orange{background:#E39B2D; box-shadow:0 0 0 3px rgba(227,155,45,.16);}
+.led.red{background:#D14343; box-shadow:0 0 0 3px rgba(209,67,67,.18);}
 .stat .source{font-size:11.5px; color:var(--ink2); margin-top:6px;}
 .lightskey{font-size:12.5px; color:var(--ink2); margin:14px 0 30px;
   display:flex; gap:20px; flex-wrap:wrap; justify-content:center;}
@@ -1816,7 +1817,13 @@ const STALE_DAYS={months:75, quarters:150, years:660};
 function freshness(series){
   const last=series.points[series.points.length-1][0];
   const age=(Date.now()-periodEnd(last).getTime())/86400000;
-  return age<=(STALE_DAYS[series.freq]||90) ? "green" : "orange";
+  const thresh=STALE_DAYS[series.freq]||90;
+  if(age<=thresh) return "green";
+  /* Some source series (e.g. World Bank annual debt stats for a handful of
+     countries) simply haven't been republished in years -- that's a source
+     limitation, not a fetch failure. Flag these distinctly from a series
+     that's merely a bit behind its usual release schedule. */
+  return age>5*thresh ? "red" : "orange";
 }
 
 /* --------------------------- derived series ------------------------------ */
@@ -2072,9 +2079,11 @@ function statTile(el, key, title, series, opts){
   const _lastP=series.points[series.points.length-1][0];
   const _ageDays=(Date.now()-periodEnd(_lastP).getTime())/86400000;
   let ledTitle=led==="green"?"Updated on schedule":
-    (_ageDays>3*(STALE_DAYS[series.freq]||90)
-      ?"Source series stale: last data "+fmtPeriod(_lastP)
-      :"Awaiting next release");
+    led==="red"
+      ?"Source hasn't republished this series in years -- last data "+fmtPeriod(_lastP)+" (shown as published, not estimated)"
+      :(_ageDays>3*(STALE_DAYS[series.freq]||90)
+        ?"Source series stale: last data "+fmtPeriod(_lastP)
+        :"Awaiting next release");
   if(series.next) ledTitle+=" · next release "+series.next;
   const clickable=!!ANCHORS[key];
   const div=document.createElement("div");
