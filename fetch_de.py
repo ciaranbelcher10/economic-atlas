@@ -24,6 +24,12 @@ VERIFICATION NOTES:
 - unemployment (LRHUTTTTDEM156S): checked directly, live monthly through
   May 2026, standard naming convention, no substitution needed (unlike
   Mexico/South Africa which both needed quarterly substitutes).
+- participation_rate (LRAC64TTDEQ156S) / employment_rate (LREM64TTDEQ156S):
+  same OECD infra-annual labour-statistics FRED family as unemployment
+  above, quarterly, ages 15-64. Verified live for Germany (this is the
+  pilot country for rolling this pattern out to the rest of the OECD-member
+  roster). Only confirmed for full OECD members -- do NOT assume this
+  covers Brazil/South Africa/Morocco (OECD partners, not members).
 - bond_yield_10y (IRLTLT01DEM156N): standard OECD MEI naming convention,
   the quarterly sibling (IRLTLT01DEQ156N) was confirmed live through
   Q4 2025, so reasonable confidence in the monthly version, but NOT
@@ -76,6 +82,8 @@ FRED_SERIES = {
     "gdp_level": ("NGDPSAXDCDEQ", "q", "GDP nominal, SA", "\u20acm", None, 1.0),
     "gdp_real": ("NGDPRNSAXDCDEQ", "q", "Real GDP, NSA", "\u20acm", None, 1.0),
     "unemployment": ("LRHUTTTTDEM156S", "m", "Unemployment rate, 15+, SA", "%", None, 1.0),
+    "participation_rate": ("LRAC64TTDEQ156S", "q", "Labour force participation rate, 15-64, SA", "%", None, 1.0),
+    "employment_rate": ("LREM64TTDEQ156S", "q", "Employment rate, 15-64, SA", "%", None, 1.0),
     "bond_yield_10y": ("IRLTLT01DEM156N", "m", "10-year government bond yield", "%", None, 1.0),
     "cpi": ("CP0000DEM086NEST", "m", "HICP, all items, YoY", "%", "yoy", 1.0),
 }
