@@ -91,9 +91,79 @@ FRED_SERIES = {
     "gdp_real": ("RGDPNADKA666NRUG", "a", "Real GDP, constant national prices (Penn World Table)", "$m (2021 prices)", None, 1.0),
     "unemployment": ("LRHUTTTTDKM156S", "m", "Unemployment rate, 15+, OECD-harmonized", "%", None, 1.0),
     "bond_yield_10y": ("IRLTLT01DKM156N", "m", "10-year government bond yield", "%", None, 1.0),
-    "debt_gdp": ("GGGDTADKA188N", "a", "General government gross debt, % of GDP", "%", None, 1.0),
-    "deficit": ("GGNLBADKA188N", "a", "General government net lending/borrowing, % of GDP", "%", None, 1.0),
 }
+
+EUROSTAT_STATS_BASE = "https://ec.europa.eu/eurostat/api/dissemination/statistics/1.0/data"
+
+
+def _parse_jsonstat(text: str, tag: str) -> list | None:
+    import json as jsonlib
+    data = jsonlib.loads(text)
+    if "dimension" not in data or "time" not in data.get("dimension", {}):
+        print(f"  [{tag}] response has no time dimension; top-level keys: "
+              f"{list(data.keys())}")
+        return None
+    for dname, dim in data["dimension"].items():
+        if dname == "time" or not isinstance(dim, dict):
+            continue
+        idx = dim.get("category", {}).get("index", {})
+        if isinstance(idx, dict) and len(idx) > 1:
+            print(f"  [{tag}] dimension {dname!r} has {len(idx)} categories "
+                  f"({list(idx)[:5]}...) -- query is under-filtered, refusing "
+                  f"to parse a multi-series response")
+            return None
+    time_index = data["dimension"]["time"]["category"]["index"]
+    pos_to_period = {v: k for k, v in time_index.items()}
+    value = data.get("value")
+    points = {}
+    if isinstance(value, dict):
+        for pos_str, val in value.items():
+            try:
+                pos = int(pos_str)
+            except ValueError:
+                continue
+            if pos in pos_to_period and val is not None:
+                points[pos_to_period[pos]] = float(val)
+    elif isinstance(value, list):
+        for pos, val in enumerate(value):
+            if val is not None and pos in pos_to_period:
+                points[pos_to_period[pos]] = float(val)
+    if not points:
+        print(f"  [{tag}] parsed JSON-stat but got 0 points; "
+              f"value type={type(value)}, size={data.get('size')}, "
+              f"dim order={data.get('id')}")
+        return None
+    pts = sorted([[p, v] for p, v in points.items()], key=lambda x: x[0])
+    print(f"  [{tag}] SUCCESS: {len(pts)} points, {pts[0][0]} to {pts[-1][0]}")
+    return pts
+
+
+# ---- debt_gdp / deficit (Denmark) -- FIX applied after the v1.1.5 real
+# run: the inferred IMF WEO FRED series (GGGDTADKA188N / GGNLBADKA188N)
+# returned a 400 Bad Request -- those IDs don't exist on FRED at all for
+# Denmark. Replaced with the same live Eurostat query CONFIRMED WORKING
+# in that same run for Germany/France/Italy/Spain/Netherlands
+# (gov_10dd_edpt1). Denmark is an EU member (not Eurozone), and Eurostat's
+# EDP notification table covers all EU member states, not just euro-area
+# ones -- geo=DK, otherwise identical to the Eurozone-member pattern.
+def fetch_eurostat_govfinance(na_item: str) -> list | None:
+    url = (f"{EUROSTAT_STATS_BASE}/gov_10dd_edpt1?format=JSON&lang=EN"
+          f"&geo=DK&sector=S13&unit=PC_GDP&na_item={na_item}"
+          f"&sinceTimePeriod=2000")
+    try:
+        r = requests.get(url, timeout=60,
+                         headers={"User-Agent": "economic-atlas/0.1"})
+        print(f"  [eurostat-gov-{na_item}] DK status={r.status_code}")
+        r.raise_for_status()
+    except Exception as exc:
+        print(f"  [eurostat-gov-{na_item}] DK request failed: {exc}")
+        return None
+    try:
+        return _parse_jsonstat(r.text, f"eurostat-gov-{na_item}-DK")
+    except Exception as exc:
+        print(f"  [eurostat-gov-{na_item}] DK parsing failed: {exc}; "
+              f"first 300 chars: {r.text[:300]!r}")
+        return None
 
 FRED_URL = ("https://api.stlouisfed.org/fred/series/observations"
             "?series_id={sid}&api_key={key}&file_type=json"
@@ -355,6 +425,10 @@ def main() -> int:
          "FDI net inflows, % of GDP (World Bank)", "%", "years"),
         ("current_account", lambda: fetch_worldbank("BN.CAB.XOKA.GD.ZS"),
          "Current account balance, % of GDP (World Bank)", "%", "years"),
+        ("debt_gdp", lambda: fetch_eurostat_govfinance("GD"),
+         "General government gross debt, % of GDP (Eurostat)", "%", "years"),
+        ("deficit", lambda: fetch_eurostat_govfinance("B9"),
+         "General government net lending/borrowing, % of GDP (Eurostat)", "%", "years"),
     ]
     for name, fn, label, unit, fr in extras:
         try:
