@@ -45,10 +45,13 @@ from datetime import datetime, timezone
 import requests
 
 # key: (fred_id, freq 'm'|'q'|'a', label, unit, transform None|'yoy'|'mom'|'qoq', scale)
+# - participation_rate (LRAC64TTMXQ156S) / employment_rate (LREM64TTMXQ156S): OECD infra-annual labour-statistics FRED family, quarterly, ages 15-64. Same pattern confirmed live for Germany (pilot); inferred-by-pattern for Mexico -- not individually confirmed, check the first Actions log.
 FRED_SERIES = {
     "gdp_level": ("NGDPSAXDCMXQ", "q", "GDP nominal, SA", "$m", None, 1.0),
     "gdp_real": ("NGDPRSAXDCMXQ", "q", "Real GDP, SA", "$m", None, 1.0),
     "unemployment": ("LRUNTTTTMXQ156S", "q", "Unemployment rate, 15+, SA", "%", None, 1.0),
+    "participation_rate": ("LRAC64TTMXQ156S", "q", "Labour force participation rate, 15-64, SA", "%", None, 1.0),
+    "employment_rate": ("LREM64TTMXQ156S", "q", "Employment rate, 15-64, SA", "%", None, 1.0),
     "bond_yield_10y": ("IRLTLT01MXM156N", "m", "10-year government bond yield", "%", None, 1.0),
     "debt_gdp": ("GGGDTAMXA188N", "a", "General government gross debt, % of GDP", "%", None, 1.0),
     "deficit": ("GGNLBAMXA188N", "a", "General government net lending/borrowing, % of GDP", "%", None, 1.0),

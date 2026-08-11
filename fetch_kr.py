@@ -48,11 +48,14 @@ from datetime import datetime, timezone
 import requests
 
 # key: (fred_id, freq 'm'|'q'|'a', label, unit, transform None|'yoy'|'mom'|'qoq', scale)
+# - participation_rate (LRAC64TTKRQ156S) / employment_rate (LREM64TTKRQ156S): OECD infra-annual labour-statistics FRED family, quarterly, ages 15-64. Same pattern confirmed live for Germany (pilot); inferred-by-pattern for South Korea -- not individually confirmed, check the first Actions log.
 FRED_SERIES = {
     "gdp_level": ("NGDPSAXDCKRQ", "q", "GDP, nominal, seasonally adjusted", "\u20a9m", None, 1.0),
     "gdp_real": ("NGDPRSAXDCKRQ", "q", "Real GDP, seasonally adjusted", "\u20a9m", None, 1.0),
     "gdp_growth": ("NGDPRSAXDCKRQ", "q", "Real GDP growth, QoQ", "%", "qoq", 1.0),
     "unemployment": ("LRHUTTTTKRM156S", "m", "Unemployment rate, 15+, SA", "%", None, 1.0),
+    "participation_rate": ("LRAC64TTKRQ156S", "q", "Labour force participation rate, 15-64, SA", "%", None, 1.0),
+    "employment_rate": ("LREM64TTKRQ156S", "q", "Employment rate, 15-64, SA", "%", None, 1.0),
     "bond_yield_10y": ("IRLTLT01KRM156N", "m", "10-year government bond yield", "%", None, 1.0),
     "debt_gdp": ("GGGDTAKRA188N", "a", "General government gross debt, % of GDP", "%", None, 1.0),
     "deficit": ("GGNLBAKRA188N", "a", "General government net lending/borrowing, % of GDP", "%", None, 1.0),

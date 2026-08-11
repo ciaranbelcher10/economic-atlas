@@ -1784,7 +1784,8 @@ const MONTHS=["Jan","Feb","Mar","Apr","May","Jun","Jul","Aug","Sep","Oct","Nov",
 const NAMES={gdp_level:"GDP",gdp_real:"Real GDP",gdp_growth:"GDP growth",
   cpi:"CPI inflation",bond_yield_10y:"10-year bond yield",debt_gdp:"Government debt",deficit:"Gov. deficit",
   current_account:"Current account",trade_balance:"Trade balance",
-  business_confidence:"Business confidence",fdi:"FDI",unemployment:"Unemployment"};
+  business_confidence:"Business confidence",fdi:"FDI",unemployment:"Unemployment",
+  participation_rate:"Labour force participation",employment_rate:"Employment rate"};
 
 /* ------------------------------- tabs ------------------------------------ */
 function showSec(name){
@@ -1900,6 +1901,14 @@ function sampleData(){
     unemployment:S("Unemployment, 15+, SA (illustrative)","%","quarters",interp(
       [["1996-Q1",6.9],["1998-Q2",3.2],["2005-Q1",3.9],["2009-Q3",5.9],["2015-Q1",4.4],
        ["2019-Q4",3.5],["2020-Q2",5.1],["2022-Q2",3.3],["2024-Q2",2.7],["2026-Q1",2.9]],qAll)),
+    participation_rate:S("Labour force participation, 15-64, SA (illustrative)","%","quarters",interp(
+      [["1996-Q1",60.0],["1998-Q2",61.0],["2005-Q1",62.0],["2009-Q3",61.0],
+       ["2015-Q1",62.5],["2019-Q4",61.5],["2020-Q2",55.0],["2022-Q2",61.0],
+       ["2024-Q2",62.0],["2026-Q1",62.5]],qAll)),
+    employment_rate:S("Employment rate, 15-64, SA (illustrative)","%","quarters",interp(
+      [["1996-Q1",57.0],["1998-Q2",59.0],["2005-Q1",59.5],["2009-Q3",57.5],
+       ["2015-Q1",59.5],["2019-Q4",59.0],["2020-Q2",52.0],["2022-Q2",59.0],
+       ["2024-Q2",60.5],["2026-Q1",61.0]],qAll)),
     debt_gdp:S("General government debt % GDP","%","years",interp(
       [["1996",36],["2000",30],["2008",33],["2013",40],["2019",44],
        ["2020",53],["2023",50],["2025",51]],yearsBetween(1996,2025))),
@@ -2203,6 +2212,8 @@ function render(data){
   const SRC_BCI="OECD \u00b7 BCICP, amplitude-adjusted, long-term average = 100";
   const SRC_BOND="FRED series IRLTLT01MXM156N \u00b7 monthly average";
   const SRC_UNEMP="FRED series LRUNTTTTMXQ156S \u00b7 seasonally adjusted, quarterly";
+  const SRC_PART="FRED series LRAC64TTMXQ156S \u00b7 OECD, ages 15-64, seasonally adjusted, quarterly";
+  const SRC_EMP="FRED series LREM64TTMXQ156S \u00b7 OECD, ages 15-64, seasonally adjusted, quarterly";
 
   if(s.business_confidence) chartPanel("business_confidence","charts-headline","Business confidence",
     "How optimistic firms are about the months ahead. 100 is the long-run average; above it, firms expect better times.",
@@ -2231,6 +2242,12 @@ function render(data){
   if(s.unemployment) chartPanel("unemployment","charts-labour","Unemployment rate",
     "The share of people 15 and over who want a job but can't find one.",
     s.unemployment,"line",v=>v+"%",pct,SRC_UNEMP);
+  if(s.participation_rate) chartPanel("participation_rate","charts-labour","Labour force participation",
+    "The share of people 15-64 who are either working or actively looking for work.",
+    s.participation_rate,"line",v=>v+"%",pct,SRC_PART);
+  if(s.employment_rate) chartPanel("employment_rate","charts-labour","Employment rate",
+    "The share of people 15-64 who are actually in work, regardless of whether others are looking.",
+    s.employment_rate,"line",v=>v+"%",pct,SRC_EMP);
 
   if(s.trade_balance) chartPanel("trade_balance","charts-trade","Trade balance, goods",
     "Exports minus imports of goods each quarter. Below zero means Mexico buys more than it sells.",
@@ -2287,6 +2304,10 @@ function render(data){
   const tl=document.getElementById("tiles-labour");
   if(s.unemployment) statTile(tl,"unemployment","Unemployment",s.unemployment,
     {fmt:pct,fmtD:pp,upIsGood:false,source:SRC_UNEMP});
+  if(s.participation_rate) statTile(tl,"participation_rate","Participation (15-64)",s.participation_rate,
+    {fmt:pct,fmtD:pp,upIsGood:true,source:SRC_PART});
+  if(s.employment_rate) statTile(tl,"employment_rate","Employment rate (15-64)",s.employment_rate,
+    {fmt:pct,fmtD:pp,upIsGood:true,source:SRC_EMP});
 
   const tt=document.getElementById("tiles-trade");
   if(s.trade_balance) statTile(tt,"trade_balance","Trade balance",s.trade_balance,

@@ -1786,7 +1786,8 @@ const MONTHS=["Jan","Feb","Mar","Apr","May","Jun","Jul","Aug","Sep","Oct","Nov",
 const NAMES={gdp_level:"GDP",gdp_real:"Real GDP",gdp_growth:"GDP growth",
   cpi:"CPI inflation",bond_yield_10y:"10-year bond yield",debt_gdp:"Government debt",deficit:"Gov. deficit",
   current_account:"Current account",trade_balance:"Trade balance",
-  business_confidence:"Business confidence",fdi:"FDI",unemployment:"Unemployment"};
+  business_confidence:"Business confidence",fdi:"FDI",unemployment:"Unemployment",
+  participation_rate:"Labour force participation",employment_rate:"Employment rate"};
 
 /* ------------------------------- tabs ------------------------------------ */
 function showSec(name){
@@ -1902,6 +1903,12 @@ function sampleData(){
     unemployment:S("Unemployment, 15+, SA (illustrative)","%","months",interp(
       [["1996-01",6.5],["2000-01",2.8],["2008-10",3.0],["2013-01",7.4],["2019-12",3.2],
        ["2020-05",3.8],["2022-06",3.2],["2024-12",3.7],["2026-03",4.1]],mR)),
+    participation_rate:S("Labour force participation, 15-64, SA (illustrative)","%","quarters",interp(
+      [["1996-Q1",72.0],["2005-Q1",76.0],["2013-Q1",79.0],["2019-Q4",81.5],
+       ["2020-Q2",80.5],["2023-Q2",83.0],["2026-Q1",83.5]],qAll)),
+    employment_rate:S("Employment rate, 15-64, SA (illustrative)","%","quarters",interp(
+      [["1996-Q1",68.0],["2005-Q1",73.0],["2013-Q1",75.0],["2019-Q4",79.0],
+       ["2020-Q2",77.5],["2023-Q2",81.0],["2026-Q1",81.5]],qAll)),
     debt_gdp:S("General government debt % GDP","%","years",interp(
       [["1996",72],["2000",51],["2008",51],["2013",66],["2019",48],
        ["2020",54],["2023",46]],yearsBetween(1996,2023))),
@@ -2205,6 +2212,8 @@ function render(data){
   const SRC_BCI="OECD \u00b7 BCICP, amplitude-adjusted, long-term average = 100";
   const SRC_BOND="FRED series IRLTLT01NLM156N \u00b7 monthly average";
   const SRC_UNEMP="FRED series LRHUTTTTNLM156N \u00b7 seasonally adjusted, monthly";
+  const SRC_PART="FRED series LRAC64TTNLQ156S \u00b7 OECD, ages 15-64, seasonally adjusted, quarterly";
+  const SRC_EMP="FRED series LREM64TTNLQ156S \u00b7 OECD, ages 15-64, seasonally adjusted, quarterly";
 
   if(s.business_confidence) chartPanel("business_confidence","charts-headline","Business confidence",
     "How optimistic firms are about the months ahead. 100 is the long-run average; above it, firms expect better times.",
@@ -2233,6 +2242,12 @@ function render(data){
   if(s.unemployment) chartPanel("unemployment","charts-labour","Unemployment rate",
     "The share of people 15 and over who want a job but can't find one.",
     s.unemployment,"line",v=>v+"%",pct,SRC_UNEMP);
+  if(s.participation_rate) chartPanel("participation_rate","charts-labour","Labour force participation",
+    "The share of people 15-64 who are either working or actively looking for work.",
+    s.participation_rate,"line",v=>v+"%",pct,SRC_PART);
+  if(s.employment_rate) chartPanel("employment_rate","charts-labour","Employment rate",
+    "The share of people 15-64 who are actually in work, regardless of whether others are looking.",
+    s.employment_rate,"line",v=>v+"%",pct,SRC_EMP);
 
   if(s.trade_balance) chartPanel("trade_balance","charts-trade","Trade balance, goods",
     "Exports minus imports of goods each month. Below zero means the Netherlands buys more than it sells.",
@@ -2289,6 +2304,10 @@ function render(data){
   const tl=document.getElementById("tiles-labour");
   if(s.unemployment) statTile(tl,"unemployment","Unemployment",s.unemployment,
     {fmt:pct,fmtD:pp,upIsGood:false,source:SRC_UNEMP});
+  if(s.participation_rate) statTile(tl,"participation_rate","Participation (15-64)",s.participation_rate,
+    {fmt:pct,fmtD:pp,upIsGood:true,source:SRC_PART});
+  if(s.employment_rate) statTile(tl,"employment_rate","Employment rate (15-64)",s.employment_rate,
+    {fmt:pct,fmtD:pp,upIsGood:true,source:SRC_EMP});
 
   const tt=document.getElementById("tiles-trade");
   if(s.trade_balance) statTile(tt,"trade_balance","Trade balance",s.trade_balance,

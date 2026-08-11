@@ -57,11 +57,14 @@ from datetime import datetime, timezone
 
 import requests
 
+# - participation_rate (LRAC64TTITQ156S) / employment_rate (LREM64TTITQ156S): OECD infra-annual labour-statistics FRED family, quarterly, ages 15-64. Same pattern confirmed live for Germany (pilot); inferred-by-pattern for Italy -- not individually confirmed, check the first Actions log.
 FRED_SERIES = {
     "trade_balance": ("XTNTVA01ITM667S", "m", "Trade balance, goods, $", "$m", None, 1e-6),
     "gdp_level": ("NGDPSAXDCITQ", "q", "GDP nominal, SA", "\u20acm", None, 1.0),
     "gdp_real": ("NGDPRSAXDCITQ", "q", "Real GDP, SA", "\u20acm", None, 1.0),
     "unemployment": ("LRHUTTTTITM156S", "m", "Unemployment rate, 15+, SA", "%", None, 1.0),
+    "participation_rate": ("LRAC64TTITQ156S", "q", "Labour force participation rate, 15-64, SA", "%", None, 1.0),
+    "employment_rate": ("LREM64TTITQ156S", "q", "Employment rate, 15-64, SA", "%", None, 1.0),
     "bond_yield_10y": ("IRLTLT01ITQ156N", "q", "10-year government bond yield", "%", None, 1.0),
     "cpi": ("CP0000ITM086NEST", "m", "HICP, all items, YoY", "%", "yoy", 1.0),
 }
