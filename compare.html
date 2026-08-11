@@ -3524,13 +3524,38 @@ window.EATLAS_COMPARE = {
   function estProseWidth(text, fontSize){
     return String(text).length * fontSize * 0.5;
   }
-  function czTruncSrcFooter(text){
+  // Source notes vary a lot in length (some are a few words, some are a
+  // full sentence with methodology caveats) and mid-word truncation reads
+  // as broken, especially on exports people share outside the site. Wrap
+  // onto a second line instead of cutting the sentence off; only the
+  // (rare) case of a note too long for two lines still gets an ellipsis,
+  // on line two. Capped at 2 lines so layout height stays predictable.
+  function czWrapSrcFooter(text){
     var madeOnW = estProseWidth("Made on theeconomicatlas.com", 11);
-    var maxW = (G.W - G.padR) - G.padL - madeOnW - 16;
-    if(estProseWidth(text, 11) <= maxW) return text;
-    var t = text;
-    while(t.length > 1 && estProseWidth(t + "\u2026", 11) > maxW){ t = t.slice(0, -1); }
-    return t + "\u2026";
+    var line1MaxW = (G.W - G.padR) - G.padL - madeOnW - 16;
+    var line2MaxW = (G.W - G.padR) - G.padL;
+    if(estProseWidth(text, 11) <= line1MaxW) return [text];
+    var words = String(text).split(" ");
+    var line1 = "", i = 0;
+    for(; i < words.length; i++){
+      var candidate = line1 ? line1 + " " + words[i] : words[i];
+      if(estProseWidth(candidate, 11) > line1MaxW) break;
+      line1 = candidate;
+    }
+    if(!line1){ // single word already exceeds the line -- fall back to char-truncation
+      var t0 = text;
+      while(t0.length > 1 && estProseWidth(t0 + "\u2026", 11) > line1MaxW){ t0 = t0.slice(0, -1); }
+      return [t0 + "\u2026"];
+    }
+    var rest = words.slice(i).join(" ");
+    if(!rest) return [line1];
+    if(estProseWidth(rest, 11) <= line2MaxW) return [line1, rest];
+    var t = rest;
+    while(t.length > 1 && estProseWidth(t + "\u2026", 11) > line2MaxW){ t = t.slice(0, -1); }
+    return [line1, t + "\u2026"];
+  }
+  function czSrcLineCount(text){
+    return text ? czWrapSrcFooter(text).length : 1;
   }
 
   function niceNum(range, round){
@@ -3625,7 +3650,7 @@ window.EATLAS_COMPARE = {
   // + source/watermark line. Both geometry functions use this to size
   // padB, and both render functions use the same offsets to place
   // elements, so the two can never drift out of sync with each other.
-  function czmBottomLayout(hasLegend){
+  function czmBottomLayout(hasLegend, srcText){
     var angle = (czmState && czmState.xLabelAngle) || "straight";
     var angleReserve = angle === "vertical" ? 54 : angle === "diagonal" ? 28 : 0;
     var oLabels = 26;
@@ -3641,15 +3666,21 @@ window.EATLAS_COMPARE = {
     }
     var oDivider = oAfterLegend;
     var oSource = oDivider + 18;
+    // Source note may wrap to 2 lines (see czWrapSrcFooter) -- reserve
+    // the extra line height here so geometry and rendering never drift
+    // out of sync on how much room the footer actually needs.
+    var srcLines = czSrcLineCount(srcText);
+    var oSourceExtra = (srcLines - 1) * 14;
     return {
       oLabels: oLabels, oLegendTitle: oLegendTitle, oLegendRow: oLegendRow,
-      oDivider: oDivider, oSource: oSource, padB: oSource + 12
+      oDivider: oDivider, oSource: oSource, srcLines: srcLines,
+      padB: oSource + oSourceExtra + 12
     };
   }
 
   function czmGeom(){
     UNIFIED_DATES = buildUnifiedDates();
-    var padB = czmBottomLayout(true).padB;
+    var padB = czmBottomLayout(true, czmState.srcNote).padB;
     var allVals = [];
     SERIES_LIST.forEach(function(s){
       czmFilteredSeries(s).forEach(function(p){ allVals.push(p[1]); });
@@ -3687,7 +3718,7 @@ window.EATLAS_COMPARE = {
 
   function czmSnapshotGeom(){
     var rows = czmEffectiveSnapshotRows();
-    var padB = czmBottomLayout(false).padB;
+    var padB = czmBottomLayout(false, czmState.srcNote).padB;
     var vals = rows.map(function(r){ return r.value; }).filter(function(v){ return v != null; });
     if(vals.length === 0) vals = [0, 1];
     if(czmState.refLine.enabled) vals.push(czmState.refLine.value);
@@ -3759,7 +3790,7 @@ window.EATLAS_COMPARE = {
     }
 
     var axisBottomY = gm.padT + gm.plotH;
-    var bl = czmBottomLayout(false);
+    var bl = czmBottomLayout(false, czmState.srcNote);
     rows.forEach(function(r, i){
       var bx = gm.xForIndex(i);
       if(r.value == null){
@@ -3777,7 +3808,11 @@ window.EATLAS_COMPARE = {
     if(forExport){
       var dividerY = axisBottomY + bl.oDivider, srcY = axisBottomY + bl.oSource;
       svg.push("<line x1='" + G.padL + "' y1='" + dividerY + "' x2='" + (G.W - G.padR) + "' y2='" + dividerY + "' stroke='" + t.grid + "' stroke-width='1'/>");
-      svg.push("<text x='" + G.padL + "' y='" + srcY + "' font-size='11' fill='" + t.ink2 + "'>Source: " + escapeXML(czTruncSrcFooter(czmState.srcNote)) + "</text>");
+      var srcLines = czWrapSrcFooter(czmState.srcNote);
+      srcLines.forEach(function(line, li){
+        var lineLabel = li === 0 ? "Source: " + line : line;
+        svg.push("<text x='" + G.padL + "' y='" + (srcY + li * 14) + "' font-size='11' fill='" + t.ink2 + "'>" + escapeXML(lineLabel) + "</text>");
+      });
       svg.push("<text x='" + (G.W - G.padR) + "' y='" + srcY + "' font-size='11' fill='" + t.ink2 + "' text-anchor='end'>Made on theeconomicatlas.com</text>");
     }
     svg.push("</svg>");
@@ -3839,7 +3874,7 @@ window.EATLAS_COMPARE = {
     // colour, wrapping onto more than one line if 5 countries don't fit.
     // Placed below the x-axis labels rather than above the plot, using
     // the same offsets czmGeom used to size padB, so the two can't drift.
-    var bl = czmBottomLayout(true);
+    var bl = czmBottomLayout(true, czmState.srcNote);
     var legY = axisBottomY + bl.oLegendRow;
     if(czmState.legendTitle){
       svg.push("<text x='" + (G.W / 2) + "' y='" + (axisBottomY + bl.oLegendTitle) + "' font-size='11' font-weight='700' fill='" + t.ink2 + "' text-anchor='middle'>" + escapeXML(czmState.legendTitle) + "</text>");
@@ -3882,7 +3917,11 @@ window.EATLAS_COMPARE = {
     if(forExport){
       var dividerY = axisBottomY + bl.oDivider, srcY = axisBottomY + bl.oSource;
       svg.push("<line x1='" + G.padL + "' y1='" + dividerY + "' x2='" + (G.W - G.padR) + "' y2='" + dividerY + "' stroke='" + t.grid + "' stroke-width='1'/>");
-      svg.push("<text x='" + G.padL + "' y='" + srcY + "' font-size='11' fill='" + t.ink2 + "'>Source: " + escapeXML(czTruncSrcFooter(czmState.srcNote)) + "</text>");
+      var srcLines2 = czWrapSrcFooter(czmState.srcNote);
+      srcLines2.forEach(function(line, li){
+        var lineLabel = li === 0 ? "Source: " + line : line;
+        svg.push("<text x='" + G.padL + "' y='" + (srcY + li * 14) + "' font-size='11' fill='" + t.ink2 + "'>" + escapeXML(lineLabel) + "</text>");
+      });
       svg.push("<text x='" + (G.W - G.padR) + "' y='" + srcY + "' font-size='11' fill='" + t.ink2 + "' text-anchor='end'>Made on theeconomicatlas.com</text>");
     }
     svg.push("</svg>");
