@@ -4,66 +4,59 @@ Run:  FRED_API_KEY=yourkey python3 fetch_co.py
 Sources: FRED (free key required: fred.stlouisfed.org), OECD, World Bank.
 In GitHub Actions the key comes from the FRED_API_KEY repository secret.
 
-Colombia build note: derived from fetch_cl.py (Chile), built together as
-a pair (v1.1.16) specifically to close the South America gap -- both
-are full OECD members. IMPORTANT: Colombia's OECD/FRED series naming
-deviates from the standard pattern TWICE during this build (unemployment
-and FX both use a different suffix convention than Chile's, see below)
--- this is a genuine signal that Colombia's naming is less uniform than
-most other countries on this site, so the series NOT individually
-confirmed here carry more risk than the usual "inferred by pattern"
-label implies elsewhere.
+Colombia build note: derived from fetch_cl.py (Chile), built as a pair
+(v1.1.16) to close the South America gap. FIX applied after the
+v1.1.16 real run: 5 of 14 series failed on first deploy
+(gdp_growth, participation_rate, employment_rate, bond_yield_10y,
+trade_balance) because Colombia's OECD/FRED naming genuinely does NOT
+follow the standard "{descriptor}{cc}{freq}156{adj}" pattern used by
+most other countries on this site -- confirmed at the time via
+unemployment and FX both using a different convention. Every failed
+series below was individually re-searched and replaced with a
+confirmed-live ticker, not another pattern guess.
 
-VERIFICATION NOTES (checked against each series' own FRED/OECD page
-via web_search before wiring in -- sandbox network cannot reach
-fred.stlouisfed.org/sdmx.oecd.org directly, so these are page-content
-confirmations, not live API test calls; the first real Actions run is
-still the genuine test):
-- gdp_growth (COLGDPRQPSMEI): NOT directly confirmed -- inferred from
-  the naming pattern used by Colombia's GDP *component* series (e.g.
-  COLNAEXKP02GYSAQ for consumption), which do follow "COL" + descriptor
-  + "GYSAQ"/similar. The exact total-GDP ticker COLGDPRQPSMEI itself
-  was not found in search results. Genuinely uncertain -- check the
-  Actions log carefully for this one specifically.
-- gdp_level (World Bank NY.GDP.MKTP.CD, country=COL) / gdp_real
-  (RGDPNACOA666NRUG, Penn World Table): same fallback pattern as every
-  other country. Did not individually check whether Colombia's OECD
-  nominal GDP level mirror is dead (as Chile's and Norway's were) since
-  gdp_level bypasses it entirely via World Bank regardless -- if a
-  future session wants gdp_growth from a live nominal series instead,
-  check COLGDPNQDSMEI's status first.
-- unemployment (COLLRHUTTTTSTSAM): CONFIRMED live, through Jan 2026
-  (updated Mar 2026), OECD-harmonized, seasonally adjusted, MONTHLY --
-  note the deviant naming: "COL" prefix + "LRHUTTTT" + "STSAM" suffix,
-  NOT the standard "LRHUTTTT{cc}M156S" pattern used for Germany/Chile/
-  most other countries. Confirmed by direct search, not a guess.
-- participation_rate (LRAC64TTCOQ156S) / employment_rate
-  (LREM64TTCOQ156S): INFERRED BY PATTERN using the STANDARD naming
-  convention -- given unemployment above did NOT follow the standard
-  convention for Colombia, these are HIGHER RISK than a typical
-  inferred-by-pattern guess elsewhere on this site. Genuinely may not
-  resolve; check the Actions log closely.
-- bond_yield_10y (IRLTLT01COM156N) / trade_balance (XTNTVA01COM667S):
-  same caveat as above -- standard-pattern guesses, not individually
-  confirmed, and Colombia has already shown a tendency to deviate.
-- debt_gdp (COLGGXWDGGDP) / deficit (COLGGXCNLGDP): CONFIRMED live,
-  annual, through 2030 (IMF projections included), IMF Western
-  Hemisphere Regional Economic Outlook -- same family confirmed for
-  Chile and Honduras, genuine Western-Hemisphere-wide coverage.
-  debt_gdp updated Jan 2026, deficit updated Apr 2025.
-- fx_to_usd (COLCCUSMA02STM): CONFIRMED live, through Feb 2026
-  (updated Mar 2026), OECD Main Economic Indicators, monthly -- note
-  the DIFFERENT naming convention from Chile's FX series
-  (CCUSMA02CLM618N): Colombia puts the country code FIRST
-  ("COLCCUSMA02STM") rather than embedded mid-string. Two different
-  naming conventions for the conceptually identical series, confirmed
-  individually for each country rather than assumed from one to the
-  other -- exactly why every series in this file needed its own check.
+VERIFICATION NOTES (checked against each series' own FRED page via
+web_search -- sandbox network still cannot reach fred.stlouisfed.org
+directly, so these are page-content confirmations, not live API test
+calls; the next real Actions run is still the genuine test):
+- gdp_growth (COLNAEXKP01GYSAQ): CONFIRMED live, through Q4 2025
+  (updated Mar 2026). This is OECD's "GDP by Expenditure: Constant
+  Prices: Total" series, YoY, SA, quarterly -- the correct total-GDP
+  growth series. The previously-guessed COLGDPRQPSMEI does not exist;
+  Colombia's GDP series follow a "COLNAEXKP0N" (National Accounts,
+  Expenditure, Constant Prices, component 0N) naming family instead of
+  the "{cc}GDPRQPSMEI" shorthand used for Chile/Germany/etc.
+- participation_rate (COLLRACTTTTSTSAM): CONFIRMED live, through
+  Jan 2026. NOTE: this is ages 15+ ("TTTT" = total), NOT specifically
+  15-64 like most other countries' participation_rate on this site --
+  no 15-64-specific participation series was found for Colombia during
+  this build. Label adjusted accordingly ("15+" not "15-64").
+- employment_rate (COLLREM64TTSTSAM): CONFIRMED live, through Jan 2026,
+  genuinely ages 15-64, matching every other country's employment_rate
+  on this site.
+- bond_yield_10y (COLIRLTLT01STM): CONFIRMED live, through Feb 2026.
+- trade_balance (COLXTNTVA01CXMLSAM): CONFIRMED live, through Nov 2025
+  (updated Feb 2026), USD exchange-rate-converted, seasonally adjusted,
+  monthly, raw dollars (not millions) -- same 1e-6 scale correction as
+  every other country's XTNTVA01-family series.
+- Colombia's naming pattern, now established across this whole file:
+  "COL" + descriptor + a suffix ending in ST/STM/STQ/STSAM/STSAQ,
+  rather than the "{descriptor}{CC}{freq}{codes}" pattern most other
+  countries use. If any series on this page needs replacing in future,
+  search FRED directly for "Colombia" + the concept rather than
+  guessing by analogy to another country's ticker -- that approach
+  produced 5 wrong guesses on the first attempt.
+- unemployment (COLLRHUTTTTSTSAM): CONFIRMED live (unchanged from the
+  original build), through Jan 2026, OECD-harmonized, SA, monthly.
+- debt_gdp (COLGGXWDGGDP) / deficit (COLGGXCNLGDP): CONFIRMED live
+  (unchanged from the original build), IMF Western Hemisphere Regional
+  Economic Outlook, through 2030 (projections included).
+- fx_to_usd (COLCCUSMA02STM): CONFIRMED live (unchanged), OECD, monthly.
 - cpi / business_confidence: OECD live SDMX system, REF_AREA=COL, same
-  mechanism used for every other country. Not individually confirmed
-  end-to-end for Colombia before this build.
+  mechanism used everywhere else -- both confirmed working on the
+  first real run.
 - fdi / current_account: World Bank, same indicator codes used
-  everywhere else, country=COL. Standard World Bank annual lag applies.
+  everywhere else, country=COL. Confirmed working on the first real run.
 """
 
 from __future__ import annotations
@@ -77,13 +70,13 @@ import requests
 
 # key: (fred_id, freq 'm'|'q'|'a', label, unit, transform None|'yoy'|'mom'|'qoq', scale)
 FRED_SERIES = {
-    "gdp_growth": ("COLGDPRQPSMEI", "q", "Real GDP growth, YoY (OECD, as published)", "%", None, 1.0),
+    "gdp_growth": ("COLNAEXKP01GYSAQ", "q", "Real GDP growth, YoY (OECD, as published)", "%", None, 1.0),
     "gdp_real": ("RGDPNACOA666NRUG", "a", "Real GDP, constant national prices (Penn World Table)", "$m (2021 prices)", None, 1.0),
     "unemployment": ("COLLRHUTTTTSTSAM", "m", "Unemployment rate, 15+, SA (OECD)", "%", None, 1.0),
-    "participation_rate": ("LRAC64TTCOQ156S", "q", "Labour force participation rate, 15-64, SA", "%", None, 1.0),
-    "employment_rate": ("LREM64TTCOQ156S", "q", "Employment rate, 15-64, SA", "%", None, 1.0),
-    "bond_yield_10y": ("IRLTLT01COM156N", "m", "10-year government bond yield", "%", None, 1.0),
-    "trade_balance": ("XTNTVA01COM667S", "m", "Trade balance, goods, $", "$m", None, 1e-6),
+    "participation_rate": ("COLLRACTTTTSTSAM", "m", "Labour force participation rate, 15+, SA", "%", None, 1.0),
+    "employment_rate": ("COLLREM64TTSTSAM", "m", "Employment rate, 15-64, SA", "%", None, 1.0),
+    "bond_yield_10y": ("COLIRLTLT01STM", "m", "10-year government bond yield", "%", None, 1.0),
+    "trade_balance": ("COLXTNTVA01CXMLSAM", "m", "Trade balance, goods, $", "$m", None, 1e-6),
     "debt_gdp": ("COLGGXWDGGDP", "a", "General government gross debt, % of GDP (IMF WHD REO)", "%", None, 1.0),
     "deficit": ("COLGGXCNLGDP", "a", "General government net lending/borrowing, % of GDP (IMF WHD REO)", "%", None, 1.0),
 }

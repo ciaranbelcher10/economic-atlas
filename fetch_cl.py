@@ -353,6 +353,22 @@ def fetch_worldbank(code: str) -> list | None:
     return points or None
 
 
+def fetch_cpi_with_fallback() -> tuple[list | None, str]:
+    """Try OECD live CPI first; if that fails (dead/stale/rate-limited),
+    fall back to World Bank's annual CPI indicator rather than showing
+    nothing at all -- same pattern proven working for Mexico and South
+    Africa. Confirmed necessary for Chile specifically after the
+    v1.1.16 real run: OECD's live mirror stopped at Dec 2023."""
+    pts = fetch_oecd_cpi(("CHL",), "M")
+    if pts:
+        return pts, "OECD live prices system"
+    print("  [cpi] OECD attempt exhausted, falling back to World Bank annual CPI")
+    pts = fetch_worldbank("FP.CPI.TOTL.ZG")
+    if pts:
+        return pts, "World Bank, annual"
+    return None, ""
+
+
 def main() -> int:
     out = {
         "updated": datetime.now(timezone.utc).strftime("%Y-%m-%dT%H:%M:%SZ"),
@@ -385,8 +401,6 @@ def main() -> int:
     extras = [
         ("business_confidence", lambda: fetch_oecd_bci(),
          "Business confidence indicator, LT avg = 100 (OECD BCICP)", "index", "months"),
-        ("cpi", lambda: fetch_oecd_cpi(("CHL",), "M"),
-         "CPI, all items, YoY (OECD live prices system)", "%", "months"),
         ("fdi", lambda: fetch_worldbank("BX.KLT.DINV.WD.GD.ZS"),
          "FDI net inflows, % of GDP (World Bank)", "%", "years"),
         ("current_account", lambda: fetch_worldbank("BN.CAB.XOKA.GD.ZS"),
@@ -404,6 +418,26 @@ def main() -> int:
         except Exception as exc:
             failures.append(name)
             print(f"FAIL  {name:<16} {exc}")
+
+    # CPI handled separately since it has a two-stage fallback (OECD, then
+    # World Bank annual) rather than a single source. FIX applied after
+    # the v1.1.16 real run: OECD's live mirror for Chile is stale (last
+    # point Dec 2023, confirmed rejected by the freshness check), the
+    # same "dead mirror" class of problem already handled for Mexico and
+    # South Africa -- same fix applied here, reusing the exact pattern.
+    try:
+        cpi_points, cpi_source = fetch_cpi_with_fallback()
+        if not cpi_points:
+            raise ValueError("no usable response from OECD or World Bank")
+        out["series"]["cpi"] = {
+            "label": f"CPI, all items, YoY ({cpi_source})", "unit": "%",
+            "freq": "months" if cpi_source.startswith("OECD") else "years",
+            "points": cpi_points}
+        print(f"  ok  cpi              {len(cpi_points):>5} observations "
+              f"({cpi_points[0][0]} to {cpi_points[-1][0]}, via {cpi_source})")
+    except Exception as exc:
+        failures.append("cpi")
+        print(f"FAIL  cpi              {exc}")
 
     # gdp_level: World Bank current-USD annual GDP, handled separately
     # (not in the generic extras loop above) because it needs a scale
