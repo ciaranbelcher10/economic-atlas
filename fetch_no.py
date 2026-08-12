@@ -163,30 +163,56 @@ def _parse_jsonstat(text: str, tag: str) -> list | None:
     return pts
 
 
-# ---- debt_gdp / deficit (Norway) -- FIX applied after the v1.1.5 real
-# run: the inferred IMF WEO FRED series (GGGDTADKA188N / GGNLBADKA188N)
-# returned a 400 Bad Request -- those IDs don't exist on FRED at all for
-# Norway. Replaced with the same live Eurostat query CONFIRMED WORKING
-# in that same run for Germany/France/Italy/Spain/Netherlands
-# (gov_10dd_edpt1). Norway is an EU member (not Eurozone), and Eurostat's
-# EDP notification table covers all EU member states, not just euro-area
-# ones -- geo=NO, otherwise identical to the Eurozone-member pattern.
-def fetch_eurostat_govfinance(na_item: str) -> list | None:
-    url = (f"{EUROSTAT_STATS_BASE}/gov_10dd_edpt1?format=JSON&lang=EN"
-          f"&geo=NO&sector=S13&unit=PC_GDP&na_item={na_item}"
+# ---- debt_gdp / deficit (Norway) -- SECOND FIX. The v1.1.6-era build used
+# gov_10dd_edpt1 (the EDP notification table), which Eurostat's own docs
+# say covers "EU Member States, the euro area and the European Union"
+# only -- Norway is EEA/EFTA, not an EU member, and this genuinely
+# returned nothing for Norway on the first real Actions run (confirmed
+# in the freshness log: "fetch_no.py / debt_gdp: no usable response",
+# same for deficit). Root-caused via web_search (sandbox network still
+# can't reach Eurostat directly) to two DIFFERENT Eurostat datasets that
+# explicitly document EFTA coverage:
+#   - gov_10q_ggdebt ("Quarterly government debt"): Eurostat's own ESMS
+#     metadata states "Data cover EU Member States, Iceland and Norway."
+#     Used for debt_gdp (na_item=GD). Confirmed elsewhere on Eurostat's
+#     own Statistics Explained site, which cites Norway's debt-to-GDP
+#     figures with this exact dataset as the source.
+#   - gov_10q_ggnfa ("Quarterly non-financial accounts for general
+#     government"): Eurostat's Statistics Explained states this "cover[s]
+#     all EU countries as well as the EFTA countries Iceland, Norway and
+#     Switzerland." Used for deficit (na_item=B9, net lending/borrowing).
+# Both are QUARTERLY (unlike gov_10dd_edpt1's annual EDP notifications),
+# so debt_gdp/deficit switch from "years" to "quarters" freq for Norway
+# specifically -- matches the "q" freq already used for Norway's
+# unemployment/participation/employment series. gov_10q_ggnfa also has an
+# s_adj (seasonal adjustment) dimension gov_10dd_edpt1 doesn't have --
+# NSA used deliberately (raw, not seasonally adjusted) to match how
+# deficit/surplus is reported elsewhere on the site. NOT yet confirmed
+# via an actual live API call from this build (same sandbox network
+# limitation as everything else in this file) -- check the next real
+# Actions log for "eurostat-gov_10q_ggdebt-GD-NO" / "eurostat-gov_10q_ggnfa-B9-NO"
+# SUCCESS/FAIL lines to confirm this genuinely resolved the gap.
+def fetch_eurostat_govfinance(dataset: str, na_item: str, freq: str = "A",
+                               s_adj: str | None = None) -> list | None:
+    extra = f"&freq={freq}"
+    if s_adj:
+        extra += f"&s_adj={s_adj}"
+    url = (f"{EUROSTAT_STATS_BASE}/{dataset}?format=JSON&lang=EN"
+          f"&geo=NO&sector=S13&unit=PC_GDP&na_item={na_item}{extra}"
           f"&sinceTimePeriod=2000")
+    tag = f"eurostat-{dataset}-{na_item}"
     try:
         r = requests.get(url, timeout=60,
                          headers={"User-Agent": "economic-atlas/0.1"})
-        print(f"  [eurostat-gov-{na_item}] NO status={r.status_code}")
+        print(f"  [{tag}] NO status={r.status_code}")
         r.raise_for_status()
     except Exception as exc:
-        print(f"  [eurostat-gov-{na_item}] NO request failed: {exc}")
+        print(f"  [{tag}] NO request failed: {exc}")
         return None
     try:
-        return _parse_jsonstat(r.text, f"eurostat-gov-{na_item}-NO")
+        return _parse_jsonstat(r.text, f"{tag}-NO")
     except Exception as exc:
-        print(f"  [eurostat-gov-{na_item}] NO parsing failed: {exc}; "
+        print(f"  [{tag}] NO parsing failed: {exc}; "
               f"first 300 chars: {r.text[:300]!r}")
         return None
 
@@ -450,10 +476,10 @@ def main() -> int:
          "FDI net inflows, % of GDP (World Bank)", "%", "years"),
         ("current_account", lambda: fetch_worldbank("BN.CAB.XOKA.GD.ZS"),
          "Current account balance, % of GDP (World Bank)", "%", "years"),
-        ("debt_gdp", lambda: fetch_eurostat_govfinance("GD"),
-         "General government gross debt, % of GDP (Eurostat)", "%", "years"),
-        ("deficit", lambda: fetch_eurostat_govfinance("B9"),
-         "General government net lending/borrowing, % of GDP (Eurostat)", "%", "years"),
+        ("debt_gdp", lambda: fetch_eurostat_govfinance("gov_10q_ggdebt", "GD", freq="Q"),
+         "General government gross debt, % of GDP (Eurostat, quarterly)", "%", "quarters"),
+        ("deficit", lambda: fetch_eurostat_govfinance("gov_10q_ggnfa", "B9", freq="Q", s_adj="NSA"),
+         "General government net lending/borrowing, % of GDP (Eurostat, quarterly)", "%", "quarters"),
     ]
     for name, fn, label, unit, fr in extras:
         try:
