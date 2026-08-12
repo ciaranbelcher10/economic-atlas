@@ -614,3 +614,169 @@ html[data-theme="dark"] .tour-box{
 .modal-content h2{margin:0 30px 4px 0; font-size:19px;}
 .modal-sub{font-size:13px; color:var(--ink2); margin:0 0 14px;}
 
+
+/* ============================================================
+   SITE-WIDE GLASS TREATMENT (added following single-page pilot
+   on germany.html, iterated through user feedback). Deliberately
+   excludes .panel (chart cards) and .chart-modal-* (zoomed chart
+   view) -- glass looked odd against chart lines in dark mode,
+   charts need maximum legibility. Nav ribbon (nav.top) is fully
+   solid, not glass -- it isn't sticky, so translucency there had
+   nothing to blur and just washed out the navy. .dropdown-panel
+   is solid too, with a thin highlight border for polish -- an
+   earlier translucent version was illegible (page content ghosted
+   through) and later had a z-index bug (backdrop-filter creates a
+   stacking context, trapping the dropdown's z-index inside nav's
+   own layer -- fixed via nav.top{z-index:50}).
+
+   IMPORTANT: .stat, .newdata, nav.cat button, and nav.viztoggle
+   button are ALSO defined inline in every individual country
+   page's own <style> block (confirmed across all 20 country
+   pages), loaded AFTER this shared stylesheet -- so without
+   !important here, each page's own original rule would silently
+   win the cascade and this section would have no visible effect
+   on those four selectors. .modal-content/.modal-backdrop get the
+   same treatment since compare.html and dashboard.html duplicate
+   those two specifically for their own country-picker modal.
+   Genuine technical debt worth fixing properly later: move those
+   duplicated blocks out of every page and rely on this stylesheet
+   alone, removing the need for !important entirely.
+   ============================================================ */
+nav.top{
+  position:relative;
+  z-index:50;
+  background:#2A5A82;
+}
+.dropdown-panel{
+  background:#1C405E;
+  border:1px solid rgba(255,255,255,.1);
+  border-top:none;
+  box-shadow:0 20px 48px rgba(10,20,30,.32), inset 0 1px 0 rgba(255,255,255,.08);
+}
+html[data-theme="dark"] .dropdown-panel{
+  background:#14181B;
+  border:1px solid rgba(255,255,255,.07);
+}
+.dcol a:hover, .doverview a:hover, .dcol a.active, .doverview a.active{
+  background:rgba(255,255,255,.22);
+  backdrop-filter:blur(6px);
+  -webkit-backdrop-filter:blur(6px);
+}
+.dropbtn:hover, .dropbtn.open, .dropbtn.current{
+  background:rgba(255,255,255,.12);
+  backdrop-filter:blur(6px);
+  -webkit-backdrop-filter:blur(6px);
+}
+.modal-backdrop{
+  background:rgba(20,26,22,.42) !important;
+  backdrop-filter:blur(5px);
+  -webkit-backdrop-filter:blur(5px);
+}
+.modal-content{
+  background:rgba(245,246,243,.78) !important;
+  backdrop-filter:blur(28px) saturate(190%);
+  -webkit-backdrop-filter:blur(28px) saturate(190%);
+  border:1px solid rgba(255,255,255,.5) !important;
+  box-shadow:0 24px 64px rgba(10,20,30,.22), inset 0 1px 0 rgba(255,255,255,.6);
+}
+html[data-theme="dark"] .modal-content{
+  background:rgba(29,33,36,.72) !important;
+  border:1px solid rgba(255,255,255,.09) !important;
+  box-shadow:0 24px 64px rgba(0,0,0,.45), inset 0 1px 0 rgba(255,255,255,.06);
+}
+.modal-close{
+  background:rgba(255,255,255,.5) !important;
+  backdrop-filter:blur(8px);
+  -webkit-backdrop-filter:blur(8px);
+}
+html[data-theme="dark"] .modal-close{
+  background:rgba(255,255,255,.06) !important;
+}
+.roadmap{
+  background:rgba(255,255,255,.5);
+  backdrop-filter:blur(22px) saturate(180%);
+  -webkit-backdrop-filter:blur(22px) saturate(180%);
+  border:1px solid rgba(120,172,222,.35);
+  box-shadow:0 10px 34px rgba(20,30,45,.08), inset 0 1px 0 rgba(255,255,255,.6);
+}
+html[data-theme="dark"] .roadmap{
+  background:rgba(60,90,120,.22);
+  border:1px solid rgba(120,172,222,.22);
+  box-shadow:inset 0 1px 0 rgba(255,255,255,.07);
+}
+.stat{
+  position:relative; overflow:hidden;
+  background:linear-gradient(165deg, rgba(255,255,255,.55) 0%, rgba(238,244,250,.4) 38%, rgba(255,255,255,.35) 100%) !important;
+  backdrop-filter:blur(18px) saturate(180%);
+  -webkit-backdrop-filter:blur(18px) saturate(180%);
+  box-shadow:inset 0 1px 0 rgba(255,255,255,.8), 0 1px 3px rgba(20,30,45,.07);
+  transition:box-shadow .2s ease, transform .2s ease;
+}
+.stat::before{
+  content:""; position:absolute; inset:0; pointer-events:none;
+  background:linear-gradient(115deg,
+    rgba(120,172,222,.28) 0%, rgba(120,172,222,.10) 22%,
+    rgba(120,172,222,0) 42%);
+}
+html[data-theme="dark"] .stat{
+  background:linear-gradient(165deg, rgba(38,43,48,.55) 0%, rgba(29,33,36,.4) 55%) !important;
+  box-shadow:inset 0 1px 0 rgba(255,255,255,.05), 0 1px 3px rgba(0,0,0,.3);
+}
+html[data-theme="dark"] .stat::before{
+  background:linear-gradient(115deg,
+    rgba(255,255,255,.08) 0%, rgba(255,255,255,.03) 22%,
+    rgba(255,255,255,0) 42%);
+}
+.stat.link:hover{
+  box-shadow:inset 0 1px 0 #FFFFFF, 0 6px 20px rgba(30,69,102,.16);
+  transform:translateY(-1px);
+}
+html[data-theme="dark"] .stat.link:hover{
+  box-shadow:inset 0 1px 0 rgba(255,255,255,.08), 0 6px 20px rgba(0,0,0,.4);
+}
+.stat .label, .stat .figure, .stat .delta, .stat .period, .stat .source{
+  position:relative; z-index:1;
+}
+.newdata{
+  background:rgba(213,238,221,.85) !important;
+  backdrop-filter:blur(16px) saturate(180%);
+  -webkit-backdrop-filter:blur(16px) saturate(180%);
+  border:1px solid rgba(47,164,99,.35) !important;
+}
+html[data-theme="dark"] .newdata{
+  background:rgba(30,60,45,.65) !important;
+  border:1px solid rgba(47,164,99,.4) !important;
+}
+html[data-theme="dark"] .newdata, html[data-theme="dark"] .newdata #newdataText,
+html[data-theme="dark"] .newdata .lastupdated{
+  color:#8FE3B0 !important;
+}
+nav.cat button{
+  background:rgba(255,255,255,.5) !important;
+  backdrop-filter:blur(14px) saturate(160%);
+  -webkit-backdrop-filter:blur(14px) saturate(160%);
+  border:1px solid rgba(120,172,222,.4) !important;
+  box-shadow:inset 0 1px 0 rgba(255,255,255,.6);
+}
+html[data-theme="dark"] nav.cat button{
+  background:rgba(60,90,120,.28) !important;
+  border:1px solid rgba(120,172,222,.28) !important;
+  box-shadow:inset 0 1px 0 rgba(255,255,255,.08);
+}
+nav.cat button.active{
+  background:rgba(71,150,206,.85) !important;
+  backdrop-filter:blur(14px) saturate(180%);
+  -webkit-backdrop-filter:blur(14px) saturate(180%);
+}
+nav.viztoggle button{
+  background:rgba(255,255,255,.5) !important;
+  backdrop-filter:blur(14px) saturate(160%);
+  -webkit-backdrop-filter:blur(14px) saturate(160%);
+  border:1px solid rgba(120,172,222,.4) !important;
+  box-shadow:inset 0 1px 0 rgba(255,255,255,.6);
+}
+html[data-theme="dark"] nav.viztoggle button{
+  background:rgba(60,90,120,.28) !important;
+  border:1px solid rgba(120,172,222,.28) !important;
+  box-shadow:inset 0 1px 0 rgba(255,255,255,.08);
+}
