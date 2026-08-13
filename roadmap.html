@@ -1288,36 +1288,46 @@
   // read emails back out. A unique_violation (code 23505) means the
   // address is already on the list, which gets its own friendly message
   // rather than being shown as an error.
-  var alertForm = document.getElementById("alertSignupForm");
-  if(alertForm){
-    var alertEmailInput = document.getElementById("alertSignupEmail");
-    var alertBtn = document.getElementById("alertSignupBtn");
-    var alertMsg = document.getElementById("alertSignupMsg");
-    alertForm.addEventListener("submit", function(e){
-      e.preventDefault();
-      var email = (alertEmailInput.value || "").trim();
-      if(!email) return;
-      alertBtn.disabled = true;
-      alertBtn.textContent = "Submitting\u2026";
-      alertMsg.hidden = true;
-      sb.from("alert_signups").insert({ email: email }).then(function(res){
-        alertBtn.disabled = false;
-        alertBtn.textContent = "Notify me";
-        alertMsg.hidden = false;
-        if(res.error){
-          alertMsg.textContent = (res.error.code === "23505")
-            ? "You're already on the list."
-            : "Something went wrong \u2014 please try again.";
-        } else {
-          alertForm.hidden = true;
-          alertMsg.textContent = "\u2713 You're on the list. We'll only email when there's something worth knowing.";
-          // Also stop nagging this visitor with the site-wide banner,
-          // since they've already done what it was asking for.
-          try{ localStorage.setItem("eatlas_alert_banner_dismissed", "1"); }catch(err){}
-        }
+  //
+  // NOTE: this wiring must run after the DOM has parsed the form itself.
+  // The <form id="alertSignupForm"> markup appears further down the page
+  // than this <script> block, so a plain getElementById() call here would
+  // run before the form exists and silently return null -- the `if`
+  // below would just be skipped with no error, no listener attached, and
+  // clicking "Notify me" would do nothing at all. Deferring to
+  // DOMContentLoaded guarantees the form is in the DOM first.
+  document.addEventListener("DOMContentLoaded", function(){
+    var alertForm = document.getElementById("alertSignupForm");
+    if(alertForm){
+      var alertEmailInput = document.getElementById("alertSignupEmail");
+      var alertBtn = document.getElementById("alertSignupBtn");
+      var alertMsg = document.getElementById("alertSignupMsg");
+      alertForm.addEventListener("submit", function(e){
+        e.preventDefault();
+        var email = (alertEmailInput.value || "").trim();
+        if(!email) return;
+        alertBtn.disabled = true;
+        alertBtn.textContent = "Submitting\u2026";
+        alertMsg.hidden = true;
+        sb.from("alert_signups").insert({ email: email }).then(function(res){
+          alertBtn.disabled = false;
+          alertBtn.textContent = "Notify me";
+          alertMsg.hidden = false;
+          if(res.error){
+            alertMsg.textContent = (res.error.code === "23505")
+              ? "You're already on the list."
+              : "Something went wrong \u2014 please try again.";
+          } else {
+            alertForm.hidden = true;
+            alertMsg.textContent = "\u2713 You're on the list. We'll only email when there's something worth knowing.";
+            // Also stop nagging this visitor with the site-wide banner,
+            // since they've already done what it was asking for.
+            try{ localStorage.setItem("eatlas_alert_banner_dismissed", "1"); }catch(err){}
+          }
+        });
       });
-    });
-  }
+    }
+  });
 })();
 </script>
 <div class="wrap">
