@@ -1913,7 +1913,14 @@ footer.dash-foot{margin-top:36px; font-size:12.5px; color:var(--ink2); border-to
     return {
       pts: pts, minV: minV, maxV: maxV, plotW: plotW, plotH: plotH, padB: padB, padT: padT,
       yTickValues: nice.ticks,
-      x: function(i){ return G.padL + (pts.length === 1 ? plotW / 2 : (i / (pts.length - 1)) * plotW); },
+      x: function(i){
+        if(czState.chartKind === "bar"){
+          if(pts.length === 1) return G.padL + plotW / 2;
+          var bandW = plotW / pts.length;
+          return G.padL + bandW * (i + 0.5);
+        }
+        return G.padL + (pts.length === 1 ? plotW / 2 : (i / (pts.length - 1)) * plotW);
+      },
       y: function(v){ return padT + plotH - ((v - minV) / (maxV - minV)) * plotH; }
     };
   }
@@ -2325,7 +2332,15 @@ footer.dash-foot{margin-top:36px; font-size:12.5px; color:var(--ink2); border-to
       summarySpan.addEventListener("click", toggleCollapsed);
       chevron.addEventListener("click", toggleCollapsed);
 
-      body.querySelector(".cz-annot-date").addEventListener("change", function(e){ a.date = e.target.value; updateSummary(); czRenderPreview(); });
+      body.querySelector(".cz-annot-date").addEventListener("change", function(e){
+        a.date = e.target.value;
+        var gm = czGeom();
+        var idx = nearestIndex(gm.pts, a.date);
+        var ax = gm.x(idx);
+        a.labelX = a.align === "left" ? ax - 50 : a.align === "right" ? ax + 50 : ax;
+        updateSummary();
+        czRenderPreview();
+      });
       body.querySelectorAll("[data-type]").forEach(function(btn){
         btn.addEventListener("click", function(){
           a.type = btn.dataset.type;
