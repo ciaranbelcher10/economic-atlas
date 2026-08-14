@@ -3350,9 +3350,19 @@ document.querySelectorAll(".mtbtn").forEach(function(btn){
       var gm = czGeom();
       function move(ev){
         var p = svgPoint(ev);
-        var frac = (p.x - G.padL) / gm.plotW;
-        var idx = Math.max(0, Math.min(gm.pts.length - 1, Math.round(frac * (gm.pts.length - 1))));
-        czState.annotations[ai].date = gm.pts[idx][0];
+        // Nearest-point search on gm.x(i) rather than a linear fraction of
+        // plotW -- bar charts use band-centered x-positions (not evenly
+        // edge-to-edge like line charts), so a frac-based formula would
+        // pick the wrong index once a chart is switched to bar view.
+        var idx = 0, best = Infinity;
+        for(var i = 0; i < gm.pts.length; i++){
+          var d = Math.abs(gm.x(i) - p.x);
+          if(d < best){ best = d; idx = i; }
+        }
+        var a = czState.annotations[ai];
+        a.date = gm.pts[idx][0];
+        var ax = gm.x(idx);
+        a.labelX = a.align === "left" ? ax - 50 : a.align === "right" ? ax + 50 : ax;
         refreshGroup(ai);
       }
       function up(){
