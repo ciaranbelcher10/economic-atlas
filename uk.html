@@ -60,7 +60,7 @@
 <link href="https://fonts.googleapis.com/css2?family=Nunito+Sans:wght@400;600;700&display=swap" rel="stylesheet">
 <link rel="icon" type="image/png" sizes="32x32" href="favicon-32.png">
 <link rel="apple-touch-icon" href="apple-touch-icon.png">
-<link rel="stylesheet" href="style.css?v=38">
+<link rel="stylesheet" href="style.css?v=39">
 <style>
 .led{display:inline-block; width:9px; height:9px; border-radius:50%;
   margin-right:9px; vertical-align:middle; position:relative; top:-3px;}
@@ -1946,7 +1946,7 @@ document.addEventListener("DOMContentLoaded", function(){
   A 10-year government bond yield series isn't currently wired up for the UK; that's a known gap, not a decision that it doesn't matter.
   Ideas or corrections: <a href="contact">get in touch</a>. <a href="privacy">Privacy</a> &middot; <a href="terms">Terms</a>.
   <span id="lastUpdated" class="lastupdated"></span>
-  · <button type="button" id="tourReplayLink">Take the tour</button>
+  <span id="tourReplayWrap">· <button type="button" id="tourReplayLink">Take the tour</button></span>
 </footer>
 </div>
 
@@ -2083,7 +2083,7 @@ function sampleData(){
       [["1990-Q1",330000],["1992-Q1",325000],["2000-Q1",410000],["2008-Q1",505000],
        ["2009-Q2",470000],["2019-Q4",562000],["2020-Q2",450000],["2021-Q4",548000],
        ["2024-Q1",572000],["2026-Q1",601000]],qAll)),
-    gdp_growth:S("GDP growth QoQ (IHYQ)","%","quarters",gdpG),
+    gdp_growth:S("Real GDP growth QoQ (IHYQ)","%","quarters",gdpG),
     productivity:S("Output per hour (LZVB)","index","quarters",interp(
       [["1997-Q1",67],["2003-Q1",78],["2008-Q1",91],["2009-Q2",88],["2014-Q1",93],
        ["2019-Q4",99],["2020-Q2",102],["2023-Q1",100],["2026-Q1",101.4]],qP)),
@@ -2441,7 +2441,7 @@ function render(data){
     "The total value of everything the UK economy produces in a year.",
     gdpAnnual,"line",v=>curFmt(v,s.gdp_level.unit,1),v=>curFmt(v,s.gdp_level.unit,2),
     "ONS series YBHA (PN2) · current prices, rolling four-quarter sum, SA",1991);
-  if(s.gdp_growth) chartPanel("gdp_growth","charts-gdp","GDP growth, quarter on quarter",
+  if(s.gdp_growth) chartPanel("gdp_growth","charts-gdp","Real GDP growth, quarter on quarter",
     "How much the economy grew or shrank compared with the previous three months.",
     s.gdp_growth,"bar",v=>v+"%",pct,"ONS series IHYQ (PN2) · chained volume measure",1998,0);
   if(gdpYoY) chartPanel(null,"charts-gdp","GDP growth, year on year",
@@ -4555,9 +4555,12 @@ fetch("data-uk-spending-cofog.json", {cache: "no-cache"})
     if(document.querySelector(".tour-box")) return;
     mBanner.hidden = false;
   }
-  if(window.innerWidth < 768 && !dismissedThisSession){
-    setTimeout(maybeShowMobileBanner, 1200);
-  }
+  // Disabled: the "works better on desktop" notice was a stopgap during
+  // early mobile work and is no longer wanted -- the auto-trigger is
+  // removed rather than the whole block so the dismiss-button wiring
+  // below stays harmless dead code instead of needing its own removal.
+  // #mobileBanner is `hidden` by default in the markup, so simply never
+  // calling maybeShowMobileBanner() means it never appears.
   var mClose = document.getElementById("mobileBannerClose");
   if(mClose){
     mClose.addEventListener("click", function(){
@@ -5126,11 +5129,17 @@ fetch("data-uk-spending-cofog.json", {cache: "no-cache"})
 
   // Resume mid-tour if state says so and the current step belongs here;
   // otherwise, auto-start once ever for a genuinely first-time visitor.
+  // Mobile is excluded entirely -- the tour's anchored tooltip boxes are
+  // built for desktop-sized panels and don't hold up on small screens,
+  // so it neither resumes nor auto-starts below the 768px breakpoint
+  // used elsewhere on the site (see the mobile-banner check above).
   var state = getState();
-  if(state.active && TOUR_STEPS[state.stepIndex] && TOUR_STEPS[state.stepIndex].page === THIS_PAGE){
-    renderStepWhenReady(state.stepIndex);
-  } else if(!state.active && !hasSeenBefore()){
-    startTour();
+  if(window.innerWidth >= 768){
+    if(state.active && TOUR_STEPS[state.stepIndex] && TOUR_STEPS[state.stepIndex].page === THIS_PAGE){
+      renderStepWhenReady(state.stepIndex);
+    } else if(!state.active && !hasSeenBefore()){
+      startTour();
+    }
   }
 })();
 </script>

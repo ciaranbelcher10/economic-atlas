@@ -52,7 +52,7 @@
 <link href="https://fonts.googleapis.com/css2?family=Nunito+Sans:wght@400;600;700&display=swap" rel="stylesheet">
 <link rel="icon" type="image/png" sizes="32x32" href="favicon-32.png">
 <link rel="apple-touch-icon" href="apple-touch-icon.png">
-<link rel="stylesheet" href="style.css?v=38">
+<link rel="stylesheet" href="style.css?v=39">
 <style>
 .mapwrap{background:var(--panel); border:1px solid var(--hair); border-radius:16px;
   padding:14px; margin:22px 0 18px; position:relative; overflow:hidden;}
@@ -1377,7 +1377,7 @@
   <p>Spotted something missing, wrong, or worth adding? <a href="contact" style="color:var(--navy-2);">Get in touch</a>.</p>
 </div>
 
-<footer>The Economic Atlas · Data from national statistical offices, used under open licences. <a href="privacy">Privacy</a> &middot; <a href="terms">Terms</a> · <button type="button" id="tourReplayLink">Take the tour</button></footer>
+<footer>The Economic Atlas · Data from national statistical offices, used under open licences. <a href="privacy">Privacy</a> &middot; <a href="terms">Terms</a> <span id="tourReplayWrap">· <button type="button" id="tourReplayLink">Take the tour</button></span></footer>
 </div>
 
 <script src="https://cdnjs.cloudflare.com/ajax/libs/d3/7.8.5/d3.min.js"></script>
@@ -1551,9 +1551,12 @@ fetch("https://cdn.jsdelivr.net/npm/world-atlas@2/countries-110m.json")
     if(document.querySelector(".tour-box")) return;
     mBanner.hidden = false;
   }
-  if(window.innerWidth < 768 && !dismissedThisSession){
-    setTimeout(maybeShowMobileBanner, 1200);
-  }
+  // Disabled: the "works better on desktop" notice was a stopgap during
+  // early mobile work and is no longer wanted -- the auto-trigger is
+  // removed rather than the whole block so the dismiss-button wiring
+  // below stays harmless dead code instead of needing its own removal.
+  // #mobileBanner is `hidden` by default in the markup, so simply never
+  // calling maybeShowMobileBanner() means it never appears.
   var mClose = document.getElementById("mobileBannerClose");
   if(mClose){
     mClose.addEventListener("click", function(){
@@ -2122,11 +2125,17 @@ fetch("https://cdn.jsdelivr.net/npm/world-atlas@2/countries-110m.json")
 
   // Resume mid-tour if state says so and the current step belongs here;
   // otherwise, auto-start once ever for a genuinely first-time visitor.
+  // Mobile is excluded entirely -- the tour's anchored tooltip boxes are
+  // built for desktop-sized panels and don't hold up on small screens,
+  // so it neither resumes nor auto-starts below the 768px breakpoint
+  // used elsewhere on the site (see the mobile-banner check above).
   var state = getState();
-  if(state.active && TOUR_STEPS[state.stepIndex] && TOUR_STEPS[state.stepIndex].page === THIS_PAGE){
-    renderStepWhenReady(state.stepIndex);
-  } else if(!state.active && !hasSeenBefore()){
-    startTour();
+  if(window.innerWidth >= 768){
+    if(state.active && TOUR_STEPS[state.stepIndex] && TOUR_STEPS[state.stepIndex].page === THIS_PAGE){
+      renderStepWhenReady(state.stepIndex);
+    } else if(!state.active && !hasSeenBefore()){
+      startTour();
+    }
   }
 })();
 </script>
