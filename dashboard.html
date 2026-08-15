@@ -3351,8 +3351,20 @@ try { dollarise = localStorage.getItem(DOLLARISE_KEY) === "1"; } catch(e){}
 // site), swapping the currency symbol but keeping the scale suffix
 // (bn/m/tn). Non-currency units, and countries with no FX entry (only
 // the US, since it's already USD), pass through unchanged.
+// Some countries' series are natively USD-denominated already (e.g.
+// World-Bank-sourced gdp_level for Turkey, Argentina, Indonesia, Poland,
+// Chile, Colombia, Denmark, Norway, Thailand, Israel -- their gdp_real or
+// other series come from a different, local-currency source, but
+// gdp_level itself is pulled straight from World Bank in USD). Converting
+// those again through FX_RATES on Dollarise silently produces a wrong,
+// double-converted number. This checks the actual unit string being
+// converted, not just the country.
+function isAlreadyUSD(unitStr){
+  var clean = (unitStr || "").replace(/\s*\([^)]*\)\s*$/, "").trim();
+  return clean.charAt(0) === "$";
+}
 function toDisplayUnit(value, unit, country){
-  if(!dollarise || !isCurrencyUnit(unit)) return {value: value, unit: unit};
+  if(!dollarise || !isCurrencyUnit(unit) || isAlreadyUSD(unit)) return {value: value, unit: unit};
   var fx = FX_RATES[country];
   if(!fx) return {value: value, unit: unit};
   var converted = fx.direction === "multiply" ? value * fx.rate : value / fx.rate;
@@ -3360,7 +3372,7 @@ function toDisplayUnit(value, unit, country){
   return {value: converted, unit: "$" + scaleSuffix};
 }
 function toDisplayPoints(pts, unit, country){
-  if(!dollarise || !isCurrencyUnit(unit)) return pts;
+  if(!dollarise || !isCurrencyUnit(unit) || isAlreadyUSD(unit)) return pts;
   var fx = FX_RATES[country];
   if(!fx) return pts;
   return pts.map(function(p){

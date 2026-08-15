@@ -1814,13 +1814,13 @@ var CONCEPT_EXPLAINER = {
 };
 
 var REGION_GROUPS = [
-  {name: "Europe", countries: ["UK", "Eurozone", "Germany", "France", "Italy", "Spain", "Netherlands", "Ireland"]},
+  {name: "Europe", countries: ["UK", "Eurozone", "Germany", "France", "Italy", "Spain", "Netherlands", "Ireland", "Poland", "Switzerland", "Austria", "Sweden", "Turkey"]},
   {name: "Scandinavia", countries: ["Denmark", "Norway"]},
   {name: "North America", countries: ["US", "Canada", "Mexico"]},
-  {name: "Asia", countries: ["Japan", "India", "South Korea"]},
+  {name: "Asia", countries: ["Japan", "India", "South Korea", "Indonesia", "Singapore", "Thailand"]},
   {name: "Oceania", countries: ["Australia"]},
   {name: "Middle East", countries: ["Israel"]},
-  {name: "South America", countries: ["Brazil", "Chile", "Colombia"]},
+  {name: "South America", countries: ["Brazil", "Chile", "Colombia", "Argentina"]},
   {name: "Africa", countries: ["South Africa", "Morocco"]}
 ];
 
@@ -1876,6 +1876,19 @@ function toUSDValue(country, rawValue){
   if(!fx || !fx.rate) return null;
   return fx.direction === "multiply" ? rawValue * fx.rate : rawValue / fx.rate;
 }
+// Some countries' series are natively USD-denominated already (e.g.
+// World-Bank-sourced gdp_level for Turkey, Argentina, Indonesia, Poland,
+// Chile, Colombia, Denmark, Norway, Thailand, Israel -- their gdp_real or
+// other series come from a different, local-currency source, but
+// gdp_level itself is pulled straight from World Bank in USD). Running
+// those through toUSDValue's FX rate a second time silently produces a
+// wrong number. This checks the actual unit string of the series being
+// converted, not just the country, so it catches this regardless of
+// which series or which country it shows up on next.
+function isAlreadyUSDUnit(unitStr){
+  var clean = (unitStr || "").replace(/\s*\([^)]*\)\s*$/, "").trim();
+  return clean.charAt(0) === "$";
+}
 // Keeps the tn/bn/m scale suffix from the original unit string (so
 // curFmt still auto-tiers the output correctly) but forces the currency
 // symbol to $, since every currency concept is now shown in USD.
@@ -1895,6 +1908,7 @@ function forceUSDUnit(unitStr){
 // app should go through this, not toUSDValue alone.
 function toUSDMillions(country, rawValue, unitStr){
   var normalized = rawValue * (scaleOf(unitStr) / 1e6);
+  if(isAlreadyUSDUnit(unitStr)) return normalized;
   return toUSDValue(country, normalized);
 }
 var CURRENT_YEAR = null;

@@ -73,6 +73,21 @@ def fred_period(date: str, freq: str) -> str:
     return f"{y}-{m:02d}"
 
 
+def _is_future_period(period: str) -> bool:
+    """True if `period` (a fred_period-format string: 'YYYY', 'YYYY-Qn', or
+    'YYYY-MM') refers to a year beyond the current calendar year. Some IMF
+    REO/WEO-derived FRED mirrors bundle several years of forward projections
+    into the same series as real observations, with no flag distinguishing
+    actual from forecast. We only want actual/estimated-to-date figures on
+    the site, so any point dated beyond the current year is dropped at
+    fetch time."""
+    try:
+        year = int(period[:4])
+    except (ValueError, TypeError):
+        return False
+    return year > datetime.now(timezone.utc).year
+
+
 def fetch_fred(sid: str, freq: str, key: str) -> list:
     r = requests.get(FRED_URL.format(sid=sid, key=key), timeout=60,
                      headers={"User-Agent": "economic-atlas/0.1"})
@@ -89,7 +104,9 @@ def fetch_fred(sid: str, freq: str, key: str) -> list:
     dedup = {}
     for p, v in points:
         dedup[p] = v
-    return sorted([[p, v] for p, v in dedup.items()], key=lambda x: x[0])
+    points = sorted([[p, v] for p, v in dedup.items()], key=lambda x: x[0])
+    points = [p for p in points if not _is_future_period(p[0])]
+    return points
 
 
 def transform(points: list, kind: str | None) -> list:
@@ -334,8 +351,8 @@ def main() -> int:
          "GDP, nominal, current US$ (World Bank, annual)", "$", "years"),
         ("gdp_real", lambda: fetch_worldbank("NY.GDP.MKTP.KD"),
          "GDP, real, constant 2015 US$ (World Bank, annual)", "$", "years"),
-        ("debt_gdp", lambda: fetch_worldbank("GC.DOD.TOTL.GD.ZS"),
-         "Central government debt, total, % of GDP (World Bank, annual)", "%", "years"),
+        ("debt_gdp", lambda: fetch_fred("MARGGDGDPGDPPT", "a", key) if key else None,
+         "Total government debt, general government, % of GDP (IMF MENA REO)", "%", "years"),
         ("deficit", lambda: fetch_worldbank("GC.NLD.TOTL.GD.ZS"),
          "Net lending/net borrowing, % of GDP (World Bank, annual)", "%", "years"),
     ]
@@ -351,6 +368,29 @@ def main() -> int:
         except Exception as exc:
             failures.append(name)
             print(f"FAIL  {name:<16} {exc}")
+
+    if "debt_gdp" not in out["series"]:
+        # IMF MENA REO's MARGGDGDPGDPPT didn't come back with anything
+        # usable. Fall back to the old World Bank central-government
+        # series -- it's stuck at 2011 (WDI simply stopped publishing this
+        # specific indicator for Morocco), so it's a last resort, not a
+        # fix, but a stale number with its staleness disclosed is still
+        # better than nothing at all.
+        try:
+            wb_pts = fetch_worldbank("GC.DOD.TOTL.GD.ZS")
+            if wb_pts:
+                out["series"]["debt_gdp"] = {
+                    "label": "Central government debt, total, % of GDP (World Bank, annual "
+                             "-- STALE: this WDI series stopped being published for Morocco "
+                             "after 2011, kept only as a last-resort fallback)",
+                    "unit": "%", "freq": "years", "points": wb_pts,
+                }
+                print(f"  ok  debt_gdp (WB stale fallback) {len(wb_pts):>5} observations "
+                      f"({wb_pts[0][0]} to {wb_pts[-1][0]}, years)")
+                if "debt_gdp" in failures:
+                    failures.remove("debt_gdp")
+        except Exception as exc:
+            print(f"FAIL  debt_gdp (WB stale fallback) {exc}")
 
     # CPI handled separately since it has a two-stage fallback (OECD, then
     # World Bank annual) rather than a single source.

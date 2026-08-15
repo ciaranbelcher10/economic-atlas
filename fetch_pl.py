@@ -71,6 +71,7 @@ import requests
 # key: (fred_id, freq 'm'|'q'|'a', label, unit, transform None|'yoy'|'mom'|'qoq', scale)
 FRED_SERIES = {
     "gdp_real": ("NGDPRSAXDCPLQ", "q", "Real GDP, current national prices, SA (IMF IFS)", "PLNm", None, 1.0),
+    "gdp_level": ("NGDPSAXDCPLQ", "q", "Nominal GDP, current prices, SA (IMF IFS)", "PLNm", None, 1.0),
     "unemployment": ("LRHUTTTTPLM156S", "m", "Unemployment rate, 15+, SA (OECD harmonized)", "%", None, 1.0),
     "bond_yield_10y": ("IRLTLT01PLM156N", "m", "10-year government bond yield (OECD)", "%", None, 1.0),
     "debt_gdp": ("GGGDTAPLA188N", "a", "General government gross debt, % of GDP (IMF WEO)", "%", None, 1.0),
@@ -354,20 +355,30 @@ def main() -> int:
             failures.append(name)
             print(f"FAIL  {name:<16} {exc}")
 
-    try:
-        raw_gdp = fetch_worldbank("NY.GDP.MKTP.CD")
-        if not raw_gdp:
-            raise ValueError("no usable response")
-        scaled_gdp = [[p, round(v / 1e6, 1)] for p, v in raw_gdp]
-        out["series"]["gdp_level"] = {
-            "label": "GDP, current prices (World Bank, NY.GDP.MKTP.CD)",
-            "unit": "$m", "freq": "years", "points": scaled_gdp,
-        }
-        print(f"  ok  gdp_level        {len(scaled_gdp):>5} observations "
-              f"({scaled_gdp[0][0]} to {scaled_gdp[-1][0]}, years)")
-    except Exception as exc:
-        failures.append("gdp_level")
-        print(f"FAIL  gdp_level        {exc}")
+    if "gdp_level" not in out["series"]:
+        # NGDPSAXDCPLQ above (via FRED_SERIES) is now the primary source,
+        # genuinely denominated in PLN -- matching gdp_real and the site's
+        # local-currency-by-default convention. This World Bank USD series
+        # is now only a fallback, clearly labeled as USD so the frontend's
+        # isAlreadyUSD() guard (added this session) correctly skips
+        # re-converting it if this fallback ever gets used.
+        try:
+            raw_gdp = fetch_worldbank("NY.GDP.MKTP.CD")
+            if not raw_gdp:
+                raise ValueError("no usable response")
+            scaled_gdp = [[p, round(v / 1e6, 1)] for p, v in raw_gdp]
+            out["series"]["gdp_level"] = {
+                "label": "GDP, current prices (World Bank, NY.GDP.MKTP.CD -- USD, "
+                         "fallback: NGDPSAXDCPLQ unavailable this run)",
+                "unit": "$m", "freq": "years", "points": scaled_gdp,
+            }
+            print(f"  ok  gdp_level (WB USD fallback) {len(scaled_gdp):>5} observations "
+                  f"({scaled_gdp[0][0]} to {scaled_gdp[-1][0]}, years)")
+            if "gdp_level" in failures:
+                failures.remove("gdp_level")
+        except Exception as exc:
+            failures.append("gdp_level")
+            print(f"FAIL  gdp_level (WB USD fallback) {exc}")
 
     if not out["series"]:
         print("\nNothing fetched.")

@@ -331,8 +331,8 @@ def main() -> int:
          "FDI net inflows, % of GDP (World Bank)", "%", "years"),
         ("current_account", lambda: fetch_worldbank("BN.CAB.XOKA.GD.ZS"),
          "Current account balance, % of GDP (World Bank)", "%", "years"),
-        ("debt_gdp", lambda: fetch_worldbank("GC.DOD.TOTL.GD.ZS"),
-         "Central government debt, % of GDP (World Bank, annual)", "%", "years"),
+        ("debt_gdp", lambda: fetch_fred("QILGAM770A", "a", key) if key else None,
+         "Total credit to general government, adjusted for breaks, % of GDP (BIS)", "%", "years"),
         ("deficit", lambda: fetch_worldbank("GC.NLD.TOTL.GD.ZS"),
          "Net lending/net borrowing, % of GDP (World Bank, annual)", "%", "years"),
     ]
@@ -348,6 +348,29 @@ def main() -> int:
         except Exception as exc:
             failures.append(name)
             print(f"FAIL  {name:<16} {exc}")
+
+    if "debt_gdp" not in out["series"]:
+        # BIS's QILGAM770A didn't come back with anything usable. Fall
+        # back to the old World Bank central-government series -- it's
+        # stuck at 1999 (WDI simply stopped publishing this specific
+        # indicator for Israel), so it's a last resort, not a fix, but a
+        # stale number with its staleness disclosed is still better than
+        # nothing at all.
+        try:
+            wb_pts = fetch_worldbank("GC.DOD.TOTL.GD.ZS")
+            if wb_pts:
+                out["series"]["debt_gdp"] = {
+                    "label": "Central government debt, % of GDP (World Bank, annual -- "
+                             "STALE: this WDI series stopped being published for Israel "
+                             "after 1999, kept only as a last-resort fallback)",
+                    "unit": "%", "freq": "years", "points": wb_pts,
+                }
+                print(f"  ok  debt_gdp (WB stale fallback) {len(wb_pts):>5} observations "
+                      f"({wb_pts[0][0]} to {wb_pts[-1][0]}, years)")
+                if "debt_gdp" in failures:
+                    failures.remove("debt_gdp")
+        except Exception as exc:
+            print(f"FAIL  debt_gdp (WB stale fallback) {exc}")
 
     if not out["series"]:
         print("\nNothing fetched.")

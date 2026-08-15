@@ -89,7 +89,8 @@ import requests
 # - participation_rate (LRAC64TTDKQ156S) / employment_rate (LREM64TTDKQ156S): OECD infra-annual labour-statistics FRED family, quarterly, ages 15-64. Same pattern confirmed live for Germany (pilot); inferred-by-pattern for Denmark -- not individually confirmed, check the first Actions log.
 FRED_SERIES = {
     "gdp_growth": ("DNKGDPRQPSMEI", "q", "Real GDP growth, YoY (OECD, as published)", "%", None, 1.0),
-    "gdp_real": ("RGDPNADKA666NRUG", "a", "Real GDP, constant national prices (Penn World Table)", "$m (2021 prices)", None, 1.0),
+    "gdp_real": ("CLVMNACSCAB1GQDK", "q", "Real GDP, chained 2010 prices, SA (Eurostat)", "DKKm", None, 1.0),
+    "gdp_level": ("CPMNACSCAB1GQDK", "q", "Nominal GDP, current prices, SA (Eurostat)", "DKKm", None, 1.0),
     "unemployment": ("LRHUTTTTDKM156S", "m", "Unemployment rate, 15+, OECD-harmonized", "%", None, 1.0),
     "participation_rate": ("LRAC64TTDKQ156S", "q", "Labour force participation rate, 15-64, SA", "%", None, 1.0),
     "employment_rate": ("LREM64TTDKQ156S", "q", "Employment rate, 15-64, SA", "%", None, 1.0),
@@ -446,29 +447,36 @@ def main() -> int:
             failures.append(name)
             print(f"FAIL  {name:<16} {exc}")
 
-    # gdp_level: World Bank current-USD annual GDP, handled separately
-    # (not in the generic extras loop above) because it needs a scale
-    # correction the others don't -- this specific World Bank series
-    # reports RAW dollars, not millions (confirmed during this build by
-    # checking the actual 2024 figure), the same "667 family" scale-bug
-    # class that has bitten this codebase before. Divide by 1e6 so the
-    # site's "$m" unit label is actually accurate, not off by a factor
-    # of a million.
-    try:
-        raw_gdp = fetch_worldbank("NY.GDP.MKTP.CD")
-        if not raw_gdp:
-            raise ValueError("no usable response")
-        scaled_gdp = [[p, round(v / 1e6, 1)] for p, v in raw_gdp]
-        out["series"]["gdp_level"] = {
-            "label": "GDP, current prices (World Bank, NY.GDP.MKTP.CD)",
-            "unit": "$m", "freq": "years", "points": scaled_gdp,
-        }
-        print(f"  ok  gdp_level        {len(scaled_gdp):>5} observations "
-              f"({scaled_gdp[0][0]} to {scaled_gdp[-1][0]}, years) -- "
-              f"scaled from raw USD to $m")
-    except Exception as exc:
-        failures.append("gdp_level")
-        print(f"FAIL  gdp_level        {exc}")
+    # gdp_level: CPMNACSCAB1GQDK above (via FRED_SERIES) is now the
+    # primary source, genuinely denominated in DKK, quarterly, matching
+    # gdp_real -- upgrading from the old annual, constant-USD Penn World
+    # Table figure to something genuinely local-currency and on the same
+    # cadence as gdp_growth. This World Bank USD series is now only a
+    # fallback, clearly labeled as USD so the frontend's isAlreadyUSD()
+    # guard (added this session) correctly skips re-converting it if this
+    # fallback ever gets used. It also has its own scale quirk worth
+    # preserving in the fallback path: this specific World Bank series
+    # reports RAW dollars, not millions (confirmed during the original
+    # build by checking the actual 2024 figure), hence the /1e6.
+    if "gdp_level" not in out["series"]:
+        try:
+            raw_gdp = fetch_worldbank("NY.GDP.MKTP.CD")
+            if not raw_gdp:
+                raise ValueError("no usable response")
+            scaled_gdp = [[p, round(v / 1e6, 1)] for p, v in raw_gdp]
+            out["series"]["gdp_level"] = {
+                "label": "GDP, current prices (World Bank, NY.GDP.MKTP.CD -- USD, "
+                         "fallback: CPMNACSCAB1GQDK unavailable this run)",
+                "unit": "$m", "freq": "years", "points": scaled_gdp,
+            }
+            print(f"  ok  gdp_level (WB USD fallback) {len(scaled_gdp):>5} observations "
+                  f"({scaled_gdp[0][0]} to {scaled_gdp[-1][0]}, years) -- "
+                  f"scaled from raw USD to $m")
+            if "gdp_level" in failures:
+                failures.remove("gdp_level")
+        except Exception as exc:
+            failures.append("gdp_level")
+            print(f"FAIL  gdp_level (WB USD fallback) {exc}")
 
     if not out["series"]:
         print("\nNothing fetched.")

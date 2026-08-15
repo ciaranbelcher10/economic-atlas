@@ -2331,6 +2331,16 @@ function curFmt(rawValue, unitStr, decimals){
 function isCurrencyUnit(u){
   return u!=="%" && u!=="index" && /(m|bn|tn)$/.test(u);
 }
+function isAlreadyUSD(u){
+  // Strip a leading descriptive suffix like " (2021 prices)" the same way
+  // scaleOf() does, then check if what remains starts with a bare $. Some
+  // series (e.g. World-Bank-sourced gdp_level for several countries) are
+  // authored directly in USD rather than local currency -- converting
+  // those again through the local FX rate on "Dollarise" produces a
+  // silently wrong, double-converted figure. This guard is the fix.
+  const clean = u.replace(/\s*\([^)]*\)\s*$/, '').trim();
+  return clean.charAt(0) === "$";
+}
 function convertSeriesToUSD(series, fx){
   const toUSD = v => fx.direction==="multiply" ? v*fx.rate : v/fx.rate;
   const newUnit = "$"+series.unit.replace(/^[^a-zA-Z0-9]+/,"");
@@ -2345,7 +2355,7 @@ function buildDisplaySeries(rawSeries){
   if(TOGGLE_STATE.dollar && PAGE_DATA.fx_to_usd){
     const fx = PAGE_DATA.fx_to_usd;
     CURRENCY_KEYS.forEach(k=>{
-      if(out[k] && isCurrencyUnit(out[k].unit)) out[k]=convertSeriesToUSD(out[k], fx);
+      if(out[k] && isCurrencyUnit(out[k].unit) && !isAlreadyUSD(out[k].unit)) out[k]=convertSeriesToUSD(out[k], fx);
     });
   }
   return out;

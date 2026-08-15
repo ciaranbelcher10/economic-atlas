@@ -88,9 +88,13 @@ import requests
 # key: (fred_id, freq 'm'|'q'|'a', label, unit, transform None|'yoy'|'mom'|'qoq', scale)
 FRED_SERIES = {
     "gdp_real": ("NGDPRNSAXDCARQ", "q", "Real GDP, current national prices, NSA (IMF IFS)", "ARSm", None, 1.0),
+    "gdp_level": ("NGDPSAXDCARQ", "q", "Nominal GDP, current prices, SA (IMF IFS) -- note: SA, "
+                  "while gdp_real above is NSA, since no matching-adjustment nominal series was "
+                  "confirmed live; both are genuinely ARS-denominated so this doesn't reintroduce "
+                  "the currency-mismatch issue this was added to fix", "ARSm", None, 1.0),
     "debt_gdp": ("GGGDTAARA188N", "a", "General government gross debt, % of GDP (IMF WEO)", "%", None, 1.0),
     "deficit": ("GGNLBAARA188N", "a", "General government net lending/borrowing, % of GDP (IMF WEO)", "%", None, 1.0),
-    "fx_raw": ("CCUSMA02ARM618N", "m", "ARS per USD, average of daily rates (OECD)", "ARS", None, 1.0),
+    "fx_raw": ("ARGCCUSMA02STM", "m", "ARS per USD, average of daily rates (OECD)", "ARS", None, 1.0),
 }
 
 FRED_URL = ("https://api.stlouisfed.org/fred/series/observations"
@@ -481,20 +485,33 @@ def main() -> int:
         except Exception as exc:
             print(f"FAIL  cpi (OECD fallback) {exc}")
 
-    try:
-        raw_gdp = fetch_worldbank("NY.GDP.MKTP.CD")
-        if not raw_gdp:
-            raise ValueError("no usable response")
-        scaled_gdp = [[p, round(v / 1e6, 1)] for p, v in raw_gdp]
-        out["series"]["gdp_level"] = {
-            "label": "GDP, current prices (World Bank, NY.GDP.MKTP.CD)",
-            "unit": "$m", "freq": "years", "points": scaled_gdp,
-        }
-        print(f"  ok  gdp_level        {len(scaled_gdp):>5} observations "
-              f"({scaled_gdp[0][0]} to {scaled_gdp[-1][0]}, years)")
-    except Exception as exc:
-        failures.append("gdp_level")
-        print(f"FAIL  gdp_level        {exc}")
+    if "gdp_level" not in out["series"]:
+        # NGDPSAXDCARQ above (via FRED_SERIES) is now the primary source,
+        # genuinely denominated in ARS -- matching gdp_real and the site's
+        # local-currency-by-default convention. This World Bank USD series
+        # is now only a fallback: it was previously the primary source,
+        # and since it was already in USD, "Dollarise" was converting an
+        # already-dollar figure through the ARS/USD rate a second time,
+        # producing a badly wrong number. Clearly labeled as USD so the
+        # frontend's isAlreadyUSD() guard (added this session) correctly
+        # skips re-converting it if this fallback ever gets used.
+        try:
+            raw_gdp = fetch_worldbank("NY.GDP.MKTP.CD")
+            if not raw_gdp:
+                raise ValueError("no usable response")
+            scaled_gdp = [[p, round(v / 1e6, 1)] for p, v in raw_gdp]
+            out["series"]["gdp_level"] = {
+                "label": "GDP, current prices (World Bank, NY.GDP.MKTP.CD -- USD, "
+                         "fallback: NGDPSAXDCARQ unavailable this run)",
+                "unit": "$m", "freq": "years", "points": scaled_gdp,
+            }
+            print(f"  ok  gdp_level (WB USD fallback) {len(scaled_gdp):>5} observations "
+                  f"({scaled_gdp[0][0]} to {scaled_gdp[-1][0]}, years)")
+            if "gdp_level" in failures:
+                failures.remove("gdp_level")
+        except Exception as exc:
+            failures.append("gdp_level")
+            print(f"FAIL  gdp_level (WB USD fallback) {exc}")
 
     if not out["series"]:
         print("\nNothing fetched.")
