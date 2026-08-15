@@ -2315,9 +2315,19 @@ const CONTAINER_IDS = ["hero","tiles-gdp","tiles-inflation","tiles-labour","tile
                         "charts-headline","charts-gdp","charts-inflation","charts-labour","charts-trade","charts-public"];
 
 function scaleOf(unitStr){
-  if(/tn$/.test(unitStr)) return 1e12;
-  if(/bn$/.test(unitStr)) return 1e9;
-  if(/m$/.test(unitStr)) return 1e6;
+  // Strip a trailing descriptive suffix like " (2021 prices)" before
+  // checking the scale marker -- several countries' gdp_real unit
+  // strings (e.g. "$m (2021 prices)", "PLNbn (2010 prices)") have this,
+  // and the old end-anchored-only regex silently failed to match them,
+  // making "Make it real" display values roughly 1,000,000x too small
+  // (e.g. Thailand showing "$1m" instead of the real ~$1.5tn figure).
+  // Stripping the parenthetical first restores exact backward
+  // compatibility with every plain unit string ("$m", "PLNbn", "¥bn"
+  // etc.) while fixing every suffixed one.
+  const clean = unitStr.replace(/\s*\([^)]*\)\s*$/, '');
+  if(/tn$/.test(clean)) return 1e12;
+  if(/bn$/.test(clean)) return 1e9;
+  if(/m$/.test(clean)) return 1e6;
   return 1;
 }
 function currencySymbol(unitStr){
