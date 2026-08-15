@@ -413,6 +413,30 @@ def main() -> int:
             failures.append(name)
             print(f"FAIL  {name:<16} {exc}")
 
+    if "cpi" not in out["series"] and key:
+        # OECD's live prices system has no confirmed reliability record for
+        # Sweden specifically (unlike Denmark/Norway, which use the same
+        # OECD-only query and have been observed to succeed). CP0000SEM086NEST
+        # is Eurostat's HICP all-items index for Sweden, individually verified
+        # live via web_search (updated through Dec 2025 as of this build) --
+        # same family/pattern already used successfully for Germany and
+        # Austria's cpi series. It's an index level, so needs a YoY transform.
+        try:
+            raw = fetch_fred("CP0000SEM086NEST", "m", key)
+            yoy = [[raw[i][0], round((raw[i][1] / raw[i - 12][1] - 1) * 100, 2)]
+                   for i in range(12, len(raw)) if raw[i - 12][1]]
+            if yoy:
+                out["series"]["cpi"] = {
+                    "label": "HICP, all items, YoY (Eurostat, CP0000SEM086NEST)",
+                    "unit": "%", "freq": "months", "points": yoy,
+                }
+                print(f"  ok  cpi (HICP fallback) {len(yoy):>5} observations "
+                      f"({yoy[0][0]} to {yoy[-1][0]}, months)")
+                if "cpi" in failures:
+                    failures.remove("cpi")
+        except Exception as exc:
+            print(f"FAIL  cpi (HICP fallback) {exc}")
+
     try:
         raw_gdp = fetch_worldbank("NY.GDP.MKTP.CD")
         if not raw_gdp:

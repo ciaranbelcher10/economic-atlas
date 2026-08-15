@@ -96,6 +96,21 @@ def fred_period(date: str, freq: str) -> str:
     return f"{y}-{m:02d}"
 
 
+def _is_future_period(period: str) -> bool:
+    """True if `period` (a fred_period-format string: 'YYYY', 'YYYY-Qn', or
+    'YYYY-MM') refers to a year beyond the current calendar year. Some IMF
+    REO/WEO-derived FRED mirrors bundle several years of forward projections
+    into the same series as real observations, with no flag distinguishing
+    actual from forecast. We only want actual/estimated-to-date figures on
+    the site, so any point dated beyond the current year is dropped at
+    fetch time."""
+    try:
+        year = int(period[:4])
+    except (ValueError, TypeError):
+        return False
+    return year > datetime.now(timezone.utc).year
+
+
 def fetch_fred(sid: str, freq: str, key: str) -> list:
     r = requests.get(FRED_URL.format(sid=sid, key=key), timeout=60,
                      headers={"User-Agent": "economic-atlas/0.1"})
@@ -112,7 +127,9 @@ def fetch_fred(sid: str, freq: str, key: str) -> list:
     dedup = {}
     for p, v in points:
         dedup[p] = v
-    return sorted([[p, v] for p, v in dedup.items()], key=lambda x: x[0])
+    points = sorted([[p, v] for p, v in dedup.items()], key=lambda x: x[0])
+    points = [p for p in points if not _is_future_period(p[0])]
+    return points
 
 
 def yoy_from_level(points: list, lag: int) -> list:
@@ -357,6 +374,30 @@ def main() -> int:
         except Exception as exc:
             failures.append(name)
             print(f"FAIL  {name:<16} {exc}")
+
+    if "cpi" not in out["series"] and key:
+        # OECD's live prices system has no confirmed reliability record for
+        # Thailand (not an OECD member). THAPCPIPCPPPT is IMF Asia-Pacific
+        # REO's CPI series for Thailand, individually verified live via
+        # web_search -- same IMF APD REO family already used for Singapore's
+        # cpi/gdp_growth/current_account, annual, % YoY already. Like those,
+        # it bundles forward IMF projection years alongside real
+        # observations; fetch_fred()'s _is_future_period filter (added this
+        # session) strips anything beyond the current calendar year before
+        # it reaches the site.
+        try:
+            raw = fetch_fred("THAPCPIPCPPPT", "a", key)
+            if raw:
+                out["series"]["cpi"] = {
+                    "label": "CPI, all items, YoY (IMF Asia-Pacific REO, THAPCPIPCPPPT)",
+                    "unit": "%", "freq": "years", "points": raw,
+                }
+                print(f"  ok  cpi (REO fallback) {len(raw):>5} observations "
+                      f"({raw[0][0]} to {raw[-1][0]}, years)")
+                if "cpi" in failures:
+                    failures.remove("cpi")
+        except Exception as exc:
+            print(f"FAIL  cpi (REO fallback) {exc}")
 
     try:
         raw_gdp = fetch_worldbank("NY.GDP.MKTP.CD")

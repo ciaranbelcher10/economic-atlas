@@ -294,6 +294,96 @@ def fetch_worldbank(code: str) -> list | None:
     return points or None
 
 
+INDEC_IPC_URL = "https://www.indec.gob.ar/ftp/cuadros/economia/serie_ipc_divisiones.csv"
+
+
+def fetch_indec_cpi_yoy() -> list | None:
+    """Argentina's own national statistics office (INDEC) publishes this CSV
+    directly and keeps it current with each monthly IPC release (confirmed
+    via INDEC's own press releases through Apr 2026 as of this build) --
+    genuinely live, unlike every FRED/OECD mirror and the datos.gob.ar open
+    data API we checked (that catalog is frozen since mid-2025, orphaned by
+    a 2023-24 ministry restructuring).
+
+    IMPORTANT: the exact column layout of this CSV was NOT verified before
+    this build -- the sandbox used to build this site can't reach
+    indec.gob.ar (network egress is allowlisted to a small set of
+    dev-tooling domains only) and web-based inspection tools couldn't read
+    the raw bytes either. So instead of guessing a column position, this
+    parses defensively: it decodes with a couple of likely encodings, tries
+    comma then semicolon as the delimiter (INDEC has used both across
+    different files), and finds the "Nivel general" column by matching its
+    header text rather than assuming a fixed index. If any of that doesn't
+    hold on the real file, this returns None and cpi simply stays a
+    disclosed gap rather than silently feeding wrong numbers -- check the
+    Actions log on the first real run to see exactly what it found.
+    """
+    r = requests.get(INDEC_IPC_URL, timeout=60,
+                     headers={"User-Agent": "economic-atlas/0.1"})
+    r.raise_for_status()
+    import csv
+    import io
+    import re
+
+    raw = r.content
+    text = None
+    for enc in ("utf-8-sig", "latin-1"):
+        try:
+            text = raw.decode(enc)
+            break
+        except UnicodeDecodeError:
+            continue
+    if text is None:
+        print("  [indec-ipc] could not decode response as text")
+        return None
+
+    for delim in (";", ","):
+        try:
+            rows = list(csv.reader(io.StringIO(text), delimiter=delim))
+        except Exception:
+            continue
+        if not rows or len(rows[0]) < 2:
+            continue
+        header = [h.strip().lower() for h in rows[0]]
+        date_col = 0
+        general_col = None
+        for i, h in enumerate(header):
+            norm = re.sub(r"[^a-z0-9]", "", h)
+            if "nivelgeneral" in norm or norm == "general":
+                general_col = i
+                break
+        if general_col is None:
+            continue
+        points = []
+        for row in rows[1:]:
+            if len(row) <= max(date_col, general_col):
+                continue
+            date_raw = row[date_col].strip()
+            val_raw = row[general_col].strip().replace(",", ".")
+            m = re.match(r"(\d{4})-(\d{1,2})", date_raw)
+            if not m:
+                continue
+            period = f"{m.group(1)}-{int(m.group(2)):02d}"
+            try:
+                points.append([period, float(val_raw)])
+            except ValueError:
+                continue
+        if len(points) >= 24:
+            points.sort(key=lambda p: p[0])
+            yoy = [[points[i][0], round((points[i][1] / points[i - 12][1] - 1) * 100, 2)]
+                   for i in range(12, len(points)) if points[i - 12][1]]
+            if yoy:
+                print(f"  [indec-ipc] delimiter={delim!r} SUCCESS: {len(yoy)} points, "
+                      f"{yoy[0][0]} to {yoy[-1][0]}")
+                return yoy
+        print(f"  [indec-ipc] delimiter={delim!r} found header but only "
+              f"{len(points)} usable rows -- rejecting")
+    print("  [indec-ipc] could not locate a 'Nivel general' column with "
+          "either delimiter; raw header row: " + repr(text.splitlines()[0][:200]
+          if text.splitlines() else "(empty)"))
+    return None
+
+
 def main() -> int:
     out = {
         "updated": datetime.now(timezone.utc).strftime("%Y-%m-%dT%H:%M:%SZ"),
@@ -352,8 +442,8 @@ def main() -> int:
     extras = [
         ("business_confidence", lambda: fetch_oecd_bci(),
          "Business confidence indicator, LT avg = 100 (OECD BCICP)", "index", "months"),
-        ("cpi", lambda: fetch_oecd_cpi(("ARG",), "M"),
-         "CPI, all items, YoY (OECD live prices system)", "%", "months"),
+        ("cpi", lambda: fetch_indec_cpi_yoy(),
+         "CPI, all items, YoY (INDEC, national statistics office)", "%", "months"),
         ("unemployment", lambda: fetch_worldbank("SL.UEM.TOTL.ZS"),
          "Unemployment, total (modeled ILO estimate, World Bank)", "%", "years"),
         ("fdi", lambda: fetch_worldbank("BX.KLT.DINV.WD.GD.ZS"),
@@ -371,6 +461,25 @@ def main() -> int:
         except Exception as exc:
             failures.append(name)
             print(f"FAIL  {name:<16} {exc}")
+
+    if "cpi" not in out["series"]:
+        # INDEC's CSV parse didn't produce anything usable (see the
+        # [indec-ipc] log lines above for why). Fall back to OECD's live
+        # prices system as a second attempt before giving up and leaving
+        # cpi as a disclosed gap.
+        try:
+            oecd_pts = fetch_oecd_cpi(("ARG",), "M")
+            if oecd_pts:
+                out["series"]["cpi"] = {
+                    "label": "CPI, all items, YoY (OECD live prices system)",
+                    "unit": "%", "freq": "months", "points": oecd_pts,
+                }
+                print(f"  ok  cpi (OECD fallback) {len(oecd_pts):>5} observations "
+                      f"({oecd_pts[0][0]} to {oecd_pts[-1][0]}, months)")
+                if "cpi" in failures:
+                    failures.remove("cpi")
+        except Exception as exc:
+            print(f"FAIL  cpi (OECD fallback) {exc}")
 
     try:
         raw_gdp = fetch_worldbank("NY.GDP.MKTP.CD")
