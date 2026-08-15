@@ -12,7 +12,7 @@
 })();</script>
 <meta name="viewport" content="width=device-width, initial-scale=1">
 <title>The Economic Atlas</title>
-<meta name="description" content="Hourly-updating economic data from official sources only, no commentary. 18 economies across Europe, the Americas, Asia, Africa and the Middle East.">
+<meta name="description" content="Hourly-updating economic data from official sources only, no commentary. Economies across Europe, the Americas, Asia, Africa and the Middle East.">
 <script type="application/ld+json">
 {
   "@context": "https://schema.org",
@@ -27,7 +27,7 @@
       "@type": "WebSite",
       "name": "The Economic Atlas",
       "url": "https://theeconomicatlas.com/",
-      "description": "Hourly updating economic data only fetched from official sources, no commentary, across 18 economies.",
+      "description": "Hourly updating economic data only fetched from official sources, no commentary, across dozens of economies.",
       "publisher": {"@type": "Organization", "name": "The Economic Atlas"}
     }
   ]
@@ -36,7 +36,7 @@
 <meta property="og:type" content="website">
 <meta property="og:site_name" content="The Economic Atlas">
 <meta property="og:title" content="The Economic Atlas">
-<meta property="og:description" content="Hourly-updating economic data from official sources only, no commentary. 18 economies across Europe, the Americas, Asia, Africa and the Middle East.">
+<meta property="og:description" content="Hourly-updating economic data from official sources only, no commentary. Economies across Europe, the Americas, Asia, Africa and the Middle East.">
 <meta property="og:url" content="https://theeconomicatlas.com/">
 <meta property="og:image" content="https://theeconomicatlas.com/og-image.png">
 <meta property="og:image:width" content="1200">
@@ -44,7 +44,7 @@
 <meta property="og:image:alt" content="The Economic Atlas -- hourly economic data, no commentary.">
 <meta name="twitter:card" content="summary_large_image">
 <meta name="twitter:title" content="The Economic Atlas">
-<meta name="twitter:description" content="Hourly-updating economic data from official sources only, no commentary. 18 economies across Europe, the Americas, Asia, Africa and the Middle East.">
+<meta name="twitter:description" content="Hourly-updating economic data from official sources only, no commentary. Economies across Europe, the Americas, Asia, Africa and the Middle East.">
 <meta name="twitter:image" content="https://theeconomicatlas.com/og-image.png">
 <link rel="canonical" href="https://theeconomicatlas.com/">
 <link rel="preconnect" href="https://fonts.googleapis.com">
@@ -52,7 +52,7 @@
 <link href="https://fonts.googleapis.com/css2?family=Nunito+Sans:wght@400;600;700&display=swap" rel="stylesheet">
 <link rel="icon" type="image/png" sizes="32x32" href="favicon-32.png">
 <link rel="apple-touch-icon" href="apple-touch-icon.png">
-<link rel="stylesheet" href="style.css?v=39">
+<link rel="stylesheet" href="style.css?v=40">
 <style>
 .mapwrap{background:var(--panel); border:1px solid var(--hair); border-radius:16px;
   padding:14px; margin:22px 0 18px; position:relative; overflow:hidden;}
@@ -144,7 +144,7 @@
         <a href="sweden">Sweden</a>
       </div>
       <div class="dcol">
-        <p class="dhead">Europe</p>
+        <p class="dhead">Other Europe</p>
         <a href="turkey">Turkey</a>
         <a href="poland">Poland</a>
         <a href="switzerland">Switzerland</a>
@@ -197,11 +197,6 @@
     <span class="savebar-icon" aria-hidden="true">&#9203;</span>
     <p id="trialBannerText"></p>
     <a href="pricing" class="btn" style="padding:6px 14px; font-size:13px; flex-shrink:0;">Upgrade to Pro</a>
-  </div>
-  <div class="savebar" id="mobileBanner" hidden>
-    <span class="savebar-icon" aria-hidden="true">&#128187;</span>
-    <p>The Economic Atlas works best on a desktop, laptop or tablet. We're actively improving the mobile experience -- thanks for your patience.</p>
-    <button type="button" class="savebar-close" id="mobileBannerClose" aria-label="Dismiss">&times;</button>
   </div>
 </div>
 <div id="cookieBanner" role="region" aria-label="Cookie consent">
@@ -1364,11 +1359,11 @@
 <div class="wrap">
 <header class="page">
   <h1 class="hero-h1"><span class="hero-led" aria-hidden="true"></span>Welcome to The Economic Atlas</h1>
-  <p class="subline">Hourly updating data only fetched from official sources, no commentary. 18 economies across Europe, the Americas, Asia, Africa and the Middle East are live.</p>
+  <p class="subline">Hourly updating data only fetched from official sources, no commentary. Economies across Europe, the Americas, Asia, Africa and the Middle East are live.</p>
 </header>
 
 <div class="mapwrap">
-  <svg id="map" viewBox="0 0 960 500" role="img" aria-label="World map. 18 economies across Europe, the Americas, Asia, Africa and the Middle East are highlighted; selecting one opens its economy page."></svg>
+  <svg id="map" viewBox="0 0 960 500" role="img" aria-label="World map. Economies across Europe, the Americas, Asia, Africa and the Middle East are highlighted; selecting one opens its economy page."></svg>
   <div id="maptip" aria-hidden="true"></div>
   <span class="zoomhint">Scroll or pinch to zoom</span>
   <p id="maperr">The map couldn't load (it needs an internet connection). Use "Country Breakdowns" in the menu above instead.</p>
@@ -1546,48 +1541,6 @@ fetch("https://cdn.jsdelivr.net/npm/world-atlas@2/countries-110m.json")
 <script>
 (function(){
   "use strict";
-  // Interim mobile notice -- shown once per SESSION (not permanently
-  // dismissed like the alert banner), since this is a stopgap ahead of a
-  // real mobile optimisation pass, not a permanent piece of UI. Reappears
-  // on the next visit so it keeps being useful while the underlying
-  // experience is still being improved.
-  var mBanner = document.getElementById("mobileBanner");
-  if(!mBanner) return;
-  var SESSION_KEY = "eatlas_mobile_banner_dismissed";
-  var dismissedThisSession = false;
-  try{ dismissedThisSession = sessionStorage.getItem(SESSION_KEY) === "1"; }catch(e){}
-  // Real mobile screenshots showed this banner rendering at the same time
-  // as the onboarding tour's own tooltip box, plus the cookie banner --
-  // three overlays stacked on a small screen at once. The tour and this
-  // banner are set up independently (different scripts, no shared gate),
-  // so rather than couple them tightly, wait a moment and defer to
-  // whichever one actually shows up: if a .tour-box is on screen when
-  // the delay fires, skip showing this banner for now and let the tour
-  // own the screen -- it'll get another chance once the tour's gone.
-  function maybeShowMobileBanner(){
-    if(dismissedThisSession) return;
-    if(window.innerWidth >= 768) return;
-    if(document.querySelector(".tour-box")) return;
-    mBanner.hidden = false;
-  }
-  // Disabled: the "works better on desktop" notice was a stopgap during
-  // early mobile work and is no longer wanted -- the auto-trigger is
-  // removed rather than the whole block so the dismiss-button wiring
-  // below stays harmless dead code instead of needing its own removal.
-  // #mobileBanner is `hidden` by default in the markup, so simply never
-  // calling maybeShowMobileBanner() means it never appears.
-  var mClose = document.getElementById("mobileBannerClose");
-  if(mClose){
-    mClose.addEventListener("click", function(){
-      mBanner.hidden = true;
-      try{ sessionStorage.setItem(SESSION_KEY, "1"); }catch(e){}
-    });
-  }
-})();
-</script>
-<script>
-(function(){
-  "use strict";
   // ------------------------- Onboarding tour --------------------------
   // v4: fixes from a second round of live screenshot feedback --
   //  (1) Auto-advance: previously every step needed a manual "Next"
@@ -1658,7 +1611,7 @@ fetch("https://cdn.jsdelivr.net/npm/world-atlas@2/countries-110m.json")
 
   var TOUR_STEPS = [
     { page: "index", type: "center", title: "New here? A 2-minute tour.",
-      body: "The Economic Atlas pulls hourly, official data across 18 countries \u2014 no commentary, just numbers. This short tour shows you around. Exit any time from the link in each box." },
+      body: "The Economic Atlas pulls hourly, official data across dozens of countries \u2014 no commentary, just numbers. This short tour shows you around. Exit any time from the link in each box." },
     { page: "index", type: "anchor", target: function(){ return findMapPath("826"); }, title: "Start with a country",
       body: "Click the UK on the map to see headline figures, inflation, rates, trade and more, all in one place. That's the next stop on the tour." },
 
@@ -2142,14 +2095,12 @@ fetch("https://cdn.jsdelivr.net/npm/world-atlas@2/countries-110m.json")
   var replayBtn = document.getElementById("tourReplayLink");
   if(replayBtn) replayBtn.addEventListener("click", startTour);
 
-  // Resume mid-tour if state says so and the current step belongs here;
-  // otherwise, auto-start once ever for a genuinely first-time visitor.
-  // Mobile is excluded entirely -- the tour's anchored tooltip boxes are
-  // built for desktop-sized panels and don't hold up on small screens,
-  // so it neither resumes nor auto-starts below the 768px breakpoint
-  // used elsewhere on the site (see the mobile-banner check above).
+  // Tour disabled entirely, for everyone, on every device -- auto-start
+  // and resume are both hard-disabled below rather than removed outright,
+  // so re-enabling later (if ever wanted) is a one-line change back to
+  // the previous width-gated condition rather than rebuilding this block.
   var state = getState();
-  if(window.innerWidth >= 768){
+  if(false){
     if(state.active && TOUR_STEPS[state.stepIndex] && TOUR_STEPS[state.stepIndex].page === THIS_PAGE){
       renderStepWhenReady(state.stepIndex);
     } else if(!state.active && !hasSeenBefore()){
