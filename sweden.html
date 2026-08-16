@@ -235,6 +235,15 @@ html[data-theme="dark"] .tpm-scopenote strong{color:var(--blue);}
 </style>
 </head>
 <body>
+<div id="adminGateOverlay" style="position:fixed;inset:0;z-index:99999;background:#0b1220;color:#e5e7eb;display:flex;align-items:center;justify-content:center;text-align:center;padding:24px;font-family:inherit;">
+  <div style="max-width:480px;">
+    <p style="font-size:13px;letter-spacing:0.08em;text-transform:uppercase;color:#38bdf8;margin:0 0 12px;">Temporarily unavailable</p>
+    <h1 style="font-size:26px;margin:0 0 16px;line-height:1.2;">This page is being updated</h1>
+    <p style="color:#9ca3af;line-height:1.5;margin:0;">We're fixing data issues on this country page. It's limited to admin accounts while that's in progress -- check back soon.</p>
+    <p style="margin:20px 0 0;"><a href="index" style="color:#38bdf8;text-decoration:none;">&larr; Back to all countries</a></p>
+  </div>
+</div>
+
 
 <nav class="top"><div class="wrap">
   <a class="brand" href="index"><img src="logo-64.png" alt="" width="26" height="26" style="display:block;border-radius:50%;background:#fff;padding:1px;">The Economic Atlas</a>
@@ -3789,6 +3798,25 @@ document.querySelectorAll(".mtbtn").forEach(function(btn){
   if(window.EATLAS_PREFS && window.EATLAS_PREFS.registerBanner){
     window.EATLAS_PREFS.registerBanner(banner);
   }
+})();
+</script>
+<script>
+(function(){
+  // Admin-only gate while data issues on this page are being fixed. Fails
+  // closed: the overlay in the markup above blocks the page immediately,
+  // synchronously, with no dependency on JS execution order -- this
+  // script only ever REMOVES it, and only once EATLAS_PREFS has
+  // genuinely confirmed admin status. If EATLAS_PREFS never loads (script
+  // error, ad blocker, etc.) the overlay simply stays up, which is the
+  // correct fail-safe direction for this gate.
+  function checkAdminGate(){
+    if(!window.EATLAS_PREFS){ setTimeout(checkAdminGate, 50); return; }
+    window.EATLAS_PREFS.ready.then(function(){
+      var overlay = document.getElementById("adminGateOverlay");
+      if(overlay && window.EATLAS_PREFS.isAdmin()) overlay.remove();
+    });
+  }
+  checkAdminGate();
 })();
 </script>
 </body>
