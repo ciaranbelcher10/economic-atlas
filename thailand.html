@@ -2224,7 +2224,7 @@ function render(data){
   // or it silently mislabels whichever one is actually showing.
   const gdpLevelIsUsdFallback = s.gdp_level && /^\$/.test(s.gdp_level.unit || "");
   const SRC_GDP_LEVEL = gdpLevelIsUsdFallback ? SRC_GDP_LEVEL_USD_FALLBACK : SRC_GDP_LEVEL_THB;
-  const SRC_GDP_REAL="FRED series RGDPNATHA666NRUG \u00b7 Penn World Table 11.0 (University of Groningen / UC Davis), ANNUAL, millions of 2021 US$. Confirmed live but through 2023 only at time of build -- the Penn World Table has a genuine 1-2 year publication lag, not a fetch error. NOTE: this series is PPP-benchmarked, not on the same basis as gdp_level -- it is used only for the YoY growth-rate calculation below, never substituted as a GDP level (see GDP_REAL_NOT_LEVEL_COMPARABLE).";
+  const SRC_GDP_REAL="World Bank NY.GDP.MKTP.KN \u00b7 GDP, constant prices, local currency units, annual. Switched from Penn World Table's PPP-benchmarked rgdpna, which produced a \"real GDP\" figure ~2.6x nominal when substituted into the level card -- this series is on the same basis (constant Thai baht) as gdp_level.";
   const SRC_TRADE="OECD \u00b7 merchandise trade, monthly";
   const SRC_FISCAL="FRED series DEBTTLTHA188A \u00b7 World Bank World Development Indicators, CENTRAL government debt (not general government -- no verified general-government series was found for Thailand), % of GDP, annual.";
   const SRC_WB="World Bank \u00b7 % of GDP, annual";
@@ -2306,12 +2306,11 @@ function render(data){
 /* ---------------------- Dollarise / Make it real ---------------------- */
 let PAGE_DATA = null;
 const TOGGLE_STATE = { real:false, dollar:false };
-// See buildDisplaySeries()/rerender() below for why this exists: Thailand's
-// only live gdp_real source (Penn World Table rgdpna) is PPP-benchmarked,
-// not comparable on the same basis as gdp_level (market-exchange-rate
-// nominal GDP), so it cannot be used as a "real terms" substitute for the
-// GDP level card.
-const GDP_REAL_NOT_LEVEL_COMPARABLE = true;
+// NOTE: gdp_real used to be Penn World Table's rgdpna (PPP-benchmarked,
+// NOT comparable to gdp_level), which required disabling "Make it real"
+// entirely -- see fetch_th.py's build notes. gdp_real is now World Bank
+// NY.GDP.MKTP.KN (constant LCU), on the same basis as gdp_level, so the
+// toggle is enabled normally like every other country.
 const CURRENCY_KEYS = ["gdp_level","gdp_real","net_debt","deficit","trade_balance","exports","imports"];
 const CONTAINER_IDS = ["hero","tiles-gdp","tiles-inflation","tiles-labour","tiles-trade","tiles-public",
                         "charts-headline","charts-gdp","charts-inflation","charts-labour","charts-trade","charts-public"];
@@ -2381,20 +2380,7 @@ function convertSeriesToUSD(series, fx){
 function buildDisplaySeries(rawSeries){
   const out = {};
   for(const k in rawSeries) out[k]=rawSeries[k];
-  // GDP_REAL_NOT_LEVEL_COMPARABLE: Thailand's only live gdp_real source is
-  // Penn World Table's rgdpna ("real GDP at constant national prices"),
-  // which is benchmarked to a fixed reference year using PPP-based
-  // conversion factors, NOT the market exchange rate that gdp_level (World
-  // Bank, current US$) uses. It is legitimate for computing growth rates
-  // over time (see gdp_growth below, unaffected by this guard) but is NOT
-  // on the same basis as gdp_level -- swapping it in directly produced a
-  // "real" GDP figure ~2.6x LARGER than nominal (Thailand's actual PPP GDP
-  // is genuinely much larger than its market-exchange-rate GDP; this is a
-  // correct feature of the underlying data, not a units bug, but it makes
-  // rgdpna unusable as a drop-in substitute for gdp_level here). See
-  // rerender() below, which disables the "Make it real" toggle entirely
-  // for this reason rather than showing a misleading number.
-  if(TOGGLE_STATE.real && out.gdp_real && typeof GDP_REAL_NOT_LEVEL_COMPARABLE === "undefined"){
+  if(TOGGLE_STATE.real && out.gdp_real){
     out.gdp_level = out.gdp_real;
   }
   if(TOGGLE_STATE.dollar && PAGE_DATA.fx_to_usd){
@@ -2423,10 +2409,6 @@ function rerender(){
   dollarBtn.classList.remove("disabled");
   dollarBtn.title="";
   if(!s.gdp_real) realBtn.classList.add("disabled");
-  if(typeof GDP_REAL_NOT_LEVEL_COMPARABLE !== "undefined"){
-    realBtn.classList.add("disabled");
-    realBtn.title="Thailand's only real-GDP source (Penn World Table) is PPP-benchmarked, not on the same basis as nominal GDP -- showing it as \"real GDP\" would overstate the figure by roughly 2.5x, not adjust it for inflation. Disabled until a comparable local-currency real GDP series is found.";
-  }
   const alreadyUsd = COUNTRY_LABEL==="US";
   if(alreadyUsd){
     dollarBtn.classList.add("disabled");

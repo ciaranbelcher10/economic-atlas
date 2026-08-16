@@ -23,16 +23,25 @@ web_search before wiring in -- sandbox network cannot reach
 fred.stlouisfed.org directly, so these are page-content confirmations,
 not live API test calls; the first real Actions run is still the
 genuine test):
-- gdp_real (RGDPNATHA666NRUG): CONFIRMED live (through 2023, updated
-  Feb 2026), Penn World Table 11.0, millions of 2021 US$, ANNUAL. Real
-  GDP LEVEL, not growth -- gdp_growth is derived from this via YoY
-  transform, same pattern as most other countries on this site (unlike
-  Singapore, where gdp_growth came as a direct %-change series).
-- gdp_level (World Bank NY.GDP.MKTP.CD, country=THA): standard
-  fetch_worldbank() mechanism, same raw-USD-to-$m scale correction
-  (1e-6) as every other country using this indicator family. Thailand
-  IS a World Bank member (unlike Taiwan, which was skipped this batch
-  specifically because it is not).
+- gdp_real (World Bank NY.GDP.MKTP.KN, "GDP (constant LCU)"): switched
+  from Penn World Table's rgdpna during a later session -- rgdpna is
+  PPP-benchmarked and produced a "real GDP" figure ~2.6x LARGER than
+  nominal when substituted into the GDP level card, which is a correct
+  feature of that series (Thailand's PPP GDP genuinely is much larger
+  than its market-exchange-rate GDP) but made it unusable as a same-
+  basis real/nominal comparison. NY.GDP.MKTP.KN is genuine national-
+  accounts real GDP in constant Thai baht -- same currency, same World
+  Bank family as gdp_level, just price-level-adjusted. gdp_growth is
+  derived from this via YoY transform, same pattern as most other
+  countries on this site.
+- gdp_level (World Bank NY.GDP.MKTP.CN.AD, "GDP: linked series, current
+  LCU"): also switched during the same later session, from the USD
+  variant (NY.GDP.MKTP.CD) which is still kept as a fallback if this one
+  fails a given run. Genuinely denominated in Thai baht -- standard
+  fetch_worldbank() mechanism, same raw-value-to-$m/THBm scale
+  correction (1e-6) as every other country using this indicator family.
+  Thailand IS a World Bank member (unlike Taiwan, which was skipped this
+  batch specifically because it is not).
 - unemployment (World Bank SL.UEM.TOTL.ZS, modeled ILO estimate):
   same mechanism used for Indonesia/Argentina/Singapore. Real published
   figures put Thailand's unemployment at roughly 0.5-1%, genuinely one
@@ -77,7 +86,6 @@ import requests
 
 # key: (fred_id, freq 'm'|'q'|'a', label, unit, transform None|'yoy'|'mom'|'qoq', scale)
 FRED_SERIES = {
-    "gdp_real": ("RGDPNATHA666NRUG", "a", "Real GDP, constant national prices (Penn World Table 11.0)", "$m (2021 prices)", None, 1.0),
     "debt_gdp": ("DEBTTLTHA188A", "a", "Central government debt, % of GDP (World Bank)", "%", None, 1.0),
     "fx_raw": ("DEXTHUS", "m", "THB per USD, average of daily rates (Fed H.10)", "THB", None, 1.0),
 }
@@ -326,18 +334,10 @@ def main() -> int:
                 failures.append(name)
                 print(f"FAIL  {name:<16} {exc}")
 
-        # gdp_growth: derived as YoY from the real-GDP LEVEL series above
-        # (unlike Singapore, where gdp_growth came as a direct %-change
-        # series -- Thailand's Penn World Table series is a level).
-        if "gdp_real" in out["series"]:
-            level_pts = out["series"]["gdp_real"]["points"]
-            growth_pts = yoy_from_level(level_pts, 1)
-            if growth_pts:
-                out["series"]["gdp_growth"] = {
-                    "label": "Real GDP growth, YoY (derived from RGDPNATHA666NRUG)",
-                    "unit": "%", "freq": "years", "points": growth_pts,
-                }
-                print(f"  ok  gdp_growth      {len(growth_pts):>5} observations (derived YoY)")
+        # gdp_growth: derived as YoY from the real-GDP LEVEL series, added
+        # below after the World Bank gdp_real fetch (moved out from behind
+        # the FRED_API_KEY gate -- World Bank's API needs no key, so this
+        # shouldn't be skipped just because FRED_API_KEY is unset).
 
         try:
             sid, freq, _, _, _, _ = FRED_SERIES["fx_raw"]
@@ -398,6 +398,43 @@ def main() -> int:
                     failures.remove("cpi")
         except Exception as exc:
             print(f"FAIL  cpi (REO fallback) {exc}")
+
+    # gdp_real: switched from Penn World Table's rgdpna (PPP-benchmarked,
+    # NOT comparable to gdp_level -- see the frontend's now-removed
+    # GDP_REAL_NOT_LEVEL_COMPARABLE guard for the full diagnosis of why
+    # that produced a "real GDP" ~2.6x LARGER than nominal) to World Bank
+    # NY.GDP.MKTP.KN, "GDP (constant LCU)" -- genuinely national-accounts
+    # real GDP in constant Thai baht, on the SAME basis as gdp_level
+    # (NY.GDP.MKTP.CN.AD, current LCU): same currency, same World Bank
+    # national-accounts family, just price-level-adjusted. This is what
+    # actually makes "Make it real" mean something here. No FRED_API_KEY
+    # required (World Bank's API is free/unauthenticated), so this runs
+    # unconditionally rather than being gated behind the FRED key check.
+    try:
+        raw_real = fetch_worldbank("NY.GDP.MKTP.KN")
+        if not raw_real:
+            raise ValueError("no usable response")
+        scaled_real = [[p, round(v / 1e6, 1)] for p, v in raw_real]
+        out["series"]["gdp_real"] = {
+            "label": "GDP, constant prices (World Bank, NY.GDP.MKTP.KN)",
+            "unit": "THBm", "freq": "years", "points": scaled_real,
+        }
+        print(f"  ok  gdp_real (THB constant) {len(scaled_real):>5} observations "
+              f"({scaled_real[0][0]} to {scaled_real[-1][0]}, years)")
+    except Exception as exc:
+        failures.append("gdp_real")
+        print(f"FAIL  gdp_real (THB constant) {exc}")
+
+    # gdp_growth: derived as YoY from the real-GDP LEVEL series above.
+    if "gdp_real" in out["series"]:
+        level_pts = out["series"]["gdp_real"]["points"]
+        growth_pts = yoy_from_level(level_pts, 1)
+        if growth_pts:
+            out["series"]["gdp_growth"] = {
+                "label": "Real GDP growth, YoY (derived from NY.GDP.MKTP.KN)",
+                "unit": "%", "freq": "years", "points": growth_pts,
+            }
+            print(f"  ok  gdp_growth      {len(growth_pts):>5} observations (derived YoY)")
 
     # gdp_level: World Bank NY.GDP.MKTP.CN.AD ("GDP: linked series, current
     # LCU") is genuinely denominated in Thai baht -- confirmed to exist via
