@@ -2219,7 +2219,7 @@ function renderLastUpdated(updatedIso){
 function render(data){
   const s=data.series;
   if(data.sample){const sb=document.getElementById("sampleBadge");sb.textContent="Sample data: run fetch_pl.py for live figures";sb.classList.add("show");}
-  const gdpAnnual = s.gdp_level ? s.gdp_level : null;   /* Poland's gdp_level (World Bank, current USD, annual) is already annual -- no quarterly-to-annual rollup needed here, unlike the IMF IFS quarterly series used on some other pages */
+  const gdpAnnual = s.gdp_level ? s.gdp_level : null;   /* NOTE: gdp_level is World Bank USD annual by default, but buildDisplaySeries() swaps it for the quarterly IMF IFS PLN series (gdp_real) when "Make it real" is on -- both series are the same quarterly-level (not annualized-flow) family, so no rollup mismatch like the Eurostat quarterly-flow countries */
   const gdpYoY = s.gdp_real ? yoyGDP(s.gdp_real) : null;
 
   const pct=v=>v.toFixed(1)+"%", pp=v=>v.toFixed(1)+"pp";
@@ -2228,6 +2228,7 @@ function render(data){
   const idx=v=>v.toFixed(1);
   const SRC_GDP_LEVEL="World Bank NY.GDP.MKTP.CD \u00b7 current US$, annual";
   const SRC_GDP_REAL="FRED series NGDPRSAXDCPLQ \u00b7 IMF International Financial Statistics, quarterly, seasonally adjusted";
+  const SRC_GDP_LEVEL_CURRENT = TOGGLE_STATE.real ? SRC_GDP_REAL : SRC_GDP_LEVEL;
   const SRC_TRADE="OECD \u00b7 merchandise trade, monthly";
   const SRC_FISCAL="FRED series GGGDTAPLA188N / GGNLBAPLA188N \u00b7 IMF World Economic Outlook, general government, % of GDP, annual. Poland is an EU member and Eurostat also publishes a quarterly debt/GDP series that covers it, but the IMF-WEO annual figures were used here for consistency with the fetch pipeline's simpler, already-proven code path.";
   const SRC_WB="World Bank \u00b7 % of GDP, annual";
@@ -2244,7 +2245,7 @@ function render(data){
 
   if(gdpAnnual) chartPanel("gdp_level","charts-gdp","GDP",
     "The total value of everything Poland produces in a year, at current prices.",
-    gdpAnnual,"line",v=>curFmt(v,s.gdp_level.unit,2),v=>curFmt(v,s.gdp_level.unit,2),SRC_GDP_LEVEL,1996);
+    gdpAnnual,"line",v=>curFmt(v,s.gdp_level.unit,2),v=>curFmt(v,s.gdp_level.unit,2),SRC_GDP_LEVEL_CURRENT,1996);
   if(s.gdp_growth) chartPanel("gdp_growth","charts-gdp","Real GDP growth, quarter on quarter",
     "How much the economy grew or shrank compared with the previous three months.",
     s.gdp_growth,"bar",v=>v+"%",pct,SRC_GDP_REAL,1999,0);
@@ -2276,7 +2277,7 @@ function render(data){
 
   const hero=document.getElementById("hero");
   if(gdpAnnual) statTile(hero,"gdp_level","GDP (annual)",gdpAnnual,
-    {fmt:v=>curFmt(v,s.gdp_level.unit,2),fmtD:v=>curFmt(v,s.gdp_level.unit,1),upIsGood:true,source:SRC_GDP_LEVEL});
+    {fmt:v=>curFmt(v,s.gdp_level.unit,2),fmtD:v=>curFmt(v,s.gdp_level.unit,1),upIsGood:true,source:SRC_GDP_LEVEL_CURRENT});
   if(s.gdp_growth) statTile(hero,"gdp_growth","GDP growth (QoQ)",s.gdp_growth,
     {fmt:pct,fmtD:pp,upIsGood:true,source:SRC_GDP_REAL});
   if(s.cpi) statTile(hero,"cpi","CPI inflation",s.cpi,
@@ -2296,7 +2297,7 @@ function render(data){
 
   const tg=document.getElementById("tiles-gdp");
   if(gdpAnnual) statTile(tg,"gdp_level","GDP (annual)",gdpAnnual,
-    {fmt:v=>curFmt(v,s.gdp_level.unit,2),fmtD:v=>curFmt(v,s.gdp_level.unit,1),upIsGood:true,source:SRC_GDP_LEVEL});
+    {fmt:v=>curFmt(v,s.gdp_level.unit,2),fmtD:v=>curFmt(v,s.gdp_level.unit,1),upIsGood:true,source:SRC_GDP_LEVEL_CURRENT});
   if(s.gdp_growth) statTile(tg,"gdp_growth","Growth (QoQ)",s.gdp_growth,
     {fmt:pct,fmtD:pp,upIsGood:true,source:SRC_GDP_REAL});
   if(gdpYoY) statTile(tg,null,"Growth (YoY)",gdpYoY,
@@ -2350,7 +2351,9 @@ function scaleOf(unitStr){
 }
 function currencySymbol(unitStr){
   const m = unitStr.match(/^[^a-zA-Z0-9]+/);
-  return m ? m[0] : "";
+  if(m) return m[0];
+  const code = unitStr.match(/^([A-Z]{3})(m|bn|tn)?(\s|$)/);
+  return code ? code[1] : "";  // no trailing space -- tight spacing, e.g. "PLN833.98bn"
 }
 function curFmt(rawValue, unitStr, decimals){
   const scale = scaleOf(unitStr);

@@ -310,16 +310,20 @@ def main() -> int:
                 failures.append(name)
                 print(f"FAIL  {name:<16} {exc}")
 
-        # gdp_growth: derived as YoY from the real-GDP level series above.
+        # gdp_growth: derived as QoQ from the real-GDP level series above.
+        # NOTE: lag=1 is genuine quarter-on-quarter for quarterly data --
+        # lag=4 (the old value) is YoY, which duplicated the separately-
+        # computed gdpYoY frontend variable under a card titled "QoQ".
+        # See the Switzerland Bug 6 writeup for the full diagnosis.
         if "gdp_real" in out["series"]:
             level_pts = out["series"]["gdp_real"]["points"]
-            growth_pts = yoy_from_level(level_pts, 4)
+            growth_pts = yoy_from_level(level_pts, 1)
             if growth_pts:
                 out["series"]["gdp_growth"] = {
-                    "label": "Real GDP growth, YoY (derived from NGDPRSAXDCPLQ)",
+                    "label": "Real GDP growth, QoQ (derived from NGDPRSAXDCPLQ)",
                     "unit": "%", "freq": "quarters", "points": growth_pts,
                 }
-                print(f"  ok  gdp_growth      {len(growth_pts):>5} observations (derived YoY)")
+                print(f"  ok  gdp_growth      {len(growth_pts):>5} observations (derived QoQ)")
 
         try:
             sid, freq, _, _, _, _ = FRED_SERIES["fx_raw"]
@@ -379,6 +383,29 @@ def main() -> int:
         except Exception as exc:
             failures.append("gdp_level")
             print(f"FAIL  gdp_level (WB USD fallback) {exc}")
+
+    # Carry forward any series that failed THIS run but succeeded on a
+    # previous run, so a transient failure (e.g. FRED 429 rate-limiting)
+    # doesn't permanently wipe good data from the live page. See the
+    # Switzerland/Chile/Colombia Bug 7 writeup -- this only protects
+    # against future data loss, applied here to close the same gap for
+    # Poland.
+    try:
+        with open("data-pl.json") as f:
+            _prev_for_merge = json.load(f)
+    except Exception:
+        _prev_for_merge = {}
+    _prev_series = _prev_for_merge.get("series", {})
+    carried_over = []
+    for k, v in _prev_series.items():
+        if k not in out["series"]:
+            out["series"][k] = v
+            carried_over.append(k)
+    if carried_over:
+        print(f"CARRIED OVER from previous run (failed this run, kept prior data rather than deleting it): {', '.join(carried_over)}")
+    if not out.get("fx_to_usd") and _prev_for_merge.get("fx_to_usd"):
+        out["fx_to_usd"] = _prev_for_merge["fx_to_usd"]
+        print("CARRIED OVER fx_to_usd from previous run")
 
     if not out["series"]:
         print("\nNothing fetched.")
