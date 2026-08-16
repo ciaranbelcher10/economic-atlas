@@ -48,11 +48,13 @@ wiring in -- v1.1.5 build):
 - business_confidence: OECD BCICP via SDMX, same multi-query fallback
   pattern already used for every other country, REF_AREA=IRL.
   Best-effort.
-- No fx_to_usd for this country: Ireland uses the euro, same as every
-  other Eurozone-member page on this site -- it shares the pooled
-  DEXUSEU rate already fetched by fetch_data.py for the Eurozone
-  aggregate, not an individual series. This matches Germany/France/
-  Italy/Spain/Netherlands's existing pattern exactly.
+- fx_to_usd (DEXUSEU): Ireland is a Eurozone member -- fetched directly,
+  same pattern as Germany/France/Italy/Spain/Netherlands. (A prior build
+  note here claimed this page instead shared a "pooled" rate fetched
+  elsewhere in the pipeline; that claim was checked and found false --
+  no such shared mechanism exists, and Dollarise was permanently
+  disabled as a result. Fixed to fetch its own rate like every other
+  Eurozone page actually does.)
 - fdi / current_account: World Bank, same indicator codes already used
   for every other country (BX.KLT.DINV.WD.GD.ZS / BN.CAB.XOKA.GD.ZS),
   country=IRL. NOTE: Ireland's FDI figures can show extreme outlier
@@ -465,10 +467,30 @@ def main() -> int:
         print("Fresh (< 2 days old): " + ", ".join(
             f"{k} ({p})" for k, p in out["new_points"].items()))
 
-    # No fx_to_usd block: Ireland is a Eurozone member and uses the shared
-    # EUR/USD rate already fetched elsewhere in the pipeline (DEXUSEU),
-    # exactly the same pattern as Germany/France/Italy/Spain/Netherlands.
-    # Nothing to fetch here that isn't already covered.
+    # fx_to_usd: Ireland is a Eurozone member. A prior build note here
+    # claimed this page shared a "pooled" DEXUSEU rate fetched elsewhere
+    # in the pipeline -- that claim was checked and is false: there is no
+    # shared/pooled fx mechanism anywhere in the pipeline, and every other
+    # Eurozone page (Germany/France/Italy/Spain/Netherlands) independently
+    # fetches its own DEXUSEU-based rate into its own data-XX.json. This
+    # was why Dollarise was permanently disabled on Ireland's page --
+    # fx_to_usd was never actually being written. Fixed to match the
+    # existing, verified pattern used everywhere else.
+    try:
+        if key:
+            fx_pts = fetch_fred("DEXUSEU", "d", key)
+            if fx_pts:
+                fx_period, fx_rate = fx_pts[-1]
+                out["fx_to_usd"] = {"pair": "EUR/USD", "rate": fx_rate,
+                                     "as_of": fx_period, "direction": "multiply"}
+                print(f"  ok  fx_to_usd        1 observation ({fx_period}, {fx_rate})")
+            else:
+                print("note  fx_to_usd: no observations returned")
+        else:
+            print("note  fx_to_usd not set (no FRED_API_KEY) -- "
+                  "Dollarise will be unavailable on this page until next run.")
+    except Exception as exc:
+        print(f"FAIL  fx_to_usd        {exc}")
 
     with open("data-ie.json", "w") as f:
         json.dump(out, f)

@@ -2370,7 +2370,9 @@ function scaleOf(unitStr){
 }
 function currencySymbol(unitStr){
   const m = unitStr.match(/^[^a-zA-Z0-9]+/);
-  return m ? m[0] : "";
+  if(m) return m[0];
+  const code = unitStr.match(/^([A-Z]{3})(m|bn|tn)?(\s|$)/);
+  return code ? code[1] : "";  // no trailing space -- tight spacing, e.g. "EUR833.98bn"
 }
 function curFmt(rawValue, unitStr, decimals){
   const scale = scaleOf(unitStr);
