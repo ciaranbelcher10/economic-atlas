@@ -97,10 +97,11 @@ FRED_SERIES = {
     "unemployment": ("LRUNTTTTCHQ156S", "q", "Unemployment rate, 15+, SA (OECD)", "%", None, 1.0),
     "bond_yield_10y": ("IRLTLT01CHM156N", "m", "10-year government bond yield (OECD)", "%", None, 1.0),
     "debt_gdp": ("DEBTTLCHA188A", "a", "Central government debt, % of GDP (World Bank)", "%", None, 1.0),
-    # "fx_raw": ("CCUSMA02CHM618N", "m", "CHF per USD, average of daily rates (OECD)", "CHF", None, 1.0),
-    # ^ seen in search results but not independently re-confirmed with
-    # full confidence during this build -- left commented out rather than
-    # shipped as verified. Worth a real check before enabling.
+    "fx_raw": ("CCUSMA02CHM618N", "m", "CHF per USD, average of daily rates (OECD)", "CHF", None, 1.0),
+    # ^ independently re-verified live via search (through Feb 2026) --
+    # was previously found but left commented out pending confirmation.
+    # Same OECD series family/naming convention as the already-working
+    # fx_raw series for Turkey/Argentina/Indonesia/Poland.
 }
 
 FRED_URL = ("https://api.stlouisfed.org/fred/series/observations"
@@ -312,10 +313,13 @@ def main() -> int:
     failures = []
 
     key = os.environ.get("FRED_API_KEY")
+    fx_rate = None
     if not key:
         print("WARN  no FRED_API_KEY set — FRED series will be skipped.")
     else:
         for name, (sid, freq, label, unit, tf, scale) in FRED_SERIES.items():
+            if name == "fx_raw":
+                continue  # handled separately below, not a page series
             try:
                 raw = fetch_fred(sid, freq, key)
                 if scale != 1.0:
@@ -373,6 +377,21 @@ def main() -> int:
                 }
                 print(f"  ok  gdp_real_annual {len(annual_pts):>5} observations (derived TTM sum)")
 
+        # fx_to_usd: CCUSMA02CHM618N (OECD, monthly average, CHF per USD)
+        # -- same pattern as Turkey/Argentina/Indonesia/Poland's fx_raw.
+        try:
+            sid, freq, _, _, _, _ = FRED_SERIES["fx_raw"]
+            fx_pts = fetch_fred(sid, freq, key)
+            if fx_pts:
+                fx_period, fx_rate = fx_pts[-1]
+                out["fx_to_usd"] = {"pair": "CHF/USD", "rate": fx_rate,
+                                     "as_of": fx_period, "direction": "divide"}
+                print(f"  ok  fx_to_usd        1 observation ({fx_period}, {fx_rate})")
+            else:
+                print("note  fx_to_usd: no observations returned")
+        except Exception as exc:
+            print(f"FAIL  fx_to_usd        {exc}")
+
     extras = [
         ("business_confidence", lambda: fetch_oecd_bci(),
          "Business confidence indicator, LT avg = 100 (OECD BCICP)", "index", "months"),
@@ -399,15 +418,70 @@ def main() -> int:
         if not raw_gdp:
             raise ValueError("no usable response")
         scaled_gdp = [[p, round(v / 1e6, 1)] for p, v in raw_gdp]
-        out["series"]["gdp_level"] = {
-            "label": "GDP, current prices (World Bank, NY.GDP.MKTP.CD)",
-            "unit": "$m", "freq": "years", "points": scaled_gdp,
-        }
-        print(f"  ok  gdp_level        {len(scaled_gdp):>5} observations "
-              f"({scaled_gdp[0][0]} to {scaled_gdp[-1][0]}, years)")
+        if fx_rate:
+            # Pre-convert to CHF using the latest CHF/USD rate, so
+            # gdp_level is CHF by default (matching the site's
+            # local-currency-by-default convention) and "Dollarise" has
+            # something genuine to convert back to USD from. CAVEAT kept
+            # in the label: this uses a single current exchange rate
+            # applied across the whole historical series, not the actual
+            # rate at each historical point, so values for any year other
+            # than the most recent are "what that year's USD figure is
+            # worth in CHF at today's rate," not independently-measured
+            # historical CHF GDP data -- same simplification the site's
+            # Dollarise toggle already makes everywhere else, just
+            # applied in reverse here since gdp_level's only live source
+            # is USD.
+            converted_gdp = [[p, round(v * fx_rate, 1)] for p, v in scaled_gdp]
+            out["series"]["gdp_level"] = {
+                "label": "GDP, current prices (World Bank, NY.GDP.MKTP.CD, converted "
+                         "to CHF at the latest CHF/USD rate -- NOT independently-measured "
+                         "historical CHF figures; see fetch script for the caveat this implies)",
+                "unit": "CHFm", "freq": "years", "points": converted_gdp,
+            }
+            print(f"  ok  gdp_level        {len(converted_gdp):>5} observations "
+                  f"({converted_gdp[0][0]} to {converted_gdp[-1][0]}, years) -- "
+                  f"converted to CHF at rate {fx_rate}")
+        else:
+            out["series"]["gdp_level"] = {
+                "label": "GDP, current prices (World Bank, NY.GDP.MKTP.CD -- USD, "
+                         "no live CHF/USD rate available this run to convert it)",
+                "unit": "$m", "freq": "years", "points": scaled_gdp,
+            }
+            print(f"  ok  gdp_level (USD, no fx rate) {len(scaled_gdp):>5} observations "
+                  f"({scaled_gdp[0][0]} to {scaled_gdp[-1][0]}, years)")
     except Exception as exc:
         failures.append("gdp_level")
         print(f"FAIL  gdp_level        {exc}")
+
+    # --- Merge with previous run: don't let a transient failure (rate
+    # limiting, a flaky endpoint, etc.) wipe out series that fetched fine
+    # last time. Confirmed this actually happened: a FRED rate-limit
+    # cascade during one run took out gdp_real, unemployment, debt_gdp,
+    # business_confidence and fx_to_usd all at once, and because this
+    # script previously always overwrote data-ch.json with only whatever
+    # succeeded THIS run, all of that good prior data was permanently
+    # deleted rather than just left stale for one cycle. Load the
+    # previous file's series (if any) and backfill anything missing from
+    # this run, clearly marked as carried over so it's not confused with
+    # a fresh, currently-succeeding fetch.
+    try:
+        with open("data-ch.json") as f:
+            _prev_for_merge = json.load(f)
+    except Exception:
+        _prev_for_merge = {}
+    _prev_series = _prev_for_merge.get("series", {})
+    carried_over = []
+    for k, v in _prev_series.items():
+        if k not in out["series"]:
+            out["series"][k] = v
+            carried_over.append(k)
+    if carried_over:
+        print(f"CARRIED OVER from previous run (failed this run, kept prior "
+              f"data rather than deleting it): {', '.join(carried_over)}")
+    if not out.get("fx_to_usd") and _prev_for_merge.get("fx_to_usd"):
+        out["fx_to_usd"] = _prev_for_merge["fx_to_usd"]
+        print("CARRIED OVER fx_to_usd from previous run")
 
     if not out["series"]:
         print("\nNothing fetched.")

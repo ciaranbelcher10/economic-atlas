@@ -441,6 +441,34 @@ def main() -> int:
         failures.append("gdp_level")
         print(f"FAIL  gdp_level        {exc}")
 
+    # --- Merge with previous run: don't let a transient failure (rate
+    # limiting, a flaky endpoint, etc.) wipe out series that fetched fine
+    # last time. Confirmed this actually happened here: a FRED rate-limit
+    # cascade during one run took out nearly every FRED-dependent series
+    # for Colombia, and because this script previously always overwrote
+    # data-co.json with only whatever succeeded THIS run, all of that
+    # good prior data was permanently deleted rather than just left stale
+    # for one cycle. Load the previous file's series (if any) and
+    # backfill anything missing from this run, clearly marked as carried
+    # over so it's not confused with a fresh, currently-succeeding fetch.
+    try:
+        with open("data-co.json") as f:
+            _prev_for_merge = json.load(f)
+    except Exception:
+        _prev_for_merge = {}
+    _prev_series = _prev_for_merge.get("series", {})
+    carried_over = []
+    for k, v in _prev_series.items():
+        if k not in out["series"]:
+            out["series"][k] = v
+            carried_over.append(k)
+    if carried_over:
+        print(f"CARRIED OVER from previous run (failed this run, kept prior "
+              f"data rather than deleting it): {', '.join(carried_over)}")
+    if not out.get("fx_to_usd") and _prev_for_merge.get("fx_to_usd"):
+        out["fx_to_usd"] = _prev_for_merge["fx_to_usd"]
+        print("CARRIED OVER fx_to_usd from previous run")
+
     if not out["series"]:
         print("\nNothing fetched.")
         return 1
