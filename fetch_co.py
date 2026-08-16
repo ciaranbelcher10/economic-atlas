@@ -70,7 +70,8 @@ import requests
 
 # key: (fred_id, freq 'm'|'q'|'a', label, unit, transform None|'yoy'|'mom'|'qoq', scale)
 FRED_SERIES = {
-    "gdp_growth": ("COLNAEXKP01GYSAQ", "q", "Real GDP growth, YoY (OECD, as published)", "%", None, 1.0),
+    "gdp_growth": ("COLNAEXKP01GPSAQ", "q", "Real GDP growth, QoQ (OECD, as published)", "%", None, 1.0),
+    "gdp_growth_yoy": ("COLNAEXKP01GYSAQ", "q", "Real GDP growth, YoY (OECD, as published)", "%", None, 1.0),
     "unemployment": ("COLLRHUTTTTSTSAM", "m", "Unemployment rate, 15+, SA (OECD)", "%", None, 1.0),
     "participation_rate": ("COLLRACTTTTSTSAM", "m", "Labour force participation rate, 15+, SA", "%", None, 1.0),
     "employment_rate": ("COLLREM64TTSTSAM", "m", "Employment rate, 15-64, SA", "%", None, 1.0),
@@ -416,55 +417,36 @@ def main() -> int:
             failures.append(name)
             print(f"FAIL  {name:<16} {exc}")
 
-    # gdp_real: switched from Penn World Table's rgdpna (PPP-benchmarked,
-    # NOT comparable to gdp_level -- same diagnosis as the Thailand Bug
-    # writeup: substituting it into the GDP level card produced a "real
-    # GDP" figure ~2x nominal and dated to a stale year, because PWT has
-    # a genuine 1-2 year publication lag and reports PPP-adjusted, not
-    # market-exchange-rate, values). World Bank NY.GDP.MKTP.KD ("GDP,
-    # constant 2015 US$") is genuine national-accounts real GDP, on the
-    # SAME basis as gdp_level (NY.GDP.MKTP.CD, current US$): both use
-    # market exchange rates, just at different points in time -- this is
-    # what actually makes "Make it real" mean something here. gdp_growth
-    # above (COLNAEXKP01GYSAQ, OECD, directly-published YoY) is untouched
-    # -- it was already a genuine, verified, live growth-rate series.
-    try:
-        raw_real = fetch_worldbank("NY.GDP.MKTP.KD")
-        if not raw_real:
-            raise ValueError("no usable response")
-        scaled_real = [[p, round(v / 1e6, 1)] for p, v in raw_real]
-        out["series"]["gdp_real"] = {
-            "label": "GDP, constant 2015 prices (World Bank, NY.GDP.MKTP.KD)",
-            "unit": "$m", "freq": "years", "points": scaled_real,
-        }
-        print(f"  ok  gdp_real (constant USD) {len(scaled_real):>5} observations "
-              f"({scaled_real[0][0]} to {scaled_real[-1][0]}, years)")
-    except Exception as exc:
-        print(f"FAIL  gdp_real (constant USD) {exc}")
-
-    # gdp_level: World Bank current-USD annual GDP, handled separately
-    # (not in the generic extras loop above) because it needs a scale
-    # correction the others don't -- this specific World Bank series
-    # reports RAW dollars, not millions (confirmed during this build by
-    # checking the actual 2024 figure), the same "667 family" scale-bug
-    # class that has bitten this codebase before. Divide by 1e6 so the
-    # site's "$m" unit label is actually accurate, not off by a factor
-    # of a million.
-    try:
-        raw_gdp = fetch_worldbank("NY.GDP.MKTP.CD")
-        if not raw_gdp:
-            raise ValueError("no usable response")
-        scaled_gdp = [[p, round(v / 1e6, 1)] for p, v in raw_gdp]
-        out["series"]["gdp_level"] = {
-            "label": "GDP, current prices (World Bank, NY.GDP.MKTP.CD)",
-            "unit": "$m", "freq": "years", "points": scaled_gdp,
-        }
-        print(f"  ok  gdp_level        {len(scaled_gdp):>5} observations "
-              f"({scaled_gdp[0][0]} to {scaled_gdp[-1][0]}, years) -- "
-              f"scaled from raw USD to $m")
-    except Exception as exc:
-        failures.append("gdp_level")
-        print(f"FAIL  gdp_level        {exc}")
+    # gdp_level / gdp_real: BUG FIX (Aug 2026 methodical pass). Both were
+    # left on World Bank USD (NY.GDP.MKTP.CD / NY.GDP.MKTP.KD) with a
+    # docstring implying that was necessary. Checked directly against
+    # World Bank's own indicator pages -- NY.GDP.MKTP.CN (GDP, current
+    # LCU) and NY.GDP.MKTP.KN (GDP, constant LCU) genuinely exist for
+    # Colombia, same "confidently-wrong disclosed gap" already caught for
+    # Norway this session. Swapped both to genuine COP-denominated World
+    # Bank series, matching the Norway/Thailand/Singapore pattern. This
+    # is what makes "Dollarise" mean something for Colombia -- previously
+    # gdp_level/gdp_real were USD-only, so toggling Dollarise silently did
+    # nothing (same number before and after).
+    for name, code, kind in (
+        ("gdp_level", "NY.GDP.MKTP.CN", "current"),
+        ("gdp_real", "NY.GDP.MKTP.KN", "constant"),
+    ):
+        try:
+            raw = fetch_worldbank(code)
+            if not raw:
+                raise ValueError("no usable response")
+            scaled = [[p, round(v / 1e6, 1)] for p, v in raw]
+            out["series"][name] = {
+                "label": f"GDP, {kind} prices, COP (World Bank, {code})",
+                "unit": "COPm", "freq": "years", "points": scaled,
+            }
+            print(f"  ok  {name:<16} {len(scaled):>5} observations "
+                  f"({scaled[0][0]} to {scaled[-1][0]}, years) -- "
+                  f"scaled from raw COP to COPm")
+        except Exception as exc:
+            failures.append(name)
+            print(f"FAIL  {name:<16} {exc}")
 
     # --- Merge with previous run: don't let a transient failure (rate
     # limiting, a flaky endpoint, etc.) wipe out series that fetched fine
@@ -548,10 +530,16 @@ def main() -> int:
                         ser = out["series"][tk]
                         if ser["unit"].strip().startswith("$"):
                             ser["points"] = [[p, round(to_local(v), 1)] for p, v in ser["points"]]
-                            ser["unit"] = ser["unit"].replace("$", "kr", 1)
-                            ser["label"] = ser["label"].replace(", $ ", ", kr ") \
-                                                        .replace(", $", ", kr")
-                            print(f"  ok  {tk:<16} converted $->kr using {fx_rate}")
+                            # BUG FIX (Aug 2026 methodical pass): was "kr"
+                            # (Scandinavian krona/krone), a leftover
+                            # copy-paste from a Scandinavian country's
+                            # fetch script -- Colombia's currency is the
+                            # peso (COP), not kr. Same bug class already
+                            # fixed for Chile's "kr"->"CLP" mislabel.
+                            ser["unit"] = ser["unit"].replace("$", "COP", 1)
+                            ser["label"] = ser["label"].replace(", $ ", ", COP ") \
+                                                        .replace(", $", ", COP")
+                            print(f"  ok  {tk:<16} converted $->COP using {fx_rate}")
             else:
                 print("note  fx_to_usd: no observations returned")
         else:

@@ -2222,17 +2222,39 @@ function renderLastUpdated(updatedIso){
 function render(data){
   const s=data.series;
   if(data.sample){const sb=document.getElementById("sampleBadge");sb.textContent="Sample data: run fetch_cl.py for live figures";sb.classList.add("show");}
-  const gdpAnnual = s.gdp_level ? annualGDP(s.gdp_level) : null;   /* FIX (7.6.3): this series is the literal quarterly level (IMF IFS), NOT a seasonally-adjusted-annual-rate like UK/US -- must roll up 4 quarters, was previously used raw and inflated headline GDP ~4x */
-  const gdpYoY = s.gdp_real ? yoyGDP(s.gdp_real) : null;
+  const gdpAnnual = s.gdp_level ? annualGDP(s.gdp_level) : null;   /* annualGDP() passes annual data through unchanged -- gdp_level is now World Bank annual CLP, not a quarterly level, so no rollup actually happens here, but the call is harmless and future-proof if the source ever changes back to quarterly. */
+  // BUG FIX (Aug 2026 methodical pass): gdpYoY used to be derived via
+  // yoyGDP(s.gdp_real) -- lag-1 on gdp_real, which is now ANNUAL (World
+  // Bank NY.GDP.MKTP.KN), so that produced a coarse year-over-year
+  // figure unrelated to gdp_growth's quarterly cadence. Switched to the
+  // genuine quarterly OECD-published YoY series (CHLGDPRQPSMEI, fetched
+  // directly as gdp_growth_yoy) -- same quarterly resolution as the QoQ
+  // tile, and it's the same series this page used to (mistakenly) label
+  // "QoQ" before this fix.
+  const gdpYoY = s.gdp_growth_yoy || null;
 
   const pct=v=>v.toFixed(1)+"%", pp=v=>v.toFixed(1)+"pp";
   /* currency formatting handled dynamically by curFmt() below */
   
   const idx=v=>v.toFixed(1);
-  const SRC_GDP_NOMINAL="World Bank NY.GDP.MKTP.CD \u00b7 current US$, annual";
-  const SRC_GDP_REAL="World Bank NY.GDP.MKTP.KD \u00b7 constant 2015 US$, annual";
+  // BUG FIX (Aug 2026 methodical pass): gdp_level/gdp_real were USD-only
+  // (World Bank NY.GDP.MKTP.CD/.KD) -- NY.GDP.MKTP.CN/.KN genuinely
+  // exist for Chile (checked directly against World Bank's own indicator
+  // pages) and are now wired into fetch_cl.py, same fix pattern as
+  // Norway/Colombia this session.
+  const SRC_GDP_NOMINAL="World Bank NY.GDP.MKTP.CN \u00b7 current LCU (CLP), annual";
+  const SRC_GDP_REAL="World Bank NY.GDP.MKTP.KN \u00b7 constant LCU (CLP), annual";
   const SRC_GDP = TOGGLE_STATE.real ? SRC_GDP_REAL : SRC_GDP_NOMINAL;
-  const SRC_GDP_GROWTH="FRED series CHLGDPRQPSMEI \u00b7 OECD, real GDP growth YoY, as published";
+  // BUG FIX (Aug 2026 methodical pass): gdp_growth used to be
+  // CHLGDPRQPSMEI (genuinely YoY, as its own OECD metadata says) but was
+  // labelled "QoQ" on this page, duplicating the separately-computed YoY
+  // tile -- the Bug 6 "duplicate tile" tell. Swapped gdp_growth to the
+  // genuine QoQ counterpart (NAEXKP01CLQ657S, same OECD measure family,
+  // confirmed live, same data vintage as CHLGDPRQPSMEI), and the
+  // original series now feeds the YoY tile directly via gdp_growth_yoy
+  // above -- each tile has its own genuine, correctly-labelled series.
+  const SRC_GDP_GROWTH_QOQ="FRED series NAEXKP01CLQ657S \u00b7 OECD, real GDP growth QoQ, as published";
+  const SRC_GDP_GROWTH_YOY="FRED series CHLGDPRQPSMEI \u00b7 OECD, real GDP growth YoY, as published";
   const SRC_TRADE="FRED series XTNTVA01CLM667S \u00b7 OECD merchandise trade, monthly";
   const SRC_FISCAL="FRED \u00b7 IMF Western Hemisphere Regional Economic Outlook, annual";
   const SRC_WB="World Bank \u00b7 % of GDP, annual";
@@ -2254,10 +2276,10 @@ function render(data){
     gdpAnnual,"line",v=>curFmt(v,s.gdp_level.unit,2),v=>curFmt(v,s.gdp_level.unit,2),SRC_GDP,1996);
   if(s.gdp_growth) chartPanel("gdp_growth","charts-gdp","Real GDP growth, quarter on quarter",
     "How much the economy grew or shrank compared with the previous three months.",
-    s.gdp_growth,"bar",v=>v+"%",pct,SRC_GDP_GROWTH,1999,0);
+    s.gdp_growth,"bar",v=>v+"%",pct,SRC_GDP_GROWTH_QOQ,1999,0);
   if(gdpYoY) chartPanel(null,"charts-gdp","Real GDP growth, year on year",
     "How much bigger or smaller the economy is than a year ago, adjusted for inflation.",
-    gdpYoY,"line",v=>v+"%",pct,SRC_GDP_GROWTH,1999,0);
+    gdpYoY,"line",v=>v+"%",pct,SRC_GDP_GROWTH_YOY,1999,0);
 
   if(s.cpi) chartPanel("cpi","charts-inflation","CPI inflation, annual rate",
     "How much consumer prices are rising compared with a year ago. Banco Central de Chile targets 3% (+/-1pp).",
@@ -2294,7 +2316,7 @@ function render(data){
   if(gdpAnnual) statTile(hero,"gdp_level","GDP (annual)",gdpAnnual,
     {fmt:v=>curFmt(v,s.gdp_level.unit,2),fmtD:v=>curFmt(v,s.gdp_level.unit,1),upIsGood:true,source:SRC_GDP});
   if(s.gdp_growth) statTile(hero,"gdp_growth","GDP growth (QoQ)",s.gdp_growth,
-    {fmt:pct,fmtD:pp,upIsGood:true,source:SRC_GDP_GROWTH});
+    {fmt:pct,fmtD:pp,upIsGood:true,source:SRC_GDP_GROWTH_QOQ});
   if(s.cpi) statTile(hero,"cpi","CPI inflation",s.cpi,
     {fmt:pct,fmtD:pp,upIsGood:false,source:"OECD live prices system"});
   if(s.bond_yield_10y) statTile(hero,"bond_yield_10y","10Y bond yield",s.bond_yield_10y,
@@ -2318,9 +2340,9 @@ function render(data){
   if(gdpAnnual) statTile(tg,"gdp_level","GDP (annual)",gdpAnnual,
     {fmt:v=>curFmt(v,s.gdp_level.unit,2),fmtD:v=>curFmt(v,s.gdp_level.unit,1),upIsGood:true,source:SRC_GDP});
   if(s.gdp_growth) statTile(tg,"gdp_growth","Growth (QoQ)",s.gdp_growth,
-    {fmt:pct,fmtD:pp,upIsGood:true,source:SRC_GDP_GROWTH});
+    {fmt:pct,fmtD:pp,upIsGood:true,source:SRC_GDP_GROWTH_QOQ});
   if(gdpYoY) statTile(tg,null,"Growth (YoY)",gdpYoY,
-    {fmt:pct,fmtD:pp,upIsGood:true,source:SRC_GDP_GROWTH});
+    {fmt:pct,fmtD:pp,upIsGood:true,source:SRC_GDP_GROWTH_YOY});
 
   const tinf=document.getElementById("tiles-inflation");
   if(s.cpi) statTile(tinf,"cpi","CPI (YoY)",s.cpi,

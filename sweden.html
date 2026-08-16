@@ -2241,7 +2241,7 @@ function render(data){
   // which one actually populated the data ("$m" = WB fallback, "SEKm" =
   // live Eurostat) -- the citation must follow the data, not just the
   // toggle.
-  const gdpLevelIsWbFallback = s.gdp_level && /^\$/.test(s.gdp_level.unit || "");
+  const gdpLevelIsWbFallback = /^\$/.test(data.rawGdpLevelUnit || "");
   const SRC_GDP = TOGGLE_STATE.real
     ? SRC_GDP_REAL_ANNUAL
     : (gdpLevelIsWbFallback ? SRC_GDP_LEVEL_USD_FALLBACK : SRC_GDP_NOMINAL_SEK);
@@ -2479,7 +2479,15 @@ function rerender(){
     if(el) el.innerHTML = "";
   });
   const displaySeries = buildDisplaySeries(s);
-  render({...PAGE_DATA, series: displaySeries});
+  render({...PAGE_DATA, series: displaySeries,
+    rawGdpLevelUnit: (s.gdp_level && s.gdp_level.unit) || null});  /* BUG FIX (Aug 2026 methodical pass): the USD-fallback-vs-live-local-
+     currency citation check must run on the RAW pre-toggle unit, not the
+     post-Dollarise unit -- render() only ever sees the toggled series, so
+     checking s.gdp_level.unit inside render() saw "$..." (post-conversion)
+     even when the ORIGINAL source was genuine local currency, wrongly
+     showing the "fallback" citation on every Dollarised page regardless
+     of the true source. rawGdpLevelUnit is captured here, before
+     buildDisplaySeries() converts anything. */
 }
 
 fetch("data-se.json",{cache: "no-cache"})

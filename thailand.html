@@ -2222,7 +2222,7 @@ function render(data){
   // actually populated the data ("$m" = USD fallback, "THBm" = THB
   // primary) -- the citation must follow the data, not assume one source,
   // or it silently mislabels whichever one is actually showing.
-  const gdpLevelIsUsdFallback = s.gdp_level && /^\$/.test(s.gdp_level.unit || "");
+  const gdpLevelIsUsdFallback = /^\$/.test(data.rawGdpLevelUnit || "");
   const SRC_GDP_LEVEL = gdpLevelIsUsdFallback ? SRC_GDP_LEVEL_USD_FALLBACK : SRC_GDP_LEVEL_THB;
   const SRC_GDP_REAL="World Bank NY.GDP.MKTP.KN \u00b7 GDP, constant prices, local currency units, annual. Switched from Penn World Table's PPP-benchmarked rgdpna, which produced a \"real GDP\" figure ~2.6x nominal when substituted into the level card -- this series is on the same basis (constant Thai baht) as gdp_level.";
   const SRC_TRADE="OECD \u00b7 merchandise trade, monthly";
@@ -2433,7 +2433,15 @@ function rerender(){
     if(el) el.innerHTML = "";
   });
   const displaySeries = buildDisplaySeries(s);
-  render({...PAGE_DATA, series: displaySeries});
+  render({...PAGE_DATA, series: displaySeries,
+    rawGdpLevelUnit: (s.gdp_level && s.gdp_level.unit) || null});  /* BUG FIX (Aug 2026 methodical pass): the USD-fallback-vs-live-local-
+     currency citation check must run on the RAW pre-toggle unit, not the
+     post-Dollarise unit -- render() only ever sees the toggled series, so
+     checking s.gdp_level.unit inside render() saw "$..." (post-conversion)
+     even when the ORIGINAL source was genuine local currency, wrongly
+     showing the "fallback" citation on every Dollarised page regardless
+     of the true source. rawGdpLevelUnit is captured here, before
+     buildDisplaySeries() converts anything. */
 }
 
 fetch("data-th.json",{cache: "no-cache"})

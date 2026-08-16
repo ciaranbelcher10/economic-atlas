@@ -18,17 +18,30 @@ via web_search before wiring in -- sandbox network cannot reach
 fred.stlouisfed.org/sdmx.oecd.org directly, so these are page-content
 confirmations, not live API test calls; the first real Actions run is
 still the genuine test):
-- gdp_growth (CHLGDPRQPSMEI): CONFIRMED live, through Q3 2025 (updated
-  Dec 2025), OECD Main Economic Indicators, "growth rate same period
-  previous year", quarterly, already YoY as published, no transform
-  needed.
-- gdp_level (World Bank NY.GDP.MKTP.CD, country=CHL) / gdp_real
-  (RGDPNACLA666NRUG, Penn World Table): same pattern as every other
-  country on this site using this fallback. NOTE: Chile's OECD-mirrored
-  NOMINAL GDP LEVEL series (CHLGDPNQDSMEI) is DEAD -- stopped Q3 2023,
-  last updated Dec 2023 -- exactly the failure mode the v2 framework
-  flags to check for. That's why gdp_level goes through World Bank
-  instead.
+- gdp_growth / gdp_growth_yoy: BUG FIX (Aug 2026 methodical pass). This
+  used to fetch only CHLGDPRQPSMEI (genuinely YoY, as its own name says
+  and OECD's TRANSFORMATION=GY metadata confirms) and label it "QoQ" on
+  the page, duplicating the separately-computed YoY tile -- the Bug 6
+  "duplicate tile" tell. Swapped gdp_growth to the genuine QoQ
+  counterpart, NAEXKP01CLQ657S (same OECD measure family B1GQ_Q, same
+  ADJUSTMENT=Y, just TRANSFORMATION=G1 "growth rate previous period"
+  instead of GY -- confirmed live via its own FRED page, same "Updated
+  Dec 15, 2025" vintage and Q3 2025 endpoint as CHLGDPRQPSMEI, so both
+  are from the same OECD data pull). CHLGDPRQPSMEI is kept as
+  gdp_growth_yoy, feeding the YoY tile directly instead of via a
+  recomputed transform.
+- gdp_level / gdp_real: BUG FIX (Aug 2026 methodical pass). Both were
+  left on World Bank USD (NY.GDP.MKTP.CD / NY.GDP.MKTP.KD) -- checked
+  directly against World Bank's own indicator pages and NY.GDP.MKTP.CN
+  (GDP, current LCU) / NY.GDP.MKTP.KN (GDP, constant LCU) genuinely exist
+  for Chile, same "confidently-wrong disclosed gap" already caught for
+  Norway and Colombia this session. Swapped both to genuine CLP-
+  denominated World Bank series. This is what makes "Dollarise" mean
+  something for Chile -- previously gdp_level/gdp_real were USD-only, so
+  toggling Dollarise silently did nothing (same number before and
+  after). Note the OECD-mirrored NOMINAL GDP LEVEL series
+  (CHLGDPNQDSMEI) is still DEAD (stopped Q3 2023) -- that's unrelated to
+  this fix and not what's being used here.
 - unemployment (LRHUTTTTCLQ156S): CONFIRMED live, through Q1 2026
   (updated May 2026), OECD-harmonized, seasonally adjusted -- but
   QUARTERLY, not monthly. Chile's monthly OECD mirror
@@ -75,7 +88,8 @@ import requests
 
 # key: (fred_id, freq 'm'|'q'|'a', label, unit, transform None|'yoy'|'mom'|'qoq', scale)
 FRED_SERIES = {
-    "gdp_growth": ("CHLGDPRQPSMEI", "q", "Real GDP growth, YoY (OECD, as published)", "%", None, 1.0),
+    "gdp_growth": ("NAEXKP01CLQ657S", "q", "Real GDP growth, QoQ (OECD, as published)", "%", None, 1.0),
+    "gdp_growth_yoy": ("CHLGDPRQPSMEI", "q", "Real GDP growth, YoY (OECD, as published)", "%", None, 1.0),
     "unemployment": ("LRHUTTTTCLQ156S", "q", "Unemployment rate, 15+, SA (OECD)", "%", None, 1.0),
     "participation_rate": ("LRAC64TTCLQ156S", "q", "Labour force participation rate, 15-64, SA", "%", None, 1.0),
     "employment_rate": ("LREM64TTCLQ156S", "q", "Employment rate, 15-64, SA", "%", None, 1.0),
@@ -455,56 +469,37 @@ def main() -> int:
         failures.append("cpi")
         print(f"FAIL  cpi              {exc}")
 
-    # gdp_real: switched from Penn World Table's rgdpna (PPP-benchmarked,
-    # NOT comparable to gdp_level -- same diagnosis as the Thailand/
-    # Colombia Bug writeups: substituting it into the GDP level card
-    # produced a "real GDP" figure ~1.4x nominal and dated to a stale
-    # year, because PWT has a genuine 1-2 year publication lag and
-    # reports PPP-adjusted, not market-exchange-rate, values). World
-    # Bank NY.GDP.MKTP.KD ("GDP, constant 2015 US$") is genuine
-    # national-accounts real GDP, on the SAME basis as gdp_level
-    # (NY.GDP.MKTP.CD, current US$): both use market exchange rates,
-    # just at different points in time -- this is what actually makes
-    # "Make it real" mean something here. gdp_growth above (CHLGDPRQPSMEI,
-    # OECD, directly-published YoY) is untouched -- it was already a
-    # genuine, verified, live growth-rate series.
-    try:
-        raw_real = fetch_worldbank("NY.GDP.MKTP.KD")
-        if not raw_real:
-            raise ValueError("no usable response")
-        scaled_real = [[p, round(v / 1e6, 1)] for p, v in raw_real]
-        out["series"]["gdp_real"] = {
-            "label": "GDP, constant 2015 prices (World Bank, NY.GDP.MKTP.KD)",
-            "unit": "$m", "freq": "years", "points": scaled_real,
-        }
-        print(f"  ok  gdp_real (constant USD) {len(scaled_real):>5} observations "
-              f"({scaled_real[0][0]} to {scaled_real[-1][0]}, years)")
-    except Exception as exc:
-        print(f"FAIL  gdp_real (constant USD) {exc}")
-
-    # gdp_level: World Bank current-USD annual GDP, handled separately
-    # (not in the generic extras loop above) because it needs a scale
-    # correction the others don't -- this specific World Bank series
-    # reports RAW dollars, not millions (confirmed during this build by
-    # checking the actual 2024 figure), the same "667 family" scale-bug
-    # class that has bitten this codebase before. Divide by 1e6 so the
-    # site's "$m" unit label is actually accurate, not off by a factor
-    # of a million.
-    try:
-        raw_gdp = fetch_worldbank("NY.GDP.MKTP.CD")
-        if not raw_gdp:
-            raise ValueError("no usable response")
-        scaled_gdp = [[p, round(v / 1e6, 1)] for p, v in raw_gdp]
-        out["series"]["gdp_level"] = {
-            "label": "GDP, current prices (World Bank, NY.GDP.MKTP.CD)",
-            "unit": "$m", "freq": "years", "points": scaled_gdp,
-        }
-        print(f"  ok  gdp_level        {len(scaled_gdp):>5} observations "
-              f"({scaled_gdp[0][0]} to {scaled_gdp[-1][0]}, years) -- "
-              f"scaled from raw USD to $m")
-    except Exception as exc:
-        failures.append("gdp_level")
-        print(f"FAIL  gdp_level        {exc}")
+    # gdp_level / gdp_real: BUG FIX (Aug 2026 methodical pass). Both were
+    # left on World Bank USD (NY.GDP.MKTP.CD / NY.GDP.MKTP.KD) -- checked
+    # directly against World Bank's own indicator pages and NY.GDP.MKTP.CN
+    # (GDP, current LCU) / NY.GDP.MKTP.KN (GDP, constant LCU) genuinely
+    # exist for Chile, same "confidently-wrong disclosed gap" already
+    # caught for Norway and Colombia this session. Swapped both to
+    # genuine CLP-denominated World Bank series. This is what makes
+    # "Dollarise" mean something for Chile -- previously gdp_level/
+    # gdp_real were USD-only, so toggling Dollarise silently did nothing
+    # (same number before and after). gdp_growth above (CHLGDPRQPSMEI,
+    # OECD, directly-published YoY) is handled separately below (Bug 6
+    # fix -- it was mislabelled "QoQ" on the page).
+    for name, code, kind in (
+        ("gdp_level", "NY.GDP.MKTP.CN", "current"),
+        ("gdp_real", "NY.GDP.MKTP.KN", "constant"),
+    ):
+        try:
+            raw = fetch_worldbank(code)
+            if not raw:
+                raise ValueError("no usable response")
+            scaled = [[p, round(v / 1e6, 1)] for p, v in raw]
+            out["series"][name] = {
+                "label": f"GDP, {kind} prices, CLP (World Bank, {code})",
+                "unit": "CLPm", "freq": "years", "points": scaled,
+            }
+            print(f"  ok  {name:<16} {len(scaled):>5} observations "
+                  f"({scaled[0][0]} to {scaled[-1][0]}, years) -- "
+                  f"scaled from raw CLP to CLPm")
+        except Exception as exc:
+            failures.append(name)
+            print(f"FAIL  {name:<16} {exc}")
 
     # --- Merge with previous run: don't let a transient failure (rate
     # limiting, a flaky endpoint, etc.) wipe out series that fetched fine
