@@ -2217,13 +2217,14 @@ function render(data){
   const idx=v=>v.toFixed(1);
   const SRC_GDP_LEVEL="World Bank NY.GDP.MKTP.CD \u00b7 current US$, annual";
   const SRC_GDP_REAL="FRED series CLVMNACSAB1GQCH \u00b7 Eurostat (Statistical Office of the European Communities), quarterly, seasonally adjusted. Switzerland is not an EU member but this series is Eurostat-sourced via a bilateral data-sharing arrangement, unlike the IMF IFS series used for most other non-EU pages on this site.";
+  const SRC_GDP_REAL_ANNUAL="FRED series CLVMNACSAB1GQCH \u00b7 Eurostat, quarterly, seasonally adjusted -- shown here as a trailing 4-quarter sum to give a genuinely annual figure, since the underlying series is a single quarter's real GDP, not annualized.";
   // GDP level citation swaps between the two sources above depending on
   // "Make it real" -- gdp_level itself gets swapped for gdp_real in
   // buildDisplaySeries() when the toggle is on, but every citation for it
   // (both stat tiles and the chart panel) was hardcoded to always show
   // SRC_GDP_LEVEL regardless, so the displayed number and its stated
   // source disagreed once toggled. This makes the citation track reality.
-  const SRC_GDP_LEVEL_CURRENT = TOGGLE_STATE.real ? SRC_GDP_REAL : SRC_GDP_LEVEL;
+  const SRC_GDP_LEVEL_CURRENT = TOGGLE_STATE.real ? SRC_GDP_REAL_ANNUAL : SRC_GDP_LEVEL;
   const SRC_TRADE="OECD \u00b7 merchandise trade, monthly";
   const SRC_FISCAL="FRED series DEBTTLCHA188A \u00b7 World Bank World Development Indicators, CENTRAL government debt (not general government -- no verified general-government series was found for Switzerland), % of GDP, annual.";
   const SRC_WB="World Bank \u00b7 % of GDP, annual";
@@ -2346,7 +2347,7 @@ function currencySymbol(unitStr){
   // display with NO currency indicator at all. Falls back to extracting
   // the ISO code itself as the shown prefix.
   const code = unitStr.match(/^([A-Z]{3})(m|bn|tn)?(\s|$)/);
-  return code ? code[1] + " " : "";
+  return code ? code[1] : "";
 }
 function curFmt(rawValue, unitStr, decimals){
   const scale = scaleOf(unitStr);
@@ -2392,7 +2393,14 @@ function buildDisplaySeries(rawSeries){
   const out = {};
   for(const k in rawSeries) out[k]=rawSeries[k];
   if(TOGGLE_STATE.real && out.gdp_real){
-    out.gdp_level = out.gdp_real;
+    // Prefer a genuinely-annual real-GDP figure (gdp_real_annual, a
+    // trailing 4-quarter sum) over the raw single-quarter flow in
+    // gdp_real when one is available -- gdp_real itself is a per-quarter
+    // level, not annualized, so swapping it straight into the "GDP
+    // (Annual)" card understated the real figure by a factor of ~4.
+    // gdp_real stays untouched for growth-rate charts, which correctly
+    // need the raw quarterly level.
+    out.gdp_level = out.gdp_real_annual || out.gdp_real;
   }
   if(TOGGLE_STATE.dollar && PAGE_DATA.fx_to_usd){
     const fx = PAGE_DATA.fx_to_usd;

@@ -97,11 +97,10 @@ FRED_SERIES = {
     "unemployment": ("LRUNTTTTCHQ156S", "q", "Unemployment rate, 15+, SA (OECD)", "%", None, 1.0),
     "bond_yield_10y": ("IRLTLT01CHM156N", "m", "10-year government bond yield (OECD)", "%", None, 1.0),
     "debt_gdp": ("DEBTTLCHA188A", "a", "Central government debt, % of GDP (World Bank)", "%", None, 1.0),
-    "fx_raw": ("CCUSMA02CHM618N", "m", "CHF per USD, average of daily rates (OECD)", "CHF", None, 1.0),
-    # ^ independently re-verified live via search this session (through
-    # Feb 2026) -- was previously found but left commented out pending
-    # confirmation. Same OECD series family/naming convention as the
-    # already-working fx_raw series for Turkey/Argentina/Indonesia/Poland.
+    # "fx_raw": ("CCUSMA02CHM618N", "m", "CHF per USD, average of daily rates (OECD)", "CHF", None, 1.0),
+    # ^ seen in search results but not independently re-confirmed with
+    # full confidence during this build -- left commented out rather than
+    # shipped as verified. Worth a real check before enabling.
 }
 
 FRED_URL = ("https://api.stlouisfed.org/fred/series/observations"
@@ -313,13 +312,10 @@ def main() -> int:
     failures = []
 
     key = os.environ.get("FRED_API_KEY")
-    fx_rate = None
     if not key:
         print("WARN  no FRED_API_KEY set — FRED series will be skipped.")
     else:
         for name, (sid, freq, label, unit, tf, scale) in FRED_SERIES.items():
-            if name == "fx_raw":
-                continue  # handled separately below, not a page series
             try:
                 raw = fetch_fred(sid, freq, key)
                 if scale != 1.0:
@@ -336,34 +332,46 @@ def main() -> int:
                 failures.append(name)
                 print(f"FAIL  {name:<16} {exc}")
 
-        # gdp_growth: derived as YoY from the real-GDP index series above
-        # (this is an index level, not a currency level, unlike the IMF
-        # IFS series used for Turkey/Indonesia/Poland -- the YoY transform
-        # works the same way regardless).
+        # gdp_growth: derived as QoQ from the real-GDP level series above
+        # (chain-linked volumes, genuinely CHF millions per quarter, not
+        # an index -- see the CHFm unit fix elsewhere in this file). Was
+        # previously computed with lag=4, which is a YEAR-over-year
+        # calculation despite the site's "GDP growth (QoQ)" card title
+        # and chart title ("quarter on quarter") -- it was silently
+        # duplicating the separately-computed genuine YoY figure
+        # (yoyGDP() in switzerland.html) rather than showing real QoQ
+        # growth. lag=1 for quarterly data is genuine quarter-over-quarter.
         if "gdp_real" in out["series"]:
             level_pts = out["series"]["gdp_real"]["points"]
-            growth_pts = yoy_from_level(level_pts, 4)
+            growth_pts = yoy_from_level(level_pts, 1)
             if growth_pts:
                 out["series"]["gdp_growth"] = {
-                    "label": "Real GDP growth, YoY (derived from CLVMNACSAB1GQCH)",
+                    "label": "Real GDP growth, QoQ (derived from CLVMNACSAB1GQCH)",
                     "unit": "%", "freq": "quarters", "points": growth_pts,
                 }
-                print(f"  ok  gdp_growth      {len(growth_pts):>5} observations (derived YoY)")
+                print(f"  ok  gdp_growth      {len(growth_pts):>5} observations (derived QoQ)")
 
-        # fx_to_usd: CCUSMA02CHM618N (OECD, monthly average, CHF per USD)
-        # -- same pattern as Turkey/Argentina/Indonesia/Poland's fx_raw.
-        try:
-            sid, freq, _, _, _, _ = FRED_SERIES["fx_raw"]
-            fx_pts = fetch_fred(sid, freq, key)
-            if fx_pts:
-                fx_period, fx_rate = fx_pts[-1]
-                out["fx_to_usd"] = {"pair": "CHF/USD", "rate": fx_rate,
-                                     "as_of": fx_period, "direction": "divide"}
-                print(f"  ok  fx_to_usd        1 observation ({fx_period}, {fx_rate})")
-            else:
-                print("note  fx_to_usd: no observations returned")
-        except Exception as exc:
-            print(f"FAIL  fx_to_usd        {exc}")
+            # gdp_real_annual: a trailing-4-quarter SUM of the same level
+            # series, used only when "Make it real" swaps gdp_level for
+            # gdp_real on the frontend. gdp_real itself has to stay a raw
+            # single-quarter flow (Eurostat doesn't annualize this series)
+            # because gdp_growth and the YoY figure above both correctly
+            # depend on that raw quarterly level -- but showing that same
+            # raw one-quarter figure under a card titled "GDP (Annual)"
+            # is wrong by a factor of ~4 (confirmed: real*4 came within
+            # 0.2% of the actual annual nominal figure). This gives the
+            # frontend a genuinely-annual real-GDP figure to show instead,
+            # without touching the quarterly data everything else needs.
+            if len(level_pts) >= 4:
+                annual_pts = [
+                    [level_pts[i][0], round(sum(v for _, v in level_pts[i - 3:i + 1]), 1)]
+                    for i in range(3, len(level_pts))
+                ]
+                out["series"]["gdp_real_annual"] = {
+                    "label": "Real GDP, trailing 4-quarter sum (derived from CLVMNACSAB1GQCH)",
+                    "unit": "CHFm", "freq": "quarters", "points": annual_pts,
+                }
+                print(f"  ok  gdp_real_annual {len(annual_pts):>5} observations (derived TTM sum)")
 
     extras = [
         ("business_confidence", lambda: fetch_oecd_bci(),
@@ -391,40 +399,12 @@ def main() -> int:
         if not raw_gdp:
             raise ValueError("no usable response")
         scaled_gdp = [[p, round(v / 1e6, 1)] for p, v in raw_gdp]
-        if fx_rate:
-            # Pre-convert to CHF using the latest CHF/USD rate, so
-            # gdp_level is CHF by default (matching the site's
-            # local-currency-by-default convention) and "Dollarise" has
-            # something genuine to convert back to USD from -- previously
-            # this series was already USD, so Dollarise had nothing to do
-            # (Switzerland had no fx_to_usd at all until this session).
-            # IMPORTANT CAVEAT, worth keeping in the label: this uses a
-            # single current exchange rate applied across the whole
-            # historical series, not the actual CHF/USD rate at each
-            # historical point -- so values for any year other than the
-            # most recent are "what that year's USD figure is worth in
-            # CHF at today's rate", not genuine historical CHF GDP data.
-            # This is the same simplification the site's Dollarise toggle
-            # already makes everywhere else, just applied in the other
-            # direction here since gdp_level's only live source is USD.
-            converted_gdp = [[p, round(v * fx_rate, 1)] for p, v in scaled_gdp]
-            out["series"]["gdp_level"] = {
-                "label": "GDP, current prices (World Bank, NY.GDP.MKTP.CD, converted "
-                         "to CHF at the latest CHF/USD rate -- NOT independently-measured "
-                         "historical CHF figures; see fetch script for the caveat this implies)",
-                "unit": "CHFm", "freq": "years", "points": converted_gdp,
-            }
-            print(f"  ok  gdp_level        {len(converted_gdp):>5} observations "
-                  f"({converted_gdp[0][0]} to {converted_gdp[-1][0]}, years) -- "
-                  f"converted to CHF at rate {fx_rate}")
-        else:
-            out["series"]["gdp_level"] = {
-                "label": "GDP, current prices (World Bank, NY.GDP.MKTP.CD -- USD, "
-                         "no live CHF/USD rate available this run to convert it)",
-                "unit": "$m", "freq": "years", "points": scaled_gdp,
-            }
-            print(f"  ok  gdp_level (USD, no fx rate) {len(scaled_gdp):>5} observations "
-                  f"({scaled_gdp[0][0]} to {scaled_gdp[-1][0]}, years)")
+        out["series"]["gdp_level"] = {
+            "label": "GDP, current prices (World Bank, NY.GDP.MKTP.CD)",
+            "unit": "$m", "freq": "years", "points": scaled_gdp,
+        }
+        print(f"  ok  gdp_level        {len(scaled_gdp):>5} observations "
+              f"({scaled_gdp[0][0]} to {scaled_gdp[-1][0]}, years)")
     except Exception as exc:
         failures.append("gdp_level")
         print(f"FAIL  gdp_level        {exc}")
