@@ -2209,14 +2209,28 @@ function renderLastUpdated(updatedIso){
 function render(data){
   const s=data.series;
   if(data.sample){const sb=document.getElementById("sampleBadge");sb.textContent="Sample data: run fetch_sg.py for live figures";sb.classList.add("show");}
-  const gdpAnnual = s.gdp_level ? s.gdp_level : null;   /* Singapore's gdp_level (World Bank, current USD, annual) is already annual -- no quarterly-to-annual rollup needed here, unlike the IMF IFS quarterly series used on some other pages */
+  const gdpAnnual = s.gdp_level ? s.gdp_level : null;   /* NOTE: gdp_level is now normally the live World Bank SGD linked series, falling back to World Bank USD only if that fetch fails this run (see SRC_GDP_LEVEL_CURRENT below for how the citation tracks this). Already annual -- no quarterly-to-annual rollup needed, unlike the IMF IFS quarterly series used on some other pages. */
   const gdpYoY = s.gdp_real ? yoyGDP(s.gdp_real) : null;
 
   const pct=v=>v.toFixed(1)+"%", pp=v=>v.toFixed(1)+"pp";
   /* currency formatting handled dynamically by curFmt() below */
   
   const idx=v=>v.toFixed(1);
-  const SRC_GDP_LEVEL="World Bank NY.GDP.MKTP.CD \u00b7 current US$, annual";
+  const SRC_GDP_LEVEL_SGD="World Bank NY.GDP.MKTP.CN.AD \u00b7 GDP, current prices, linked series, local currency units, annual";
+  const SRC_GDP_LEVEL_USD_FALLBACK="World Bank NY.GDP.MKTP.CD \u00b7 current US$, annual (fallback, used only if the SGD linked series is unavailable this run)";
+  const SRC_GDP_REAL_LEVEL="World Bank NY.GDP.MKTP.KN \u00b7 GDP, constant prices, local currency units, annual";
+  // gdp_level's actual source varies run-to-run: fetch_sg.py prefers the
+  // live World Bank SGD linked series and only falls back to World Bank
+  // USD when that fails this run. The unit string tells us which one
+  // actually populated the data ("$m" = USD fallback, "SGDm" = SGD
+  // primary) -- the citation must follow the data, not assume one source.
+  const gdpLevelIsUsdFallback = s.gdp_level && /^\$/.test(s.gdp_level.unit || "");
+  const SRC_GDP_LEVEL = TOGGLE_STATE.real
+    ? SRC_GDP_REAL_LEVEL
+    : (gdpLevelIsUsdFallback ? SRC_GDP_LEVEL_USD_FALLBACK : SRC_GDP_LEVEL_SGD);
+  // SRC_GDP_REAL is intentionally untouched below -- it cites gdp_growth
+  // (the IMF REO %-change series), which is unrelated to the gdp_level
+  // toggle-swap and was already correct before this fix.
   const SRC_GDP_REAL="FRED series SGPNGDPRPCPPPT \u00b7 IMF Asia and Pacific Regional Economic Outlook, ANNUAL, % change. Genuinely confirmed live and updated through 2026 -- unlike several other series in the same IMF REO family for Singapore (domestic demand, exports volume, general-government debt), which are stale 2019-vintage projections and were deliberately excluded from this build rather than used.";
   const SRC_TRADE="OECD \u00b7 merchandise trade, monthly";
   const SRC_FISCAL="FRED series DEBTTLSGA188A \u00b7 World Bank World Development Indicators, CENTRAL government debt (not general government -- no verified general-government series was found for Singapore), % of GDP, annual.";
@@ -2326,7 +2340,9 @@ function scaleOf(unitStr){
 }
 function currencySymbol(unitStr){
   const m = unitStr.match(/^[^a-zA-Z0-9]+/);
-  return m ? m[0] : "";
+  if(m) return m[0];
+  const code = unitStr.match(/^([A-Z]{3})(m|bn|tn)?(\s|$)/);
+  return code ? code[1] : "";  // no trailing space -- tight spacing, e.g. "SGD833.98bn"
 }
 function curFmt(rawValue, unitStr, decimals){
   const scale = scaleOf(unitStr);

@@ -384,20 +384,83 @@ def main() -> int:
         except Exception as exc:
             print(f"FAIL  cpi (REO fallback) {exc}")
 
+    # gdp_real: Singapore had no real-GDP LEVEL series at all before this
+    # fix -- only the %-change gdp_growth series below (kept as-is, still
+    # legitimate). World Bank NY.GDP.MKTP.KN ("GDP, constant LCU") is
+    # genuine national-accounts real GDP in constant Singapore dollars,
+    # confirmed to exist via the World Bank Data catalogue. Adding this
+    # enables "Make it real" for the first time on this page.
     try:
-        raw_gdp = fetch_worldbank("NY.GDP.MKTP.CD")
-        if not raw_gdp:
+        raw_real = fetch_worldbank("NY.GDP.MKTP.KN")
+        if not raw_real:
             raise ValueError("no usable response")
-        scaled_gdp = [[p, round(v / 1e6, 1)] for p, v in raw_gdp]
-        out["series"]["gdp_level"] = {
-            "label": "GDP, current prices (World Bank, NY.GDP.MKTP.CD)",
-            "unit": "$m", "freq": "years", "points": scaled_gdp,
+        scaled_real = [[p, round(v / 1e6, 1)] for p, v in raw_real]
+        out["series"]["gdp_real"] = {
+            "label": "GDP, constant prices (World Bank, NY.GDP.MKTP.KN)",
+            "unit": "SGDm", "freq": "years", "points": scaled_real,
         }
-        print(f"  ok  gdp_level        {len(scaled_gdp):>5} observations "
-              f"({scaled_gdp[0][0]} to {scaled_gdp[-1][0]}, years)")
+        print(f"  ok  gdp_real (SGD constant) {len(scaled_real):>5} observations "
+              f"({scaled_real[0][0]} to {scaled_real[-1][0]}, years)")
     except Exception as exc:
-        failures.append("gdp_level")
-        print(f"FAIL  gdp_level        {exc}")
+        print(f"FAIL  gdp_real (SGD constant) {exc}")
+
+    # gdp_level: World Bank NY.GDP.MKTP.CN.AD ("GDP: linked series, current
+    # LCU") is genuinely denominated in Singapore dollars, confirmed to
+    # exist via the World Bank Data catalogue -- preferred over the USD
+    # variant so the page shows GDP in Singapore's own currency by default
+    # and so Dollarise has a real SGD figure to convert via the already-
+    # live fx_to_usd (DEXSIUS) rather than converting an already-USD
+    # figure a second time. Falls back to the USD series if the SGD
+    # series fails this run.
+    try:
+        raw_gdp_lcu = fetch_worldbank("NY.GDP.MKTP.CN.AD")
+        if not raw_gdp_lcu:
+            raise ValueError("no usable response")
+        scaled_gdp_lcu = [[p, round(v / 1e6, 1)] for p, v in raw_gdp_lcu]
+        out["series"]["gdp_level"] = {
+            "label": "GDP, current prices, linked series (World Bank, NY.GDP.MKTP.CN.AD)",
+            "unit": "SGDm", "freq": "years", "points": scaled_gdp_lcu,
+        }
+        print(f"  ok  gdp_level (SGD) {len(scaled_gdp_lcu):>5} observations "
+              f"({scaled_gdp_lcu[0][0]} to {scaled_gdp_lcu[-1][0]}, years)")
+    except Exception as exc:
+        print(f"note  gdp_level (SGD) unavailable this run ({exc}) -- falling back to USD")
+        try:
+            raw_gdp = fetch_worldbank("NY.GDP.MKTP.CD")
+            if not raw_gdp:
+                raise ValueError("no usable response")
+            scaled_gdp = [[p, round(v / 1e6, 1)] for p, v in raw_gdp]
+            out["series"]["gdp_level"] = {
+                "label": "GDP, current prices (World Bank, NY.GDP.MKTP.CD -- USD, "
+                         "fallback: SGD linked series unavailable this run)",
+                "unit": "$m", "freq": "years", "points": scaled_gdp,
+            }
+            print(f"  ok  gdp_level (USD fallback) {len(scaled_gdp):>5} observations "
+                  f"({scaled_gdp[0][0]} to {scaled_gdp[-1][0]}, years)")
+        except Exception as exc2:
+            failures.append("gdp_level")
+            print(f"FAIL  gdp_level        {exc2}")
+
+    # Carry forward any series that failed THIS run but succeeded on a
+    # previous run, so a transient failure doesn't permanently wipe good
+    # data from the live page. See the Switzerland/Chile/Colombia Bug 7
+    # writeup -- applied here to close the same gap for Singapore.
+    try:
+        with open("data-sg.json") as f:
+            _prev_for_merge = json.load(f)
+    except Exception:
+        _prev_for_merge = {}
+    _prev_series = _prev_for_merge.get("series", {})
+    carried_over = []
+    for k, v in _prev_series.items():
+        if k not in out["series"]:
+            out["series"][k] = v
+            carried_over.append(k)
+    if carried_over:
+        print(f"CARRIED OVER from previous run (failed this run, kept prior data rather than deleting it): {', '.join(carried_over)}")
+    if not out.get("fx_to_usd") and _prev_for_merge.get("fx_to_usd"):
+        out["fx_to_usd"] = _prev_for_merge["fx_to_usd"]
+        print("CARRIED OVER fx_to_usd from previous run")
 
     if not out["series"]:
         print("\nNothing fetched.")
