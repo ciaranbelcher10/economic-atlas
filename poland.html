@@ -2219,16 +2219,26 @@ function renderLastUpdated(updatedIso){
 function render(data){
   const s=data.series;
   if(data.sample){const sb=document.getElementById("sampleBadge");sb.textContent="Sample data: run fetch_pl.py for live figures";sb.classList.add("show");}
-  const gdpAnnual = s.gdp_level ? s.gdp_level : null;   /* NOTE: gdp_level is World Bank USD annual by default, but buildDisplaySeries() swaps it for the quarterly IMF IFS PLN series (gdp_real) when "Make it real" is on -- both series are the same quarterly-level (not annualized-flow) family, so no rollup mismatch like the Eurostat quarterly-flow countries */
+  const gdpAnnual = s.gdp_level ? s.gdp_level : null;   /* NOTE: gdp_level is normally the live FRED/IMF-IFS PLN series (NGDPSAXDCPLQ), falling back to World Bank USD annual only if that fetch fails this run (see SRC_GDP_LEVEL_CURRENT below for how the citation tracks this). buildDisplaySeries() further swaps it for the quarterly IMF IFS PLN real-GDP series (gdp_real) when "Make it real" is on -- both series are the same quarterly-level (not annualized-flow) family, so no rollup mismatch like the Eurostat quarterly-flow countries */
   const gdpYoY = s.gdp_real ? yoyGDP(s.gdp_real) : null;
 
   const pct=v=>v.toFixed(1)+"%", pp=v=>v.toFixed(1)+"pp";
   /* currency formatting handled dynamically by curFmt() below */
   
   const idx=v=>v.toFixed(1);
-  const SRC_GDP_LEVEL="World Bank NY.GDP.MKTP.CD \u00b7 current US$, annual";
+  const SRC_GDP_LEVEL="World Bank NY.GDP.MKTP.CD \u00b7 current US$, annual (fallback, used only if the live PLN series is unavailable this run)";
   const SRC_GDP_REAL="FRED series NGDPRSAXDCPLQ \u00b7 IMF International Financial Statistics, quarterly, seasonally adjusted";
-  const SRC_GDP_LEVEL_CURRENT = TOGGLE_STATE.real ? SRC_GDP_REAL : SRC_GDP_LEVEL;
+  const SRC_GDP_NOMINAL="FRED series NGDPSAXDCPLQ \u00b7 IMF International Financial Statistics, quarterly, seasonally adjusted";
+  // gdp_level's actual source varies run-to-run: fetch_pl.py prefers the
+  // live FRED/IMF-IFS PLN series (NGDPSAXDCPLQ) and only falls back to
+  // World Bank USD when that fails this run. The unit string tells us
+  // which one actually populated the data ("$m" = WB fallback, "PLNm" =
+  // live FRED) -- the citation must follow the data, not just the toggle,
+  // or it silently mislabels the source whenever the fallback isn't in use.
+  const gdpLevelIsWbFallback = s.gdp_level && /^\$/.test(s.gdp_level.unit || "");
+  const SRC_GDP_LEVEL_CURRENT = TOGGLE_STATE.real
+    ? SRC_GDP_REAL
+    : (gdpLevelIsWbFallback ? SRC_GDP_LEVEL : SRC_GDP_NOMINAL);
   const SRC_TRADE="OECD \u00b7 merchandise trade, monthly";
   const SRC_FISCAL="FRED series GGGDTAPLA188N / GGNLBAPLA188N \u00b7 IMF World Economic Outlook, general government, % of GDP, annual. Poland is an EU member and Eurostat also publishes a quarterly debt/GDP series that covers it, but the IMF-WEO annual figures were used here for consistency with the fetch pipeline's simpler, already-proven code path.";
   const SRC_WB="World Bank \u00b7 % of GDP, annual";
