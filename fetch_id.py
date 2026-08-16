@@ -16,9 +16,22 @@ web_search before wiring in -- sandbox network cannot reach
 fred.stlouisfed.org/sdmx.oecd.org directly, so these are page-content
 confirmations, not live API test calls; the first real Actions run is
 still the genuine test):
-- gdp_real (NGDPRSAXDCIDQ): CONFIRMED live (through Q4 2025, updated
-  Feb 2026), IMF International Financial Statistics, quarterly,
-  seasonally adjusted, billions of Indonesian rupiah.
+- gdp_real / gdp_level (NGDPRSAXDCIDQ / NGDPSAXDCIDQ): CONFIRMED live,
+  IMF International Financial Statistics, quarterly, seasonally
+  adjusted. UNIT CORRECTION (later session): FRED's own page metadata
+  states "Billions of Domestic Currency" for these two series, and the
+  original build took that at face value ("IDRbn") -- but the raw
+  values, taken literally as billions, imply a quarterly nominal GDP
+  ~1000x Indonesia's actual size. Cross-checked against Indonesia's
+  official statistics agency (BPS): Q4 2025 GDP at current prices was
+  IDR 6,147.2 trillion; the raw FRED value for that quarter
+  (6,140,088,737.2) matches almost exactly when treated as MILLIONS,
+  not billions. FRED's stated unit is wrong for this specific series
+  (a known category of IMF IFS metadata error for high-denomination
+  currencies) -- corrected to "IDRm" here. Always sanity-check a
+  source's stated units against a real published figure rather than
+  trusting the label, especially for currencies with very large
+  nominal values (IDR, VND, and similar).
 - gdp_level (World Bank NY.GDP.MKTP.CD, country=IDN): standard
   fetch_worldbank() mechanism, same raw-USD-to-$m scale correction
   (1e-6) as every other country using this indicator family. Not
@@ -70,8 +83,8 @@ import requests
 
 # key: (fred_id, freq 'm'|'q'|'a', label, unit, transform None|'yoy'|'mom'|'qoq', scale)
 FRED_SERIES = {
-    "gdp_real": ("NGDPRSAXDCIDQ", "q", "Real GDP, current national prices, SA (IMF IFS)", "IDRbn", None, 1.0),
-    "gdp_level": ("NGDPSAXDCIDQ", "q", "Nominal GDP, current prices, SA (IMF IFS)", "IDRbn", None, 1.0),
+    "gdp_real": ("NGDPRSAXDCIDQ", "q", "Real GDP, current national prices, SA (IMF IFS)", "IDRm", None, 1.0),
+    "gdp_level": ("NGDPSAXDCIDQ", "q", "Nominal GDP, current prices, SA (IMF IFS)", "IDRm", None, 1.0),
     "debt_gdp": ("GGGDTAIDA188N", "a", "General government gross debt, % of GDP (IMF WEO)", "%", None, 1.0),
     "deficit": ("GGNLBAIDA188N", "a", "General government net lending/borrowing, % of GDP (IMF WEO)", "%", None, 1.0),
     "fx_raw": ("CCUSMA02IDM618N", "m", "IDR per USD, average of daily rates (OECD)", "IDR", None, 1.0),
@@ -308,16 +321,20 @@ def main() -> int:
                 failures.append(name)
                 print(f"FAIL  {name:<16} {exc}")
 
-        # gdp_growth: derived as YoY from the real-GDP level series above.
+        # gdp_growth: derived as QoQ from the real-GDP level series above.
+        # NOTE: lag=1 is genuine quarter-on-quarter for quarterly data --
+        # lag=4 (the old value) is YoY, which duplicated the separately-
+        # computed gdpYoY frontend variable under a card titled "QoQ".
+        # See the Switzerland Bug 6 writeup for the full diagnosis.
         if "gdp_real" in out["series"]:
             level_pts = out["series"]["gdp_real"]["points"]
-            growth_pts = yoy_from_level(level_pts, 4)
+            growth_pts = yoy_from_level(level_pts, 1)
             if growth_pts:
                 out["series"]["gdp_growth"] = {
-                    "label": "Real GDP growth, YoY (derived from NGDPRSAXDCIDQ)",
+                    "label": "Real GDP growth, QoQ (derived from NGDPRSAXDCIDQ)",
                     "unit": "%", "freq": "quarters", "points": growth_pts,
                 }
-                print(f"  ok  gdp_growth      {len(growth_pts):>5} observations (derived YoY)")
+                print(f"  ok  gdp_growth      {len(growth_pts):>5} observations (derived QoQ)")
 
         try:
             sid, freq, _, _, _, _ = FRED_SERIES["fx_raw"]
@@ -379,6 +396,28 @@ def main() -> int:
         except Exception as exc:
             failures.append("gdp_level")
             print(f"FAIL  gdp_level (WB USD fallback) {exc}")
+
+    # Carry forward any series that failed THIS run but succeeded on a
+    # previous run, so a transient failure (e.g. FRED 429 rate-limiting)
+    # doesn't permanently wipe good data from the live page. See the
+    # Switzerland/Chile/Colombia Bug 7 writeup -- applied here to close
+    # the same gap for Indonesia.
+    try:
+        with open("data-id.json") as f:
+            _prev_for_merge = json.load(f)
+    except Exception:
+        _prev_for_merge = {}
+    _prev_series = _prev_for_merge.get("series", {})
+    carried_over = []
+    for k, v in _prev_series.items():
+        if k not in out["series"]:
+            out["series"][k] = v
+            carried_over.append(k)
+    if carried_over:
+        print(f"CARRIED OVER from previous run (failed this run, kept prior data rather than deleting it): {', '.join(carried_over)}")
+    if not out.get("fx_to_usd") and _prev_for_merge.get("fx_to_usd"):
+        out["fx_to_usd"] = _prev_for_merge["fx_to_usd"]
+        print("CARRIED OVER fx_to_usd from previous run")
 
     if not out["series"]:
         print("\nNothing fetched.")
