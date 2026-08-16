@@ -2229,7 +2229,10 @@ function render(data){
   /* currency formatting handled dynamically by curFmt() below */
   
   const idx=v=>v.toFixed(1);
-  const SRC_GDP="World Bank NY.GDP.MKTP.CD \u00b7 current USD, annual (gdp_level); OECD growth rate for gdp_growth";
+  const SRC_GDP_NOMINAL="World Bank NY.GDP.MKTP.CD \u00b7 current US$, annual";
+  const SRC_GDP_REAL="World Bank NY.GDP.MKTP.KD \u00b7 constant 2015 US$, annual";
+  const SRC_GDP = TOGGLE_STATE.real ? SRC_GDP_REAL : SRC_GDP_NOMINAL;
+  const SRC_GDP_GROWTH="FRED series COLNAEXKP01GYSAQ \u00b7 OECD, real GDP growth YoY, as published";
   const SRC_TRADE="FRED series COLXTNTVA01CXMLSAM \u00b7 OECD merchandise trade, USD converted, seasonally adjusted, monthly";
   const SRC_FISCAL="FRED \u00b7 IMF Western Hemisphere Regional Economic Outlook, annual";
   const SRC_WB="World Bank \u00b7 % of GDP, annual";
@@ -2251,13 +2254,13 @@ function render(data){
     gdpAnnual,"line",v=>curFmt(v,s.gdp_level.unit,2),v=>curFmt(v,s.gdp_level.unit,2),SRC_GDP,1996);
   if(s.gdp_growth) chartPanel("gdp_growth","charts-gdp","Real GDP growth, quarter on quarter",
     "How much the economy grew or shrank compared with the previous three months.",
-    s.gdp_growth,"bar",v=>v+"%",pct,SRC_GDP,1999,0);
+    s.gdp_growth,"bar",v=>v+"%",pct,SRC_GDP_GROWTH,1999,0);
   if(gdpYoY) chartPanel(null,"charts-gdp","Real GDP growth, year on year",
     "How much bigger or smaller the economy is than a year ago, adjusted for inflation.",
-    gdpYoY,"line",v=>v+"%",pct,SRC_GDP,1999,0);
+    gdpYoY,"line",v=>v+"%",pct,SRC_GDP_GROWTH,1999,0);
 
   if(s.cpi) chartPanel("cpi","charts-inflation","CPI inflation, annual rate",
-    "How much consumer prices are rising compared with a year ago. Banco de México targets 3% (+/-1pp).",
+    "How much consumer prices are rising compared with a year ago. Banco de la República targets 3% (+/-1pp).",
     s.cpi,"line",v=>v+"%",pct,"OECD live prices system \u00b7 CPI, all items, YoY");
   if(s.bond_yield_10y) chartPanel("bond_yield_10y","charts-inflation","10-year government bond yield",
     "The yield on 10-year Colombian government bonds, a market gauge of inflation and rate expectations. Not Banco de la Rep\u00fablica's policy rate.",
@@ -2291,7 +2294,7 @@ function render(data){
   if(gdpAnnual) statTile(hero,"gdp_level","GDP (annual)",gdpAnnual,
     {fmt:v=>curFmt(v,s.gdp_level.unit,2),fmtD:v=>curFmt(v,s.gdp_level.unit,1),upIsGood:true,source:SRC_GDP});
   if(s.gdp_growth) statTile(hero,"gdp_growth","GDP growth (QoQ)",s.gdp_growth,
-    {fmt:pct,fmtD:pp,upIsGood:true,source:SRC_GDP});
+    {fmt:pct,fmtD:pp,upIsGood:true,source:SRC_GDP_GROWTH});
   if(s.cpi) statTile(hero,"cpi","CPI inflation",s.cpi,
     {fmt:pct,fmtD:pp,upIsGood:false,source:"OECD live prices system"});
   if(s.bond_yield_10y) statTile(hero,"bond_yield_10y","10Y bond yield",s.bond_yield_10y,
@@ -2315,9 +2318,9 @@ function render(data){
   if(gdpAnnual) statTile(tg,"gdp_level","GDP (annual)",gdpAnnual,
     {fmt:v=>curFmt(v,s.gdp_level.unit,2),fmtD:v=>curFmt(v,s.gdp_level.unit,1),upIsGood:true,source:SRC_GDP});
   if(s.gdp_growth) statTile(tg,"gdp_growth","Growth (QoQ)",s.gdp_growth,
-    {fmt:pct,fmtD:pp,upIsGood:true,source:SRC_GDP});
+    {fmt:pct,fmtD:pp,upIsGood:true,source:SRC_GDP_GROWTH});
   if(gdpYoY) statTile(tg,null,"Growth (YoY)",gdpYoY,
-    {fmt:pct,fmtD:pp,upIsGood:true,source:SRC_GDP});
+    {fmt:pct,fmtD:pp,upIsGood:true,source:SRC_GDP_GROWTH});
 
   const tinf=document.getElementById("tiles-inflation");
   if(s.cpi) statTile(tinf,"cpi","CPI (YoY)",s.cpi,

@@ -71,7 +71,6 @@ import requests
 # key: (fred_id, freq 'm'|'q'|'a', label, unit, transform None|'yoy'|'mom'|'qoq', scale)
 FRED_SERIES = {
     "gdp_growth": ("COLNAEXKP01GYSAQ", "q", "Real GDP growth, YoY (OECD, as published)", "%", None, 1.0),
-    "gdp_real": ("RGDPNACOA666NRUG", "a", "Real GDP, constant national prices (Penn World Table)", "$m (2021 prices)", None, 1.0),
     "unemployment": ("COLLRHUTTTTSTSAM", "m", "Unemployment rate, 15+, SA (OECD)", "%", None, 1.0),
     "participation_rate": ("COLLRACTTTTSTSAM", "m", "Labour force participation rate, 15+, SA", "%", None, 1.0),
     "employment_rate": ("COLLREM64TTSTSAM", "m", "Employment rate, 15-64, SA", "%", None, 1.0),
@@ -416,6 +415,32 @@ def main() -> int:
         except Exception as exc:
             failures.append(name)
             print(f"FAIL  {name:<16} {exc}")
+
+    # gdp_real: switched from Penn World Table's rgdpna (PPP-benchmarked,
+    # NOT comparable to gdp_level -- same diagnosis as the Thailand Bug
+    # writeup: substituting it into the GDP level card produced a "real
+    # GDP" figure ~2x nominal and dated to a stale year, because PWT has
+    # a genuine 1-2 year publication lag and reports PPP-adjusted, not
+    # market-exchange-rate, values). World Bank NY.GDP.MKTP.KD ("GDP,
+    # constant 2015 US$") is genuine national-accounts real GDP, on the
+    # SAME basis as gdp_level (NY.GDP.MKTP.CD, current US$): both use
+    # market exchange rates, just at different points in time -- this is
+    # what actually makes "Make it real" mean something here. gdp_growth
+    # above (COLNAEXKP01GYSAQ, OECD, directly-published YoY) is untouched
+    # -- it was already a genuine, verified, live growth-rate series.
+    try:
+        raw_real = fetch_worldbank("NY.GDP.MKTP.KD")
+        if not raw_real:
+            raise ValueError("no usable response")
+        scaled_real = [[p, round(v / 1e6, 1)] for p, v in raw_real]
+        out["series"]["gdp_real"] = {
+            "label": "GDP, constant 2015 prices (World Bank, NY.GDP.MKTP.KD)",
+            "unit": "$m", "freq": "years", "points": scaled_real,
+        }
+        print(f"  ok  gdp_real (constant USD) {len(scaled_real):>5} observations "
+              f"({scaled_real[0][0]} to {scaled_real[-1][0]}, years)")
+    except Exception as exc:
+        print(f"FAIL  gdp_real (constant USD) {exc}")
 
     # gdp_level: World Bank current-USD annual GDP, handled separately
     # (not in the generic extras loop above) because it needs a scale
