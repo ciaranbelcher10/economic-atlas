@@ -340,19 +340,46 @@ def main() -> int:
                 failures.append(name)
                 print(f"FAIL  {name:<16} {exc}")
 
-        # gdp_growth: derived as YoY from the real-GDP level series above,
-        # same approach used across the site rather than relying on a
-        # separately-published OECD growth-rate series for Turkey (none
-        # individually confirmed).
+        # gdp_growth: derived as QoQ from the real-GDP level series above.
+        # NOTE: lag=1 is genuine quarter-on-quarter for quarterly data --
+        # lag=4 (the old value) is YoY, which duplicated the separately-
+        # computed gdpYoY frontend variable under a card titled "QoQ".
+        # See the Switzerland Bug 6 writeup for the full diagnosis.
         if "gdp_real" in out["series"]:
             level_pts = out["series"]["gdp_real"]["points"]
-            growth_pts = yoy_from_level(level_pts, 4)
+            growth_pts = yoy_from_level(level_pts, 1)
             if growth_pts:
                 out["series"]["gdp_growth"] = {
-                    "label": "Real GDP growth, YoY (derived from NGDPRSAXDCTRQ)",
+                    "label": "Real GDP growth, QoQ (derived from NGDPRSAXDCTRQ)",
                     "unit": "%", "freq": "quarters", "points": growth_pts,
                 }
-                print(f"  ok  gdp_growth      {len(growth_pts):>5} observations (derived YoY)")
+                print(f"  ok  gdp_growth      {len(growth_pts):>5} observations (derived QoQ)")
+
+        # gdp_level_annual / gdp_real_annual: NGDPSAXDCTRQ (nominal) and
+        # NGDPRSAXDCTRQ (real) are genuine per-quarter flows, NOT
+        # annualized -- the "GDP (Annual)" card was showing a single
+        # quarter's value as if it were the full year (same root cause as
+        # the Poland/Switzerland Bug 5 writeup). Do NOT alter the
+        # underlying gdp_level/gdp_real series -- QoQ/YoY growth
+        # calculations correctly depend on the raw quarterly level. Add
+        # separate derived annual series instead.
+        for src_key, dst_key, src_sid in (
+            ("gdp_level", "gdp_level_annual", "NGDPSAXDCTRQ"),
+            ("gdp_real", "gdp_real_annual", "NGDPRSAXDCTRQ"),
+        ):
+            if src_key in out["series"]:
+                pts = out["series"][src_key]["points"]
+                unit = out["series"][src_key]["unit"]
+                if len(pts) >= 4:
+                    annual_pts = [
+                        [pts[i][0], round(sum(v for _, v in pts[i - 3:i + 1]), 1)]
+                        for i in range(3, len(pts))
+                    ]
+                    out["series"][dst_key] = {
+                        "label": f"GDP, trailing 4-quarter sum (derived from {src_sid})",
+                        "unit": unit, "freq": "quarters", "points": annual_pts,
+                    }
+                    print(f"  ok  {dst_key:<16} {len(annual_pts):>5} observations (derived trailing-4Q sum)")
 
         # fx_to_usd: Turkey has no dedicated H.10-style daily FRED series
         # (unlike Norway's DEXNOUS) -- CCUSMA02TRM618N (OECD, monthly
@@ -419,6 +446,28 @@ def main() -> int:
         except Exception as exc:
             failures.append("gdp_level")
             print(f"FAIL  gdp_level (WB USD fallback) {exc}")
+
+    # Carry forward any series that failed THIS run but succeeded on a
+    # previous run, so a transient failure (e.g. FRED 429 rate-limiting)
+    # doesn't permanently wipe good data from the live page. See the
+    # Switzerland/Chile/Colombia Bug 7 writeup -- applied here to close
+    # the same gap for Turkey.
+    try:
+        with open("data-tr.json") as f:
+            _prev_for_merge = json.load(f)
+    except Exception:
+        _prev_for_merge = {}
+    _prev_series = _prev_for_merge.get("series", {})
+    carried_over = []
+    for k, v in _prev_series.items():
+        if k not in out["series"]:
+            out["series"][k] = v
+            carried_over.append(k)
+    if carried_over:
+        print(f"CARRIED OVER from previous run (failed this run, kept prior data rather than deleting it): {', '.join(carried_over)}")
+    if not out.get("fx_to_usd") and _prev_for_merge.get("fx_to_usd"):
+        out["fx_to_usd"] = _prev_for_merge["fx_to_usd"]
+        print("CARRIED OVER fx_to_usd from previous run")
 
     if not out["series"]:
         print("\nNothing fetched.")
