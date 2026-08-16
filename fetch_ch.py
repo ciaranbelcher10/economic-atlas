@@ -93,7 +93,7 @@ import requests
 
 # key: (fred_id, freq 'm'|'q'|'a', label, unit, transform None|'yoy'|'mom'|'qoq', scale)
 FRED_SERIES = {
-    "gdp_real": ("CLVMNACSAB1GQCH", "q", "Real GDP, chain-linked volumes, SA (Eurostat)", "index", None, 1.0),
+    "gdp_real": ("CLVMNACSAB1GQCH", "q", "Real GDP, chain-linked volumes, SA (Eurostat)", "CHFm", None, 1.0),
     "unemployment": ("LRUNTTTTCHQ156S", "q", "Unemployment rate, 15+, SA (OECD)", "%", None, 1.0),
     "bond_yield_10y": ("IRLTLT01CHM156N", "m", "10-year government bond yield (OECD)", "%", None, 1.0),
     "debt_gdp": ("DEBTTLCHA188A", "a", "Central government debt, % of GDP (World Bank)", "%", None, 1.0),
