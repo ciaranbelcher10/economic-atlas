@@ -80,9 +80,10 @@ from datetime import datetime, timezone
 
 import requests
 
-# key: (fred_id, freq 'm'|'q'|'a', label, unit, transform None|'yoy'|'mom'|'qoq', scale)
+# key: (fred_id, freq 'q'|'m'|'a', label, unit, transform None|'yoy'|'mom'|'qoq', scale)
 FRED_SERIES = {
-    "gdp_real": ("CLVMNACSCAB1GQSE", "q", "Real GDP, chain-linked volumes, SA (Eurostat)", "index", None, 1.0),
+    "gdp_real": ("CLVMNACSCAB1GQSE", "q", "Real GDP, chain-linked volumes, SA (Eurostat)", "SEKm", None, 1.0),
+    "gdp_level": ("CPMNACSCAB1GQSE", "q", "Nominal GDP, current prices, SA (Eurostat)", "SEKm", None, 1.0),
     "unemployment": ("LRHUTTTTSEM156S", "m", "Unemployment rate, 15+, OECD-harmonized, SA", "%", None, 1.0),
     "bond_yield_10y": ("IRLTLT01SEM156N", "m", "10-year government bond yield (OECD)", "%", None, 1.0),
 }
@@ -376,15 +377,20 @@ def main() -> int:
                 failures.append(name)
                 print(f"FAIL  {name:<16} {exc}")
 
+        # gdp_growth: derived as QoQ from the real-GDP level series above.
+        # NOTE: lag=1 is genuine quarter-on-quarter for quarterly data --
+        # lag=4 (the old value) is YoY, which duplicated the separately-
+        # computed gdpYoY frontend variable under a card titled "QoQ".
+        # See the Switzerland Bug 6 writeup for the full diagnosis.
         if "gdp_real" in out["series"]:
             level_pts = out["series"]["gdp_real"]["points"]
-            growth_pts = yoy_from_level(level_pts, 4)
+            growth_pts = yoy_from_level(level_pts, 1)
             if growth_pts:
                 out["series"]["gdp_growth"] = {
-                    "label": "Real GDP growth, YoY (derived from CLVMNACSCAB1GQSE)",
+                    "label": "Real GDP growth, QoQ (derived from CLVMNACSCAB1GQSE)",
                     "unit": "%", "freq": "quarters", "points": growth_pts,
                 }
-                print(f"  ok  gdp_growth      {len(growth_pts):>5} observations (derived YoY)")
+                print(f"  ok  gdp_growth      {len(growth_pts):>5} observations (derived QoQ)")
 
     extras = [
         ("business_confidence", lambda: fetch_oecd_bci(),
@@ -437,20 +443,51 @@ def main() -> int:
         except Exception as exc:
             print(f"FAIL  cpi (HICP fallback) {exc}")
 
+    # gdp_level: NGDPSAXDCSE-style live Eurostat SEK series (CPMNACSCAB1GQSE,
+    # added to FRED_SERIES above) is now the primary source, genuinely
+    # denominated in Swedish krona -- matching the site's local-currency-
+    # by-default convention and consistent with gdp_real, which is on the
+    # same Eurostat family. This World Bank USD series is now only a
+    # fallback if that fetch fails this run.
+    if "gdp_level" not in out["series"]:
+        try:
+            raw_gdp = fetch_worldbank("NY.GDP.MKTP.CD")
+            if not raw_gdp:
+                raise ValueError("no usable response")
+            scaled_gdp = [[p, round(v / 1e6, 1)] for p, v in raw_gdp]
+            out["series"]["gdp_level"] = {
+                "label": "GDP, current prices (World Bank, NY.GDP.MKTP.CD -- USD, "
+                         "fallback: SEK series unavailable this run)",
+                "unit": "$m", "freq": "years", "points": scaled_gdp,
+            }
+            print(f"  ok  gdp_level (WB USD fallback) {len(scaled_gdp):>5} observations "
+                  f"({scaled_gdp[0][0]} to {scaled_gdp[-1][0]}, years)")
+            if "gdp_level" in failures:
+                failures.remove("gdp_level")
+        except Exception as exc:
+            failures.append("gdp_level")
+            print(f"FAIL  gdp_level (WB USD fallback) {exc}")
+
+    # Carry forward any series that failed THIS run but succeeded on a
+    # previous run, so a transient failure doesn't permanently wipe good
+    # data from the live page. See the Switzerland/Chile/Colombia Bug 7
+    # writeup -- applied here to close the same gap for Sweden.
     try:
-        raw_gdp = fetch_worldbank("NY.GDP.MKTP.CD")
-        if not raw_gdp:
-            raise ValueError("no usable response")
-        scaled_gdp = [[p, round(v / 1e6, 1)] for p, v in raw_gdp]
-        out["series"]["gdp_level"] = {
-            "label": "GDP, current prices (World Bank, NY.GDP.MKTP.CD)",
-            "unit": "$m", "freq": "years", "points": scaled_gdp,
-        }
-        print(f"  ok  gdp_level        {len(scaled_gdp):>5} observations "
-              f"({scaled_gdp[0][0]} to {scaled_gdp[-1][0]}, years)")
-    except Exception as exc:
-        failures.append("gdp_level")
-        print(f"FAIL  gdp_level        {exc}")
+        with open("data-se.json") as f:
+            _prev_for_merge = json.load(f)
+    except Exception:
+        _prev_for_merge = {}
+    _prev_series = _prev_for_merge.get("series", {})
+    carried_over = []
+    for k, v in _prev_series.items():
+        if k not in out["series"]:
+            out["series"][k] = v
+            carried_over.append(k)
+    if carried_over:
+        print(f"CARRIED OVER from previous run (failed this run, kept prior data rather than deleting it): {', '.join(carried_over)}")
+    if not out.get("fx_to_usd") and _prev_for_merge.get("fx_to_usd"):
+        out["fx_to_usd"] = _prev_for_merge["fx_to_usd"]
+        print("CARRIED OVER fx_to_usd from previous run")
 
     if not out["series"]:
         print("\nNothing fetched.")
