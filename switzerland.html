@@ -2346,13 +2346,26 @@ function curFmt(rawValue, unitStr, decimals){
 function isCurrencyUnit(u){
   return u!=="%" && u!=="index" && /(m|bn|tn)$/.test(u);
 }
-function isAlreadyUSD(u){
-  // Strip a leading descriptive suffix like " (2021 prices)" the same way
-  // scaleOf() does, then check if what remains starts with a bare $. Some
-  // series (e.g. World-Bank-sourced gdp_level for several countries) are
-  // authored directly in USD rather than local currency -- converting
+function isAlreadyUSD(u, key){
+  // Some series (e.g. World-Bank-sourced gdp_level for several countries)
+  // are authored directly in USD rather than local currency -- converting
   // those again through the local FX rate on "Dollarise" produces a
-  // silently wrong, double-converted figure. This guard is the fix.
+  // silently wrong, double-converted figure. This guard catches that.
+  //
+  // It has to be series-aware, not just page-aware: a few countries (AUD/
+  // CAD/MXN/ZAR/BRL) define NATIVE_SYMBOL_OVERRIDE because their own
+  // currency happens to use the $ glyph too, and for those countries
+  // gdp_level/gdp_real are genuinely local-currency (IMF IFS national-
+  // currency series) and SHOULD be converted. But other $-prefixed series
+  // on the very same page -- trade_balance, sourced from OECD's "667S"
+  // family -- really is USD-denominated regardless of the page's own
+  // currency, and still needs the normal already-USD protection. So the
+  // override only overrides the check for the two keys it's known to
+  // apply to.
+  if ((key === "gdp_level" || key === "gdp_real") &&
+      typeof NATIVE_SYMBOL_OVERRIDE !== "undefined" && NATIVE_SYMBOL_OVERRIDE) {
+    return false;
+  }
   const clean = u.replace(/\s*\([^)]*\)\s*$/, '').trim();
   return clean.charAt(0) === "$";
 }
@@ -2370,7 +2383,7 @@ function buildDisplaySeries(rawSeries){
   if(TOGGLE_STATE.dollar && PAGE_DATA.fx_to_usd){
     const fx = PAGE_DATA.fx_to_usd;
     CURRENCY_KEYS.forEach(k=>{
-      if(out[k] && isCurrencyUnit(out[k].unit) && !isAlreadyUSD(out[k].unit)) out[k]=convertSeriesToUSD(out[k], fx);
+      if(out[k] && isCurrencyUnit(out[k].unit) && !isAlreadyUSD(out[k].unit, k)) out[k]=convertSeriesToUSD(out[k], fx);
     });
   }
   return out;

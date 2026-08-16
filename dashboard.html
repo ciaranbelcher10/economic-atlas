@@ -3351,28 +3351,33 @@ try { dollarise = localStorage.getItem(DOLLARISE_KEY) === "1"; } catch(e){}
 // site), swapping the currency symbol but keeping the scale suffix
 // (bn/m/tn). Non-currency units, and countries with no FX entry (only
 // the US, since it's already USD), pass through unchanged.
-// Some countries' series are natively USD-denominated already (e.g.
-// World-Bank-sourced gdp_level for Turkey, Argentina, Indonesia, Poland,
-// Chile, Colombia, Denmark, Norway, Thailand, Israel -- their gdp_real or
-// other series come from a different, local-currency source, but
-// gdp_level itself is pulled straight from World Bank in USD). Converting
-// those again through FX_RATES on Dollarise silently produces a wrong,
-// double-converted number. This checks the actual unit string being
-// converted, not just the country.
-function isAlreadyUSD(unitStr){
-  var clean = (unitStr || "").replace(/\s*\([^)]*\)\s*$/, "").trim();
+// Countries whose own currency happens to use the $ glyph too (AUD, CAD,
+// MXN, ZAR, BRL) -- their gdp_level/gdp_real are genuinely local-currency
+// (IMF IFS national-currency series) and need converting like any other
+// country's. But other $-prefixed series on these same countries --
+// trade_balance, from OECD's "667S" family -- really is USD-denominated
+// regardless of the country's own currency, and still needs the normal
+// already-USD protection below. So this only applies to the two concepts
+// it's known to be correct for.
+var DOLLAR_GLYPH_LOCAL_CURRENCY_COUNTRIES = {Australia:1, Canada:1, Mexico:1, "South Africa":1, Brazil:1};
+function isAlreadyUSD(unit, country, key){
+  if((key === "gdp_level" || key === "gdp_real") &&
+     country && DOLLAR_GLYPH_LOCAL_CURRENCY_COUNTRIES[country]){
+    return false;
+  }
+  var clean = (unit || "").replace(/\s*\([^)]*\)\s*$/, "").trim();
   return clean.charAt(0) === "$";
 }
-function toDisplayUnit(value, unit, country){
-  if(!dollarise || !isCurrencyUnit(unit) || isAlreadyUSD(unit)) return {value: value, unit: unit};
+function toDisplayUnit(value, unit, country, key){
+  if(!dollarise || !isCurrencyUnit(unit) || isAlreadyUSD(unit, country, key)) return {value: value, unit: unit};
   var fx = FX_RATES[country];
   if(!fx) return {value: value, unit: unit};
   var converted = fx.direction === "multiply" ? value * fx.rate : value / fx.rate;
   var scaleSuffix = unit.replace(/^[^a-zA-Z0-9]+/, "");
   return {value: converted, unit: "$" + scaleSuffix};
 }
-function toDisplayPoints(pts, unit, country){
-  if(!dollarise || !isCurrencyUnit(unit) || isAlreadyUSD(unit)) return pts;
+function toDisplayPoints(pts, unit, country, key){
+  if(!dollarise || !isCurrencyUnit(unit) || isAlreadyUSD(unit, country, key)) return pts;
   var fx = FX_RATES[country];
   if(!fx) return pts;
   return pts.map(function(p){
@@ -3409,8 +3414,8 @@ function expandTile(tile, id, m){
   tile.querySelector(".chartbtn").innerHTML = "&#128200; Hide chart";
   if(!tileCharts[id]){
     var canvas = tile.querySelector("canvas");
-    var pts = toDisplayPoints(m.series.points, m.series.unit, m.country);
-    var chartUnit = toDisplayUnit(0, m.series.unit, m.country).unit;
+    var pts = toDisplayPoints(m.series.points, m.series.unit, m.country, m.key);
+    var chartUnit = toDisplayUnit(0, m.series.unit, m.country, m.key).unit;
     var kind = BAR_KEYS[m.key] ? "bar" : "line";
     var refLine = REF_LINE_FOR[m.key] == null ? null : REF_LINE_FOR[m.key];
     var fmt = function(v){ return fmtVal(v, chartUnit, m.key, m.country); };
@@ -3617,7 +3622,7 @@ function renderDash(){
   pinned.forEach(function(id){
     var m = tileFromId(id);
     if(!m) return;
-    var disp = toDisplayUnit(m.value, m.series.unit, m.country);
+    var disp = toDisplayUnit(m.value, m.series.unit, m.country, m.key);
     var led = freshness(m.series);
     var ledTitle = freshnessTitle(m.series);
     var tile = document.createElement("div");

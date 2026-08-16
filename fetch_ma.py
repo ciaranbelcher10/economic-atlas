@@ -76,11 +76,11 @@ def fred_period(date: str, freq: str) -> str:
 def _is_future_period(period: str) -> bool:
     """True if `period` (a fred_period-format string: 'YYYY', 'YYYY-Qn', or
     'YYYY-MM') refers to a year beyond the current calendar year. Some IMF
-    REO/WEO-derived FRED mirrors bundle several years of forward projections
-    into the same series as real observations, with no flag distinguishing
-    actual from forecast. We only want actual/estimated-to-date figures on
-    the site, so any point dated beyond the current year is dropped at
-    fetch time."""
+    REO/WEO-derived FRED mirrors (e.g. MARGGDGDPGDPPT below) bundle several
+    years of forward projections into the same series as real observations,
+    with no flag distinguishing actual from forecast. We only want
+    actual/estimated-to-date figures on the site, so any point dated beyond
+    the current year is dropped at fetch time."""
     try:
         year = int(period[:4])
     except (ValueError, TypeError):

@@ -489,12 +489,9 @@ def main() -> int:
         # NGDPSAXDCARQ above (via FRED_SERIES) is now the primary source,
         # genuinely denominated in ARS -- matching gdp_real and the site's
         # local-currency-by-default convention. This World Bank USD series
-        # is now only a fallback: it was previously the primary source,
-        # and since it was already in USD, "Dollarise" was converting an
-        # already-dollar figure through the ARS/USD rate a second time,
-        # producing a badly wrong number. Clearly labeled as USD so the
-        # frontend's isAlreadyUSD() guard (added this session) correctly
-        # skips re-converting it if this fallback ever gets used.
+        # is now only a fallback, clearly labeled as USD so the frontend's
+        # isAlreadyUSD() guard (added this session) correctly skips
+        # re-converting it if this fallback ever gets used.
         try:
             raw_gdp = fetch_worldbank("NY.GDP.MKTP.CD")
             if not raw_gdp:

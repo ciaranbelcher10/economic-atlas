@@ -1876,16 +1876,20 @@ function toUSDValue(country, rawValue){
   if(!fx || !fx.rate) return null;
   return fx.direction === "multiply" ? rawValue * fx.rate : rawValue / fx.rate;
 }
-// Some countries' series are natively USD-denominated already (e.g.
-// World-Bank-sourced gdp_level for Turkey, Argentina, Indonesia, Poland,
-// Chile, Colombia, Denmark, Norway, Thailand, Israel -- their gdp_real or
-// other series come from a different, local-currency source, but
-// gdp_level itself is pulled straight from World Bank in USD). Running
-// those through toUSDValue's FX rate a second time silently produces a
-// wrong number. This checks the actual unit string of the series being
-// converted, not just the country, so it catches this regardless of
-// which series or which country it shows up on next.
-function isAlreadyUSDUnit(unitStr){
+// Countries whose own currency happens to use the $ glyph too (AUD, CAD,
+// MXN, ZAR, BRL) -- their gdp_level/gdp_real are genuinely local-currency
+// (IMF IFS national-currency series) and need converting like any other
+// country's. But other $-prefixed series on these same countries --
+// trade_balance, from OECD's "667S" family -- really is USD-denominated
+// regardless of the country's own currency, and still needs the normal
+// already-USD protection below. So this only applies to the two concepts
+// it's known to be correct for.
+var DOLLAR_GLYPH_LOCAL_CURRENCY_COUNTRIES = {Australia:1, Canada:1, Mexico:1, "South Africa":1, Brazil:1};
+function isAlreadyUSDUnit(unitStr, country, concept){
+  if((concept === "gdp_level" || concept === "gdp_real") &&
+     country && DOLLAR_GLYPH_LOCAL_CURRENCY_COUNTRIES[country]){
+    return false;
+  }
   var clean = (unitStr || "").replace(/\s*\([^)]*\)\s*$/, "").trim();
   return clean.charAt(0) === "$";
 }
@@ -1906,9 +1910,9 @@ function forceUSDUnit(unitStr){
 // even before the actual size difference. This is the single place
 // that combines both steps correctly; every currency conversion in the
 // app should go through this, not toUSDValue alone.
-function toUSDMillions(country, rawValue, unitStr){
+function toUSDMillions(country, rawValue, unitStr, concept){
   var normalized = rawValue * (scaleOf(unitStr) / 1e6);
-  if(isAlreadyUSDUnit(unitStr)) return normalized;
+  if(isAlreadyUSDUnit(unitStr, country, concept)) return normalized;
   return toUSDValue(country, normalized);
 }
 var CURRENT_YEAR = null;
@@ -2098,7 +2102,7 @@ function getSnapshotValue(country, concept, year){
   if(CONCEPT_UNIT[concept] === "currency"){
     var agg = yearAggregate(country, concept, year);
     if(!agg) return null;
-    var usdVal = toUSDMillions(country, agg.value, agg.unit);
+    var usdVal = toUSDMillions(country, agg.value, agg.unit, concept);
     if(usdVal == null) return null;
     return {value: Math.round(usdVal*100)/100, isDelta:false, isCumulative:false, year: year, unit: "currency", rawUnit: "$m"};
   }
@@ -2132,8 +2136,8 @@ function getChangeValue(country, concept, startYear, endYear){
     var endAgg = yearAggregate(country, concept, endYear);
     var startAgg = yearAggregate(country, concept, startYear);
     if(!endAgg || !startAgg) return null;
-    var endUsd = toUSDMillions(country, endAgg.value, endAgg.unit);
-    var startUsd = toUSDMillions(country, startAgg.value, startAgg.unit);
+    var endUsd = toUSDMillions(country, endAgg.value, endAgg.unit, concept);
+    var startUsd = toUSDMillions(country, startAgg.value, startAgg.unit, concept);
     if(endUsd == null || startUsd == null) return null;
     var diff = Math.round((endUsd - startUsd) * 100) / 100;
     return {value: diff, isDelta:true, isCumulative:false, year: startYear, endYear: endYear, unit: "currency", rawUnit: "$m"};
@@ -3188,7 +3192,7 @@ function getMapValueForYear(country, concept, year){
   var agg = yearAggregate(country, concept, year);
   if(!agg) return null;
   if(CONCEPT_UNIT[concept] === "currency"){
-    var usdVal = toUSDMillions(country, agg.value, agg.unit);
+    var usdVal = toUSDMillions(country, agg.value, agg.unit, concept);
     if(usdVal == null) return null;
     return {value: Math.round(usdVal*100)/100, isDelta: false, isCumulative: false, year: year, unit: "currency", rawUnit: "$m"};
   }
