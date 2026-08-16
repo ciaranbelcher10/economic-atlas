@@ -12,13 +12,13 @@
 })();</script>
 <meta name="viewport" content="width=device-width, initial-scale=1">
 <title>Denmark · The Economic Atlas</title>
-<meta name="description" content="The Denmarkn economy in numbers: GDP, inflation, unemployment, trade and government finances, from official statistics.">
+<meta name="description" content="The Danish economy in numbers: GDP, inflation, unemployment, trade and government finances, from official statistics.">
 <script type="application/ld+json">
 {
   "@context": "https://schema.org",
   "@type": "Dataset",
   "name": "Denmark economic data",
-  "description": "The Denmarkn economy in numbers: GDP, inflation, unemployment, trade and government finances, from official statistics.",
+  "description": "The Danish economy in numbers: GDP, inflation, unemployment, trade and government finances, from official statistics.",
   "url": "https://theeconomicatlas.com/denmark",
   "keywords": [
     "GDP",
@@ -44,7 +44,7 @@
 <meta property="og:type" content="website">
 <meta property="og:site_name" content="The Economic Atlas">
 <meta property="og:title" content="Denmark · The Economic Atlas">
-<meta property="og:description" content="The Denmarkn economy in numbers: GDP, inflation, unemployment, trade and government finances, from official statistics.">
+<meta property="og:description" content="The Danish economy in numbers: GDP, inflation, unemployment, trade and government finances, from official statistics.">
 <meta property="og:url" content="https://theeconomicatlas.com/denmark">
 <meta property="og:image" content="https://theeconomicatlas.com/og-image.png">
 <meta property="og:image:width" content="1200">
@@ -52,7 +52,7 @@
 <meta property="og:image:alt" content="The Economic Atlas -- hourly economic data, no commentary.">
 <meta name="twitter:card" content="summary_large_image">
 <meta name="twitter:title" content="Denmark · The Economic Atlas">
-<meta name="twitter:description" content="The Denmarkn economy in numbers: GDP, inflation, unemployment, trade and government finances, from official statistics.">
+<meta name="twitter:description" content="The Danish economy in numbers: GDP, inflation, unemployment, trade and government finances, from official statistics.">
 <meta name="twitter:image" content="https://theeconomicatlas.com/og-image.png">
 <link rel="canonical" href="https://theeconomicatlas.com/denmark">
 <link rel="preconnect" href="https://fonts.googleapis.com">
@@ -2236,7 +2236,10 @@ function render(data){
   /* currency formatting handled dynamically by curFmt() below */
   
   const idx=v=>v.toFixed(1);
-  const SRC_GDP="FRED \u00b7 OECD Main Economic Indicators / Penn World Table";
+  const SRC_GDP_NOMINAL="Eurostat CPMNACSCAB1GQDK via FRED \u00b7 current prices, SA, quarterly (rolled up to annual)";
+  const SRC_GDP_REAL="Eurostat CLVMNACSCAB1GQDK via FRED \u00b7 chained 2010 prices, SA, quarterly (rolled up to annual)";
+  const SRC_GDP = TOGGLE_STATE.real ? SRC_GDP_REAL : SRC_GDP_NOMINAL;
+  const SRC_GDP_GROWTH="FRED \u00b7 derived from Eurostat CLVMNACSCAB1GQDK, real GDP growth QoQ";
   const SRC_TRADE="OECD \u00b7 merchandise trade, quarterly";
   const SRC_FISCAL="Eurostat \u00b7 general government, % of GDP, annual";
   const SRC_WB="World Bank \u00b7 % of GDP, annual";
@@ -2250,7 +2253,7 @@ function render(data){
     "How optimistic firms are about the months ahead. 100 is the long-run average; above it, firms expect better times.",
     s.business_confidence,"line",idx,v=>idx(v)+" (avg = 100)",SRC_BCI,undefined,100);
   if(s.fdi) chartPanel("fdi","charts-headline","Foreign direct investment",
-    "Money invested into Denmarkn businesses from abroad each year, as a share of GDP.",
+    "Money invested into Danish businesses from abroad each year, as a share of GDP.",
     s.fdi,"line",v=>v+"%",pct,SRC_WB);
 
   if(gdpAnnual) chartPanel("gdp_level","charts-gdp","GDP",
@@ -2258,16 +2261,16 @@ function render(data){
     gdpAnnual,"line",v=>curFmt(v,s.gdp_level.unit,2),v=>curFmt(v,s.gdp_level.unit,2),SRC_GDP,1996);
   if(s.gdp_growth) chartPanel("gdp_growth","charts-gdp","Real GDP growth, quarter on quarter",
     "How much the economy grew or shrank compared with the previous three months.",
-    s.gdp_growth,"bar",v=>v+"%",pct,SRC_GDP,1999,0);
+    s.gdp_growth,"bar",v=>v+"%",pct,SRC_GDP_GROWTH,1999,0);
   if(gdpYoY) chartPanel(null,"charts-gdp","Real GDP growth, year on year",
     "How much bigger or smaller the economy is than a year ago, adjusted for inflation.",
-    gdpYoY,"line",v=>v+"%",pct,SRC_GDP,1999,0);
+    gdpYoY,"line",v=>v+"%",pct,SRC_GDP_GROWTH,1999,0);
 
   if(s.cpi) chartPanel("cpi","charts-inflation","CPI inflation, annual rate",
-    "How much consumer prices are rising compared with a year ago. The Bank of Denmark targets 2%.",
+    "How much consumer prices are rising compared with a year ago. Danmarks Nationalbank targets 2%.",
     s.cpi,"line",v=>v+"%",pct,"OECD live prices system \u00b7 CPI, all items, YoY");
   if(s.bond_yield_10y) chartPanel("bond_yield_10y","charts-inflation","10-year government bond yield",
-    "The yield on 10-year Denmarkn government bonds, a market gauge of inflation and rate expectations. Not the Bank of Denmark's base rate.",
+    "The yield on 10-year Danish government bonds, a market gauge of inflation and rate expectations. Not Danmarks Nationalbank's policy rate.",
     s.bond_yield_10y,"line",v=>v+"%",v=>v.toFixed(2)+"%",SRC_BOND);
 
   if(s.unemployment) chartPanel("unemployment","charts-labour","Unemployment rate",
@@ -2298,7 +2301,7 @@ function render(data){
   if(gdpAnnual) statTile(hero,"gdp_level","GDP (annual)",gdpAnnual,
     {fmt:v=>curFmt(v,s.gdp_level.unit,2),fmtD:v=>curFmt(v,s.gdp_level.unit,1),upIsGood:true,source:SRC_GDP});
   if(s.gdp_growth) statTile(hero,"gdp_growth","GDP growth (QoQ)",s.gdp_growth,
-    {fmt:pct,fmtD:pp,upIsGood:true,source:SRC_GDP});
+    {fmt:pct,fmtD:pp,upIsGood:true,source:SRC_GDP_GROWTH});
   if(s.cpi) statTile(hero,"cpi","CPI inflation",s.cpi,
     {fmt:pct,fmtD:pp,upIsGood:false,source:"OECD live prices system"});
   if(s.bond_yield_10y) statTile(hero,"bond_yield_10y","10Y bond yield",s.bond_yield_10y,
@@ -2322,9 +2325,9 @@ function render(data){
   if(gdpAnnual) statTile(tg,"gdp_level","GDP (annual)",gdpAnnual,
     {fmt:v=>curFmt(v,s.gdp_level.unit,2),fmtD:v=>curFmt(v,s.gdp_level.unit,1),upIsGood:true,source:SRC_GDP});
   if(s.gdp_growth) statTile(tg,"gdp_growth","Growth (QoQ)",s.gdp_growth,
-    {fmt:pct,fmtD:pp,upIsGood:true,source:SRC_GDP});
+    {fmt:pct,fmtD:pp,upIsGood:true,source:SRC_GDP_GROWTH});
   if(gdpYoY) statTile(tg,null,"Growth (YoY)",gdpYoY,
-    {fmt:pct,fmtD:pp,upIsGood:true,source:SRC_GDP});
+    {fmt:pct,fmtD:pp,upIsGood:true,source:SRC_GDP_GROWTH});
 
   const tinf=document.getElementById("tiles-inflation");
   if(s.cpi) statTile(tinf,"cpi","CPI (YoY)",s.cpi,
@@ -2380,7 +2383,9 @@ function scaleOf(unitStr){
 }
 function currencySymbol(unitStr){
   const m = unitStr.match(/^[^a-zA-Z0-9]+/);
-  return m ? m[0] : "";
+  if(m) return m[0];
+  const code = unitStr.match(/^([A-Z]{3})(m|bn|tn)?(\s|$)/);
+  return code ? code[1] : "";
 }
 function curFmt(rawValue, unitStr, decimals){
   const scale = scaleOf(unitStr);
@@ -2512,10 +2517,15 @@ var FALLBACK_PARTNERS = [
   {name:"Italy",         code:"380", region:"Europe",     total:12.1, exports:5.0,  imports:7.1,  totalShare:3.0,  exportShare:3.9,  importShare:4.5},
   {name:"Norway",        code:"578", region:"Europe",     total:11.3, exports:2.0,  imports:9.3,  totalShare:2.8,  exportShare:1.6,  importShare:5.9},
   {name:"India",         code:"356", region:"Asia",       total:9.6,  exports:5.0,  imports:4.6,  totalShare:2.4,  exportShare:3.9,  importShare:2.9},
-  {name:"United Arab Emirates", code:"784", region:"Middle East", total:8.7, exports:6.0, imports:2.7, totalShare:2.2, exportShare:4.7, importShare:1.7},
-  {name:"Denmark",  code:"410", region:"Asia",        total:7.4,  exports:3.0,  imports:4.4,  totalShare:1.8,  exportShare:2.3,  importShare:2.8}
+  {name:"United Arab Emirates", code:"784", region:"Middle East", total:8.7, exports:6.0, imports:2.7, totalShare:2.2, exportShare:4.7, importShare:1.7}
 ];
-var UK_ID = "410"; // Denmark
+var UK_ID = "208"; // Denmark. BUG FIX (Aug 2026 session): was "410"
+// (South Korea's UN M49 code) -- this page's home-country marker was
+// silently highlighting South Korea on the trade-partner map instead of
+// Denmark, and the fallback list carried a bogus self-referential
+// "Denmark" row (region "Asia", also using the wrong "410" code) that
+// doesn't appear on any other country's page -- removed, matching the
+// Sweden/Chile/Norway pattern of no self-row.
 var PARTNERS = FALLBACK_PARTNERS;
 var CURRENCY_SYMBOL = "$"; // FALLBACK_PARTNERS values are authored in USD billions (matching UN Comtrade's own convention), same as every other country's fallback trade data -- not Denmark's own currency
 var colorScale, widthScale;

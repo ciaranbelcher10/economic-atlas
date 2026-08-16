@@ -32,28 +32,31 @@ wiring in -- v1.1.5 build):
   during this build to be dead, stopped at 1994 (30+ years stale), the
   exact same failure mode already fixed for Israel/Morocco elsewhere on
   this site.
-- gdp_level (MKTGDPDKA646NWDB, World Bank): CONFIRMED live, annual, current
-  US dollars, through 2024 (updated Dec 2025). NOTE: this World Bank series
-  reports RAW dollars, not millions -- confirmed by checking the actual
-  2024 value (~$424.5bn shown as 424524722037.05, not 424524.7) -- this is
-  the exact "667 family reports plain USD, not millions" scale-bug class
-  that has bitten this codebase before (see fetch_mx.py/fetch_za.py
-  history). scale=1e-6 applied so the site's "$m" unit label is accurate.
-  Fetched via World Bank (fetch_worldbank), not FRED's dead OECD mirror.
-- gdp_real (RGDPNADKA666NRUG, University of Groningen/UC Davis Penn World
-  Table via FRED): CONFIRMED live, annual, millions of 2021 US dollars,
-  through 2023 (updated Feb 2026). Slower-updating than most series on
-  this site (Penn World Table publishes on its own annual cycle, not
-  matching the OECD/World Bank calendar), but genuinely live and current
-  for what it is -- labelled honestly as 2021-price-basis USD, not native
-  DKK, since that's what this specific source actually provides.
-- gdp_growth (DNKGDPRQPSMEI): CONFIRMED live, OECD Main Economic
-  Indicators, "growth rate same period previous year", quarterly, through
-  Q4 2025. Already a YoY growth rate as published -- no transform needed,
-  unlike most other countries' gdp_growth (which is derived via qoq/yoy
-  transform from a level series). Do not apply a transform to this one.
+- gdp_level (CPMNACSCAB1GQDK, Eurostat via FRED) / gdp_real (CLVMNACSCAB1GQDK,
+  Eurostat via FRED): this docstring paragraph was stale -- it previously
+  described gdp_level as World Bank USD and gdp_real as Penn World Table,
+  but FRED_SERIES below has actually pointed both at genuine DKK-denominated
+  Eurostat series (current-price and chained-2010-price national accounts,
+  seasonally adjusted, quarterly) for some time. CONFIRMED live via each
+  series' own FRED page. World Bank's NY.GDP.MKTP.CD remains as a fallback
+  further down (only used if the Eurostat fetch fails this run), clearly
+  labelled and scale-corrected the same way as every other country's USD
+  fallback on this site.
+- gdp_growth: BUG FIX (Aug 2026 session) -- this used to be fetched
+  directly from DNKGDPRQPSMEI (OECD's own published YoY growth rate) and
+  labelled "GDP growth (QoQ)" on the page. That series genuinely is YoY,
+  not QoQ, as published -- the page was showing the same YoY figure twice
+  under two different labels (QoQ tile and YoY tile), the exact Bug 6
+  "duplicate tile" tell already fixed for other countries this session.
+  Retired DNKGDPRQPSMEI entirely and derive genuine QoQ growth instead
+  from gdp_real's own quarterly chained-volume level series
+  (CLVMNACSCAB1GQDK) via a qoq transform, computed after the main
+  FRED_SERIES loop below (see the dedicated block near the end of main()).
+  This also fixes the growth citation, which had been citing "Penn World
+  Table" even though neither series has used PWT for some time.
 - trade_balance: NOT INCLUDED. No specific FRED series ID was verified
   for this build (unlike Korea's confirmed XTNTVA01KRQ667S) -- flagged as
+
   a genuine gap to fill in a follow-up session rather than guessing a
   series ID and risking a silent wrong-scale bug (the "667 family reports
   plain USD, not millions" pattern has bitten this codebase before).
@@ -88,7 +91,6 @@ import requests
 # key: (fred_id, freq 'm'|'q'|'a', label, unit, transform None|'yoy'|'mom'|'qoq', scale)
 # - participation_rate (LRAC64TTDKQ156S) / employment_rate (LREM64TTDKQ156S): OECD infra-annual labour-statistics FRED family, quarterly, ages 15-64. Same pattern confirmed live for Germany (pilot); inferred-by-pattern for Denmark -- not individually confirmed, check the first Actions log.
 FRED_SERIES = {
-    "gdp_growth": ("DNKGDPRQPSMEI", "q", "Real GDP growth, YoY (OECD, as published)", "%", None, 1.0),
     "gdp_real": ("CLVMNACSCAB1GQDK", "q", "Real GDP, chained 2010 prices, SA (Eurostat)", "DKKm", None, 1.0),
     "gdp_level": ("CPMNACSCAB1GQDK", "q", "Nominal GDP, current prices, SA (Eurostat)", "DKKm", None, 1.0),
     "unemployment": ("LRHUTTTTDKM156S", "m", "Unemployment rate, 15+, OECD-harmonized", "%", None, 1.0),
@@ -420,8 +422,35 @@ def main() -> int:
                 failures.append(name)
                 print(f"FAIL  {name:<16} {exc}")
 
+    # gdp_growth: BUG FIX (Aug 2026 session) -- derive genuine QoQ growth
+    # from gdp_real's own quarterly chained-volume level series
+    # (CLVMNACSCAB1GQDK) rather than fetching DNKGDPRQPSMEI (OECD's
+    # already-YoY series, previously mislabelled "QoQ" on the page and
+    # duplicating the separately-computed YoY tile -- Bug 6). See docstring
+    # note above.
+    if "gdp_real" in out["series"]:
+        try:
+            real_points = out["series"]["gdp_real"]["points"]
+            growth_points = transform(real_points, "qoq")
+            if not growth_points:
+                raise ValueError("qoq transform produced no points")
+            out["series"]["gdp_growth"] = {
+                "label": "Real GDP growth, QoQ (derived from CLVMNACSCAB1GQDK)",
+                "unit": "%", "freq": "quarters", "points": growth_points,
+            }
+            print(f"  ok  gdp_growth      {len(growth_points):>5} observations "
+                  f"({growth_points[0][0]} to {growth_points[-1][0]}, quarters) "
+                  f"-- derived QoQ from gdp_real")
+        except Exception as exc:
+            failures.append("gdp_growth")
+            print(f"FAIL  gdp_growth       {exc}")
+    else:
+        failures.append("gdp_growth")
+        print("FAIL  gdp_growth       gdp_real unavailable, cannot derive QoQ")
+
     extras = [
         ("business_confidence", lambda: fetch_oecd_bci(),
+
          "Business confidence indicator, LT avg = 100 (OECD BCICP)", "index", "months"),
         ("cpi", lambda: fetch_oecd_cpi(("DNK",), "M"),
          "CPI, all items, YoY (OECD live prices system)", "%", "months"),
