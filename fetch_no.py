@@ -41,15 +41,30 @@ still the genuine test):
   Denmark-pattern workaround instead: World Bank annual USD for
   gdp_level, Penn World Table annual for gdp_real, and this OECD
   growth-rate series (which is NOT dead) for gdp_growth.
-- gdp_level (World Bank NY.GDP.MKTP.CD, country=NOR): CONFIRMED live
-  (World Bank series MKTGDPNOA646NWDB shows data through 2024, updated
-  Dec 2025) via the same fetch_worldbank() mechanism already used for
-  Denmark. Same raw-USD-not-millions scale correction applied
-  (scale 1e-6) as every other country using this indicator family.
-- gdp_real (RGDPNANOA666NRUG, Penn World Table via FRED): CONFIRMED
-  live, annual, millions of 2021 US dollars, through 2023 (updated Feb
-  2026). Same slower Penn World Table publication cadence as every
-  other country using this source.
+- gdp_level / gdp_real: BUG FIX (Aug 2026 session). The original build's
+  notes above claimed gdp_level had to fall back to World Bank USD
+  (NY.GDP.MKTP.CD) because Norway's OECD nominal-GDP mirror is dead, and
+  left gdp_real on Penn World Table (RGDPNANOA666NRUG). This was the same
+  "confidently-wrong disclosed gap" failure mode already caught for
+  Thailand/Singapore/Ireland this session -- checked directly against
+  World Bank's own indicator pages and NY.GDP.MKTP.CN (GDP, current LCU)
+  genuinely exists for Norway, same as NY.GDP.MKTP.KN (GDP, constant
+  LCU). No real need to fall back to USD-only, nor to Penn World Table's
+  PPP-benchmarked, publication-lagged series. Swapped both to genuine
+  NOK-denominated World Bank series, on the same current/constant-LCU
+  basis used for Austria/Thailand/Singapore:
+    gdp_level -> NY.GDP.MKTP.CN (current LCU, NOK) via fetch_worldbank(),
+      same raw-value-not-millions scale correction (scale 1e-6) as the
+      NY.GDP.MKTP.CD family.
+    gdp_real  -> NY.GDP.MKTP.KN (constant LCU, NOK) via fetch_worldbank(),
+      same scale correction. This retires the PWT dependency entirely for
+      Norway -- no more PPP/nominal mismatch under "Make it real", and no
+      more stale-year Penn World Table citation.
+  Both handled in a dedicated block below (not the generic FRED_SERIES
+  loop) since they share a scale correction and a NOK label, matching
+  the Colombia/Chile/Thailand/Singapore pattern. NOT yet confirmed via
+  an actual live API call (same sandbox network limitation as
+  everything else in this file) -- check the first real Actions log.
 - trade_balance (XTNTVA01NOM667S): CONFIRMED live (through Dec 2025,
   updated Feb 2026), OECD merchandise trade, monthly, USD. Unlike
   Denmark (which left trade_balance out as an unverified gap), this
@@ -110,7 +125,6 @@ import requests
 # key: (fred_id, freq 'm'|'q'|'a', label, unit, transform None|'yoy'|'mom'|'qoq', scale)
 FRED_SERIES = {
     "gdp_growth": ("NORGDPRQPSMEI", "q", "Real GDP growth, YoY (OECD, as published)", "%", None, 1.0),
-    "gdp_real": ("RGDPNANOA666NRUG", "a", "Real GDP, constant national prices (Penn World Table)", "$m (2021 prices)", None, 1.0),
     "unemployment": ("LRHUTTTTNOQ156S", "q", "Unemployment rate, 15+, SA (OECD)", "%", None, 1.0),
     "participation_rate": ("LRAC64TTNOQ156S", "q", "Labour force participation rate, 15-64, SA", "%", None, 1.0),
     "employment_rate": ("LREM64TTNOQ156S", "q", "Employment rate, 15-64, SA", "%", None, 1.0),
@@ -494,29 +508,34 @@ def main() -> int:
             failures.append(name)
             print(f"FAIL  {name:<16} {exc}")
 
-    # gdp_level: World Bank current-USD annual GDP, handled separately
-    # (not in the generic extras loop above) because it needs a scale
-    # correction the others don't -- this specific World Bank series
-    # reports RAW dollars, not millions (confirmed during this build by
-    # checking the actual 2024 figure), the same "667 family" scale-bug
-    # class that has bitten this codebase before. Divide by 1e6 so the
-    # site's "$m" unit label is actually accurate, not off by a factor
-    # of a million.
-    try:
-        raw_gdp = fetch_worldbank("NY.GDP.MKTP.CD")
-        if not raw_gdp:
-            raise ValueError("no usable response")
-        scaled_gdp = [[p, round(v / 1e6, 1)] for p, v in raw_gdp]
-        out["series"]["gdp_level"] = {
-            "label": "GDP, current prices (World Bank, NY.GDP.MKTP.CD)",
-            "unit": "$m", "freq": "years", "points": scaled_gdp,
-        }
-        print(f"  ok  gdp_level        {len(scaled_gdp):>5} observations "
-              f"({scaled_gdp[0][0]} to {scaled_gdp[-1][0]}, years) -- "
-              f"scaled from raw USD to $m")
-    except Exception as exc:
-        failures.append("gdp_level")
-        print(f"FAIL  gdp_level        {exc}")
+    # gdp_level / gdp_real: World Bank current-LCU and constant-LCU annual
+    # GDP (NOK), handled separately (not in the generic extras loop above)
+    # because both need the same scale correction the others don't --
+    # these World Bank series report RAW kroner, not millions (same
+    # scale-bug class as the NY.GDP.MKTP.CD/667-family series seen
+    # elsewhere in this codebase). Divide by 1e6 so the site's "NOKm"
+    # unit label is accurate, not off by a factor of a million. Retires
+    # the old USD-fallback gdp_level and the Penn World Table gdp_real --
+    # see BUG FIX note above.
+    for name, code, kind in (
+        ("gdp_level", "NY.GDP.MKTP.CN", "current"),
+        ("gdp_real", "NY.GDP.MKTP.KN", "constant"),
+    ):
+        try:
+            raw_gdp = fetch_worldbank(code)
+            if not raw_gdp:
+                raise ValueError("no usable response")
+            scaled_gdp = [[p, round(v / 1e6, 1)] for p, v in raw_gdp]
+            out["series"][name] = {
+                "label": f"GDP, {kind} prices, NOK (World Bank, {code})",
+                "unit": "NOKm", "freq": "years", "points": scaled_gdp,
+            }
+            print(f"  ok  {name:<16} {len(scaled_gdp):>5} observations "
+                  f"({scaled_gdp[0][0]} to {scaled_gdp[-1][0]}, years) -- "
+                  f"scaled from raw NOK to NOKm")
+        except Exception as exc:
+            failures.append(name)
+            print(f"FAIL  {name:<16} {exc}")
 
     if not out["series"]:
         print("\nNothing fetched.")
