@@ -83,7 +83,8 @@ import requests
 # key: (fred_id, freq 'm'|'q'|'a', label, unit, transform None|'yoy'|'mom'|'qoq', scale)
 FRED_SERIES = {
     "trade_balance": ("XTNTVA01ATM667S", "m", "Trade balance, goods, $", "$m", None, 1e-6),
-    "gdp_real": ("CLVMNACSCAB1GQAT", "q", "Real GDP, chain-linked volumes, SA (Eurostat)", "index", None, 1.0),
+    "gdp_level": ("CPMNACSCAB1GQAT", "q", "Nominal GDP, current prices, SA (Eurostat)", "\u20acm", None, 1.0),
+    "gdp_real": ("CLVMNACSCAB1GQAT", "q", "Real GDP, chain-linked volumes, SA (Eurostat)", "\u20acm", None, 1.0),
     "unemployment": ("LRHUTTTTATM156S", "m", "Unemployment rate, 15+, SA (OECD harmonized)", "%", None, 1.0),
     "participation_rate": ("LRAC64TTATQ156S", "q", "Labour force participation rate, 15-64, SA", "%", None, 1.0),
     "employment_rate": ("LREM64TTATQ156S", "q", "Employment rate, 15-64, SA", "%", None, 1.0),
@@ -310,6 +311,65 @@ def main() -> int:
         except Exception as exc:
             failures.append(name)
             print(f"FAIL  {name:<16} {exc}")
+
+    # Austria uses the euro like Germany, so gdp_level/gdp_real/trade_balance
+    # need no local-currency conversion -- fx_to_usd exists purely so the
+    # Dollarise toggle can convert EUR -> USD when switched on. Mirrors
+    # fetch_de.py's DEXUSEU pattern exactly (this was missing entirely
+    # before -- Dollarise was permanently disabled on this page).
+    try:
+        if key:
+            fx_pts = fetch_fred("DEXUSEU", "d", key)
+            if fx_pts:
+                fx_period, fx_rate = fx_pts[-1]
+                out["fx_to_usd"] = {"pair": "EUR/USD", "rate": fx_rate,
+                                     "as_of": fx_period, "direction": "multiply"}
+                print(f"  ok  fx_to_usd        1 observation ({fx_period}, {fx_rate})")
+
+                # DEXUSEU is USD per EUR. trade_balance above is sourced
+                # from OECD's "667S" family, which is genuinely USD-
+                # denominated regardless of the page's own currency (same
+                # caveat documented in fetch_de.py) -- convert it to EUR
+                # for consistency with every other currency figure on an
+                # Austria page, rather than leaving it in USD.
+                if "trade_balance" in out["series"]:
+                    ser = out["series"]["trade_balance"]
+                    if ser["unit"].strip().startswith("$"):
+                        ser["points"] = [[p, round(v / fx_rate, 1)] for p, v in ser["points"]]
+                        ser["unit"] = "\u20acm"
+                        ser["label"] = ser["label"].replace(
+                            "Trade balance, goods, $", "Trade balance, goods, total")
+                        ser["label"] += " (OECD via FRED, converted to EUR)"
+                        print(f"  ok  trade_balance    converted $->\u20ac using {fx_rate}")
+            else:
+                print("note  fx_to_usd: no observations returned")
+        else:
+            print("note  fx_to_usd not set (no FRED_API_KEY) -- "
+                  "Dollarise will be unavailable on this page until next run.")
+    except Exception as exc:
+        print(f"FAIL  fx_to_usd        {exc}")
+
+    # Carry forward any series that failed THIS run but succeeded on a
+    # previous run, so a transient failure (e.g. FRED 429 rate-limiting)
+    # doesn't permanently wipe good data from the live page. See the
+    # Switzerland/Chile/Colombia Bug 7 writeup -- applied here to close
+    # the same gap for Austria.
+    try:
+        with open("data-at.json") as f:
+            _prev_for_merge = json.load(f)
+    except Exception:
+        _prev_for_merge = {}
+    _prev_series = _prev_for_merge.get("series", {})
+    carried_over = []
+    for k, v in _prev_series.items():
+        if k not in out["series"]:
+            out["series"][k] = v
+            carried_over.append(k)
+    if carried_over:
+        print(f"CARRIED OVER from previous run (failed this run, kept prior data rather than deleting it): {', '.join(carried_over)}")
+    if not out.get("fx_to_usd") and _prev_for_merge.get("fx_to_usd"):
+        out["fx_to_usd"] = _prev_for_merge["fx_to_usd"]
+        print("CARRIED OVER fx_to_usd from previous run")
 
     if not out["series"]:
         print("\nNothing fetched.")

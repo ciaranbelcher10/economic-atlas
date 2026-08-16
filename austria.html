@@ -2232,7 +2232,9 @@ function render(data){
   /* currency formatting handled dynamically by curFmt() below */
   
   const idx=v=>v.toFixed(1);
-  const SRC_GDP="FRED series CLVMNACSCAB1GQAT \u00b7 Eurostat (Statistical Office of the European Communities), quarterly, seasonally adjusted";
+  const SRC_GDP_NOMINAL="FRED series CPMNACSCAB1GQAT \u00b7 Eurostat (Statistical Office of the European Communities), quarterly, seasonally adjusted, trailing 4-quarter sum";
+  const SRC_GDP_REAL="FRED series CLVMNACSCAB1GQAT \u00b7 Eurostat (Statistical Office of the European Communities), quarterly, seasonally adjusted, trailing 4-quarter sum";
+  const SRC_GDP = TOGGLE_STATE.real ? SRC_GDP_REAL : SRC_GDP_NOMINAL;
   const SRC_TRADE="Eurostat \u00b7 goods trade, total, monthly";
   const SRC_FISCAL="Eurostat gov_10dd_edpt1 \u00b7 EDP notification table, general government, % of GDP, annual";
   const SRC_WB="World Bank \u00b7 % of GDP, annual";
@@ -2254,10 +2256,10 @@ function render(data){
     gdpAnnual,"line",v=>curFmt(v,s.gdp_level.unit,2),v=>curFmt(v,s.gdp_level.unit,2),SRC_GDP,1996);
   if(s.gdp_growth) chartPanel("gdp_growth","charts-gdp","Real GDP growth, quarter on quarter",
     "How much the economy grew or shrank compared with the previous three months.",
-    s.gdp_growth,"bar",v=>v+"%",pct,SRC_GDP,1999,0);
+    s.gdp_growth,"bar",v=>v+"%",pct,SRC_GDP_REAL,1999,0);
   if(gdpYoY) chartPanel(null,"charts-gdp","Real GDP growth, year on year",
     "How much bigger or smaller the economy is than a year ago, adjusted for inflation.",
-    gdpYoY,"line",v=>v+"%",pct,SRC_GDP,1999,0);
+    gdpYoY,"line",v=>v+"%",pct,SRC_GDP_REAL,1999,0);
 
   if(s.cpi) chartPanel("cpi","charts-inflation","CPI inflation, annual rate",
     "How much consumer prices are rising compared with a year ago. The European Central Bank targets 2% for the euro area as a whole.",
@@ -2294,7 +2296,7 @@ function render(data){
   if(gdpAnnual) statTile(hero,"gdp_level","GDP (annual)",gdpAnnual,
     {fmt:v=>curFmt(v,s.gdp_level.unit,2),fmtD:v=>curFmt(v,s.gdp_level.unit,1),upIsGood:true,source:SRC_GDP});
   if(s.gdp_growth) statTile(hero,"gdp_growth","GDP growth (QoQ)",s.gdp_growth,
-    {fmt:pct,fmtD:pp,upIsGood:true,source:SRC_GDP});
+    {fmt:pct,fmtD:pp,upIsGood:true,source:SRC_GDP_REAL});
   if(s.cpi) statTile(hero,"cpi","CPI inflation",s.cpi,
     {fmt:pct,fmtD:pp,upIsGood:false,source:"FRED · HICP, all items, YoY"});
   if(s.bond_yield_10y) statTile(hero,"bond_yield_10y","10Y bond yield",s.bond_yield_10y,
@@ -2318,9 +2320,9 @@ function render(data){
   if(gdpAnnual) statTile(tg,"gdp_level","GDP (annual)",gdpAnnual,
     {fmt:v=>curFmt(v,s.gdp_level.unit,2),fmtD:v=>curFmt(v,s.gdp_level.unit,1),upIsGood:true,source:SRC_GDP});
   if(s.gdp_growth) statTile(tg,"gdp_growth","Growth (QoQ)",s.gdp_growth,
-    {fmt:pct,fmtD:pp,upIsGood:true,source:SRC_GDP});
+    {fmt:pct,fmtD:pp,upIsGood:true,source:SRC_GDP_REAL});
   if(gdpYoY) statTile(tg,null,"Growth (YoY)",gdpYoY,
-    {fmt:pct,fmtD:pp,upIsGood:true,source:SRC_GDP});
+    {fmt:pct,fmtD:pp,upIsGood:true,source:SRC_GDP_REAL});
 
   const tinf=document.getElementById("tiles-inflation");
   if(s.cpi) statTile(tinf,"cpi","CPI (YoY)",s.cpi,
@@ -2376,7 +2378,9 @@ function scaleOf(unitStr){
 }
 function currencySymbol(unitStr){
   const m = unitStr.match(/^[^a-zA-Z0-9]+/);
-  return m ? m[0] : "";
+  if(m) return m[0];
+  const code = unitStr.match(/^([A-Z]{3})(m|bn|tn)?(\s|$)/);
+  return code ? code[1] : "";  // no trailing space -- tight spacing, e.g. "EUR833.98bn"
 }
 function curFmt(rawValue, unitStr, decimals){
   const scale = scaleOf(unitStr);
