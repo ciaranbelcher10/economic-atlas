@@ -399,20 +399,43 @@ def main() -> int:
         except Exception as exc:
             print(f"FAIL  cpi (REO fallback) {exc}")
 
+    # gdp_level: World Bank NY.GDP.MKTP.CN.AD ("GDP: linked series, current
+    # LCU") is genuinely denominated in Thai baht -- confirmed to exist via
+    # the World Bank Data catalogue. Preferred over the USD variant so the
+    # page shows GDP in Thailand's own currency by default (matching the
+    # site's local-currency-by-default convention) and so Dollarise has a
+    # real THB figure to convert via the already-live fx_to_usd (DEXTHUS)
+    # rather than converting an already-USD figure a second time. Falls
+    # back to the USD series (previous behaviour) if the LCU series fails
+    # this run.
     try:
-        raw_gdp = fetch_worldbank("NY.GDP.MKTP.CD")
-        if not raw_gdp:
+        raw_gdp_lcu = fetch_worldbank("NY.GDP.MKTP.CN.AD")
+        if not raw_gdp_lcu:
             raise ValueError("no usable response")
-        scaled_gdp = [[p, round(v / 1e6, 1)] for p, v in raw_gdp]
+        scaled_gdp_lcu = [[p, round(v / 1e6, 1)] for p, v in raw_gdp_lcu]
         out["series"]["gdp_level"] = {
-            "label": "GDP, current prices (World Bank, NY.GDP.MKTP.CD)",
-            "unit": "$m", "freq": "years", "points": scaled_gdp,
+            "label": "GDP, current prices, linked series (World Bank, NY.GDP.MKTP.CN.AD)",
+            "unit": "THBm", "freq": "years", "points": scaled_gdp_lcu,
         }
-        print(f"  ok  gdp_level        {len(scaled_gdp):>5} observations "
-              f"({scaled_gdp[0][0]} to {scaled_gdp[-1][0]}, years)")
+        print(f"  ok  gdp_level (THB) {len(scaled_gdp_lcu):>5} observations "
+              f"({scaled_gdp_lcu[0][0]} to {scaled_gdp_lcu[-1][0]}, years)")
     except Exception as exc:
-        failures.append("gdp_level")
-        print(f"FAIL  gdp_level        {exc}")
+        print(f"note  gdp_level (THB) unavailable this run ({exc}) -- falling back to USD")
+        try:
+            raw_gdp = fetch_worldbank("NY.GDP.MKTP.CD")
+            if not raw_gdp:
+                raise ValueError("no usable response")
+            scaled_gdp = [[p, round(v / 1e6, 1)] for p, v in raw_gdp]
+            out["series"]["gdp_level"] = {
+                "label": "GDP, current prices (World Bank, NY.GDP.MKTP.CD -- USD, "
+                         "fallback: THB linked series unavailable this run)",
+                "unit": "$m", "freq": "years", "points": scaled_gdp,
+            }
+            print(f"  ok  gdp_level (USD fallback) {len(scaled_gdp):>5} observations "
+                  f"({scaled_gdp[0][0]} to {scaled_gdp[-1][0]}, years)")
+        except Exception as exc2:
+            failures.append("gdp_level")
+            print(f"FAIL  gdp_level        {exc2}")
 
     if not out["series"]:
         print("\nNothing fetched.")
