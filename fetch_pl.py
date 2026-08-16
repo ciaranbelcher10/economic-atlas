@@ -325,6 +325,35 @@ def main() -> int:
                 }
                 print(f"  ok  gdp_growth      {len(growth_pts):>5} observations (derived QoQ)")
 
+        # gdp_level_annual / gdp_real_annual: both NGDPSAXDCPLQ (nominal)
+        # and NGDPRSAXDCPLQ (real) are genuine per-quarter flows, NOT
+        # annualized -- the "GDP (Annual)" card was showing a single
+        # quarter's value as if it were the full year (confirmed: latest
+        # quarter's nominal GDP was ~PLN1.01tn, but the trailing 4-quarter
+        # sum is ~PLN3.97tn / ~$1.07tn USD, which matches Poland's actual
+        # GDP -- same root cause as the Switzerland Bug 5 writeup, here
+        # affecting the nominal series too, not just real). Do NOT alter
+        # the underlying gdp_level/gdp_real series themselves -- QoQ/YoY
+        # growth calculations correctly depend on the raw quarterly level.
+        # Add separate derived annual series instead.
+        for src_key, dst_key, src_sid in (
+            ("gdp_level", "gdp_level_annual", "NGDPSAXDCPLQ"),
+            ("gdp_real", "gdp_real_annual", "NGDPRSAXDCPLQ"),
+        ):
+            if src_key in out["series"]:
+                pts = out["series"][src_key]["points"]
+                unit = out["series"][src_key]["unit"]
+                if len(pts) >= 4:
+                    annual_pts = [
+                        [pts[i][0], round(sum(v for _, v in pts[i - 3:i + 1]), 1)]
+                        for i in range(3, len(pts))
+                    ]
+                    out["series"][dst_key] = {
+                        "label": f"GDP, trailing 4-quarter sum (derived from {src_sid})",
+                        "unit": unit, "freq": "quarters", "points": annual_pts,
+                    }
+                    print(f"  ok  {dst_key:<16} {len(annual_pts):>5} observations (derived trailing-4Q sum)")
+
         try:
             sid, freq, _, _, _, _ = FRED_SERIES["fx_raw"]
             fx_pts = fetch_fred(sid, freq, key)

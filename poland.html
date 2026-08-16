@@ -2219,7 +2219,7 @@ function renderLastUpdated(updatedIso){
 function render(data){
   const s=data.series;
   if(data.sample){const sb=document.getElementById("sampleBadge");sb.textContent="Sample data: run fetch_pl.py for live figures";sb.classList.add("show");}
-  const gdpAnnual = s.gdp_level ? s.gdp_level : null;   /* NOTE: gdp_level is normally the live FRED/IMF-IFS PLN series (NGDPSAXDCPLQ), falling back to World Bank USD annual only if that fetch fails this run (see SRC_GDP_LEVEL_CURRENT below for how the citation tracks this). buildDisplaySeries() further swaps it for the quarterly IMF IFS PLN real-GDP series (gdp_real) when "Make it real" is on -- both series are the same quarterly-level (not annualized-flow) family, so no rollup mismatch like the Eurostat quarterly-flow countries */
+  const gdpAnnual = s.gdp_level ? s.gdp_level : null;   /* NOTE: gdp_level here is already the trailing-4-quarter-sum "annual" series where available (see buildDisplaySeries()) -- gdp_level/gdp_real themselves are genuine per-quarter flows, not annualized, so the raw quarterly figure would understate true annual GDP by ~4x. Falls back to the raw World Bank USD annual series if the live PLN quarterly data (and therefore the derived annual sum) isn't available this run. */
   const gdpYoY = s.gdp_real ? yoyGDP(s.gdp_real) : null;
 
   const pct=v=>v.toFixed(1)+"%", pp=v=>v.toFixed(1)+"pp";
@@ -2228,7 +2228,8 @@ function render(data){
   const idx=v=>v.toFixed(1);
   const SRC_GDP_LEVEL="World Bank NY.GDP.MKTP.CD \u00b7 current US$, annual (fallback, used only if the live PLN series is unavailable this run)";
   const SRC_GDP_REAL="FRED series NGDPRSAXDCPLQ \u00b7 IMF International Financial Statistics, quarterly, seasonally adjusted";
-  const SRC_GDP_NOMINAL="FRED series NGDPSAXDCPLQ \u00b7 IMF International Financial Statistics, quarterly, seasonally adjusted";
+  const SRC_GDP_NOMINAL="FRED series NGDPSAXDCPLQ \u00b7 IMF International Financial Statistics, trailing 4-quarter sum, seasonally adjusted";
+  const SRC_GDP_REAL_ANNUAL="FRED series NGDPRSAXDCPLQ \u00b7 IMF International Financial Statistics, trailing 4-quarter sum, seasonally adjusted";
   // gdp_level's actual source varies run-to-run: fetch_pl.py prefers the
   // live FRED/IMF-IFS PLN series (NGDPSAXDCPLQ) and only falls back to
   // World Bank USD when that fails this run. The unit string tells us
@@ -2237,7 +2238,7 @@ function render(data){
   // or it silently mislabels the source whenever the fallback isn't in use.
   const gdpLevelIsWbFallback = s.gdp_level && /^\$/.test(s.gdp_level.unit || "");
   const SRC_GDP_LEVEL_CURRENT = TOGGLE_STATE.real
-    ? SRC_GDP_REAL
+    ? SRC_GDP_REAL_ANNUAL
     : (gdpLevelIsWbFallback ? SRC_GDP_LEVEL : SRC_GDP_NOMINAL);
   const SRC_TRADE="OECD \u00b7 merchandise trade, monthly";
   const SRC_FISCAL="FRED series GGGDTAPLA188N / GGNLBAPLA188N \u00b7 IMF World Economic Outlook, general government, % of GDP, annual. Poland is an EU member and Eurostat also publishes a quarterly debt/GDP series that covers it, but the IMF-WEO annual figures were used here for consistency with the fetch pipeline's simpler, already-proven code path.";
@@ -2408,8 +2409,18 @@ function convertSeriesToUSD(series, fx){
 function buildDisplaySeries(rawSeries){
   const out = {};
   for(const k in rawSeries) out[k]=rawSeries[k];
-  if(TOGGLE_STATE.real && out.gdp_real){
-    out.gdp_level = out.gdp_real;
+  // gdp_level/gdp_real are genuine per-quarter flows, not annualized --
+  // prefer the derived trailing-4-quarter-sum series (gdp_level_annual /
+  // gdp_real_annual) for the "GDP (Annual)" card wherever fetch_pl.py
+  // provided one. Falls back to the raw quarterly series (old behavior)
+  // if the derived annual sum isn't present, e.g. on an older cached
+  // data-pl.json or the World Bank fallback path (which is already
+  // genuinely annual, so has no _annual counterpart to prefer).
+  if(TOGGLE_STATE.real){
+    if(out.gdp_real_annual) out.gdp_level = out.gdp_real_annual;
+    else if(out.gdp_real) out.gdp_level = out.gdp_real;
+  } else if(out.gdp_level_annual){
+    out.gdp_level = out.gdp_level_annual;
   }
   if(TOGGLE_STATE.dollar && PAGE_DATA.fx_to_usd){
     const fx = PAGE_DATA.fx_to_usd;
