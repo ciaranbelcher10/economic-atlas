@@ -93,25 +93,31 @@ nav.cat button.active{background:var(--blue); border-color:var(--blue); color:#f
    converted it; green = both toggles are affecting it at once. Colours are
    deliberately distinct from the site's existing palette (navy/blue links,
    green/orange freshness LEDs) so they read as a new, temporary "this is
-   different right now" signal rather than blending into normal chrome. */
+   different right now" signal rather than blending into normal chrome.
+   BUG FIX: the first version of this used a background-gradient border
+   trick, which silently failed on .stat tiles specifically (but not
+   .panel chart cards) because style.css's dark-theme .stat rule sets
+   background with !important, unconditionally winning over any background
+   declared here regardless of selector specificity or source order. This
+   version uses border-color + box-shadow only -- neither property is
+   touched by that !important rule on either element type, so it now
+   applies identically and reliably to both .stat tiles and .panel cards. */
 .stat.fx-real, .panel.fx-real{
-  background:linear-gradient(var(--panel), var(--panel)) padding-box,
-             #E3B341 border-box;
-  border:1px solid transparent; box-shadow:0 0 0 1px rgba(227,179,65,.25) inset;
+  border-color:#E3B341 !important;
+  box-shadow:0 0 0 2px rgba(227,179,65,.35);
 }
 .stat.fx-dollar, .panel.fx-dollar{
-  background:linear-gradient(var(--panel), var(--panel)) padding-box,
-             var(--blue) border-box;
-  border:1px solid transparent; box-shadow:0 0 0 1px rgba(71,150,206,.25) inset;
+  border-color:var(--blue) !important;
+  box-shadow:0 0 0 2px rgba(71,150,206,.35);
 }
 .stat.fx-both, .panel.fx-both{
-  background:linear-gradient(var(--panel), var(--panel)) padding-box,
-             #2FA463 border-box;
-  border:1px solid transparent; box-shadow:0 0 0 1px rgba(47,164,99,.25) inset;
+  border-color:#2FA463 !important;
+  box-shadow:0 0 0 2px rgba(47,164,99,.35);
 }
 button.mtoggle.fx-real{background:#E3B341; border-color:#E3B341; color:#171B1E;}
 button.mtoggle.fx-dollar{background:var(--blue); border-color:var(--blue); color:#fff;}
 button.mtoggle.fx-both{background:#2FA463; border-color:#2FA463; color:#fff;}
+
 
 /* ---- info button + popover ---- */
 .infoBtn{display:inline-flex; align-items:center; justify-content:center;
@@ -2652,7 +2658,7 @@ const INFO_CONTENT = {
     description: "The total value of everything the UK economy produces in a year, at current prices (rolling four-quarter sum of ONS's quarterly GDP series).",
     source: "ONS series YBHA (PN2) \u00b7 current prices, rolling four-quarter sum, seasonally adjusted.",
     real: "\u201cMake it real\u201d swaps this to ONS series ABMI (PN2), the chained-volume (inflation-adjusted) measure, on the same rolling four-quarter basis. This strips out the effect of price changes, so it shows genuine output growth rather than growth that's really just inflation.",
-    dollar: "\u201cDollarise\u201d converts each historical point using that point's OWN contemporaneous GBP/USD rate (monthly resolution, from FRED's DEXUSUK series, which starts 1971-01). Points before 1971 -- this series goes back to 1955 -- have no genuine historical rate available and fall back to the earliest rate DEXUSUK provides (1971-01, \u00a41 = $2.41 approx.), which is disclosed in the page's toggle note. This is a considered approximation for those years, not a precise historical conversion."
+    dollar: "\u201cDollarise\u201d converts each historical point using that point's OWN contemporaneous GBP/USD rate (monthly resolution, from FRED's DEXUSUK series, which starts 1971-01). Points before 1971 -- this series goes back to 1955 -- have no genuine historical rate available and fall back to the earliest rate DEXUSUK provides (1971-01, \u00a31 = $2.41 approx.), which is disclosed in the page's toggle note. This is a considered approximation for those years, not a precise historical conversion."
   },
   gdp_real: {
     description: "GDP adjusted for inflation, shown in chained-volume terms -- the same production, valued at constant prices, so changes reflect real output growth rather than price changes.",
