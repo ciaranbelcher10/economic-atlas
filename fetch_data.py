@@ -194,6 +194,37 @@ def fetch_latest_fx(series_id: str, api_key: str) -> tuple[str, float] | None:
     return None
 
 
+def fetch_fx_history(series_id: str, api_key: str) -> list:
+    """BUG FIX (historical FX matching, Aug 2026): full monthly-resolution FX
+    history, not just the latest rate. Historical Dollarise previously applied
+    TODAY's single rate to every point in a series regardless of date (e.g.
+    UK 1955 GDP dollarised using 2026's GBP/USD rate) -- understated old
+    values whenever the currency has moved a lot since. No observation_start
+    restriction here (unlike fetch_fred() above, which is capped at 1970 for
+    the UK's own domestic series) -- we want DEXUSUK's full available range,
+    which FRED confirms starts 1971-01-04. Daily observations are reduced to
+    one rate per month (last trading day's rate that month), matching the
+    same de-duplication approach already used for every other country's FX
+    series fetch (see fetch_no.py, fetch_jp.py, etc. -- this codebase already
+    does this reduction for every country except UK/US, just previously
+    discarded all but the last point after doing it).
+    """
+    params = {"series_id": series_id, "api_key": api_key, "file_type": "json"}
+    r = requests.get(FRED_BASE, params=params, timeout=60, headers=UA)
+    r.raise_for_status()
+    monthly = {}
+    for o in r.json().get("observations", []):
+        if o.get("value") in (None, "", "."):
+            continue
+        try:
+            val = float(o["value"])
+        except ValueError:
+            continue
+        period = fred_period(o["date"], "months")
+        monthly[period] = val  # daily obs sorted ascending by FRED by default -> last write per month wins
+    return sorted(monthly.items(), key=lambda kv: kv[0])
+
+
 def pct_change(points: list, lag: int) -> list:
     out = []
     for i in range(lag, len(points)):
@@ -435,6 +466,32 @@ def build_uk() -> bool:
             out["fx_to_usd"] = {"pair": "GBP/USD", "rate": fx[1], "as_of": fx[0],
                                  "direction": "multiply"}
             print(f"  ok  fx_to_usd        1 observation ({fx[0]}, {fx[1]})")
+            # BUG FIX (historical FX matching, Aug 2026): also fetch DEXUSUK's
+            # full monthly history so Dollarise can match each historical
+            # data point to its own contemporaneous rate, instead of
+            # applying today's single rate uniformly across the whole
+            # series (previously understated e.g. UK 1955 GDP by ~52% once
+            # dollarised). DEXUSUK itself only starts 1971-01-04 -- FRED
+            # confirmed -- so anything before 1971 has no genuine rate
+            # available from this source; the frontend falls back to the
+            # earliest available rate for those points and discloses that
+            # in the citation rather than silently extrapolating further
+            # back. This is a separate, larger fetch from the one above
+            # (full history vs latest-10-rows) -- kept as two calls rather
+            # than one to avoid changing the already-working "latest rate"
+            # path while adding the new history path alongside it.
+            try:
+                fx_hist = fetch_fx_history("DEXUSUK", api_key)
+                if fx_hist:
+                    out["fx_to_usd"]["history"] = fx_hist
+                    print(f"  ok  fx_to_usd_history {len(fx_hist):>5} observations "
+                          f"({fx_hist[0][0]} to {fx_hist[-1][0]}, months)")
+                else:
+                    print("note  fx_to_usd_history: no observations returned -- "
+                          "Dollarise will fall back to the single current rate "
+                          "for all historical points until next run.")
+            except Exception as exc:
+                print(f"FAIL  fx_to_usd_history {exc}")
         else:
             print("note  fx_to_usd not set (no FRED_API_KEY or no data) — "
                   "Dollarise will be unavailable on this page until next run.")
