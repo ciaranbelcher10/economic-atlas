@@ -11,11 +11,11 @@
   }catch(e){}
 })();</script>
 <meta name="viewport" content="width=device-width, initial-scale=1">
-<meta name="description" content="Free to browse, or Pro for unlimited data downloads and Customise & export -- see how The Economic Atlas's plans work.">
+<meta name="description" content="Every account on The Economic Atlas includes unlimited data downloads and Customise & export.">
 <meta property="og:type" content="website">
 <meta property="og:site_name" content="The Economic Atlas">
-<meta property="og:title" content="Pricing · The Economic Atlas">
-<meta property="og:description" content="Free to browse, or Pro for unlimited data downloads and Customise & export -- see how The Economic Atlas's plans work.">
+<meta property="og:title" content="What's included · The Economic Atlas">
+<meta property="og:description" content="Every account on The Economic Atlas includes unlimited data downloads and Customise & export.">
 <meta property="og:url" content="https://theeconomicatlas.com/pricing">
 <meta property="og:image" content="https://theeconomicatlas.com/og-image.png">
 <meta property="og:image:width" content="1200">
@@ -25,7 +25,7 @@
 <meta name="twitter:title" content="Pricing · The Economic Atlas">
 <meta name="twitter:description" content="Free to browse, or Pro for unlimited data downloads and Customise & export -- see how The Economic Atlas's plans work.">
 <meta name="twitter:image" content="https://theeconomicatlas.com/og-image.png">
-<title>Pricing · The Economic Atlas</title>
+<title>What's included · The Economic Atlas</title>
 <link rel="canonical" href="https://theeconomicatlas.com/pricing">
 <link rel="preconnect" href="https://fonts.googleapis.com">
 <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
@@ -151,7 +151,6 @@
   <div class="savebar" id="trialBanner" hidden>
     <span class="savebar-icon" aria-hidden="true">&#9203;</span>
     <p id="trialBannerText"></p>
-    <a href="pricing" class="btn" style="padding:6px 14px; font-size:13px; flex-shrink:0;">Upgrade to Pro</a>
   </div>
 </div>
 <div id="cookieBanner" role="region" aria-label="Cookie consent">
@@ -229,12 +228,11 @@
   <div class="modal-content">
     <button type="button" class="modal-close" id="welcomeProClose" aria-label="Close">&times;</button>
     <h2>Welcome to Pro</h2>
-    <p class="modal-sub">You've got 14 days of Pro, free -- no card needed. That includes:</p>
+    <p class="modal-sub">Your account includes:</p>
     <ul style="margin:0 0 20px; padding-left:20px; line-height:1.9; font-size:14.5px;">
       <li><strong>Unlimited data downloads</strong>, on any chart, any country</li>
       <li><strong>Unlimited Customise &amp; export</strong> -- annotate, style and export any chart as an image</li>
     </ul>
-    <p style="color:var(--ink2); font-size:13px; margin-bottom:18px;">Your trial ends automatically after 14 days -- no card was taken, so nothing gets charged if you don't upgrade. You can see how many days are left any time from the banner at the top of the site, or from your account.</p>
     <button type="button" class="btn" id="welcomeProGotIt" style="width:100%;">Got it</button>
   </div>
 </div>
@@ -753,10 +751,13 @@
       }
 
       // Logged in, not Pro, no credits left: locked, but a different
-      // dead end than "create an account" -- clicking opens the account
-      // panel, where buying credits or upgrading actually happens.
+      // Unreachable under the current isPro() override (every logged-in
+      // account is treated as Pro, so this branch never fires) -- kept
+      // as a safe fallback with no payment language, not deleted, so
+      // the branch still degrades sensibly if that override is ever
+      // reverted.
       btn.classList.remove("unlocked");
-      btn.setAttribute("data-tip", "Buy credits or upgrade to Pro to download data.");
+      btn.setAttribute("data-tip", "This feature isn't available right now.");
       setButtonLabel(btn, "Download data", '<span class="lockicon">&#128274;</span> ');
       btn.onclick = function(e){
         e.preventDefault();
@@ -1006,62 +1007,14 @@
         return;
       }
 
-      var plan = prefs.getPlan();
-      var trialEndsAt = prefs.getTrialEndsAt();
-
-      // Still mid-trial: plan is already "pro" (unlimited access right
-      // now), but trial_ends_at being set is what distinguishes this
-      // from a real paid subscription -- the webhook always clears it on
-      // actual checkout completion.
-      if(plan === "pro" && trialEndsAt){
-        var d = daysLeft(trialEndsAt);
-        box.innerHTML =
-          '<p class="acct-plan-line"><strong>Free trial \u2014 ' + d + ' day' + (d === 1 ? "" : "s") + ' left.</strong><br>' +
-          'Unlimited downloads and Customise &amp; export, on us for now.</p>' +
-          '<button type="button" class="btn" id="acctUpgradeBtn" style="margin-bottom:10px;">Upgrade to Pro \u2014 keep it after your trial</button>';
-        var trialBtn = document.getElementById("acctUpgradeBtn");
-        if(trialBtn) trialBtn.addEventListener("click", function(){
-          redirectingAction(trialBtn, "create-checkout-session", { return_to: window.location.href });
-        });
-        return;
-      }
-
-      if(plan === "pro" || plan === "premium"){
-        box.innerHTML =
-          '<p class="acct-plan-line"><strong>' + (plan === "premium" ? "Premium" : "Pro") + '</strong> \u2014 unlimited downloads and Customise &amp; export.</p>' +
-          '<button type="button" class="btn ghost" id="acctManageBtn" style="margin-bottom:10px;">Manage subscription</button>';
-        var manageBtn = document.getElementById("acctManageBtn");
-        if(manageBtn) manageBtn.addEventListener("click", function(){
-          redirectingAction(manageBtn, "create-portal-session", { return_to: window.location.href });
-        });
-        return;
-      }
-
-      // Free plan: credits balance plus both paths forward.
-      var credits = prefs.getCreditsBalance();
+      // Every account gets full Pro access, unconditionally -- no trial
+      // countdown, no credits balance, no upgrade/manage-subscription
+      // buttons. This mirrors the isPro() override above: a deliberate,
+      // reversible client-side simplification, not a change to what's
+      // actually stored in the database.
       box.innerHTML =
-        '<p class="acct-plan-line">Credits balance: <strong>' + fmtPence(credits) + '</strong><br>' +
-        '<span class="acct-plan-sub">50p per data download, \u00a31 per Customise &amp; export.</span></p>' +
-        '<div class="acct-credit-buttons" style="margin-bottom:10px;">' +
-        '<button type="button" class="btn ghost acct-credit-btn" data-pence="200">+ \u00a32</button>' +
-        '<button type="button" class="btn ghost acct-credit-btn" data-pence="500">+ \u00a35</button>' +
-        '<button type="button" class="btn ghost acct-credit-btn" data-pence="1000">+ \u00a310</button>' +
-        '</div>' +
-        '<button type="button" class="btn" id="acctUpgradeBtn" style="margin-bottom:10px;">Upgrade to Pro \u2014 unlimited for \u00a35.99/mo</button>';
-      var upgradeBtn = document.getElementById("acctUpgradeBtn");
-      if(upgradeBtn) upgradeBtn.addEventListener("click", function(){
-        redirectingAction(upgradeBtn, "create-checkout-session", { return_to: window.location.href });
-      });
-      box.querySelectorAll(".acct-credit-btn").forEach(function(cb){
-        cb.addEventListener("click", function(){
-          redirectingAction(cb, "create-credit-checkout-session", {
-            amount_pence: parseInt(cb.dataset.pence, 10),
-            return_to: window.location.href
-          });
-        });
-      });
+        '<p class="acct-plan-line"><strong>Pro</strong> \u2014 unlimited downloads and Customise &amp; export.</p>';
     }
-
     return {
       render: render,
       callFunction: callFunction,
@@ -1075,69 +1028,11 @@
     };
   })();
 
-  // Wires the three pricing-card buttons. Deliberately routes everything
-  // through EATLAS_ACCOUNT.callFunction (same Edge Functions the account
-  // panel uses) rather than duplicating the Stripe integration here --
-  // this page is just a second entry point into the same flows.
-  window.EATLAS_PREFS.onSettled(function(){
-    var creditsBtn = document.getElementById("pricingCreditsBtn");
-    var proBtn = document.getElementById("pricingProBtn");
-    var proMsg = document.getElementById("pricingProMsg");
-    var prefs = window.EATLAS_PREFS;
-
-    // Credits card: opens the account panel either way -- that's where
-    // the actual buy-credits buttons live, so this doesn't duplicate
-    // that UI, just gets a logged-out visitor to a signup prompt first.
-    if(creditsBtn){
-      creditsBtn.addEventListener("click", function(){ window.EATLAS_OPEN_AUTH_MODAL(); });
-    }
-
-    // Pro card: the interesting one, since its correct behaviour depends
-    // on exactly which state the visitor is in.
-    if(proBtn){
-      if(!prefs.isLoggedIn()){
-        // Signing up alone starts the 14-day trial automatically -- no
-        // separate "upgrade" step needed to begin one.
-        proBtn.addEventListener("click", function(){ window.EATLAS_OPEN_AUTH_MODAL(); });
-      } else if(prefs.isAdmin()){
-        proBtn.textContent = "Admin account";
-        proBtn.disabled = true;
-      } else if(prefs.getPlan() === "pro" && prefs.getTrialEndsAt()){
-        proBtn.textContent = "Upgrade to keep Pro after your trial";
-        proBtn.addEventListener("click", function(){
-          var original = proBtn.textContent;
-          proBtn.disabled = true;
-          proBtn.textContent = "Redirecting\u2026";
-          window.EATLAS_ACCOUNT.callFunction("create-checkout-session", { return_to: window.location.href }).then(function(res){
-            if(res.ok && res.data.url){ window.location.href = res.data.url; }
-            else { proBtn.disabled = false; proBtn.textContent = original; if(proMsg){ proMsg.hidden = false; proMsg.textContent = res.data.error || "Something went wrong. Please try again."; } }
-          }).catch(function(err){
-            proBtn.disabled = false; proBtn.textContent = original;
-            if(proMsg){ proMsg.hidden = false; proMsg.textContent = err.message || "Something went wrong. Please try again."; }
-          });
-        });
-      } else if(prefs.getPlan() === "pro" || prefs.getPlan() === "premium"){
-        proBtn.textContent = "You're already on Pro";
-        proBtn.disabled = true;
-      } else {
-        // Free plan, no trial left (already used it) -- this is a real
-        // upgrade, not a trial start.
-        proBtn.textContent = "Upgrade to Pro";
-        proBtn.addEventListener("click", function(){
-          var original = proBtn.textContent;
-          proBtn.disabled = true;
-          proBtn.textContent = "Redirecting\u2026";
-          window.EATLAS_ACCOUNT.callFunction("create-checkout-session", { return_to: window.location.href }).then(function(res){
-            if(res.ok && res.data.url){ window.location.href = res.data.url; }
-            else { proBtn.disabled = false; proBtn.textContent = original; if(proMsg){ proMsg.hidden = false; proMsg.textContent = res.data.error || "Something went wrong. Please try again."; } }
-          }).catch(function(err){
-            proBtn.disabled = false; proBtn.textContent = original;
-            if(proMsg){ proMsg.hidden = false; proMsg.textContent = err.message || "Something went wrong. Please try again."; }
-          });
-        });
-      }
-    }
-  });
+  // pricingCreditsBtn/pricingProBtn/pricingProMsg no longer exist in the
+  // markup above -- every account already has full access, so there's
+  // nothing on this page left to wire a purchase flow to. The
+  // create-checkout-session / create-portal-session / create-credit-
+  // checkout-session Edge Functions themselves are untouched.
 
   // Confirms a just-completed Stripe redirect (upgrade or credits
   // purchase) with a one-off message, then strips the query params so a
@@ -1224,9 +1119,7 @@
       }
 
       btn.classList.remove("unlocked");
-      btn.setAttribute("data-tip", prefs && prefs.isLoggedIn()
-        ? "Buy credits or upgrade to Pro to unlock this."
-        : "Create a free account, then buy credits or upgrade to Pro, to unlock this.");
+      btn.setAttribute("data-tip", "Create a free account to unlock this feature.");
       btn.onclick = (prefs && prefs.isLoggedIn())
         ? function(e){ e.preventDefault(); window.EATLAS_OPEN_AUTH_MODAL(); }
         : null; // falls back to the plain href="contact" already on the link
@@ -1267,20 +1160,11 @@
   }
 
   function updateTrialBanner(){
+    // Always hidden -- no trial/upgrade messaging shown to anyone,
+    // regardless of the real stored trial state. Deliberate, reversible
+    // client-side override; the underlying trial/plan data is untouched.
     var banner = document.getElementById("trialBanner");
-    var text = document.getElementById("trialBannerText");
-    if(!banner || !text) return;
-    var prefs = window.EATLAS_PREFS;
-    if(!prefs || !prefs.isLoggedIn() || prefs.getPlan() !== "pro" || !prefs.getTrialEndsAt()){
-      banner.hidden = true;
-      return;
-    }
-    var ms = new Date(prefs.getTrialEndsAt()).getTime() - Date.now();
-    var days = Math.max(0, Math.ceil(ms / 86400000));
-    text.textContent = days === 0
-      ? "Your Pro trial ends today."
-      : "Your Pro trial ends in " + days + " day" + (days === 1 ? "" : "s") + ".";
-    banner.hidden = false;
+    if(banner) banner.hidden = true;
   }
 
   // Welcome-to-Pro popup: fires exactly once per account, the first time
@@ -1389,57 +1273,27 @@
 <div class="wrap">
 <header class="page">
   <p class="eyebrow"><span class="dot" aria-hidden="true"></span>The Economic Atlas</p>
-  <h1>Plans that fit how you use it</h1>
-  <p class="subline">Free to browse everything. Pay per use if you only need the occasional export. Pro if you're here regularly.</p>
+  <h1>What's included</h1>
+  <p class="subline">Every account includes full access -- no limits, nothing to choose between.</p>
 </header>
 
 <div class="pricing-grid" style="display:grid; grid-template-columns:repeat(auto-fit, minmax(240px, 1fr)); gap:18px; margin:32px 0;">
 
   <div class="pricing-card" style="background:var(--panel); border:1px solid var(--hair); border-radius:14px; padding:24px;">
-    <h2 style="margin:0 0 4px; font-size:19px;">Pay as you go</h2>
-    <p style="margin:0 0 16px; color:var(--ink2); font-size:14px;">For the occasional download or export</p>
-    <p style="margin:0 0 18px;"><span style="font-size:30px; font-weight:800;">50p&ndash;&pound;1</span> <span style="color:var(--ink2); font-size:13px;">per use</span></p>
+    <h2 style="margin:0 0 4px; font-size:19px;">Included with every account</h2>
+    <p style="margin:0 0 16px; color:var(--ink2); font-size:14px;">Sign up and you're set.</p>
     <ul style="list-style:none; margin:0 0 20px; padding:0; font-size:14px; line-height:2;">
-      <li>&#10003; Everything in Free, plus:</li>
-      <li>&#10003; 50p per data download</li>
-      <li>&#10003; &pound;1 per Customise &amp; export</li>
-      <li>&#10003; Top up from &pound;2, credits never expire</li>
-      <li>&#10003; No subscription, cancel nothing</li>
-    </ul>
-    <button type="button" class="btn ghost" id="pricingCreditsBtn" style="width:100%;">Buy credits</button>
-  </div>
-
-  <div class="pricing-card" style="background:var(--panel); border:2px solid var(--navy); border-radius:14px; padding:24px; position:relative;">
-    <p style="position:absolute; top:-11px; left:20px; background:var(--navy); color:#fff; font-size:11.5px; font-weight:700; padding:3px 10px; border-radius:20px; letter-spacing:.02em;">MOST POPULAR</p>
-    <h2 style="margin:0 0 4px; font-size:19px;">Pro</h2>
-    <p style="margin:0 0 16px; color:var(--ink2); font-size:14px;">For regular use -- research, reporting, dashboards</p>
-    <p style="margin:0 0 18px;"><span style="font-size:30px; font-weight:800;">&pound;5.99</span> <span style="color:var(--ink2); font-size:13px;">/ month</span></p>
-    <ul style="list-style:none; margin:0 0 20px; padding:0; font-size:14px; line-height:2;">
-      <li>&#10003; Everything in Free, plus:</li>
+      <li>&#10003; Every country page, every indicator</li>
       <li>&#10003; <strong>Unlimited</strong> data downloads</li>
       <li>&#10003; <strong>Unlimited</strong> Customise &amp; export</li>
-      <li>&#10003; 14 days free to try, no card needed</li>
-      <li>&#10003; Cancel any time</li>
+      <li>&#10003; Compare and Dashboard tools</li>
     </ul>
-    <button type="button" class="btn" id="pricingProBtn" style="width:100%;">Start your free trial</button>
-    <p id="pricingProMsg" style="margin:10px 0 0; font-size:13px; color:var(--ink2);" hidden></p>
-  </div>
-
-  <div class="pricing-card" style="background:var(--panel); border:1px solid var(--hair); border-radius:14px; padding:24px; opacity:.6;">
-    <h2 style="margin:0 0 4px; font-size:19px;">Premium</h2>
-    <p style="margin:0 0 16px; color:var(--ink2); font-size:14px;">Coming soon</p>
-    <p style="margin:0 0 18px;"><span style="font-size:30px; font-weight:800;">&mdash;</span></p>
-    <ul style="list-style:none; margin:0 0 20px; padding:0; font-size:14px; line-height:2; color:var(--ink2);">
-      <li>Everything in Pro, plus:</li>
-      <li>Not decided yet</li>
-    </ul>
-    <button type="button" class="btn ghost" disabled style="width:100%; cursor:not-allowed;">Not available yet</button>
   </div>
 
 </div>
 
 <p style="color:var(--ink2); font-size:13px; margin-bottom:32px;">
-  What's included in Pro and Premium may change over time as the site develops -- see our <a href="terms" style="color:var(--navy-2);">Terms of Service</a> for the detail. Prices shown include VAT where applicable. Questions: <a href="contact" style="color:var(--navy-2);">get in touch</a>.
+  See our <a href="terms" style="color:var(--navy-2);">Terms of Service</a> for the detail. Questions: <a href="contact" style="color:var(--navy-2);">get in touch</a>.
 </p>
 <footer>The Economic Atlas · Data from national statistical offices, used under open licences. <a href="privacy">Privacy</a> &middot; <a href="terms">Terms</a></footer>
 </div>
