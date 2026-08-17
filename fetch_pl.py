@@ -41,8 +41,11 @@ still the genuine test):
   build (Poland IS an OECD member, so the standard participation-rate
   family was worth checking, but wasn't actually verified in this
   build's research pass) -- genuine, disclosed gaps, not guesses.
-- fx_to_usd (CCUSMA02PLM618N): CONFIRMED live (through Feb 2026, OECD,
-  monthly average, PLN per USD).
+- fx_to_usd (World Bank PA.NUS.FCRF, "Official exchange rate, LCU per
+  US$"): switched Aug 2026 from CCUSMA02PLM618N (OECD monthly), which
+  was confirmed discontinued (stopped updating Feb 2026). No H.10-style
+  daily FRED series exists for the zloty either. World Bank's indicator
+  is ANNUAL only, fetched via fetch_worldbank(), genuinely live/ongoing.
 - cpi: wired in via OECD's live SDMX prices system (same proven query
   structure used for every other country on this site), REF_AREA=POL.
   Not individually executed end-to-end for Poland before this build --
@@ -76,7 +79,9 @@ FRED_SERIES = {
     "bond_yield_10y": ("IRLTLT01PLM156N", "m", "10-year government bond yield (OECD)", "%", None, 1.0),
     "debt_gdp": ("GGGDTAPLA188N", "a", "General government gross debt, % of GDP (IMF WEO)", "%", None, 1.0),
     "deficit": ("GGNLBAPLA188N", "a", "General government net lending/borrowing, % of GDP (IMF WEO)", "%", None, 1.0),
-    "fx_raw": ("CCUSMA02PLM618N", "m", "PLN per USD, average of daily rates (OECD)", "PLN", None, 1.0),
+    # fx_raw removed (Aug 2026): the OECD series it pointed to
+    # (CCUSMA02PLM618N) is discontinued -- fx_to_usd now uses World
+    # Bank PA.NUS.FCRF via fetch_worldbank() directly, see below.
 }
 
 FRED_URL = ("https://api.stlouisfed.org/fred/series/observations"
@@ -354,14 +359,27 @@ def main() -> int:
                     }
                     print(f"  ok  {dst_key:<16} {len(annual_pts):>5} observations (derived trailing-4Q sum)")
 
+        # fx_to_usd: switched (Aug 2026) from CCUSMA02PLM618N (OECD
+        # monthly) to World Bank PA.NUS.FCRF -- the OECD series was
+        # confirmed discontinued (stopped updating Feb 2026, "Next
+        # Release Date: Not Available"), and no live Fed H.10-style
+        # daily series exists for PLN at all (unlike Switzerland, which
+        # had DEXSZUS as a live daily alternative). PA.NUS.FCRF is a
+        # genuine, live, ongoing World Bank indicator (IMF IFS-sourced,
+        # "Official exchange rate, LCU per US$"), back to 1960 --
+        # ANNUAL resolution only, coarser than the monthly/daily history
+        # used elsewhere on this site, but rateForPeriod() on the
+        # frontend already handles annual-resolution history correctly
+        # (it averages within whatever period it's matching against).
         try:
-            sid, freq, _, _, _, _ = FRED_SERIES["fx_raw"]
-            fx_pts = fetch_fred(sid, freq, key)
+            fx_pts = fetch_worldbank("PA.NUS.FCRF")
             if fx_pts:
                 fx_period, fx_rate = fx_pts[-1]
                 out["fx_to_usd"] = {"pair": "PLN/USD", "rate": fx_rate,
-                                     "as_of": fx_period, "direction": "divide"}
-                print(f"  ok  fx_to_usd        1 observation ({fx_period}, {fx_rate})")
+                                     "as_of": fx_period, "direction": "divide",
+                                     "history": fx_pts}
+                print(f"  ok  fx_to_usd        1 observation ({fx_period}, {fx_rate}), "
+                      f"history {fx_pts[0][0]} to {fx_period} ({len(fx_pts)} points, annual)")
             else:
                 print("note  fx_to_usd: no observations returned")
         except Exception as exc:

@@ -65,11 +65,14 @@ still the genuine test):
 - business_confidence: OECD BCICP via SDMX, same multi-query fallback
   pattern used for every other country, REF_AREA=TUR. Best-effort, not
   individually confirmed.
-- fx_to_usd (DEXTUUS... NOT a real FRED series -- Turkey uses
-  CCUSMA02TRM618N, OECD monthly average, since a dedicated H.10 FRED
-  series like Norway's DEXNOUS does not exist for the lira): CONFIRMED
-  live via web_search. Fetched through fetch_fred() same as any other
-  FRED series (freq "m"), NOT the H.10 daily path Norway/Denmark use.
+- fx_to_usd (World Bank PA.NUS.FCRF, "Official exchange rate, LCU per
+  US$"): switched Aug 2026 from CCUSMA02TRM618N (OECD monthly), which
+  was confirmed discontinued (stopped updating Feb 2026). No H.10-style
+  daily FRED series exists for the lira, and no live FRED alternative
+  of any resolution was found either -- World Bank's indicator is
+  ANNUAL only, fetched via fetch_worldbank(), genuinely live/ongoing.
+  Given the lira's extreme recent volatility, an annual average
+  necessarily smooths a lot of real intra-year movement.
   Direction "divide" (TRY-per-USD), since the lira floats independently
   and has depreciated sharply -- large year-on-year moves here are real,
   not a data error.
@@ -96,7 +99,9 @@ FRED_SERIES = {
     "participation_rate": ("LRAC64TTTRQ156S", "q", "Labour force participation rate, 15-64, SA", "%", None, 1.0),
     "debt_gdp": ("GGGDTATRA188N", "a", "General government gross debt, % of GDP (IMF WEO)", "%", None, 1.0),
     "deficit": ("GGNLBATRA188N", "a", "General government net lending/borrowing, % of GDP (IMF WEO)", "%", None, 1.0),
-    "fx_raw": ("CCUSMA02TRM618N", "m", "TRY per USD, average of daily rates (OECD)", "TRY", None, 1.0),
+    # fx_raw removed (Aug 2026): the OECD series it pointed to
+    # (CCUSMA02TRM618N) is discontinued -- fx_to_usd now uses World
+    # Bank PA.NUS.FCRF via fetch_worldbank() directly, see below.
 }
 
 FRED_URL = ("https://api.stlouisfed.org/fred/series/observations"
@@ -380,18 +385,30 @@ def main() -> int:
                         "unit": unit, "freq": "quarters", "points": annual_pts,
                     }
                     print(f"  ok  {dst_key:<16} {len(annual_pts):>5} observations (derived trailing-4Q sum)")
-
-        # fx_to_usd: Turkey has no dedicated H.10-style daily FRED series
-        # (unlike Norway's DEXNOUS) -- CCUSMA02TRM618N (OECD, monthly
-        # average, TRY per USD) is the confirmed live alternative.
+        # fx_to_usd: switched (Aug 2026) from CCUSMA02TRM618N (OECD
+        # monthly) to World Bank PA.NUS.FCRF -- the OECD series was
+        # confirmed discontinued (stopped updating Feb 2026, "Next
+        # Release Date: Not Available"), and no live Fed H.10-style
+        # daily series exists for TRY at all. PA.NUS.FCRF is a genuine,
+        # live, ongoing World Bank indicator (IMF IFS-sourced, "Official
+        # exchange rate, LCU per US$"), back to 1960 -- ANNUAL resolution
+        # only. Given the lira's extreme recent volatility (well over
+        # 100% depreciation over the last several years), an annual
+        # average necessarily smooths over a lot of genuine intra-year
+        # movement -- disclosed on the page rather than presented as if
+        # it were daily-resolution precision. Separately: this fixes the
+        # DATA SOURCE, not the deeper "Make it real + Dollarise" validity
+        # problem already documented for high-inflation currencies like
+        # Turkey -- that's a methodology question independent of this.
         try:
-            sid, freq, _, _, _, _ = FRED_SERIES["fx_raw"]
-            fx_pts = fetch_fred(sid, freq, key)
+            fx_pts = fetch_worldbank("PA.NUS.FCRF")
             if fx_pts:
                 fx_period, fx_rate = fx_pts[-1]
                 out["fx_to_usd"] = {"pair": "TRY/USD", "rate": fx_rate,
-                                     "as_of": fx_period, "direction": "divide"}
-                print(f"  ok  fx_to_usd        1 observation ({fx_period}, {fx_rate})")
+                                     "as_of": fx_period, "direction": "divide",
+                                     "history": fx_pts}
+                print(f"  ok  fx_to_usd        1 observation ({fx_period}, {fx_rate}), "
+                      f"history {fx_pts[0][0]} to {fx_period} ({len(fx_pts)} points, annual)")
             else:
                 print("note  fx_to_usd: no observations returned")
         except Exception as exc:
