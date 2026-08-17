@@ -232,6 +232,48 @@ html[data-theme="dark"] .tpm-scopenote strong{color:var(--blue);}
 .tpm-rankname{flex:1; font-weight:600; font-size:14px; min-width:0; overflow:hidden;
   text-overflow:ellipsis; white-space:nowrap;}
 .tpm-rankvalue{font-weight:700; font-size:14px; color:var(--ink); white-space:nowrap; flex:none;}
+
+/* ---- toggle-affected metric highlighting (border-color + box-shadow only --
+   see uk.html for the !important background-gradient bug this avoids) ---- */
+.stat.fx-real, .panel.fx-real{
+  border-color:#E3B341 !important;
+  box-shadow:0 0 0 2px rgba(227,179,65,.35);
+}
+.stat.fx-dollar, .panel.fx-dollar{
+  border-color:var(--blue) !important;
+  box-shadow:0 0 0 2px rgba(71,150,206,.35);
+}
+.stat.fx-both, .panel.fx-both{
+  border-color:#2FA463 !important;
+  box-shadow:0 0 0 2px rgba(47,164,99,.35);
+}
+button.mtoggle.fx-real{background:#E3B341; border-color:#E3B341; color:#171B1E;}
+button.mtoggle.fx-dollar{background:var(--blue); border-color:var(--blue); color:#fff;}
+button.mtoggle.fx-both{background:#2FA463; border-color:#2FA463; color:#fff;}
+
+/* ---- info button + popover ---- */
+.infoBtn{display:inline-flex; align-items:center; justify-content:center;
+  width:16px; height:16px; margin-left:6px; padding:0; border:none;
+  background:none; color:var(--ink2); font-size:15px; line-height:1;
+  cursor:pointer; vertical-align:middle; border-radius:50%;}
+.infoBtn:hover, .infoBtn:focus-visible{color:var(--navy); background:var(--paper);}
+.infoPopover{position:absolute; z-index:900; max-width:360px;}
+.infoPopoverInner{background:var(--panel); border:1px solid var(--hair);
+  border-radius:12px; padding:16px 18px; box-shadow:0 8px 28px rgba(0,0,0,.18);
+  font-size:13px; line-height:1.5; color:var(--ink);}
+.infoPopoverClose{position:absolute; top:8px; right:10px; border:none;
+  background:none; font-size:18px; line-height:1; color:var(--ink2);
+  cursor:pointer; padding:2px 4px;}
+.infoPopoverClose:hover{color:var(--ink);}
+.infoPopoverTitle{font-size:14px; font-weight:700; margin:0 22px 8px 0; color:var(--navy);}
+.infoPopoverDesc{margin:0 0 8px;}
+.infoPopoverSrc{margin:0 0 8px; color:var(--ink2); font-size:12px;}
+.infoPopoverToggles{margin-top:4px; padding-top:8px; border-top:1px solid var(--hair);}
+.infoPopoverToggleNote{margin:0 0 8px; font-size:12.5px; color:var(--ink2);}
+.infoPopoverToggleNote:last-child{margin-bottom:0;}
+.infoPopoverToggleNote strong{color:var(--ink);}
+.infoPopoverToggleNote.real strong{color:#9A7412;}
+.infoPopoverToggleNote.dollar strong{color:var(--navy-2);}
 </style>
 </head>
 <body>
@@ -2136,7 +2178,7 @@ function statTile(el, key, title, series, opts){
     div.addEventListener("keydown",e=>{if(e.key==="Enter"||e.key===" "){e.preventDefault();go();}});
   }
   div.innerHTML=`
-      <p class="label">${title}</p>
+      <p class="label">${title}${infoIconHtml(opts.infoKey || key)}</p>
       <p class="figure"><span class="led ${led}" title="${ledTitle}" role="img"
         aria-label="${ledTitle}"></span>${opts.fmt(last[1])}</p>
       <p class="delta ${dir}"><span class="arrow" aria-hidden="true">${arrow}</span>
@@ -2145,14 +2187,15 @@ function statTile(el, key, title, series, opts){
       <p class="source">${opts.source}</p>`;
   el.appendChild(div);
 }
-function chartPanel(key, containerId, title, expl, series, kind, fmtY, fmtTip, srcNote, fromYear, refLine){
+function chartPanel(key, containerId, title, expl, series, kind, fmtY, fmtTip, srcNote, fromYear, refLine, infoKey){
   const container=document.getElementById(containerId);
   const pts = fromYear ? series.points.filter(p=>+p[0].slice(0,4)>=fromYear) : series.points;
   const id = "ch-"+(panelId++);
   const panel=document.createElement("div");
   panel.className="panel";
+  panel.dataset.key = key || infoKey || "";
   panel.innerHTML=`
-      <div class="panelhead"><h2>${title}</h2>
+      <div class="panelhead"><h2>${title}${infoIconHtml(infoKey || key)}</h2>
         <button type="button" class="expandBtn" aria-label="Enlarge ${title} chart" title="Enlarge">&#9974;</button></div>
       <p class="expl">${expl}</p>
       <p class="range"${series.next?` title="Next release: ${series.next}" style="cursor:help;"`:""}>${fmtPeriod(pts[0][0])} to ${fmtPeriod(pts[pts.length-1][0])}${series.next?" ·":""}</p>
@@ -2178,6 +2221,195 @@ function chartPanel(key, containerId, title, expl, series, kind, fmtY, fmtTip, s
   panel.querySelector(".resetzoom").addEventListener("click", ()=>{ if(chart.resetZoom) chart.resetZoom(); });
   panel.querySelector(".expandBtn").addEventListener("click", ()=> openChartModal(id));
 }
+
+/* ---- per-metric info popover content ----
+   Mirrors uk.html's pattern exactly. "Make it real" only ever swaps
+   gdp_level for gdp_real (see buildDisplaySeries below), so it's the only
+   key with a "real" note. Dollarise is a page-wide no-op on the US page
+   (US figures are already in USD -- see alreadyUsd in rerender()), so
+   every metric's "dollar" note says so explicitly rather than being
+   silent about it (silence could be misread as "not checked"). description/
+   source strings mirror the existing expl/srcNote text already shown
+   elsewhere on the page (single source of truth, no drift). */
+const INFO_CONTENT = {
+  gdp_level: {
+    description: "The total value of everything the US economy produces in a year, at current prices, expressed at a seasonally adjusted annual rate.",
+    source: "FRED series GDP \u00b7 nominal, seasonally adjusted annual rate (BEA).",
+    real: "\u201cMake it real\u201d swaps this to FRED series GDPC1, the chained-2017-dollar (inflation-adjusted) measure. This strips out the effect of price changes, so it shows genuine output growth rather than growth that's really just inflation.",
+    dollar: "US figures are already in US dollars \u2014 \u201cDollarise\u201d is disabled on this page and has no effect."
+  },
+  gdp_real: {
+    description: "GDP adjusted for inflation, shown in chained 2017 dollars \u2014 the same production, valued at constant prices, so changes reflect real output growth rather than price changes.",
+    source: "FRED series GDPC1 \u00b7 chained 2017 dollars, seasonally adjusted annual rate (BEA).",
+    real: "This IS the \u201cMake it real\u201d series \u2014 toggling it off shows GDP at current (nominal) prices instead.",
+    dollar: "US figures are already in US dollars \u2014 \u201cDollarise\u201d is disabled on this page and has no effect."
+  },
+  gdp_growth: {
+    description: "How fast the economy grew or shrank each quarter, in real (inflation-adjusted) terms, expressed at an annualised rate \u2014 the standard US convention.",
+    source: "FRED series A191RL1Q225SBEA \u00b7 chained 2017 dollars, quarter-on-quarter annualised rate (BEA).",
+    real: "This is already a real (inflation-adjusted) growth rate as published by BEA \u2014 \u201cMake it real\u201d has no additional effect on it.",
+    dollar: "A growth rate (%) is currency-agnostic \u2014 \u201cDollarise\u201d has no effect on this figure, and is disabled on this page anyway since US figures are already in dollars."
+  },
+  productivity: {
+    description: "How much the US produces for each hour worked \u2014 a core measure of how efficiently the economy converts labour into output.",
+    source: "FRED series OPHNFB \u00b7 nonfarm business output per hour, index (BLS).",
+    real: "This is an index, not a currency figure \u2014 \u201cMake it real\u201d and \u201cDollarise\u201d don't apply to it.",
+    dollar: "This is an index, not a currency figure \u2014 \u201cMake it real\u201d and \u201cDollarise\u201d don't apply to it."
+  },
+  cpi: {
+    description: "How much consumer prices are rising compared with a year ago. The Federal Reserve targets 2% inflation.",
+    source: "Calculated from FRED series CPIAUCSL \u00b7 all items, seasonally adjusted (BLS)."
+  },
+  core_cpi: {
+    description: "Inflation excluding volatile food and energy prices \u2014 a cleaner read on underlying price pressure, and the measure the Fed watches most closely.",
+    source: "Calculated from FRED series CPILFESL \u00b7 seasonally adjusted (BLS)."
+  },
+  cpi_mom: {
+    description: "How much consumer prices rose or fell compared with just the previous month \u2014 more volatile than the annual rate, useful for spotting turning points earlier.",
+    source: "Derived from FRED series CPIAUCSL (BLS)."
+  },
+  fed_funds: {
+    description: "The Federal Reserve's key interest rate \u2014 the anchor for most US mortgage, loan, and savings rates. Set by the FOMC.",
+    source: "FRED series FEDFUNDS \u00b7 effective rate, monthly average."
+  },
+  unemployment: {
+    description: "The share of the labor force who want a job and are actively looking, but can't find one.",
+    source: "FRED series UNRATE \u00b7 seasonally adjusted (BLS)."
+  },
+  employment: {
+    description: "The share of all people aged 16 and over who are currently in paid work.",
+    source: "FRED series EMRATIO \u00b7 seasonally adjusted (BLS)."
+  },
+  participation: {
+    description: "The share of people either working or actively looking for work.",
+    source: "FRED series CIVPART \u00b7 seasonally adjusted (BLS)."
+  },
+  business_confidence: {
+    description: "How optimistic firms are about the months ahead. 100 is the long-run average; readings above it mean firms expect better-than-average conditions.",
+    source: "OECD \u00b7 Business Confidence Indicator (BCICP), amplitude-adjusted, long-term average = 100.",
+    dollar: "This is an index, not a currency figure \u2014 \u201cDollarise\u201d doesn't apply to it, and is disabled on this page anyway."
+  },
+  fdi: {
+    description: "Money invested into US businesses from abroad each year (foreign direct investment), as a share of GDP.",
+    source: "World Bank \u00b7 FDI net inflows, % of GDP, annual (sourced from IMF balance-of-payments data).",
+    dollar: "Already expressed as a % of GDP \u2014 currency-agnostic. \u201cDollarise\u201d has no effect on this figure."
+  },
+  current_account: {
+    description: "The US's overall balance with the rest of the world \u2014 trade in goods and services plus net investment income \u2014 as a share of GDP.",
+    source: "World Bank \u00b7 % of GDP, annual (IMF balance-of-payments data).",
+    dollar: "Already expressed as a % of GDP \u2014 currency-agnostic. \u201cDollarise\u201d has no effect on this figure."
+  },
+  trade_balance: {
+    description: "Exports minus imports of goods and services each month. Below zero means the US buys more from abroad than it sells.",
+    source: "FRED series BOPGSTB \u00b7 goods and services, seasonally adjusted (BEA/Census).",
+    dollar: "US figures are already in US dollars \u2014 \u201cDollarise\u201d is disabled on this page and has no effect."
+  },
+  exports: {
+    description: "The value of goods and services the US sells to the rest of the world each month.",
+    source: "FRED series BOPTEXP \u00b7 goods and services, seasonally adjusted (BEA/Census).",
+    dollar: "US figures are already in US dollars \u2014 \u201cDollarise\u201d is disabled on this page and has no effect."
+  },
+  imports: {
+    description: "The value of goods and services the US buys from the rest of the world each month.",
+    source: "FRED series BOPTIMP \u00b7 goods and services, seasonally adjusted (BEA/Census).",
+    dollar: "US figures are already in US dollars \u2014 \u201cDollarise\u201d is disabled on this page and has no effect."
+  },
+  trade_intensity: {
+    description: "Total trade (exports plus imports) as a share of GDP \u2014 a measure of how open the economy is to international trade.",
+    source: "Calculated from FRED series BOPTEXP, BOPTIMP and GDP \u00b7 complete calendar years only.",
+    real: "Pinned to nominal (current-price) figures deliberately \u2014 there's no real-terms exports/imports series to pair with a real GDP denominator. \u201cMake it real\u201d is a no-op for this metric.",
+    dollar: "Already a %, and US figures are already in US dollars anyway \u2014 \u201cDollarise\u201d has no effect and is disabled on this page."
+  },
+  debt_gdp: {
+    description: "Total federal government debt, compared with the size of the economy.",
+    source: "FRED series GFDEGDQ188S \u00b7 total public debt, % of GDP (Treasury/OMB).",
+    dollar: "Already expressed as a % of GDP \u2014 currency-agnostic. \u201cDollarise\u201d has no effect on this figure."
+  },
+  net_debt: {
+    description: "The actual stock of US federal government debt in dollars, rather than as a share of GDP.",
+    source: "FRED series GFDEBTN \u00b7 total public debt (Treasury).",
+    dollar: "US figures are already in US dollars \u2014 \u201cDollarise\u201d is disabled on this page and has no effect."
+  },
+  deficit: {
+    description: "The monthly gap between federal spending and tax receipts. Negative means a deficit; tax-season months (e.g. April) often show surpluses.",
+    source: "FRED series MTSDS133FMS \u00b7 Monthly Treasury Statement.",
+    dollar: "US figures are already in US dollars \u2014 \u201cDollarise\u201d is disabled on this page and has no effect."
+  }
+};
+function infoIconHtml(infoKey){
+  if(!infoKey || !INFO_CONTENT[infoKey]) return "";
+  return `<button type="button" class="infoBtn" data-infokey="${infoKey}" aria-label="What is this metric and how do the toggles affect it?" title="About this metric">&#9432;</button>`;
+}
+let INFO_POPOVER_EL = null;
+function ensureInfoPopover(){
+  if(INFO_POPOVER_EL) return INFO_POPOVER_EL;
+  const el = document.createElement("div");
+  el.className = "infoPopover";
+  el.hidden = true;
+  el.innerHTML = `<div class="infoPopoverInner">
+      <button type="button" class="infoPopoverClose" aria-label="Close">&times;</button>
+      <h3 class="infoPopoverTitle"></h3>
+      <p class="infoPopoverDesc"></p>
+      <p class="infoPopoverSrc"></p>
+      <div class="infoPopoverToggles"></div>
+    </div>`;
+  document.body.appendChild(el);
+  el.querySelector(".infoPopoverClose").addEventListener("click", closeInfoPopover);
+  document.addEventListener("keydown", e=>{ if(e.key==="Escape") closeInfoPopover(); });
+  document.addEventListener("click", e=>{
+    if(el.hidden) return;
+    if(el.contains(e.target) || e.target.closest(".infoBtn")) return;
+    closeInfoPopover();
+  });
+  INFO_POPOVER_EL = el;
+  return el;
+}
+function closeInfoPopover(){
+  if(INFO_POPOVER_EL) INFO_POPOVER_EL.hidden = true;
+}
+function openInfoPopover(btn, infoKey, title){
+  const content = INFO_CONTENT[infoKey];
+  if(!content) return;
+  const el = ensureInfoPopover();
+  el.querySelector(".infoPopoverTitle").textContent = title;
+  el.querySelector(".infoPopoverDesc").textContent = content.description;
+  el.querySelector(".infoPopoverSrc").textContent = "Source: " + content.source;
+  const togglesEl = el.querySelector(".infoPopoverToggles");
+  togglesEl.innerHTML = "";
+  if(content.real){
+    const p = document.createElement("p");
+    p.className = "infoPopoverToggleNote real";
+    p.innerHTML = `<strong>Make it real:</strong> ${content.real}`;
+    togglesEl.appendChild(p);
+  }
+  if(content.dollar){
+    const p = document.createElement("p");
+    p.className = "infoPopoverToggleNote dollar";
+    p.innerHTML = `<strong>Dollarise:</strong> ${content.dollar}`;
+    togglesEl.appendChild(p);
+  }
+  el.hidden = false;
+  const rect = btn.getBoundingClientRect();
+  const popRect = el.querySelector(".infoPopoverInner").getBoundingClientRect();
+  let left = rect.left + window.scrollX;
+  const maxLeft = window.scrollX + document.documentElement.clientWidth - popRect.width - 12;
+  if(left > maxLeft) left = Math.max(12, maxLeft);
+  el.style.left = left + "px";
+  el.style.top = (rect.bottom + window.scrollY + 8) + "px";
+}
+document.addEventListener("click", e=>{
+  const btn = e.target.closest(".infoBtn");
+  if(!btn) return;
+  e.stopPropagation();
+  const infoKey = btn.dataset.infokey;
+  const titleEl = btn.closest(".stat, .panelhead");
+  let title = infoKey;
+  if(titleEl){
+    const labelEl = titleEl.querySelector(".label, h2");
+    if(labelEl) title = labelEl.textContent;
+  }
+  openInfoPopover(btn, infoKey, title);
+});
 
 
 const COUNTRY_LABEL="US";
@@ -2261,7 +2493,7 @@ function render(data){
     s.gdp_growth,"bar",v=>v+"%",pct,"FRED series A191RL1Q225SBEA · chained 2017 dollars (BEA)",1998,0);
   if(gdpYoY) chartPanel(null,"charts-gdp","Real GDP growth, year on year",
     "How much bigger or smaller the economy is than a year ago, adjusted for inflation.",
-    gdpYoY,"line",v=>v+"%",pct,"Calculated from FRED series GDPC1 (BEA)",1998,0);
+    gdpYoY,"line",v=>v+"%",pct,"Calculated from FRED series GDPC1 (BEA)",1998,0,"gdp_growth");
   if(s.productivity) chartPanel("productivity","charts-gdp","Productivity",
     "How much the US produces for each hour worked. Higher means the economy works more efficiently.",
     s.productivity,"line",v=>v,idx,"FRED series OPHNFB · nonfarm business output per hour, index (BLS)");
@@ -2300,7 +2532,7 @@ function render(data){
     s.imports,"line",v=>curFmt(v,s.imports.unit,0),v=>curFmt(v,s.imports.unit,1),"FRED series BOPTIMP · goods and services, SA (BEA/Census)");
   if(ti) chartPanel(null,"charts-trade","Trade intensity",
     "Total trade (exports plus imports) as a share of GDP: a measure of how open the economy is.",
-    ti,"line",v=>v+"%",pct,"Calculated from FRED series BOPTEXP, BOPTIMP and GDP · complete calendar years");
+    ti,"line",v=>v+"%",pct,"Calculated from FRED series BOPTEXP, BOPTIMP and GDP · complete calendar years",undefined,undefined,"trade_intensity");
 
   if(s.debt_gdp) chartPanel("debt_gdp","charts-public","Federal debt, % of GDP",
     "Total federal government debt, compared with the size of the economy.",
@@ -2338,13 +2570,13 @@ function render(data){
   if(s.gdp_growth) statTile(tg,"gdp_growth","Growth (QoQ, ann.)",s.gdp_growth,
     {fmt:pct,fmtD:pp,upIsGood:true,source:"FRED · A191RL1Q225SBEA"});
   if(gdpYoY) statTile(tg,null,"Growth (YoY)",gdpYoY,
-    {fmt:pct,fmtD:pp,upIsGood:true,source:"Calculated · GDPC1"});
+    {fmt:pct,fmtD:pp,upIsGood:true,source:"Calculated · GDPC1",infoKey:"gdp_growth"});
 
   const tinf=document.getElementById("tiles-inflation");
   if(s.cpi) statTile(tinf,"cpi","CPI (YoY)",s.cpi,
     {fmt:pct,fmtD:pp,upIsGood:false,source:"FRED · CPIAUCSL"});
   if(s.cpi_mom) statTile(tinf,null,"CPI (MoM)",s.cpi_mom,
-    {fmt:pct,fmtD:pp,upIsGood:false,source:"FRED · CPIAUCSL"});
+    {fmt:pct,fmtD:pp,upIsGood:false,source:"FRED · CPIAUCSL",infoKey:"cpi_mom"});
   if(s.fed_funds) statTile(tinf,"fed_funds","Fed funds rate",s.fed_funds,
     {fmt:v=>v.toFixed(2)+"%",fmtD:v=>v.toFixed(2)+"pp",upIsGood:false,source:"FRED · FEDFUNDS"});
 
@@ -2364,7 +2596,7 @@ function render(data){
   if(s.imports) statTile(tt,"imports","Imports",s.imports,
     {fmt:v=>curFmt(v,s.imports.unit,1),fmtD:v=>curFmt(v,s.imports.unit,1),upIsGood:false,source:"FRED · BOPTIMP"});
   if(ti) statTile(tt,null,"Trade intensity",ti,
-    {fmt:pct,fmtD:pp,upIsGood:true,source:"Calculated · BOPTEXP, BOPTIMP, GDP"});
+    {fmt:pct,fmtD:pp,upIsGood:true,source:"Calculated · BOPTEXP, BOPTIMP, GDP",infoKey:"trade_intensity"});
 
   const tp=document.getElementById("tiles-public");
   if(s.debt_gdp) statTile(tp,"debt_gdp","Federal debt (% of GDP)",s.debt_gdp,
@@ -2502,6 +2734,41 @@ function rerender(){
   });
   const displaySeries = buildDisplaySeries(s);
   render({...PAGE_DATA, series: displaySeries});
+  applyToggleHighlighting();
+}
+
+/* --------------------- toggle-affected metric highlighting ---------------
+   Same mechanism as uk.html: "Make it real" only ever swaps gdp_level's
+   series (see buildDisplaySeries above) so it's the only key that ever
+   gets the "real" highlight. Dollarise is disabled on this page entirely
+   (alreadyUsd above), so dollarOn is always false and the fx-dollar/
+   fx-both classes are simply never applied here -- kept in for structural
+   consistency with every other country page and in case that ever
+   changes. Applied to both .stat tiles and .panel chart cards via their
+   shared data-key attribute, and to the toggle buttons themselves. */
+const REAL_AFFECTED_KEYS = ["gdp_level"];
+function applyToggleHighlighting(){
+  const realOn = TOGGLE_STATE.real, dollarOn = TOGGLE_STATE.dollar;
+  document.querySelectorAll(".stat[data-key], .panel[data-key]").forEach(el=>{
+    const key = el.dataset.key;
+    el.classList.remove("fx-real","fx-dollar","fx-both");
+    if(!key || key==="null") return;
+    const realHit = realOn && REAL_AFFECTED_KEYS.includes(key);
+    const dollarHit = dollarOn && CURRENCY_KEYS.includes(key);
+    if(realHit && dollarHit) el.classList.add("fx-both");
+    else if(realHit) el.classList.add("fx-real");
+    else if(dollarHit) el.classList.add("fx-dollar");
+  });
+  const realBtn = document.getElementById("toggleReal");
+  const dollarBtn = document.getElementById("toggleDollar");
+  [realBtn, dollarBtn].forEach(b=>b && b.classList.remove("fx-real","fx-dollar","fx-both"));
+  if(realOn && dollarOn){
+    if(realBtn) realBtn.classList.add("fx-both");
+    if(dollarBtn) dollarBtn.classList.add("fx-both");
+  } else {
+    if(realOn && realBtn) realBtn.classList.add("fx-real");
+    if(dollarOn && dollarBtn) dollarBtn.classList.add("fx-dollar");
+  }
 }
 
 fetch("data-us.json",{cache: "no-cache"})
