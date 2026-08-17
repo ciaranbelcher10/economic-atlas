@@ -59,13 +59,13 @@ still the genuine test):
   these during this build (Switzerland IS an OECD member, so the
   standard families were worth checking, but none were found/verified)
   -- genuine, disclosed gaps, not guesses.
-- fx_to_usd: NOT included via a dedicated FRED series in this build --
-  no CCUSMA02CHM618N-equivalent check was completed with full
-  confidence before time ran short; if you're revisiting this file,
-  CCUSMA02CHM618N (OECD, monthly average, CHF per USD) was seen in
-  search results and looks likely to work, but wasn't independently
-  re-confirmed the way the other series above were, so it's commented
-  out below rather than shipped as verified.
+- fx_to_usd: DEXSZUS (Federal Reserve H.10, daily spot, CHF per USD).
+  CONFIRMED live (independently re-verified Aug 2026). Previously used
+  CCUSMA02CHM618N (OECD monthly average) -- that series was found to
+  have stopped updating in Feb 2026 ("Next Release Date: Not
+  Available") and was replaced with this genuine daily Fed series,
+  matching the same H.10 family already used for UK/Norway/Denmark/
+  Sweden on this site.
 - cpi: wired in via OECD's live SDMX prices system (same proven query
   structure used for every other country on this site), REF_AREA=CHE.
   Not individually executed end-to-end for Switzerland before this
@@ -97,11 +97,12 @@ FRED_SERIES = {
     "unemployment": ("LRUNTTTTCHQ156S", "q", "Unemployment rate, 15+, SA (OECD)", "%", None, 1.0),
     "bond_yield_10y": ("IRLTLT01CHM156N", "m", "10-year government bond yield (OECD)", "%", None, 1.0),
     "debt_gdp": ("DEBTTLCHA188A", "a", "Central government debt, % of GDP (World Bank)", "%", None, 1.0),
-    "fx_raw": ("CCUSMA02CHM618N", "m", "CHF per USD, average of daily rates (OECD)", "CHF", None, 1.0),
-    # ^ independently re-verified live via search (through Feb 2026) --
-    # was previously found but left commented out pending confirmation.
-    # Same OECD series family/naming convention as the already-working
-    # fx_raw series for Turkey/Argentina/Indonesia/Poland.
+    "fx_raw": ("DEXSZUS", "d", "CHF per USD, daily spot rate (Federal Reserve H.10)", "CHF", None, 1.0),
+    # ^ see the fx_to_usd block below for the full history: this was
+    # briefly CCUSMA02CHM618N (OECD monthly), found to be discontinued
+    # (stopped updating Feb 2026), and reverted to this genuine live
+    # daily series -- the same H.10 family already used for UK/Norway/
+    # Denmark/Sweden on this site.
 }
 
 FRED_URL = ("https://api.stlouisfed.org/fred/series/observations"
@@ -377,16 +378,24 @@ def main() -> int:
                 }
                 print(f"  ok  gdp_real_annual {len(annual_pts):>5} observations (derived TTM sum)")
 
-        # fx_to_usd: CCUSMA02CHM618N (OECD, monthly average, CHF per USD)
-        # -- same pattern as Turkey/Argentina/Indonesia/Poland's fx_raw.
+        # fx_to_usd: DEXSZUS (Federal Reserve H.10, daily spot, CHF per
+        # USD). Switched from the OECD-mirrored CCUSMA02CHM618N (Aug
+        # 2026 session) -- that series was confirmed discontinued
+        # (stopped updating Feb 2026, "Next Release Date: Not
+        # Available"). DEXSZUS is the standard live daily series used
+        # for every other Fed-H.10-covered currency on this site
+        # (UK/Norway/Denmark/Sweden all use the same family) and was
+        # independently confirmed still updating through Aug 2026.
         try:
             sid, freq, _, _, _, _ = FRED_SERIES["fx_raw"]
             fx_pts = fetch_fred(sid, freq, key)
             if fx_pts:
                 fx_period, fx_rate = fx_pts[-1]
                 out["fx_to_usd"] = {"pair": "CHF/USD", "rate": fx_rate,
-                                     "as_of": fx_period, "direction": "divide"}
-                print(f"  ok  fx_to_usd        1 observation ({fx_period}, {fx_rate})")
+                                     "as_of": fx_period, "direction": "divide",
+                                     "history": fx_pts}
+                print(f"  ok  fx_to_usd        1 observation ({fx_period}, {fx_rate}), "
+                      f"history {fx_pts[0][0]} to {fx_period} ({len(fx_pts)} points)")
             else:
                 print("note  fx_to_usd: no observations returned")
         except Exception as exc:
@@ -418,38 +427,26 @@ def main() -> int:
         if not raw_gdp:
             raise ValueError("no usable response")
         scaled_gdp = [[p, round(v / 1e6, 1)] for p, v in raw_gdp]
-        if fx_rate:
-            # Pre-convert to CHF using the latest CHF/USD rate, so
-            # gdp_level is CHF by default (matching the site's
-            # local-currency-by-default convention) and "Dollarise" has
-            # something genuine to convert back to USD from. CAVEAT kept
-            # in the label: this uses a single current exchange rate
-            # applied across the whole historical series, not the actual
-            # rate at each historical point, so values for any year other
-            # than the most recent are "what that year's USD figure is
-            # worth in CHF at today's rate," not independently-measured
-            # historical CHF GDP data -- same simplification the site's
-            # Dollarise toggle already makes everywhere else, just
-            # applied in reverse here since gdp_level's only live source
-            # is USD.
-            converted_gdp = [[p, round(v * fx_rate, 1)] for p, v in scaled_gdp]
-            out["series"]["gdp_level"] = {
-                "label": "GDP, current prices (World Bank, NY.GDP.MKTP.CD, converted "
-                         "to CHF at the latest CHF/USD rate -- NOT independently-measured "
-                         "historical CHF figures; see fetch script for the caveat this implies)",
-                "unit": "CHFm", "freq": "years", "points": converted_gdp,
-            }
-            print(f"  ok  gdp_level        {len(converted_gdp):>5} observations "
-                  f"({converted_gdp[0][0]} to {converted_gdp[-1][0]}, years) -- "
-                  f"converted to CHF at rate {fx_rate}")
-        else:
-            out["series"]["gdp_level"] = {
-                "label": "GDP, current prices (World Bank, NY.GDP.MKTP.CD -- USD, "
-                         "no live CHF/USD rate available this run to convert it)",
-                "unit": "$m", "freq": "years", "points": scaled_gdp,
-            }
-            print(f"  ok  gdp_level (USD, no fx rate) {len(scaled_gdp):>5} observations "
-                  f"({scaled_gdp[0][0]} to {scaled_gdp[-1][0]}, years)")
+        # gdp_level stays in its native USD (World Bank's only live
+        # source for this series) rather than being pre-converted to CHF
+        # at a single current rate -- that pre-conversion (removed Aug
+        # 2026) predates the site's historical-FX-matching Dollarise
+        # feature and is actively counterproductive now that Dollarise
+        # does genuine point-by-point historical conversion: baking in a
+        # today's-rate-only CHF figure and labeling it "CHFm" meant
+        # Dollarise would then reverse-engineer a distortion that didn't
+        # need to exist, producing numbers matching neither the real
+        # historical USD data nor genuine CHF figures. Native USD lets
+        # isAlreadyUSD() correctly protect this series from Dollarise
+        # (a no-op, same as US's headline GDP), while gdp_real --
+        # genuinely CHF via Eurostat -- remains the one path where
+        # "Make it real" + Dollarise combine meaningfully.
+        out["series"]["gdp_level"] = {
+            "label": "GDP, current prices (World Bank, NY.GDP.MKTP.CD, current US$)",
+            "unit": "$m", "freq": "years", "points": scaled_gdp,
+        }
+        print(f"  ok  gdp_level        {len(scaled_gdp):>5} observations "
+              f"({scaled_gdp[0][0]} to {scaled_gdp[-1][0]}, years, USD, native)")
     except Exception as exc:
         failures.append("gdp_level")
         print(f"FAIL  gdp_level        {exc}")
