@@ -2827,6 +2827,16 @@ function openInfoPopover(btn, infoKey, title){
   el.style.left = left + "px";
   el.style.top = (rect.bottom + window.scrollY + 8) + "px";
 }
+/* Registered on the CAPTURE phase (third arg true), not bubble -- see
+   us.html for the full explanation. A .stat tile with an infoBtn inside
+   it also has its own "go to chart" click listener attached directly to
+   the div; in the bubble phase that listener fires before this one ever
+   gets e.stopPropagation() a chance, since bubble order is target -> div
+   -> ... -> document. Capture runs top-down first, so intercepting here
+   stops the event before it reaches the div's own listener. BUG FOUND
+   this round via live click-through: previously bubble-phase, clicking
+   an info button inside a clickable stat tile navigated to that
+   metric's chart instead of opening the popover. */
 document.addEventListener("click", e=>{
   const btn = e.target.closest(".infoBtn");
   if(!btn) return;
@@ -2839,7 +2849,7 @@ document.addEventListener("click", e=>{
     if(labelEl) title = labelEl.textContent;
   }
   openInfoPopover(btn, infoKey, title);
-});
+}, true);
 
 const CONTAINER_IDS = ["hero","tiles-gdp","tiles-inflation","tiles-labour","tiles-trade","tiles-public",
                         "charts-headline","charts-gdp","charts-inflation","charts-labour","charts-trade","charts-public"];

@@ -2397,6 +2397,14 @@ function openInfoPopover(btn, infoKey, title){
   el.style.left = left + "px";
   el.style.top = (rect.bottom + window.scrollY + 8) + "px";
 }
+/* Registered on the CAPTURE phase (third arg true), not bubble. A .stat
+   tile with an infoBtn inside it also has its own "go to chart" click
+   listener attached directly to the div (see statTile above). In the
+   bubble phase, click order is target -> ... -> div -> ... -> document,
+   so the div's own navigate-to-chart listener fires BEFORE this one --
+   e.stopPropagation() here was too late to stop it. Capture runs
+   top-down before any bubbling starts, so intercepting here stops the
+   event before it ever reaches the div's listener. */
 document.addEventListener("click", e=>{
   const btn = e.target.closest(".infoBtn");
   if(!btn) return;
@@ -2409,7 +2417,7 @@ document.addEventListener("click", e=>{
     if(labelEl) title = labelEl.textContent;
   }
   openInfoPopover(btn, infoKey, title);
-});
+}, true);
 
 
 const COUNTRY_LABEL="US";
