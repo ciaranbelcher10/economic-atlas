@@ -2415,7 +2415,16 @@ function convertSeriesToUSD(series, fx){
     const rate = fx.history ? rateForPeriod(period, fx.history) : fx.rate;
     return fx.direction==="multiply" ? v*rate : v/rate;
   };
-  const newUnit = "$"+series.unit.replace(/^[^a-zA-Z0-9]+/,"");
+  // BUG FIX (Aug 2026): the old regex (/^[^a-zA-Z0-9]+/) only stripped a
+  // leading run of NON-alphanumeric characters -- correct for symbol-
+  // prefixed units (€/¥/₹/₩/₪) but silently wrong for the many
+  // countries whose unit is a 3-letter currency CODE instead (CLPm,
+  // COPm, PLNm, TRYm, ARSm, IDRm, SGDm, THBm, DKKm, NOKm, SEKm, CHFm,
+  // MADm, etc) -- those are alphanumeric, so nothing matched, and the
+  // result was a broken double-marker unit like "$CLPm" instead of the
+  // correct "$m". Now strips either three leading uppercase letters (a
+  // currency code) OR a run of non-alphanumeric symbol characters.
+  const newUnit = "$"+series.unit.replace(/^([A-Z]{3}|[^a-zA-Z0-9]+)/,"");
   return {...series, unit:newUnit, points: series.points.map(([p,v])=>[p, toUSD(v,p)])};
 }
 

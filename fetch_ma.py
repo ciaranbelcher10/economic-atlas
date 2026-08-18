@@ -347,10 +347,10 @@ def main() -> int:
          "Current account balance, % of GDP (World Bank)", "%", "years"),
         ("unemployment", lambda: fetch_worldbank("SL.UEM.TOTL.ZS"),
          "Unemployment, % of total labor force (World Bank, annual)", "%", "years"),
-        ("gdp_level", lambda: fetch_worldbank("NY.GDP.MKTP.CD"),
-         "GDP, nominal, current US$ (World Bank, annual)", "$", "years"),
-        ("gdp_real", lambda: fetch_worldbank("NY.GDP.MKTP.KD"),
-         "GDP, real, constant 2015 US$ (World Bank, annual)", "$", "years"),
+        ("gdp_level", lambda: [[p, round(v / 1e6, 1)] for p, v in (fetch_worldbank("NY.GDP.MKTP.CN") or [])],
+         "GDP, current prices, MAD (World Bank, NY.GDP.MKTP.CN, annual)", "MADm", "years"),
+        ("gdp_real", lambda: [[p, round(v / 1e6, 1)] for p, v in (fetch_worldbank("NY.GDP.MKTP.KN") or [])],
+         "GDP, constant prices, MAD (World Bank, NY.GDP.MKTP.KN, annual)", "MADm", "years"),
         ("debt_gdp", lambda: fetch_fred("MARGGDGDPGDPPT", "a", key) if key else None,
          "Total government debt, general government, % of GDP (IMF MENA REO)", "%", "years"),
         ("deficit", lambda: fetch_worldbank("GC.NLD.TOTL.GD.ZS"),
@@ -447,16 +447,29 @@ def main() -> int:
         print("Fresh (< 2 days old): " + ", ".join(
             f"{k} ({p})" for k, p in out["new_points"].items()))
 
-    # No confirmed live FX series exists for the dirham -- unlike Israel,
-    # where a genuine (if undocumented-until-tried) OECD quarterly mirror
-    # existed, desk research turned up nothing usable here, and inventing
-    # a plausible-looking API call to "try" would just be guessing dressed
-    # up as due diligence. Documenting the gap honestly instead: Dollarise
-    # will have nothing to convert, which the shared frontend code already
-    # handles gracefully.
-    print("note  fx_to_usd: no confirmed live FX series found for the "
-          "dirham -- Dollarise will be unavailable on this page unless "
-          "one is found and wired in later.")
+    # fx_to_usd: switched (Aug 2026) from "no confirmed live FX series"
+    # to World Bank PA.NUS.FCRF -- re-checked and confirmed a genuine,
+    # live, ongoing World Bank indicator page exists for Morocco (IMF
+    # IFS-sourced, "Official exchange rate, LCU per US$"), back to
+    # 1960 -- ANNUAL resolution only, same tradeoff already accepted for
+    # Poland/Turkey/Chile/Colombia/Argentina/Indonesia/Israel. No live
+    # Fed H.10-style daily series has ever existed for the dirham
+    # (confirmed via search -- the only FRED alternative found,
+    # XRNCUSMAA618NRUG, a Penn World Table series, stopped updating in
+    # 2019). Needs no FRED_API_KEY, so this runs unconditionally.
+    try:
+        fx_pts = fetch_worldbank("PA.NUS.FCRF")
+        if fx_pts:
+            fx_period, fx_rate = fx_pts[-1]
+            out["fx_to_usd"] = {"pair": "MAD/USD", "rate": fx_rate,
+                                 "as_of": fx_period, "direction": "divide",
+                                 "history": fx_pts}
+            print(f"  ok  fx_to_usd        1 observation ({fx_period}, {fx_rate}), "
+                  f"history {fx_pts[0][0]} to {fx_period} ({len(fx_pts)} points, annual)")
+        else:
+            print("note  fx_to_usd: no observations returned")
+    except Exception as exc:
+        print(f"FAIL  fx_to_usd        {exc}")
 
     with open("data-ma.json", "w") as f:
         json.dump(out, f)

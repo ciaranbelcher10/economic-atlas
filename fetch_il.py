@@ -25,13 +25,17 @@ of these as "expected to work, confirm in the first Actions log"):
   (ISRGDPNQDSMEI, the equivalent of South Korea's NGDPSAXDCKRQ) was
   checked directly and is DEAD -- last observation Q3 2023, "Next Release
   Date: Not Available". This is the same "stale FRED MEI mirror" problem
-  that hit Japan's CPI, just for GDP instead. Rather than ship a
-  discontinued series as if it were live (the exact mistake the Japan CPI
-  postmortem flagged), gdp_level here uses the World Bank's annual
-  nominal GDP (MKTGDPILA646NWDB), confirmed fresh through 2025 -- lower
-  resolution than other countries' quarterly figure, a real and honest
-  gap versus the rest of the site, not a bug. A live quarterly OECD
-  SDMX query (DSD_NAMAIN1@DF_QNA_EXPENDITURE_GROWTH_OECD) was considered
+  that hit Japan's CPI, just for GDP instead. World Bank's annual GDP
+  indicators were used instead -- but the FIRST version of this fetch
+  (before Aug 2026) used the USD-only NY.GDP.MKTP.CD, with no gdp_real
+  at all, on a "no verified local-currency source" claim that turned out
+  to be false (checked directly against World Bank's own indicator pages
+  -- NY.GDP.MKTP.CN / NY.GDP.MKTP.KN genuinely exist for Israel, same
+  "confidently-wrong disclosed gap" already caught for Norway/Colombia/
+  Chile). Fixed to use the genuine ILS-denominated series for both --
+  lower resolution than other countries' quarterly figure (this is
+  annual only), a real and honest gap versus the rest of the site, not a
+  bug. A live quarterly OECD SDMX query (DSD_NAMAIN1@DF_QNA_EXPENDITURE_GROWTH_OECD) was considered
   for gdp_growth but NOT attempted here -- that dataset's dimension
   structure is materially more complex than the prices one CPI already
   uses successfully, and guessing it blind risked shipping something
@@ -320,13 +324,26 @@ def main() -> int:
                 failures.append(name)
                 print(f"FAIL  {name:<16} {exc}")
 
+    # gdp_level / gdp_real: BUG FIX (Aug 2026 continued rollout). Both
+    # were left on World Bank USD (NY.GDP.MKTP.CD) or missing entirely
+    # (gdp_real never existed for Israel at all) -- checked directly
+    # against World Bank's own indicator pages and NY.GDP.MKTP.CN (GDP,
+    # current LCU) / NY.GDP.MKTP.KN (GDP, constant LCU) genuinely exist
+    # for Israel, same "confidently-wrong disclosed gap" already caught
+    # for Norway/Colombia/Chile in earlier sessions. This is what makes
+    # both "Dollarise" AND "Make it real" mean something for Israel --
+    # previously gdp_level was USD-only (Dollarise silently did
+    # nothing) and there was no gdp_real at all (the "Make it real"
+    # toggle was permanently disabled on this page).
     extras = [
         ("business_confidence", lambda: fetch_oecd_bci(),
          "Business confidence indicator, LT avg = 100 (OECD BCICP)", "index", "months"),
         ("cpi", lambda: fetch_oecd_cpi(("ISR",), "M"),
          "CPI, all items, YoY (OECD live prices system)", "%", "months"),
-        ("gdp_level", lambda: fetch_worldbank("NY.GDP.MKTP.CD"),
-         "GDP, nominal, current US$ (World Bank, annual)", "$", "years"),
+        ("gdp_level", lambda: [[p, round(v / 1e6, 1)] for p, v in (fetch_worldbank("NY.GDP.MKTP.CN") or [])],
+         "GDP, current prices, ILS (World Bank, NY.GDP.MKTP.CN, annual)", "\u20aam", "years"),
+        ("gdp_real", lambda: [[p, round(v / 1e6, 1)] for p, v in (fetch_worldbank("NY.GDP.MKTP.KN") or [])],
+         "GDP, constant prices, ILS (World Bank, NY.GDP.MKTP.KN, annual)", "\u20aam", "years"),
         ("fdi", lambda: fetch_worldbank("BX.KLT.DINV.WD.GD.ZS"),
          "FDI net inflows, % of GDP (World Bank)", "%", "years"),
         ("current_account", lambda: fetch_worldbank("BN.CAB.XOKA.GD.ZS"),
@@ -411,32 +428,40 @@ def main() -> int:
         print("Fresh (< 2 days old): " + ", ".join(
             f"{k} ({p})" for k, p in out["new_points"].items()))
 
+    # fx_to_usd: switched (Aug 2026) from CCUSMA02ILQ618N (OECD
+    # quarterly) to World Bank PA.NUS.FCRF -- the OECD series was
+    # confirmed discontinued (stopped updating Feb 2026, "Next Release
+    # Date: Not Available"). No live Fed H.10-style daily series exists
+    # for the shekel either (confirmed via search -- unlike the won/
+    # yen/etc, no DEXISUS or equivalent has ever existed). PA.NUS.FCRF
+    # is a genuine, live, ongoing World Bank indicator (IMF IFS-sourced,
+    # "Official exchange rate, LCU per US$"), back to 1960 -- ANNUAL
+    # resolution only, same tradeoff already accepted for Poland/Turkey/
+    # Chile/Colombia/Argentina/Indonesia. Needs no FRED_API_KEY, so this
+    # now runs unconditionally rather than behind the `if key:` gate the
+    # old FRED-based fetch used.
     try:
-        if key:
-            fx_pts = fetch_fred("CCUSMA02ILQ618N", "q", key)
-            if fx_pts:
-                fx_period, fx_rate = fx_pts[-1]
-                out["fx_to_usd"] = {"pair": "ILS/USD", "rate": fx_rate,
-                                     "as_of": fx_period, "direction": "divide"}
-                print(f"  ok  fx_to_usd        1 observation ({fx_period}, {fx_rate})")
+        fx_pts = fetch_worldbank("PA.NUS.FCRF")
+        if fx_pts:
+            fx_period, fx_rate = fx_pts[-1]
+            out["fx_to_usd"] = {"pair": "ILS/USD", "rate": fx_rate,
+                                 "as_of": fx_period, "direction": "divide",
+                                 "history": fx_pts}
+            print(f"  ok  fx_to_usd        1 observation ({fx_period}, {fx_rate}), "
+                  f"history {fx_pts[0][0]} to {fx_period} ({len(fx_pts)} points, annual)")
 
-                to_local = lambda v: v * fx_rate
-                for tk in ("trade_balance", "exports", "imports"):
-                    if tk in out["series"]:
-                        ser = out["series"][tk]
-                        if ser["unit"].strip().startswith("$"):
-                            ser["points"] = [[p, round(to_local(v), 1)] for p, v in ser["points"]]
-                            ser["unit"] = ser["unit"].replace("$", "\u20aa", 1)
-                            ser["label"] = ser["label"].replace(", $ ", ", \u20aa ") \
-                                                        .replace(", $", ", \u20aa")
-                            print(f"  ok  {tk:<16} converted {'$'}->{'\u20aa'} using {fx_rate}")
-            else:
-                print("note  fx_to_usd: no observations returned -- "
-                      "Israel has no confirmed daily FX series (unlike the won/yen/etc), "
-                      "this quarterly OECD mirror may also be stale; check the log")
+            to_local = lambda v: v * fx_rate
+            for tk in ("trade_balance", "exports", "imports"):
+                if tk in out["series"]:
+                    ser = out["series"][tk]
+                    if ser["unit"].strip().startswith("$"):
+                        ser["points"] = [[p, round(to_local(v), 1)] for p, v in ser["points"]]
+                        ser["unit"] = ser["unit"].replace("$", "\u20aa", 1)
+                        ser["label"] = ser["label"].replace(", $ ", ", \u20aa ") \
+                                                    .replace(", $", ", \u20aa")
+                        print(f"  ok  {tk:<16} converted {'$'}->{'\u20aa'} using {fx_rate}")
         else:
-            print("note  fx_to_usd not set (no FRED_API_KEY) -- "
-                  "Dollarise will be unavailable on this page until next run.")
+            print("note  fx_to_usd: no observations returned")
     except Exception as exc:
         print(f"FAIL  fx_to_usd        {exc}")
 

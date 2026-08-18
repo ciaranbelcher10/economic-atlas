@@ -233,17 +233,50 @@ html[data-theme="dark"] .tpm-scopenote strong{color:var(--blue);}
 .tpm-rankname{flex:1; font-weight:600; font-size:14px; min-width:0; overflow:hidden;
   text-overflow:ellipsis; white-space:nowrap;}
 .tpm-rankvalue{font-weight:700; font-size:14px; color:var(--ink); white-space:nowrap; flex:none;}
+/* ---- toggle-affected metric highlighting (border-color + box-shadow only --
+   see uk.html for the !important background-gradient bug this avoids) ---- */
+.stat.fx-real, .panel.fx-real{
+  border-color:#E3B341 !important;
+  box-shadow:0 0 0 2px rgba(227,179,65,.35);
+}
+.stat.fx-dollar, .panel.fx-dollar{
+  border-color:var(--blue) !important;
+  box-shadow:0 0 0 2px rgba(71,150,206,.35);
+}
+.stat.fx-both, .panel.fx-both{
+  border-color:#2FA463 !important;
+  box-shadow:0 0 0 2px rgba(47,164,99,.35);
+}
+button.mtoggle.fx-real{background:#E3B341; border-color:#E3B341; color:#171B1E;}
+button.mtoggle.fx-dollar{background:var(--blue); border-color:var(--blue); color:#fff;}
+button.mtoggle.fx-both{background:#2FA463; border-color:#2FA463; color:#fff;}
+
+/* ---- info button + popover ---- */
+.infoBtn{display:inline-flex; align-items:center; justify-content:center;
+  width:16px; height:16px; margin-left:6px; padding:0; border:none;
+  background:none; color:var(--ink2); font-size:15px; line-height:1;
+  cursor:pointer; vertical-align:middle; border-radius:50%;}
+.infoBtn:hover, .infoBtn:focus-visible{color:var(--navy); background:var(--paper);}
+.infoPopover{position:absolute; z-index:900; max-width:360px;}
+.infoPopoverInner{background:var(--panel); border:1px solid var(--hair);
+  border-radius:12px; padding:16px 18px; box-shadow:0 8px 28px rgba(0,0,0,.18);
+  font-size:13px; line-height:1.5; color:var(--ink);}
+.infoPopoverClose{position:absolute; top:8px; right:10px; border:none;
+  background:none; font-size:18px; line-height:1; color:var(--ink2);
+  cursor:pointer; padding:2px 4px;}
+.infoPopoverClose:hover{color:var(--ink);}
+.infoPopoverTitle{font-size:14px; font-weight:700; margin:0 22px 8px 0; color:var(--navy);}
+.infoPopoverDesc{margin:0 0 8px;}
+.infoPopoverSrc{margin:0 0 8px; color:var(--ink2); font-size:12px;}
+.infoPopoverToggles{margin-top:4px; padding-top:8px; border-top:1px solid var(--hair);}
+.infoPopoverToggleNote{margin:0 0 8px; font-size:12.5px; color:var(--ink2);}
+.infoPopoverToggleNote:last-child{margin-bottom:0;}
+.infoPopoverToggleNote strong{color:var(--ink);}
+.infoPopoverToggleNote.real strong{color:#9A7412;}
+.infoPopoverToggleNote.dollar strong{color:var(--navy-2);}
 </style>
 </head>
 <body>
-
-<div id="adminGateOverlay" style="position:fixed;inset:0;z-index:99999;background:#0b1220;color:#e5e7eb;display:flex;align-items:center;justify-content:center;text-align:center;padding:24px;font-family:inherit;">
-  <div style="max-width:480px;">
-    <p style="font-size:13px;letter-spacing:0.08em;text-transform:uppercase;color:#38bdf8;margin:0 0 12px;">Temporarily unavailable</p>
-    <h1 style="font-size:26px;margin:0 0 16px;line-height:1.2;">This page is being updated</h1>
-    <p style="margin:20px 0 0;"><a href="index" style="color:#38bdf8;text-decoration:none;">&larr; Back to all countries</a></p>
-  </div>
-</div>
 
 <nav class="top"><div class="wrap">
   <a class="brand" href="index"><img src="logo-64.png" alt="" width="26" height="26" style="display:block;border-radius:50%;background:#fff;padding:1px;">The Economic Atlas</a>
@@ -2061,7 +2094,7 @@ function statTile(el, key, title, series, opts){
     div.addEventListener("keydown",e=>{if(e.key==="Enter"||e.key===" "){e.preventDefault();go();}});
   }
   div.innerHTML=`
-      <p class="label">${title}</p>
+      <p class="label">${title}${infoIconHtml(opts.infoKey || key)}</p>
       <p class="figure"><span class="led ${led}" title="${ledTitle}" role="img"
         aria-label="${ledTitle}"></span>${opts.fmt(last[1])}</p>
       <p class="delta ${dir}"><span class="arrow" aria-hidden="true">${arrow}</span>
@@ -2070,14 +2103,15 @@ function statTile(el, key, title, series, opts){
       <p class="source">${opts.source}</p>`;
   el.appendChild(div);
 }
-function chartPanel(key, containerId, title, expl, series, kind, fmtY, fmtTip, srcNote, fromYear, refLine){
+function chartPanel(key, containerId, title, expl, series, kind, fmtY, fmtTip, srcNote, fromYear, refLine, infoKey){
   const container=document.getElementById(containerId);
   const pts = fromYear ? series.points.filter(p=>+p[0].slice(0,4)>=fromYear) : series.points;
   const id = "ch-"+(panelId++);
   const panel=document.createElement("div");
   panel.className="panel";
+  panel.dataset.key = key || infoKey || "";
   panel.innerHTML=`
-      <div class="panelhead"><h2>${title}</h2>
+      <div class="panelhead"><h2>${title}${infoIconHtml(infoKey || key)}</h2>
         <button type="button" class="expandBtn" aria-label="Enlarge ${title} chart" title="Enlarge">&#9974;</button></div>
       <p class="expl">${expl}</p>
       <p class="range"${series.next?` title="Next release: ${series.next}" style="cursor:help;"`:""}>${fmtPeriod(pts[0][0])} to ${fmtPeriod(pts[pts.length-1][0])}${series.next?" ·":""}</p>
@@ -2155,19 +2189,21 @@ function renderLastUpdated(updatedIso){
 function render(data){
   const s=data.series;
   if(data.sample){const sb=document.getElementById("sampleBadge");sb.textContent="Sample data: run fetch_ma.py for live figures";sb.classList.add("show");}
-  const gdpAnnual = s.gdp_level ? annualGDP(s.gdp_level) : null;   /* FIX (7.6.3): this series is the literal quarterly level (IMF IFS), NOT a seasonally-adjusted-annual-rate like UK/US -- must roll up 4 quarters, was previously used raw and inflated headline GDP ~4x */
-  const gdpYoY = s.gdp_real ? yoyGDP(s.gdp_real) : null;
+  const gdpAnnual = s.gdp_level ? annualGDP(s.gdp_level) : null;   /* annualGDP() passes annual data through unchanged -- gdp_level is now World Bank annual MAD (not a quarterly level), so no rollup actually happens here, but the call is harmless and future-proof if the source ever changes back to quarterly. */
+  const gdpYoY = s.gdp_real ? yoyGDP(s.gdp_real) : null;   /* gdp_real now exists (Aug 2026 fix, see fetch_ma.py) -- this was always null before, since gdp_real never existed for Morocco at all. */
 
   const pct=v=>v.toFixed(1)+"%", pp=v=>v.toFixed(1)+"pp";
   /* currency formatting handled dynamically by curFmt() below */
   
   const idx=v=>v.toFixed(1);
-  const SRC_GDP="World Bank \u00b7 current US$, annual";
+  const SRC_GDP_NOMINAL="World Bank NY.GDP.MKTP.CN \u00b7 current LCU (MAD), annual";
+  const SRC_GDP_REAL="World Bank NY.GDP.MKTP.KN \u00b7 constant LCU (MAD), annual";
+  const SRC_GDP = TOGGLE_STATE.real ? SRC_GDP_REAL : SRC_GDP_NOMINAL;
   const SRC_TRADE="FRED series XTNTVA01MAQ667S \u00b7 OECD merchandise trade, quarterly";
   const SRC_FISCAL="FRED \u00b7 IMF World Economic Outlook, annual";
   const SRC_WB="World Bank \u00b7 % of GDP, annual";
   const SRC_BCI="OECD \u00b7 BCICP, amplitude-adjusted, long-term average = 100";
-  const SRC_BOND="FRED series IRLTLT01ZAM156N \u00b7 monthly average";
+  const SRC_BOND="FRED \u00b7 monthly average"; /* BUG FIX (Aug 2026): was IRLTLT01ZAM156N -- South Africa's series code (ZA), not Morocco's (MA), a wrong-country citation leftover. bond_yield_10y is not actually fetched anywhere in fetch_ma.py, so this citation is currently dead/unreachable code (s.bond_yield_10y is always undefined) -- fixed the false citation anyway rather than leave it, in case this metric is wired in later. No genuine Morocco bond series has been verified, so this is a safe generic placeholder, not a specific unverified claim. */
   const SRC_UNEMP="World Bank \u00b7 % of total labor force, annual";
 
   if(s.business_confidence) chartPanel("business_confidence","charts-headline","Business confidence",
@@ -2185,7 +2221,7 @@ function render(data){
     s.gdp_growth,"bar",v=>v+"%",pct,SRC_GDP,1999,0);
   if(gdpYoY) chartPanel(null,"charts-gdp","Real GDP growth, year on year",
     "How much bigger or smaller the economy is than a year ago, adjusted for inflation.",
-    gdpYoY,"line",v=>v+"%",pct,SRC_GDP,1999,0);
+    gdpYoY,"line",v=>v+"%",pct,SRC_GDP,1999,0,"gdp_growth");
 
   if(s.cpi) chartPanel("cpi","charts-inflation","CPI inflation, annual rate",
     "How much consumer prices are rising compared with a year ago. Bank Al-Maghrib targets around 2%.",
@@ -2242,7 +2278,7 @@ function render(data){
   if(s.gdp_growth) statTile(tg,"gdp_growth","Growth (QoQ)",s.gdp_growth,
     {fmt:pct,fmtD:pp,upIsGood:true,source:SRC_GDP});
   if(gdpYoY) statTile(tg,null,"Growth (YoY)",gdpYoY,
-    {fmt:pct,fmtD:pp,upIsGood:true,source:SRC_GDP});
+    {fmt:pct,fmtD:pp,upIsGood:true,source:SRC_GDP,infoKey:"gdp_growth"});
 
   const tinf=document.getElementById("tiles-inflation");
   if(s.cpi) statTile(tinf,"cpi","CPI (YoY)",s.cpi,
@@ -2332,10 +2368,241 @@ function isAlreadyUSD(u, key){
   return clean.charAt(0) === "$";
 }
 function convertSeriesToUSD(series, fx){
-  const toUSD = v => fx.direction==="multiply" ? v*fx.rate : v/fx.rate;
-  const newUnit = "$"+series.unit.replace(/^[^a-zA-Z0-9]+/,"");
-  return {...series, unit:newUnit, points: series.points.map(([p,v])=>[p, toUSD(v)])};
+  // Historical FX matching (same fix as UK/US rollout, Aug 2026): looks up
+  // each point's own contemporaneous rate from fx.history (monthly
+  // resolution, built from DEXUSEU's full available range) via
+  // rateForPeriod() below, instead of applying today's single fx.rate
+  // uniformly across the whole series. Falls back to fx.rate only if no
+  // history is available at all (e.g. before the next Actions run has
+  // deployed the updated fetch script), so this degrades gracefully.
+  const toUSD = (v, period) => {
+    const rate = fx.history ? rateForPeriod(period, fx.history) : fx.rate;
+    return fx.direction==="multiply" ? v*rate : v/rate;
+  };
+  // BUG FIX (Aug 2026): the old regex (/^[^a-zA-Z0-9]+/) only stripped a
+  // leading run of NON-alphanumeric characters -- correct for symbol-
+  // prefixed units (€/¥/₹/₩/₪) but silently wrong for the many
+  // countries whose unit is a 3-letter currency CODE instead (CLPm,
+  // COPm, PLNm, TRYm, ARSm, IDRm, SGDm, THBm, DKKm, NOKm, SEKm, CHFm,
+  // MADm, etc) -- those are alphanumeric, so nothing matched, and the
+  // result was a broken double-marker unit like "$CLPm" instead of the
+  // correct "$m". Now strips either three leading uppercase letters (a
+  // currency code) OR a run of non-alphanumeric symbol characters.
+  const newUnit = "$"+series.unit.replace(/^([A-Z]{3}|[^a-zA-Z0-9]+)/,"");
+  return {...series, unit:newUnit, points: series.points.map(([p,v])=>[p, toUSD(v,p)])};
 }
+
+/* ------------------ historical FX period-matching lookup ------------------
+   fx.history is a sorted array of [period, rate] pairs at MONTHLY
+   resolution. A data point being converted can be annual ("1980"),
+   quarterly ("2024-Q1"), or monthly ("2024-01") -- this function matches
+   each shape appropriately:
+     - annual:    average every month's rate within that year
+     - quarterly: average the 3 months in that quarter
+     - monthly:   exact match
+   If the target period has no overlap with fx.history at all (e.g. a
+   point from before DEXUSEU's own start date of 1999-01, the euro's
+   launch), falls back to the EARLIEST available rate rather than
+   silently extrapolating further back or guessing. This is a disclosed
+   approximation, not a precise historical rate -- see the caveat text in
+   the info panel and in mtoggleNote for any pre-1999 figures. */
+function monthKey(period){
+  const yearMatch = period.match(/^(\d{4})/);
+  if(!yearMatch) return null;
+  const year = parseInt(yearMatch[1], 10);
+  const qMatch = period.match(/^\d{4}-Q([1-4])$/);
+  if(qMatch) return year*12 + (parseInt(qMatch[1],10)-1)*3;
+  const mMatch = period.match(/^\d{4}-(\d{2})$/);
+  if(mMatch) return year*12 + (parseInt(mMatch[1],10)-1);
+  return year*12; // bare "YYYY" -> January anchor
+}
+function rateForPeriod(period, history){
+  if(!history || !history.length) return null;
+  let matches;
+  if(/^\d{4}$/.test(period)){
+    matches = history.filter(([p])=>p.startsWith(period+"-"));
+  } else if(/^\d{4}-Q[1-4]$/.test(period)){
+    const [y,q] = period.split("-Q");
+    const startMonth = (parseInt(q,10)-1)*3 + 1;
+    const wantedMonths = [startMonth, startMonth+1, startMonth+2].map(m=>`${y}-${String(m).padStart(2,"0")}`);
+    matches = history.filter(([p])=>wantedMonths.includes(p));
+  } else {
+    matches = history.filter(([p])=>p===period);
+  }
+  if(matches.length) return matches.reduce((sum,[,v])=>sum+v, 0) / matches.length;
+  const targetKey = monthKey(period);
+  let best = history[0], bestDist = Infinity;
+  for(const [p,v] of history){
+    const dist = Math.abs(monthKey(p) - targetKey);
+    if(dist < bestDist){ bestDist = dist; best = [p,v]; }
+  }
+  return best[1];
+}
+/* Does this series contain any point older than fx.history's own earliest
+   month? Used to decide whether to show the pre-series-start caveat. */
+function hasPreHistoryPoints(series, fx){
+  if(!fx || !fx.history || !fx.history.length) return false;
+  const earliest = monthKey(fx.history[0][0]);
+  return series.points.some(([p])=> monthKey(p) !== null && monthKey(p) < earliest);
+}
+
+/* ---- per-metric info popover content ----
+   Mirrors uk.html's pattern. gdp_level and gdp_real are BOTH new
+   additions to this page (Aug 2026 fix, see fetch_ma.py) -- previously
+   both were permanently World Bank USD-only, on a "no verified
+   local-currency source" assumption that turned out to be false, same
+   pattern already caught for Norway/Colombia/Chile/Israel in earlier
+   sessions. Dollarise now uses World Bank PA.NUS.FCRF (Aug 2026 fix,
+   see fetch_ma.py) -- Morocco previously had NO fx_to_usd source
+   implemented at all (an honestly-disclosed gap, not a guess), and
+   this genuinely closes it: PA.NUS.FCRF is a live, ongoing World Bank
+   indicator confirmed to exist for Morocco, back to 1960 -- ANNUAL
+   resolution only. No live Fed H.10-style daily series has ever
+   existed for the dirham. Morocco's own GDP series starts 1960 -- the
+   SAME year PA.NUS.FCRF itself starts -- so the pre-history fallback
+   caveat should not fire in practice. Also fixed while building this:
+   bond_yield_10y's citation previously claimed South Africa's FRED
+   series ID (a copy-paste leftover) -- that metric isn't actually
+   fetched for Morocco at all, so the wrong citation was dead code, but
+   fixed anyway rather than leave a false claim in the source. */
+const INFO_CONTENT = {
+  gdp_level: {
+    description: "The total value of everything Morocco produces in a year, at current prices.",
+    source: "World Bank NY.GDP.MKTP.CN \u00b7 current local-currency units (MAD), annual.",
+    real: "\u201cMake it real\u201d swaps this to Morocco's real (constant-price, inflation-adjusted) GDP series, World Bank NY.GDP.MKTP.KN. This strips out the effect of price changes, so it shows genuine output growth rather than growth that's really just inflation.",
+    dollar: "\u201cDollarise\u201d converts each historical point using that year's own average MAD/USD rate (World Bank PA.NUS.FCRF, annual resolution -- coarser than the monthly/daily matching used on most other countries here, since no live monthly or daily source has ever existed for the dirham)."
+  },
+  gdp_real: {
+    description: "GDP adjusted for inflation, in constant local-currency terms -- the same production, valued at constant prices, so changes reflect real output growth rather than price changes.",
+    source: "World Bank NY.GDP.MKTP.KN \u00b7 constant local-currency units (MAD), annual.",
+    real: "This IS the \u201cMake it real\u201d series -- toggling it off shows GDP at current (nominal) prices instead.",
+    dollar: "Each historical point converted at its own year's average MAD/USD rate (World Bank PA.NUS.FCRF, annual resolution)."
+  },
+  gdp_growth: {
+    description: "How much bigger or smaller the economy is than a year ago, adjusted for inflation. Derived from gdp_real, since Morocco's GDP data here is annual only -- no separate quarter-on-quarter figure is available.",
+    source: "Derived from World Bank NY.GDP.MKTP.KN (see gdp_real entry).",
+    real: "This is already a real (inflation-adjusted) growth rate as published \u2014 \u201cMake it real\u201d has no additional effect on it.",
+    dollar: "A growth rate (%) is currency-agnostic \u2014 converting the underlying dirhams to dollars doesn't change the percentage change. \u201cDollarise\u201d has no effect on this figure."
+  },
+  cpi: {
+    description: "How much consumer prices are rising compared with a year ago. Bank Al-Maghrib targets around 2% inflation.",
+    source: "OECD live prices system \u00b7 CPI, all items, year on year."
+  },
+  business_confidence: {
+    description: "How optimistic firms are about the months ahead. 100 is the long-run average; readings above it mean firms expect better-than-average conditions.",
+    source: "OECD \u00b7 Business Confidence Indicator (BCICP), amplitude-adjusted, long-term average = 100.",
+    dollar: "This is an index, not a currency figure \u2014 \u201cDollarise\u201d doesn't apply to it."
+  },
+  fdi: {
+    description: "Money invested into Moroccan businesses from abroad each year (foreign direct investment), as a share of GDP.",
+    source: "World Bank \u00b7 % of GDP, annual.",
+    dollar: "Already expressed as a % of GDP \u2014 currency-agnostic. \u201cDollarise\u201d has no effect on this figure."
+  },
+  unemployment: {
+    description: "The share of people who want a job and are actively looking, but can't find one.",
+    source: "World Bank \u00b7 % of total labor force, annual."
+  },
+  trade_balance: {
+    description: "Exports minus imports of goods each quarter. Below zero means Morocco buys more from abroad than it sells.",
+    source: "FRED series XTNTVA01MAQ667S \u00b7 OECD merchandise trade, quarterly.",
+    dollar: "Each historical point is converted at its own year's average MAD/USD rate (World Bank PA.NUS.FCRF, annual resolution)."
+  },
+  current_account: {
+    description: "Morocco's overall balance with the rest of the world \u2014 trade in goods and services plus net investment income \u2014 as a share of GDP.",
+    source: "World Bank \u00b7 % of GDP, annual.",
+    dollar: "Already expressed as a % of GDP \u2014 currency-agnostic. \u201cDollarise\u201d has no effect on this figure."
+  },
+  debt_gdp: {
+    description: "Everything federal, provincial and local governments owe combined, compared with the size of the economy.",
+    source: "FRED (IMF Middle East and Central Asia Regional Economic Outlook), annual.",
+    dollar: "Already expressed as a % of GDP \u2014 currency-agnostic. \u201cDollarise\u201d has no effect on this figure."
+  },
+  deficit: {
+    description: "The yearly gap between government spending and revenue across all levels of government, as a share of GDP. Negative means a deficit.",
+    source: "World Bank \u00b7 % of GDP, annual.",
+    dollar: "Already expressed as a % of GDP \u2014 currency-agnostic. \u201cDollarise\u201d has no effect on this figure."
+  }
+};
+
+function infoIconHtml(infoKey){
+  if(!infoKey || !INFO_CONTENT[infoKey]) return "";
+  return `<button type="button" class="infoBtn" data-infokey="${infoKey}" aria-label="What is this metric and how do the toggles affect it?" title="About this metric">&#9432;</button>`;
+}
+let INFO_POPOVER_EL = null;
+function ensureInfoPopover(){
+  if(INFO_POPOVER_EL) return INFO_POPOVER_EL;
+  const el = document.createElement("div");
+  el.className = "infoPopover";
+  el.hidden = true;
+  el.innerHTML = `<div class="infoPopoverInner">
+      <button type="button" class="infoPopoverClose" aria-label="Close">&times;</button>
+      <h3 class="infoPopoverTitle"></h3>
+      <p class="infoPopoverDesc"></p>
+      <p class="infoPopoverSrc"></p>
+      <div class="infoPopoverToggles"></div>
+    </div>`;
+  document.body.appendChild(el);
+  el.querySelector(".infoPopoverClose").addEventListener("click", closeInfoPopover);
+  document.addEventListener("keydown", e=>{ if(e.key==="Escape") closeInfoPopover(); });
+  document.addEventListener("click", e=>{
+    if(el.hidden) return;
+    if(el.contains(e.target) || e.target.closest(".infoBtn")) return;
+    closeInfoPopover();
+  });
+  INFO_POPOVER_EL = el;
+  return el;
+}
+function closeInfoPopover(){
+  if(INFO_POPOVER_EL) INFO_POPOVER_EL.hidden = true;
+}
+function openInfoPopover(btn, infoKey, title){
+  const content = INFO_CONTENT[infoKey];
+  if(!content) return;
+  const el = ensureInfoPopover();
+  el.querySelector(".infoPopoverTitle").textContent = title;
+  el.querySelector(".infoPopoverDesc").textContent = content.description;
+  el.querySelector(".infoPopoverSrc").textContent = "Source: " + content.source;
+  const togglesEl = el.querySelector(".infoPopoverToggles");
+  togglesEl.innerHTML = "";
+  if(content.real){
+    const p = document.createElement("p");
+    p.className = "infoPopoverToggleNote real";
+    p.innerHTML = `<strong>Make it real:</strong> ${content.real}`;
+    togglesEl.appendChild(p);
+  }
+  if(content.dollar){
+    const p = document.createElement("p");
+    p.className = "infoPopoverToggleNote dollar";
+    p.innerHTML = `<strong>Dollarise:</strong> ${content.dollar}`;
+    togglesEl.appendChild(p);
+  }
+  el.hidden = false;
+  const rect = btn.getBoundingClientRect();
+  const popRect = el.querySelector(".infoPopoverInner").getBoundingClientRect();
+  let left = rect.left + window.scrollX;
+  const maxLeft = window.scrollX + document.documentElement.clientWidth - popRect.width - 12;
+  if(left > maxLeft) left = Math.max(12, maxLeft);
+  el.style.left = left + "px";
+  el.style.top = (rect.bottom + window.scrollY + 8) + "px";
+}
+/* Registered on the CAPTURE phase (third arg true), not bubble -- built
+   in from the start this round (see us.html/uk.html for the bug this
+   avoids: a bubble-phase listener here fires too late to stop a
+   clickable .stat tile's own "go to chart" listener from also firing). */
+document.addEventListener("click", e=>{
+  const btn = e.target.closest(".infoBtn");
+  if(!btn) return;
+  e.stopPropagation();
+  const infoKey = btn.dataset.infokey;
+  const titleEl = btn.closest(".stat, .panelhead");
+  let title = infoKey;
+  if(titleEl){
+    const labelEl = titleEl.querySelector(".label, h2");
+    if(labelEl) title = labelEl.textContent;
+  }
+  openInfoPopover(btn, infoKey, title);
+}, true);
+
 function buildDisplaySeries(rawSeries){
   const out = {};
   for(const k in rawSeries) out[k]=rawSeries[k];
@@ -2380,7 +2647,15 @@ function rerender(){
   const notes = [];
   if(TOGGLE_STATE.dollar && PAGE_DATA.fx_to_usd){
     const fx = PAGE_DATA.fx_to_usd;
-    notes.push(`All currency figures converted at ${fx.pair} = ${fx.rate} (as of ${fx.as_of})`);
+    if(fx.history && fx.history.length){
+      notes.push(`Currency figures converted at each period's own ${fx.pair} rate (history: ${fx.history[0][0]} to ${fx.history[fx.history.length-1][0]}; latest ${fx.rate} as of ${fx.as_of})`);
+      const anyPreHistory = CURRENCY_KEYS.some(k => s[k] && hasPreHistoryPoints(s[k], fx));
+      if(anyPreHistory){
+        notes.push(`figures before ${fx.history[0][0]} use the earliest available rate (no genuine historical rate exists further back)`);
+      }
+    } else {
+      notes.push(`All currency figures converted at ${fx.pair} = ${fx.rate} (as of ${fx.as_of}) -- historical rate matching not yet available for this series`);
+    }
   } else if(TOGGLE_STATE.dollar){
     notes.push("Exchange rate not available yet: showing original currency");
   }
@@ -2393,6 +2668,51 @@ function rerender(){
   });
   const displaySeries = buildDisplaySeries(s);
   render({...PAGE_DATA, series: displaySeries});
+  applyToggleHighlighting();
+}
+
+/* --------------------- toggle-affected metric highlighting ---------------
+   Same mechanism as uk.html/us.html/germany.html, with one refinement:
+   "Dollarise" highlighting now checks isAlreadyUSD() against each key's
+   RAW (pre-toggle) unit, not just CURRENCY_KEYS membership. Found via
+   Spain: its gdp_level/gdp_real are genuinely World-Bank-sourced in USD
+   (unlike every other Eurozone page here, which are native-EUR IMF/
+   Eurostat series), so isAlreadyUSD() already correctly no-ops Dollarise
+   on those two keys -- but a highlight check that only asked "is this
+   key in CURRENCY_KEYS" would have blue-glowed them anyway, falsely
+   implying a conversion happened. Checking the actual raw series unit
+   keeps the highlight honest regardless of which country's data
+   happens to already be dollar-denominated. "Make it real" only ever
+   swaps gdp_level's series (see buildDisplaySeries above) so it's the
+   only key that ever gets the "real" highlight. Applied to both .stat
+   tiles and .panel chart cards via their shared data-key attribute, and
+   to the toggle buttons themselves. */
+const REAL_AFFECTED_KEYS = ["gdp_level"];
+function applyToggleHighlighting(){
+  const realOn = TOGGLE_STATE.real, dollarOn = TOGGLE_STATE.dollar;
+  const rawSeries = PAGE_DATA && PAGE_DATA.series;
+  document.querySelectorAll(".stat[data-key], .panel[data-key]").forEach(el=>{
+    const key = el.dataset.key;
+    el.classList.remove("fx-real","fx-dollar","fx-both");
+    if(!key || key==="null") return;
+    const realHit = realOn && REAL_AFFECTED_KEYS.includes(key);
+    const seriesForKey = rawSeries && rawSeries[key];
+    const dollarHit = dollarOn && CURRENCY_KEYS.includes(key) &&
+      seriesForKey && !isAlreadyUSD(seriesForKey.unit, key);
+    if(realHit && dollarHit) el.classList.add("fx-both");
+    else if(realHit) el.classList.add("fx-real");
+    else if(dollarHit) el.classList.add("fx-dollar");
+  });
+  const realBtn = document.getElementById("toggleReal");
+  const dollarBtn = document.getElementById("toggleDollar");
+  [realBtn, dollarBtn].forEach(b=>b && b.classList.remove("fx-real","fx-dollar","fx-both"));
+  if(realOn && dollarOn){
+    if(realBtn) realBtn.classList.add("fx-both");
+    if(dollarBtn) dollarBtn.classList.add("fx-both");
+  } else {
+    if(realOn && realBtn) realBtn.classList.add("fx-real");
+    if(dollarOn && dollarBtn) dollarBtn.classList.add("fx-dollar");
+  }
 }
 
 fetch("data-ma.json",{cache: "no-cache"})
@@ -3730,25 +4050,6 @@ document.querySelectorAll(".mtbtn").forEach(function(btn){
   if(window.EATLAS_PREFS && window.EATLAS_PREFS.registerBanner){
     window.EATLAS_PREFS.registerBanner(banner);
   }
-})();
-</script>
-<script>
-(function(){
-  // Admin-only gate while data issues on this page are being fixed. Fails
-  // closed: the overlay in the markup above blocks the page immediately,
-  // synchronously, with no dependency on JS execution order -- this
-  // script only ever REMOVES it, and only once EATLAS_PREFS has
-  // genuinely confirmed admin status. If EATLAS_PREFS never loads (script
-  // error, ad blocker, etc.) the overlay simply stays up, which is the
-  // correct fail-safe direction for this gate.
-  function checkAdminGate(){
-    if(!window.EATLAS_PREFS){ setTimeout(checkAdminGate, 50); return; }
-    window.EATLAS_PREFS.ready.then(function(){
-      var overlay = document.getElementById("adminGateOverlay");
-      if(overlay && window.EATLAS_PREFS.isAdmin()) overlay.remove();
-    });
-  }
-  checkAdminGate();
 })();
 </script>
 </body>
