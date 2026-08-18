@@ -568,38 +568,46 @@ def main() -> int:
         print("Fresh (< 2 days old): " + ", ".join(
             f"{k} ({p})" for k, p in out["new_points"].items()))
 
+    # fx_to_usd: switched (Aug 2026) from CCUSMA02CLM618N (OECD monthly)
+    # to World Bank PA.NUS.FCRF -- the OECD series was confirmed
+    # discontinued (stopped updating Feb 2026, "Next Release Date: Not
+    # Available"). No live Fed H.10-style daily series exists for the
+    # peso either. PA.NUS.FCRF is a genuine, live, ongoing World Bank
+    # indicator (IMF IFS-sourced, "Official exchange rate, LCU per
+    # US$"), back to 1960 -- ANNUAL resolution only, same tradeoff
+    # already accepted for Poland/Turkey. Needs no FRED_API_KEY (World
+    # Bank's API is open), so this now runs unconditionally rather than
+    # behind the `if key:` gate the old FRED-based fetch used.
     try:
-        if key:
-            fx_pts = fetch_fred("CCUSMA02CLM618N", "m", key)
-            if fx_pts:
-                fx_period, fx_rate = fx_pts[-1]
-                out["fx_to_usd"] = {"pair": "CLP/USD", "rate": fx_rate,
-                                     "as_of": fx_period, "direction": "divide"}
-                print(f"  ok  fx_to_usd        1 observation ({fx_period}, {fx_rate})")
+        fx_pts = fetch_worldbank("PA.NUS.FCRF")
+        if fx_pts:
+            fx_period, fx_rate = fx_pts[-1]
+            out["fx_to_usd"] = {"pair": "CLP/USD", "rate": fx_rate,
+                                 "as_of": fx_period, "direction": "divide",
+                                 "history": fx_pts}
+            print(f"  ok  fx_to_usd        1 observation ({fx_period}, {fx_rate}), "
+                  f"history {fx_pts[0][0]} to {fx_period} ({len(fx_pts)} points, annual)")
 
-                to_local = lambda v: v * fx_rate
-                for tk in ("trade_balance", "exports", "imports"):
-                    if tk in out["series"]:
-                        ser = out["series"][tk]
-                        if ser["unit"].strip().startswith("$"):
-                            ser["points"] = [[p, round(to_local(v), 1)] for p, v in ser["points"]]
-                            # NOTE (fixed later session): this block was copy-pasted from a
-                            # Scandinavian country's fetch script and unit was labeled "kr"
-                            # (krona/krone) -- wrong currency entirely for Chile. The VALUES
-                            # were always correctly converted (CLP/USD applied correctly),
-                            # only the label was wrong -- a genuine ~CLP2.2tn monthly trade
-                            # figure displayed with no currency symbol and a nonsense "kr"
-                            # unit underneath. Corrected to "CLP" to match the fx_to_usd pair
-                            # label used elsewhere on this page.
-                            ser["unit"] = ser["unit"].replace("$", "CLP", 1)
-                            ser["label"] = ser["label"].replace(", $ ", ", CLP ") \
-                                                        .replace(", $", ", CLP")
-                            print(f"  ok  {tk:<16} converted $->CLP using {fx_rate}")
-            else:
-                print("note  fx_to_usd: no observations returned")
+            to_local = lambda v: v * fx_rate
+            for tk in ("trade_balance", "exports", "imports"):
+                if tk in out["series"]:
+                    ser = out["series"][tk]
+                    if ser["unit"].strip().startswith("$"):
+                        ser["points"] = [[p, round(to_local(v), 1)] for p, v in ser["points"]]
+                        # NOTE (fixed later session): this block was copy-pasted from a
+                        # Scandinavian country's fetch script and unit was labeled "kr"
+                        # (krona/krone) -- wrong currency entirely for Chile. The VALUES
+                        # were always correctly converted (CLP/USD applied correctly),
+                        # only the label was wrong -- a genuine ~CLP2.2tn monthly trade
+                        # figure displayed with no currency symbol and a nonsense "kr"
+                        # unit underneath. Corrected to "CLP" to match the fx_to_usd pair
+                        # label used elsewhere on this page.
+                        ser["unit"] = ser["unit"].replace("$", "CLP", 1)
+                        ser["label"] = ser["label"].replace(", $ ", ", CLP ") \
+                                                    .replace(", $", ", CLP")
+                        print(f"  ok  {tk:<16} converted $->CLP using {fx_rate}")
         else:
-            print("note  fx_to_usd not set (no FRED_API_KEY) — "
-                  "Dollarise will be unavailable on this page until next run.")
+            print("note  fx_to_usd: no observations returned")
     except Exception as exc:
         print(f"FAIL  fx_to_usd        {exc}")
 

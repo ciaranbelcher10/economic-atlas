@@ -87,7 +87,10 @@ FRED_SERIES = {
     "gdp_level": ("NGDPSAXDCIDQ", "q", "Nominal GDP, current prices, SA (IMF IFS)", "IDRm", None, 1.0),
     "debt_gdp": ("GGGDTAIDA188N", "a", "General government gross debt, % of GDP (IMF WEO)", "%", None, 1.0),
     "deficit": ("GGNLBAIDA188N", "a", "General government net lending/borrowing, % of GDP (IMF WEO)", "%", None, 1.0),
-    "fx_raw": ("CCUSMA02IDM618N", "m", "IDR per USD, average of daily rates (OECD)", "IDR", None, 1.0),
+    # fx_raw removed (Aug 2026): the OECD series it pointed to
+    # (CCUSMA02IDM618N) is discontinued -- fx_to_usd now uses World
+    # Bank PA.NUS.FCRF via fetch_worldbank() directly, unconditionally
+    # (moved out of the FRED-key-gated section), see below.
 }
 
 FRED_URL = ("https://api.stlouisfed.org/fred/series/observations"
@@ -336,18 +339,33 @@ def main() -> int:
                 }
                 print(f"  ok  gdp_growth      {len(growth_pts):>5} observations (derived QoQ)")
 
-        try:
-            sid, freq, _, _, _, _ = FRED_SERIES["fx_raw"]
-            fx_pts = fetch_fred(sid, freq, key)
-            if fx_pts:
-                fx_period, fx_rate = fx_pts[-1]
-                out["fx_to_usd"] = {"pair": "IDR/USD", "rate": fx_rate,
-                                     "as_of": fx_period, "direction": "divide"}
-                print(f"  ok  fx_to_usd        1 observation ({fx_period}, {fx_rate})")
-            else:
-                print("note  fx_to_usd: no observations returned")
-        except Exception as exc:
-            print(f"FAIL  fx_to_usd        {exc}")
+    # fx_to_usd: switched (Aug 2026) from CCUSMA02IDM618N (OECD monthly)
+    # to World Bank PA.NUS.FCRF -- the OECD series was confirmed
+    # discontinued (stopped updating Feb 2026, "Next Release Date: Not
+    # Available"). No live Fed H.10-style daily series exists for the
+    # rupiah either. PA.NUS.FCRF is a genuine, live, ongoing World Bank
+    # indicator (IMF IFS-sourced, "Official exchange rate, LCU per
+    # US$"), back to 1960 -- ANNUAL resolution only, same tradeoff
+    # already accepted for Poland/Turkey/Chile/Colombia/Argentina.
+    # MOVED OUT of the `if not key: ... else:` block above (Aug 2026
+    # fix) -- it was previously nested inside the FRED-key-gated
+    # branch, but World Bank's API needs no key at all, so gating it
+    # behind FRED_API_KEY meant it would incorrectly never run if that
+    # key were ever unset, despite not actually depending on it. Runs
+    # unconditionally now.
+    try:
+        fx_pts = fetch_worldbank("PA.NUS.FCRF")
+        if fx_pts:
+            fx_period, fx_rate = fx_pts[-1]
+            out["fx_to_usd"] = {"pair": "IDR/USD", "rate": fx_rate,
+                                 "as_of": fx_period, "direction": "divide",
+                                 "history": fx_pts}
+            print(f"  ok  fx_to_usd        1 observation ({fx_period}, {fx_rate}), "
+                  f"history {fx_pts[0][0]} to {fx_period} ({len(fx_pts)} points, annual)")
+        else:
+            print("note  fx_to_usd: no observations returned")
+    except Exception as exc:
+        print(f"FAIL  fx_to_usd        {exc}")
 
     extras = [
         ("business_confidence", lambda: fetch_oecd_bci(),
