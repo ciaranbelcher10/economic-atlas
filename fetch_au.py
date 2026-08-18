@@ -399,8 +399,10 @@ def main() -> int:
             if fx_pts:
                 fx_period, fx_rate = fx_pts[-1]
                 out["fx_to_usd"] = {"pair": "AUD/USD", "rate": fx_rate,
-                                     "as_of": fx_period, "direction": "multiply"}
-                print(f"  ok  fx_to_usd        1 observation ({fx_period}, {fx_rate})")
+                                     "as_of": fx_period, "direction": "multiply",
+                                     "history": fx_pts}
+                print(f"  ok  fx_to_usd        1 observation ({fx_period}, {fx_rate}), "
+                      f"history {fx_pts[0][0]} to {fx_period} ({len(fx_pts)} points)")
 
                 to_local = lambda v: v / fx_rate
                 for tk in ("trade_balance", "exports", "imports"):
