@@ -2604,6 +2604,18 @@ function wireRangePresets(scopeEl, pts, kind, chart){
     });
   });
 }
+// Same centered-around-100 logic as compare.html: business_confidence
+// (and any future plain-index metric with a fixed baseline of 100)
+// reads as a deviation from 100, not from zero -- computes a symmetric
+// range sized to the actual data, with a floor so flat data doesn't
+// over-zoom and headroom so points aren't flush against the edge.
+function centeredIndexScale(values){
+  var reals = (values || []).filter(function(v){ return v != null && !isNaN(v); });
+  if(!reals.length) return {};
+  var maxDeviation = Math.max.apply(null, reals.map(function(v){ return Math.abs(v - 100); }));
+  var span = Math.max(maxDeviation * 1.25, 3);
+  return {min: 100 - span, max: 100 + span};
+}
 var baseScales = function(fmtY){
   return {
     x: {grid: {display: false}, border: {color: HAIR},
@@ -2633,7 +2645,7 @@ function baseOpts(fmtTip, refLine){
     }
   };
 }
-function chartConfig(kind, pts, fmtY, fmtTip, refLine){
+function chartConfig(kind, pts, fmtY, fmtTip, refLine, key){
   var data = kind === "bar"
     ? {labels: pts.map(function(p){ return p[0]; }), datasets: [{data: pts.map(function(p){ return p[1]; }),
         backgroundColor: pts.map(function(p){ return p[1] < 0 ? BAR_DOWN : BAR_UP; }),
@@ -2642,10 +2654,13 @@ function chartConfig(kind, pts, fmtY, fmtTip, refLine){
         borderColor: LINE, borderWidth: 2, pointRadius: 0, pointHitRadius: 8, tension: 0.25}]};
   var opts = baseOpts(fmtTip, refLine);
   opts.scales = baseScales(fmtY);
+  if(key === "business_confidence"){
+    Object.assign(opts.scales.y, centeredIndexScale(pts.map(function(p){ return p[1]; })));
+  }
   return {type: kind === "bar" ? "bar" : "line", data: data, options: opts};
 }
-function lineChart(canvas, pts, fmtY, fmtTip, refLine){ return new Chart(canvas, chartConfig("line", pts, fmtY, fmtTip, refLine)); }
-function barChart(canvas, pts, fmtY, fmtTip, refLine){ return new Chart(canvas, chartConfig("bar", pts, fmtY, fmtTip, refLine)); }
+function lineChart(canvas, pts, fmtY, fmtTip, refLine, key){ return new Chart(canvas, chartConfig("line", pts, fmtY, fmtTip, refLine, key)); }
+function barChart(canvas, pts, fmtY, fmtTip, refLine, key){ return new Chart(canvas, chartConfig("bar", pts, fmtY, fmtTip, refLine, key)); }
 function buildChartConfig(kind, pts, refLine, unit, key){
   var fmt = function(v){ return fmtVal(v, unit, key); };
   return chartConfig(kind, pts, fmt, fmt, refLine);
@@ -2670,7 +2685,7 @@ function openChartModal(id){
   presetsEl.innerHTML = rangePresetsHtml();
   if(modalChart){ modalChart.destroy(); modalChart = null; }
   var canvas = document.getElementById("chartModalCanvas");
-  modalChart = (entry.kind === "bar" ? barChart : lineChart)(canvas, entry.pts, entry.fmtY, entry.fmtTip, entry.refLine);
+  modalChart = (entry.kind === "bar" ? barChart : lineChart)(canvas, entry.pts, entry.fmtY, entry.fmtTip, entry.refLine, entry.key);
   wireRangePresets(modal, entry.pts, entry.kind, modalChart);
   document.getElementById("chartModalReset").onclick = function(){ if(modalChart.resetZoom) modalChart.resetZoom(); };
   var modalDlBtn = document.getElementById("chartModalDlBtn");
@@ -2762,7 +2777,51 @@ function explainerOf(key){
 }
 
 var REGISTRY = {}; // REGISTRY[country][key] = {label, unit, freq, points}
-var FX_RATES = {}; // FX_RATES[country] = {pair, rate, as_of, direction} or undefined (e.g. US, already USD)
+var FX_RATES = {}; // FX_RATES[country] = {pair, rate, as_of, direction, history} or undefined (e.g. US, already USD)
+// Historical FX period-matching, verbatim from the same rateForPeriod()/
+// monthKey() logic already used site-wide on individual country pages'
+// Dollarise toggle (see e.g. germany.html) -- ported here (and to
+// compare.html) so Dashboard follows the same "each point converts at
+// its own contemporaneous rate" approach, not a single current rate
+// applied uniformly across history.
+function monthKey(period){
+  var yearMatch = /^(\d{4})/.exec(period);
+  if(!yearMatch) return null;
+  var year = parseInt(yearMatch[1], 10);
+  var qMatch = /^\d{4}-Q([1-4])$/.exec(period);
+  if(qMatch) return year*12 + (parseInt(qMatch[1],10)-1)*3;
+  var mMatch = /^\d{4}-(\d{2})$/.exec(period);
+  if(mMatch) return year*12 + (parseInt(mMatch[1],10)-1);
+  return year*12;
+}
+function rateForPeriod(period, history){
+  if(!history || !history.length) return null;
+  var matches;
+  if(/^\d{4}$/.test(period)){
+    matches = history.filter(function(pt){ return pt[0].indexOf(period + "-") === 0; });
+  } else if(/^\d{4}-Q[1-4]$/.test(period)){
+    var parts = period.split("-Q");
+    var y = parts[0], q = parts[1];
+    var startMonth = (parseInt(q,10)-1)*3 + 1;
+    var wantedMonths = [startMonth, startMonth+1, startMonth+2].map(function(m){
+      return y + "-" + String(m).padStart(2,"0");
+    });
+    matches = history.filter(function(pt){ return wantedMonths.indexOf(pt[0]) !== -1; });
+  } else {
+    matches = history.filter(function(pt){ return pt[0] === period; });
+  }
+  if(matches.length){
+    var sum = matches.reduce(function(s,pt){ return s+pt[1]; }, 0);
+    return sum / matches.length;
+  }
+  var targetKey = monthKey(period);
+  var best = history[0], bestDist = Infinity;
+  history.forEach(function(pt){
+    var dist = Math.abs(monthKey(pt[0]) - targetKey);
+    if(dist < bestDist){ bestDist = dist; best = pt; }
+  });
+  return best[1];
+}
 
 function categoryOf(key){ return CATEGORY_OF[key] || "Other"; }
 
@@ -2908,15 +2967,17 @@ function yearAggregate(country, concept, y){
   if(val == null) return null;
   return {value: val, unit: series.unit};
 }
-function toUSDValue(country, rawValue){
+function toUSDValue(country, rawValue, period){
   if(country === "US") return rawValue;
   var fx = FX_RATES[country];
   if(!fx || !fx.rate) return null;
-  return fx.direction === "multiply" ? rawValue * fx.rate : rawValue / fx.rate;
+  var rate = (period && fx.history && fx.history.length) ? rateForPeriod(period, fx.history) : fx.rate;
+  if(rate == null) rate = fx.rate;
+  return fx.direction === "multiply" ? rawValue * rate : rawValue / rate;
 }
-function toUSDMillions(country, rawValue, unitStr){
+function toUSDMillions(country, rawValue, unitStr, period){
   var normalized = rawValue * (scaleOf(unitStr) / 1e6);
-  return toUSDValue(country, normalized);
+  return toUSDValue(country, normalized, period);
 }
 function axisTickLabel(v, concept, forcePercent){
   var decimals = (concept === "policy_rate" || concept === "bond_yield_10y") ? 2 : 1;
@@ -2971,7 +3032,7 @@ function getMapValueForYear(country, concept, y){
   var agg = yearAggregate(country, concept, y);
   if(!agg) return null;
   if(CONCEPT_UNIT[concept] === "currency"){
-    var usdVal = toUSDMillions(country, agg.value, agg.unit);
+    var usdVal = toUSDMillions(country, agg.value, agg.unit, String(y));
     if(usdVal == null) return null;
     return {value: Math.round(usdVal * 100) / 100, isDelta: false, isCumulative: false, year: y, unit: "currency", rawUnit: "$m"};
   }
@@ -3232,7 +3293,15 @@ function scaleOf(unitStr){
   return 1;
 }
 function currencySymbol(unitStr){
-  var m = unitStr.match(/^[^a-zA-Z0-9]+/);
+  // BUG FIX (Aug 2026): was /^[^a-zA-Z0-9]+/, which returned "" (no
+  // symbol at all) for any 3-letter currency code unit (CLPm, PLNm,
+  // etc) -- meaning Dashboard displayed those countries' currency
+  // figures with no currency indicator whatsoever, e.g. "1.2bn"
+  // instead of "CLP1.2bn". Same root cause as the convertSeriesToUSD
+  // bug already fixed sitewide, but this is a separate function (this
+  // one extracts the symbol for display, the other strips it during
+  // conversion) that was never touched by that fix.
+  var m = unitStr.match(/^([A-Z]{3}|[^a-zA-Z0-9]+)/);
   return m ? m[0] : "";
 }
 // Several countries' raw data unit is a bare "$" even though their own
@@ -3316,12 +3385,19 @@ function isAlreadyUSD(unit, country, key){
   var clean = (unit || "").replace(/\s*\([^)]*\)\s*$/, "").trim();
   return clean.charAt(0) === "$";
 }
-function toDisplayUnit(value, unit, country, key){
+function toDisplayUnit(value, unit, country, key, period){
   if(!dollarise || !isCurrencyUnit(unit) || isAlreadyUSD(unit, country, key)) return {value: value, unit: unit};
   var fx = FX_RATES[country];
   if(!fx) return {value: value, unit: unit};
-  var converted = fx.direction === "multiply" ? value * fx.rate : value / fx.rate;
-  var scaleSuffix = unit.replace(/^[^a-zA-Z0-9]+/, "");
+  var rate = (period && fx.history && fx.history.length) ? rateForPeriod(period, fx.history) : fx.rate;
+  if(rate == null) rate = fx.rate;
+  var converted = fx.direction === "multiply" ? value * rate : value / rate;
+  // BUG FIX (Aug 2026): was /^[^a-zA-Z0-9]+/, which only stripped a
+  // leading symbol -- silently wrong for 3-letter currency codes
+  // (CLPm, COPm, PLNm, etc), same bug already found and fixed on every
+  // individual country page's convertSeriesToUSD(). Never touched here
+  // until now.
+  var scaleSuffix = unit.replace(/^([A-Z]{3}|[^a-zA-Z0-9]+)/, "");
   return {value: converted, unit: "$" + scaleSuffix};
 }
 function toDisplayPoints(pts, unit, country, key){
@@ -3329,7 +3405,9 @@ function toDisplayPoints(pts, unit, country, key){
   var fx = FX_RATES[country];
   if(!fx) return pts;
   return pts.map(function(p){
-    return [p[0], fx.direction === "multiply" ? p[1] * fx.rate : p[1] / fx.rate];
+    var rate = (fx.history && fx.history.length) ? rateForPeriod(p[0], fx.history) : fx.rate;
+    if(rate == null) rate = fx.rate;
+    return [p[0], fx.direction === "multiply" ? p[1] * rate : p[1] / rate];
   });
 }
 
@@ -3363,18 +3441,18 @@ function expandTile(tile, id, m){
   if(!tileCharts[id]){
     var canvas = tile.querySelector("canvas");
     var pts = toDisplayPoints(m.series.points, m.series.unit, m.country, m.key);
-    var chartUnit = toDisplayUnit(0, m.series.unit, m.country, m.key).unit;
+    var chartUnit = toDisplayUnit(0, m.series.unit, m.country, m.key, m.period).unit;
     var kind = BAR_KEYS[m.key] ? "bar" : "line";
     var refLine = REF_LINE_FOR[m.key] == null ? null : REF_LINE_FOR[m.key];
     var fmt = function(v){ return fmtVal(v, chartUnit, m.key, m.country); };
-    var chart = (kind === "bar" ? barChart : lineChart)(canvas, pts, fmt, fmt, refLine);
+    var chart = (kind === "bar" ? barChart : lineChart)(canvas, pts, fmt, fmt, refLine, m.key);
     tileCharts[id] = chart;
     wireRangePresets(tile, pts, kind, chart);
     tile.querySelector(".resetzoom").addEventListener("click", function(){
       if(chart.resetZoom) chart.resetZoom();
     });
     CHART_REGISTRY[id] = {
-      pts: pts, kind: kind, fmtY: fmt, fmtTip: fmt, refLine: refLine,
+      pts: pts, kind: kind, fmtY: fmt, fmtTip: fmt, refLine: refLine, key: m.key,
       title: m.series.label + (dollarise && chartUnit !== m.series.unit ? " (USD)" : ""),
       country: m.country,
       srcNote: m.series.label + ", " + m.country + " (live data feed)."
@@ -3572,7 +3650,7 @@ function renderDash(){
   pinned.forEach(function(id){
     var m = tileFromId(id);
     if(!m) return;
-    var disp = toDisplayUnit(m.value, m.series.unit, m.country, m.key);
+    var disp = toDisplayUnit(m.value, m.series.unit, m.country, m.key, m.period);
     var led = freshness(m.series);
     var ledTitle = freshnessTitle(m.series);
     var tile = document.createElement("div");

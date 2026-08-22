@@ -1811,6 +1811,53 @@ function curFmt(rawValue, unitStr, decimals){
 /* ----------------------------- live data registry --------------------------- */
 var REGISTRY = {}; // REGISTRY[country][key] = {label, unit, freq, points}
 var FX_RATES = {};
+// Historical FX period-matching, verbatim from the same rateForPeriod()/
+// monthKey() logic already used site-wide on individual country pages'
+// Dollarise toggle (see e.g. germany.html) -- ported here so compare.html
+// and dashboard.html follow the same "each point converts at its own
+// contemporaneous rate" approach, not a single current rate applied
+// uniformly across history. That flat-rate approach is exactly the bug
+// already found and fixed everywhere else on the site (the ~52%
+// understatement on UK's 1955 GDP when converted at today's rate) --
+// this was the one remaining place still doing it the old way.
+function monthKey(period){
+  var yearMatch = /^(\d{4})/.exec(period);
+  if(!yearMatch) return null;
+  var year = parseInt(yearMatch[1], 10);
+  var qMatch = /^\d{4}-Q([1-4])$/.exec(period);
+  if(qMatch) return year*12 + (parseInt(qMatch[1],10)-1)*3;
+  var mMatch = /^\d{4}-(\d{2})$/.exec(period);
+  if(mMatch) return year*12 + (parseInt(mMatch[1],10)-1);
+  return year*12; // bare "YYYY" -> January anchor
+}
+function rateForPeriod(period, history){
+  if(!history || !history.length) return null;
+  var matches;
+  if(/^\d{4}$/.test(period)){
+    matches = history.filter(function(pt){ return pt[0].indexOf(period + "-") === 0; });
+  } else if(/^\d{4}-Q[1-4]$/.test(period)){
+    var parts = period.split("-Q");
+    var y = parts[0], q = parts[1];
+    var startMonth = (parseInt(q,10)-1)*3 + 1;
+    var wantedMonths = [startMonth, startMonth+1, startMonth+2].map(function(m){
+      return y + "-" + String(m).padStart(2,"0");
+    });
+    matches = history.filter(function(pt){ return wantedMonths.indexOf(pt[0]) !== -1; });
+  } else {
+    matches = history.filter(function(pt){ return pt[0] === period; });
+  }
+  if(matches.length){
+    var sum = matches.reduce(function(s,pt){ return s+pt[1]; }, 0);
+    return sum / matches.length;
+  }
+  var targetKey = monthKey(period);
+  var best = history[0], bestDist = Infinity;
+  history.forEach(function(pt){
+    var dist = Math.abs(monthKey(pt[0]) - targetKey);
+    if(dist < bestDist){ bestDist = dist; best = pt; }
+  });
+  return best[1];
+}
 // Converts a raw currency-denominated value (still in the country's own
 // native units, e.g. millions of GBP) into the equivalent raw value in
 // USD, using the same current spot rate and multiply/divide convention
@@ -1818,11 +1865,19 @@ var FX_RATES = {};
 // if no rate is available for that country (e.g. Morocco, which has no
 // live FX source) -- distinguished from "US, which needs no conversion
 // at all" by checking the country name explicitly.
-function toUSDValue(country, rawValue){
+function toUSDValue(country, rawValue, period){
   if(country === "US") return rawValue;
   var fx = FX_RATES[country];
   if(!fx || !fx.rate) return null;
-  return fx.direction === "multiply" ? rawValue * fx.rate : rawValue / fx.rate;
+  // Historical rate-matching: if this country's fx data includes a full
+  // history (populated once the relevant fetch script has run since the
+  // Aug 2026 rollout), use the rate contemporaneous with `period`
+  // instead of today's single fx.rate. Falls back to fx.rate if no
+  // period was passed (some call sites genuinely have no single period
+  // to match against) or no history exists yet for this country.
+  var rate = (period && fx.history && fx.history.length) ? rateForPeriod(period, fx.history) : fx.rate;
+  if(rate == null) rate = fx.rate;
+  return fx.direction === "multiply" ? rawValue * rate : rawValue / rate;
 }
 // Countries whose own currency happens to use the $ glyph too (AUD, CAD,
 // MXN, ZAR, BRL) -- their gdp_level/gdp_real are genuinely local-currency
@@ -1858,10 +1913,10 @@ function forceUSDUnit(unitStr){
 // even before the actual size difference. This is the single place
 // that combines both steps correctly; every currency conversion in the
 // app should go through this, not toUSDValue alone.
-function toUSDMillions(country, rawValue, unitStr, concept){
+function toUSDMillions(country, rawValue, unitStr, concept, period){
   var normalized = rawValue * (scaleOf(unitStr) / 1e6);
   if(isAlreadyUSDUnit(unitStr, country, concept)) return normalized;
-  return toUSDValue(country, normalized);
+  return toUSDValue(country, normalized, period);
 }
 var CURRENT_YEAR = null;
 function fetchWithTimeout(url, ms){
@@ -2050,7 +2105,7 @@ function getSnapshotValue(country, concept, year){
   if(CONCEPT_UNIT[concept] === "currency"){
     var agg = yearAggregate(country, concept, year);
     if(!agg) return null;
-    var usdVal = toUSDMillions(country, agg.value, agg.unit, concept);
+    var usdVal = toUSDMillions(country, agg.value, agg.unit, concept, String(year));
     if(usdVal == null) return null;
     return {value: Math.round(usdVal*100)/100, isDelta:false, isCumulative:false, year: year, unit: "currency", rawUnit: "$m"};
   }
@@ -2084,8 +2139,8 @@ function getChangeValue(country, concept, startYear, endYear){
     var endAgg = yearAggregate(country, concept, endYear);
     var startAgg = yearAggregate(country, concept, startYear);
     if(!endAgg || !startAgg) return null;
-    var endUsd = toUSDMillions(country, endAgg.value, endAgg.unit, concept);
-    var startUsd = toUSDMillions(country, startAgg.value, startAgg.unit, concept);
+    var endUsd = toUSDMillions(country, endAgg.value, endAgg.unit, concept, String(endYear));
+    var startUsd = toUSDMillions(country, startAgg.value, startAgg.unit, concept, String(startYear));
     if(endUsd == null || startUsd == null) return null;
     var diff = Math.round((endUsd - startUsd) * 100) / 100;
     return {value: diff, isDelta:true, isCumulative:false, year: startYear, endYear: endYear, unit: "currency", rawUnit: "$m"};
@@ -2107,6 +2162,22 @@ function getChangeValue(country, concept, startYear, endYear){
 // rates/yields, which move in small steps; 1 decimal everywhere else)
 // before the tick is ever rendered, rather than concatenating the raw
 // value straight into the label.
+// business_confidence (and any future plain-index metric with a fixed
+// baseline of 100) reads as a deviation from 100, not from zero -- a
+// 95-105 range of real values, plotted on a 0-105 axis (Chart.js's
+// default beginAtZero:true for bar charts), compresses the genuinely
+// meaningful variation into a sliver at the top of the chart. This
+// computes a symmetric range around 100 sized to the actual data
+// (with a floor so a very flat dataset doesn't look absurdly
+// over-zoomed, and headroom so points don't sit flush against the
+// edge), rather than a fixed range that could clip a genuine outlier.
+function centeredIndexScale(values){
+  var reals = (values || []).filter(function(v){ return v != null && !isNaN(v); });
+  if(!reals.length) return {};
+  var maxDeviation = Math.max.apply(null, reals.map(function(v){ return Math.abs(v - 100); }));
+  var span = Math.max(maxDeviation * 1.25, 3); // floor: keep at least +/-3 of headroom
+  return {min: 100 - span, max: 100 + span};
+}
 function axisTickLabel(v, concept, forcePercent){
   var decimals = (concept === "policy_rate" || concept === "bond_yield_10y") ? 2 : 1;
   var rounded = +v.toFixed(decimals);
@@ -2459,11 +2530,11 @@ function buildBarChart(canvas, concept){
         }
       },
       scales: {
-        y: {grid: {color: "#E4E6E1"}, border: {display: false},
+        y: Object.assign({grid: {color: "#E4E6E1"}, border: {display: false},
             ticks: {callback: function(v){
               if(CONCEPT_UNIT[concept] === "currency" && !isCumulative) return curFmt(v, firstReal.rawUnit || "$m", 0);
               return axisTickLabel(v, concept, isCumulative);
-            }}},
+            }}}, concept === "business_confidence" ? centeredIndexScale(rows.map(function(r){ return r.dv ? r.dv.value : null; })) : {}),
         x: {grid: {display: false}, border: {color: "#E4E6E1"}}
       }
     }
@@ -2482,7 +2553,7 @@ function buildLineChart(canvas, concept){
     var plotPts = pts.map(function(p){
       var y = p[1] * scale;
       if(isCurrencyMetric){
-        y = toUSDValue(c, y);
+        y = toUSDValue(c, y, String(p[0]));
         if(y == null) return null;
       }
       return {x: p[0], y: y};
@@ -2501,6 +2572,9 @@ function buildLineChart(canvas, concept){
   var allLabels = {};
   datasets.forEach(function(ds){ ds.data.forEach(function(p){ allLabels[p.x] = true; }); });
   var labels = Object.keys(allLabels).sort();
+
+  var allYValues = [];
+  datasets.forEach(function(ds){ ds.data.forEach(function(p){ allYValues.push(p.y); }); });
 
   var chart = new Chart(canvas, {
     type: "line",
@@ -2525,10 +2599,10 @@ function buildLineChart(canvas, concept){
       scales: {
         x: {type: "category", grid: {display: false}, border: {color: "#E4E6E1"},
             ticks: {maxTicksLimit: 8, callback: function(v){ return this.getLabelForValue(v).slice(0,4); }}},
-        y: {grid: {color: "#E4E6E1"}, border: {display: false}, ticks: {callback: function(v){
+        y: Object.assign({grid: {color: "#E4E6E1"}, border: {display: false}, ticks: {callback: function(v){
           if(isCurrencyMetric) return curFmt(v, "$m", 0);
           return axisTickLabel(v, concept);
-        }}}
+        }}}, concept === "business_confidence" ? centeredIndexScale(allYValues) : {})
       }
     }
   });
@@ -3140,7 +3214,7 @@ function getMapValueForYear(country, concept, year){
   var agg = yearAggregate(country, concept, year);
   if(!agg) return null;
   if(CONCEPT_UNIT[concept] === "currency"){
-    var usdVal = toUSDMillions(country, agg.value, agg.unit, concept);
+    var usdVal = toUSDMillions(country, agg.value, agg.unit, concept, String(year));
     if(usdVal == null) return null;
     return {value: Math.round(usdVal*100)/100, isDelta: false, isCumulative: false, year: year, unit: "currency", rawUnit: "$m"};
   }
