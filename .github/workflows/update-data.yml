@@ -417,6 +417,13 @@ jobs:
       - name: Check data freshness
         run: python check_data_freshness.py
       - name: Send pipeline alert email
+        if: false  # disabled Aug 2026 -- OECD's live business_confidence/cpi
+        # endpoints were soft-failing across most countries on most runs,
+        # meaning this fired an email almost every hour. The underlying
+        # detection (pipeline_log.txt, freshness_alerts.json) is untouched --
+        # check the Actions tab or the open data-freshness Issue whenever
+        # you want to look, instead of it landing in the inbox. To
+        # re-enable: delete the "if: false" line above.
         continue-on-error: true
         run: python send_pipeline_alert.py
         env:
