@@ -3711,6 +3711,17 @@ document.querySelectorAll(".mtbtn").forEach(function(btn){
       });
     } else {
       var linePath = pts.map(function(p, i){ return (i === 0 ? "M" : "L") + gm.x(i).toFixed(1) + "," + gm.y(p[1]).toFixed(1); }).join(" ");
+      // Clip regions are generated once, up front, whenever threshold
+      // colouring is active -- not just when Fill happens to also be on
+      // -- since the line stroke and the point markers both need the
+      // same split, independently of whether the area beneath them is
+      // shaded.
+      var clipId = null;
+      if(useThreshold){
+        clipId = "czThreshClip" + Math.round(Math.random() * 1e6);
+        svg.push("<clipPath id='" + clipId + "a'><rect x='0' y='" + gm.padT + "' width='" + G.W + "' height='" + (threshY - gm.padT) + "'/></clipPath>");
+        svg.push("<clipPath id='" + clipId + "b'><rect x='0' y='" + threshY + "' width='" + G.W + "' height='" + (gm.padT + gm.plotH - threshY) + "'/></clipPath>");
+      }
       if(czState.showFill){
         var areaPath = linePath + " L" + gm.x(pts.length - 1).toFixed(1) + "," + (gm.padT + gm.plotH) + " L" + gm.x(0).toFixed(1) + "," + (gm.padT + gm.plotH) + " Z";
         if(useThreshold){
@@ -3719,18 +3730,30 @@ document.querySelectorAll(".mtbtn").forEach(function(btn){
           // exact line/threshold crossing points -- geometrically
           // simpler and just as correct, since a straight horizontal
           // clip line does the split for us.
-          var clipId = "czThreshClip" + Math.round(Math.random() * 1e6);
-          svg.push("<clipPath id='" + clipId + "a'><rect x='0' y='" + gm.padT + "' width='" + G.W + "' height='" + (threshY - gm.padT) + "'/></clipPath>");
-          svg.push("<clipPath id='" + clipId + "b'><rect x='0' y='" + threshY + "' width='" + G.W + "' height='" + (gm.padT + gm.plotH - threshY) + "'/></clipPath>");
           svg.push("<path d='" + areaPath + "' fill='" + chartColor + "' fill-opacity='0.14' clip-path='url(#" + clipId + "a)'/>");
           svg.push("<path d='" + areaPath + "' fill='#413D7B' fill-opacity='0.16' clip-path='url(#" + clipId + "b)'/>");
         } else {
           svg.push("<path d='" + areaPath + "' fill='" + chartFillColor + "'/>");
         }
       }
-      svg.push("<path d='" + linePath + "' fill='none' stroke='" + chartColor + "' stroke-width='2.5' stroke-linejoin='round' stroke-linecap='round'/>");
+      if(useThreshold){
+        // The stroke gets the SAME two-colour clip treatment as the
+        // fill -- drawing the identical full-length path twice, each
+        // copy visible only within its clip region, rather than trying
+        // to split the path data itself at every threshold crossing.
+        // Simpler, and the visual result is identical to a true
+        // per-segment split since SVG clipping is a rendering-time
+        // operation, not a change to the underlying path geometry.
+        svg.push("<path d='" + linePath + "' fill='none' stroke='" + chartColor + "' stroke-width='2.5' stroke-linejoin='round' stroke-linecap='round' clip-path='url(#" + clipId + "a)'/>");
+        svg.push("<path d='" + linePath + "' fill='none' stroke='#413D7B' stroke-width='2.5' stroke-linejoin='round' stroke-linecap='round' clip-path='url(#" + clipId + "b)'/>");
+      } else {
+        svg.push("<path d='" + linePath + "' fill='none' stroke='" + chartColor + "' stroke-width='2.5' stroke-linejoin='round' stroke-linecap='round'/>");
+      }
       if(czState.showPoints !== false){
-        pts.forEach(function(p, i){ svg.push("<circle cx='" + gm.x(i).toFixed(1) + "' cy='" + gm.y(p[1]).toFixed(1) + "' r='2.2' fill='" + chartColor + "'/>"); });
+        pts.forEach(function(p, i){
+          var ptColor = useThreshold ? (p[1] < thresholdVal ? "#413D7B" : chartColor) : chartColor;
+          svg.push("<circle cx='" + gm.x(i).toFixed(1) + "' cy='" + gm.y(p[1]).toFixed(1) + "' r='2.2' fill='" + ptColor + "'/>");
+        });
       }
     }
 
