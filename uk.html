@@ -3760,7 +3760,11 @@ window.refreshMPCContext = refreshMPCContext;
             <span>Colour by above/below reference line</span>
             <input type="checkbox" id="czThresholdShadeToggle" style="width:15px; height:15px;">
           </div>
-          <div style="display:grid; grid-template-columns:1fr 1fr; gap:6px 20px;">
+          <div id="czLogScaleField" style="display:flex; align-items:center; justify-content:space-between; font-size:12.5px; margin-top:8px;">
+            <span id="czLogScaleLabel">Log scale</span>
+            <input type="checkbox" id="czLogScaleToggle" style="width:15px; height:15px;">
+          </div>
+          <div style="display:grid; grid-template-columns:1fr 1fr; gap:6px 20px; margin-top:8px;">
             <div style="display:flex; align-items:center; justify-content:space-between; font-size:12px; color:var(--ink2);">
               <span>Y-axis labels</span>
               <div style="display:flex; align-items:center; gap:6px;"><button type="button" class="cz-fs-btn" id="czYTickMinus" style="width:20px; height:20px; border:1px solid var(--hair); background:var(--paper); color:var(--ink); border-radius:5px; cursor:pointer; font-size:11.5px;">&minus;</button><span id="czYTickVal" style="font-size:11.5px; min-width:14px; text-align:center;">5</span><button type="button" class="cz-fs-btn" id="czYTickPlus" style="width:20px; height:20px; border:1px solid var(--hair); background:var(--paper); color:var(--ink); border-radius:5px; cursor:pointer; font-size:11.5px;">+</button></div>
@@ -4048,21 +4052,61 @@ window.refreshMPCContext = refreshMPCContext;
     }));
   }
 
+  // Log-scale ticks don't follow the "round step" logic linear ticks
+  // use -- by convention a log axis marks powers of ten and their 2x/5x
+  // subdivisions (1, 2, 5, 10, 20, 50, 100...), which read correctly
+  // regardless of how many decades the data spans.
+  function niceLogTicks(minV, maxV){
+    var loE = Math.floor(Math.log10(minV));
+    var hiE = Math.ceil(Math.log10(maxV));
+    var mults = [1, 2, 5];
+    var ticks = [];
+    for(var e = loE; e <= hiE; e++){
+      mults.forEach(function(m){
+        var v = m * Math.pow(10, e);
+        if(v >= minV * 0.999 && v <= maxV * 1.001) ticks.push(v);
+      });
+    }
+    ticks = ticks.filter(function(v, i, arr){ return arr.indexOf(v) === i; }).sort(function(a, b){ return a - b; });
+    if(ticks.length < 2) ticks = [minV, maxV];
+    return { ticks: ticks, min: ticks[0], max: ticks[ticks.length - 1] };
+  }
+  // Log scale is only meaningful (and only mathematically valid) once
+  // every value in view -- including the reference line, if it's on --
+  // is strictly positive. Rather than silently falling back to linear
+  // when the user picks a date range that includes a zero or negative
+  // value, availability is re-checked on every render and the control
+  // itself is disabled with an explanation, so the person always knows
+  // why the option isn't there right now instead of wondering why their
+  // click did nothing.
+  function czLogScaleAvailable(){
+    var pts = czFilteredSeries();
+    var vals = pts.map(function(p){ return p[1]; });
+    if(czState.refLine.enabled) vals.push(czState.refLine.value);
+    return vals.every(function(v){ return v > 0; }) && vals.length > 0;
+  }
   function czGeom(){
     var pts = czFilteredSeries();
     var padB = 70;
     var allVals = pts.map(function(p){ return p[1]; });
     if(czState.refLine.enabled) allVals.push(czState.refLine.value);
     var rawMin = Math.min.apply(null, allVals), rawMax = Math.max.apply(null, allVals);
-    var stepCandidates = niceStepCandidates(rawMin, rawMax);
-    var stepIdx = Math.max(0, Math.min(stepCandidates.length - 1, czState.yTickStepIdx));
-    var nice = niceTicksFromStep(rawMin, rawMax, stepCandidates[stepIdx]);
-    var minV = nice.min, maxV = nice.max;
+    var useLog = czState.yScale === "log" && czLogScaleAvailable();
+    var nice, minV, maxV;
+    if(useLog){
+      nice = niceLogTicks(rawMin, rawMax);
+      minV = nice.min; maxV = nice.max;
+    } else {
+      var stepCandidates = niceStepCandidates(rawMin, rawMax);
+      var stepIdx = Math.max(0, Math.min(stepCandidates.length - 1, czState.yTickStepIdx));
+      nice = niceTicksFromStep(rawMin, rawMax, stepCandidates[stepIdx]);
+      minV = nice.min; maxV = nice.max;
+    }
     var padT = (czState.yTitlePos === "above" ? G.padT + 18 : G.padT) + (czState.chartTitle ? 24 : 0);
     var plotW = G.W - G.padL - G.padR, plotH = G.H - padT - padB;
     return {
       pts: pts, minV: minV, maxV: maxV, plotW: plotW, plotH: plotH, padB: padB, padT: padT,
-      yTickValues: nice.ticks,
+      yTickValues: nice.ticks, yScale: useLog ? "log" : "linear",
       x: function(i){
         if(czState.chartKind === "bar"){
           if(pts.length === 1) return G.padL + plotW / 2;
@@ -4071,7 +4115,13 @@ window.refreshMPCContext = refreshMPCContext;
         }
         return G.padL + (pts.length === 1 ? plotW / 2 : (i / (pts.length - 1)) * plotW);
       },
-      y: function(v){ return padT + plotH - ((v - minV) / (maxV - minV)) * plotH; }
+      y: function(v){
+        if(useLog){
+          var vc = Math.max(v, minV);
+          return padT + plotH - ((Math.log10(vc) - Math.log10(minV)) / (Math.log10(maxV) - Math.log10(minV))) * plotH;
+        }
+        return padT + plotH - ((v - minV) / (maxV - minV)) * plotH;
+      }
     };
   }
 
@@ -4240,6 +4290,7 @@ window.refreshMPCContext = refreshMPCContext;
   var czPreviewBox = document.getElementById("czPreviewBox");
 
   function czRenderPreview(){
+    czSyncModeFields();
     czPreviewBox.innerHTML = czBuildSVG(czState.exportTheme, false);
     czWireDragHandles();
     // czGeom() re-derives the real step-candidate list for whatever
@@ -4416,6 +4467,7 @@ window.refreshMPCContext = refreshMPCContext;
     if(czState.refLine.enabled) czRenderPreview();
   });
   document.getElementById("czThresholdShadeToggle").addEventListener("change", function(e){ czState.threshold2Color = e.target.checked; czRenderPreview(); });
+  document.getElementById("czLogScaleToggle").addEventListener("change", function(e){ czState.yScale = e.target.checked ? "log" : "linear"; czRenderPreview(); });
   // "Shade area under the line" / "Show data point markers" are
   // line-only concepts -- a bar has no line to shade under or place a
   // marker on -- so they're hidden rather than left checked-but-inert
@@ -4435,6 +4487,27 @@ window.refreshMPCContext = refreshMPCContext;
     document.getElementById("czFillField").style.display = isBar ? "none" : "flex";
     document.getElementById("czPointsField").style.display = isBar ? "none" : "flex";
     document.getElementById("czThresholdShadeField").style.display = czState.refLine.enabled ? "flex" : "none";
+    // Log scale's availability depends on the CURRENT date-range
+    // selection, not just the chart's data as a whole -- a series that's
+    // all-positive today can include a zero or negative value once the
+    // person widens the date range, so this has to be re-checked on
+    // every render, not just once when the modal opens.
+    var logAvailable = czLogScaleAvailable();
+    var logToggle = document.getElementById("czLogScaleToggle");
+    var logLabel = document.getElementById("czLogScaleLabel");
+    logToggle.disabled = !logAvailable;
+    if(!logAvailable && czState.yScale === "log"){ czState.yScale = "linear"; logToggle.checked = false; }
+    logLabel.textContent = logAvailable ? "Log scale" : "Log scale (unavailable -- data includes zero or negative values)";
+    logLabel.style.color = logAvailable ? "" : "var(--ink2)";
+    // The Y-axis tick +/- control walks a list of round LINEAR step
+    // sizes -- meaningless once the axis is logarithmic, where ticks
+    // are fixed at powers of ten and their 2x/5x subdivisions instead.
+    // Left enabled, clicking them while log scale is on would silently
+    // do nothing, which is exactly the "looks broken" failure mode this
+    // whole round of fixes was about -- so they're disabled instead.
+    var isLog = czState.yScale === "log" && logAvailable;
+    document.getElementById("czYTickMinus").disabled = isLog;
+    document.getElementById("czYTickPlus").disabled = isLog;
   }
   var czChartKindSeg = document.getElementById("czChartKindSeg");
   czChartKindSeg.querySelectorAll("button").forEach(function(btn){
@@ -4708,7 +4781,7 @@ window.refreshMPCContext = refreshMPCContext;
       showFill: true, showPoints: true, refLine: { enabled: false, value: 0 }, threshold2Color: false,
       yTitlePos: "along", yTickStepIdx: defaultStepIdxFor(Math.min.apply(null, pts.map(function(p){ return p[1]; })), Math.max.apply(null, pts.map(function(p){ return p[1]; })), 5),
       xTicks: 3, xLabelAngle: "straight", chartTitle: title || "",
-      chartKind: kind === "bar" ? "bar" : "line",
+      chartKind: kind === "bar" ? "bar" : "line", yScale: "linear",
       annotations: [], exportTheme: "light",
       srcNote: srcNote, yTitle: guessedYTitle, fmtY: effectiveFmtY,
       filenameBase: (filenameBase || title || "chart").toLowerCase().replace(/[^a-z0-9]+/g, "_").replace(/^_+|_+$/g, "")
@@ -4728,6 +4801,7 @@ window.refreshMPCContext = refreshMPCContext;
     document.getElementById("czReflineToggle").checked = false;
     document.getElementById("czReflineValue").value = "0";
     document.getElementById("czThresholdShadeToggle").checked = false;
+    document.getElementById("czLogScaleToggle").checked = false;
     czYTitlePosSeg.querySelectorAll("button").forEach(function(b){ b.classList.toggle("active", b.dataset.pos === "along"); });
     czXTickVal.textContent = "3"; czState.xLabelAngle = "straight"; czXAngleSeg.querySelectorAll("button").forEach(function(b){ b.classList.toggle("active", b.dataset.angle === "straight"); });
     czThemeSeg.querySelectorAll("button").forEach(function(b){ b.classList.toggle("active", b.dataset.theme === "light"); });
