@@ -79,6 +79,8 @@ nav.cat button{
 }
 nav.cat button:hover{border-color:var(--blue); color:var(--navy);}
 nav.cat button.active{background:var(--blue); border-color:var(--blue); color:#fff;}
+.seg button{background:transparent; color:var(--ink2);}
+.seg button.active{background:var(--blue); color:#fff;}
 .panel .expl{font-size:13px; color:var(--ink2); margin:3px 0 0; max-width:56ch;}
 .panel .range{font-size:12px; color:var(--ink2); margin:4px 0 14px;}
 .secnote{font-size:13px; color:var(--ink2); margin:18px 0 0;
@@ -3165,6 +3167,8 @@ document.querySelectorAll(".mtbtn").forEach(function(btn){
             <button type="button" data-theme="light" class="active" style="flex:1; border:none; font:inherit; font-size:12px; font-weight:600; padding:7px 0; cursor:pointer;">Light</button>
             <button type="button" data-theme="dark" style="flex:1; border:none; font:inherit; font-size:12px; font-weight:600; padding:7px 0; cursor:pointer;">Dark</button>
           </div>
+          <h4 style="font-size:11.5px; text-transform:uppercase; letter-spacing:.05em; margin:14px 0 8px; color:var(--ink2);">Chart colour</h4>
+          <div id="czColorSwatches" style="display:flex; gap:6px; flex-wrap:wrap;"></div>
           <h4 style="font-size:11.5px; text-transform:uppercase; letter-spacing:.05em; margin:14px 0 8px; color:var(--ink2);">Export</h4>
           <div style="display:flex; gap:8px;">
             <button type="button" id="czExportPngBtn" style="flex:1; padding:8px 0; border:1px solid var(--hair); background:var(--paper); color:var(--ink); border-radius:6px; cursor:pointer; font:inherit; font-size:12px;">PNG</button>
@@ -3199,21 +3203,23 @@ document.querySelectorAll(".mtbtn").forEach(function(btn){
           </div>
           <div style="border-top:1px solid var(--hair); margin:0 0 8px;"></div>
           <div style="display:grid; grid-template-columns:1fr 1fr; gap:6px 20px; margin-bottom:8px;">
-            <div style="display:flex; align-items:center; justify-content:space-between; font-size:12.5px;">
+            <div style="display:flex; align-items:center; justify-content:space-between; font-size:12.5px; height:fit-content;">
               <span>Chart type</span>
               <div class="seg" id="czChartKindSeg" style="display:flex; border:1px solid var(--hair); border-radius:7px; overflow:hidden; width:100px;">
                 <button type="button" data-kind="line" class="active" style="flex:1; border:none; font:inherit; font-size:11.5px; font-weight:600; padding:5px 0; cursor:pointer;">Line</button>
                 <button type="button" data-kind="bar" style="flex:1; border:none; font:inherit; font-size:11.5px; font-weight:600; padding:5px 0; cursor:pointer;">Bar</button>
               </div>
             </div>
-            <div style="display:flex; align-items:center; justify-content:space-between; font-size:12.5px;">
-              <span>Shade area under the line</span>
-              <input type="checkbox" id="czFillToggle" checked style="width:15px; height:15px;">
+            <div style="display:flex; flex-direction:column; gap:6px;">
+              <div id="czFillField" style="display:flex; align-items:center; justify-content:space-between; font-size:12.5px;">
+                <span>Shade area under the line</span>
+                <input type="checkbox" id="czFillToggle" checked style="width:15px; height:15px;">
+              </div>
+              <div id="czPointsField" style="display:flex; align-items:center; justify-content:space-between; font-size:12.5px;">
+                <span>Show data point markers</span>
+                <input type="checkbox" id="czPointsToggle" checked style="width:15px; height:15px;">
+              </div>
             </div>
-          </div>
-          <div style="display:flex; align-items:center; justify-content:space-between; font-size:12.5px; margin-bottom:8px;">
-            <span>Show data point markers</span>
-            <input type="checkbox" id="czPointsToggle" checked style="width:15px; height:15px;">
           </div>
           <div style="display:flex; align-items:center; justify-content:space-between; font-size:12.5px; margin-bottom:8px;">
             <span>Reference line</span>
@@ -3222,7 +3228,15 @@ document.querySelectorAll(".mtbtn").forEach(function(btn){
               <input type="number" id="czReflineValue" value="0" step="0.1" style="width:58px; padding:4px 6px; border:1px solid var(--hair); border-radius:5px; background:var(--paper); font:inherit; font-size:12px;">
             </div>
           </div>
-          <div style="display:grid; grid-template-columns:1fr 1fr; gap:6px 20px;">
+          <div id="czThresholdShadeField" style="display:none; align-items:center; justify-content:space-between; font-size:12.5px; margin-bottom:8px;">
+            <span>Colour by above/below reference line</span>
+            <input type="checkbox" id="czThresholdShadeToggle" style="width:15px; height:15px;">
+          </div>
+          <div id="czLogScaleField" style="display:flex; align-items:center; justify-content:space-between; font-size:12.5px; margin-top:8px;">
+            <span id="czLogScaleLabel">Log scale</span>
+            <input type="checkbox" id="czLogScaleToggle" style="width:15px; height:15px;">
+          </div>
+          <div style="display:grid; grid-template-columns:1fr 1fr; gap:6px 20px; margin-top:8px;">
             <div style="display:flex; align-items:center; justify-content:space-between; font-size:12px; color:var(--ink2);">
               <span>Y-axis labels</span>
               <div style="display:flex; align-items:center; gap:6px;"><button type="button" class="cz-fs-btn" id="czYTickMinus" style="width:20px; height:20px; border:1px solid var(--hair); background:var(--paper); color:var(--ink); border-radius:5px; cursor:pointer; font-size:11.5px;">&minus;</button><span id="czYTickVal" style="font-size:11.5px; min-width:14px; text-align:center;">5</span><button type="button" class="cz-fs-btn" id="czYTickPlus" style="width:20px; height:20px; border:1px solid var(--hair); background:var(--paper); color:var(--ink); border-radius:5px; cursor:pointer; font-size:11.5px;">+</button></div>
@@ -3270,6 +3284,19 @@ document.querySelectorAll(".mtbtn").forEach(function(btn){
   "use strict";
 
   var G = { W:820, H:507, padL:60, padR:24, padT:34 };
+  // Approximation of the seaborn "mako" palette (dark indigo through
+  // blue/teal to pale mint) sampled at 8 stops -- an exact hex table
+  // wasn't retrievable from the docs (the reference page renders its
+  // swatches client-side rather than listing values), so this is a
+  // close visual match rather than a verified export of
+  // sns.color_palette("mako", 8).as_hex(). Swap in the exact values if
+  ///when available.
+  var MAKO_PALETTE = ["#0d0a29", "#2c2a5c", "#2f5d7c", "#287d8e", "#22a186", "#5fc088", "#a9dcac", "#dbf2d1"];
+  function hexToRgba(hex, alpha){
+    var m = hex.replace("#", "");
+    var r = parseInt(m.substring(0, 2), 16), g = parseInt(m.substring(2, 4), 16), b = parseInt(m.substring(4, 6), 16);
+    return "rgba(" + r + "," + g + "," + b + "," + alpha + ")";
+  }
   var THEMES = {
     light: { bg:"#FFFFFF", ink:"#171B1E", ink2:"#5A6167", grid:"#E4E6E1", line:"#348FA7", fill:"rgba(52,143,167,0.12)", annot:"#9AA4A0", annotText:"#6B7470" },
     dark:  { bg:"#12181A", ink:"#EDEFEA", ink2:"#9AA4A0", grid:"#2A3436", line:"#348FA7", fill:"rgba(52,143,167,0.16)", annot:"#8A9490", annotText:"#B7BEBA" }
@@ -3390,6 +3417,99 @@ document.querySelectorAll(".mtbtn").forEach(function(btn){
     }
     return { ticks: ticks, min: niceMin, max: niceMax };
   }
+  // The old Y-axis tick control drove niceTicks() by a "target count"
+  // that then got snapped to a round step via niceNum(). Several
+  // adjacent target counts (say 5, 6, 7, 8) frequently snap to the SAME
+  // round step for a given data range, so clicking +/- did visibly
+  // nothing for several clicks in a row and only changed once a click
+  // crossed into a different rounding bucket -- it read as broken, not
+  // just coarse. Fixing this properly means not asking "how many ticks
+  // do you want" at all -- instead the control walks directly through
+  // the actual list of round step sizes (1/2/2.5/5/10 x a power of ten)
+  // available for this data's range, so every single click is
+  // guaranteed to land on a different step and produce a different,
+  // correctly round-numbered axis. Sorted descending: index 0 is the
+  // largest step (fewest ticks), the last index is the smallest step
+  // (most ticks).
+  function niceStepCandidates(rawMin, rawMax){
+    var range = niceNum(Math.max(rawMax - rawMin, 1e-9), false);
+    var baseExp = Math.floor(Math.log10(range));
+    var fracs = [10, 5, 2.5, 2, 1];
+    var raw = [];
+    for(var e = baseExp + 2; e >= baseExp - 3; e--){
+      for(var i = 0; i < fracs.length; i++) raw.push(fracs[i] * Math.pow(10, e));
+    }
+    raw = raw.filter(function(v, i, arr){ return arr.indexOf(v) === i; });
+    raw.sort(function(a, b){ return b - a; });
+    // Count ticks the SAME way the axis actually renders them (via
+    // niceTicksFromStep against the real rawMin/rawMax), not via a
+    // formula estimate off the rounded 'range' -- an estimate-based
+    // count can still under/over-count relative to what actually
+    // renders (rounding rawMin/rawMax up/down to the nearest step can
+    // add a tick the formula didn't predict), which silently let
+    // through duplicate-count candidates the first version of this
+    // function was supposed to remove.
+    var withCounts = raw.map(function(step){
+      return { step: step, n: niceTicksFromStep(rawMin, rawMax, step).ticks.length };
+    }).filter(function(c){ return c.n >= 2 && c.n <= 15; })
+      // A step several orders of magnitude too large for the actual
+      // data (e.g. a step of 10,000 for a series spanning -2 to 6) can
+      // still innocently pass the n>=2/n<=15 count filter -- rounding
+      // a tiny span up to the nearest huge step naturally lands on a
+      // "3 ticks" result even though the resulting axis (-10,000 to
+      // 10,000) bears no relation to the real data. Left in, these
+      // waste index slots and make small-range series (percentages,
+      // rates) saturate after only 2-3 useful clicks. Capping how much
+      // wider than the true data span the rounded axis is allowed to
+      // be excludes exactly these degenerate cases without touching
+      // any candidate that's actually a sensible zoom level.
+      .filter(function(c){
+        var trueSpan = Math.max(rawMax - rawMin, 1e-9);
+        var niceSpan = niceTicksFromStep(rawMin, rawMax, c.step).max - niceTicksFromStep(rawMin, rawMax, c.step).min;
+        return niceSpan <= trueSpan * 4;
+      });
+    // Several large steps (e.g. 1bn, 500m, 100m for a ~4tn range) all
+    // round the same data down to the same "2 ticks" result -- keeping
+    // every one of them as a separate index is what caused the original
+    // bug in a different guise: clicking + would silently re-select a
+    // different step that LOOKS identical because it produces the same
+    // tick count. Collapsing consecutive candidates that share a tick
+    // count down to a single entry (the largest such step, i.e. the
+    // roundest number) guarantees every remaining index is a genuinely
+    // distinct, visibly different result.
+    var out = [];
+    var lastN = null;
+    withCounts.forEach(function(c){
+      if(c.n !== lastN){ out.push(c.step); lastN = c.n; }
+    });
+    if(!out.length) out = [range / 4 || 1];
+    return out;
+  }
+  function niceTicksFromStep(rawMin, rawMax, step){
+    var niceMin = Math.floor(rawMin / step) * step;
+    var niceMax = Math.ceil(rawMax / step) * step;
+    var ticks = [];
+    for(var v = niceMin; v <= niceMax + step * 0.5; v += step){
+      ticks.push(Math.round(v / step) * step);
+    }
+    return { ticks: ticks, min: niceMin, max: niceMax };
+  }
+  // Picks the step-candidate index (out of niceStepCandidates()) whose
+  // resulting tick count is closest to targetCount -- used only once,
+  // to establish a sensible DEFAULT index when the modal first opens
+  // for a chart (so it still starts out looking like ~5 ticks), never
+  // called again afterwards. From then on the index is just walked
+  // directly by the +/- buttons.
+  function defaultStepIdxFor(rawMin, rawMax, targetCount){
+    var candidates = niceStepCandidates(rawMin, rawMax);
+    var bestIdx = 0, bestDiff = Infinity;
+    for(var i = 0; i < candidates.length; i++){
+      var n = Math.ceil((rawMax - rawMin) / candidates[i]) + 1;
+      var diff = Math.abs(n - targetCount);
+      if(diff < bestDiff){ bestDiff = diff; bestIdx = i; }
+    }
+    return bestIdx;
+  }
 
   // Some of the site's own formatters (e.g. GDP level's currency
   // tiering into tn/bn/m) pick a unit independently per value -- fine
@@ -3417,19 +3537,76 @@ document.querySelectorAll(".mtbtn").forEach(function(btn){
     }));
   }
 
+  // Log-scale ticks don't follow the "round step" logic linear ticks
+  // use -- by convention a log axis marks powers of ten and their 2x/5x
+  // subdivisions (1, 2, 5, 10, 20, 50, 100...), which read correctly
+  // regardless of how many decades the data spans.
+  function niceLogTicks(minV, maxV){
+    var loE = Math.floor(Math.log10(minV)) - 1;
+    var hiE = Math.ceil(Math.log10(maxV)) + 1;
+    var mults = [1, 2, 5];
+    var candidates = [];
+    for(var e = loE; e <= hiE; e++){
+      mults.forEach(function(m){ candidates.push(m * Math.pow(10, e)); });
+    }
+    candidates = candidates.filter(function(v, i, arr){ return arr.indexOf(v) === i; }).sort(function(a, b){ return a - b; });
+    // The axis bounds MUST bracket the true data range, not just the
+    // displayed tick labels -- picking ticks[0] as the axis minimum (the
+    // earlier version of this function) meant that whenever no nice 1/2/5
+    // value happened to land close to the real minimum, the chosen floor
+    // could end up ABOVE it, silently clamping every point below that
+    // floor to the bottom edge of the chart (a flat line, not a gap --
+    // easy to miss unless you're looking for it). axisMin/axisMax are
+    // picked independently as the nearest nice value at-or-below /
+    // at-or-above the true data, and the displayed ticks are then
+    // whichever nice candidates fall within that bracket.
+    var axisMin = minV, axisMax = maxV;
+    for(var i = candidates.length - 1; i >= 0; i--){
+      if(candidates[i] <= minV * 1.0001){ axisMin = candidates[i]; break; }
+    }
+    for(var j = 0; j < candidates.length; j++){
+      if(candidates[j] >= maxV * 0.9999){ axisMax = candidates[j]; break; }
+    }
+    var ticks = candidates.filter(function(v){ return v >= axisMin * 0.999 && v <= axisMax * 1.001; });
+    if(ticks.length < 2) ticks = [axisMin, axisMax];
+    return { ticks: ticks, min: axisMin, max: axisMax };
+  }
+  // Log scale is only meaningful (and only mathematically valid) once
+  // every value in view -- including the reference line, if it's on --
+  // is strictly positive. Rather than silently falling back to linear
+  // when the user picks a date range that includes a zero or negative
+  // value, availability is re-checked on every render and the control
+  // itself is disabled with an explanation, so the person always knows
+  // why the option isn't there right now instead of wondering why their
+  // click did nothing.
+  function czLogScaleAvailable(){
+    var pts = czFilteredSeries();
+    var vals = pts.map(function(p){ return p[1]; });
+    if(czState.refLine.enabled) vals.push(czState.refLine.value);
+    return vals.every(function(v){ return v > 0; }) && vals.length > 0;
+  }
   function czGeom(){
     var pts = czFilteredSeries();
     var padB = 70;
     var allVals = pts.map(function(p){ return p[1]; });
     if(czState.refLine.enabled) allVals.push(czState.refLine.value);
     var rawMin = Math.min.apply(null, allVals), rawMax = Math.max.apply(null, allVals);
-    var nice = niceTicks(rawMin, rawMax, czState.yTicks);
-    var minV = nice.min, maxV = nice.max;
+    var useLog = czState.yScale === "log" && czLogScaleAvailable();
+    var nice, minV, maxV;
+    if(useLog){
+      nice = niceLogTicks(rawMin, rawMax);
+      minV = nice.min; maxV = nice.max;
+    } else {
+      var stepCandidates = niceStepCandidates(rawMin, rawMax);
+      var stepIdx = Math.max(0, Math.min(stepCandidates.length - 1, czState.yTickStepIdx));
+      nice = niceTicksFromStep(rawMin, rawMax, stepCandidates[stepIdx]);
+      minV = nice.min; maxV = nice.max;
+    }
     var padT = (czState.yTitlePos === "above" ? G.padT + 18 : G.padT) + (czState.chartTitle ? 24 : 0);
     var plotW = G.W - G.padL - G.padR, plotH = G.H - padT - padB;
     return {
       pts: pts, minV: minV, maxV: maxV, plotW: plotW, plotH: plotH, padB: padB, padT: padT,
-      yTickValues: nice.ticks,
+      yTickValues: nice.ticks, yScale: useLog ? "log" : "linear",
       x: function(i){
         if(czState.chartKind === "bar"){
           if(pts.length === 1) return G.padL + plotW / 2;
@@ -3438,7 +3615,13 @@ document.querySelectorAll(".mtbtn").forEach(function(btn){
         }
         return G.padL + (pts.length === 1 ? plotW / 2 : (i / (pts.length - 1)) * plotW);
       },
-      y: function(v){ return padT + plotH - ((v - minV) / (maxV - minV)) * plotH; }
+      y: function(v){
+        if(useLog){
+          var vc = Math.max(v, minV);
+          return padT + plotH - ((Math.log10(vc) - Math.log10(minV)) / (Math.log10(maxV) - Math.log10(minV))) * plotH;
+        }
+        return padT + plotH - ((v - minV) / (maxV - minV)) * plotH;
+      }
     };
   }
 
@@ -3500,29 +3683,58 @@ document.querySelectorAll(".mtbtn").forEach(function(btn){
       svg.push(czAnnotationSVG(a, ai, gm, t, forExport));
     });
 
+    // Threshold value the two-colour split uses. Bars have always
+    // defaulted to splitting at zero (kept as-is so nothing already
+    // live regresses); "Colour by above/below reference line" only
+    // appears once Reference line itself is on, and opting into it
+    // repoints the split to the reference line's own value instead of
+    // a hardcoded zero -- in EITHER chart mode, since a line chart's
+    // fill can be split the same way a bar's colour can.
+    var useThreshold = czState.refLine.enabled && czState.threshold2Color;
+    var thresholdVal = useThreshold ? czState.refLine.value : 0;
+    var threshY = Math.max(gm.padT, Math.min(gm.padT + gm.plotH, gm.y(thresholdVal)));
+    // A user-picked mako swatch overrides the theme's default chart
+    // colour, but only for the chart's own line/bar/fill -- axis text,
+    // gridlines, and the negative/below-threshold indigo stay
+    // theme-driven regardless, since those aren't what the picker is for.
+    var chartColor = czState.lineColor || t.line;
+    var chartFillColor = czState.lineColor ? hexToRgba(czState.lineColor, theme === "dark" ? 0.16 : 0.12) : t.fill;
+
     if(czState.chartKind === "bar"){
       // Same up/down colour convention as the real site's own bar charts
       // (mako "sea" for positive, mako "indigo" for negative) -- not a
       // separate palette invented for this tool.
-      var zeroY = Math.max(gm.padT, Math.min(gm.padT + gm.plotH, gm.y(0)));
       var barW = Math.max(2, (gm.plotW / pts.length) * 0.62);
       pts.forEach(function(p, i){
         var bx = gm.x(i);
         var by = gm.y(p[1]);
-        var top = Math.min(by, zeroY);
-        var h = Math.max(0.6, Math.abs(by - zeroY));
-        var color = p[1] < 0 ? "#413D7B" : t.line;
+        var top = Math.min(by, threshY);
+        var h = Math.max(0.6, Math.abs(by - threshY));
+        var color = p[1] < thresholdVal ? "#413D7B" : chartColor;
         svg.push("<rect x='" + (bx - barW / 2).toFixed(1) + "' y='" + top.toFixed(1) + "' width='" + barW.toFixed(1) + "' height='" + h.toFixed(1) + "' fill='" + color + "'/>");
       });
     } else {
       var linePath = pts.map(function(p, i){ return (i === 0 ? "M" : "L") + gm.x(i).toFixed(1) + "," + gm.y(p[1]).toFixed(1); }).join(" ");
       if(czState.showFill){
         var areaPath = linePath + " L" + gm.x(pts.length - 1).toFixed(1) + "," + (gm.padT + gm.plotH) + " L" + gm.x(0).toFixed(1) + "," + (gm.padT + gm.plotH) + " Z";
-        svg.push("<path d='" + areaPath + "' fill='" + t.fill + "'/>");
+        if(useThreshold){
+          // Two clip regions (above/below the threshold's pixel row)
+          // applied to the SAME full area path, rather than computing
+          // exact line/threshold crossing points -- geometrically
+          // simpler and just as correct, since a straight horizontal
+          // clip line does the split for us.
+          var clipId = "czThreshClip" + Math.round(Math.random() * 1e6);
+          svg.push("<clipPath id='" + clipId + "a'><rect x='0' y='" + gm.padT + "' width='" + G.W + "' height='" + (threshY - gm.padT) + "'/></clipPath>");
+          svg.push("<clipPath id='" + clipId + "b'><rect x='0' y='" + threshY + "' width='" + G.W + "' height='" + (gm.padT + gm.plotH - threshY) + "'/></clipPath>");
+          svg.push("<path d='" + areaPath + "' fill='" + chartColor + "' fill-opacity='0.14' clip-path='url(#" + clipId + "a)'/>");
+          svg.push("<path d='" + areaPath + "' fill='#413D7B' fill-opacity='0.16' clip-path='url(#" + clipId + "b)'/>");
+        } else {
+          svg.push("<path d='" + areaPath + "' fill='" + chartFillColor + "'/>");
+        }
       }
-      svg.push("<path d='" + linePath + "' fill='none' stroke='" + t.line + "' stroke-width='2.5' stroke-linejoin='round' stroke-linecap='round'/>");
+      svg.push("<path d='" + linePath + "' fill='none' stroke='" + chartColor + "' stroke-width='2.5' stroke-linejoin='round' stroke-linecap='round'/>");
       if(czState.showPoints !== false){
-        pts.forEach(function(p, i){ svg.push("<circle cx='" + gm.x(i).toFixed(1) + "' cy='" + gm.y(p[1]).toFixed(1) + "' r='2.2' fill='" + t.line + "'/>"); });
+        pts.forEach(function(p, i){ svg.push("<circle cx='" + gm.x(i).toFixed(1) + "' cy='" + gm.y(p[1]).toFixed(1) + "' r='2.2' fill='" + chartColor + "'/>"); });
       }
     }
 
@@ -3584,8 +3796,15 @@ document.querySelectorAll(".mtbtn").forEach(function(btn){
   var czPreviewBox = document.getElementById("czPreviewBox");
 
   function czRenderPreview(){
+    czSyncModeFields();
     czPreviewBox.innerHTML = czBuildSVG(czState.exportTheme, false);
     czWireDragHandles();
+    // czGeom() re-derives the real step-candidate list for whatever
+    // data/date-range is currently active, so the +/- clamp and the
+    // displayed tick count must be read back from it after every
+    // render rather than assumed -- the candidate count isn't fixed.
+    var gm = czGeom();
+    if(czYTickVal) czYTickVal.textContent = gm.yTickValues.length;
   }
 
   function czWireDragHandles(){
@@ -3748,17 +3967,61 @@ document.querySelectorAll(".mtbtn").forEach(function(btn){
   document.getElementById("czPointsToggle").addEventListener("change", function(e){ czState.showPoints = e.target.checked; czRenderPreview(); });
   document.getElementById("czChartTitleInput").addEventListener("input", function(e){ czState.chartTitle = e.target.value; czRenderPreview(); });
   document.getElementById("czYAxisTitleInput").addEventListener("input", function(e){ czState.yTitle = e.target.value; czRenderPreview(); });
-  document.getElementById("czReflineToggle").addEventListener("change", function(e){ czState.refLine.enabled = e.target.checked; czRenderPreview(); });
+  document.getElementById("czReflineToggle").addEventListener("change", function(e){ czState.refLine.enabled = e.target.checked; czSyncModeFields(); czRenderPreview(); });
   document.getElementById("czReflineValue").addEventListener("input", function(e){
     czState.refLine.value = parseFloat(e.target.value) || 0;
     if(czState.refLine.enabled) czRenderPreview();
   });
+  document.getElementById("czThresholdShadeToggle").addEventListener("change", function(e){ czState.threshold2Color = e.target.checked; czRenderPreview(); });
+  document.getElementById("czLogScaleToggle").addEventListener("change", function(e){ czState.yScale = e.target.checked ? "log" : "linear"; czRenderPreview(); });
+  // "Shade area under the line" / "Show data point markers" are
+  // line-only concepts -- a bar has no line to shade under or place a
+  // marker on -- so they're hidden rather than left checked-but-inert
+  // once the user is in Bar mode. The threshold-colour control is the
+  // opposite case: it only makes sense once a reference line actually
+  // exists (there's nothing to be "above or below" without one), so it
+  // stays hidden until Reference line is switched on, but then applies
+  // in EITHER chart mode -- see czBuildSVG's use of czState.threshold2Color.
+  function czSyncModeFields(){
+    var isBar = czState.chartKind === "bar";
+    // Setting .hidden here does nothing: both fields already carry an
+    // inline style="display:flex..." in their markup, and an inline
+    // style always beats the browser's own [hidden]{display:none} rule
+    // on specificity -- the hidden attribute would be set correctly but
+    // silently produce no visual change. Setting style.display directly
+    // is the only thing that actually overrides it.
+    document.getElementById("czFillField").style.display = isBar ? "none" : "flex";
+    document.getElementById("czPointsField").style.display = isBar ? "none" : "flex";
+    document.getElementById("czThresholdShadeField").style.display = czState.refLine.enabled ? "flex" : "none";
+    // Log scale's availability depends on the CURRENT date-range
+    // selection, not just the chart's data as a whole -- a series that's
+    // all-positive today can include a zero or negative value once the
+    // person widens the date range, so this has to be re-checked on
+    // every render, not just once when the modal opens.
+    var logAvailable = czLogScaleAvailable();
+    var logToggle = document.getElementById("czLogScaleToggle");
+    var logLabel = document.getElementById("czLogScaleLabel");
+    logToggle.disabled = !logAvailable;
+    if(!logAvailable && czState.yScale === "log"){ czState.yScale = "linear"; logToggle.checked = false; }
+    logLabel.textContent = logAvailable ? "Log scale" : "Log scale (unavailable -- data includes zero or negative values)";
+    logLabel.style.color = logAvailable ? "" : "var(--ink2)";
+    // The Y-axis tick +/- control walks a list of round LINEAR step
+    // sizes -- meaningless once the axis is logarithmic, where ticks
+    // are fixed at powers of ten and their 2x/5x subdivisions instead.
+    // Left enabled, clicking them while log scale is on would silently
+    // do nothing, which is exactly the "looks broken" failure mode this
+    // whole round of fixes was about -- so they're disabled instead.
+    var isLog = czState.yScale === "log" && logAvailable;
+    document.getElementById("czYTickMinus").disabled = isLog;
+    document.getElementById("czYTickPlus").disabled = isLog;
+  }
   var czChartKindSeg = document.getElementById("czChartKindSeg");
   czChartKindSeg.querySelectorAll("button").forEach(function(btn){
     btn.addEventListener("click", function(){
       czChartKindSeg.querySelectorAll("button").forEach(function(b){ b.classList.remove("active"); });
       btn.classList.add("active");
       czState.chartKind = btn.dataset.kind;
+      czSyncModeFields();
       czRenderPreview();
     });
   });
@@ -3773,8 +4036,16 @@ document.querySelectorAll(".mtbtn").forEach(function(btn){
   });
   var czYTickVal = document.getElementById("czYTickVal");
   var czXTickVal = document.getElementById("czXTickVal");
-  document.getElementById("czYTickMinus").addEventListener("click", function(){ czState.yTicks = Math.max(2, czState.yTicks - 1); czYTickVal.textContent = czState.yTicks; czRenderPreview(); });
-  document.getElementById("czYTickPlus").addEventListener("click", function(){ czState.yTicks = Math.min(9, czState.yTicks + 1); czYTickVal.textContent = czState.yTicks; czRenderPreview(); });
+  // Index walks niceStepCandidates() directly (descending: index 0 =
+  // largest step = fewest ticks), so every click guarantees a visibly
+  // different, still-round-numbered axis -- see niceStepCandidates()'s
+  // comment for why the old target-count approach silently no-opped
+  // on most clicks. The displayed number and the clamp bound both come
+  // from czRenderPreview() re-deriving the real candidate list for the
+  // current data/date-range each time, since the candidate count isn't
+  // fixed in advance.
+  document.getElementById("czYTickMinus").addEventListener("click", function(){ czState.yTickStepIdx = Math.max(0, czState.yTickStepIdx - 1); czRenderPreview(); });
+  document.getElementById("czYTickPlus").addEventListener("click", function(){ czState.yTickStepIdx = czState.yTickStepIdx + 1; czRenderPreview(); });
   document.getElementById("czXTickMinus").addEventListener("click", function(){ czState.xTicks = Math.max(2, czState.xTicks - 1); czXTickVal.textContent = czState.xTicks; czRenderPreview(); });
   document.getElementById("czXTickPlus").addEventListener("click", function(){ czState.xTicks = Math.min(10, czState.xTicks + 1); czXTickVal.textContent = czState.xTicks; czRenderPreview(); });
   var czXAngleSeg = document.getElementById("czXAngleSeg");
@@ -3982,6 +4253,34 @@ document.querySelectorAll(".mtbtn").forEach(function(btn){
     });
   });
 
+  // Swatches are built once, up front, rather than per-render -- the
+  // palette itself never changes, only which swatch is marked active,
+  // so rebuilding the buttons on every render would be wasted work and
+  // would also drop focus/hover state while the person is picking.
+  var czColorSwatchesEl = document.getElementById("czColorSwatches");
+  MAKO_PALETTE.forEach(function(hex){
+    var b = document.createElement("button");
+    b.type = "button";
+    b.dataset.color = hex;
+    b.title = hex;
+    b.style.cssText = "width:22px; height:22px; border-radius:5px; border:2px solid transparent; background:" + hex + "; cursor:pointer; padding:0;";
+    b.addEventListener("click", function(){
+      // Clicking the already-selected swatch clears back to the
+      // theme's default colour rather than being a no-op -- otherwise
+      // there'd be no way to undo a colour choice without reopening
+      // the modal fresh.
+      czState.lineColor = (czState.lineColor === hex) ? null : hex;
+      czSyncColorSwatches();
+      czRenderPreview();
+    });
+    czColorSwatchesEl.appendChild(b);
+  });
+  function czSyncColorSwatches(){
+    czColorSwatchesEl.querySelectorAll("button").forEach(function(b){
+      b.style.borderColor = (b.dataset.color === czState.lineColor) ? "var(--ink)" : "transparent";
+    });
+  }
+
   var czExportOptsBtn = document.getElementById("czExportOptsBtn");
   var czExportOptsPopover = document.getElementById("czExportOptsPopover");
   czExportOptsBtn.addEventListener("click", function(e){
@@ -4013,9 +4312,10 @@ document.querySelectorAll(".mtbtn").forEach(function(btn){
     }
     czState = {
       from: pts[0][0], to: pts[pts.length - 1][0],
-      showFill: true, showPoints: true, refLine: { enabled: false, value: 0 },
-      yTitlePos: "along", yTicks: 5, xTicks: 3, xLabelAngle: "straight", chartTitle: title || "",
-      chartKind: kind === "bar" ? "bar" : "line",
+      showFill: true, showPoints: true, refLine: { enabled: false, value: 0 }, threshold2Color: false,
+      yTitlePos: "along", yTickStepIdx: defaultStepIdxFor(Math.min.apply(null, pts.map(function(p){ return p[1]; })), Math.max.apply(null, pts.map(function(p){ return p[1]; })), 5),
+      xTicks: 3, xLabelAngle: "straight", chartTitle: title || "",
+      chartKind: kind === "bar" ? "bar" : "line", yScale: "linear", lineColor: null,
       annotations: [], exportTheme: "light",
       srcNote: srcNote, yTitle: guessedYTitle, fmtY: effectiveFmtY,
       filenameBase: (filenameBase || title || "chart").toLowerCase().replace(/[^a-z0-9]+/g, "_").replace(/^_+|_+$/g, "")
@@ -4034,9 +4334,13 @@ document.querySelectorAll(".mtbtn").forEach(function(btn){
     document.getElementById("czPointsToggle").checked = true;
     document.getElementById("czReflineToggle").checked = false;
     document.getElementById("czReflineValue").value = "0";
+    document.getElementById("czThresholdShadeToggle").checked = false;
+    document.getElementById("czLogScaleToggle").checked = false;
+    czSyncColorSwatches();
     czYTitlePosSeg.querySelectorAll("button").forEach(function(b){ b.classList.toggle("active", b.dataset.pos === "along"); });
-    czYTickVal.textContent = "5"; czXTickVal.textContent = "3"; czState.xLabelAngle = "straight"; czXAngleSeg.querySelectorAll("button").forEach(function(b){ b.classList.toggle("active", b.dataset.angle === "straight"); });
+    czXTickVal.textContent = "3"; czState.xLabelAngle = "straight"; czXAngleSeg.querySelectorAll("button").forEach(function(b){ b.classList.toggle("active", b.dataset.angle === "straight"); });
     czThemeSeg.querySelectorAll("button").forEach(function(b){ b.classList.toggle("active", b.dataset.theme === "light"); });
+    czSyncModeFields();
     czRenderAnnotList();
     czRenderPreview();
     document.getElementById("customizeModal").hidden = false;
