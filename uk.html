@@ -4057,19 +4057,34 @@ window.refreshMPCContext = refreshMPCContext;
   // subdivisions (1, 2, 5, 10, 20, 50, 100...), which read correctly
   // regardless of how many decades the data spans.
   function niceLogTicks(minV, maxV){
-    var loE = Math.floor(Math.log10(minV));
-    var hiE = Math.ceil(Math.log10(maxV));
+    var loE = Math.floor(Math.log10(minV)) - 1;
+    var hiE = Math.ceil(Math.log10(maxV)) + 1;
     var mults = [1, 2, 5];
-    var ticks = [];
+    var candidates = [];
     for(var e = loE; e <= hiE; e++){
-      mults.forEach(function(m){
-        var v = m * Math.pow(10, e);
-        if(v >= minV * 0.999 && v <= maxV * 1.001) ticks.push(v);
-      });
+      mults.forEach(function(m){ candidates.push(m * Math.pow(10, e)); });
     }
-    ticks = ticks.filter(function(v, i, arr){ return arr.indexOf(v) === i; }).sort(function(a, b){ return a - b; });
-    if(ticks.length < 2) ticks = [minV, maxV];
-    return { ticks: ticks, min: ticks[0], max: ticks[ticks.length - 1] };
+    candidates = candidates.filter(function(v, i, arr){ return arr.indexOf(v) === i; }).sort(function(a, b){ return a - b; });
+    // The axis bounds MUST bracket the true data range, not just the
+    // displayed tick labels -- picking ticks[0] as the axis minimum (the
+    // earlier version of this function) meant that whenever no nice 1/2/5
+    // value happened to land close to the real minimum, the chosen floor
+    // could end up ABOVE it, silently clamping every point below that
+    // floor to the bottom edge of the chart (a flat line, not a gap --
+    // easy to miss unless you're looking for it). axisMin/axisMax are
+    // picked independently as the nearest nice value at-or-below /
+    // at-or-above the true data, and the displayed ticks are then
+    // whichever nice candidates fall within that bracket.
+    var axisMin = minV, axisMax = maxV;
+    for(var i = candidates.length - 1; i >= 0; i--){
+      if(candidates[i] <= minV * 1.0001){ axisMin = candidates[i]; break; }
+    }
+    for(var j = 0; j < candidates.length; j++){
+      if(candidates[j] >= maxV * 0.9999){ axisMax = candidates[j]; break; }
+    }
+    var ticks = candidates.filter(function(v){ return v >= axisMin * 0.999 && v <= axisMax * 1.001; });
+    if(ticks.length < 2) ticks = [axisMin, axisMax];
+    return { ticks: ticks, min: axisMin, max: axisMax };
   }
   // Log scale is only meaningful (and only mathematically valid) once
   // every value in view -- including the reference line, if it's on --
