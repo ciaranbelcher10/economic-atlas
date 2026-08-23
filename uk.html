@@ -3697,6 +3697,8 @@ window.refreshMPCContext = refreshMPCContext;
             <button type="button" data-theme="light" class="active" style="flex:1; border:none; font:inherit; font-size:12px; font-weight:600; padding:7px 0; cursor:pointer;">Light</button>
             <button type="button" data-theme="dark" style="flex:1; border:none; font:inherit; font-size:12px; font-weight:600; padding:7px 0; cursor:pointer;">Dark</button>
           </div>
+          <h4 style="font-size:11.5px; text-transform:uppercase; letter-spacing:.05em; margin:14px 0 8px; color:var(--ink2);">Chart colour</h4>
+          <div id="czColorSwatches" style="display:flex; gap:6px; flex-wrap:wrap;"></div>
           <h4 style="font-size:11.5px; text-transform:uppercase; letter-spacing:.05em; margin:14px 0 8px; color:var(--ink2);">Export</h4>
           <div style="display:flex; gap:8px;">
             <button type="button" id="czExportPngBtn" style="flex:1; padding:8px 0; border:1px solid var(--hair); background:var(--paper); color:var(--ink); border-radius:6px; cursor:pointer; font:inherit; font-size:12px;">PNG</button>
@@ -3812,6 +3814,19 @@ window.refreshMPCContext = refreshMPCContext;
   "use strict";
 
   var G = { W:820, H:507, padL:60, padR:24, padT:34 };
+  // Approximation of the seaborn "mako" palette (dark indigo through
+  // blue/teal to pale mint) sampled at 8 stops -- an exact hex table
+  // wasn't retrievable from the docs (the reference page renders its
+  // swatches client-side rather than listing values), so this is a
+  // close visual match rather than a verified export of
+  // sns.color_palette("mako", 8).as_hex(). Swap in the exact values if
+  ///when available.
+  var MAKO_PALETTE = ["#0d0a29", "#2c2a5c", "#2f5d7c", "#287d8e", "#22a186", "#5fc088", "#a9dcac", "#dbf2d1"];
+  function hexToRgba(hex, alpha){
+    var m = hex.replace("#", "");
+    var r = parseInt(m.substring(0, 2), 16), g = parseInt(m.substring(2, 4), 16), b = parseInt(m.substring(4, 6), 16);
+    return "rgba(" + r + "," + g + "," + b + "," + alpha + ")";
+  }
   var THEMES = {
     light: { bg:"#FFFFFF", ink:"#171B1E", ink2:"#5A6167", grid:"#E4E6E1", line:"#348FA7", fill:"rgba(52,143,167,0.12)", annot:"#9AA4A0", annotText:"#6B7470" },
     dark:  { bg:"#12181A", ink:"#EDEFEA", ink2:"#9AA4A0", grid:"#2A3436", line:"#348FA7", fill:"rgba(52,143,167,0.16)", annot:"#8A9490", annotText:"#B7BEBA" }
@@ -4208,6 +4223,12 @@ window.refreshMPCContext = refreshMPCContext;
     var useThreshold = czState.refLine.enabled && czState.threshold2Color;
     var thresholdVal = useThreshold ? czState.refLine.value : 0;
     var threshY = Math.max(gm.padT, Math.min(gm.padT + gm.plotH, gm.y(thresholdVal)));
+    // A user-picked mako swatch overrides the theme's default chart
+    // colour, but only for the chart's own line/bar/fill -- axis text,
+    // gridlines, and the negative/below-threshold indigo stay
+    // theme-driven regardless, since those aren't what the picker is for.
+    var chartColor = czState.lineColor || t.line;
+    var chartFillColor = czState.lineColor ? hexToRgba(czState.lineColor, theme === "dark" ? 0.16 : 0.12) : t.fill;
 
     if(czState.chartKind === "bar"){
       // Same up/down colour convention as the real site's own bar charts
@@ -4219,7 +4240,7 @@ window.refreshMPCContext = refreshMPCContext;
         var by = gm.y(p[1]);
         var top = Math.min(by, threshY);
         var h = Math.max(0.6, Math.abs(by - threshY));
-        var color = p[1] < thresholdVal ? "#413D7B" : t.line;
+        var color = p[1] < thresholdVal ? "#413D7B" : chartColor;
         svg.push("<rect x='" + (bx - barW / 2).toFixed(1) + "' y='" + top.toFixed(1) + "' width='" + barW.toFixed(1) + "' height='" + h.toFixed(1) + "' fill='" + color + "'/>");
       });
     } else {
@@ -4235,15 +4256,15 @@ window.refreshMPCContext = refreshMPCContext;
           var clipId = "czThreshClip" + Math.round(Math.random() * 1e6);
           svg.push("<clipPath id='" + clipId + "a'><rect x='0' y='" + gm.padT + "' width='" + G.W + "' height='" + (threshY - gm.padT) + "'/></clipPath>");
           svg.push("<clipPath id='" + clipId + "b'><rect x='0' y='" + threshY + "' width='" + G.W + "' height='" + (gm.padT + gm.plotH - threshY) + "'/></clipPath>");
-          svg.push("<path d='" + areaPath + "' fill='" + t.line + "' fill-opacity='0.14' clip-path='url(#" + clipId + "a)'/>");
+          svg.push("<path d='" + areaPath + "' fill='" + chartColor + "' fill-opacity='0.14' clip-path='url(#" + clipId + "a)'/>");
           svg.push("<path d='" + areaPath + "' fill='#413D7B' fill-opacity='0.16' clip-path='url(#" + clipId + "b)'/>");
         } else {
-          svg.push("<path d='" + areaPath + "' fill='" + t.fill + "'/>");
+          svg.push("<path d='" + areaPath + "' fill='" + chartFillColor + "'/>");
         }
       }
-      svg.push("<path d='" + linePath + "' fill='none' stroke='" + t.line + "' stroke-width='2.5' stroke-linejoin='round' stroke-linecap='round'/>");
+      svg.push("<path d='" + linePath + "' fill='none' stroke='" + chartColor + "' stroke-width='2.5' stroke-linejoin='round' stroke-linecap='round'/>");
       if(czState.showPoints !== false){
-        pts.forEach(function(p, i){ svg.push("<circle cx='" + gm.x(i).toFixed(1) + "' cy='" + gm.y(p[1]).toFixed(1) + "' r='2.2' fill='" + t.line + "'/>"); });
+        pts.forEach(function(p, i){ svg.push("<circle cx='" + gm.x(i).toFixed(1) + "' cy='" + gm.y(p[1]).toFixed(1) + "' r='2.2' fill='" + chartColor + "'/>"); });
       }
     }
 
@@ -4762,6 +4783,34 @@ window.refreshMPCContext = refreshMPCContext;
     });
   });
 
+  // Swatches are built once, up front, rather than per-render -- the
+  // palette itself never changes, only which swatch is marked active,
+  // so rebuilding the buttons on every render would be wasted work and
+  // would also drop focus/hover state while the person is picking.
+  var czColorSwatchesEl = document.getElementById("czColorSwatches");
+  MAKO_PALETTE.forEach(function(hex){
+    var b = document.createElement("button");
+    b.type = "button";
+    b.dataset.color = hex;
+    b.title = hex;
+    b.style.cssText = "width:22px; height:22px; border-radius:5px; border:2px solid transparent; background:" + hex + "; cursor:pointer; padding:0;";
+    b.addEventListener("click", function(){
+      // Clicking the already-selected swatch clears back to the
+      // theme's default colour rather than being a no-op -- otherwise
+      // there'd be no way to undo a colour choice without reopening
+      // the modal fresh.
+      czState.lineColor = (czState.lineColor === hex) ? null : hex;
+      czSyncColorSwatches();
+      czRenderPreview();
+    });
+    czColorSwatchesEl.appendChild(b);
+  });
+  function czSyncColorSwatches(){
+    czColorSwatchesEl.querySelectorAll("button").forEach(function(b){
+      b.style.borderColor = (b.dataset.color === czState.lineColor) ? "var(--ink)" : "transparent";
+    });
+  }
+
   var czExportOptsBtn = document.getElementById("czExportOptsBtn");
   var czExportOptsPopover = document.getElementById("czExportOptsPopover");
   czExportOptsBtn.addEventListener("click", function(e){
@@ -4796,7 +4845,7 @@ window.refreshMPCContext = refreshMPCContext;
       showFill: true, showPoints: true, refLine: { enabled: false, value: 0 }, threshold2Color: false,
       yTitlePos: "along", yTickStepIdx: defaultStepIdxFor(Math.min.apply(null, pts.map(function(p){ return p[1]; })), Math.max.apply(null, pts.map(function(p){ return p[1]; })), 5),
       xTicks: 3, xLabelAngle: "straight", chartTitle: title || "",
-      chartKind: kind === "bar" ? "bar" : "line", yScale: "linear",
+      chartKind: kind === "bar" ? "bar" : "line", yScale: "linear", lineColor: null,
       annotations: [], exportTheme: "light",
       srcNote: srcNote, yTitle: guessedYTitle, fmtY: effectiveFmtY,
       filenameBase: (filenameBase || title || "chart").toLowerCase().replace(/[^a-z0-9]+/g, "_").replace(/^_+|_+$/g, "")
@@ -4817,6 +4866,7 @@ window.refreshMPCContext = refreshMPCContext;
     document.getElementById("czReflineValue").value = "0";
     document.getElementById("czThresholdShadeToggle").checked = false;
     document.getElementById("czLogScaleToggle").checked = false;
+    czSyncColorSwatches();
     czYTitlePosSeg.querySelectorAll("button").forEach(function(b){ b.classList.toggle("active", b.dataset.pos === "along"); });
     czXTickVal.textContent = "3"; czState.xLabelAngle = "straight"; czXAngleSeg.querySelectorAll("button").forEach(function(b){ b.classList.toggle("active", b.dataset.angle === "straight"); });
     czThemeSeg.querySelectorAll("button").forEach(function(b){ b.classList.toggle("active", b.dataset.theme === "light"); });
