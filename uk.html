@@ -79,6 +79,8 @@ nav.cat button{
 }
 nav.cat button:hover{border-color:var(--blue); color:var(--navy);}
 nav.cat button.active{background:var(--blue); border-color:var(--blue); color:#fff;}
+.seg button{background:transparent; color:var(--ink2);}
+.seg button.active{background:var(--blue); color:#fff;}
 .panel .expl{font-size:13px; color:var(--ink2); margin:3px 0 0; max-width:56ch;}
 .panel .range{font-size:12px; color:var(--ink2); margin:4px 0 14px;}
 .secnote{font-size:13px; color:var(--ink2); margin:18px 0 0;
@@ -3752,7 +3754,7 @@ window.refreshMPCContext = refreshMPCContext;
               <input type="number" id="czReflineValue" value="0" step="0.1" style="width:58px; padding:4px 6px; border:1px solid var(--hair); border-radius:5px; background:var(--paper); font:inherit; font-size:12px;">
             </div>
           </div>
-          <div id="czThresholdShadeField" hidden style="display:flex; align-items:center; justify-content:space-between; font-size:12.5px; margin-bottom:8px;">
+          <div id="czThresholdShadeField" style="display:none; align-items:center; justify-content:space-between; font-size:12.5px; margin-bottom:8px;">
             <span>Colour by above/below reference line</span>
             <input type="checkbox" id="czThresholdShadeToggle" style="width:15px; height:15px;">
           </div>
@@ -4422,9 +4424,15 @@ window.refreshMPCContext = refreshMPCContext;
   // in EITHER chart mode -- see czBuildSVG's use of czState.threshold2Color.
   function czSyncModeFields(){
     var isBar = czState.chartKind === "bar";
-    document.getElementById("czFillField").hidden = isBar;
-    document.getElementById("czPointsField").hidden = isBar;
-    document.getElementById("czThresholdShadeField").hidden = !czState.refLine.enabled;
+    // Setting .hidden here does nothing: both fields already carry an
+    // inline style="display:flex..." in their markup, and an inline
+    // style always beats the browser's own [hidden]{display:none} rule
+    // on specificity -- the hidden attribute would be set correctly but
+    // silently produce no visual change. Setting style.display directly
+    // is the only thing that actually overrides it.
+    document.getElementById("czFillField").style.display = isBar ? "none" : "flex";
+    document.getElementById("czPointsField").style.display = isBar ? "none" : "flex";
+    document.getElementById("czThresholdShadeField").style.display = czState.refLine.enabled ? "flex" : "none";
   }
   var czChartKindSeg = document.getElementById("czChartKindSeg");
   czChartKindSeg.querySelectorAll("button").forEach(function(btn){
