@@ -43,7 +43,8 @@ html[data-theme="dark"]{ --map-nodata: #C4CAC0; }
 .lightskey{font-size:12.5px; color:var(--ink2); margin:0 0 16px;
   display:flex; gap:20px; flex-wrap:wrap; justify-content:center;}
 .lightskey span{display:flex; align-items:center; gap:9px;}
-.chiprow{display:flex; gap:9px; flex-wrap:wrap; margin-bottom:8px; align-items:center;}
+.chiprow{display:flex; gap:9px; flex-wrap:wrap; margin-bottom:8px; align-items:center;
+  position:sticky; top:0; z-index:15; background:var(--paper); padding:10px 0; border-bottom:1px solid var(--hair);}
 .chip{border:1.5px solid var(--hair); background:var(--panel); color:var(--ink);
   font:600 13.5px "Avenir Next","Avenir","Nunito Sans",sans-serif; padding:8px 16px 8px 12px;
   border-radius:999px; cursor:pointer; display:flex; align-items:center; gap:7px;}
@@ -299,6 +300,19 @@ footer.cmp-foot{margin-top:36px; font-size:12.5px; color:var(--ink2); border-top
    author stylesheet is one of the few things that *can* override an
    inline style, so toggling .hidden from JS actually works again. */
 #czXTickField[hidden], #czLegendTitleField[hidden], #czPointsToggleField[hidden], #czHideNoDataField[hidden]{display:none !important;}
+/* Compare has three .seg-classed segmented controls (Theme, Y-title
+   position, X-axis angle) with no .seg button.active rule anywhere --
+   same underlying gap already found and fixed on every country page
+   this session. The class toggles correctly in JS; nothing ever
+   rendered the difference. */
+.seg button{background:transparent; color:var(--ink2);}
+.seg button.active{background:var(--blue); color:#fff;}
+.dash-undo-toast{position:fixed; left:50%; bottom:26px; transform:translateX(-50%);
+  background:var(--navy); color:#fff; padding:12px 16px; border-radius:10px;
+  display:flex; align-items:center; gap:14px; font-size:13px; box-shadow:0 10px 28px rgba(0,0,0,.28); z-index:100;}
+.dash-undo-toast button{background:transparent; border:1px solid rgba(255,255,255,.4); color:#fff;
+  font:600 12px "Avenir Next","Avenir","Nunito Sans",sans-serif; padding:5px 12px; border-radius:999px; cursor:pointer;}
+.dash-undo-toast button:hover{background:rgba(255,255,255,.12); border-color:#fff;}
 </style>
 </head>
 <body>
@@ -1567,7 +1581,23 @@ footer.cmp-foot{margin-top:36px; font-size:12.5px; color:var(--ink2); border-top
   <div id="mainContent" style="display:none;">
   <h3 style="font-size:14px; margin:0 0 10px;">Countries</h3>
   <div class="chiprow" id="chipRow"></div>
+
+  <div id="countryUndoToast" class="dash-undo-toast" hidden>
+    <span id="countryUndoToastMsg"></span>
+    <button type="button" id="countryUndoToastBtn">Undo</button>
+  </div>
   <p class="chiphint" id="chipHint"></p>
+  <div style="display:flex; align-items:center; gap:8px; margin:0 0 18px; font-size:12.5px; color:var(--ink2);">
+    <label for="countrySortSelect">Order countries by</label>
+    <select id="countrySortSelect" style="padding:5px 8px; border:1px solid var(--hair); border-radius:6px; background:var(--paper); color:var(--ink); font:inherit; font-size:12.5px;">
+      <option value="alphabetical">Alphabetical</option>
+      <option value="value_desc">Value (high to low)</option>
+      <option value="value_asc">Value (low to high)</option>
+      <option value="geo_alpha">Geographic (alphabetical within region)</option>
+      <option value="geo_value">Geographic (value within region)</option>
+      <option value="manual">Manual (drag to reorder)</option>
+    </select>
+  </div>
 
   <p class="lightskey" aria-label="Key to freshness lights">
     <span><span class="led green" aria-hidden="true"></span>Latest version of the data is live</span>
@@ -1581,6 +1611,21 @@ footer.cmp-foot{margin-top:36px; font-size:12.5px; color:var(--ink2); border-top
        metric card has its own "Compare on a map" toggle that lazily
        builds a small map scoped to that card's own metric and whatever
        time selection that card currently has (see createCardMap()). -->
+  <div id="chartViewControls" style="display:flex; align-items:center; gap:12px; margin:0 0 14px; flex-wrap:wrap;">
+    <div class="seg" id="chartViewSeg" style="display:flex; border:1px solid var(--hair); border-radius:8px; overflow:hidden; width:fit-content;">
+      <button type="button" data-view="stacked" class="active" style="padding:6px 14px; border:none; font:600 12.5px inherit; cursor:pointer;">Stacked</button>
+      <button type="button" data-view="tabbed" style="padding:6px 14px; border:none; font:600 12.5px inherit; cursor:pointer;">Tabbed</button>
+    </div>
+    <div id="tabbedShowCountWrap" style="display:none; align-items:center; gap:8px; font-size:12.5px; color:var(--ink2);">
+      <label for="tabbedShowCount">Show at once</label>
+      <select id="tabbedShowCount" style="padding:5px 8px; border:1px solid var(--hair); border-radius:6px; background:var(--paper); color:var(--ink); font:inherit; font-size:12.5px;">
+        <option value="1">1</option>
+        <option value="2">2</option>
+        <option value="4">4</option>
+      </select>
+    </div>
+  </div>
+  <div id="metricTabRow" style="display:none; gap:8px; flex-wrap:wrap; margin:0 0 14px;"></div>
   <div class="cmp-grid" id="chartGrid">
     <div class="addtile" id="addMetricTile">
       <span class="plus">+</span><span class="txt">Add a metric</span>
@@ -1677,10 +1722,62 @@ var COUNTRY_COLOR = {UK:"#1E4566", US:"#4796CE", Eurozone:"#413D7B", Japan:"#376
   Mexico:"#C0533E", Brazil:"#3F9142", "South Africa":"#D4A72C", Morocco:"#B5482E", Germany:"#5B6B8C",
   France:"#7A5CC7", Italy:"#2E9973", Spain:"#C74B6B", Netherlands:"#DE7A2C", Denmark:"#C0392B", Ireland:"#2E8B57",
   Norway:"#2F5D8A", Chile:"#B03A2E", Colombia:"#D4A017", Turkey:"#E0523A", Indonesia:"#C0284B", Poland:"#7A3B8C", Switzerland:"#A6382E", Argentina:"#5B8FD1", Sweden:"#3C7FA0", Singapore:"#C7502E", Austria:"#4F8F6B", Thailand:"#7A9E3C"};
+// A separate palette from mako, built for a different job: mako is a
+// sequential gradient (one hue path, dark to light) meant to encode
+// magnitude, so several of its stops sit close together in perceived
+// colour by design -- exactly wrong for picking out up to MAX_SELECTED
+// distinct countries at a glance. This is a categorical set instead:
+// hues spread around the full wheel at a consistent, muted
+// saturation/lightness, so every pair reads as clearly different while
+// keeping the same minimalist, unsaturated character as the rest of
+// the site (including mako itself) rather than looking like a
+// default/office-suite colour picker.
+var COMPARE_PALETTE = [
+  "#1E4566", "#4796CE", "#2E9973", "#8AD9B1", "#3F9142", "#7A9E3C",
+  "#E39B2D", "#C0533E", "#D4372E", "#C74B6B", "#8E5FB0", "#5B3FA0",
+  "#5B6B8C", "#2F5D8A", "#40B7AD", "#B8860B", "#8A6F4D", "#B03A2E",
+  "#3C7FA0", "#6B4423"
+];
+// User overrides live in EATLAS_PREFS (same mechanism already used for
+// compareMetrics), keyed by country name -> hex. getCountryColor()
+// checks the override first, falling back to the country's assigned
+// default -- called everywhere COUNTRY_COLOR was previously read
+// directly, so a person picking a custom colour for one country
+// updates every place that colour appears (chips, chart lines/bars,
+// map legend, rankings) at once rather than needing to be threaded
+// through each individually. Starts empty and is filled in once
+// EATLAS_PREFS.ready resolves (see loadAll().then below) -- reading
+// prefs synchronously at this point in the file, before that promise
+// settles, would only ever see the empty default, same reasoning as
+// the existing compareMetrics load.
+var countryColorOverrides = {};
+function getCountryColor(c){
+  return countryColorOverrides[c] || COUNTRY_COLOR[c] || "#5A6167";
+}
+function setCountryColorOverride(c, hex){
+  if(hex){ countryColorOverrides[c] = hex; } else { delete countryColorOverrides[c]; }
+  if(window.EATLAS_PREFS) window.EATLAS_PREFS.set("countryColorOverrides", countryColorOverrides);
+}
 var ISO_OF = {UK:"826", US:"840", Eurozone:null, Japan:"392", India:"356", Canada:"124", Australia:"036",
   "South Korea":"410", Israel:"376", Mexico:"484", Brazil:"076", "South Africa":"710", Morocco:"504",
   Germany:"276", France:"250", Italy:"380", Spain:"724", Netherlands:"528", Denmark:"208", Ireland:"372",
   Norway:"578", Chile:"152", Colombia:"170", Turkey:"792", Indonesia:"360", Poland:"616", Switzerland:"756", Argentina:"032", Sweden:"752", Singapore:"702", Austria:"040", Thailand:"764"};
+// Regions for the "Geographic" x-axis ordering option. Eurozone is its
+// own aggregate rather than a single place, so it's grouped with
+// "Europe" (where its constituent members also live) rather than given
+// a region of its own.
+var REGION_OF = {
+  UK:"Europe", Germany:"Europe", France:"Europe", Italy:"Europe", Spain:"Europe", Netherlands:"Europe",
+  Denmark:"Europe", Ireland:"Europe", Norway:"Europe", Poland:"Europe", Switzerland:"Europe", Sweden:"Europe",
+  Austria:"Europe", Eurozone:"Europe", Turkey:"Europe",
+  US:"North America", Canada:"North America", Mexico:"North America",
+  Brazil:"South America", Chile:"South America", Colombia:"South America", Argentina:"South America",
+  Japan:"Asia", India:"Asia", "South Korea":"Asia", Indonesia:"Asia", Singapore:"Asia", Thailand:"Asia",
+  Australia:"Oceania",
+  Israel:"Middle East",
+  "South Africa":"Africa", Morocco:"Africa"
+};
+var REGION_ORDER = ["Europe", "North America", "South America", "Africa", "Middle East", "Asia", "Oceania"];
 
 // Canonical cross-country concepts. Almost all map 1:1 onto a series key
 // that's identically named across every country that has it; policy_rate
@@ -2212,6 +2309,66 @@ function periodLabelFor(dv){
 }
 
 var selected = ["UK", "US", "Germany", "Japan"];
+// X-axis/chip ordering. "alphabetical" is the default (stable across
+// re-renders and across which metric is currently shown, unlike a
+// value-based sort would be). "value_desc"/"value_asc" only make sense
+// once real values exist (the snapshot/bar view), so they're applied
+// at snapshot-row-build time rather than reordering `selected` itself,
+// which would otherwise reshuffle every time the person switched
+// metrics or the underlying data updated -- surprising for something
+// that's supposed to be a stable arrangement. "geo_*" groups by
+// REGION_OF first, then alphabetically or by value within each region.
+// "manual" is drag-reordered chips, persisted the same way as the
+// colour overrides.
+var countrySortMode = "alphabetical";
+function sortSelectedStructural(list){
+  // Handles every mode except pure value-sort, which needs live values
+  // that aren't available here -- see getOrderedSnapshotRows() below.
+  if(countrySortMode === "manual") return list.slice();
+  if(countrySortMode.indexOf("geo") === 0){
+    return list.slice().sort(function(a, b){
+      var ra = REGION_ORDER.indexOf(REGION_OF[a]), rb = REGION_ORDER.indexOf(REGION_OF[b]);
+      if(ra !== rb) return ra - rb;
+      return a.localeCompare(b);
+    });
+  }
+  return list.slice().sort(function(a, b){ return a.localeCompare(b); });
+}
+// Applies the current sort mode to an array of row objects, using
+// getVal(row) to read each row's numeric value -- generic over the
+// two different row shapes in this file ({country, value, ...} for
+// Customise & Export's snapshot rows, {country, dv} for the live
+// Chart.js bar chart's own rows) rather than duplicating this logic
+// per shape.
+function sortRowsByMode(rows, getVal){
+  if(countrySortMode === "value_desc" || countrySortMode === "value_asc"){
+    var dir = countrySortMode === "value_desc" ? -1 : 1;
+    return rows.slice().sort(function(a, b){
+      var va = getVal(a), vb = getVal(b);
+      if(va == null && vb == null) return 0;
+      if(va == null) return 1;
+      if(vb == null) return -1;
+      return dir * (va - vb);
+    });
+  }
+  if(countrySortMode === "geo_value"){
+    return rows.slice().sort(function(a, b){
+      var ra = REGION_ORDER.indexOf(REGION_OF[a.country]), rb = REGION_ORDER.indexOf(REGION_OF[b.country]);
+      if(ra !== rb) return ra - rb;
+      var va = getVal(a), vb = getVal(b);
+      if(va == null && vb == null) return 0;
+      if(va == null) return 1;
+      if(vb == null) return -1;
+      return vb - va;
+    });
+  }
+  // alphabetical, geo_alpha, or manual: order rows to match whatever
+  // order `selected` is already in (manual reordering acts directly on
+  // `selected`, so this naturally picks that up too).
+  var order = sortSelectedStructural(selected);
+  return rows.slice().sort(function(a, b){ return order.indexOf(a.country) - order.indexOf(b.country); });
+}
+
 // Replaces the old fixed "Now / vs 1Y/2Y/5Y/10Y ago" horizon system.
 // sliderMode: "snapshot" shows each country's raw value AT snapshotYear;
 // "change" shows the change from changeStartYear to changeEndYear. The
@@ -2346,24 +2503,76 @@ try {
   document.getElementById("metricPickerBackdrop").addEventListener("click", closeMetricPicker);
 } catch(e) { console.error("Add-metric tile wiring failed:", e); }
 
+function countryUndoClickHandler(){
+  if(!pendingCountryUndo) return;
+  clearTimeout(countryUndoTimer);
+  document.getElementById("countryUndoToast").hidden = true;
+  var arr = selected.slice();
+  var idx = Math.min(pendingCountryUndo.index, arr.length);
+  if(arr.indexOf(pendingCountryUndo.country) === -1 && arr.length < MAX_SELECTED){
+    arr.splice(idx, 0, pendingCountryUndo.country);
+    selected = arr;
+  }
+  pendingCountryUndo = null;
+  renderAll();
+}
+if(document.getElementById("countryUndoToastBtn")){
+  document.getElementById("countryUndoToastBtn").addEventListener("click", countryUndoClickHandler);
+}
+if(document.getElementById("countrySortSelect")){
+  document.getElementById("countrySortSelect").addEventListener("change", function(e){
+    countrySortMode = e.target.value;
+    if(window.EATLAS_PREFS) window.EATLAS_PREFS.set("countrySortMode", countrySortMode);
+    renderAll();
+  });
+}
 function toggleCountry(c){
-  if(selected.indexOf(c) !== -1){
+  var isRemoving = selected.indexOf(c) !== -1;
+  var removedIndex = -1;
+  if(isRemoving){
+    removedIndex = selected.indexOf(c);
     selected = selected.filter(function(x){ return x !== c; });
   } else if(selected.length < MAX_SELECTED){
     selected.push(c);
   }
   renderAll();
+  if(isRemoving) showCountryUndoToast(c, removedIndex);
+}
+
+// Same pattern as Dashboard's tile-removal undo: a single in-flight
+// opportunity, replaced (not stacked) if another country is removed
+// before it's used, restoring to the exact original position rather
+// than just appending back at the end.
+var countryUndoTimer = null;
+var pendingCountryUndo = null;
+function showCountryUndoToast(country, index){
+  pendingCountryUndo = { country: country, index: index };
+  var toast = document.getElementById("countryUndoToast");
+  if(!toast) return;
+  document.getElementById("countryUndoToastMsg").textContent = "Removed " + (COUNTRY_LABEL[country] || country) + ".";
+  toast.hidden = false;
+  clearTimeout(countryUndoTimer);
+  countryUndoTimer = setTimeout(function(){ toast.hidden = true; pendingCountryUndo = null; }, 6000);
 }
 function renderChips(){
   var row = document.getElementById("chipRow");
   row.innerHTML = "";
-  selected.forEach(function(c){
+  var orderedForDisplay = sortSelectedStructural(selected);
+  orderedForDisplay.forEach(function(c){
     var chip = document.createElement("span");
     chip.className = "chip pill active";
-    chip.style.background = COUNTRY_COLOR[c];
-    chip.innerHTML = "<span class=\"dot\" style=\"background:#fff;\"></span>" + COUNTRY_LABEL[c]
+    chip.dataset.country = c;
+    chip.style.background = getCountryColor(c);
+    if(countrySortMode === "manual") chip.draggable = false; // armed on handle mousedown, see below
+    chip.innerHTML = (countrySortMode === "manual" ? "<span class=\"chip-draghandle\" title=\"Drag to reorder\" style=\"cursor:grab; margin-right:2px;\">\u2261</span>" : "")
+      + "<button type=\"button\" class=\"dot colordot\" aria-label=\"Change " + COUNTRY_LABEL[c] + "'s colour\" style=\"background:#fff; border:none; cursor:pointer; padding:0;\"></button>" + COUNTRY_LABEL[c]
       + "<button type=\"button\" class=\"pillx\" aria-label=\"Remove " + COUNTRY_LABEL[c] + "\">&times;</button>";
     chip.querySelector(".pillx").addEventListener("click", function(){ toggleCountry(c); });
+    chip.querySelector(".colordot").addEventListener("click", function(e){
+      e.stopPropagation();
+      openColorPicker(c, chip);
+    });
+    if(countrySortMode === "manual") wireChipDrag(chip, c, row);
     row.appendChild(chip);
   });
   var addBtn = document.createElement("button");
@@ -2375,6 +2584,99 @@ function renderChips(){
   document.getElementById("chipHint").textContent = selected.length === MAX_SELECTED
     ? "All " + MAX_SELECTED + " tracked countries selected."
     : selected.length + " of " + MAX_SELECTED + " tracked countries selected.";
+}
+
+// Manual chip reordering: same technique as Dashboard's tile drag
+// (arm draggable only while the handle is held, so ordinary clicks on
+// the rest of the chip -- colour dot, remove button -- are never
+// affected), directly mutating `selected`'s own order since that's
+// exactly what "manual" mode reads back.
+var draggedChipCountry = null;
+document.addEventListener("mouseup", function(){
+  document.querySelectorAll('.chip[draggable="true"]').forEach(function(c){ c.draggable = false; });
+});
+function wireChipDrag(chip, country, row){
+  var handle = chip.querySelector(".chip-draghandle");
+  if(!handle) return;
+  handle.addEventListener("mousedown", function(){ chip.draggable = true; });
+  chip.addEventListener("dragstart", function(e){
+    e.dataTransfer.effectAllowed = "move";
+    e.dataTransfer.setData("text/plain", country);
+    draggedChipCountry = country;
+    requestAnimationFrame(function(){ chip.style.opacity = ".4"; });
+  });
+  chip.addEventListener("dragend", function(){
+    chip.style.opacity = "";
+    chip.draggable = false;
+    draggedChipCountry = null;
+    row.querySelectorAll(".chip").forEach(function(c){ c.style.boxShadow = ""; });
+  });
+  chip.addEventListener("dragover", function(e){
+    if(!draggedChipCountry || draggedChipCountry === country) return;
+    e.preventDefault();
+    chip.style.boxShadow = "inset 3px 0 0 var(--blue)";
+  });
+  chip.addEventListener("dragleave", function(){ chip.style.boxShadow = ""; });
+  chip.addEventListener("drop", function(e){
+    e.preventDefault();
+    if(!draggedChipCountry || draggedChipCountry === country) return;
+    var arr = selected.slice();
+    var fromIdx = arr.indexOf(draggedChipCountry);
+    if(fromIdx === -1) return;
+    arr.splice(fromIdx, 1);
+    var toIdx = arr.indexOf(country);
+    arr.splice(toIdx, 0, draggedChipCountry);
+    selected = arr;
+    if(window.EATLAS_PREFS) window.EATLAS_PREFS.set("compareManualOrder", selected);
+    renderAll();
+  });
+}
+
+// A single shared popover (built once, repositioned per click) rather
+// than one per chip -- chips re-render on every toggle, so a per-chip
+// popover would need rebuilding constantly for no benefit, and only
+// one can ever be open at a time anyway.
+var colorPickerPopover = null;
+function openColorPicker(country, anchorEl){
+  if(colorPickerPopover) colorPickerPopover.remove();
+  var pop = document.createElement("div");
+  pop.className = "color-picker-popover";
+  pop.style.cssText = "position:absolute; z-index:50; background:var(--paper); border:1px solid var(--hair); border-radius:10px; padding:10px; box-shadow:0 10px 28px rgba(0,0,0,.18); display:grid; grid-template-columns:repeat(5, 1fr); gap:6px; width:168px;";
+  COMPARE_PALETTE.forEach(function(hex){
+    var b = document.createElement("button");
+    b.type = "button";
+    b.title = hex;
+    var isActive = countryColorOverrides[country] === hex;
+    b.style.cssText = "width:24px; height:24px; border-radius:6px; border:2px solid " + (isActive ? "var(--ink)" : "transparent") + "; background:" + hex + "; cursor:pointer; padding:0;";
+    b.addEventListener("click", function(){
+      setCountryColorOverride(country, hex);
+      pop.remove();
+      colorPickerPopover = null;
+      renderAll();
+    });
+    pop.appendChild(b);
+  });
+  var resetBtn = document.createElement("button");
+  resetBtn.type = "button";
+  resetBtn.textContent = "Reset to default";
+  resetBtn.style.cssText = "grid-column:1/-1; margin-top:4px; font-size:11px; background:none; border:none; color:var(--ink2); cursor:pointer; text-decoration:underline; padding:2px 0;";
+  resetBtn.addEventListener("click", function(){
+    setCountryColorOverride(country, null);
+    pop.remove();
+    colorPickerPopover = null;
+    renderAll();
+  });
+  pop.appendChild(resetBtn);
+  document.body.appendChild(pop);
+  var rect = anchorEl.getBoundingClientRect();
+  pop.style.top = (window.scrollY + rect.bottom + 6) + "px";
+  pop.style.left = (window.scrollX + rect.left) + "px";
+  colorPickerPopover = pop;
+  setTimeout(function(){
+    document.addEventListener("click", function closePop(e){
+      if(!pop.contains(e.target)){ pop.remove(); if(colorPickerPopover === pop) colorPickerPopover = null; document.removeEventListener("click", closePop); }
+    });
+  }, 0);
 }
 
 /* --------------------------- country picker modal -------------------------- */
@@ -2396,9 +2698,9 @@ function renderCountryPicker(){
       var item = document.createElement("label");
       item.className = "picker-item" + (isOn ? " active" : "");
       item.dataset.country = c; // lets the tour engine target a specific country reliably
-      if(isOn) item.style.background = COUNTRY_COLOR[c];
+      if(isOn) item.style.background = getCountryColor(c);
       item.innerHTML = "<input type=\"checkbox\"" + (isOn ? " checked" : "") + ">"
-        + "<span class=\"dot\" style=\"background:" + (isOn ? "#fff" : COUNTRY_COLOR[c]) + ";\"></span>" + COUNTRY_LABEL[c];
+        + "<span class=\"dot\" style=\"background:" + (isOn ? "#fff" : getCountryColor(c)) + ";\"></span>" + COUNTRY_LABEL[c];
       item.querySelector("input").addEventListener("change", function(){
         toggleCountry(c);
         renderCountryPicker();
@@ -2478,6 +2780,7 @@ function buildBarChart(canvas, concept){
     var dv = getDisplayValue(c, concept);
     return {country: c, dv: dv};
   });
+  rows = sortRowsByMode(rows, function(r){ return r.dv ? r.dv.value : null; });
   if(!rows.some(function(r){ return r.dv != null; })) return null;
   var firstReal = rows.filter(function(r){ return r.dv != null; })[0].dv;
   var isCumulative = firstReal.isCumulative;
@@ -2508,7 +2811,7 @@ function buildBarChart(canvas, concept){
       labels: rows.map(function(r){ return r.country; }),
       datasets: [{
         data: rows.map(function(r){ return r.dv ? r.dv.value : null; }),
-        backgroundColor: rows.map(function(r){ return COUNTRY_COLOR[r.country]; }),
+        backgroundColor: rows.map(function(r){ return getCountryColor(r.country); }),
         borderRadius: 5
       }]
     },
@@ -2562,7 +2865,7 @@ function buildLineChart(canvas, concept){
     datasets.push({
       label: c,
       data: plotPts,
-      borderColor: COUNTRY_COLOR[c],
+      borderColor: getCountryColor(c),
       backgroundColor: "transparent",
       borderWidth: 2, pointRadius: 0, pointHitRadius: 8, tension: 0.15
     });
@@ -2620,7 +2923,7 @@ function renderBarRankList(container, concept, rows, chart){
     li.className = "tpm-rankrow";
     var fresh = countryFreshness(r.country, concept);
     li.innerHTML = "<span class=\"tpm-ranknum\">" + (i + 1) + "</span>"
-      + "<span class=\"tpm-rankswatch\" style=\"background:" + COUNTRY_COLOR[r.country] + ";\"></span>"
+      + "<span class=\"tpm-rankswatch\" style=\"background:" + getCountryColor(r.country) + ";\"></span>"
       + "<span class=\"tpm-rankname\">" + r.country + "</span>"
       + "<span class=\"tpm-rankvalue\">" + (fresh ? "<span class=\"led " + fresh.led + "\" title=\"" + fresh.title + "\" role=\"img\" aria-label=\"" + fresh.title + "\"></span>" : "") + displayString(r.dv) + "<span class=\"per\">" + periodLabelFor(r.dv) + "</span></span>";
     li.addEventListener("mouseenter", function(){ highlightBarIndex(chart, idx, true); });
@@ -2651,7 +2954,7 @@ function renderLineRankList(container, concept, datasets, chart){
     li.className = "tpm-rankrow";
     var fresh = countryFreshness(r.label, concept);
     li.innerHTML = "<span class=\"tpm-ranknum\">" + (i + 1) + "</span>"
-      + "<span class=\"tpm-rankswatch\" style=\"background:" + COUNTRY_COLOR[r.label] + ";\"></span>"
+      + "<span class=\"tpm-rankswatch\" style=\"background:" + getCountryColor(r.label) + ";\"></span>"
       + "<span class=\"tpm-rankname\">" + r.label + "</span>"
       + "<span class=\"tpm-rankvalue\">" + (fresh ? "<span class=\"led " + fresh.led + "\" title=\"" + fresh.title + "\" role=\"img\" aria-label=\"" + fresh.title + "\"></span>" : "") + valText + "<span class=\"per\">" + fmtPeriod(r.period) + "</span></span>";
     li.addEventListener("mouseenter", function(){ highlightLineIndex(chart, r.idx, true); });
@@ -2711,6 +3014,7 @@ function buildCardShell(concept, hasHistory, mode){
   card.dataset.concept = concept;
   card.innerHTML = "<button type=\"button\" class=\"card-remove\" aria-label=\"Remove this card\" title=\"Remove this card\">&times;</button>"
     + "<h3 class=\"card-title\"></h3>"
+    + "<div class=\"card-avg-readout\" style=\"font-size:11.5px; color:var(--ink2); margin:-6px 0 8px;\"></div>"
     + (hasHistory ? "<div class=\"charttoggle\"><button type=\"button\" data-mode=\"bar\">Bar</button><button type=\"button\" data-mode=\"line\">Line</button></div>" : "")
     + "<div class=\"horizonrow card-time-row\">"
       + "<span class=\"hlabel\">Compare:</span>"
@@ -2884,6 +3188,23 @@ function fillCardChart(card, concept){
 
   var canvas = card.querySelector("canvas");
   var titleEl = card.querySelector(".card-title");
+  var avgEl = card.querySelector(".card-avg-readout");
+  if(avgEl){
+    // A tile-level readout, deliberately simpler than Customise &
+    // Export's own "Use group average" (which averages exactly
+    // whatever's rendered in that specific view, line or snapshot) --
+    // here it's always the average of each selected country's current
+    // value for this concept, regardless of whether the card is
+    // currently showing Bar or Line, since that's the one number a
+    // glance at the tile itself can meaningfully show.
+    var dvs = selected.map(function(c){ return getDisplayValue(c, concept); }).filter(function(dv){ return dv != null; });
+    if(dvs.length){
+      var avgVal = dvs.reduce(function(a, dv){ return a + dv.value; }, 0) / dvs.length;
+      avgEl.textContent = "Group average: " + displayString({ value: avgVal, unit: dvs[0].unit, rawUnit: dvs[0].rawUnit, isCumulative: dvs[0].isCumulative, isDelta: dvs[0].isDelta, year: dvs[0].year });
+    } else {
+      avgEl.textContent = "";
+    }
+  }
   var explEl = card.querySelector(".card-expl");
   var rankBody = card.querySelector(".tpm-rank-body");
   rankBody.innerHTML = "";
@@ -2954,7 +3275,7 @@ function fillCardChart(card, concept){
       var czIsCumulative = czRealDv.length ? czRealDv[0].isCumulative : false;
       var czRawUnit = czRealDv.length ? czRealDv[0].rawUnit : null;
       var czSnapshotRows = barResult.rows.map(function(r){
-        return { country: r.country, value: r.dv ? r.dv.value : null, color: COUNTRY_COLOR[r.country] };
+        return { country: r.country, value: r.dv ? r.dv.value : null, color: getCountryColor(r.country) };
       });
       var czSnapFmtY = (CONCEPT_UNIT[concept] === "currency" && !czIsCumulative)
         ? function(v){ return curFmt(v, czRawUnit || "$m", 0); }
@@ -3045,7 +3366,7 @@ function renderTable(){
   }).join("");
 
   var bodyRows = rows.map(function(r){
-    var cells = "<td class=\"country\"><span class=\"swatch\" style=\"background:" + COUNTRY_COLOR[r.country] + ";\"></span>" + r.country + "</td>";
+    var cells = "<td class=\"country\"><span class=\"swatch\" style=\"background:" + getCountryColor(r.country) + ";\"></span>" + r.country + "</td>";
     metricsToShow.forEach(function(m){
       var v = r[m], dv = r[m + "_dv"];
       var extremeCls = "";
@@ -3148,11 +3469,100 @@ function renderAll(){
   // currently-open per-card maps redraw themselves afterwards, since a
   // full renderCharts() rebuild replaces card DOM (including any open
   // map's container) each time.
-  [renderChips, renderCharts, renderTable].forEach(function(fn){
+  [renderChips, renderCharts, renderTable, applyChartViewMode].forEach(function(fn){
     try { fn(); } catch(e) { console.error(fn.name + " failed:", e); }
   });
   try { redrawAllOpenMaps(); } catch(e) { console.error("redrawAllOpenMaps failed:", e); }
 }
+
+/* --------------------------- chart view mode ------------------------------ */
+// Stacked (default, unchanged behaviour) shows every added metric as
+// its own full section, scrolled through top to bottom. Tabbed shows
+// only a subset at a time (1, 2, or 4, chosen by showCount) with a tab
+// row to flick between the rest -- addresses the specific feedback
+// about needing to scroll through many stacked charts just to compare
+// a couple of them side by side.
+//
+// This deliberately does NOT touch renderCharts() -- every card for
+// every visibleMetrics concept still gets built and inserted into the
+// DOM exactly as before (so charts, sliders, and per-card state all
+// keep working unmodified); this just shows/hides them afterwards via
+// each card's existing data-concept attribute. Filtering after the
+// fact is far lower-risk than threading a "should I even build this
+// card" condition through renderCharts() and buildCardShell().
+var chartViewMode = "stacked";
+var tabbedShowCount = 1;
+var activeTabConcepts = [];
+function applyChartViewMode(){
+  var showCountWrap = document.getElementById("tabbedShowCountWrap");
+  var tabRow = document.getElementById("metricTabRow");
+  var grid = document.getElementById("chartGrid");
+  var cards = Array.prototype.slice.call(grid.querySelectorAll(".metric-card"));
+
+  if(chartViewMode === "stacked"){
+    showCountWrap.style.display = "none";
+    tabRow.style.display = "none";
+    cards.forEach(function(c){ c.style.display = ""; });
+    return;
+  }
+
+  showCountWrap.style.display = "flex";
+  tabRow.style.display = "flex";
+
+  // visibleMetrics may have changed (a metric added/removed) since
+  // activeTabConcepts was last set -- keep whichever active concepts
+  // are still valid, and top up from the front of visibleMetrics if
+  // the active set has shrunk below showCount or gone empty.
+  activeTabConcepts = activeTabConcepts.filter(function(c){ return visibleMetrics.indexOf(c) !== -1; });
+  visibleMetrics.forEach(function(c){
+    if(activeTabConcepts.length < tabbedShowCount && activeTabConcepts.indexOf(c) === -1) activeTabConcepts.push(c);
+  });
+  activeTabConcepts = activeTabConcepts.slice(0, tabbedShowCount);
+
+  tabRow.innerHTML = "";
+  visibleMetrics.forEach(function(concept){
+    var tab = document.createElement("button");
+    tab.type = "button";
+    tab.className = "chip" + (activeTabConcepts.indexOf(concept) !== -1 ? " active" : "");
+    tab.style.cssText = activeTabConcepts.indexOf(concept) !== -1
+      ? "border:1.5px solid var(--blue); background:var(--blue); color:#fff; padding:6px 14px; border-radius:999px; font:600 12.5px inherit; cursor:pointer;"
+      : "border:1.5px solid var(--hair); background:var(--paper); color:var(--ink); padding:6px 14px; border-radius:999px; font:600 12.5px inherit; cursor:pointer;";
+    tab.textContent = CONCEPT_LABEL[concept] || concept;
+    tab.addEventListener("click", function(){
+      // Clicking an inactive tab swaps it in for the OLDEST currently-
+      // active one (simple FIFO) rather than requiring the person to
+      // manually deselect something first -- "flick through" should
+      // feel like one click per switch, not two.
+      var idx = activeTabConcepts.indexOf(concept);
+      if(idx !== -1){
+        if(activeTabConcepts.length > 1) activeTabConcepts.splice(idx, 1);
+      } else {
+        activeTabConcepts.push(concept);
+        if(activeTabConcepts.length > tabbedShowCount) activeTabConcepts.shift();
+      }
+      applyChartViewMode();
+    });
+    tabRow.appendChild(tab);
+  });
+
+  cards.forEach(function(c){
+    c.style.display = activeTabConcepts.indexOf(c.dataset.concept) !== -1 ? "" : "none";
+  });
+}
+document.getElementById("chartViewSeg").querySelectorAll("button").forEach(function(btn){
+  btn.addEventListener("click", function(){
+    document.getElementById("chartViewSeg").querySelectorAll("button").forEach(function(b){ b.classList.remove("active"); });
+    btn.classList.add("active");
+    chartViewMode = btn.dataset.view;
+    if(window.EATLAS_PREFS) window.EATLAS_PREFS.set("compareChartViewMode", chartViewMode);
+    applyChartViewMode();
+  });
+});
+document.getElementById("tabbedShowCount").addEventListener("change", function(e){
+  tabbedShowCount = parseInt(e.target.value, 10) || 1;
+  if(window.EATLAS_PREFS) window.EATLAS_PREFS.set("compareTabbedShowCount", tabbedShowCount);
+  applyChartViewMode();
+});
 loadAll().then(function(){
   document.getElementById("loadMsg").style.display = "none";
   document.getElementById("mainContent").style.display = "block";
@@ -3168,6 +3578,36 @@ loadAll().then(function(){
 
   if(window.EATLAS_PREFS){
     window.EATLAS_PREFS.ready.then(function(){
+      var savedColors = window.EATLAS_PREFS.get("countryColorOverrides", null);
+      if(savedColors && typeof savedColors === "object") countryColorOverrides = savedColors;
+      var savedSortMode = window.EATLAS_PREFS.get("countrySortMode", null);
+      if(savedSortMode){
+        countrySortMode = savedSortMode;
+        var sel = document.getElementById("countrySortSelect");
+        if(sel) sel.value = savedSortMode;
+      }
+      var savedManualOrder = window.EATLAS_PREFS.get("compareManualOrder", null);
+      if(Array.isArray(savedManualOrder) && savedManualOrder.length){
+        // Manual order only replaces `selected`'s ordering for countries
+        // still actually selected -- a country removed since the order
+        // was saved shouldn't leave a stale gap or resurrect itself.
+        var stillSelected = selected.filter(function(c){ return savedManualOrder.indexOf(c) !== -1; });
+        var reordered = savedManualOrder.filter(function(c){ return stillSelected.indexOf(c) !== -1; });
+        selected.forEach(function(c){ if(reordered.indexOf(c) === -1) reordered.push(c); });
+        selected = reordered;
+      }
+      var savedViewMode = window.EATLAS_PREFS.get("compareChartViewMode", null);
+      if(savedViewMode === "tabbed" || savedViewMode === "stacked"){
+        chartViewMode = savedViewMode;
+        document.getElementById("chartViewSeg").querySelectorAll("button").forEach(function(b){
+          b.classList.toggle("active", b.dataset.view === savedViewMode);
+        });
+      }
+      var savedShowCount = window.EATLAS_PREFS.get("compareTabbedShowCount", null);
+      if(savedShowCount === 1 || savedShowCount === 2 || savedShowCount === 4){
+        tabbedShowCount = savedShowCount;
+        document.getElementById("tabbedShowCount").value = String(savedShowCount);
+      }
       var saved = window.EATLAS_PREFS.get("compareMetrics", null);
       if(Array.isArray(saved) && saved.length && saved.every(function(m){ return CONCEPT_LABEL[m]; })){
         visibleMetrics = saved;
@@ -3501,9 +3941,22 @@ window.EATLAS_COMPARE = {
           <div style="display:flex; align-items:center; justify-content:space-between; font-size:12.5px; margin-bottom:8px;">
             <span>Reference line</span>
             <div style="display:flex; align-items:center; gap:6px;">
+              <button type="button" id="czUseAverageBtn" style="font-size:11px; padding:4px 8px; border:1px solid var(--hair); border-radius:999px; background:var(--paper); color:var(--ink2); cursor:pointer;">Use group average</button>
               <input type="checkbox" id="czReflineToggle">
-              <input type="number" id="czReflineValue" value="0" step="0.1" style="width:58px; padding:4px 6px; border:1px solid var(--hair); border-radius:5px; background:var(--paper); font:inherit; font-size:12px;">
+              <input type="number" id="czReflineValue" value="0" step="0.1" style="width:58px; padding:4px 6px; border:1px solid var(--hair); border-radius:5px; background:var(--paper); color:var(--ink); font:inherit; font-size:12px;">
             </div>
+          </div>
+          <div id="czCenterRefField" style="display:none; align-items:center; justify-content:space-between; font-size:12.5px; margin-bottom:8px;">
+            <span>Centre axis around reference line</span>
+            <input type="checkbox" id="czCenterRefToggle" style="width:15px; height:15px;">
+          </div>
+          <div id="czThresholdShadeField" style="display:none; align-items:center; justify-content:space-between; font-size:12.5px; margin-bottom:8px;">
+            <span>Colour bars by above/below reference line (overrides country colours)</span>
+            <input type="checkbox" id="czThresholdShadeToggle" style="width:15px; height:15px;">
+          </div>
+          <div id="czLogScaleField" style="display:flex; align-items:center; justify-content:space-between; font-size:12.5px; margin-bottom:8px;">
+            <span id="czLogScaleLabel">Log scale</span>
+            <input type="checkbox" id="czLogScaleToggle" style="width:15px; height:15px;">
           </div>
           <div style="display:grid; grid-template-columns:1fr 1fr; gap:6px 20px;">
             <div style="display:flex; align-items:center; justify-content:space-between; font-size:12px; color:var(--ink2);">
@@ -3655,6 +4108,181 @@ window.EATLAS_COMPARE = {
     }
     return { ticks: ticks, min: niceMin, max: niceMax };
   }
+  function niceStepCandidates(rawMin, rawMax){
+    var range = niceNum(Math.max(rawMax - rawMin, 1e-9), false);
+    var baseExp = Math.floor(Math.log10(range));
+    var fracs = [10, 5, 2.5, 2, 1];
+    var raw = [];
+    for(var e = baseExp + 2; e >= baseExp - 3; e--){
+      for(var i = 0; i < fracs.length; i++) raw.push(fracs[i] * Math.pow(10, e));
+    }
+    raw = raw.filter(function(v, i, arr){ return arr.indexOf(v) === i; });
+    raw.sort(function(a, b){ return b - a; });
+    // Count ticks the SAME way the axis actually renders them (via
+    // niceTicksFromStep against the real rawMin/rawMax), not via a
+    // formula estimate off the rounded 'range' -- an estimate-based
+    // count can still under/over-count relative to what actually
+    // renders (rounding rawMin/rawMax up/down to the nearest step can
+    // add a tick the formula didn't predict), which silently let
+    // through duplicate-count candidates the first version of this
+    // function was supposed to remove.
+    var withCounts = raw.map(function(step){
+      return { step: step, n: niceTicksFromStep(rawMin, rawMax, step).ticks.length };
+    }).filter(function(c){ return c.n >= 2 && c.n <= 15; })
+      // A step several orders of magnitude too large for the actual
+      // data (e.g. a step of 10,000 for a series spanning -2 to 6) can
+      // still innocently pass the n>=2/n<=15 count filter -- rounding
+      // a tiny span up to the nearest huge step naturally lands on a
+      // "3 ticks" result even though the resulting axis (-10,000 to
+      // 10,000) bears no relation to the real data. Left in, these
+      // waste index slots and make small-range series (percentages,
+      // rates) saturate after only 2-3 useful clicks. Capping how much
+      // wider than the true data span the rounded axis is allowed to
+      // be excludes exactly these degenerate cases without touching
+      // any candidate that's actually a sensible zoom level.
+      .filter(function(c){
+        var trueSpan = Math.max(rawMax - rawMin, 1e-9);
+        var niceSpan = niceTicksFromStep(rawMin, rawMax, c.step).max - niceTicksFromStep(rawMin, rawMax, c.step).min;
+        return niceSpan <= trueSpan * 4;
+      });
+    // Several large steps (e.g. 1bn, 500m, 100m for a ~4tn range) all
+    // round the same data down to the same "2 ticks" result -- keeping
+    // every one of them as a separate index is what caused the original
+    // bug in a different guise: clicking + would silently re-select a
+    // different step that LOOKS identical because it produces the same
+    // tick count. Collapsing consecutive candidates that share a tick
+    // count down to a single entry (the largest such step, i.e. the
+    // roundest number) guarantees every remaining index is a genuinely
+    // distinct, visibly different result.
+    var out = [];
+    var lastN = null;
+    withCounts.forEach(function(c){
+      if(c.n !== lastN){ out.push(c.step); lastN = c.n; }
+    });
+    if(!out.length) out = [range / 4 || 1];
+    return out;
+  }
+  function niceTicksFromStep(rawMin, rawMax, step){
+    var niceMin = Math.floor(rawMin / step) * step;
+    var niceMax = Math.ceil(rawMax / step) * step;
+    var ticks = [];
+    for(var v = niceMin; v <= niceMax + step * 0.5; v += step){
+      ticks.push(Math.round(v / step) * step);
+    }
+    return { ticks: ticks, min: niceMin, max: niceMax };
+  }
+  // Picks the step-candidate index (out of niceStepCandidates()) whose
+  // resulting tick count is closest to targetCount -- used only once,
+  // to establish a sensible DEFAULT index when the modal first opens
+  // for a chart (so it still starts out looking like ~5 ticks), never
+  // called again afterwards. From then on the index is just walked
+  // directly by the +/- buttons.
+  
+  function defaultStepIdxFor(rawMin, rawMax, targetCount){
+    var candidates = niceStepCandidates(rawMin, rawMax);
+    var bestIdx = 0, bestDiff = Infinity;
+    for(var i = 0; i < candidates.length; i++){
+      var n = Math.ceil((rawMax - rawMin) / candidates[i]) + 1;
+      var diff = Math.abs(n - targetCount);
+      if(diff < bestDiff){ bestDiff = diff; bestIdx = i; }
+    }
+    return bestIdx;
+  }
+
+  function niceLogTicks(minV, maxV){
+    var loE = Math.floor(Math.log10(minV)) - 1;
+    var hiE = Math.ceil(Math.log10(maxV)) + 1;
+    var mults = [1, 2, 5];
+    var candidates = [];
+    for(var e = loE; e <= hiE; e++){
+      mults.forEach(function(m){ candidates.push(m * Math.pow(10, e)); });
+    }
+    candidates = candidates.filter(function(v, i, arr){ return arr.indexOf(v) === i; }).sort(function(a, b){ return a - b; });
+    // The axis bounds MUST bracket the true data range, not just the
+    // displayed tick labels -- picking ticks[0] as the axis minimum (the
+    // earlier version of this function) meant that whenever no nice 1/2/5
+    // value happened to land close to the real minimum, the chosen floor
+    // could end up ABOVE it, silently clamping every point below that
+    // floor to the bottom edge of the chart (a flat line, not a gap --
+    // easy to miss unless you're looking for it). axisMin/axisMax are
+    // picked independently as the nearest nice value at-or-below /
+    // at-or-above the true data, and the displayed ticks are then
+    // whichever nice candidates fall within that bracket.
+    var axisMin = minV, axisMax = maxV;
+    for(var i = candidates.length - 1; i >= 0; i--){
+      if(candidates[i] <= minV * 1.0001){ axisMin = candidates[i]; break; }
+    }
+    for(var j = 0; j < candidates.length; j++){
+      if(candidates[j] >= maxV * 0.9999){ axisMax = candidates[j]; break; }
+    }
+    var ticks = candidates.filter(function(v){ return v >= axisMin * 0.999 && v <= axisMax * 1.001; });
+    if(ticks.length < 2) ticks = [axisMin, axisMax];
+    return { ticks: ticks, min: axisMin, max: axisMax };
+  }
+
+  // Single shared axis-bounds computation for BOTH czmGeom (line/"over
+  // time") and czmSnapshotGeom (bar/snapshot) -- the two have genuinely
+  // different geometry (dates vs categorical country slots) so their
+  // x-axis logic can't be unified, but the Y-axis bounds logic (nice
+  // linear ticks, log ticks, or centred-around-a-value ticks) is
+  // identical between them, so it lives here once rather than being
+  // duplicated and risking the two drifting apart.
+  //
+  // "Centre around reference line" is Compare's version of the
+  // business-confidence-style centring country pages get for free from
+  // centeredIndexScale() on their live chart -- generalised to any
+  // reference value, not hardcoded to 100, and available here in the
+  // modal too (which centeredIndexScale never touched, since it only
+  // wires into the live inline Chart.js render).
+  function czmAxisBounds(rawMin, rawMax, stepIdx, useLog, centerAroundRef, refLineValue, refLineEnabled){
+    if(centerAroundRef && refLineEnabled){
+      var maxDev = Math.max(Math.abs(rawMax - refLineValue), Math.abs(rawMin - refLineValue), 1e-9);
+      var candidates = niceStepCandidates(refLineValue - maxDev, refLineValue + maxDev);
+      var idx = Math.max(0, Math.min(candidates.length - 1, stepIdx));
+      var step = candidates[idx] || (maxDev / 4) || 1;
+      var roundedDev = Math.ceil(maxDev / step) * step;
+      if(roundedDev === 0) roundedDev = step;
+      var cMin = refLineValue - roundedDev, cMax = refLineValue + roundedDev;
+      var cTicks = [];
+      for(var v = cMin; v <= cMax + step * 0.5; v += step) cTicks.push(Math.round(v / step) * step);
+      return { minV: cMin, maxV: cMax, ticks: cTicks };
+    }
+    if(useLog){
+      var lg = niceLogTicks(rawMin, rawMax);
+      return { minV: lg.min, maxV: lg.max, ticks: lg.ticks };
+    }
+    var stepCandidates = niceStepCandidates(rawMin, rawMax);
+    var sIdx = Math.max(0, Math.min(stepCandidates.length - 1, stepIdx));
+    var nice = niceTicksFromStep(rawMin, rawMax, stepCandidates[sIdx]);
+    return { minV: nice.min, maxV: nice.max, ticks: nice.ticks };
+  }
+  // Shared Y-pixel mapper -- log mode clamps its INPUT to minV before
+  // taking a log (log of a value below/at 0 is undefined), and both
+  // modes clamp their OUTPUT pixel position to the plot's visible
+  // bounds, so a reference line (or, now, any value) that sits outside
+  // [minV, maxV] still renders pinned to the nearest edge rather than
+  // going missing off the chart or producing NaN/Infinity coordinates.
+  function czmMakeYMapper(minV, maxV, useLog, padT, plotH){
+    return function(v){
+      var py;
+      if(useLog){
+        var vc = Math.max(v, minV);
+        py = padT + plotH - ((Math.log10(vc) - Math.log10(minV)) / (Math.log10(maxV) - Math.log10(minV))) * plotH;
+      } else {
+        py = padT + plotH - ((v - minV) / (maxV - minV)) * plotH;
+      }
+      return Math.max(padT, Math.min(padT + plotH, py));
+    };
+  }
+  // Same positivity requirement as country pages: log scale is only
+  // offered once every value actually in view -- including the
+  // reference line, if enabled -- is strictly positive.
+  function czmLogAvailable(vals, refLineEnabled, refLineValue){
+    var v = vals.slice();
+    if(refLineEnabled) v.push(refLineValue);
+    return v.length > 0 && v.every(function(x){ return x > 0; });
+  }
+
   // Axis ticks are always "nice round numbers" (from niceTicks), so a
   // formatter tuned for precise values (2dp currency, etc.) tends to
   // print redundant trailing zeros here -- $35.00tn instead of $35tn.
@@ -3754,22 +4382,29 @@ window.EATLAS_COMPARE = {
       czmFilteredSeries(s).forEach(function(p){ allVals.push(p[1]); });
     });
     if(allVals.length === 0) allVals = [0, 1];
-    if(czmState.refLine.enabled) allVals.push(czmState.refLine.value);
+    // The reference line does NOT feed into rawMin/rawMax -- it's a
+    // threshold marker, not a data point. Letting it in meant a
+    // reference value far from the real data (business confidence's
+    // default of 100 against a chart that never leaves 95-105, say)
+    // dragged the whole axis to accommodate it. czmMakeYMapper's output
+    // clamp handles the "reference line is off-chart" case honestly
+    // instead (see its own comment).
     var rawMin = Math.min.apply(null, allVals), rawMax = Math.max.apply(null, allVals);
-    var nice = niceTicks(rawMin, rawMax, czmState.yTicks);
-    var minV = nice.min, maxV = nice.max;
+    var useLog = czmState.yScale === "log" && czmLogAvailable(allVals, czmState.refLine.enabled, czmState.refLine.value);
+    var bounds = czmAxisBounds(rawMin, rawMax, czmState.yTickStepIdx, useLog, czmState.centerAroundRef, czmState.refLine.value, czmState.refLine.enabled);
+    var minV = bounds.minV, maxV = bounds.maxV;
     var padT = (czmState.yTitlePos === "above" ? G.padT + 18 : G.padT) + (czmState.chartTitle ? 24 : 0);
     var plotW = G.W - G.padL - G.padR, plotH = G.H - padT - padB;
     var n = Math.max(1, UNIFIED_DATES.length);
     return {
       minV: minV, maxV: maxV, plotW: plotW, plotH: plotH, padB: padB, padT: padT,
-      yTickValues: nice.ticks,
+      yTickValues: bounds.ticks, yScale: useLog ? "log" : "linear",
       xForDate: function(dateStr){
         var idx = nearestUnifiedIndex(dateStr);
         return G.padL + (n === 1 ? plotW / 2 : (idx / (n - 1)) * plotW);
       },
       xForIndex: function(idx){ return G.padL + (n === 1 ? plotW / 2 : (idx / (n - 1)) * plotW); },
-      y: function(v){ return padT + plotH - ((v - minV) / (maxV - minV)) * plotH; }
+      y: czmMakeYMapper(minV, maxV, useLog, padT, plotH)
     };
   }
 
@@ -3789,19 +4424,24 @@ window.EATLAS_COMPARE = {
     var padB = czmBottomLayout(false, czmState.srcNote).padB;
     var vals = rows.map(function(r){ return r.value; }).filter(function(v){ return v != null; });
     if(vals.length === 0) vals = [0, 1];
-    if(czmState.refLine.enabled) vals.push(czmState.refLine.value);
-    var rawMin = Math.min(0, Math.min.apply(null, vals)), rawMax = Math.max(0, Math.max.apply(null, vals));
-    var nice = niceTicks(rawMin, rawMax, czmState.yTicks);
+    var useLog = czmState.yScale === "log" && czmLogAvailable(vals, czmState.refLine.enabled, czmState.refLine.value);
+    // Bars conventionally draw from a zero baseline, so 0 is always
+    // folded into the range here (unlike czmGeom's line mode, which
+    // doesn't force it) -- except under log scale, where 0 is
+    // undefined and forcing it in would break niceLogTicks entirely.
+    var rawMin = useLog ? Math.min.apply(null, vals) : Math.min(0, Math.min.apply(null, vals));
+    var rawMax = useLog ? Math.max.apply(null, vals) : Math.max(0, Math.max.apply(null, vals));
+    var bounds = czmAxisBounds(rawMin, rawMax, czmState.yTickStepIdx, useLog, czmState.centerAroundRef, czmState.refLine.value, czmState.refLine.enabled);
     var padT = (czmState.yTitlePos === "above" ? G.padT + 18 : G.padT) + (czmState.chartTitle ? 24 : 0);
     var plotW = G.W - G.padL - G.padR, plotH = G.H - padT - padB;
     var n = Math.max(1, rows.length);
     var slot = plotW / n;
     return {
-      minV: nice.min, maxV: nice.max, plotW: plotW, plotH: plotH, padB: padB, padT: padT,
-      yTickValues: nice.ticks,
+      minV: bounds.minV, maxV: bounds.maxV, plotW: plotW, plotH: plotH, padB: padB, padT: padT,
+      yTickValues: bounds.ticks, yScale: useLog ? "log" : "linear",
       xForIndex: function(i){ return G.padL + slot * (i + 0.5); },
       barWidth: Math.min(64, slot * 0.6),
-      y: function(v){ return padT + plotH - ((v - nice.min) / (nice.max - nice.min)) * plotH; }
+      y: czmMakeYMapper(bounds.minV, bounds.maxV, useLog, padT, plotH)
     };
   }
   // Renders an x-axis tick label at (x,y), honouring czmState.xLabelAngle
@@ -3854,11 +4494,26 @@ window.EATLAS_COMPARE = {
     if(czmState.refLine.enabled){
       var ry = gm.y(czmState.refLine.value);
       svg.push("<line x1='" + G.padL + "' y1='" + ry.toFixed(1) + "' x2='" + (G.W - G.padR) + "' y2='" + ry.toFixed(1) + "' stroke='" + t.annot + "' stroke-width='1.3' stroke-dasharray='4,3'/>");
-      svg.push("<text x='" + (G.padL - 10) + "' y='" + (ry + 4).toFixed(1) + "' font-size='11' fill='" + t.ink2 + "' text-anchor='end'>" + czmAxisTickLabel(czmState.refLine.value, gm.yTickValues, czmState.fmtY) + "</text>");
+      // Same pixel-distance collision check used on country pages:
+      // range-containment alone isn't enough, since a linear axis floor
+      // often rounds down to exactly the reference value's neighbourhood
+      // (e.g. 0), landing the label on top of a tick's own label even
+      // though the value is technically "in range".
+      var collidesWithTick = gm.yTickValues.some(function(tv){ return Math.abs(gm.y(tv) - ry) < 9; });
+      if(!collidesWithTick){
+        svg.push("<text x='" + (G.padL - 10) + "' y='" + (ry + 4).toFixed(1) + "' font-size='11' fill='" + t.ink2 + "' text-anchor='end'>" + czmAxisTickLabel(czmState.refLine.value, gm.yTickValues, czmState.fmtY) + "</text>");
+      }
     }
 
     var axisBottomY = gm.padT + gm.plotH;
     var bl = czmBottomLayout(false, czmState.srcNote);
+    // "Colour bars by above/below reference line" is opt-in and
+    // deliberately overrides each country's own identity colour --
+    // that's the whole point (grouping by value rather than by which
+    // country each bar is), so it's only ever active when the person
+    // has explicitly asked for it via the checkbox, never a silent
+    // default.
+    var useThresholdColor = czmState.refLine.enabled && czmState.thresholdShadeBars;
     rows.forEach(function(r, i){
       var bx = gm.xForIndex(i);
       if(r.value == null){
@@ -3868,7 +4523,10 @@ window.EATLAS_COMPARE = {
         var by = gm.y(r.value);
         var top = Math.min(by, zeroY);
         var h = Math.max(0.6, Math.abs(by - zeroY));
-        svg.push("<rect x='" + (bx - gm.barWidth / 2).toFixed(1) + "' y='" + top.toFixed(1) + "' width='" + gm.barWidth.toFixed(1) + "' height='" + h.toFixed(1) + "' rx='3' fill='" + r.color + "'/>");
+        var barColor = useThresholdColor
+          ? (r.value >= czmState.refLine.value ? "#348FA7" : "#413D7B")
+          : r.color;
+        svg.push("<rect x='" + (bx - gm.barWidth / 2).toFixed(1) + "' y='" + top.toFixed(1) + "' width='" + gm.barWidth.toFixed(1) + "' height='" + h.toFixed(1) + "' rx='3' fill='" + barColor + "'/>");
       }
       svg.push(czmXAxisLabelSVG(bx, axisBottomY + bl.oLabels, r.country, t.ink2));
     });
@@ -3960,7 +4618,10 @@ window.EATLAS_COMPARE = {
     if(czmState.refLine.enabled){
       var ry = gm.y(czmState.refLine.value);
       svg.push("<line x1='" + G.padL + "' y1='" + ry.toFixed(1) + "' x2='" + (G.W - G.padR) + "' y2='" + ry.toFixed(1) + "' stroke='" + t.annot + "' stroke-width='1.3' stroke-dasharray='4,3'/>");
-      svg.push("<text x='" + (G.padL - 10) + "' y='" + (ry + 4).toFixed(1) + "' font-size='11' fill='" + t.ink2 + "' text-anchor='end'>" + czmAxisTickLabel(czmState.refLine.value, gm.yTickValues, czmState.fmtY) + "</text>");
+      var collidesWithTick = gm.yTickValues.some(function(tv){ return Math.abs(gm.y(tv) - ry) < 9; });
+      if(!collidesWithTick){
+        svg.push("<text x='" + (G.padL - 10) + "' y='" + (ry + 4).toFixed(1) + "' font-size='11' fill='" + t.ink2 + "' text-anchor='end'>" + czmAxisTickLabel(czmState.refLine.value, gm.yTickValues, czmState.fmtY) + "</text>");
+      }
     }
 
     czmState.annotations.forEach(function(a, ai){
@@ -4067,8 +4728,15 @@ window.EATLAS_COMPARE = {
   var czPreviewBox = document.getElementById("czPreviewBox");
 
   function czRenderPreview(){
+    czmSyncModeFields();
     czPreviewBox.innerHTML = czmBuildSVG(czmState.exportTheme, false);
     czWireDragHandles();
+    // Mirrors country pages: the real tick count/step-candidate list
+    // depends on whatever data/date-range/mode is currently active, so
+    // read it back from whichever geometry function actually rendered
+    // rather than assuming.
+    var gm = czmState.mode === "snapshot" ? czmSnapshotGeom() : czmGeom();
+    if(czYTickVal) czYTickVal.textContent = gm.yTickValues.length;
   }
 
   function czWireDragHandles(){
@@ -4214,11 +4882,84 @@ window.EATLAS_COMPARE = {
   document.getElementById("czChartTitleInput").addEventListener("input", function(e){ czmState.chartTitle = e.target.value; czRenderPreview(); });
   document.getElementById("czYAxisTitleInput").addEventListener("input", function(e){ czmState.yTitle = e.target.value; czRenderPreview(); });
   document.getElementById("czLegendTitleInput").addEventListener("input", function(e){ czmState.legendTitle = e.target.value; czRenderPreview(); });
-  document.getElementById("czReflineToggle").addEventListener("change", function(e){ czmState.refLine.enabled = e.target.checked; czRenderPreview(); });
+  document.getElementById("czReflineToggle").addEventListener("change", function(e){
+    czmState.refLine.enabled = e.target.checked;
+    czmSyncModeFields();
+    czRenderPreview();
+  });
   document.getElementById("czReflineValue").addEventListener("input", function(e){
     czmState.refLine.value = parseFloat(e.target.value) || 0;
     if(czmState.refLine.enabled) czRenderPreview();
   });
+  document.getElementById("czUseAverageBtn").addEventListener("click", function(){
+    // "Group average" means the average of whatever values are
+    // actually visible right now -- for snapshot mode that's each
+    // selected country's current bar value; for the line/"over time"
+    // view it's every point across every series within the current
+    // date range. Both use the exact same set of values czmGeom /
+    // czmSnapshotGeom themselves use to size the axis, so the average
+    // shown is always consistent with what's on screen, not a
+    // separately-computed figure that could drift from it.
+    var vals = (czmState.mode === "snapshot")
+      ? czmEffectiveSnapshotRows().map(function(r){ return r.value; }).filter(function(v){ return v != null; })
+      : (function(){ var out = []; SERIES_LIST.forEach(function(s){ czmFilteredSeries(s).forEach(function(p){ out.push(p[1]); }); }); return out; })();
+    if(!vals.length) return;
+    var avg = vals.reduce(function(a, b){ return a + b; }, 0) / vals.length;
+    czmState.refLine.value = avg;
+    czmState.refLine.enabled = true;
+    document.getElementById("czReflineToggle").checked = true;
+    document.getElementById("czReflineValue").value = Math.round(avg * 100) / 100;
+    czmSyncModeFields();
+    czRenderPreview();
+  });
+  document.getElementById("czCenterRefToggle").addEventListener("change", function(e){
+    czmState.centerAroundRef = e.target.checked;
+    czRenderPreview();
+  });
+  document.getElementById("czLogScaleToggle").addEventListener("change", function(e){
+    czmState.yScale = e.target.checked ? "log" : "linear";
+    czRenderPreview();
+  });
+  document.getElementById("czThresholdShadeToggle").addEventListener("change", function(e){
+    czmState.thresholdShadeBars = e.target.checked;
+    czRenderPreview();
+  });
+  // Mirrors country pages' czSyncModeFields(): "Centre axis around
+  // reference line" only makes sense once a reference line exists, and
+  // log scale needs every currently-visible value (including the
+  // reference line, if on) to be strictly positive -- both re-checked
+  // on every render since the active date range/country selection can
+  // change which values are actually in view.
+  function czmSyncModeFields(){
+    document.getElementById("czCenterRefField").style.display = czmState.refLine.enabled ? "flex" : "none";
+    if(!czmState.refLine.enabled && czmState.centerAroundRef){
+      czmState.centerAroundRef = false;
+      document.getElementById("czCenterRefToggle").checked = false;
+    }
+    // Threshold-by-value bar colouring is a snapshot/bar-only concept --
+    // on the line/"over time" view, colour is what lets you track which
+    // series belongs to which country over time, so recolouring by
+    // value there would destroy that entirely rather than add to it.
+    var showThreshold = czmState.refLine.enabled && czmState.mode === "snapshot";
+    document.getElementById("czThresholdShadeField").style.display = showThreshold ? "flex" : "none";
+    if(!showThreshold && czmState.thresholdShadeBars){
+      czmState.thresholdShadeBars = false;
+      document.getElementById("czThresholdShadeToggle").checked = false;
+    }
+    var vals = (czmState.mode === "snapshot")
+      ? czmEffectiveSnapshotRows().map(function(r){ return r.value; }).filter(function(v){ return v != null; })
+      : (function(){ var out = []; SERIES_LIST.forEach(function(s){ czmFilteredSeries(s).forEach(function(p){ out.push(p[1]); }); }); return out; })();
+    var logAvailable = czmLogAvailable(vals, czmState.refLine.enabled, czmState.refLine.value);
+    var logToggle = document.getElementById("czLogScaleToggle");
+    var logLabel = document.getElementById("czLogScaleLabel");
+    logToggle.disabled = !logAvailable;
+    if(!logAvailable && czmState.yScale === "log"){ czmState.yScale = "linear"; logToggle.checked = false; }
+    logLabel.textContent = logAvailable ? "Log scale" : "Log scale (unavailable \u2014 data includes zero or negative values)";
+    logLabel.style.color = logAvailable ? "" : "var(--ink2)";
+    var isLog = czmState.yScale === "log" && logAvailable;
+    document.getElementById("czYTickMinus").disabled = isLog;
+    document.getElementById("czYTickPlus").disabled = isLog;
+  }
   var czYTitlePosSeg = document.getElementById("czYTitlePosSeg");
   czYTitlePosSeg.querySelectorAll("button").forEach(function(btn){
     btn.addEventListener("click", function(){
@@ -4230,8 +4971,8 @@ window.EATLAS_COMPARE = {
   });
   var czYTickVal = document.getElementById("czYTickVal");
   var czXTickVal = document.getElementById("czXTickVal");
-  document.getElementById("czYTickMinus").addEventListener("click", function(){ czmState.yTicks = Math.max(2, czmState.yTicks - 1); czYTickVal.textContent = czmState.yTicks; czRenderPreview(); });
-  document.getElementById("czYTickPlus").addEventListener("click", function(){ czmState.yTicks = Math.min(9, czmState.yTicks + 1); czYTickVal.textContent = czmState.yTicks; czRenderPreview(); });
+  document.getElementById("czYTickMinus").addEventListener("click", function(){ czmState.yTickStepIdx = Math.max(0, czmState.yTickStepIdx - 1); czRenderPreview(); });
+  document.getElementById("czYTickPlus").addEventListener("click", function(){ czmState.yTickStepIdx = czmState.yTickStepIdx + 1; czRenderPreview(); });
   document.getElementById("czXTickMinus").addEventListener("click", function(){ czmState.xTicks = Math.max(2, czmState.xTicks - 1); czXTickVal.textContent = czmState.xTicks; czRenderPreview(); });
   document.getElementById("czXTickPlus").addEventListener("click", function(){ czmState.xTicks = Math.min(10, czmState.xTicks + 1); czXTickVal.textContent = czmState.xTicks; czRenderPreview(); });
   var czXTickField = document.getElementById("czXTickField");
@@ -4461,10 +5202,23 @@ window.EATLAS_COMPARE = {
     var guessedYTitle = "";
     try { guessedYTitle = String(effectiveFmtY(1)).indexOf("%") !== -1 ? "%" : ""; } catch(e){ guessedYTitle = ""; }
 
+    // filenameBase is built upstream as concept + "_comparison" (see the
+    // wireMulti call site), so this is a reliable, non-invasive way to
+    // detect business_confidence without threading a new parameter
+    // through the whole call chain just for this one concept.
+    var isBizConf = /^business_confidence/.test(filenameBase || "");
+    var allValsForDefault = [];
+    seriesList.forEach(function(s){ s.points.forEach(function(p){
+      if(p[0] >= allDates[0] && p[0] <= allDates[allDates.length - 1]) allValsForDefault.push(p[1]);
+    }); });
+    if(!allValsForDefault.length) allValsForDefault = [0, 1];
+
     czmState = {
       from: allDates[0], to: allDates[allDates.length - 1],
-      showFill: false, showPoints: true, hideNoData: false, refLine: { enabled: false, value: 0 },
-      yTitlePos: "along", yTicks: 5, xTicks: 3, xLabelAngle: "straight", chartTitle: title || "", legendTitle: "",
+      showFill: false, showPoints: true, hideNoData: false,
+      refLine: { enabled: isBizConf, value: isBizConf ? 100 : 0 }, centerAroundRef: isBizConf, thresholdShadeBars: false,
+      yTitlePos: "along", yTickStepIdx: defaultStepIdxFor(Math.min.apply(null, allValsForDefault), Math.max.apply(null, allValsForDefault), 5),
+      yScale: "linear", xTicks: 3, xLabelAngle: "straight", chartTitle: title || "", legendTitle: "",
       annotations: [], exportTheme: "light",
       srcNote: srcNote, yTitle: guessedYTitle, fmtY: effectiveFmtY,
       filenameBase: (filenameBase || title || "chart").toLowerCase().replace(/[^a-z0-9]+/g, "_").replace(/^_+|_+$/g, "")
@@ -4476,8 +5230,11 @@ window.EATLAS_COMPARE = {
     document.getElementById("czLegendTitleInput").value = "";
     document.getElementById("czFillToggle").checked = false;
     document.getElementById("czPointsToggle").checked = true;
-    document.getElementById("czReflineToggle").checked = false;
-    document.getElementById("czReflineValue").value = "0";
+    document.getElementById("czReflineToggle").checked = isBizConf;
+    document.getElementById("czReflineValue").value = isBizConf ? "100" : "0";
+    document.getElementById("czCenterRefToggle").checked = isBizConf;
+    document.getElementById("czLogScaleToggle").checked = false;
+    document.getElementById("czThresholdShadeToggle").checked = false;
 
     var periodOptionsHtml = allDates.filter(function(v, i, arr){ return arr.indexOf(v) === i; })
       .map(function(d){ return "<option value='" + d + "'>" + czmFmtPeriodFn(d) + "</option>"; }).join("");
@@ -4487,11 +5244,12 @@ window.EATLAS_COMPARE = {
     document.getElementById("czToDate").value = czmState.to;
 
     czYTitlePosSeg.querySelectorAll("button").forEach(function(b){ b.classList.toggle("active", b.dataset.pos === "along"); });
-    czYTickVal.textContent = "5"; czXTickVal.textContent = "3";
+    czXTickVal.textContent = "3";
     czXAngleSeg.querySelectorAll("button").forEach(function(b){ b.classList.toggle("active", b.dataset.angle === "straight"); });
     czThemeSeg.querySelectorAll("button").forEach(function(b){ b.classList.toggle("active", b.dataset.theme === "light"); });
     czmState.annotations = [];
     czRenderAnnotList();
+    czmSyncModeFields();
     czRenderPreview();
     document.getElementById("customizeModal").hidden = false;
   };
@@ -4506,10 +5264,17 @@ window.EATLAS_COMPARE = {
     var guessedYTitle = "";
     try { guessedYTitle = String(effectiveFmtY(1)).indexOf("%") !== -1 ? "%" : ""; } catch(e){ guessedYTitle = ""; }
 
+    var isBizConf = /^business_confidence/.test(filenameBase || "");
+    var valsForDefault = rows.map(function(r){ return r.value; }).filter(function(v){ return v != null; });
+    if(!valsForDefault.length) valsForDefault = [0, 1];
+    var defRawMin = Math.min(0, Math.min.apply(null, valsForDefault)), defRawMax = Math.max(0, Math.max.apply(null, valsForDefault));
+
     czmState = {
       mode: "snapshot",
-      showFill: false, showPoints: true, hideNoData: false, refLine: { enabled: false, value: 0 },
-      yTitlePos: "along", yTicks: 5, xTicks: 3, xLabelAngle: "straight", chartTitle: title || "", legendTitle: "",
+      showFill: false, showPoints: true, hideNoData: false,
+      refLine: { enabled: isBizConf, value: isBizConf ? 100 : 0 }, centerAroundRef: isBizConf, thresholdShadeBars: false,
+      yTitlePos: "along", yTickStepIdx: defaultStepIdxFor(defRawMin, defRawMax, 5),
+      yScale: "linear", xTicks: 3, xLabelAngle: "straight", chartTitle: title || "", legendTitle: "",
       annotations: [], exportTheme: "light",
       srcNote: srcNote, yTitle: guessedYTitle, fmtY: effectiveFmtY,
       filenameBase: (filenameBase || title || "chart").toLowerCase().replace(/[^a-z0-9]+/g, "_").replace(/^_+|_+$/g, "")
@@ -4519,8 +5284,11 @@ window.EATLAS_COMPARE = {
     document.getElementById("czChartTitleInput").value = czmState.chartTitle;
     document.getElementById("czYAxisTitleInput").value = czmState.yTitle;
     document.getElementById("czLegendTitleInput").value = "";
-    document.getElementById("czReflineToggle").checked = false;
-    document.getElementById("czReflineValue").value = "0";
+    document.getElementById("czReflineToggle").checked = isBizConf;
+    document.getElementById("czReflineValue").value = isBizConf ? "100" : "0";
+    document.getElementById("czCenterRefToggle").checked = isBizConf;
+    document.getElementById("czLogScaleToggle").checked = false;
+    document.getElementById("czThresholdShadeToggle").checked = false;
 
     document.getElementById("czDateRangePanel").hidden = true;
     document.getElementById("czEventLinesPanel").hidden = true;
@@ -4530,9 +5298,10 @@ window.EATLAS_COMPARE = {
     czLegendTitleField.hidden = true;
     czPointsToggleField.hidden = true;
     czYTitlePosSeg.querySelectorAll("button").forEach(function(b){ b.classList.toggle("active", b.dataset.pos === "along"); });
-    czYTickVal.textContent = "5"; czXTickVal.textContent = "3";
+    czXTickVal.textContent = "3";
     czXAngleSeg.querySelectorAll("button").forEach(function(b){ b.classList.toggle("active", b.dataset.angle === "straight"); });
     czThemeSeg.querySelectorAll("button").forEach(function(b){ b.classList.toggle("active", b.dataset.theme === "light"); });
+    czmSyncModeFields();
     czRenderPreview();
     document.getElementById("customizeModal").hidden = false;
   };

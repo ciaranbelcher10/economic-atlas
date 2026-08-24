@@ -1990,21 +1990,31 @@ const baseOpts=(fmtTip, refLine)=>({
     zoom:zoomOpts(),
     refLine:{value: refLine==null?null:refLine}}
 });
-function chartConfig(kind, pts, fmtY, fmtTip, refLine){
+function centeredIndexScale(values){
+  var reals = (values || []).filter(function(v){ return v != null && !isNaN(v); });
+  if(!reals.length) return {};
+  var maxDeviation = Math.max.apply(null, reals.map(function(v){ return Math.abs(v - 100); }));
+  var span = Math.max(maxDeviation * 1.25, 3);
+  return {min: 100 - span, max: 100 + span};
+}
+function chartConfig(kind, pts, fmtY, fmtTip, refLine, key){
   const data = kind==="bar"
     ? {labels:pts.map(p=>p[0]), datasets:[{data:pts.map(p=>p[1]),
         backgroundColor:pts.map(p=>p[1]<0?BAR_DOWN:BAR_UP),
         borderRadius:2, categoryPercentage:0.9, barPercentage:1.0}]}
     : {labels:pts.map(p=>p[0]), datasets:[{data:pts.map(p=>p[1]), borderColor:LINE, borderWidth:2,
         pointRadius:0, pointHitRadius:8, tension:0.25}]};
-  return {type:kind==="bar"?"bar":"line", data,
-    options:{...baseOpts(fmtTip, refLine), scales:baseScales(fmtY)}};
+  const opts = {...baseOpts(fmtTip, refLine), scales:baseScales(fmtY)};
+  if(key === "business_confidence"){
+    Object.assign(opts.scales.y, centeredIndexScale(pts.map(p=>p[1])));
+  }
+  return {type:kind==="bar"?"bar":"line", data, options:opts};
 }
-function lineChart(canvas, pts, fmtY, fmtTip, refLine){
-  return new Chart(canvas, chartConfig("line", pts, fmtY, fmtTip, refLine));
+function lineChart(canvas, pts, fmtY, fmtTip, refLine, key){
+  return new Chart(canvas, chartConfig("line", pts, fmtY, fmtTip, refLine, key));
 }
-function barChart(canvas, pts, fmtY, fmtTip, refLine){
-  return new Chart(canvas, chartConfig("bar", pts, fmtY, fmtTip, refLine));
+function barChart(canvas, pts, fmtY, fmtTip, refLine, key){
+  return new Chart(canvas, chartConfig("bar", pts, fmtY, fmtTip, refLine, key));
 }
 
 /* ---------------------------- range presets ------------------------------- */
@@ -2146,7 +2156,7 @@ function chartPanel(key, containerId, title, expl, series, kind, fmtY, fmtTip, s
   if(czBtn && window.EATLAS_CUSTOMIZE) window.EATLAS_CUSTOMIZE.wire(czBtn, pts, title, srcNote, fmtY, "", title, kind, fmtPeriod);
 
   const refLineVal = refLine==null ? null : refLine;
-  const chart = (kind==="bar"?barChart:lineChart)(document.getElementById(id), pts, fmtY, fmtTip, refLineVal);
+  const chart = (kind==="bar"?barChart:lineChart)(document.getElementById(id), pts, fmtY, fmtTip, refLineVal, key);
   CHART_REGISTRY[id] = {pts, kind, fmtY, fmtTip, refLine:refLineVal, title, srcNote};
 
   wireRangePresets(panel, pts, kind, chart);
