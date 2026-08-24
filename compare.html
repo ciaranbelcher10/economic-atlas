@@ -166,6 +166,7 @@ html[data-theme="dark"]{ --map-nodata: #C4CAC0; }
 .tpm-ranking h4{font-size:13px; margin:0; color:var(--ink2); text-transform:uppercase; letter-spacing:.03em;}
 .tpm-ranksubtitle{font-size:11.5px; color:var(--ink2); margin:4px 0 4px;}
 .tpm-ranklist{list-style:none; padding:0; margin:8px 0 0;}
+.tpm-rank-body{max-height:520px; overflow-y:auto;}
 .tpm-rankrow{display:flex; align-items:center; gap:9px; padding:8px 0;
   border-bottom:1px solid var(--hair); cursor:default;}
 .tpm-rankrow:last-child{border-bottom:none;}
@@ -1587,7 +1588,7 @@ footer.cmp-foot{margin-top:36px; font-size:12.5px; color:var(--ink2); border-top
     <button type="button" id="countryUndoToastBtn">Undo</button>
   </div>
   <p class="chiphint" id="chipHint"></p>
-  <div style="display:flex; align-items:center; gap:8px; margin:0 0 18px; font-size:12.5px; color:var(--ink2);">
+  <div style="display:flex; align-items:center; gap:8px; margin:0 0 6px; font-size:12.5px; color:var(--ink2);">
     <label for="countrySortSelect">Order countries by</label>
     <select id="countrySortSelect" style="padding:5px 8px; border:1px solid var(--hair); border-radius:6px; background:var(--paper); color:var(--ink); font:inherit; font-size:12.5px;">
       <option value="alphabetical">Alphabetical</option>
@@ -1598,6 +1599,9 @@ footer.cmp-foot{margin-top:36px; font-size:12.5px; color:var(--ink2); border-top
       <option value="manual">Manual (drag to reorder)</option>
     </select>
   </div>
+  <p id="manualSortHint" style="display:none; font-size:12px; color:var(--ink2); margin:0 0 14px; background:var(--paper); border:1px solid var(--hair); border-radius:8px; padding:8px 12px;">
+    Grab the &#9776; handle on the left of each chip above and drag it to reorder.
+  </p>
 
   <p class="lightskey" aria-label="Key to freshness lights">
     <span><span class="led green" aria-hidden="true"></span>Latest version of the data is live</span>
@@ -2523,10 +2527,18 @@ if(document.getElementById("countrySortSelect")){
   document.getElementById("countrySortSelect").addEventListener("change", function(e){
     countrySortMode = e.target.value;
     if(window.EATLAS_PREFS) window.EATLAS_PREFS.set("countrySortMode", countrySortMode);
+    document.getElementById("manualSortHint").style.display = countrySortMode === "manual" ? "block" : "none";
     renderAll();
   });
 }
-function toggleCountry(c){
+// showToast defaults to true (the chip's own X button, a single
+// deliberate "remove this one" click) but is explicitly false from the
+// "+ Add countries" picker modal, where unchecking is part of actively
+// managing a whole list -- showing a toast for every checkbox toggled
+// there felt like random, disconnected popups rather than a response
+// to one specific action.
+function toggleCountry(c, showToast){
+  if(showToast === undefined) showToast = true;
   var isRemoving = selected.indexOf(c) !== -1;
   var removedIndex = -1;
   if(isRemoving){
@@ -2536,7 +2548,7 @@ function toggleCountry(c){
     selected.push(c);
   }
   renderAll();
-  if(isRemoving) showCountryUndoToast(c, removedIndex);
+  if(isRemoving && showToast) showCountryUndoToast(c, removedIndex);
 }
 
 // Same pattern as Dashboard's tile-removal undo: a single in-flight
@@ -2564,7 +2576,7 @@ function renderChips(){
     chip.dataset.country = c;
     chip.style.background = getCountryColor(c);
     if(countrySortMode === "manual") chip.draggable = false; // armed on handle mousedown, see below
-    chip.innerHTML = (countrySortMode === "manual" ? "<span class=\"chip-draghandle\" title=\"Drag to reorder\" style=\"cursor:grab; margin-right:2px;\">\u2261</span>" : "")
+    chip.innerHTML = (countrySortMode === "manual" ? "<span class=\"chip-draghandle\" title=\"Drag to reorder\" style=\"cursor:grab; margin-right:4px; font-size:15px; opacity:.85;\">\u2630</span>" : "")
       + "<button type=\"button\" class=\"dot colordot\" aria-label=\"Change " + COUNTRY_LABEL[c] + "'s colour\" style=\"background:#fff; border:none; cursor:pointer; padding:0;\"></button>" + COUNTRY_LABEL[c]
       + "<button type=\"button\" class=\"pillx\" aria-label=\"Remove " + COUNTRY_LABEL[c] + "\">&times;</button>";
     chip.querySelector(".pillx").addEventListener("click", function(){ toggleCountry(c); });
@@ -2702,7 +2714,7 @@ function renderCountryPicker(){
       item.innerHTML = "<input type=\"checkbox\"" + (isOn ? " checked" : "") + ">"
         + "<span class=\"dot\" style=\"background:" + (isOn ? "#fff" : getCountryColor(c)) + ";\"></span>" + COUNTRY_LABEL[c];
       item.querySelector("input").addEventListener("change", function(){
-        toggleCountry(c);
+        toggleCountry(c, false);
         renderCountryPicker();
       });
       grid.appendChild(item);
@@ -3585,6 +3597,7 @@ loadAll().then(function(){
         countrySortMode = savedSortMode;
         var sel = document.getElementById("countrySortSelect");
         if(sel) sel.value = savedSortMode;
+        document.getElementById("manualSortHint").style.display = savedSortMode === "manual" ? "block" : "none";
       }
       var savedManualOrder = window.EATLAS_PREFS.get("compareManualOrder", null);
       if(Array.isArray(savedManualOrder) && savedManualOrder.length){
@@ -4425,12 +4438,18 @@ window.EATLAS_COMPARE = {
     var vals = rows.map(function(r){ return r.value; }).filter(function(v){ return v != null; });
     if(vals.length === 0) vals = [0, 1];
     var useLog = czmState.yScale === "log" && czmLogAvailable(vals, czmState.refLine.enabled, czmState.refLine.value);
-    // Bars conventionally draw from a zero baseline, so 0 is always
-    // folded into the range here (unlike czmGeom's line mode, which
-    // doesn't force it) -- except under log scale, where 0 is
-    // undefined and forcing it in would break niceLogTicks entirely.
-    var rawMin = useLog ? Math.min.apply(null, vals) : Math.min(0, Math.min.apply(null, vals));
-    var rawMax = useLog ? Math.max.apply(null, vals) : Math.max(0, Math.max.apply(null, vals));
+    // Zero-baseline forcing is the right default for a normal bar chart
+    // (bars should visibly start from zero), but it actively fights
+    // "centre around reference line" mode: forcing 0 into the range
+    // before computing the centred deviation made a reference value of
+    // 100 look ~100 points away from the data (since it was measuring
+    // against the forced zero, not the real ~93-105 data), producing a
+    // wildly oversized axis instead of a tight one around the real
+    // values. Centering already has its own, correct way of deciding
+    // how much room the axis needs -- it must see the true data range.
+    var forceZero = !czmState.centerAroundRef && !useLog;
+    var rawMin = forceZero ? Math.min(0, Math.min.apply(null, vals)) : Math.min.apply(null, vals);
+    var rawMax = forceZero ? Math.max(0, Math.max.apply(null, vals)) : Math.max.apply(null, vals);
     var bounds = czmAxisBounds(rawMin, rawMax, czmState.yTickStepIdx, useLog, czmState.centerAroundRef, czmState.refLine.value, czmState.refLine.enabled);
     var padT = (czmState.yTitlePos === "above" ? G.padT + 18 : G.padT) + (czmState.chartTitle ? 24 : 0);
     var plotW = G.W - G.padL - G.padR, plotH = G.H - padT - padB;
