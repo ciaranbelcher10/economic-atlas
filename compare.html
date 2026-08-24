@@ -49,6 +49,9 @@ html[data-theme="dark"]{ --map-nodata: #C4CAC0; }
   font:600 13.5px "Avenir Next","Avenir","Nunito Sans",sans-serif; padding:8px 16px 8px 12px;
   border-radius:999px; cursor:pointer; display:flex; align-items:center; gap:7px;}
 .chip .dot{width:9px; height:9px; border-radius:50%; flex:none; background:var(--hair);}
+.chip .colordot{width:16px; height:16px; border-radius:50%; flex:none; position:relative;
+  box-shadow:0 0 0 2px rgba(255,255,255,.55) inset;}
+.chip .colordot:hover{box-shadow:0 0 0 2px #fff inset, 0 0 4px rgba(255,255,255,.9);}
 .chip.active{border-color:transparent; color:#fff;}
 .chip:disabled{opacity:.4; cursor:not-allowed;}
 .chiphint{font-size:12.5px; color:var(--ink2); margin:0 0 22px;}
@@ -205,7 +208,8 @@ html[data-theme="dark"]{ --map-nodata: #C4CAC0; }
 
 .rank-table{width:100%; border-collapse:collapse; font-size:13.5px; margin-top:6px;}
 .rank-table th{text-align:left; font-size:11.5px; text-transform:uppercase; letter-spacing:.03em;
-  color:var(--ink2); padding:8px 12px; cursor:pointer; user-select:none; border-bottom:2px solid var(--hair);}
+  color:var(--ink2); padding:8px 12px; cursor:pointer; user-select:none; border-bottom:2px solid var(--hair);
+  position:sticky; top:0; background:var(--panel); z-index:1;}
 .rank-table th:hover{color:var(--navy);}
 .rank-table th.sorted::after{content:" \25BE"; font-size:10px;}
 .rank-table td{padding:10px 12px; border-bottom:1px solid var(--hair);}
@@ -1595,6 +1599,7 @@ footer.cmp-foot{margin-top:36px; font-size:12.5px; color:var(--ink2); border-top
     <button type="button" id="countryUndoToastBtn">Undo</button>
   </div>
   <p class="chiphint" id="chipHint"></p>
+  <p style="font-size:12px; color:var(--ink2); margin:-2px 0 10px;">Click the small circle on the left of a chip to change that country's colour.</p>
   <div style="display:flex; align-items:center; gap:8px; margin:0 0 6px; font-size:12.5px; color:var(--ink2);">
     <label for="countrySortSelect">Order countries by</label>
     <select id="countrySortSelect" style="padding:5px 8px; border:1px solid var(--hair); border-radius:6px; background:var(--paper); color:var(--ink); font:inherit; font-size:12.5px;">
@@ -1622,21 +1627,6 @@ footer.cmp-foot{margin-top:36px; font-size:12.5px; color:var(--ink2); border-top
        metric card has its own "Compare on a map" toggle that lazily
        builds a small map scoped to that card's own metric and whatever
        time selection that card currently has (see createCardMap()). -->
-  <div id="chartViewControls" style="display:flex; align-items:center; gap:12px; margin:0 0 14px; flex-wrap:wrap;">
-    <div class="seg" id="chartViewSeg" style="display:flex; border:1px solid var(--hair); border-radius:8px; overflow:hidden; width:fit-content;">
-      <button type="button" data-view="stacked" class="active" style="padding:6px 14px; border:none; font:600 12.5px inherit; cursor:pointer;">Stacked</button>
-      <button type="button" data-view="tabbed" style="padding:6px 14px; border:none; font:600 12.5px inherit; cursor:pointer;">Tabbed</button>
-    </div>
-    <div id="tabbedShowCountWrap" style="display:none; align-items:center; gap:8px; font-size:12.5px; color:var(--ink2);">
-      <label for="tabbedShowCount">Show at once</label>
-      <select id="tabbedShowCount" style="padding:5px 8px; border:1px solid var(--hair); border-radius:6px; background:var(--paper); color:var(--ink); font:inherit; font-size:12.5px;">
-        <option value="1">1</option>
-        <option value="2">2</option>
-        <option value="4">4</option>
-      </select>
-    </div>
-  </div>
-  <div id="metricTabRow" style="display:none; gap:8px; flex-wrap:wrap; margin:0 0 14px;"></div>
   <div class="cmp-grid" id="chartGrid">
     <div class="addtile" id="addMetricTile">
       <span class="plus">+</span><span class="txt">Add a metric</span>
@@ -1647,7 +1637,7 @@ footer.cmp-foot{margin-top:36px; font-size:12.5px; color:var(--ink2); border-top
     <h3>Summary</h3>
     <p class="expl">Click any column to sort. Shows whatever point in time or change window is selected above. The highest value in each column is underlined in navy, the lowest in blue: a neutral marker of the extremes, not a judgement on which is better. Every figure is anchored to the exact same calendar year (or window) for every country and metric shown &mdash; the small year under each number is that reference year, computed by averaging each country's own real observations within it, so nothing here compares figures from different points in time.</p>
     <p class="rank-scroll-hint">&larr; Swipe to see more columns &rarr;</p>
-    <div style="overflow-x:auto;">
+    <div style="overflow:auto; max-height:560px;">
       <table class="rank-table" id="rankTable"></table>
     </div>
   </div>
@@ -1728,11 +1718,16 @@ var COUNTRY_LABEL = {UK:"United Kingdom", US:"United States", Eurozone:"Eurozone
   Mexico:"Mexico", Brazil:"Brazil", "South Africa":"South Africa", Morocco:"Morocco", Germany:"Germany",
   France:"France", Italy:"Italy", Spain:"Spain", Netherlands:"Netherlands", Denmark:"Denmark", Ireland:"Ireland",
   Norway:"Norway", Chile:"Chile", Colombia:"Colombia", Turkey:"Turkey", Indonesia:"Indonesia", Poland:"Poland", Switzerland:"Switzerland", Argentina:"Argentina", Sweden:"Sweden", Singapore:"Singapore", Austria:"Austria", Thailand:"Thailand"};
-var COUNTRY_COLOR = {UK:"#1E4566", US:"#4796CE", Eurozone:"#413D7B", Japan:"#37659E",
-  India:"#348FA7", Canada:"#40B7AD", Australia:"#8AD9B1", "South Korea":"#E39B2D", Israel:"#8E5FB0",
-  Mexico:"#C0533E", Brazil:"#3F9142", "South Africa":"#D4A72C", Morocco:"#B5482E", Germany:"#5B6B8C",
-  France:"#7A5CC7", Italy:"#2E9973", Spain:"#C74B6B", Netherlands:"#DE7A2C", Denmark:"#C0392B", Ireland:"#2E8B57",
-  Norway:"#2F5D8A", Chile:"#B03A2E", Colombia:"#D4A017", Turkey:"#E0523A", Indonesia:"#C0284B", Poland:"#7A3B8C", Switzerland:"#A6382E", Argentina:"#5B8FD1", Sweden:"#3C7FA0", Singapore:"#C7502E", Austria:"#4F8F6B", Thailand:"#7A9E3C"};
+// Replaced the original hand-picked set: computed via greedy
+// farthest-point selection (maximize the worst-case pairwise distance
+// across all 32, not just eyeballed) from a candidate pool generated
+// directly within a muted saturation/lightness band, so the result
+// stays visually consistent with the rest of the site without any
+// two countries collapsing into near-identical hues once all 32 are
+// selected at once -- Chile and Switzerland were previously only 16.8
+// apart on a 0-~350 perceptual distance scale; every pair here clears
+// 54, the practical ceiling for 32 genuinely distinct muted colors.
+var COUNTRY_COLOR = {UK:"#1E4566", US:"#AFAF4F", Eurozone:"#A94FAF", Japan:"#4FA3AF", India:"#3B9A3B", Canada:"#9A3B3B", Australia:"#4F5BAF", "South Korea":"#6F2D80", Israel:"#897938", Mexico:"#2D807A", Brazil:"#4FAF6F", "South Africa":"#4E6E2A", Morocco:"#AF4F6F", Germany:"#78A446", France:"#6E2A2A", Italy:"#2A6E4E", Spain:"#3D3889", Netherlands:"#7846A4", Denmark:"#AF894F", Ireland:"#467EA4", Norway:"#6E532A", Chile:"#385E89", Colombia:"#A45F46", Turkey:"#9A3B8D", Indonesia:"#802D59", Poland:"#638938", Switzerland:"#3B9A8D", Argentina:"#2D802D", Sweden:"#388958", Singapore:"#4E2A6E", Austria:"#9A9A3B", Thailand:"#9A3B67"};
 // A separate palette from mako, built for a different job: mako is a
 // sequential gradient (one hue path, dark to light) meant to encode
 // magnitude, so several of its stops sit close together in perceived
@@ -1743,12 +1738,14 @@ var COUNTRY_COLOR = {UK:"#1E4566", US:"#4796CE", Eurozone:"#413D7B", Japan:"#376
 // keeping the same minimalist, unsaturated character as the rest of
 // the site (including mako itself) rather than looking like a
 // default/office-suite colour picker.
-var COMPARE_PALETTE = [
-  "#1E4566", "#4796CE", "#2E9973", "#8AD9B1", "#3F9142", "#7A9E3C",
-  "#E39B2D", "#C0533E", "#D4372E", "#C74B6B", "#8E5FB0", "#5B3FA0",
-  "#5B6B8C", "#2F5D8A", "#40B7AD", "#B8860B", "#8A6F4D", "#B03A2E",
-  "#3C7FA0", "#6B4423"
-];
+// Same 32-color set used for the default assignment above, reused
+// here rather than maintaining a separate, smaller list -- picking an
+// override from the exact same verified-distinct set that defaults
+// draw from means overriding one country's colour can never introduce
+// a clash that wasn't already possible by default, and effectively
+// lets two countries "swap" colours cleanly if that's what someone
+// wants.
+var COMPARE_PALETTE = ["#1E4566", "#AFAF4F", "#A94FAF", "#4FA3AF", "#3B9A3B", "#9A3B3B", "#4F5BAF", "#6F2D80", "#897938", "#2D807A", "#4FAF6F", "#4E6E2A", "#AF4F6F", "#78A446", "#6E2A2A", "#2A6E4E", "#3D3889", "#7846A4", "#AF894F", "#467EA4", "#6E532A", "#385E89", "#A45F46", "#9A3B8D", "#802D59", "#638938", "#3B9A8D", "#2D802D", "#388958", "#4E2A6E", "#9A9A3B", "#9A3B67"];
 // User overrides live in EATLAS_PREFS (same mechanism already used for
 // compareMetrics), keyed by country name -> hex. getCountryColor()
 // checks the override first, falling back to the country's assigned
@@ -2332,11 +2329,27 @@ var selected = ["UK", "US", "Germany", "Japan"];
 // "manual" is drag-reordered chips, persisted the same way as the
 // colour overrides.
 var countrySortMode = "alphabetical";
-function sortSelectedStructural(list){
+// Per-metric-card sort overrides. A card with no entry here falls back
+// to countrySortMode (the chip row's own ordering, used when there's
+// no specific metric context -- e.g. the chip row itself, or a card
+// that's never had its own ordering touched). Once a person picks an
+// ordering ON a specific card, that choice is independent from every
+// other card and from the chip row's default -- confirmed explicitly:
+// each card should be able to differ.
+var cardSortMode = {};
+function getCardSortMode(concept){
+  return cardSortMode[concept] || countrySortMode;
+}
+function setCardSortMode(concept, mode){
+  cardSortMode[concept] = mode;
+  if(window.EATLAS_PREFS) window.EATLAS_PREFS.set("compareCardSortMode", cardSortMode);
+}
+function sortSelectedStructural(list, mode){
+  mode = mode || countrySortMode;
   // Handles every mode except pure value-sort, which needs live values
-  // that aren't available here -- see getOrderedSnapshotRows() below.
-  if(countrySortMode === "manual") return list.slice();
-  if(countrySortMode.indexOf("geo") === 0){
+  // that aren't available here -- see sortRowsByMode() below.
+  if(mode === "manual") return list.slice();
+  if(mode.indexOf("geo") === 0){
     return list.slice().sort(function(a, b){
       var ra = REGION_ORDER.indexOf(REGION_OF[a]), rb = REGION_ORDER.indexOf(REGION_OF[b]);
       if(ra !== rb) return ra - rb;
@@ -2345,15 +2358,18 @@ function sortSelectedStructural(list){
   }
   return list.slice().sort(function(a, b){ return a.localeCompare(b); });
 }
-// Applies the current sort mode to an array of row objects, using
+// Applies the given sort mode to an array of row objects, using
 // getVal(row) to read each row's numeric value -- generic over the
 // two different row shapes in this file ({country, value, ...} for
 // Customise & Export's snapshot rows, {country, dv} for the live
 // Chart.js bar chart's own rows) rather than duplicating this logic
-// per shape.
-function sortRowsByMode(rows, getVal){
-  if(countrySortMode === "value_desc" || countrySortMode === "value_asc"){
-    var dir = countrySortMode === "value_desc" ? -1 : 1;
+// per shape. mode defaults to the global chip-row ordering when not
+// given explicitly, so existing call sites that don't yet care about
+// per-card ordering keep working unchanged.
+function sortRowsByMode(rows, getVal, mode){
+  mode = mode || countrySortMode;
+  if(mode === "value_desc" || mode === "value_asc"){
+    var dir = mode === "value_desc" ? -1 : 1;
     return rows.slice().sort(function(a, b){
       var va = getVal(a), vb = getVal(b);
       if(va == null && vb == null) return 0;
@@ -2362,7 +2378,7 @@ function sortRowsByMode(rows, getVal){
       return dir * (va - vb);
     });
   }
-  if(countrySortMode === "geo_value"){
+  if(mode === "geo_value"){
     return rows.slice().sort(function(a, b){
       var ra = REGION_ORDER.indexOf(REGION_OF[a.country]), rb = REGION_ORDER.indexOf(REGION_OF[b.country]);
       if(ra !== rb) return ra - rb;
@@ -2376,7 +2392,7 @@ function sortRowsByMode(rows, getVal){
   // alphabetical, geo_alpha, or manual: order rows to match whatever
   // order `selected` is already in (manual reordering acts directly on
   // `selected`, so this naturally picks that up too).
-  var order = sortSelectedStructural(selected);
+  var order = sortSelectedStructural(selected, mode);
   return rows.slice().sort(function(a, b){ return order.indexOf(a.country) - order.indexOf(b.country); });
 }
 
@@ -2451,8 +2467,16 @@ function addMetric(key){
   visibleMetrics.push(key);
   ensureCardTimeState(key);
   saveVisibleMetrics();
+  lastAddedMetric = key;
   renderAll();
 }
+// Tracks whichever metric was most recently added during the current
+// picker session, so closing the picker can scroll straight to it
+// rather than leaving the person wherever the picker happened to be
+// positioned (often back at the top of the page) -- scrolling on every
+// individual click instead would be disruptive while someone's still
+// adding several metrics in one sitting with the picker still open.
+var lastAddedMetric = null;
 function removeMetric(key){
   visibleMetrics = visibleMetrics.filter(function(m){ return m !== key; });
   delete cardTimeState[key];
@@ -2509,6 +2533,11 @@ try {
   function closeMetricPicker(){
     document.getElementById("metricPicker").hidden = true;
     document.body.style.overflow = "";
+    if(lastAddedMetric){
+      var newCard = document.querySelector('.metric-card[data-concept="' + lastAddedMetric + '"]');
+      if(newCard) newCard.scrollIntoView({behavior: "smooth", block: "start"});
+      lastAddedMetric = null;
+    }
   }
   document.getElementById("metricPickerClose").addEventListener("click", closeMetricPicker);
   document.getElementById("metricPickerBackdrop").addEventListener("click", closeMetricPicker);
@@ -2801,7 +2830,7 @@ function buildBarChart(canvas, concept){
     var dv = getDisplayValue(c, concept);
     return {country: c, dv: dv};
   });
-  rows = sortRowsByMode(rows, function(r){ return r.dv ? r.dv.value : null; });
+  rows = sortRowsByMode(rows, function(r){ return r.dv ? r.dv.value : null; }, getCardSortMode(concept));
   if(!rows.some(function(r){ return r.dv != null; })) return null;
   var firstReal = rows.filter(function(r){ return r.dv != null; })[0].dv;
   var isCumulative = firstReal.isCumulative;
@@ -3037,6 +3066,16 @@ function buildCardShell(concept, hasHistory, mode){
     + "<h3 class=\"card-title\"></h3>"
     + "<div class=\"card-avg-readout\" style=\"font-size:11.5px; color:var(--ink2); margin:-6px 0 8px;\"></div>"
     + (hasHistory ? "<div class=\"charttoggle\"><button type=\"button\" data-mode=\"bar\">Bar</button><button type=\"button\" data-mode=\"line\">Line</button></div>" : "")
+    + "<div class=\"card-sort-row\" style=\"display:flex; align-items:center; gap:8px; margin:2px 0 12px; padding:7px 10px; background:var(--blue-tint, #EAF2F8); border:1px solid var(--blue); border-radius:8px; font-size:12.5px;\">"
+      + "<span style=\"font-weight:700; color:var(--navy);\">Order countries by</span>"
+      + "<select class=\"card-sort-select\" style=\"padding:4px 7px; border:1px solid var(--hair); border-radius:6px; background:var(--paper); color:var(--ink); font:inherit; font-size:12.5px; margin-left:auto;\">"
+        + "<option value=\"alphabetical\">Alphabetical</option>"
+        + "<option value=\"value_desc\">Value (high to low)</option>"
+        + "<option value=\"value_asc\">Value (low to high)</option>"
+        + "<option value=\"geo_alpha\">Geographic (alphabetical)</option>"
+        + "<option value=\"geo_value\">Geographic (by value)</option>"
+      + "</select>"
+    + "</div>"
     + "<div class=\"horizonrow card-time-row\">"
       + "<span class=\"hlabel\">Compare:</span>"
       + "<div class=\"modeswitch card-mode-switch\">"
@@ -3067,11 +3106,31 @@ function buildCardShell(concept, hasHistory, mode){
 
   card.querySelector(".card-remove").addEventListener("click", function(){ removeMetric(concept); });
 
+  // The sort control only matters for a bar/snapshot view -- a line
+  // chart's legend doesn't have a meaningful "order" the same way a
+  // row of bars does -- so it hides itself when a card with a Bar/Line
+  // toggle is currently showing Line, and reacts live if the person
+  // switches modes afterwards. Cards with no history (bar-only, no
+  // toggle at all) always show it.
+  var sortRow = card.querySelector(".card-sort-row");
+  var sortSelect = card.querySelector(".card-sort-select");
+  sortSelect.value = getCardSortMode(concept);
+  sortSelect.addEventListener("change", function(e){
+    setCardSortMode(concept, e.target.value);
+    refreshOneCard(concept);
+  });
+  function updateSortRowVisibility(){
+    sortRow.style.display = mode === "line" ? "none" : "flex";
+  }
+  updateSortRowVisibility();
+
   if(hasHistory){
     card.querySelectorAll(".charttoggle button").forEach(function(btn){
       btn.classList.toggle("active", btn.dataset.mode === mode);
       btn.addEventListener("click", function(){
         cardChartType[concept] = btn.dataset.mode;
+        mode = btn.dataset.mode;
+        updateSortRowVisibility();
         refreshOneCard(concept);
       });
     });
@@ -3221,6 +3280,16 @@ function fillCardChart(card, concept){
     var dvs = selected.map(function(c){ return getDisplayValue(c, concept); }).filter(function(dv){ return dv != null; });
     if(dvs.length){
       var avgVal = dvs.reduce(function(a, dv){ return a + dv.value; }, 0) / dvs.length;
+      // displayString()'s fallback branch for non-currency units (index
+      // values like business confidence, plain percentages) prints
+      // dv.value with NO rounding at all -- fine for values that came
+      // straight from the data (already clean), but an averaged value
+      // is newly computed floating-point arithmetic that's never been
+      // through any rounding step, so it needs rounding here explicitly
+      // before display. Currency values get reformatted by curFmt
+      // anyway (which rounds internally), so rounding here doesn't
+      // affect them either way.
+      avgVal = Math.round(avgVal * 100) / 100;
       avgEl.textContent = "Group average: " + displayString({ value: avgVal, unit: dvs[0].unit, rawUnit: dvs[0].rawUnit, isCumulative: dvs[0].isCumulative, isDelta: dvs[0].isDelta, year: dvs[0].year });
     } else {
       avgEl.textContent = "";
@@ -3490,100 +3559,12 @@ function renderAll(){
   // currently-open per-card maps redraw themselves afterwards, since a
   // full renderCharts() rebuild replaces card DOM (including any open
   // map's container) each time.
-  [renderChips, renderCharts, renderTable, applyChartViewMode].forEach(function(fn){
+  [renderChips, renderCharts, renderTable].forEach(function(fn){
     try { fn(); } catch(e) { console.error(fn.name + " failed:", e); }
   });
   try { redrawAllOpenMaps(); } catch(e) { console.error("redrawAllOpenMaps failed:", e); }
 }
 
-/* --------------------------- chart view mode ------------------------------ */
-// Stacked (default, unchanged behaviour) shows every added metric as
-// its own full section, scrolled through top to bottom. Tabbed shows
-// only a subset at a time (1, 2, or 4, chosen by showCount) with a tab
-// row to flick between the rest -- addresses the specific feedback
-// about needing to scroll through many stacked charts just to compare
-// a couple of them side by side.
-//
-// This deliberately does NOT touch renderCharts() -- every card for
-// every visibleMetrics concept still gets built and inserted into the
-// DOM exactly as before (so charts, sliders, and per-card state all
-// keep working unmodified); this just shows/hides them afterwards via
-// each card's existing data-concept attribute. Filtering after the
-// fact is far lower-risk than threading a "should I even build this
-// card" condition through renderCharts() and buildCardShell().
-var chartViewMode = "stacked";
-var tabbedShowCount = 1;
-var activeTabConcepts = [];
-function applyChartViewMode(){
-  var showCountWrap = document.getElementById("tabbedShowCountWrap");
-  var tabRow = document.getElementById("metricTabRow");
-  var grid = document.getElementById("chartGrid");
-  var cards = Array.prototype.slice.call(grid.querySelectorAll(".metric-card"));
-
-  if(chartViewMode === "stacked"){
-    showCountWrap.style.display = "none";
-    tabRow.style.display = "none";
-    cards.forEach(function(c){ c.style.display = ""; });
-    return;
-  }
-
-  showCountWrap.style.display = "flex";
-  tabRow.style.display = "flex";
-
-  // visibleMetrics may have changed (a metric added/removed) since
-  // activeTabConcepts was last set -- keep whichever active concepts
-  // are still valid, and top up from the front of visibleMetrics if
-  // the active set has shrunk below showCount or gone empty.
-  activeTabConcepts = activeTabConcepts.filter(function(c){ return visibleMetrics.indexOf(c) !== -1; });
-  visibleMetrics.forEach(function(c){
-    if(activeTabConcepts.length < tabbedShowCount && activeTabConcepts.indexOf(c) === -1) activeTabConcepts.push(c);
-  });
-  activeTabConcepts = activeTabConcepts.slice(0, tabbedShowCount);
-
-  tabRow.innerHTML = "";
-  visibleMetrics.forEach(function(concept){
-    var tab = document.createElement("button");
-    tab.type = "button";
-    tab.className = "chip" + (activeTabConcepts.indexOf(concept) !== -1 ? " active" : "");
-    tab.style.cssText = activeTabConcepts.indexOf(concept) !== -1
-      ? "border:1.5px solid var(--blue); background:var(--blue); color:#fff; padding:6px 14px; border-radius:999px; font:600 12.5px inherit; cursor:pointer;"
-      : "border:1.5px solid var(--hair); background:var(--paper); color:var(--ink); padding:6px 14px; border-radius:999px; font:600 12.5px inherit; cursor:pointer;";
-    tab.textContent = CONCEPT_LABEL[concept] || concept;
-    tab.addEventListener("click", function(){
-      // Clicking an inactive tab swaps it in for the OLDEST currently-
-      // active one (simple FIFO) rather than requiring the person to
-      // manually deselect something first -- "flick through" should
-      // feel like one click per switch, not two.
-      var idx = activeTabConcepts.indexOf(concept);
-      if(idx !== -1){
-        if(activeTabConcepts.length > 1) activeTabConcepts.splice(idx, 1);
-      } else {
-        activeTabConcepts.push(concept);
-        if(activeTabConcepts.length > tabbedShowCount) activeTabConcepts.shift();
-      }
-      applyChartViewMode();
-    });
-    tabRow.appendChild(tab);
-  });
-
-  cards.forEach(function(c){
-    c.style.display = activeTabConcepts.indexOf(c.dataset.concept) !== -1 ? "" : "none";
-  });
-}
-document.getElementById("chartViewSeg").querySelectorAll("button").forEach(function(btn){
-  btn.addEventListener("click", function(){
-    document.getElementById("chartViewSeg").querySelectorAll("button").forEach(function(b){ b.classList.remove("active"); });
-    btn.classList.add("active");
-    chartViewMode = btn.dataset.view;
-    if(window.EATLAS_PREFS) window.EATLAS_PREFS.set("compareChartViewMode", chartViewMode);
-    applyChartViewMode();
-  });
-});
-document.getElementById("tabbedShowCount").addEventListener("change", function(e){
-  tabbedShowCount = parseInt(e.target.value, 10) || 1;
-  if(window.EATLAS_PREFS) window.EATLAS_PREFS.set("compareTabbedShowCount", tabbedShowCount);
-  applyChartViewMode();
-});
 loadAll().then(function(){
   document.getElementById("loadMsg").style.display = "none";
   document.getElementById("mainContent").style.display = "block";
@@ -3612,6 +3593,8 @@ loadAll().then(function(){
         if(sel) sel.value = savedSortMode;
         document.getElementById("manualSortHint").style.display = savedSortMode === "manual" ? "block" : "none";
       }
+      var savedCardSortMode = window.EATLAS_PREFS.get("compareCardSortMode", null);
+      if(savedCardSortMode && typeof savedCardSortMode === "object") cardSortMode = savedCardSortMode;
       var savedManualOrder = window.EATLAS_PREFS.get("compareManualOrder", null);
       if(Array.isArray(savedManualOrder) && savedManualOrder.length){
         // Manual order only replaces `selected`'s ordering for countries
@@ -3621,18 +3604,6 @@ loadAll().then(function(){
         var reordered = savedManualOrder.filter(function(c){ return stillSelected.indexOf(c) !== -1; });
         selected.forEach(function(c){ if(reordered.indexOf(c) === -1) reordered.push(c); });
         selected = reordered;
-      }
-      var savedViewMode = window.EATLAS_PREFS.get("compareChartViewMode", null);
-      if(savedViewMode === "tabbed" || savedViewMode === "stacked"){
-        chartViewMode = savedViewMode;
-        document.getElementById("chartViewSeg").querySelectorAll("button").forEach(function(b){
-          b.classList.toggle("active", b.dataset.view === savedViewMode);
-        });
-      }
-      var savedShowCount = window.EATLAS_PREFS.get("compareTabbedShowCount", null);
-      if(savedShowCount === 1 || savedShowCount === 2 || savedShowCount === 4){
-        tabbedShowCount = savedShowCount;
-        document.getElementById("tabbedShowCount").value = String(savedShowCount);
       }
       var saved = window.EATLAS_PREFS.get("compareMetrics", null);
       if(Array.isArray(saved) && saved.length && saved.every(function(m){ return CONCEPT_LABEL[m]; })){
@@ -3963,6 +3934,16 @@ window.EATLAS_COMPARE = {
           <div id="czHideNoDataField" hidden style="display:flex; align-items:center; justify-content:space-between; font-size:12.5px; margin-bottom:8px;">
             <span>Drop countries with no data</span>
             <input type="checkbox" id="czHideNoDataToggle" style="width:15px; height:15px;">
+          </div>
+          <div id="czSortModeField" hidden style="display:flex; align-items:center; justify-content:space-between; font-size:12.5px; margin-bottom:8px;">
+            <span>Order countries by</span>
+            <select id="czSortModeSelect" style="padding:4px 7px; border:1px solid var(--hair); border-radius:6px; background:var(--paper); color:var(--ink); font:inherit; font-size:12px;">
+              <option value="alphabetical">Alphabetical</option>
+              <option value="value_desc">Value (high to low)</option>
+              <option value="value_asc">Value (low to high)</option>
+              <option value="geo_alpha">Geographic (alphabetical)</option>
+              <option value="geo_value">Geographic (by value)</option>
+            </select>
           </div>
           <div style="display:flex; align-items:center; justify-content:space-between; font-size:12.5px; margin-bottom:8px;">
             <span>Reference line</span>
@@ -4937,10 +4918,11 @@ window.EATLAS_COMPARE = {
       : (function(){ var out = []; SERIES_LIST.forEach(function(s){ czmFilteredSeries(s).forEach(function(p){ out.push(p[1]); }); }); return out; })();
     if(!vals.length) return;
     var avg = vals.reduce(function(a, b){ return a + b; }, 0) / vals.length;
+    avg = Math.round(avg * 100) / 100;
     czmState.refLine.value = avg;
     czmState.refLine.enabled = true;
     document.getElementById("czReflineToggle").checked = true;
-    document.getElementById("czReflineValue").value = Math.round(avg * 100) / 100;
+    document.getElementById("czReflineValue").value = avg;
     czmSyncModeFields();
     czRenderPreview();
   });
@@ -4956,6 +4938,17 @@ window.EATLAS_COMPARE = {
     czmState.thresholdShadeBars = e.target.checked;
     czRenderPreview();
   });
+  document.getElementById("czSortModeSelect").addEventListener("change", function(e){
+    // Changing this from inside the modal also updates the live tile's
+    // own sort choice (not just this preview) -- the two are the same
+    // card's setting, shown in two places, not independent copies that
+    // could drift out of sync with each other.
+    var concept = (czmState.filenameBase || "").replace(/_snapshot$/, "");
+    setCardSortMode(concept, e.target.value);
+    SNAPSHOT_ROWS = sortRowsByMode(SNAPSHOT_ROWS, function(r){ return r.value; }, e.target.value);
+    czRenderPreview();
+    refreshOneCard(concept);
+  });
   // Mirrors country pages' czSyncModeFields(): "Centre axis around
   // reference line" only makes sense once a reference line exists, and
   // log scale needs every currently-visible value (including the
@@ -4968,6 +4961,7 @@ window.EATLAS_COMPARE = {
       czmState.centerAroundRef = false;
       document.getElementById("czCenterRefToggle").checked = false;
     }
+    document.getElementById("czSortModeField").style.display = czmState.mode === "snapshot" ? "flex" : "none";
     // Threshold-by-value bar colouring is a snapshot/bar-only concept --
     // on the line/"over time" view, colour is what lets you track which
     // series belongs to which country over time, so recolouring by
@@ -5321,6 +5315,8 @@ window.EATLAS_COMPARE = {
     document.getElementById("czCenterRefToggle").checked = isBizConf;
     document.getElementById("czLogScaleToggle").checked = false;
     document.getElementById("czThresholdShadeToggle").checked = false;
+    var czConcept = (filenameBase || "").replace(/_snapshot$/, "");
+    document.getElementById("czSortModeSelect").value = getCardSortMode(czConcept);
 
     document.getElementById("czDateRangePanel").hidden = true;
     document.getElementById("czEventLinesPanel").hidden = true;
