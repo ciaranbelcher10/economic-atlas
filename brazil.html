@@ -3564,7 +3564,17 @@ document.querySelectorAll(".mtbtn").forEach(function(btn){
     var pts = czFilteredSeries();
     var padB = 70;
     var allVals = pts.map(function(p){ return p[1]; });
-    if(czState.refLine.enabled) allVals.push(czState.refLine.value);
+    // The reference line must NOT feed into the axis's own min/max --
+    // it's a threshold marker, not a data point, and letting it into
+    // this calculation meant a reference value far outside the real
+    // data (e.g. a threshold near zero on a chart of trillions) dragged
+    // the entire visible axis down to accommodate it, cluttering the
+    // low end with many indistinguishable extra ticks under log scale.
+    // If the reference value falls outside the resulting [minV, maxV],
+    // y() below clamps its rendered position to the nearest edge and
+    // the label is suppressed (see the reference-line drawing code) --
+    // that's the correct way to handle "the threshold is off-chart",
+    // not by silently resizing the chart to fit it.
     var rawMin = Math.min.apply(null, allVals), rawMax = Math.max.apply(null, allVals);
     var useLog = czState.yScale === "log" && czLogScaleAvailable();
     var nice, minV, maxV;
@@ -3591,11 +3601,21 @@ document.querySelectorAll(".mtbtn").forEach(function(btn){
         return G.padL + (pts.length === 1 ? plotW / 2 : (i / (pts.length - 1)) * plotW);
       },
       y: function(v){
+        var py;
         if(useLog){
           var vc = Math.max(v, minV);
-          return padT + plotH - ((Math.log10(vc) - Math.log10(minV)) / (Math.log10(maxV) - Math.log10(minV))) * plotH;
+          py = padT + plotH - ((Math.log10(vc) - Math.log10(minV)) / (Math.log10(maxV) - Math.log10(minV))) * plotH;
+        } else {
+          py = padT + plotH - ((v - minV) / (maxV - minV)) * plotH;
         }
-        return padT + plotH - ((v - minV) / (maxV - minV)) * plotH;
+        // Clamping the OUTPUT pixel position (rather than only the log
+        // branch's input value, as before) covers both scale types
+        // uniformly: anything outside the visible range -- including a
+        // reference line whose value now legitimately sits outside
+        // [minV, maxV], since it's no longer allowed to distort those
+        // bounds -- pins to the nearest edge instead of rendering off
+        // the chart entirely.
+        return Math.max(padT, Math.min(padT + plotH, py));
       }
     };
   }
@@ -3651,7 +3671,20 @@ document.querySelectorAll(".mtbtn").forEach(function(btn){
     if(czState.refLine.enabled){
       var ry = gm.y(czState.refLine.value);
       svg.push("<line x1='" + G.padL + "' y1='" + ry.toFixed(1) + "' x2='" + (G.W - G.padR) + "' y2='" + ry.toFixed(1) + "' stroke='" + t.annot + "' stroke-width='1.3' stroke-dasharray='4,3'/>");
-      svg.push("<text x='" + (G.padL - 10) + "' y='" + (ry + 4).toFixed(1) + "' font-size='11' fill='" + t.ink2 + "' text-anchor='end'>" + czState.fmtY(Math.round(czState.refLine.value * 100) / 100) + "</text>");
+      // The line itself is fine to draw pinned to the axis edge when the
+      // reference value sits outside the visible range (minV/maxV) --
+      // that's honest, it shows "there's a threshold beyond what's
+      // shown". But printing this label's exact number AT that clamped
+      // position is misleading (it implies the value lives there), and
+      // in log mode a value below minV clamps to precisely the same
+      // pixel row as the lowest axis tick, producing overlapping,
+      // unreadable text. So the label is suppressed whenever the true
+      // value falls outside [minV, maxV] -- the line still shows the
+      // threshold exists, just without a false-precision number floating
+      // on top of an unrelated tick label.
+      if(czState.refLine.value >= gm.minV && czState.refLine.value <= gm.maxV){
+        svg.push("<text x='" + (G.padL - 10) + "' y='" + (ry + 4).toFixed(1) + "' font-size='11' fill='" + t.ink2 + "' text-anchor='end'>" + czState.fmtY(Math.round(czState.refLine.value * 100) / 100) + "</text>");
+      }
     }
 
     czState.annotations.forEach(function(a, ai){
