@@ -98,6 +98,12 @@
   padding:6px 13px; border-radius:999px; cursor:pointer;}
 .dashexportbtn:hover{background:var(--navy-2); border-color:var(--navy-2);}
 .dashexportbtn:disabled{opacity:.6; cursor:wait;}
+.dash-undo-toast{position:fixed; left:50%; bottom:26px; transform:translateX(-50%);
+  background:var(--navy); color:#fff; padding:12px 16px; border-radius:10px;
+  display:flex; align-items:center; gap:14px; font-size:13px; box-shadow:0 10px 28px rgba(0,0,0,.28); z-index:100;}
+.dash-undo-toast button{background:transparent; border:1px solid rgba(255,255,255,.4); color:#fff;
+  font:600 12px "Avenir Next","Avenir","Nunito Sans",sans-serif; padding:5px 12px; border-radius:999px; cursor:pointer;}
+.dash-undo-toast button:hover{background:rgba(255,255,255,.12); border-color:#fff;}
 .tile .label{font-size:13px; color:var(--ink2); margin:6px 0 8px; padding-right:26px;}
 .tile .value{font-size:26px; font-weight:700; color:var(--ink);}
 .tile .period{font-size:11.5px; color:var(--ink2); margin-top:4px;}
@@ -1532,6 +1538,11 @@ footer.dash-foot{margin-top:36px; font-size:12.5px; color:var(--ink2); border-to
     <span><span class="led orange" aria-hidden="true"></span>Data may be outdated, awaiting next update</span>
   </p>
   <div class="dashgrid" id="dashGrid" style="display:none;"></div>
+
+  <div id="dashUndoToast" class="dash-undo-toast" hidden>
+    <span id="dashUndoToastMsg"></span>
+    <button type="button" id="dashUndoToastBtn">Undo</button>
+  </div>
 
   <div class="map-card" id="mapCard">
     <h3>Map</h3>
@@ -3820,6 +3831,7 @@ var currentDashboardId = null;
 var CURRENT_DASH_KEY = "eatlas_current_dashboard_id"; // last-viewed convenience only, never the source of truth
 var tileCharts = {};
 var draggedTileId = null; // set on dragstart, read by other tiles' dragover/drop; single shared value since only one drag gesture can be in flight at once
+var draggedTileEl = null; // the actual dragged tile element -- needed by the touch path below, which has no dragend event to clean up after itself
 
 // Safety net for a drag that ends without a proper "dragend" firing on
 // the tile itself (e.g. released over a non-drop-target element, or the
@@ -3829,6 +3841,44 @@ var draggedTileId = null; // set on dragstart, read by other tiles' dragover/dro
 // stacking new document-level listeners that never get cleaned up.
 document.addEventListener("mouseup", function(){
   document.querySelectorAll('.tile[draggable="true"]').forEach(function(t){ t.draggable = false; });
+});
+
+// Touch-drag reordering. Native HTML5 drag-and-drop (used for desktop,
+// wired per-tile in renderDash()) never fires on touch devices at all,
+// so this is a separate, manual implementation: touchstart on a tile's
+// handle begins tracking; a single shared touchmove/touchend pair
+// (registered once here, not per-tile, for the same listener-
+// accumulation reason as the mouseup safety net above) finds whichever
+// tile is currently under the finger via elementFromPoint() and applies
+// the identical drag-over-before/after visual classes the desktop path
+// uses, so the two paths converge on the same reorderPinned() call and
+// the same visual language.
+document.addEventListener("touchmove", function(e){
+  if(!draggedTileId) return;
+  e.preventDefault(); // stop the page scrolling under the person's finger while a drag is in progress
+  var touch = e.touches[0];
+  var el = document.elementFromPoint(touch.clientX, touch.clientY);
+  var overTile = el && el.closest ? el.closest(".tile") : null;
+  document.querySelectorAll(".tile").forEach(function(t){
+    if(t !== overTile) t.classList.remove("drag-over-before", "drag-over-after");
+  });
+  if(overTile && overTile.dataset.id !== draggedTileId){
+    var rect = overTile.getBoundingClientRect();
+    var before = (touch.clientX - rect.left) < rect.width / 2;
+    overTile.classList.toggle("drag-over-before", before);
+    overTile.classList.toggle("drag-over-after", !before);
+  }
+}, { passive: false });
+document.addEventListener("touchend", function(e){
+  if(!draggedTileId) return;
+  var targetTile = document.querySelector(".tile.drag-over-before, .tile.drag-over-after");
+  if(targetTile && targetTile.dataset.id !== draggedTileId){
+    reorderPinned(draggedTileId, targetTile.dataset.id, targetTile.classList.contains("drag-over-before"));
+  }
+  if(draggedTileEl) draggedTileEl.classList.remove("dragging");
+  document.querySelectorAll(".tile").forEach(function(t){ t.classList.remove("drag-over-before", "drag-over-after"); });
+  draggedTileId = null;
+  draggedTileEl = null;
 });
 
 // Moves draggedId to sit immediately before/after targetId in the
@@ -3847,6 +3897,47 @@ function reorderPinned(draggedId, targetId, before){
   savePinned();
   renderDash();
 }
+
+// A single in-flight undo opportunity at a time -- removing a second
+// tile while the first's toast is still showing replaces it rather
+// than stacking toasts, matching the common pattern (e.g. Gmail) rather
+// than trying to support undoing several removals independently.
+var undoToastTimer = null;
+var pendingUndo = null; // {id, index} of the most recently removed tile
+function removeTileWithUndo(id, m){
+  var index = pinned.indexOf(id);
+  if(index === -1) return;
+  pinned = pinned.filter(function(x){ return x !== id; });
+  savePinned();
+  delete expandedTiles[id];
+  if(tileCharts[id]){ tileCharts[id].destroy(); delete tileCharts[id]; }
+  delete CHART_REGISTRY[id];
+  renderDash();
+
+  pendingUndo = { id: id, index: index };
+  var toast = document.getElementById("dashUndoToast");
+  var label = m ? (m.country + " \u00b7 " + m.series.label) : "Metric";
+  document.getElementById("dashUndoToastMsg").textContent = "Removed " + label + ".";
+  toast.hidden = false;
+  clearTimeout(undoToastTimer);
+  undoToastTimer = setTimeout(function(){ toast.hidden = true; pendingUndo = null; }, 6000);
+}
+document.getElementById("dashUndoToastBtn").addEventListener("click", function(){
+  if(!pendingUndo) return;
+  clearTimeout(undoToastTimer);
+  document.getElementById("dashUndoToast").hidden = true;
+  // Re-insert at its original index, not just appended at the end --
+  // undo should put the tile back where it was, not wherever's
+  // convenient, especially now that manual reordering exists and the
+  // person may have deliberately arranged things.
+  var arr = pinned.slice();
+  var idx = Math.min(pendingUndo.index, arr.length);
+  arr.splice(idx, 0, pendingUndo.id);
+  pinned = arr;
+  pendingUndo = null;
+  savePinned();
+  renderDash();
+});
 
 var expandedTiles = {}; // id -> true, survives renderDash() rebuilding the grid
 
@@ -4189,12 +4280,7 @@ function renderDash(){
 
     tile.querySelector(".remove").addEventListener("click", function(e){
       e.stopPropagation();
-      pinned = pinned.filter(function(x){ return x !== id; });
-      savePinned();
-      delete expandedTiles[id];
-      if(tileCharts[id]){ tileCharts[id].destroy(); delete tileCharts[id]; }
-      delete CHART_REGISTRY[id];
-      renderDash();
+      removeTileWithUndo(id, m);
     });
     function collapseThisTile(){
       tile.classList.remove("expanded");
@@ -4223,25 +4309,34 @@ function renderDash(){
 
     // Drag-and-drop reordering. The whole tile carries draggable="true"
     // only while the handle is actively pressed (toggled on
-    // mousedown/touchstart, off on mouseup/dragend) rather than being
-    // permanently draggable -- that keeps every other button and the
-    // "View chart"/"Fullscreen" click targets completely unaffected,
-    // since a permanently-draggable tile can make ordinary clicks feel
-    // janky in some browsers. Desktop (native HTML5 DnD) only for now;
-    // touch-drag reordering would need a separate touch-event-based
-    // implementation and isn't covered here.
+    // mousedown, off on dragend/the shared mouseup safety net) rather
+    // than being permanently draggable -- that keeps every other
+    // button and the "View chart"/"Fullscreen" click targets completely
+    // unaffected, since a permanently-draggable tile can make ordinary
+    // clicks feel janky in some browsers. Touch devices use a separate
+    // manual path (touchstart here, shared touchmove/touchend
+    // registered once near the top of this script) since native HTML5
+    // DnD never fires on touch at all.
     var handle = tile.querySelector(".draghandle");
     handle.addEventListener("mousedown", function(){ tile.draggable = true; });
+    handle.addEventListener("touchstart", function(e){
+      e.preventDefault();
+      draggedTileId = id;
+      draggedTileEl = tile;
+      tile.classList.add("dragging");
+    }, { passive: false });
     tile.addEventListener("dragstart", function(e){
       e.dataTransfer.effectAllowed = "move";
       e.dataTransfer.setData("text/plain", id);
       draggedTileId = id;
+      draggedTileEl = tile;
       requestAnimationFrame(function(){ tile.classList.add("dragging"); });
     });
     tile.addEventListener("dragend", function(){
       tile.classList.remove("dragging");
       tile.draggable = false;
       draggedTileId = null;
+      draggedTileEl = null;
       grid.querySelectorAll(".tile").forEach(function(t){ t.classList.remove("drag-over-before", "drag-over-after"); });
     });
     tile.addEventListener("dragover", function(e){
