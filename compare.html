@@ -314,6 +314,13 @@ footer.cmp-foot{margin-top:36px; font-size:12.5px; color:var(--ink2); border-top
 .dash-undo-toast button{background:transparent; border:1px solid rgba(255,255,255,.4); color:#fff;
   font:600 12px "Avenir Next","Avenir","Nunito Sans",sans-serif; padding:5px 12px; border-radius:999px; cursor:pointer;}
 .dash-undo-toast button:hover{background:rgba(255,255,255,.12); border-color:#fff;}
+/* Same specificity conflict fixed everywhere else in this project: the
+   class rule's own display:flex always wins over the browser's default
+   [hidden]{display:none}, since they're equal specificity and this
+   author rule comes later. Toggling toast.hidden from JS was setting
+   the attribute correctly but having zero visual effect -- the toast
+   never actually disappeared once first shown. */
+.dash-undo-toast[hidden]{display:none !important;}
 </style>
 </head>
 <body>
@@ -2516,6 +2523,7 @@ function countryUndoClickHandler(){
   if(arr.indexOf(pendingCountryUndo.country) === -1 && arr.length < MAX_SELECTED){
     arr.splice(idx, 0, pendingCountryUndo.country);
     selected = arr;
+    if(window.EATLAS_PREFS) window.EATLAS_PREFS.set("compareSelectedCountries", selected);
   }
   pendingCountryUndo = null;
   renderAll();
@@ -2547,6 +2555,7 @@ function toggleCountry(c, showToast){
   } else if(selected.length < MAX_SELECTED){
     selected.push(c);
   }
+  if(window.EATLAS_PREFS) window.EATLAS_PREFS.set("compareSelectedCountries", selected);
   renderAll();
   if(isRemoving && showToast) showCountryUndoToast(c, removedIndex);
 }
@@ -2828,7 +2837,7 @@ function buildBarChart(canvas, concept){
       }]
     },
     options: {
-      responsive: true, maintainAspectRatio: false,
+      responsive: true, maintainAspectRatio: false, animation: false,
       interaction: {mode: "index", intersect: false},
       plugins: {
         legend: {display: false},
@@ -2895,7 +2904,7 @@ function buildLineChart(canvas, concept){
     type: "line",
     data: {labels: labels, datasets: datasets},
     options: {
-      responsive: true, maintainAspectRatio: false,
+      responsive: true, maintainAspectRatio: false, animation: false,
       interaction: {mode: "nearest", axis: "x", intersect: false},
       plugins: {
         legend: {position: "bottom", labels: {boxWidth: 10, font: {size: 11}}},
@@ -3590,6 +3599,10 @@ loadAll().then(function(){
 
   if(window.EATLAS_PREFS){
     window.EATLAS_PREFS.ready.then(function(){
+      var savedSelected = window.EATLAS_PREFS.get("compareSelectedCountries", null);
+      if(Array.isArray(savedSelected) && savedSelected.length && savedSelected.every(function(c){ return COUNTRY_LABEL[c]; })){
+        selected = savedSelected;
+      }
       var savedColors = window.EATLAS_PREFS.get("countryColorOverrides", null);
       if(savedColors && typeof savedColors === "object") countryColorOverrides = savedColors;
       var savedSortMode = window.EATLAS_PREFS.get("countrySortMode", null);
