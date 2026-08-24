@@ -78,7 +78,15 @@
   display:none; align-items:center; justify-content:center;}
 .tile.expanded .collapsebtn{display:flex;}
 .tile .collapsebtn:hover{border-color:var(--blue); color:var(--navy);}
-.tile .country{font-size:11px; font-weight:700; color:var(--blue); text-transform:uppercase; letter-spacing:.04em;}
+.tile .draghandle{position:absolute; top:10px; left:10px; width:22px; height:22px; border-radius:50%;
+  border:1px solid var(--hair); background:var(--paper); color:var(--ink2); font-size:12px; cursor:grab;
+  display:flex; align-items:center; justify-content:center; touch-action:none;}
+.tile .draghandle:hover{border-color:var(--blue); color:var(--navy);}
+.tile.expanded .draghandle{display:none;}
+.tile.dragging{opacity:.4;}
+.tile.drag-over-before{box-shadow:inset 3px 0 0 var(--blue);}
+.tile.drag-over-after{box-shadow:inset -3px 0 0 var(--blue);}
+.tile .country{font-size:11px; font-weight:700; color:var(--blue); text-transform:uppercase; letter-spacing:.04em; padding-left:28px;}
 .tile .label{font-size:13px; color:var(--ink2); margin:6px 0 8px; padding-right:26px;}
 .tile .value{font-size:26px; font-weight:700; color:var(--ink);}
 .tile .period{font-size:11.5px; color:var(--ink2); margin-top:4px;}
@@ -97,15 +105,15 @@
 .tile .chartbox{height:220px; margin-top:14px; position:relative; display:none;}
 .tile .charttools{display:none; align-items:center; justify-content:space-between; gap:10px; margin:10px 0 2px;}
 .tile.expanded .charttools{display:flex;}
-.tile .rangepresets{display:flex; gap:6px;}
-.tile .rangepresets button{border:1px solid var(--hair); background:var(--paper); color:var(--ink2);
+.rangepresets{display:flex; gap:6px;}
+.rangepresets button{border:1px solid var(--hair); background:var(--paper); color:var(--ink2);
   font:600 11px "Avenir Next","Avenir","Nunito Sans",sans-serif; padding:4px 9px;
   border-radius:999px; cursor:pointer;}
-.tile .rangepresets button:hover{border-color:var(--blue); color:var(--navy);}
-.tile .rangepresets button.active{background:var(--blue); border-color:var(--blue); color:#fff;}
-.tile .resetzoom{border:none; background:none; color:var(--ink2); font:600 11px "Avenir Next","Avenir","Nunito Sans",sans-serif;
+.rangepresets button:hover{border-color:var(--blue); color:var(--navy);}
+.rangepresets button.active{background:var(--blue); border-color:var(--blue); color:#fff;}
+.resetzoom{border:none; background:none; color:var(--ink2); font:600 11px "Avenir Next","Avenir","Nunito Sans",sans-serif;
   cursor:pointer; padding:4px 4px;}
-.tile .resetzoom:hover{color:var(--navy); text-decoration:underline;}
+.resetzoom:hover{color:var(--navy); text-decoration:underline;}
 .tile.expanded .chartbox{display:block;}
 .tile .chartsrc{font-size:11px; color:var(--ink2); margin-top:8px; display:none;}
 .tile.expanded .chartsrc{display:block;}
@@ -1504,6 +1512,7 @@ footer.dash-foot{margin-top:36px; font-size:12.5px; color:var(--ink2); border-to
       <span class="mtoggle-switch" aria-hidden="true"></span>Dollarise
     </button>
     <span class="mtoggle-note">Shows currency figures (GDP, debt, trade) in USD, using the same FX rates as each country's own page.</span>
+    <button type="button" class="lockedbtn unlocked" id="exportDashboardBtn" style="margin-left:auto;">Export dashboard (PNG)</button>
   </div>
 
   <div id="loadMsg" class="loadmsg">Loading every country&#39;s data&hellip;</div>
@@ -1563,6 +1572,16 @@ footer.dash-foot{margin-top:36px; font-size:12.5px; color:var(--ink2); border-to
         <div class="pickergrid" id="pickerGrid"></div>
         <div class="pickerletter" id="pickerLetterBadge"></div>
       </div>
+    </div>
+  </div>
+
+  <div class="modal" id="templateModal" hidden>
+    <div class="modal-backdrop" id="templateModalBackdrop"></div>
+    <div class="modal-content" style="max-width:480px;">
+      <button type="button" class="modal-close" id="templateModalClose" aria-label="Close">&times;</button>
+      <h2>Start from a template</h2>
+      <p class="modal-sub">Creates a new dashboard already pinned with a matching set of metrics -- rename or adjust it however you like afterwards.</p>
+      <div id="templateList" style="display:flex; flex-direction:column; gap:10px; margin-top:14px;"></div>
     </div>
   </div>
 
@@ -3789,6 +3808,34 @@ var dashboardsList = []; // [{id, name, pinned, is_default, sort_order}], logged
 var currentDashboardId = null;
 var CURRENT_DASH_KEY = "eatlas_current_dashboard_id"; // last-viewed convenience only, never the source of truth
 var tileCharts = {};
+var draggedTileId = null; // set on dragstart, read by other tiles' dragover/drop; single shared value since only one drag gesture can be in flight at once
+
+// Safety net for a drag that ends without a proper "dragend" firing on
+// the tile itself (e.g. released over a non-drop-target element, or the
+// gesture cancelled by the browser) -- registered ONCE here rather than
+// per-tile inside renderDash(), since renderDash() re-runs on every
+// add/remove/reorder and a per-tile listener would otherwise keep
+// stacking new document-level listeners that never get cleaned up.
+document.addEventListener("mouseup", function(){
+  document.querySelectorAll('.tile[draggable="true"]').forEach(function(t){ t.draggable = false; });
+});
+
+// Moves draggedId to sit immediately before/after targetId in the
+// pinned array, then persists and re-renders. Both ids are looked up
+// fresh each call rather than by index, since the array can't be
+// assumed stable between the drag starting and the drop landing.
+function reorderPinned(draggedId, targetId, before){
+  var arr = pinned.slice();
+  var fromIdx = arr.indexOf(draggedId);
+  if(fromIdx === -1) return;
+  arr.splice(fromIdx, 1);
+  var toIdx = arr.indexOf(targetId);
+  if(toIdx === -1) return;
+  arr.splice(before ? toIdx : toIdx + 1, 0, draggedId);
+  pinned = arr;
+  savePinned();
+  renderDash();
+}
 
 var expandedTiles = {}; // id -> true, survives renderDash() rebuilding the grid
 
@@ -3858,6 +3905,87 @@ function createDashboard(){
       // this, that's the trigger doing its job, not a bug. The trigger
       // itself is untouched infrastructure; only this message was
       // reworded to drop the "Upgrade to Pro" reference.
+      alert(res.error.message && res.error.message.indexOf("limited to one dashboard") !== -1
+        ? "This account has reached its dashboard limit for now. Please try again shortly."
+        : "Something went wrong creating the dashboard. Please try again.");
+      return;
+    }
+    dashboardsList.push(res.data);
+    switchToDashboard(res.data.id);
+  });
+}
+
+/* ------------------------------ templates ----------------------------------- */
+// Every id is checked against real, currently-live data for each country
+// before being hardcoded here -- a template silently missing a metric
+// for one country in the set would be a worse first impression than not
+// offering that template at all. If a metric genuinely stops being
+// available for some country later (a source going dead, say), that
+// tile just won't render (tileFromId returns null and it's skipped),
+// same as it would for a manually pinned tile in the same situation --
+// not a special failure mode to handle here.
+var DASHBOARD_TEMPLATES = [
+  {
+    name: "G7 GDP",
+    desc: "Nominal GDP for the G7 economies, side by side.",
+    ids: ["UK::gdp_level", "US::gdp_level", "Germany::gdp_level", "France::gdp_level", "Italy::gdp_level", "Japan::gdp_level", "Canada::gdp_level"]
+  },
+  {
+    name: "Inflation watch",
+    desc: "CPI across the UK, US and the Eurozone's largest members.",
+    ids: ["UK::cpi", "US::cpi", "Eurozone::cpi", "Germany::cpi", "France::cpi", "Italy::cpi", "Spain::cpi"]
+  },
+  {
+    name: "Unemployment, by region",
+    desc: "A geographically spread snapshot of labour markets.",
+    ids: ["UK::unemployment", "US::unemployment", "Japan::unemployment", "Brazil::unemployment", "South Africa::unemployment", "India::unemployment"]
+  }
+];
+
+function openTemplatePicker(){
+  if(!isProUser()){
+    if(window.EATLAS_OPEN_AUTH_MODAL) window.EATLAS_OPEN_AUTH_MODAL();
+    return;
+  }
+  var list = document.getElementById("templateList");
+  list.innerHTML = "";
+  DASHBOARD_TEMPLATES.forEach(function(tpl){
+    var row = document.createElement("button");
+    row.type = "button";
+    row.style.cssText = "text-align:left; padding:12px 14px; border:1px solid var(--hair); border-radius:10px; background:var(--paper); cursor:pointer; font:inherit;";
+    row.innerHTML = "<div style=\"font-weight:700; font-size:14px; color:var(--ink); margin-bottom:3px;\">" + tpl.name + "</div>"
+      + "<div style=\"font-size:12.5px; color:var(--ink2);\">" + tpl.desc + " (" + tpl.ids.length + " metrics)</div>";
+    row.addEventListener("mouseenter", function(){ row.style.borderColor = "var(--blue)"; });
+    row.addEventListener("mouseleave", function(){ row.style.borderColor = "var(--hair)"; });
+    row.addEventListener("click", function(){ createDashboardFromTemplate(tpl); });
+    list.appendChild(row);
+  });
+  document.getElementById("templateModal").hidden = false;
+  document.body.style.overflow = "hidden";
+}
+function closeTemplatePicker(){
+  document.getElementById("templateModal").hidden = true;
+  document.body.style.overflow = "";
+}
+document.getElementById("templateModalClose").addEventListener("click", closeTemplatePicker);
+document.getElementById("templateModalBackdrop").addEventListener("click", closeTemplatePicker);
+
+// Mirrors createDashboard() exactly, except the insert also seeds
+// `pinned` with the template's ids up front -- one round-trip, rather
+// than creating an empty dashboard and then pinning each tile
+// separately afterwards.
+function createDashboardFromTemplate(tpl){
+  var name = prompt("Name your new dashboard:", tpl.name);
+  if(!name || !name.trim()) return;
+  closeTemplatePicker();
+  sb.auth.getUser().then(function(userRes){
+    var uid = userRes.data && userRes.data.user && userRes.data.user.id;
+    if(!uid) return null;
+    return sb.from("dashboards").insert({ user_id: uid, name: name.trim(), pinned: tpl.ids }).select().single();
+  }).then(function(res){
+    if(!res) return;
+    if(res.error){
+      console.error("Failed to create dashboard from template:", res.error);
       alert(res.error.message && res.error.message.indexOf("limited to one dashboard") !== -1
         ? "This account has reached its dashboard limit for now. Please try again shortly."
         : "Something went wrong creating the dashboard. Please try again.");
@@ -3979,6 +4107,12 @@ function renderSidebarAndTabs(){
   addRow.addEventListener("click", createDashboard);
   sidebarList.appendChild(addRow);
 
+  var templateRow = document.createElement("div");
+  templateRow.className = "dash-sidebar-add" + (pro ? "" : " locked");
+  templateRow.innerHTML = '<span class="plus">\u2731</span> ' + (pro ? "From template" : "From template (Pro)");
+  templateRow.addEventListener("click", openTemplatePicker);
+  sidebarList.appendChild(templateRow);
+
   var addTab = document.createElement("div");
   addTab.className = "dash-mobile-tab dash-mobile-tab-add";
   addTab.textContent = pro ? "+ Add" : "+ Add (Pro)";
@@ -4015,6 +4149,7 @@ function renderDash(){
     tile.dataset.id = id;
     tile.innerHTML = "<button type=\"button\" class=\"remove\" aria-label=\"Remove\">&times;</button>"
       + "<button type=\"button\" class=\"collapsebtn\" aria-label=\"Hide chart\" title=\"Hide chart\">&#8722;</button>"
+      + "<button type=\"button\" class=\"draghandle\" aria-label=\"Drag to reorder\" title=\"Drag to reorder\">&#10495;</button>"
       + "<p class=\"country\">" + m.country + "</p>"
       + "<p class=\"label\">" + m.series.label + (dollarise && disp.unit !== m.series.unit ? " (USD)" : "") + "</p>"
       + "<p class=\"value\"><span class=\"led " + led + "\" title=\"" + ledTitle + "\" role=\"img\" aria-label=\"" + ledTitle + "\"></span>" + fmtVal(disp.value, disp.unit, m.key, m.country) + "</p>"
@@ -4073,6 +4208,48 @@ function renderDash(){
     tile.querySelector(".fullscreenbtn").addEventListener("click", function(){
       if(!tileCharts[id]) expandTile(tile, id, m);
       openChartModal(id);
+    });
+
+    // Drag-and-drop reordering. The whole tile carries draggable="true"
+    // only while the handle is actively pressed (toggled on
+    // mousedown/touchstart, off on mouseup/dragend) rather than being
+    // permanently draggable -- that keeps every other button and the
+    // "View chart"/"Fullscreen" click targets completely unaffected,
+    // since a permanently-draggable tile can make ordinary clicks feel
+    // janky in some browsers. Desktop (native HTML5 DnD) only for now;
+    // touch-drag reordering would need a separate touch-event-based
+    // implementation and isn't covered here.
+    var handle = tile.querySelector(".draghandle");
+    handle.addEventListener("mousedown", function(){ tile.draggable = true; });
+    tile.addEventListener("dragstart", function(e){
+      e.dataTransfer.effectAllowed = "move";
+      e.dataTransfer.setData("text/plain", id);
+      draggedTileId = id;
+      requestAnimationFrame(function(){ tile.classList.add("dragging"); });
+    });
+    tile.addEventListener("dragend", function(){
+      tile.classList.remove("dragging");
+      tile.draggable = false;
+      draggedTileId = null;
+      grid.querySelectorAll(".tile").forEach(function(t){ t.classList.remove("drag-over-before", "drag-over-after"); });
+    });
+    tile.addEventListener("dragover", function(e){
+      if(!draggedTileId || draggedTileId === id) return;
+      e.preventDefault();
+      var rect = tile.getBoundingClientRect();
+      var before = (e.clientX - rect.left) < rect.width / 2;
+      tile.classList.toggle("drag-over-before", before);
+      tile.classList.toggle("drag-over-after", !before);
+    });
+    tile.addEventListener("dragleave", function(){
+      tile.classList.remove("drag-over-before", "drag-over-after");
+    });
+    tile.addEventListener("drop", function(e){
+      e.preventDefault();
+      if(!draggedTileId || draggedTileId === id) return;
+      var rect = tile.getBoundingClientRect();
+      var before = (e.clientX - rect.left) < rect.width / 2;
+      reorderPinned(draggedTileId, id, before);
     });
 
     if(expandedTiles[id]) expandTile(tile, id, m);
@@ -4344,6 +4521,95 @@ loadAll().then(function(){
   document.getElementById("dashGrid").style.display = "grid";
   document.getElementById("dashLightskey").style.display = "flex";
   CURRENT_YEAR = computeCurrentYear();
+
+  // Whole-dashboard PNG export. Reuses the exact same chart-building
+  // functions (lineChart/barChart, toDisplayPoints/toDisplayUnit,
+  // fmtVal, BAR_KEYS, REF_LINE_FOR) that a live tile uses -- rendered
+  // into throwaway offscreen canvases rather than touching any real
+  // tile's expand/collapse state, so exporting never visually disturbs
+  // the dashboard the person is actually looking at. Each chart is then
+  // drawn into one tall master canvas, stacked with its own country +
+  // metric heading, and downloaded as a single PNG.
+  function exportDashboardPng(){
+    var btn = document.getElementById("exportDashboardBtn");
+    if(btn.disabled || !pinned.length) return;
+    var originalLabel = btn.textContent;
+    btn.disabled = true;
+    btn.textContent = "Exporting\u2026";
+
+    var CHART_W = 700, CHART_H = 260, HEADER_H = 46, GAP = 18, PAD = 24;
+    var entries = pinned.map(function(id){ return { id: id, m: tileFromId(id) }; }).filter(function(e){ return e.m; });
+
+    // Chart.js paints on the next animation frame even with
+    // animation:false, so each temporary chart needs a moment before
+    // its canvas actually has pixels -- rendering all of them, THEN
+    // waiting one rAF tick before reading any of them back out, is far
+    // simpler and more reliable than trying to hook Chart.js's own
+    // render-complete event per instance.
+    var tempCharts = [];
+    var tempCanvases = entries.map(function(entry){
+      var m = entry.m;
+      var canvas = document.createElement("canvas");
+      canvas.width = CHART_W; canvas.height = CHART_H;
+      var pts = toDisplayPoints(m.series.points, m.series.unit, m.country, m.key);
+      var chartUnit = toDisplayUnit(0, m.series.unit, m.country, m.key, m.period).unit;
+      var kind = BAR_KEYS[m.key] ? "bar" : "line";
+      var refLine = REF_LINE_FOR[m.key] == null ? null : REF_LINE_FOR[m.key];
+      var fmt = function(v){ return fmtVal(v, chartUnit, m.key, m.country); };
+      var cfg = chartConfig(kind, pts, fmt, fmt, refLine, m.key);
+      cfg.options = cfg.options || {};
+      cfg.options.animation = false;
+      cfg.options.responsive = false;
+      tempCharts.push(new Chart(canvas, cfg));
+      return canvas;
+    });
+
+    requestAnimationFrame(function(){
+      requestAnimationFrame(function(){
+        var master = document.createElement("canvas");
+        var scale = 2;
+        master.width = (CHART_W + PAD * 2) * scale;
+        master.height = (entries.length * (CHART_H + HEADER_H + GAP) + PAD * 2) * scale;
+        var ctx = master.getContext("2d");
+        ctx.scale(scale, scale);
+        ctx.fillStyle = "#FFFFFF";
+        ctx.fillRect(0, 0, master.width / scale, master.height / scale);
+
+        entries.forEach(function(entry, i){
+          var m = entry.m;
+          var y = PAD + i * (CHART_H + HEADER_H + GAP);
+          ctx.fillStyle = "#171B1E";
+          ctx.font = "700 15px Helvetica, Arial, sans-serif";
+          ctx.fillText(m.country + " \u00b7 " + m.series.label, PAD, y + 20);
+          ctx.fillStyle = "#5A6167";
+          ctx.font = "400 11px Helvetica, Arial, sans-serif";
+          ctx.fillText(fmtPeriod(m.period) + " is the latest observation", PAD, y + 38);
+          ctx.drawImage(tempCanvases[i], PAD, y + HEADER_H, CHART_W, CHART_H);
+        });
+
+        ctx.fillStyle = "#9AA4A0";
+        ctx.font = "400 10px Helvetica, Arial, sans-serif";
+        ctx.fillText("Made on theeconomicatlas.com", PAD, master.height / scale - 8);
+
+        tempCharts.forEach(function(c){ c.destroy(); });
+
+        master.toBlob(function(blob){
+          var url = URL.createObjectURL(blob);
+          var a = document.createElement("a");
+          a.href = url;
+          a.download = "dashboard_" + new Date().toISOString().slice(0, 10) + ".png";
+          document.body.appendChild(a);
+          a.click();
+          document.body.removeChild(a);
+          setTimeout(function(){ URL.revokeObjectURL(url); }, 1000);
+          btn.disabled = false;
+          btn.textContent = "Exported \u2713";
+          setTimeout(function(){ btn.textContent = originalLabel; }, 1600);
+        }, "image/png");
+      });
+    });
+  }
+  document.getElementById("exportDashboardBtn").addEventListener("click", exportDashboardPng);
 
   var dollarBtn = document.getElementById("dollariseBtn");
   function updateDollarBtn(){
