@@ -1718,34 +1718,33 @@ var COUNTRY_LABEL = {UK:"United Kingdom", US:"United States", Eurozone:"Eurozone
   Mexico:"Mexico", Brazil:"Brazil", "South Africa":"South Africa", Morocco:"Morocco", Germany:"Germany",
   France:"France", Italy:"Italy", Spain:"Spain", Netherlands:"Netherlands", Denmark:"Denmark", Ireland:"Ireland",
   Norway:"Norway", Chile:"Chile", Colombia:"Colombia", Turkey:"Turkey", Indonesia:"Indonesia", Poland:"Poland", Switzerland:"Switzerland", Argentina:"Argentina", Sweden:"Sweden", Singapore:"Singapore", Austria:"Austria", Thailand:"Thailand"};
-// Replaced the original hand-picked set: computed via greedy
-// farthest-point selection (maximize the worst-case pairwise distance
-// across all 32, not just eyeballed) from a candidate pool generated
-// directly within a muted saturation/lightness band, so the result
-// stays visually consistent with the rest of the site without any
-// two countries collapsing into near-identical hues once all 32 are
-// selected at once -- Chile and Switzerland were previously only 16.8
-// apart on a 0-~350 perceptual distance scale; every pair here clears
-// 54, the practical ceiling for 32 genuinely distinct muted colors.
-var COUNTRY_COLOR = {UK:"#1E4566", US:"#AFAF4F", Eurozone:"#A94FAF", Japan:"#4FA3AF", India:"#3B9A3B", Canada:"#9A3B3B", Australia:"#4F5BAF", "South Korea":"#6F2D80", Israel:"#897938", Mexico:"#2D807A", Brazil:"#4FAF6F", "South Africa":"#4E6E2A", Morocco:"#AF4F6F", Germany:"#78A446", France:"#6E2A2A", Italy:"#2A6E4E", Spain:"#3D3889", Netherlands:"#7846A4", Denmark:"#AF894F", Ireland:"#467EA4", Norway:"#6E532A", Chile:"#385E89", Colombia:"#A45F46", Turkey:"#9A3B8D", Indonesia:"#802D59", Poland:"#638938", Switzerland:"#3B9A8D", Argentina:"#2D802D", Sweden:"#388958", Singapore:"#4E2A6E", Austria:"#9A9A3B", Thailand:"#9A3B67"};
+// Second pass on this palette: the first version was mathematically
+// distinct but read as too muted/drab compared to the site's original
+// character (avg saturation ~0.42 vs the original hand-picked set's
+// ~0.53). Regenerated with candidates drawn from bands matching the
+// ORIGINAL palette's actual richness (avg saturation ~0.58, lightness
+// ~0.44 this time) rather than an arbitrarily muted band, then
+// selected 48 colors via the same greedy farthest-point method (not
+// just the 32 currently needed -- future-proofed for more countries
+// being added later) and sorted by hue so the swatch picker reads as
+// a coherent spectrum instead of a scrambled grid. These 32 are an
+// evenly-hue-spread subset of that full 48 (see COMPARE_PALETTE below
+// for the complete set); minimum pairwise distance across these 32 is
+// 62.7 -- Chile and Switzerland were previously only 16.8 apart.
+var COUNTRY_COLOR = {UK:"#1E4566", US:"#AD1E1E", Eurozone:"#D47353", Japan:"#AD5132", India:"#BB8A4D", Canada:"#AD7B1E", Australia:"#ADA61E", "South Korea":"#D4D453", Israel:"#A5BB4D", Mexico:"#82AD32", Brazil:"#7AD453", "South Africa":"#49AD1E", Morocco:"#1E8F1E", Germany:"#1EAD42", France:"#53D493", Italy:"#1E8F67", Spain:"#1EAD7B", Netherlands:"#32A7AD", Denmark:"#376A80", Ireland:"#1E7BAD", Norway:"#4D74BB", Chile:"#535AD4", Colombia:"#2D2672", Turkey:"#2C1EAD", Indonesia:"#6A32AD", Poland:"#CD53D4", Switzerland:"#891E8F", Argentina:"#AD32AD", Sweden:"#D453A7", Singapore:"#AD1E5E", Austria:"#722648", Thailand:"#D45366"};
 // A separate palette from mako, built for a different job: mako is a
 // sequential gradient (one hue path, dark to light) meant to encode
 // magnitude, so several of its stops sit close together in perceived
 // colour by design -- exactly wrong for picking out up to MAX_SELECTED
 // distinct countries at a glance. This is a categorical set instead:
-// hues spread around the full wheel at a consistent, muted
-// saturation/lightness, so every pair reads as clearly different while
-// keeping the same minimalist, unsaturated character as the rest of
-// the site (including mako itself) rather than looking like a
-// default/office-suite colour picker.
-// Same 32-color set used for the default assignment above, reused
-// here rather than maintaining a separate, smaller list -- picking an
-// override from the exact same verified-distinct set that defaults
-// draw from means overriding one country's colour can never introduce
-// a clash that wasn't already possible by default, and effectively
-// lets two countries "swap" colours cleanly if that's what someone
-// wants.
-var COMPARE_PALETTE = ["#1E4566", "#AFAF4F", "#A94FAF", "#4FA3AF", "#3B9A3B", "#9A3B3B", "#4F5BAF", "#6F2D80", "#897938", "#2D807A", "#4FAF6F", "#4E6E2A", "#AF4F6F", "#78A446", "#6E2A2A", "#2A6E4E", "#3D3889", "#7846A4", "#AF894F", "#467EA4", "#6E532A", "#385E89", "#A45F46", "#9A3B8D", "#802D59", "#638938", "#3B9A8D", "#2D802D", "#388958", "#4E2A6E", "#9A9A3B", "#9A3B67"];
+// hues spread around the full wheel, richer/more saturated than the
+// muted-only first attempt, matching the original palette's character.
+// This is the FULL 48-color set (the 32 defaults above are an
+// evenly-spread subset of it) -- more genuine choices than the default
+// assignment alone, and enough headroom for more countries later
+// without needing another redesign. Sorted by hue so the picker
+// displays as a readable spectrum, not a scrambled grid.
+var COMPARE_PALETTE = ["#AD1E1E", "#8F3A1E", "#D47353", "#AD5132", "#BB8A4D", "#D4A053", "#AD7B1E", "#726326", "#ADA61E", "#D4D453", "#A5BB4D", "#788F1E", "#82AD32", "#447226", "#7AD453", "#49AD1E", "#1E8F1E", "#4DBB5E", "#1EAD42", "#37804D", "#53D493", "#1E8F67", "#1EAD7B", "#1E8F8F", "#32A7AD", "#53C0D4", "#376A80", "#1E7BAD", "#1E4566", "#538DD4", "#4D74BB", "#1E49AD", "#535AD4", "#2D2672", "#2C1EAD", "#543780", "#6A32AD", "#8F4DBB", "#CD53D4", "#891E8F", "#AD32AD", "#80376E", "#D453A7", "#BB4D8A", "#AD1E5E", "#722648", "#D45366", "#AD323E"];
 // User overrides live in EATLAS_PREFS (same mechanism already used for
 // compareMetrics), keyed by country name -> hex. getCountryColor()
 // checks the override first, falling back to the country's assigned
@@ -2691,7 +2690,7 @@ function openColorPicker(country, anchorEl){
   if(colorPickerPopover) colorPickerPopover.remove();
   var pop = document.createElement("div");
   pop.className = "color-picker-popover";
-  pop.style.cssText = "position:absolute; z-index:50; background:var(--paper); border:1px solid var(--hair); border-radius:10px; padding:10px; box-shadow:0 10px 28px rgba(0,0,0,.18); display:grid; grid-template-columns:repeat(5, 1fr); gap:6px; width:168px;";
+  pop.style.cssText = "position:absolute; z-index:50; background:var(--paper); border:1px solid var(--hair); border-radius:10px; padding:10px; box-shadow:0 10px 28px rgba(0,0,0,.18); display:grid; grid-template-columns:repeat(8, 1fr); gap:6px; width:260px; max-height:340px; overflow-y:auto;";
   COMPARE_PALETTE.forEach(function(hex){
     var b = document.createElement("button");
     b.type = "button";
@@ -3863,10 +3862,24 @@ window.EATLAS_COMPARE = {
   // error). This exposes safe, namespaced entry points instead,
   // matching the existing EATLAS_PREFS/EATLAS_ACCOUNT convention
   // already used elsewhere on this page.
+  //
+  // getCardSortMode/setCardSortMode/sortRowsByMode/refreshOneCard were
+  // added here for the exact same reason and hit the exact same class
+  // of bug: the Customise & Export modal (window.EATLAS_OPEN_CUSTOMIZE_
+  // SNAPSHOT) lives in ITS OWN separate <script> block further down the
+  // page, and calling these directly (without the window.EATLAS_COMPARE
+  // prefix) threw "getCardSortMode is not defined" the moment the
+  // button was clicked -- silently, since nothing caught it, which is
+  // why the modal appeared to simply not open at all rather than
+  // showing an error.
   toggleCountry: toggleCountry,
   addMetric: addMetric,
   openCountryModal: openCountryModal,
-  closeCountryModal: closeCountryModal
+  closeCountryModal: closeCountryModal,
+  getCardSortMode: getCardSortMode,
+  setCardSortMode: setCardSortMode,
+  sortRowsByMode: sortRowsByMode,
+  refreshOneCard: refreshOneCard
 };
 
 })();
@@ -4944,10 +4957,10 @@ window.EATLAS_COMPARE = {
     // card's setting, shown in two places, not independent copies that
     // could drift out of sync with each other.
     var concept = (czmState.filenameBase || "").replace(/_snapshot$/, "");
-    setCardSortMode(concept, e.target.value);
-    SNAPSHOT_ROWS = sortRowsByMode(SNAPSHOT_ROWS, function(r){ return r.value; }, e.target.value);
+    window.EATLAS_COMPARE.setCardSortMode(concept, e.target.value);
+    SNAPSHOT_ROWS = window.EATLAS_COMPARE.sortRowsByMode(SNAPSHOT_ROWS, function(r){ return r.value; }, e.target.value);
     czRenderPreview();
-    refreshOneCard(concept);
+    window.EATLAS_COMPARE.refreshOneCard(concept);
   });
   // Mirrors country pages' czSyncModeFields(): "Centre axis around
   // reference line" only makes sense once a reference line exists, and
@@ -5316,7 +5329,7 @@ window.EATLAS_COMPARE = {
     document.getElementById("czLogScaleToggle").checked = false;
     document.getElementById("czThresholdShadeToggle").checked = false;
     var czConcept = (filenameBase || "").replace(/_snapshot$/, "");
-    document.getElementById("czSortModeSelect").value = getCardSortMode(czConcept);
+    document.getElementById("czSortModeSelect").value = window.EATLAS_COMPARE.getCardSortMode(czConcept);
 
     document.getElementById("czDateRangePanel").hidden = true;
     document.getElementById("czEventLinesPanel").hidden = true;
