@@ -42,16 +42,16 @@
 .loadmsg{font-size:13.5px; color:var(--ink2); padding:20px 0;}
 .dollarrow{margin:16px 0 22px;}
 
-// A fixed repeat(3,1fr) + a max-width media-query override to 1
-// column has a real gap: mobile Safari's own "Page Zoom" setting (the
-// aA menu, distinct from pinch-zoom) can enlarge the EFFECTIVE CSS
-// viewport width beyond the 700px breakpoint even on an actual phone
-// -- the media query then never fires, the desktop 3-column grid
-// applies, and gets squeezed down to fit the real, narrow physical
-// screen: tiny, cramped tiles. auto-fit with a minimum tile width
-// sidesteps this entirely -- the browser fits as many 260px-or-wider
-// columns as the AVAILABLE width actually allows, with no fixed
-// breakpoint to be circumvented by any zoom level, page or pinch.
+/* A fixed repeat(3,1fr) + a max-width media-query override to 1
+   column has a real gap: mobile Safari's own "Page Zoom" setting (the
+   aA menu, distinct from pinch-zoom) can enlarge the EFFECTIVE CSS
+   viewport width beyond the 700px breakpoint even on an actual phone
+   -- the media query then never fires, the desktop 3-column grid
+   applies, and gets squeezed down to fit the real, narrow physical
+   screen: tiny, cramped tiles. auto-fit with a minimum tile width
+   sidesteps this entirely -- the browser fits as many 260px-or-wider
+   columns as the AVAILABLE width actually allows, with no fixed
+   breakpoint to be circumvented by any zoom level, page or pinch. */
 .dashgrid{display:grid; grid-template-columns:repeat(auto-fit, minmax(260px, 1fr)); gap:14px; margin-bottom:8px;}
 .led{display:inline-block; width:9px; height:9px; border-radius:50%;
   margin-right:9px; vertical-align:middle; position:relative; top:-1px;}
@@ -61,16 +61,28 @@
   display:flex; gap:20px; flex-wrap:wrap; justify-content:center;}
 .lightskey span{display:flex; align-items:center; gap:9px;}
 .tile{background:var(--panel); border:1px solid var(--hair); border-radius:14px; padding:18px 20px; position:relative;
-  grid-column:span 1;}
-// "span 3" assumed exactly 3 fixed columns always exist -- with the
-// grid now auto-fitting a variable number of columns depending on
-// available width, that assumption no longer holds in either
-// direction (too few actual columns to satisfy the span forces
-// overflow, same failure mode as the original bug; too many and an
-// "expanded" tile wouldn't reach full width at all). "1 / -1" spans
-// from the very first to the very last grid line regardless of how
-// many columns actually exist at the moment, which is what "take the
-// whole row" really means here.
+  grid-column:span 1; min-width:0;}
+/* A grid item's default min-width is "auto", which respects its own
+   CONTENT's intrinsic size -- and a tile's chart canvas has an
+   explicit width of 700px (see CHART_W below), well past the 260px
+   minmax() floor just set on the grid track itself. The browser takes
+   the LARGER of the two as the real minimum, so every track was
+   silently being forced to 700px+ regardless of the grid's own
+   intended minimum, collapsing an otherwise-plenty-wide desktop
+   container down to a single column -- exactly the classic "grid
+   items don't shrink below their content" gotcha, and exactly why
+   auto-fit alone wasn't enough. min-width:0 tells the grid to ignore
+   the canvas's own intrinsic size and only ever respect the track's
+   minmax() floor instead. */
+/* "span 3" assumed exactly 3 fixed columns always exist -- with the
+   grid now auto-fitting a variable number of columns depending on
+   available width, that assumption no longer holds in either
+   direction (too few actual columns to satisfy the span forces
+   overflow, same failure mode as the original bug; too many and an
+   "expanded" tile wouldn't reach full width at all). "1 / -1" spans
+   from the very first to the very last grid line regardless of how
+   many columns actually exist at the moment, which is what "take the
+   whole row" really means here. */
 .tile.expanded{grid-column:1 / -1;}
 /* ---- toggle-affected metric highlighting (ported exactly from country
    pages: Aug 2026 historical FX pass) ----
