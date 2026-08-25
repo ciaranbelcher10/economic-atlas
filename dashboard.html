@@ -4295,6 +4295,17 @@ function renderDash(){
     var disp = toDisplayUnit(m.value, m.series.unit, m.country, m.key, m.period);
     var led = freshness(m.series);
     var ledTitle = freshnessTitle(m.series);
+    // "Did this tile actually get converted?" must be checked the same
+    // way the conversion decision itself was made -- isAlreadyUSD()
+    // against the raw unit -- not by comparing the unit string before
+    // and after. Dollar-glyph local-currency countries (Mexico, South
+    // Africa, etc) have a unit that's already just "$m", so converting
+    // it produces the exact same string back out even though a real FX
+    // conversion did happen -- comparing strings would silently miss
+    // every one of them. This is the exact same mistake already found
+    // and fixed once on the country pages themselves (see mexico.html's
+    // own applyToggleHighlighting comment) -- ported the fix here too.
+    var actuallyConverted = dollarise && isCurrencyUnit(m.series.unit) && !isAlreadyUSD(m.series.unit, m.country, m.key);
     var tile = document.createElement("div");
     tile.className = "tile";
     tile.dataset.id = id;
@@ -4303,7 +4314,7 @@ function renderDash(){
       + "<button type=\"button\" class=\"collapsebtn\" aria-label=\"Hide chart\" title=\"Hide chart\">&#8722;</button>"
       + "<button type=\"button\" class=\"draghandle\" aria-label=\"Drag to reorder\" title=\"Drag to reorder\">&#10495;</button>"
       + "<p class=\"country\">" + m.country + "</p>"
-      + "<p class=\"label\">" + m.series.label + (dollarise && disp.unit !== m.series.unit ? " (USD)" : "") + "</p>"
+      + "<p class=\"label\">" + m.series.label + (actuallyConverted ? " (USD)" : "") + "</p>"
       + "<p class=\"value\"><span class=\"led " + led + "\" title=\"" + ledTitle + "\" role=\"img\" aria-label=\"" + ledTitle + "\"></span>" + fmtVal(disp.value, disp.unit, m.key, m.country) + "</p>"
       + "<p class=\"period\">" + fmtPeriod(m.period) + "</p>"
       + "<div class=\"chartactions\">"
@@ -4437,14 +4448,20 @@ function renderDash(){
 // same check the tile's own "(USD)" suffix already relies on (does the
 // displayed unit differ from the raw series unit after conversion) so
 // the glow can never disagree with what the tile itself is showing.
+// Checks isAlreadyUSD() directly against the raw series unit -- the
+// same test used to decide whether conversion happens in the first
+// place -- rather than comparing the displayed unit string before and
+// after, which silently misses every dollar-glyph local-currency
+// country (their unit is already just "$m", so it looks unchanged
+// even after a real conversion). Same fix already made once on the
+// country pages themselves; ported here to match.
 function applyDashToggleHighlighting(){
   document.querySelectorAll(".tile[data-key]").forEach(function(tile){
     var key = tile.dataset.key;
     var m = tileFromId(tile.dataset.id);
     tile.classList.remove("fx-real", "fx-dollar", "fx-both");
     if(!m) return;
-    var disp = toDisplayUnit(m.value, m.series.unit, m.country, m.key, m.period);
-    var dollarHit = dollarise && disp.unit !== m.series.unit;
+    var dollarHit = dollarise && isCurrencyUnit(m.series.unit) && !isAlreadyUSD(m.series.unit, m.country, m.key);
     var realHit = makeItReal && REAL_AFFECTED_KEYS.indexOf(key) !== -1;
     if(realHit && dollarHit) tile.classList.add("fx-both");
     else if(realHit) tile.classList.add("fx-real");
