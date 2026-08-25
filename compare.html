@@ -1589,11 +1589,14 @@ footer.cmp-foot{margin-top:36px; font-size:12.5px; color:var(--ink2); border-top
   <p style="color:var(--ink2); font-size:14.5px; margin:8px 0 0;">Compare any of the 18 tracked countries across GDP, inflation, unemployment, debt, trade, rates and more -- side by side, for one year or over the last 1, 2, 5 or 10 years.</p>
   <p class="loadmsg" id="loadMsg">Loading every country&#39;s data&hellip;</p>
 
-  <div id="mainContent" style="display:none;">
-  <button type="button" id="countriesToggleBtn" style="display:block; width:100%; text-align:center; font:700 14px inherit;
+  <div id="mainContent" style="display:none; position:relative;">
+  <button type="button" id="countriesToggleBtn" style="display:block; width:100%; text-align:center;
+    font-family:'Avenir Next','Avenir','Nunito Sans',system-ui,sans-serif; font-weight:700; font-size:14px;
     padding:10px 0; margin:0 0 10px; border-radius:10px; border:1px solid var(--hair); background:var(--paper); color:var(--ink);
-    cursor:pointer; position:sticky; top:0; z-index:15;"></button>
-  <div id="countriesPanelBody">
+    cursor:pointer; position:sticky; top:0; z-index:15; box-shadow:0 2px 10px rgba(0,0,0,.12);"></button>
+  <div id="countriesPanelBody" style="display:none; position:fixed; z-index:16;
+    background:var(--paper); border:1px solid var(--hair); border-radius:10px; padding:16px;
+    box-shadow:0 14px 32px rgba(0,0,0,.28); max-height:70vh; overflow-y:auto;">
   <div class="chiprow" id="chipRow"></div>
   <div style="display:flex; align-items:center; justify-content:space-between; margin:-4px 0 10px;">
     <h3 style="font-size:14px; margin:0;">Countries</h3>
@@ -2581,31 +2584,40 @@ function updateCountriesToggleBtn(){
   var label = n === 0 ? "Choose countries" : n + " " + (n === 1 ? "country" : "countries") + " selected \u2014 tap to change";
   btn.textContent = label + (countriesPanelExpanded ? "  \u25B4" : "  \u25BE");
 }
+// Anchors the dropdown to the toggle button's actual current on-screen
+// position via getBoundingClientRect() -- since the button is
+// position:sticky, its true screen position depends on scroll state
+// (natural document position when not yet scrolled past, pinned at the
+// very top once it is), and a purely CSS-anchored panel (whether
+// document-relative or hardcoded to a fixed offset) can only ever be
+// correct for ONE of those two states, not both. Reading the real rect
+// at open-time -- and again on scroll while open, so the panel doesn't
+// visually detach from the button if the person scrolls with it open
+// -- is what makes this actually reliable regardless of scroll position,
+// replacing the earlier "scroll the page to reveal it" approach, which
+// depended on the browser's scroll actually completing and being
+// noticed -- a real popup that appears immediately needs no such
+// assumption.
+function positionCountriesPanel(){
+  var btn = document.getElementById("countriesToggleBtn");
+  var panel = document.getElementById("countriesPanelBody");
+  var rect = btn.getBoundingClientRect();
+  panel.style.top = (rect.bottom + 6) + "px";
+  panel.style.left = rect.left + "px";
+  panel.style.width = rect.width + "px";
+}
 function setCountriesPanelExpanded(expanded){
   countriesPanelExpanded = expanded;
-  document.getElementById("countriesPanelBody").style.display = expanded ? "block" : "none";
+  var panel = document.getElementById("countriesPanelBody");
+  panel.style.display = expanded ? "block" : "none";
   updateCountriesToggleBtn();
-  // The toggle bar itself is the sticky element now (it IS the header),
-  // so it's always reachable while scrolling, but the expanded body
-  // below it is normal-flow, not pinned -- clicking to expand while
-  // scrolled well down the page would otherwise open content sitting
-  // off-screen below the fold with no visible change. Wrapped in
-  // try/catch since this is a nice-to-have, not something that should
-  // ever be able to break the actual expand/collapse toggle itself if
-  // it fails for any reason in any environment.
   if(expanded){
-    try {
-      // Scrolling to the toggle button itself is a no-op the moment
-      // it's already sticky/visible (which is most of the time, by
-      // design) -- the thing that actually needs to come into view is
-      // the newly-expanded body, which sits in normal document flow
-      // right below it and could be far above the current scroll
-      // position on a long page. Scrolling the page to the very top
-      // (where the whole panel naturally lives) is what actually makes
-      // the expand visible, not scrolling to an element that never moves.
-      window.scrollTo({top: 0, behavior: "smooth"});
-    }
-    catch(e){ /* non-critical */ }
+    positionCountriesPanel();
+    window.addEventListener("scroll", positionCountriesPanel);
+    window.addEventListener("resize", positionCountriesPanel);
+  } else {
+    window.removeEventListener("scroll", positionCountriesPanel);
+    window.removeEventListener("resize", positionCountriesPanel);
   }
 }
 document.getElementById("countriesToggleBtn").addEventListener("click", function(){
@@ -3157,6 +3169,7 @@ function buildCardShell(concept, hasHistory, mode){
     + "</div>"
     + "<div class=\"lockedactions\"><a class=\"lockedbtn dl-btn\" href=\"contact\" data-tip=\"Create a free account to unlock this feature.\"><span class=\"lockicon\">&#128274;</span> Download data</a><a class=\"lockedbtn cz-btn\" href=\"contact\" data-tip=\"Coming soon. Contact us to express interest.\"><span class=\"lockicon\">&#128274;</span> Customise &amp; export</a></div>"
     + "<button type=\"button\" class=\"btn ghost card-map-toggle\" style=\"margin-top:10px;\">Compare on a map</button>"
+    + "<button type=\"button\" class=\"btn ghost card-fullscreen-btn\" style=\"margin-top:10px; margin-left:8px;\">Fullscreen</button>"
     + "<div class=\"card-map-container\" style=\"display:none; margin-top:10px;\"></div>";
 
   card.querySelector(".card-remove").addEventListener("click", function(){ removeMetric(concept); });
@@ -3217,6 +3230,9 @@ function buildCardShell(concept, hasHistory, mode){
     cardMapInstances[concept] = createCardMap(concept, mapContainer);
   }
 
+  var fullscreenBtn = card.querySelector(".card-fullscreen-btn");
+  if(fullscreenBtn) fullscreenBtn.addEventListener("click", function(){ openCardFullscreen(concept); });
+
   return card;
 }
 
@@ -3241,6 +3257,31 @@ function updateCardChangeSliderVisuals(card, st){
 // here calls refreshOneCard(concept), never the full renderCharts(), so
 // dragging this card's slider never touches any other card's DOM (or
 // its own slider DOM out from under the drag gesture).
+// Reuses the exact same buildBarChart()/buildLineChart() functions
+// each card already uses -- rebuilding into the modal's own canvas at
+// a larger size, rather than trying to resize/move the card's live
+// Chart.js instance into the modal (which would need tearing it back
+// down and rebuilding it in the card again on close anyway, for no
+// real benefit over just building a second, temporary instance here).
+var cardFullscreenChart = null;
+function openCardFullscreen(concept){
+  document.getElementById("cardFullscreenTitle").textContent = CONCEPT_LABEL[concept] || concept;
+  var canvas = document.getElementById("cardFullscreenCanvas");
+  if(cardFullscreenChart){ cardFullscreenChart.destroy(); cardFullscreenChart = null; }
+  var mode = cardChartType[concept] || "bar";
+  var result = mode === "line" ? buildLineChart(canvas, concept) : buildBarChart(canvas, concept);
+  cardFullscreenChart = result ? result.chart : null;
+  document.getElementById("cardFullscreenModal").hidden = false;
+  document.body.style.overflow = "hidden";
+}
+function closeCardFullscreen(){
+  document.getElementById("cardFullscreenModal").hidden = true;
+  document.body.style.overflow = "";
+  if(cardFullscreenChart){ cardFullscreenChart.destroy(); cardFullscreenChart = null; }
+}
+document.getElementById("cardFullscreenClose").addEventListener("click", closeCardFullscreen);
+document.getElementById("cardFullscreenBackdrop").addEventListener("click", closeCardFullscreen);
+
 function wireCardTimeControls(card, concept){
   var st = clampCardTimeState(concept);
   var minYear = computeTimeSliderMinYear();
@@ -3944,6 +3985,14 @@ window.EATLAS_COMPARE = {
 })();
 </script>
 
+<div class="chart-modal" id="cardFullscreenModal" hidden>
+  <div class="chart-modal-backdrop" id="cardFullscreenBackdrop"></div>
+  <div style="position:relative; background:var(--panel); border-radius:14px; padding:20px; width:min(1100px, 92vw); max-height:90vh; overflow-y:auto;">
+    <button type="button" id="cardFullscreenClose" aria-label="Close" style="position:absolute; top:14px; right:14px; width:30px; height:30px; border-radius:50%; border:1px solid var(--hair); background:var(--paper); color:var(--ink); cursor:pointer;">&times;</button>
+    <h3 id="cardFullscreenTitle" style="margin:0 0 16px;"></h3>
+    <div style="height:min(560px, 60vh);"><canvas id="cardFullscreenCanvas"></canvas></div>
+  </div>
+</div>
 <div class="chart-modal" id="customizeModal" hidden>
   <div class="chart-modal-backdrop"></div>
   <div class="chart-modal-content" style="width:min(1320px, 96vw); padding:26px 30px 22px; max-height:92vh; overflow-y:auto; overscroll-behavior:contain; display:block;">
