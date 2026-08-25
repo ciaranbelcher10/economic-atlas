@@ -68,6 +68,22 @@
 .tile{background:var(--panel); border:1px solid var(--hair); border-radius:14px; padding:18px 20px; position:relative;
   grid-column:span 1;}
 .tile.expanded{grid-column:span 3;}
+/* ---- toggle-affected metric highlighting (ported exactly from country
+   pages: Aug 2026 historical FX pass) ----
+   Yellow = "Make it real" changed this tile's series; blue = "Dollarise"
+   converted it; green = both at once. Border-color + box-shadow only --
+   NOT background -- since a background-gradient approach silently failed
+   specifically on country pages' .stat tiles because a dark-theme rule
+   set background with !important, unconditionally winning regardless of
+   selector specificity or source order. Tiles here share that same risk
+   (a themed background rule could exist for .tile too), so this reuses
+   the exact same safe approach rather than re-discovering that bug. */
+.tile.fx-real{ border-color:#E3B341 !important; box-shadow:0 0 0 2px rgba(227,179,65,.35); }
+.tile.fx-dollar{ border-color:var(--blue) !important; box-shadow:0 0 0 2px rgba(71,150,206,.35); }
+.tile.fx-both{ border-color:#2FA463 !important; box-shadow:0 0 0 2px rgba(47,164,99,.35); }
+button.mtoggle.fx-real{background:#E3B341; border-color:#E3B341; color:#171B1E;}
+button.mtoggle.fx-dollar{background:var(--blue); border-color:var(--blue); color:#fff;}
+button.mtoggle.fx-both{background:#2FA463; border-color:#2FA463; color:#fff;}
 .tile .remove{position:absolute; top:10px; right:10px; width:22px; height:22px; border-radius:50%;
   border:1px solid var(--hair); background:var(--paper); color:var(--ink2); font-size:13px; cursor:pointer;
   display:flex; align-items:center; justify-content:center;}
@@ -1532,10 +1548,13 @@ footer.dash-foot{margin-top:36px; font-size:12.5px; color:var(--ink2); border-to
   <p style="color:var(--ink2); font-size:14.5px; margin:8px 0 0;">Pin any metric from any of the 18 tracked countries into one personal view, with a chart on demand for any tile.</p>
 
   <div class="metric-toggles" aria-label="Display options">
+    <button type="button" class="mtoggle" id="makeRealBtn">
+      <span class="mtoggle-switch" aria-hidden="true"></span>Make it real
+    </button>
     <button type="button" class="mtoggle" id="dollariseBtn">
       <span class="mtoggle-switch" aria-hidden="true"></span>Dollarise
     </button>
-    <span class="mtoggle-note">Shows currency figures (GDP, debt, trade) in USD, using the same FX rates as each country's own page.</span>
+    <span class="mtoggle-note">"Make it real" shows GDP level tiles inflation-adjusted. Dollarise shows currency figures (GDP, debt, trade) in USD, using the same FX rates as each country's own page.</span>
     <button type="button" class="dashexportbtn" id="exportDashboardBtn" style="margin-left:auto;">Export dashboard (PNG)</button>
   </div>
 
@@ -3667,7 +3686,17 @@ function dedupePinned(arr){
 function tileFromId(id){
   var parts = id.split("::");
   var country = parts[0], key = parts.slice(1).join("::");
-  var s = REGISTRY[country] && REGISTRY[country][key];
+  // "Make it real" substitutes the underlying series here -- the single
+  // chokepoint every pinned tile's data already flows through (5 call
+  // sites, all resolving a tile via this function) -- while keeping
+  // `key` itself as the original "gdp_level", so the tile's identity,
+  // label, and category stay exactly what the person pinned. Falls
+  // through to the normal nominal series if that country doesn't
+  // happen to have a gdp_real series at all, rather than showing
+  // nothing.
+  var effectiveKey = (makeItReal && key === "gdp_level" && REGISTRY[country] && REGISTRY[country].gdp_real)
+    ? "gdp_real" : key;
+  var s = REGISTRY[country] && REGISTRY[country][effectiveKey];
   if(!s) return null;
   var last = s.points[s.points.length - 1];
   return {id: id, country: country, key: key, series: s, value: last[1], period: last[0]};
@@ -3768,6 +3797,19 @@ var DOLLARISE_KEY = "eatlas_dashboard_dollarise";
 var dollarise = false;
 try { dollarise = localStorage.getItem(DOLLARISE_KEY) === "1"; } catch(e){}
 
+/* ------------------------------ Make it real --------------------------------
+   Ported from country pages: swaps a GDP-level tile's underlying series
+   to the inflation-adjusted (real) figure instead of nominal, while
+   keeping the tile's own identity/label as "GDP level" -- exactly the
+   same behaviour as the per-country toggle, just applied at the level
+   of individual pinned tiles here rather than a single page's one GDP
+   panel. Only ever affects a tile whose key is literally "gdp_level";
+   every other tile is a no-op regardless of toggle state. */
+var MAKE_REAL_KEY = "eatlas_dashboard_make_real";
+var makeItReal = false;
+try { makeItReal = localStorage.getItem(MAKE_REAL_KEY) === "1"; } catch(e){}
+var REAL_AFFECTED_KEYS = ["gdp_level"];
+
 // Converts a currency value from its own local unit to USD using that
 // country's real FX rate (same rate already used elsewhere on the
 // site), swapping the currency symbol but keeping the scale suffix
@@ -3802,7 +3844,7 @@ function toDisplayUnit(value, unit, country, key, period){
   // (CLPm, COPm, PLNm, etc), same bug already found and fixed on every
   // individual country page's convertSeriesToUSD(). Never touched here
   // until now.
-  var scaleSuffix = unit.replace(/^([A-Z]{3}|[^a-zA-Z0-9]+)/, "");
+  var scaleSuffix = unit.replace(/^(?:[A-Za-z]+(?=(?:m|bn|tn)$)|[^a-zA-Z0-9]+)/, "");
   return {value: converted, unit: "$" + scaleSuffix};
 }
 function toDisplayPoints(pts, unit, country, key){
@@ -4256,6 +4298,7 @@ function renderDash(){
     var tile = document.createElement("div");
     tile.className = "tile";
     tile.dataset.id = id;
+    tile.dataset.key = m.key;
     tile.innerHTML = "<button type=\"button\" class=\"remove\" aria-label=\"Remove\">&times;</button>"
       + "<button type=\"button\" class=\"collapsebtn\" aria-label=\"Hide chart\" title=\"Hide chart\">&#8722;</button>"
       + "<button type=\"button\" class=\"draghandle\" aria-label=\"Drag to reorder\" title=\"Drag to reorder\">&#10495;</button>"
@@ -4386,6 +4429,37 @@ function renderDash(){
   // (or hides itself) on every single call to renderDash -- add a metric,
   // remove one, or toggle Dollarise, and the map is never out of sync.
   renderMapCard();
+  applyDashToggleHighlighting();
+}
+// Ported from country pages' applyToggleHighlighting(): a tile actually
+// changed by a toggle should visibly show it, not just be inferred from
+// the small "(USD)" suffix in its label. "Dollarise" reuses the exact
+// same check the tile's own "(USD)" suffix already relies on (does the
+// displayed unit differ from the raw series unit after conversion) so
+// the glow can never disagree with what the tile itself is showing.
+function applyDashToggleHighlighting(){
+  document.querySelectorAll(".tile[data-key]").forEach(function(tile){
+    var key = tile.dataset.key;
+    var m = tileFromId(tile.dataset.id);
+    tile.classList.remove("fx-real", "fx-dollar", "fx-both");
+    if(!m) return;
+    var disp = toDisplayUnit(m.value, m.series.unit, m.country, m.key, m.period);
+    var dollarHit = dollarise && disp.unit !== m.series.unit;
+    var realHit = makeItReal && REAL_AFFECTED_KEYS.indexOf(key) !== -1;
+    if(realHit && dollarHit) tile.classList.add("fx-both");
+    else if(realHit) tile.classList.add("fx-real");
+    else if(dollarHit) tile.classList.add("fx-dollar");
+  });
+  var realBtn = document.getElementById("makeRealBtn");
+  var dollarBtn = document.getElementById("dollariseBtn");
+  [realBtn, dollarBtn].forEach(function(b){ if(b) b.classList.remove("fx-real", "fx-dollar", "fx-both"); });
+  if(makeItReal && dollarise){
+    if(realBtn) realBtn.classList.add("fx-both");
+    if(dollarBtn) dollarBtn.classList.add("fx-both");
+  } else {
+    if(makeItReal && realBtn) realBtn.classList.add("fx-real");
+    if(dollarise && dollarBtn) dollarBtn.classList.add("fx-dollar");
+  }
 }
 
 /* -------------------------------- picker ----------------------------------- */
@@ -4737,6 +4811,26 @@ loadAll().then(function(){
     // already open needs its chart torn down and rebuilt with the newly
     // converted (or reverted) points -- simplest correct way to do that
     // is to re-render the whole grid, same as adding or removing a tile.
+    Object.keys(tileCharts).forEach(function(id){ tileCharts[id].destroy(); });
+    tileCharts = {};
+    renderDash();
+  });
+
+  var realBtn = document.getElementById("makeRealBtn");
+  function updateRealBtn(){
+    realBtn.classList.toggle("on", makeItReal);
+  }
+  updateRealBtn();
+  realBtn.addEventListener("click", function(){
+    makeItReal = !makeItReal;
+    try { localStorage.setItem(MAKE_REAL_KEY, makeItReal ? "1" : "0"); } catch(e){}
+    updateRealBtn();
+    // Same reasoning as Dollarise's own handler just above: the
+    // underlying series a GDP-level tile points to changes entirely
+    // (nominal vs real), so any already-open chart needs tearing down
+    // and rebuilding against the newly-swapped data, not just a value
+    // refresh -- a full re-render is the simplest correct way to do
+    // that consistently across every tile at once.
     Object.keys(tileCharts).forEach(function(id){ tileCharts[id].destroy(); });
     tileCharts = {};
     renderDash();

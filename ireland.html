@@ -2431,7 +2431,7 @@ function convertSeriesToUSD(series, fx){
   // result was a broken double-marker unit like "$CLPm" instead of the
   // correct "$m". Now strips either three leading uppercase letters (a
   // currency code) OR a run of non-alphanumeric symbol characters.
-  const newUnit = "$"+series.unit.replace(/^([A-Z]{3}|[^a-zA-Z0-9]+)/,"");
+  const newUnit = "$"+series.unit.replace(/^(?:[A-Za-z]+(?=(?:m|bn|tn)$)|[^a-zA-Z0-9]+)/,"");
   return {...series, unit:newUnit, points: series.points.map(([p,v])=>[p, toUSD(v,p)])};
 }
 
