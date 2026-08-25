@@ -3430,6 +3430,19 @@ function annualizedGDPHistory(country, series){
   }
   return out;
 }
+// Single chokepoint for "which points array should this tile's chart,
+// download, and Customise & export all actually use" -- country pages
+// feed their OWN gdp_level/gdp_real charts and download/export buttons
+// pre-annualized data (confirmed via uk.html: its own chartPanel call
+// for GDP passes a rolling-four-quarter-summed series, source-noted as
+// such), not the raw quarterly readings. A pinned Dashboard tile must
+// match that everywhere it shows history, not just in its single
+// headline number -- three separate places on this page were reading
+// m.series.points directly (the live chart, the CSV download, and
+// Customise & export), all now routed through here instead.
+function effectivePoints(country, key, series){
+  return (key === "gdp_level" || key === "gdp_real") ? annualizedGDPHistory(country, series) : series.points;
+}
 function historyPoints(country, concept){
   if(concept === "gdp_growth"){
     var reg = REGISTRY[country];
@@ -3698,7 +3711,26 @@ function tileFromId(id){
     ? "gdp_real" : key;
   var s = REGISTRY[country] && REGISTRY[country][effectiveKey];
   if(!s) return null;
-  var last = s.points[s.points.length - 1];
+  // GDP level/real figures are widely reported quarterly (24 of 32
+  // countries here), but the headline "GDP" figure a country page
+  // shows is the annualized (rolling 4-quarter) total, not a single
+  // quarter's raw reading -- taking the raw last point directly was
+  // showing the UK's ~£780bn single-quarter figure as if it were the
+  // whole-economy total (actually ~£3.1tn), and the same understatement
+  // applied to every other quarterly-reporting country's GDP tile.
+  // Reuses annualizedGDPHistory() (already used correctly elsewhere for
+  // chart history) rather than re-deriving the same rolling-sum logic
+  // a second time -- including its own handling of SAAR_COUNTRIES
+  // (US, Japan), whose quarterly figure IS already the annualized rate
+  // and must not be summed again.
+  var last;
+  if(key === "gdp_level" || key === "gdp_real"){
+    var annualized = annualizedGDPHistory(country, s);
+    last = annualized.length ? annualized[annualized.length - 1] : null;
+  } else {
+    last = s.points[s.points.length - 1];
+  }
+  if(!last) return null;
   return {id: id, country: country, key: key, series: s, value: last[1], period: last[0]};
 }
 // Ported exactly from the country pages, so a value reads identically
@@ -3995,7 +4027,7 @@ function expandTile(tile, id, m){
   tile.querySelector(".chartbtn").innerHTML = "&#128200; Hide chart";
   if(!tileCharts[id]){
     var canvas = tile.querySelector("canvas");
-    var pts = toDisplayPoints(m.series.points, m.series.unit, m.country, m.key);
+    var pts = toDisplayPoints(effectivePoints(m.country, m.key, m.series), m.series.unit, m.country, m.key);
     var chartUnit = toDisplayUnit(0, m.series.unit, m.country, m.key, m.period).unit;
     var kind = BAR_KEYS[m.key] ? "bar" : "line";
     var refLine = REF_LINE_FOR[m.key] == null ? null : REF_LINE_FOR[m.key];
@@ -4330,13 +4362,13 @@ function renderDash(){
       + "<p class=\"chartsrc\">" + m.series.points.length + " observations, " + fmtPeriod(m.period) + " is the latest.</p>";
 
     var dlBtn = tile.querySelector(".dl-btn");
-    if(dlBtn && window.EATLAS_DOWNLOAD) window.EATLAS_DOWNLOAD.wire(dlBtn, m.series.points, m.country + " " + m.series.label);
+    if(dlBtn && window.EATLAS_DOWNLOAD) window.EATLAS_DOWNLOAD.wire(dlBtn, effectivePoints(m.country, m.key, m.series), m.country + " " + m.series.label);
     var czBtn = tile.querySelector(".cz-btn");
     if(czBtn && window.EATLAS_CUSTOMIZE){
       var czKind = BAR_KEYS[m.key] ? "bar" : "line";
       var czSrcNote = m.series.label + ", " + m.country + " (live data feed).";
       var czFmtY = function(v){ return fmtVal(v, m.series.unit, m.key, m.country); };
-      window.EATLAS_CUSTOMIZE.wire(czBtn, m.series.points, m.country + " " + m.series.label, czSrcNote, czFmtY, "", m.country + "_" + m.key, czKind, fmtPeriod);
+      window.EATLAS_CUSTOMIZE.wire(czBtn, effectivePoints(m.country, m.key, m.series), m.country + " " + m.series.label, czSrcNote, czFmtY, "", m.country + "_" + m.key, czKind, fmtPeriod);
     }
 
     tile.querySelector(".remove").addEventListener("click", function(e){
@@ -4755,7 +4787,7 @@ loadAll().then(function(){
       var m = entry.m;
       var canvas = document.createElement("canvas");
       canvas.width = CHART_W; canvas.height = CHART_H;
-      var pts = toDisplayPoints(m.series.points, m.series.unit, m.country, m.key);
+      var pts = toDisplayPoints(effectivePoints(m.country, m.key, m.series), m.series.unit, m.country, m.key);
       var chartUnit = toDisplayUnit(0, m.series.unit, m.country, m.key, m.period).unit;
       var kind = BAR_KEYS[m.key] ? "bar" : "line";
       var refLine = REF_LINE_FOR[m.key] == null ? null : REF_LINE_FOR[m.key];
