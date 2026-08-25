@@ -3279,8 +3279,6 @@ function closeCardFullscreen(){
   document.body.style.overflow = "";
   if(cardFullscreenChart){ cardFullscreenChart.destroy(); cardFullscreenChart = null; }
 }
-document.getElementById("cardFullscreenClose").addEventListener("click", closeCardFullscreen);
-document.getElementById("cardFullscreenBackdrop").addEventListener("click", closeCardFullscreen);
 
 function wireCardTimeControls(card, concept){
   var st = clampCardTimeState(concept);
@@ -3664,6 +3662,19 @@ function renderAll(){
 loadAll().then(function(){
   document.getElementById("loadMsg").style.display = "none";
   document.getElementById("mainContent").style.display = "block";
+  // Wired here rather than at top-level: this modal's markup sits near
+  // the end of the page body, well after this script block executes
+  // during normal HTML parsing -- a raw top-level addEventListener
+  // call here previously threw on a null element (the button didn't
+  // exist yet at that point in the page), silently breaking this
+  // entire script block and leaving the whole page stuck on "Loading
+  // every country's data..." forever, since everything after that
+  // point (including this very loadAll() call) never got a chance to
+  // run. Wrapped in try/catch as a second line of defence regardless.
+  try {
+    document.getElementById("cardFullscreenClose").addEventListener("click", closeCardFullscreen);
+    document.getElementById("cardFullscreenBackdrop").addEventListener("click", closeCardFullscreen);
+  } catch(e) { console.error("Card fullscreen modal wiring failed:", e); }
 
   var saveBar = document.getElementById("saveBar");
   if(saveBar && window.EATLAS_PREFS) window.EATLAS_PREFS.registerBanner(saveBar);
