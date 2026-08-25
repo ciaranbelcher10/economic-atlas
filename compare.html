@@ -4123,8 +4123,8 @@ window.EATLAS_COMPARE = {
       <div>
         <div class="ctl-panel" id="czCountryColorsPanel" style="background:var(--panel); border:1px solid var(--hair); border-radius:12px; padding:16px 18px; margin-bottom:14px;">
           <h3 style="font-size:12px; text-transform:uppercase; letter-spacing:.05em; margin:0 0 12px; color:var(--ink2);">Country colours</h3>
+          <div id="czColorClashWarning" hidden style="margin-bottom:12px; padding:10px 12px; border-radius:8px; background:rgba(214,90,60,.12); border:1px solid rgba(214,90,60,.4); font-size:12px; color:var(--ink); line-height:1.5;"></div>
           <div id="czCountryColorsList"></div>
-          <div id="czColorClashWarning" hidden style="margin-top:10px; padding:10px 12px; border-radius:8px; background:rgba(214,90,60,.12); border:1px solid rgba(214,90,60,.4); font-size:12px; color:var(--ink); line-height:1.5;"></div>
         </div>
         <div class="ctl-panel" id="czDateRangePanel" style="background:var(--panel); border:1px solid var(--hair); border-radius:12px; padding:16px 18px;">
           <h3 style="font-size:12px; text-transform:uppercase; letter-spacing:.05em; margin:0 0 12px; color:var(--ink2);">Date range</h3>
@@ -5145,34 +5145,22 @@ window.EATLAS_COMPARE = {
     var countries = czmState.mode === "snapshot"
       ? czmEffectiveSnapshotRows().map(function(r){ return r.country; })
       : SERIES_LIST.map(function(s){ return s.country; });
-    list.innerHTML = "";
-    countries.forEach(function(country){
-      var rowEl = document.createElement("div");
-      rowEl.style.cssText = "display:flex; align-items:center; gap:10px; padding:7px 0; border-bottom:1px solid var(--hair);";
-      var b = document.createElement("button");
-      b.type = "button";
-      b.title = "Change colour";
-      b.style.cssText = "width:26px; height:26px; border-radius:50%; border:2px solid rgba(255,255,255,.5); background:" + window.EATLAS_COMPARE.getCountryColor(country) + "; cursor:pointer; padding:0; flex:none;";
-      b.addEventListener("click", function(e){
-        e.stopPropagation();
-        window.EATLAS_COMPARE.openColorPicker(country, b, function(){
-          czRenderCountryColorsRow();
-          czRenderPreview();
-        });
-      });
-      var label = document.createElement("span");
-      label.textContent = window.EATLAS_COMPARE.COUNTRY_LABEL[country] || country;
-      label.style.cssText = "font-size:13.5px; color:var(--ink);";
-      rowEl.appendChild(b);
-      rowEl.appendChild(label);
-      list.appendChild(rowEl);
-    });
 
+    // Clashes are computed BEFORE building the rows below, so each
+    // row can mark itself as part of a clash at build time -- and the
+    // warning banner (now above the list, per feedback) reflects the
+    // same computation the row markers use, rather than two separate
+    // passes that could disagree.
     var clashes = [];
+    var clashingCountries = {};
     for(var i = 0; i < countries.length; i++){
       for(var j = i + 1; j < countries.length; j++){
         var d = czColorDist(window.EATLAS_COMPARE.getCountryColor(countries[i]), window.EATLAS_COMPARE.getCountryColor(countries[j]));
-        if(d < CZ_CLASH_THRESHOLD) clashes.push([countries[i], countries[j]]);
+        if(d < CZ_CLASH_THRESHOLD){
+          clashes.push([countries[i], countries[j]]);
+          clashingCountries[countries[i]] = true;
+          clashingCountries[countries[j]] = true;
+        }
       }
     }
     if(warningEl){
@@ -5186,6 +5174,38 @@ window.EATLAS_COMPARE = {
         warningEl.hidden = true;
       }
     }
+
+    list.innerHTML = "";
+    countries.forEach(function(country){
+      var isClashing = !!clashingCountries[country];
+      var rowEl = document.createElement("div");
+      rowEl.style.cssText = "display:flex; align-items:center; gap:10px; padding:7px 0; border-bottom:1px solid var(--hair);";
+      var swatchWrap = document.createElement("div");
+      swatchWrap.style.cssText = "position:relative; flex:none;";
+      var b = document.createElement("button");
+      b.type = "button";
+      b.title = isClashing ? "Change colour (too similar to another selected country)" : "Change colour";
+      b.style.cssText = "width:26px; height:26px; border-radius:50%; border:2px solid " + (isClashing ? "#D65A3C" : "rgba(255,255,255,.5)") + "; background:" + window.EATLAS_COMPARE.getCountryColor(country) + "; cursor:pointer; padding:0; display:block;";
+      b.addEventListener("click", function(e){
+        e.stopPropagation();
+        window.EATLAS_COMPARE.openColorPicker(country, b, function(){
+          czRenderCountryColorsRow();
+          czRenderPreview();
+        });
+      });
+      swatchWrap.appendChild(b);
+      if(isClashing){
+        var dot = document.createElement("span");
+        dot.style.cssText = "position:absolute; top:-2px; right:-2px; width:10px; height:10px; border-radius:50%; background:#D65A3C; border:1.5px solid var(--panel);";
+        swatchWrap.appendChild(dot);
+      }
+      var label = document.createElement("span");
+      label.textContent = window.EATLAS_COMPARE.COUNTRY_LABEL[country] || country;
+      label.style.cssText = "font-size:13.5px; color:" + (isClashing ? "#D65A3C" : "var(--ink)") + ";";
+      rowEl.appendChild(swatchWrap);
+      rowEl.appendChild(label);
+      list.appendChild(rowEl);
+    });
   }
   function czmSyncModeFields(){
     document.getElementById("czCenterRefField").style.display = czmState.refLine.enabled ? "flex" : "none";
