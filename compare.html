@@ -1590,13 +1590,14 @@ footer.cmp-foot{margin-top:36px; font-size:12.5px; color:var(--ink2); border-top
   <p class="loadmsg" id="loadMsg">Loading every country&#39;s data&hellip;</p>
 
   <div id="mainContent" style="display:none;">
-  <div id="countriesPanelHeader" style="display:flex; align-items:center; justify-content:space-between; margin:0 0 10px;
-    position:sticky; top:0; z-index:15; background:var(--paper); padding:10px 0; border-bottom:1px solid var(--hair);">
-    <h3 style="font-size:14px; margin:0;">Countries</h3>
-    <button type="button" id="countriesToggleBtn" style="font:600 12.5px inherit; padding:6px 14px; border-radius:999px; border:1px solid var(--hair); background:var(--paper); color:var(--ink); cursor:pointer;"></button>
-  </div>
+  <button type="button" id="countriesToggleBtn" style="display:block; width:100%; text-align:center; font:700 14px inherit;
+    padding:10px 0; margin:0 0 10px; border-radius:10px; border:1px solid var(--hair); background:var(--paper); color:var(--ink);
+    cursor:pointer; position:sticky; top:0; z-index:15;"></button>
   <div id="countriesPanelBody">
   <div class="chiprow" id="chipRow"></div>
+  <div style="display:flex; align-items:center; justify-content:space-between; margin:-4px 0 10px;">
+    <h3 style="font-size:14px; margin:0;">Countries</h3>
+  </div>
 
   <div id="countryUndoToast" class="dash-undo-toast" hidden>
     <span id="countryUndoToastMsg"></span>
@@ -2577,19 +2578,25 @@ function updateCountriesToggleBtn(){
   var btn = document.getElementById("countriesToggleBtn");
   if(!btn) return;
   var n = selected.length;
-  var label = n === 0 ? "Choose countries" : n + " " + (n === 1 ? "country" : "countries") + " selected";
+  var label = n === 0 ? "Choose countries" : n + " " + (n === 1 ? "country" : "countries") + " selected \u2014 tap to change";
   btn.textContent = label + (countriesPanelExpanded ? "  \u25B4" : "  \u25BE");
 }
 function setCountriesPanelExpanded(expanded){
   countriesPanelExpanded = expanded;
   document.getElementById("countriesPanelBody").style.display = expanded ? "block" : "none";
   updateCountriesToggleBtn();
-  // The header stays reachable while scrolling (sticky), but the
-  // expanded body itself is normal-flow, not pinned -- clicking to
-  // expand while scrolled well down the page would otherwise open
-  // content that's sitting off-screen below the fold with no visible
-  // change, which would look like the click did nothing.
-  if(expanded) document.getElementById("countriesPanelHeader").scrollIntoView({behavior: "smooth", block: "start"});
+  // The toggle bar itself is the sticky element now (it IS the header),
+  // so it's always reachable while scrolling, but the expanded body
+  // below it is normal-flow, not pinned -- clicking to expand while
+  // scrolled well down the page would otherwise open content sitting
+  // off-screen below the fold with no visible change. Wrapped in
+  // try/catch since this is a nice-to-have, not something that should
+  // ever be able to break the actual expand/collapse toggle itself if
+  // it fails for any reason in any environment.
+  if(expanded){
+    try { document.getElementById("countriesToggleBtn").scrollIntoView({behavior: "smooth", block: "start"}); }
+    catch(e){ /* non-critical */ }
+  }
 }
 document.getElementById("countriesToggleBtn").addEventListener("click", function(){
   setCountriesPanelExpanded(!countriesPanelExpanded);
@@ -2856,6 +2863,42 @@ var noDataPlugin = {
     ctx.restore();
   }
 };
+// Chart.js's own default category-axis tick labels auto-rotate when
+// there isn't room for them straight (which is always true here, once
+// more than a handful of countries are selected) -- but there's no
+// simple built-in lever to nudge JUST the label text a few pixels
+// without also risking a shift in bar position, since ticks.padding
+// affects spacing along the axis's own perpendicular direction, not a
+// pure horizontal offset. Drawing the labels ourselves (with Chart.js's
+// own default ones hidden via ticks.display:false) is the correct way
+// to guarantee the same few-pixel rightward nudge already applied to
+// the Customise & Export SVG version, using each bar's own already-
+// computed x position so it can never drift out of sync with the bars
+// themselves.
+var xLabelNudgePlugin = {
+  id: "xLabelNudge",
+  afterDraw: function(chart){
+    var meta = chart.getDatasetMeta(0);
+    var labels = chart.data.labels;
+    var ctx = chart.ctx;
+    var area = chart.chartArea;
+    ctx.save();
+    ctx.font = "11px \"Avenir Next\",\"Avenir\",\"Nunito Sans\",sans-serif";
+    ctx.fillStyle = MUTED_INK;
+    ctx.textAlign = "right";
+    ctx.textBaseline = "middle";
+    for(var i = 0; i < labels.length; i++){
+      var el = meta.data[i];
+      if(!el) continue;
+      ctx.save();
+      ctx.translate(el.x + 3, area.bottom + 10);
+      ctx.rotate(-Math.PI / 4);
+      ctx.fillText(String(labels[i]), 0, 0);
+      ctx.restore();
+    }
+    ctx.restore();
+  }
+};
 var cardChartType = {}; // concept -> "bar" | "line", default "bar"
 var charts = {};
 
@@ -2894,7 +2937,7 @@ function buildBarChart(canvas, concept){
 
   var chart = new Chart(canvas, {
     type: "bar",
-    plugins: [noDataPlugin],
+    plugins: [noDataPlugin].concat(rows.length > 10 ? [xLabelNudgePlugin] : []),
     data: {
       labels: rows.map(function(r){ return r.country; }),
       datasets: [{
@@ -2926,7 +2969,14 @@ function buildBarChart(canvas, concept){
               if(CONCEPT_UNIT[concept] === "currency" && !isCumulative) return curFmt(v, firstReal.rawUnit || "$m", 0);
               return axisTickLabel(v, concept, isCumulative);
             }}}, concept === "business_confidence" ? centeredIndexScale(rows.map(function(r){ return r.dv ? r.dv.value : null; })) : {}),
-        x: {grid: {display: false}, border: {color: "#E4E6E1"}}
+        // With only a few countries selected, Chart.js's own default
+        // straight, centred labels have plenty of room and look fine
+        // as-is -- the custom nudge/diagonal plugin only kicks in once
+        // there are enough bars that Chart.js would auto-rotate them
+        // anyway, which is the specific crowded case the nudge is for.
+        x: rows.length > 10
+          ? {grid: {display: false}, border: {color: "#E4E6E1"}, ticks: {display: false}}
+          : {grid: {display: false}, border: {color: "#E4E6E1"}}
       }
     }
   });
