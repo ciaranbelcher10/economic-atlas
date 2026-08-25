@@ -2594,7 +2594,17 @@ function setCountriesPanelExpanded(expanded){
   // ever be able to break the actual expand/collapse toggle itself if
   // it fails for any reason in any environment.
   if(expanded){
-    try { document.getElementById("countriesToggleBtn").scrollIntoView({behavior: "smooth", block: "start"}); }
+    try {
+      // Scrolling to the toggle button itself is a no-op the moment
+      // it's already sticky/visible (which is most of the time, by
+      // design) -- the thing that actually needs to come into view is
+      // the newly-expanded body, which sits in normal document flow
+      // right below it and could be far above the current scroll
+      // position on a long page. Scrolling the page to the very top
+      // (where the whole panel naturally lives) is what actually makes
+      // the expand visible, not scrolling to an element that never moves.
+      window.scrollTo({top: 0, behavior: "smooth"});
+    }
     catch(e){ /* non-critical */ }
   }
 }
@@ -2863,42 +2873,6 @@ var noDataPlugin = {
     ctx.restore();
   }
 };
-// Chart.js's own default category-axis tick labels auto-rotate when
-// there isn't room for them straight (which is always true here, once
-// more than a handful of countries are selected) -- but there's no
-// simple built-in lever to nudge JUST the label text a few pixels
-// without also risking a shift in bar position, since ticks.padding
-// affects spacing along the axis's own perpendicular direction, not a
-// pure horizontal offset. Drawing the labels ourselves (with Chart.js's
-// own default ones hidden via ticks.display:false) is the correct way
-// to guarantee the same few-pixel rightward nudge already applied to
-// the Customise & Export SVG version, using each bar's own already-
-// computed x position so it can never drift out of sync with the bars
-// themselves.
-var xLabelNudgePlugin = {
-  id: "xLabelNudge",
-  afterDraw: function(chart){
-    var meta = chart.getDatasetMeta(0);
-    var labels = chart.data.labels;
-    var ctx = chart.ctx;
-    var area = chart.chartArea;
-    ctx.save();
-    ctx.font = "11px \"Avenir Next\",\"Avenir\",\"Nunito Sans\",sans-serif";
-    ctx.fillStyle = MUTED_INK;
-    ctx.textAlign = "right";
-    ctx.textBaseline = "middle";
-    for(var i = 0; i < labels.length; i++){
-      var el = meta.data[i];
-      if(!el) continue;
-      ctx.save();
-      ctx.translate(el.x + 3, area.bottom + 10);
-      ctx.rotate(-Math.PI / 4);
-      ctx.fillText(String(labels[i]), 0, 0);
-      ctx.restore();
-    }
-    ctx.restore();
-  }
-};
 var cardChartType = {}; // concept -> "bar" | "line", default "bar"
 var charts = {};
 
@@ -2937,7 +2911,7 @@ function buildBarChart(canvas, concept){
 
   var chart = new Chart(canvas, {
     type: "bar",
-    plugins: [noDataPlugin].concat(rows.length > 10 ? [xLabelNudgePlugin] : []),
+    plugins: [noDataPlugin],
     data: {
       labels: rows.map(function(r){ return r.country; }),
       datasets: [{
@@ -2969,14 +2943,7 @@ function buildBarChart(canvas, concept){
               if(CONCEPT_UNIT[concept] === "currency" && !isCumulative) return curFmt(v, firstReal.rawUnit || "$m", 0);
               return axisTickLabel(v, concept, isCumulative);
             }}}, concept === "business_confidence" ? centeredIndexScale(rows.map(function(r){ return r.dv ? r.dv.value : null; })) : {}),
-        // With only a few countries selected, Chart.js's own default
-        // straight, centred labels have plenty of room and look fine
-        // as-is -- the custom nudge/diagonal plugin only kicks in once
-        // there are enough bars that Chart.js would auto-rotate them
-        // anyway, which is the specific crowded case the nudge is for.
-        x: rows.length > 10
-          ? {grid: {display: false}, border: {color: "#E4E6E1"}, ticks: {display: false}}
-          : {grid: {display: false}, border: {color: "#E4E6E1"}}
+        x: {grid: {display: false}, border: {color: "#E4E6E1"}}
       }
     }
   });
