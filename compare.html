@@ -43,8 +43,7 @@ html[data-theme="dark"]{ --map-nodata: #C4CAC0; }
 .lightskey{font-size:12.5px; color:var(--ink2); margin:0 0 16px;
   display:flex; gap:20px; flex-wrap:wrap; justify-content:center;}
 .lightskey span{display:flex; align-items:center; gap:9px;}
-.chiprow{display:flex; gap:9px; flex-wrap:wrap; margin-bottom:8px; align-items:center;
-  position:sticky; top:0; z-index:15; background:var(--paper); padding:10px 0; border-bottom:1px solid var(--hair);}
+.chiprow{display:flex; gap:9px; flex-wrap:wrap; margin-bottom:8px; align-items:center;}
 .chip{border:1.5px solid var(--hair); background:var(--panel); color:var(--ink);
   font:600 13.5px "Avenir Next","Avenir","Nunito Sans",sans-serif; padding:8px 16px 8px 12px;
   border-radius:999px; cursor:pointer; display:flex; align-items:center; gap:7px;}
@@ -1591,7 +1590,11 @@ footer.cmp-foot{margin-top:36px; font-size:12.5px; color:var(--ink2); border-top
   <p class="loadmsg" id="loadMsg">Loading every country&#39;s data&hellip;</p>
 
   <div id="mainContent" style="display:none;">
-  <h3 style="font-size:14px; margin:0 0 10px;">Countries</h3>
+  <div id="countriesPanelHeader" style="display:flex; align-items:center; justify-content:space-between; margin:0 0 10px;">
+    <h3 style="font-size:14px; margin:0;">Countries</h3>
+    <button type="button" id="countriesToggleBtn" style="font:600 12.5px inherit; padding:6px 14px; border-radius:999px; border:1px solid var(--hair); background:var(--paper); color:var(--ink); cursor:pointer;"></button>
+  </div>
+  <div id="countriesPanelBody">
   <div class="chiprow" id="chipRow"></div>
 
   <div id="countryUndoToast" class="dash-undo-toast" hidden>
@@ -1614,6 +1617,7 @@ footer.cmp-foot{margin-top:36px; font-size:12.5px; color:var(--ink2); border-top
   <p id="manualSortHint" style="display:none; font-size:12px; color:var(--ink2); margin:0 0 14px; background:var(--paper); border:1px solid var(--hair); border-radius:8px; padding:8px 12px;">
     Grab the &#9776; handle on the left of each chip above and drag it to reorder.
   </p>
+  </div>
 
   <p class="lightskey" aria-label="Key to freshness lights">
     <span><span class="led green" aria-hidden="true"></span>Latest version of the data is live</span>
@@ -2559,6 +2563,31 @@ function countryUndoClickHandler(){
 if(document.getElementById("countryUndoToastBtn")){
   document.getElementById("countryUndoToastBtn").addEventListener("click", countryUndoClickHandler);
 }
+// Collapsible country picker: replaces the earlier sticky-header
+// version, which stayed pinned at the top of the viewport while
+// scrolling -- disliked as intrusive. Starts collapsed, showing just a
+// compact "N countries selected" summary button; expands to the full
+// chip row/sort controls on click, collapses again on a second click.
+// Doesn't auto-collapse after picking a country, since someone
+// choosing several at once needs the panel to stay open across
+// multiple clicks.
+var countriesPanelExpanded = false;
+function updateCountriesToggleBtn(){
+  var btn = document.getElementById("countriesToggleBtn");
+  if(!btn) return;
+  var n = selected.length;
+  var label = n === 0 ? "Choose countries" : n + " " + (n === 1 ? "country" : "countries") + " selected";
+  btn.textContent = label + (countriesPanelExpanded ? "  \u25B4" : "  \u25BE");
+}
+function setCountriesPanelExpanded(expanded){
+  countriesPanelExpanded = expanded;
+  document.getElementById("countriesPanelBody").style.display = expanded ? "block" : "none";
+  updateCountriesToggleBtn();
+}
+document.getElementById("countriesToggleBtn").addEventListener("click", function(){
+  setCountriesPanelExpanded(!countriesPanelExpanded);
+});
+setCountriesPanelExpanded(false);
 if(document.getElementById("countrySortSelect")){
   document.getElementById("countrySortSelect").addEventListener("change", function(e){
     countrySortMode = e.target.value;
@@ -2633,6 +2662,7 @@ function renderChips(){
   document.getElementById("chipHint").textContent = selected.length === MAX_SELECTED
     ? "All " + MAX_SELECTED + " tracked countries selected."
     : selected.length + " of " + MAX_SELECTED + " tracked countries selected.";
+  if(typeof updateCountriesToggleBtn === "function") updateCountriesToggleBtn();
 }
 
 // Manual chip reordering: same technique as Dashboard's tile drag
@@ -2686,7 +2716,7 @@ function wireChipDrag(chip, country, row){
 // popover would need rebuilding constantly for no benefit, and only
 // one can ever be open at a time anyway.
 var colorPickerPopover = null;
-function openColorPicker(country, anchorEl){
+function openColorPicker(country, anchorEl, onChanged){
   if(colorPickerPopover) colorPickerPopover.remove();
   var pop = document.createElement("div");
   pop.className = "color-picker-popover";
@@ -2702,6 +2732,7 @@ function openColorPicker(country, anchorEl){
       pop.remove();
       colorPickerPopover = null;
       renderAll();
+      if(onChanged) onChanged();
     });
     pop.appendChild(b);
   });
@@ -2714,6 +2745,7 @@ function openColorPicker(country, anchorEl){
     pop.remove();
     colorPickerPopover = null;
     renderAll();
+    if(onChanged) onChanged();
   });
   pop.appendChild(resetBtn);
   document.body.appendChild(pop);
@@ -3879,7 +3911,10 @@ window.EATLAS_COMPARE = {
   getCardSortMode: getCardSortMode,
   setCardSortMode: setCardSortMode,
   sortRowsByMode: sortRowsByMode,
-  refreshOneCard: refreshOneCard
+  refreshOneCard: refreshOneCard,
+  openColorPicker: openColorPicker,
+  getCountryColor: getCountryColor,
+  COUNTRY_LABEL: COUNTRY_LABEL
 };
 
 })();
@@ -3957,6 +3992,10 @@ window.EATLAS_COMPARE = {
               <option value="geo_alpha">Geographic (alphabetical)</option>
               <option value="geo_value">Geographic (by value)</option>
             </select>
+          </div>
+          <div id="czCountryColorsField" style="margin-bottom:8px;">
+            <div style="font-size:12.5px; margin-bottom:6px;">Country colours</div>
+            <div id="czCountryColorsRow" style="display:flex; flex-wrap:wrap; gap:6px;"></div>
           </div>
           <div style="display:flex; align-items:center; justify-content:space-between; font-size:12.5px; margin-bottom:8px;">
             <span>Reference line</span>
@@ -4369,7 +4408,15 @@ window.EATLAS_COMPARE = {
   function czmBottomLayout(hasLegend, srcText){
     var angle = (czmState && czmState.xLabelAngle) || "straight";
     var angleReserve = angle === "vertical" ? 54 : angle === "diagonal" ? 28 : 0;
-    var oLabels = 26;
+    // Rotated labels pivot from this anchor point and extend away from
+    // it (up-and-left for diagonal, straight up for vertical), so they
+    // don't need as much clearance between the axis and the anchor
+    // itself as straight, non-rotated labels do -- the extra room they
+    // need is already reserved separately via angleReserve above.
+    // Pulling the anchor closer, combined with the connector tick line
+    // drawn at each bar's exact x-position, is what actually answers
+    // "closer to the axis, and clearer which label is whose."
+    var oLabels = angle === "straight" ? 26 : 14;
     var oAfterLabels = oLabels + 8 + angleReserve;
     var oLegendTitle = null, oLegendRow;
     var oAfterLegend;
@@ -4554,6 +4601,13 @@ window.EATLAS_COMPARE = {
           : r.color;
         svg.push("<rect x='" + (bx - gm.barWidth / 2).toFixed(1) + "' y='" + top.toFixed(1) + "' width='" + gm.barWidth.toFixed(1) + "' height='" + h.toFixed(1) + "' rx='3' fill='" + barColor + "'/>");
       }
+      // The line/"over time" view already draws this short tick before
+      // its own date labels (see the line-mode axis loop above) -- the
+      // snapshot view never had the matching one, which is exactly why
+      // a dense row of diagonal country labels had no visual anchor
+      // back to its own bar, especially once many bars are packed
+      // tightly together.
+      svg.push("<line x1='" + bx.toFixed(1) + "' y1='" + axisBottomY + "' x2='" + bx.toFixed(1) + "' y2='" + (axisBottomY + 5) + "' stroke='" + axisColor + "' stroke-width='1.3'/>");
       svg.push(czmXAxisLabelSVG(bx, axisBottomY + bl.oLabels, r.country, t.ink2));
     });
 
@@ -4968,6 +5022,36 @@ window.EATLAS_COMPARE = {
   // reference line, if on) to be strictly positive -- both re-checked
   // on every render since the active date range/country selection can
   // change which values are actually in view.
+  // Lets a person change country colours from inside the modal too,
+  // not just from a chip -- reuses the exact same picker popover
+  // (window.EATLAS_COMPARE.openColorPicker) so there's one consistent
+  // colour-editing experience, not a second implementation. The
+  // relevant country list differs by mode: snapshot shows whichever
+  // countries currently have a bar, timeseries shows whichever have a
+  // line -- not the full 32-country roster, since only countries
+  // actually in THIS chart are relevant to edit here.
+  function czRenderCountryColorsRow(){
+    var row = document.getElementById("czCountryColorsRow");
+    if(!row) return;
+    var countries = czmState.mode === "snapshot"
+      ? czmEffectiveSnapshotRows().map(function(r){ return r.country; })
+      : SERIES_LIST.map(function(s){ return s.country; });
+    row.innerHTML = "";
+    countries.forEach(function(country){
+      var b = document.createElement("button");
+      b.type = "button";
+      b.title = window.EATLAS_COMPARE.COUNTRY_LABEL[country] || country;
+      b.style.cssText = "width:20px; height:20px; border-radius:50%; border:2px solid rgba(255,255,255,.5); background:" + window.EATLAS_COMPARE.getCountryColor(country) + "; cursor:pointer; padding:0;";
+      b.addEventListener("click", function(e){
+        e.stopPropagation();
+        window.EATLAS_COMPARE.openColorPicker(country, b, function(){
+          czRenderCountryColorsRow();
+          czRenderPreview();
+        });
+      });
+      row.appendChild(b);
+    });
+  }
   function czmSyncModeFields(){
     document.getElementById("czCenterRefField").style.display = czmState.refLine.enabled ? "flex" : "none";
     if(!czmState.refLine.enabled && czmState.centerAroundRef){
@@ -4975,6 +5059,7 @@ window.EATLAS_COMPARE = {
       document.getElementById("czCenterRefToggle").checked = false;
     }
     document.getElementById("czSortModeField").style.display = czmState.mode === "snapshot" ? "flex" : "none";
+    czRenderCountryColorsRow();
     // Threshold-by-value bar colouring is a snapshot/bar-only concept --
     // on the line/"over time" view, colour is what lets you track which
     // series belongs to which country over time, so recolouring by
