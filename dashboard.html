@@ -42,22 +42,17 @@
 .loadmsg{font-size:13.5px; color:var(--ink2); padding:20px 0;}
 .dollarrow{margin:16px 0 22px;}
 
-.dashgrid{display:grid; grid-template-columns:repeat(3,1fr); gap:14px; margin-bottom:8px;}
-@media (max-width:700px){
-  /* Was a fixed 3-column grid at every width -- on a phone that's
-     ~105px per tile, not enough room for a country name, a full metric
-     label, a value, and a "View chart" button without everything
-     looking cramped. Single column on narrow screens, matching how
-     the country pages' own stat panels already go full-width there. */
-  .dashgrid{grid-template-columns:1fr;}
-  /* An expanded tile demanding 3 columns (.tile.expanded below) inside
-     a grid that's just collapsed to 1 forces the browser to create
-     implicit extra columns to satisfy the span, pushing the whole grid
-     -- and the chart canvas inside it -- wider than the screen. Capped
-     back to a single column here so an expanded tile just takes the
-     full (already-narrow) width instead of forcing overflow. */
-  .tile.expanded{grid-column:auto;}
-}
+// A fixed repeat(3,1fr) + a max-width media-query override to 1
+// column has a real gap: mobile Safari's own "Page Zoom" setting (the
+// aA menu, distinct from pinch-zoom) can enlarge the EFFECTIVE CSS
+// viewport width beyond the 700px breakpoint even on an actual phone
+// -- the media query then never fires, the desktop 3-column grid
+// applies, and gets squeezed down to fit the real, narrow physical
+// screen: tiny, cramped tiles. auto-fit with a minimum tile width
+// sidesteps this entirely -- the browser fits as many 260px-or-wider
+// columns as the AVAILABLE width actually allows, with no fixed
+// breakpoint to be circumvented by any zoom level, page or pinch.
+.dashgrid{display:grid; grid-template-columns:repeat(auto-fit, minmax(260px, 1fr)); gap:14px; margin-bottom:8px;}
 .led{display:inline-block; width:9px; height:9px; border-radius:50%;
   margin-right:9px; vertical-align:middle; position:relative; top:-1px;}
 .led.green{background:#2FA463; box-shadow:0 0 0 3px rgba(47,164,99,.16);}
@@ -67,7 +62,16 @@
 .lightskey span{display:flex; align-items:center; gap:9px;}
 .tile{background:var(--panel); border:1px solid var(--hair); border-radius:14px; padding:18px 20px; position:relative;
   grid-column:span 1;}
-.tile.expanded{grid-column:span 3;}
+// "span 3" assumed exactly 3 fixed columns always exist -- with the
+// grid now auto-fitting a variable number of columns depending on
+// available width, that assumption no longer holds in either
+// direction (too few actual columns to satisfy the span forces
+// overflow, same failure mode as the original bug; too many and an
+// "expanded" tile wouldn't reach full width at all). "1 / -1" spans
+// from the very first to the very last grid line regardless of how
+// many columns actually exist at the moment, which is what "take the
+// whole row" really means here.
+.tile.expanded{grid-column:1 / -1;}
 /* ---- toggle-affected metric highlighting (ported exactly from country
    pages: Aug 2026 historical FX pass) ----
    Yellow = "Make it real" changed this tile's series; blue = "Dollarise"
@@ -3440,8 +3444,25 @@ function annualizedGDPHistory(country, series){
 // headline number -- three separate places on this page were reading
 // m.series.points directly (the live chart, the CSV download, and
 // Customise & export), all now routed through here instead.
+//
+// Three countries (Poland, Turkey, Switzerland) are a further wrinkle
+// discovered while auditing this: their OWN pages reveal that
+// gdp_level/gdp_real are ALREADY the trailing-4-quarter-summed annual
+// figure at the data-build stage (a separate Python fetch pipeline,
+// not this page), stored ALONGSIDE a dedicated "<key>_annual" series
+// that the country page itself explicitly prefers. Summing an
+// already-summed series again here would have quadrupled these three
+// countries' GDP AGAIN, compounding rather than fixing the original
+// understatement bug. Checking for a "<key>_annual" key generally
+// (not a hardcoded per-country list) means this self-corrects if the
+// data pipeline adds the same pattern for any other country later,
+// rather than silently regressing until someone notices.
 function effectivePoints(country, key, series){
-  return (key === "gdp_level" || key === "gdp_real") ? annualizedGDPHistory(country, series) : series.points;
+  if(key !== "gdp_level" && key !== "gdp_real") return series.points;
+  var annualKey = key + "_annual";
+  var annualSeries = REGISTRY[country] && REGISTRY[country][annualKey];
+  if(annualSeries) return annualSeries.points;
+  return annualizedGDPHistory(country, series);
 }
 function historyPoints(country, concept){
   if(concept === "gdp_growth"){
@@ -3699,37 +3720,39 @@ function dedupePinned(arr){
 function tileFromId(id){
   var parts = id.split("::");
   var country = parts[0], key = parts.slice(1).join("::");
-  // "Make it real" substitutes the underlying series here -- the single
-  // chokepoint every pinned tile's data already flows through (5 call
-  // sites, all resolving a tile via this function) -- while keeping
-  // `key` itself as the original "gdp_level", so the tile's identity,
-  // label, and category stay exactly what the person pinned. Falls
-  // through to the normal nominal series if that country doesn't
-  // happen to have a gdp_real series at all, rather than showing
-  // nothing.
-  var effectiveKey = (makeItReal && key === "gdp_level" && REGISTRY[country] && REGISTRY[country].gdp_real)
-    ? "gdp_real" : key;
+  // "Make it real" chooses which underlying series to read from --
+  // preferring the country's own pre-annualized real-GDP figure
+  // (gdp_real_annual) when it exists, exactly matching the preference
+  // country pages themselves use (confirmed via switzerland.html's own
+  // "out.gdp_level = out.gdp_real_annual || out.gdp_real"), falling
+  // back to raw gdp_real otherwise. `key` itself always stays the
+  // original "gdp_level" so the tile's identity/label/category never
+  // changes regardless of which underlying series actually drives it.
+  var realKey = null;
+  if(makeItReal && key === "gdp_level" && REGISTRY[country]){
+    if(REGISTRY[country].gdp_real_annual) realKey = "gdp_real_annual";
+    else if(REGISTRY[country].gdp_real) realKey = "gdp_real";
+  }
+  var effectiveKey = realKey || key;
   var s = REGISTRY[country] && REGISTRY[country][effectiveKey];
   if(!s) return null;
-  // GDP level/real figures are widely reported quarterly (24 of 32
-  // countries here), but the headline "GDP" figure a country page
-  // shows is the annualized (rolling 4-quarter) total, not a single
-  // quarter's raw reading -- taking the raw last point directly was
-  // showing the UK's ~£780bn single-quarter figure as if it were the
-  // whole-economy total (actually ~£3.1tn), and the same understatement
-  // applied to every other quarterly-reporting country's GDP tile.
-  // Reuses annualizedGDPHistory() (already used correctly elsewhere for
-  // chart history) rather than re-deriving the same rolling-sum logic
-  // a second time -- including its own handling of SAAR_COUNTRIES
-  // (US, Japan), whose quarterly figure IS already the annualized rate
-  // and must not be summed again.
-  var last;
-  if(key === "gdp_level" || key === "gdp_real"){
-    var annualized = annualizedGDPHistory(country, s);
-    last = annualized.length ? annualized[annualized.length - 1] : null;
-  } else {
-    last = s.points[s.points.length - 1];
-  }
+  // effectivePoints() already knows to prefer a "<concept>_annual"
+  // series over re-summing raw quarters (and to no-op entirely for a
+  // series that was never quarterly to begin with) -- reusing it here,
+  // rather than duplicating that same check a second time, means the
+  // headline number and the chart/download/export data (which already
+  // go through effectivePoints too) can never quietly disagree.
+  //
+  // The key passed in must be the underlying CONCEPT ("gdp_level" or
+  // "gdp_real"), not effectiveKey itself -- if effectiveKey already
+  // resolved to "gdp_real_annual", passing that straight through would
+  // have effectivePoints look for a "gdp_real_annual_annual" key that
+  // can never exist, and it would silently fall through to summing an
+  // already-annual series a second time -- the exact double-counting
+  // bug this whole fix exists to prevent.
+  var conceptKey = (effectiveKey === "gdp_real_annual") ? "gdp_real" : effectiveKey;
+  var pts = effectivePoints(country, conceptKey, s);
+  var last = pts.length ? pts[pts.length - 1] : null;
   if(!last) return null;
   return {id: id, country: country, key: key, series: s, value: last[1], period: last[0]};
 }
