@@ -298,7 +298,8 @@ jobs:
           script: |
             const fs = require('fs');
             const result = JSON.parse(fs.readFileSync('freshness_alerts.json', 'utf8'));
-            const problems = result.alerts.length + result.missing_or_unreadable_files.length;
+            const disappeared = result.disappeared_series || [];
+            const problems = result.alerts.length + result.missing_or_unreadable_files.length + disappeared.length;
             const label = 'data-freshness';
 
             const { data: existing } = await github.rest.issues.listForRepo({
@@ -330,6 +331,15 @@ jobs:
             const lines = [
               `Checked at ${result.checked_at}. ${problems} issue(s) found.`, '',
             ];
+            if (disappeared.length) {
+              lines.push('### Series present last run, completely gone this run');
+              lines.push('| Country | Series | File |');
+              lines.push('|---|---|---|');
+              for (const d of disappeared) {
+                lines.push(`| ${d.country} | ${d.key} | ${d.file} |`);
+              }
+              lines.push('');
+            }
             if (result.alerts.length) {
               lines.push('### Genuinely stale series (3x past normal update cadence)');
               lines.push('| Country | Series | Last published | Days overdue |');
