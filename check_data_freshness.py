@@ -13,6 +13,19 @@ line, so this deliberately does NOT fire on every metric that's a few
 days into its normal update window -- only on genuine breakage: a fetch
 that's silently failing, falling back, or stopped finding new data.
 
+Also flags series that have DISAPPEARED entirely since the previous
+commit -- a distinct failure mode from staleness. A rate-limited fetch
+with no carry-over fallback doesn't leave stale data behind for the
+staleness check to eventually catch; the key is just gone from the JSON
+the moment it fails, with nothing to compare an "age" against. This is
+what happened to Ireland's and Norway's cpi during the Aug 2026 429
+cascade -- invisible to the staleness check above, since there was no
+stale-but-present data to flag, just an absent key. Detected by diffing
+each country's current series keys against the immediately preceding
+commit (git show HEAD~1:<file>) -- requires running inside the same git
+checkout the commit step just ran in; if git or history isn't
+available, this check is skipped rather than erroring the whole run.
+
 Writes:
   - freshness_alerts.json   machine-readable list of flagged series, for
                              the next workflow step to act on
@@ -26,6 +39,7 @@ not a gate.
 import json
 import os
 import re
+import subprocess
 from datetime import datetime, timezone
 
 # All 32 country data files the visitor-facing pages read. Deliberately
@@ -106,9 +120,44 @@ def check_series(country, key, series):
     }
 
 
+def previous_series_keys(base_dir, filename):
+    """Series keys present in this file as of the immediately preceding
+    commit (before the "Refresh data" commit this run just made). Returns
+    None (not an empty set) if that can't be determined -- an empty repo,
+    a shallow checkout with no HEAD~1, git not on PATH, etc. -- so the
+    caller can skip the comparison rather than treating "can't tell" as
+    "nothing was there before"."""
+    try:
+        result = subprocess.run(
+            ["git", "show", "HEAD~1:{}".format(filename)],
+            cwd=base_dir, capture_output=True, text=True, timeout=10,
+        )
+        if result.returncode != 0:
+            return None
+        payload = json.loads(result.stdout)
+        return set((payload.get("series") or {}).keys())
+    except Exception:
+        return None
+
+
+def check_disappeared_series(base_dir, country, filename, current_series):
+    """Returns a list of alert dicts, one per series key that was present
+    last commit and is completely absent now -- distinct from staleness:
+    there's no data left at all for check_series() to even evaluate."""
+    prev_keys = previous_series_keys(base_dir, filename)
+    if prev_keys is None:
+        return []
+    vanished = prev_keys - set(current_series.keys())
+    return [
+        {"country": country, "key": k, "file": filename}
+        for k in sorted(vanished)
+    ]
+
+
 def run(base_dir="."):
     alerts = []
     missing_files = []
+    disappeared = []
     for country, filename in DATA_FILES.items():
         path = os.path.join(base_dir, filename)
         if not os.path.exists(path):
@@ -120,25 +169,36 @@ def run(base_dir="."):
         except (json.JSONDecodeError, OSError) as e:
             missing_files.append({"country": country, "file": filename, "error": str(e)})
             continue
-        for key, series in (payload.get("series") or {}).items():
+        current_series = payload.get("series") or {}
+        for key, series in current_series.items():
             alert = check_series(country, key, series)
             if alert:
                 alerts.append(alert)
+        disappeared.extend(check_disappeared_series(base_dir, country, filename, current_series))
 
     alerts.sort(key=lambda a: -a["age_days"])
     result = {
         "checked_at": datetime.now(timezone.utc).isoformat(),
         "alerts": alerts,
         "missing_or_unreadable_files": missing_files,
+        "disappeared_series": disappeared,
     }
 
     with open(os.path.join(base_dir, "freshness_alerts.json"), "w") as f:
         json.dump(result, f, indent=2)
 
     summary_lines = []
-    if alerts or missing_files:
+    if alerts or missing_files or disappeared:
         summary_lines.append("### \U0001F534 Data freshness check: {} issue(s) found\n".format(
-            len(alerts) + len(missing_files)))
+            len(alerts) + len(missing_files) + len(disappeared)))
+        if disappeared:
+            summary_lines.append("### Series present last run, completely gone this run")
+            summary_lines.append("| Country | Series | File |")
+            summary_lines.append("|---|---|---|")
+            for d in disappeared:
+                summary_lines.append("| {} | {} | {} |".format(
+                    d["country"], d["key"], d["file"]))
+            summary_lines.append("")
         if alerts:
             summary_lines.append("| Country | Series | Last published | Days overdue |")
             summary_lines.append("|---|---|---|---|")

@@ -65,6 +65,7 @@ still the genuine test):
 from __future__ import annotations
 
 import json
+import time
 import os
 import sys
 from datetime import datetime, timezone
@@ -249,7 +250,23 @@ def fetch_oecd_cpi(areas: tuple, freq: str) -> list | None:
         combos = [(base_url, base_tag, um, tc, ny, me, ad)
                   for base_url, base_tag in bases
                   for um, tc, ny, me, ad in attempts]
+        # Consecutive-429 tracking: doubling the attempts (COICOP2018 +
+        # COICOP1999) doubled this function's request volume, which
+        # contributed to a wider 429 cascade across OECD AND FRED calls
+        # elsewhere in this same run (Aug 2026 data-quality sweep --
+        # confirmed via the Actions log, not guessed). A small delay
+        # between requests plus bailing out after repeated 429s cuts
+        # this country's total request count fast once the host is
+        # already rate-limiting it, rather than burning through all 8
+        # combos when the first two already came back 429.
+        consecutive_429s = 0
         for base_url, base_tag, unit_measure, trans_code, needs_yoy, meth, adj in combos:
+            if consecutive_429s >= 2:
+                print(f"  [oecd-cpi] {area} bailing out after {consecutive_429s} "
+                      f"consecutive 429s -- host is rate-limiting this run, "
+                      f"further attempts here just add to that")
+                break
+            time.sleep(0.4)
             tag = f"{base_tag}.{area}.{meth or '*'}.{unit_measure}.{trans_code}"
             url = (f"{base_url}/{area}.{freq}.{meth}.CPI."
                    f"{unit_measure}._T.{adj}.{trans_code}"
@@ -258,6 +275,11 @@ def fetch_oecd_cpi(areas: tuple, freq: str) -> list | None:
                 r = requests.get(url, timeout=60,
                                  headers={"User-Agent": "economic-atlas/0.1"})
                 print(f"  [oecd-cpi] {tag} status={r.status_code}")
+                if r.status_code == 429:
+                    consecutive_429s += 1
+                    time.sleep(2.0)
+                else:
+                    consecutive_429s = 0
                 r.raise_for_status()
             except Exception as exc:
                 print(f"  [oecd-cpi] {tag} request failed: {exc}")
