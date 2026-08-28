@@ -28,17 +28,30 @@ import os
 import re
 from datetime import datetime, timezone
 
-# Same 18 country files the visitor-facing pages read. Deliberately
+# All 32 country data files the visitor-facing pages read. Deliberately
 # excludes trade-partner files and the UK-specific breakdown files
 # (MPC votes, spending COFOG, inactivity reasons, age breakdown) --
 # those have their own structure and update cadence, not the simple
 # {label, unit, freq, points} series shape this check is built around.
+#
+# Extended from the original 18 to the full 32 (Aug 2026 data-quality
+# sweep) -- the 14 added below were the same batch that was also
+# missing from sitemap.xml at the time: they'd been wired into the
+# visitor-facing site but never added to this operator-side monitor,
+# so a silently-broken fetch for any of them would have gone
+# undetected indefinitely. Keep this list in sync with FILES in
+# compare.html / dashboard.html whenever a new country is added --
+# see the "New-country build checklist" for the full wiring list.
 DATA_FILES = {
     "UK": "data.json", "US": "data-us.json", "Eurozone": "data-ez.json", "Japan": "data-jp.json",
     "India": "data-in.json", "Canada": "data-ca.json", "Australia": "data-au.json", "South Korea": "data-kr.json",
     "Israel": "data-il.json", "Mexico": "data-mx.json", "Brazil": "data-br.json", "South Africa": "data-za.json",
     "Morocco": "data-ma.json", "Germany": "data-de.json", "France": "data-fr.json", "Italy": "data-it.json",
     "Spain": "data-es.json", "Netherlands": "data-nl.json",
+    "Argentina": "data-ar.json", "Austria": "data-at.json", "Chile": "data-cl.json", "Colombia": "data-co.json",
+    "Denmark": "data-dk.json", "Indonesia": "data-id.json", "Ireland": "data-ie.json", "Norway": "data-no.json",
+    "Poland": "data-pl.json", "Singapore": "data-sg.json", "Sweden": "data-se.json", "Switzerland": "data-ch.json",
+    "Thailand": "data-th.json", "Turkey": "data-tr.json",
 }
 
 # Identical to the JS STALE_DAYS used on every country page, Compare,

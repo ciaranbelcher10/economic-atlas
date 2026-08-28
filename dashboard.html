@@ -3265,9 +3265,34 @@ function rateForPeriod(period, history){
 
 function categoryOf(key){ return CATEGORY_OF[key] || "Other"; }
 
+// Real per-country, per-metric source citations (agency + series code),
+// extracted from each country page's own INFO_CONTENT so Dashboard never
+// has to duplicate or drift from what that country's own page says.
+// {country: {metricKey: "ONS series YBHA (PN2) ..."}}. Missing entries
+// (a metric this country doesn't track, or one added after the last
+// extraction) fall back to a generic label in metricSourceNote() below --
+// never a fabricated series ID.
+var METRIC_SOURCES = {};
+function loadMetricSources(){
+  return fetch("data-metric-sources.json", {cache: "no-cache"})
+    .then(function(r){ if(!r.ok) throw new Error(r.status); return r.json(); })
+    .then(function(json){ METRIC_SOURCES = json || {}; })
+    .catch(function(err){
+      console.warn("Couldn't load metric source citations:", err);
+      METRIC_SOURCES = {};
+    });
+}
+function metricSourceNote(country, key, seriesLabel){
+  var src = METRIC_SOURCES[country] && METRIC_SOURCES[country][key];
+  return src || (seriesLabel + ", " + country + " -- exact series citation not available here; see this metric on the " + country + " page.");
+}
+function escapeHtmlDash(s){
+  return String(s).replace(/&/g, "&amp;").replace(/</g, "&lt;").replace(/>/g, "&gt;");
+}
+
 function loadAll(){
   var entries = Object.keys(FILES);
-  return Promise.all(entries.map(function(country){
+  return Promise.all([loadMetricSources()].concat(entries.map(function(country){
     return fetch(FILES[country], {cache: "no-cache"})
       .then(function(r){ if(!r.ok) throw new Error(r.status); return r.json(); })
       .then(function(payload){
@@ -3285,7 +3310,7 @@ function loadAll(){
         console.warn("Couldn't load data for " + country + ":", err);
         REGISTRY[country] = REGISTRY[country] || {};
       });
-  }));
+  })));
 }
 
 var ALL_COUNTRIES = Object.keys(FILES).sort();
@@ -4077,7 +4102,7 @@ function expandTile(tile, id, m){
       pts: pts, kind: kind, fmtY: fmt, fmtTip: fmt, refLine: refLine, key: m.key,
       title: m.series.label + (dollarise && chartUnit !== m.series.unit ? " (USD)" : ""),
       country: m.country,
-      srcNote: m.series.label + ", " + m.country + " (live data feed)."
+      srcNote: metricSourceNote(m.country, m.key, m.series.label)
     };
   }
 }
@@ -4394,14 +4419,15 @@ function renderDash(){
       + "<button type=\"button\" class=\"resetzoom\">Reset zoom</button>"
       + "</div>"
       + "<div class=\"lockedactions\"><a class=\"lockedbtn dl-btn\" href=\"contact\" data-tip=\"Create a free account to unlock this feature.\"><span class=\"lockicon\">&#128274;</span> Download data</a><a class=\"lockedbtn cz-btn\" href=\"contact\" data-tip=\"Coming soon. Contact us to express interest.\"><span class=\"lockicon\">&#128274;</span> Customise &amp; export</a></div>"
-      + "<p class=\"chartsrc\">" + m.series.points.length + " observations, " + fmtPeriod(m.period) + " is the latest.</p>";
+      + "<p class=\"chartsrc\">" + escapeHtmlDash(metricSourceNote(m.country, m.key, m.series.label)) + "</p>"
+      + "<p class=\"chartsrc\" style=\"margin-top:2px;\">" + m.series.points.length + " observations, " + fmtPeriod(m.period) + " is the latest.</p>";
 
     var dlBtn = tile.querySelector(".dl-btn");
     if(dlBtn && window.EATLAS_DOWNLOAD) window.EATLAS_DOWNLOAD.wire(dlBtn, effectivePoints(m.country, m.key, m.series), m.country + " " + m.series.label);
     var czBtn = tile.querySelector(".cz-btn");
     if(czBtn && window.EATLAS_CUSTOMIZE){
       var czKind = BAR_KEYS[m.key] ? "bar" : "line";
-      var czSrcNote = m.series.label + ", " + m.country + " (live data feed).";
+      var czSrcNote = metricSourceNote(m.country, m.key, m.series.label);
       var czFmtY = function(v){ return fmtVal(v, m.series.unit, m.key, m.country); };
       window.EATLAS_CUSTOMIZE.wire(czBtn, effectivePoints(m.country, m.key, m.series), m.country + " " + m.series.label, czSrcNote, czFmtY, "", m.country + "_" + m.key, czKind, fmtPeriod);
     }

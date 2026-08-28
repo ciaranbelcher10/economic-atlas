@@ -35,6 +35,26 @@
 <link rel="stylesheet" href="style.css?v=40">
 <style>
 :root{ --map-nodata: #E9EBE7; }
+/* ---- info button + popover (per-card data source & methodology) ---- */
+.infoBtn{display:inline-flex; align-items:center; justify-content:center;
+  width:16px; height:16px; margin-left:6px; padding:0; border:none;
+  background:none; color:var(--ink2); font-size:15px; line-height:1;
+  cursor:pointer; vertical-align:middle; border-radius:50%;}
+.infoBtn:hover, .infoBtn:focus-visible{color:var(--navy); background:var(--paper);}
+.infoPopover{position:absolute; z-index:900; max-width:380px;}
+.infoPopoverInner{background:var(--panel); border:1px solid var(--hair);
+  border-radius:12px; padding:16px 18px; box-shadow:0 8px 28px rgba(0,0,0,.18);
+  font-size:13px; line-height:1.5; color:var(--ink); max-height:60vh; overflow-y:auto;}
+.infoPopoverClose{position:absolute; top:8px; right:10px; border:none;
+  background:none; font-size:18px; line-height:1; color:var(--ink2);
+  cursor:pointer; padding:2px 4px;}
+.infoPopoverClose:hover{color:var(--ink);}
+.infoPopoverTitle{font-size:14px; font-weight:700; margin:0 22px 8px 0; color:var(--navy);}
+.infoPopoverDesc{margin:0 0 10px;}
+.infoPopoverSrcHead{margin:0 0 4px; font-size:12px; font-weight:700; color:var(--ink2); text-transform:uppercase; letter-spacing:.03em;}
+.infoPopoverSrcRow{margin:0 0 6px; font-size:12.5px; color:var(--ink2);}
+.infoPopoverSrcRow strong{color:var(--ink);}
+.infoPopoverCaveat{margin:10px 0 0; padding-top:8px; border-top:1px solid var(--hair); font-size:12.5px; color:var(--ink2);}
 html[data-theme="dark"]{ --map-nodata: #C4CAC0; }
 .led{display:inline-block; width:9px; height:9px; border-radius:50%;
   margin-right:2px; vertical-align:middle; position:relative; flex-shrink:0;}
@@ -2045,8 +2065,105 @@ function fetchWithTimeout(url, ms){
     new Promise(function(_, reject){ setTimeout(function(){ reject(new Error("timed out after " + ms + "ms")); }, ms); })
   ]);
 }
+// Real per-country, per-metric source citations (agency + series code),
+// extracted from each country page's own INFO_CONTENT. Used by each
+// card's info popover so "GDP level" doesn't just show one generic
+// sentence for all 32 countries -- it shows the actual agency and
+// series each selected country's figure comes from. A missing entry
+// (metric not tracked for that country, or added after extraction)
+// falls back gracefully in metricSourceNote() -- never fabricated.
+var METRIC_SOURCES = {};
+function loadMetricSources(){
+  return fetchWithTimeout("data-metric-sources.json", 12000)
+    .then(function(r){ if(!r.ok) throw new Error(r.status); return r.json(); })
+    .then(function(json){ METRIC_SOURCES = json || {}; })
+    .catch(function(err){
+      console.warn("Couldn't load metric source citations:", err);
+      METRIC_SOURCES = {};
+    });
+}
+function metricSourceNote(country, key){
+  var src = METRIC_SOURCES[country] && METRIC_SOURCES[country][key];
+  return src || null; // null = "not tracked for this country" vs a fabricated fallback
+}
+
+/* ---- card info popover: what this metric is, and each selected     */
+/* country's actual source (not one generic sentence for all 32) ---- */
+function infoIconHtml(concept){
+  if(!CONCEPT_EXPLAINER[concept]) return "";
+  return "<button type=\"button\" class=\"infoBtn\" data-concept=\"" + concept + "\" aria-label=\"What is this metric, and where does each country's figure come from?\" title=\"About this metric &amp; sources\">&#9432;</button>";
+}
+var INFO_POPOVER_EL = null;
+function ensureInfoPopover(){
+  if(INFO_POPOVER_EL) return INFO_POPOVER_EL;
+  var el = document.createElement("div");
+  el.className = "infoPopover";
+  el.hidden = true;
+  el.innerHTML = "<div class=\"infoPopoverInner\">"
+    + "<button type=\"button\" class=\"infoPopoverClose\" aria-label=\"Close\">&times;</button>"
+    + "<h3 class=\"infoPopoverTitle\"></h3>"
+    + "<p class=\"infoPopoverDesc\"></p>"
+    + "<p class=\"infoPopoverSrcHead\">Sources for your selected countries</p>"
+    + "<div class=\"infoPopoverSrcList\"></div>"
+    + "<p class=\"infoPopoverCaveat\"></p>"
+    + "</div>";
+  document.body.appendChild(el);
+  el.querySelector(".infoPopoverClose").addEventListener("click", closeInfoPopover);
+  document.addEventListener("keydown", function(e){ if(e.key === "Escape") closeInfoPopover(); });
+  document.addEventListener("click", function(e){
+    if(el.hidden) return;
+    if(el.contains(e.target) || e.target.closest(".infoBtn")) return;
+    closeInfoPopover();
+  });
+  INFO_POPOVER_EL = el;
+  return el;
+}
+function closeInfoPopover(){
+  if(INFO_POPOVER_EL) INFO_POPOVER_EL.hidden = true;
+}
+function openInfoPopover(btn, concept){
+  var expl = CONCEPT_EXPLAINER[concept];
+  if(!expl) return;
+  var el = ensureInfoPopover();
+  el.querySelector(".infoPopoverTitle").textContent = CONCEPT_LABEL[concept] || concept;
+  el.querySelector(".infoPopoverDesc").textContent = expl;
+  var listEl = el.querySelector(".infoPopoverSrcList");
+  listEl.innerHTML = "";
+  var countries = selected.slice().sort();
+  if(!countries.length){
+    listEl.innerHTML = "<p class=\"infoPopoverSrcRow\">No countries selected yet.</p>";
+  } else {
+    countries.forEach(function(c){
+      var src = metricSourceNote(c, concept);
+      var row = document.createElement("p");
+      row.className = "infoPopoverSrcRow";
+      row.innerHTML = "<strong>" + c + ":</strong> " + (src || "not tracked for this country -- see the " + c + " page for what is available.");
+      listEl.appendChild(row);
+    });
+  }
+  var caveatEl = el.querySelector(".infoPopoverCaveat");
+  var isCurrency = CONCEPT_UNIT[concept] === "currency";
+  caveatEl.textContent = isCurrency
+    ? "Different countries' statistics agencies publish this on different schedules and with different revision practices. Currency figures shown here are converted to USD -- see each card's own methodology note above its chart for exactly how."
+    : "Different countries' statistics agencies publish this on different schedules and with different revision practices, so treat cross-country comparisons as broadly indicative rather than perfectly like-for-like.";
+  el.hidden = false;
+  var rect = btn.getBoundingClientRect();
+  var popRect = el.querySelector(".infoPopoverInner").getBoundingClientRect();
+  var left = rect.left + window.scrollX;
+  var maxLeft = window.scrollX + document.documentElement.clientWidth - popRect.width - 12;
+  if(left > maxLeft) left = Math.max(12, maxLeft);
+  el.style.left = left + "px";
+  el.style.top = (rect.bottom + window.scrollY + 8) + "px";
+}
+document.addEventListener("click", function(e){
+  var btn = e.target.closest(".infoBtn");
+  if(!btn) return;
+  e.stopPropagation();
+  openInfoPopover(btn, btn.dataset.concept);
+}, true);
+
 function loadAll(){
-  return Promise.all(ALL_COUNTRIES.map(function(country){
+  return Promise.all([loadMetricSources()].concat(ALL_COUNTRIES.map(function(country){
     return fetchWithTimeout(FILES[country], 12000)
       .then(function(r){ if(!r.ok) throw new Error(r.status); return r.json(); })
       .then(function(payload){
@@ -2062,7 +2179,7 @@ function loadAll(){
         console.warn("Couldn't load data for " + country + ":", err);
         REGISTRY[country] = REGISTRY[country] || {};
       });
-  })).then(function(){
+  }))).then(function(){
     CURRENT_YEAR = computeCurrentYear();
   });
 }
@@ -3137,7 +3254,7 @@ function buildCardShell(concept, hasHistory, mode){
   card.className = "cmp-card metric-card wide";
   card.dataset.concept = concept;
   card.innerHTML = "<button type=\"button\" class=\"card-remove\" aria-label=\"Remove this card\" title=\"Remove this card\">&times;</button>"
-    + "<h3 class=\"card-title\"></h3>"
+    + "<h3 class=\"card-title\"></h3><span class=\"card-title-info\"></span>"
     + "<div class=\"card-avg-readout\" style=\"font-size:11.5px; color:var(--ink2); margin:-6px 0 8px;\"></div>"
     + (hasHistory ? "<div class=\"charttoggle\"><button type=\"button\" data-mode=\"bar\">Bar</button><button type=\"button\" data-mode=\"line\">Line</button></div>" : "")
     + "<div class=\"card-sort-row\" style=\"display:flex; align-items:center; gap:8px; margin:2px 0 12px; padding:7px 10px; background:var(--blue-tint, #EAF2F8); border:1px solid var(--blue); border-radius:8px; font-size:12.5px;\">"
@@ -3371,6 +3488,8 @@ function fillCardChart(card, concept){
 
   var canvas = card.querySelector("canvas");
   var titleEl = card.querySelector(".card-title");
+  var titleInfoEl = card.querySelector(".card-title-info");
+  if(titleInfoEl) titleInfoEl.innerHTML = infoIconHtml(concept);
   var avgEl = card.querySelector(".card-avg-readout");
   if(avgEl){
     // A tile-level readout, deliberately simpler than Customise &
