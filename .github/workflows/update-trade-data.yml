@@ -1,0 +1,168 @@
+name: Refresh trade partner data
+on:
+  schedule:
+    # Once a day. Comtrade's underlying data doesn't change hour to hour --
+    # this used to run on the same hourly cron as everything else, which
+    # was needless load on the Comtrade API (and likely why it got called
+    # "redundant" and removed on 2026-08-22). Offset away from midnight UTC
+    # for the same reason the hourly workflow is offset from :00 -- avoid
+    # the busiest instant on GitHub's shared scheduler.
+    - cron: "23 4 * * *"
+  workflow_dispatch:
+
+permissions:
+  contents: write
+
+jobs:
+  refresh-trade:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-python@v5
+        with:
+          python-version: "3.12"
+      - run: pip install requests openpyxl xlrd
+      - name: Init pipeline log
+        run: echo "" > pipeline_log.txt
+      - name: Run fetch_uk_trade_partners.py
+        continue-on-error: true
+        run: |
+          echo ">>> RUNNING fetch_uk_trade_partners.py" >> pipeline_log.txt
+          python fetch_uk_trade_partners.py 2>&1 | tee -a pipeline_log.txt
+        env:
+          COMTRADE_API_KEY: ${{ secrets.COMTRADE_API_KEY }}
+      - name: Run fetch_us_trade_partners.py
+        continue-on-error: true
+        run: |
+          echo ">>> RUNNING fetch_us_trade_partners.py" >> pipeline_log.txt
+          python fetch_us_trade_partners.py 2>&1 | tee -a pipeline_log.txt
+        env:
+          COMTRADE_API_KEY: ${{ secrets.COMTRADE_API_KEY }}
+      - name: Run fetch_jp_trade_partners.py
+        continue-on-error: true
+        run: |
+          echo ">>> RUNNING fetch_jp_trade_partners.py" >> pipeline_log.txt
+          python fetch_jp_trade_partners.py 2>&1 | tee -a pipeline_log.txt
+        env:
+          COMTRADE_API_KEY: ${{ secrets.COMTRADE_API_KEY }}
+      - name: Run fetch_in_trade_partners.py
+        continue-on-error: true
+        run: |
+          echo ">>> RUNNING fetch_in_trade_partners.py" >> pipeline_log.txt
+          python fetch_in_trade_partners.py 2>&1 | tee -a pipeline_log.txt
+        env:
+          COMTRADE_API_KEY: ${{ secrets.COMTRADE_API_KEY }}
+      - name: Run fetch_ca_trade_partners.py
+        continue-on-error: true
+        run: |
+          echo ">>> RUNNING fetch_ca_trade_partners.py" >> pipeline_log.txt
+          python fetch_ca_trade_partners.py 2>&1 | tee -a pipeline_log.txt
+        env:
+          COMTRADE_API_KEY: ${{ secrets.COMTRADE_API_KEY }}
+      - name: Run fetch_au_trade_partners.py
+        continue-on-error: true
+        run: |
+          echo ">>> RUNNING fetch_au_trade_partners.py" >> pipeline_log.txt
+          python fetch_au_trade_partners.py 2>&1 | tee -a pipeline_log.txt
+        env:
+          COMTRADE_API_KEY: ${{ secrets.COMTRADE_API_KEY }}
+      - name: Run fetch_kr_trade_partners.py
+        continue-on-error: true
+        run: |
+          echo ">>> RUNNING fetch_kr_trade_partners.py" >> pipeline_log.txt
+          python fetch_kr_trade_partners.py 2>&1 | tee -a pipeline_log.txt
+        env:
+          COMTRADE_API_KEY: ${{ secrets.COMTRADE_API_KEY }}
+      - name: Run fetch_il_trade_partners.py
+        continue-on-error: true
+        run: |
+          echo ">>> RUNNING fetch_il_trade_partners.py" >> pipeline_log.txt
+          python fetch_il_trade_partners.py 2>&1 | tee -a pipeline_log.txt
+        env:
+          COMTRADE_API_KEY: ${{ secrets.COMTRADE_API_KEY }}
+      - name: Run fetch_mx_trade_partners.py
+        continue-on-error: true
+        run: |
+          echo ">>> RUNNING fetch_mx_trade_partners.py" >> pipeline_log.txt
+          python fetch_mx_trade_partners.py 2>&1 | tee -a pipeline_log.txt
+        env:
+          COMTRADE_API_KEY: ${{ secrets.COMTRADE_API_KEY }}
+      - name: Run fetch_br_trade_partners.py
+        continue-on-error: true
+        run: |
+          echo ">>> RUNNING fetch_br_trade_partners.py" >> pipeline_log.txt
+          python fetch_br_trade_partners.py 2>&1 | tee -a pipeline_log.txt
+        env:
+          COMTRADE_API_KEY: ${{ secrets.COMTRADE_API_KEY }}
+      - name: Run fetch_za_trade_partners.py
+        continue-on-error: true
+        run: |
+          echo ">>> RUNNING fetch_za_trade_partners.py" >> pipeline_log.txt
+          python fetch_za_trade_partners.py 2>&1 | tee -a pipeline_log.txt
+        env:
+          COMTRADE_API_KEY: ${{ secrets.COMTRADE_API_KEY }}
+      - name: Run fetch_ma_trade_partners.py
+        continue-on-error: true
+        run: |
+          echo ">>> RUNNING fetch_ma_trade_partners.py" >> pipeline_log.txt
+          python fetch_ma_trade_partners.py 2>&1 | tee -a pipeline_log.txt
+        env:
+          COMTRADE_API_KEY: ${{ secrets.COMTRADE_API_KEY }}
+      - name: Run fetch_de_trade_partners.py
+        continue-on-error: true
+        run: |
+          echo ">>> RUNNING fetch_de_trade_partners.py" >> pipeline_log.txt
+          python fetch_de_trade_partners.py 2>&1 | tee -a pipeline_log.txt
+        env:
+          COMTRADE_API_KEY: ${{ secrets.COMTRADE_API_KEY }}
+      - name: Run fetch_fr_trade_partners.py
+        continue-on-error: true
+        run: |
+          echo ">>> RUNNING fetch_fr_trade_partners.py" >> pipeline_log.txt
+          python fetch_fr_trade_partners.py 2>&1 | tee -a pipeline_log.txt
+        env:
+          COMTRADE_API_KEY: ${{ secrets.COMTRADE_API_KEY }}
+      - name: Run fetch_it_trade_partners.py
+        continue-on-error: true
+        run: |
+          echo ">>> RUNNING fetch_it_trade_partners.py" >> pipeline_log.txt
+          python fetch_it_trade_partners.py 2>&1 | tee -a pipeline_log.txt
+        env:
+          COMTRADE_API_KEY: ${{ secrets.COMTRADE_API_KEY }}
+      - name: Run fetch_es_trade_partners.py
+        continue-on-error: true
+        run: |
+          echo ">>> RUNNING fetch_es_trade_partners.py" >> pipeline_log.txt
+          python fetch_es_trade_partners.py 2>&1 | tee -a pipeline_log.txt
+        env:
+          COMTRADE_API_KEY: ${{ secrets.COMTRADE_API_KEY }}
+      - name: Run fetch_nl_trade_partners.py
+        continue-on-error: true
+        run: |
+          echo ">>> RUNNING fetch_nl_trade_partners.py" >> pipeline_log.txt
+          python fetch_nl_trade_partners.py 2>&1 | tee -a pipeline_log.txt
+        env:
+          COMTRADE_API_KEY: ${{ secrets.COMTRADE_API_KEY }}
+      - name: Commit updated trade partner data
+        run: |
+          git config user.name "data-bot"
+          git config user.email "actions@github.com"
+          git add data-uk-trade-partners.json 2>/dev/null || true
+          git add data-us-trade-partners.json 2>/dev/null || true
+          git add data-jp-trade-partners.json 2>/dev/null || true
+          git add data-in-trade-partners.json 2>/dev/null || true
+          git add data-ca-trade-partners.json 2>/dev/null || true
+          git add data-au-trade-partners.json 2>/dev/null || true
+          git add data-kr-trade-partners.json 2>/dev/null || true
+          git add data-il-trade-partners.json 2>/dev/null || true
+          git add data-mx-trade-partners.json 2>/dev/null || true
+          git add data-br-trade-partners.json 2>/dev/null || true
+          git add data-za-trade-partners.json 2>/dev/null || true
+          git add data-ma-trade-partners.json 2>/dev/null || true
+          git add data-de-trade-partners.json 2>/dev/null || true
+          git add data-fr-trade-partners.json 2>/dev/null || true
+          git add data-it-trade-partners.json 2>/dev/null || true
+          git add data-es-trade-partners.json 2>/dev/null || true
+          git add data-nl-trade-partners.json 2>/dev/null || true
+          git diff --cached --quiet || git commit -m "Refresh trade partner data"
+          git push
