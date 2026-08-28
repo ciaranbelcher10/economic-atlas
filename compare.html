@@ -2083,8 +2083,8 @@ function loadMetricSources(){
     });
 }
 function metricSourceNote(country, key){
-  var src = METRIC_SOURCES[country] && METRIC_SOURCES[country][key];
-  return src || null; // null = "not tracked for this country" vs a fabricated fallback
+  var entry = METRIC_SOURCES[country] && METRIC_SOURCES[country][key];
+  return (entry && entry.source) || null; // null = "not tracked for this country" vs a fabricated fallback
 }
 
 /* ---- card info popover: what this metric is, and each selected     */
@@ -3254,7 +3254,7 @@ function buildCardShell(concept, hasHistory, mode){
   card.className = "cmp-card metric-card wide";
   card.dataset.concept = concept;
   card.innerHTML = "<button type=\"button\" class=\"card-remove\" aria-label=\"Remove this card\" title=\"Remove this card\">&times;</button>"
-    + "<h3 class=\"card-title\"></h3><span class=\"card-title-info\"></span>"
+    + "<div class=\"card-title-row\" style=\"display:flex; align-items:center; gap:2px;\"><h3 class=\"card-title\" style=\"margin:0;\"></h3><span class=\"card-title-info\"></span></div>"
     + "<div class=\"card-avg-readout\" style=\"font-size:11.5px; color:var(--ink2); margin:-6px 0 8px;\"></div>"
     + (hasHistory ? "<div class=\"charttoggle\"><button type=\"button\" data-mode=\"bar\">Bar</button><button type=\"button\" data-mode=\"line\">Line</button></div>" : "")
     + "<div class=\"card-sort-row\" style=\"display:flex; align-items:center; gap:8px; margin:2px 0 12px; padding:7px 10px; background:var(--blue-tint, #EAF2F8); border:1px solid var(--blue); border-radius:8px; font-size:12.5px;\">"

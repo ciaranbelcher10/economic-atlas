@@ -270,6 +270,26 @@ button.mtoggle.fx-both{background:#2FA463; border-color:#2FA463; color:#fff;}
 
 /* ---- cross-country map card, ported from Compare ---- */
 :root{ --map-nodata: #E9EBE7; }
+/* ---- info button + popover (per-tile data source & methodology) ---- */
+.infoBtn{display:inline-flex; align-items:center; justify-content:center;
+  width:16px; height:16px; margin-left:6px; padding:0; border:none;
+  background:none; color:var(--ink2); font-size:15px; line-height:1;
+  cursor:pointer; vertical-align:middle; border-radius:50%;}
+.infoBtn:hover, .infoBtn:focus-visible{color:var(--navy); background:var(--paper);}
+.infoPopover{position:absolute; z-index:900; max-width:380px;}
+.infoPopoverInner{background:var(--panel); border:1px solid var(--hair);
+  border-radius:12px; padding:16px 18px; box-shadow:0 8px 28px rgba(0,0,0,.18);
+  font-size:13px; line-height:1.5; color:var(--ink); max-height:60vh; overflow-y:auto;}
+.infoPopoverClose{position:absolute; top:8px; right:10px; border:none;
+  background:none; font-size:18px; line-height:1; color:var(--ink2);
+  cursor:pointer; padding:2px 4px;}
+.infoPopoverClose:hover{color:var(--ink);}
+.infoPopoverTitle{font-size:14px; font-weight:700; margin:0 22px 8px 0; color:var(--navy);}
+.infoPopoverDesc{margin:0 0 10px;}
+.infoPopoverSrcHead{margin:0 0 4px; font-size:12px; font-weight:700; color:var(--ink2); text-transform:uppercase; letter-spacing:.03em;}
+.infoPopoverSrcRow{margin:0 0 6px; font-size:12.5px; color:var(--ink2);}
+.infoPopoverCaveat{margin:10px 0 0; padding-top:8px; border-top:1px solid var(--hair); font-size:12.5px; color:var(--ink2);}
+.infoPopoverCaveat strong{color:var(--ink);}
 html[data-theme="dark"]{ --map-nodata: #C4CAC0; }
 .map-card{background:var(--panel); border:1px solid var(--hair); border-radius:14px;
   padding:18px 20px; position:relative; margin-top:18px; display:none;}
@@ -3283,12 +3303,84 @@ function loadMetricSources(){
     });
 }
 function metricSourceNote(country, key, seriesLabel){
-  var src = METRIC_SOURCES[country] && METRIC_SOURCES[country][key];
-  return src || (seriesLabel + ", " + country + " -- exact series citation not available here; see this metric on the " + country + " page.");
+  var entry = METRIC_SOURCES[country] && METRIC_SOURCES[country][key];
+  return (entry && entry.source) || (seriesLabel + ", " + country + " -- exact series citation not available here; see this metric on the " + country + " page.");
+}
+function metricInfo(country, key){
+  return (METRIC_SOURCES[country] && METRIC_SOURCES[country][key]) || null;
 }
 function escapeHtmlDash(s){
   return String(s).replace(/&/g, "&amp;").replace(/</g, "&lt;").replace(/>/g, "&gt;");
 }
+
+/* ---- tile info popover: same description/source/caveat content as   */
+/* the country page's own ⓘ button for this exact metric+country ---- */
+function infoIconHtml(country, key){
+  return "<button type=\"button\" class=\"infoBtn\" data-country=\"" + escapeHtmlDash(country) + "\" data-key=\"" + escapeHtmlDash(key) + "\" aria-label=\"What is this metric, and where does it come from?\" title=\"About this metric &amp; source\">&#9432;</button>";
+}
+var INFO_POPOVER_EL = null;
+function ensureInfoPopover(){
+  if(INFO_POPOVER_EL) return INFO_POPOVER_EL;
+  var el = document.createElement("div");
+  el.className = "infoPopover";
+  el.hidden = true;
+  el.innerHTML = "<div class=\"infoPopoverInner\">"
+    + "<button type=\"button\" class=\"infoPopoverClose\" aria-label=\"Close\">&times;</button>"
+    + "<h3 class=\"infoPopoverTitle\"></h3>"
+    + "<p class=\"infoPopoverDesc\"></p>"
+    + "<p class=\"infoPopoverSrcHead\">Source</p>"
+    + "<p class=\"infoPopoverSrcRow\"></p>"
+    + "<div class=\"infoPopoverToggleCaveats\"></div>"
+    + "</div>";
+  document.body.appendChild(el);
+  el.querySelector(".infoPopoverClose").addEventListener("click", closeInfoPopover);
+  document.addEventListener("keydown", function(e){ if(e.key === "Escape") closeInfoPopover(); });
+  document.addEventListener("click", function(e){
+    if(el.hidden) return;
+    if(el.contains(e.target) || e.target.closest(".infoBtn")) return;
+    closeInfoPopover();
+  });
+  INFO_POPOVER_EL = el;
+  return el;
+}
+function closeInfoPopover(){
+  if(INFO_POPOVER_EL) INFO_POPOVER_EL.hidden = true;
+}
+function openInfoPopover(btn, country, key){
+  var info = metricInfo(country, key);
+  var el = ensureInfoPopover();
+  el.querySelector(".infoPopoverTitle").textContent = country + (info ? "" : " (not tracked for this country)");
+  el.querySelector(".infoPopoverDesc").textContent = info ? info.description : "No description available for this metric/country combination -- see " + country + "'s own page for what's tracked there.";
+  el.querySelector(".infoPopoverSrcRow").textContent = info ? info.source : "not available";
+  var caveatsEl = el.querySelector(".infoPopoverToggleCaveats");
+  caveatsEl.innerHTML = "";
+  if(info && info.dollar){
+    var p1 = document.createElement("p");
+    p1.className = "infoPopoverCaveat";
+    p1.innerHTML = "<strong>Dollarise:</strong> " + escapeHtmlDash(info.dollar);
+    caveatsEl.appendChild(p1);
+  }
+  if(info && info.real){
+    var p2 = document.createElement("p");
+    p2.className = "infoPopoverCaveat";
+    p2.innerHTML = "<strong>Make it real:</strong> " + escapeHtmlDash(info.real);
+    caveatsEl.appendChild(p2);
+  }
+  el.hidden = false;
+  var rect = btn.getBoundingClientRect();
+  var popRect = el.querySelector(".infoPopoverInner").getBoundingClientRect();
+  var left = rect.left + window.scrollX;
+  var maxLeft = window.scrollX + document.documentElement.clientWidth - popRect.width - 12;
+  if(left > maxLeft) left = Math.max(12, maxLeft);
+  el.style.left = left + "px";
+  el.style.top = (rect.bottom + window.scrollY + 8) + "px";
+}
+document.addEventListener("click", function(e){
+  var btn = e.target.closest(".infoBtn");
+  if(!btn) return;
+  e.stopPropagation();
+  openInfoPopover(btn, btn.dataset.country, btn.dataset.key);
+}, true);
 
 function loadAll(){
   var entries = Object.keys(FILES);
@@ -4406,7 +4498,7 @@ function renderDash(){
       + "<button type=\"button\" class=\"collapsebtn\" aria-label=\"Hide chart\" title=\"Hide chart\">&#8722;</button>"
       + "<button type=\"button\" class=\"draghandle\" aria-label=\"Drag to reorder\" title=\"Drag to reorder\">&#10495;</button>"
       + "<p class=\"country\">" + m.country + "</p>"
-      + "<p class=\"label\">" + m.series.label + (actuallyConverted ? " (USD)" : "") + "</p>"
+      + "<div class=\"tile-label-row\" style=\"display:flex; align-items:center; gap:2px;\"><p class=\"label\" style=\"margin:0;\">" + m.series.label + (actuallyConverted ? " (USD)" : "") + "</p>" + infoIconHtml(m.country, m.key) + "</div>"
       + "<p class=\"value\"><span class=\"led " + led + "\" title=\"" + ledTitle + "\" role=\"img\" aria-label=\"" + ledTitle + "\"></span>" + fmtVal(disp.value, disp.unit, m.key, m.country) + "</p>"
       + "<p class=\"period\">" + fmtPeriod(m.period) + "</p>"
       + "<div class=\"chartactions\">"
