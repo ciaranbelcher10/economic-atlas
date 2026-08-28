@@ -1126,6 +1126,7 @@ footer.cmp-foot{margin-top:36px; font-size:12.5px; color:var(--ink2); border-top
   // by design, since the whole point is making an account the only way
   // to keep anything.
   window.EATLAS_PREFS = (function(){
+    var LOCAL_PREFS_KEY = "eatlas_anon_prefs_compare";
     var loggedIn = false;
     var userId = null;
     var cache = null;
@@ -1159,7 +1160,19 @@ footer.cmp-foot{margin-top:36px; font-size:12.5px; color:var(--ink2); border-top
 
     function fetchPrefs(wasLoggedOutBefore){
       if(!loggedIn || !userId){
-        cache = {};
+        // Not logged in -- Supabase has nowhere to save this, but that
+        // shouldn't mean nothing persists at all. Fall back to plain
+        // per-device localStorage (same pattern already used elsewhere
+        // on this page for the Dollarise/Make-it-real toggles) so a
+        // logged-out user's selected countries, sort mode, etc. survive
+        // a page reload instead of silently resetting to the hardcoded
+        // defaults every visit. Once they log in, Supabase takes over
+        // as the source of truth (see the logged-in branch below) --
+        // this is only the anonymous-session fallback.
+        try {
+          var raw = localStorage.getItem(LOCAL_PREFS_KEY);
+          cache = raw ? JSON.parse(raw) : {};
+        } catch(e) { cache = {}; }
         adminFlag = false;
         planFlag = "free";
         trialEndsAt = null;
@@ -1238,7 +1251,13 @@ footer.cmp-foot{margin-top:36px; font-size:12.5px; color:var(--ink2); border-top
       set: function(key, value){
         if(!cache) cache = {};
         cache[key] = value;
-        if(!loggedIn || !userId) return; // logged out -- nothing to save, by design
+        if(!loggedIn || !userId){
+          // Logged out: persist to localStorage instead of just the
+          // in-memory cache, so this survives past the current page
+          // load. See the matching fallback in fetchPrefs() above.
+          try { localStorage.setItem(LOCAL_PREFS_KEY, JSON.stringify(cache)); } catch(e){}
+          return;
+        }
         sb.from("profiles").update({ preferences: cache }).eq("id", userId).then(function(res){
           if(res.error) console.error("Failed to save preference:", res.error);
         });
@@ -3854,6 +3873,19 @@ loadAll().then(function(){
     // immediately, rather than losing it the moment the tab closes.
     window.EATLAS_PREFS.onLogin(function(){
       window.EATLAS_PREFS.set("compareMetrics", visibleMetrics);
+      // Same reasoning as compareMetrics just above: whatever was
+      // picked anonymously this session (now in localStorage via the
+      // logged-out fallback) must be explicitly re-saved here, because
+      // logging in just replaced EATLAS_PREFS' internal cache with
+      // Supabase's (likely empty, on a first login) saved preferences,
+      // and losing the countries someone just picked right as saving
+      // becomes possible would be a worse experience than staying
+      // logged out.
+      window.EATLAS_PREFS.set("compareSelectedCountries", selected);
+      window.EATLAS_PREFS.set("countryColorOverrides", countryColorOverrides);
+      window.EATLAS_PREFS.set("countrySortMode", countrySortMode);
+      window.EATLAS_PREFS.set("compareCardSortMode", cardSortMode);
+      window.EATLAS_PREFS.set("compareManualOrder", selected);
     });
   }
 

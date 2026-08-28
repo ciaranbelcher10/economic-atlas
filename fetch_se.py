@@ -235,6 +235,21 @@ def fetch_oecd_bci() -> list | None:
     return None
 
 OECD_PRICES_BASE = "https://sdmx.oecd.org/public/rest/data/OECD.SDD.TPS,DSD_PRICES@DF_PRICES_ALL,1.0"
+# OECD is progressively migrating countries from the COICOP 1999 CPI
+# classification (above) to COICOP 2018. Once a country's national
+# statistics office migrates, new observations stop landing in the old
+# dataflow -- it keeps returning 200 OK with the last pre-migration
+# data forever, so nothing here ever "fails" or gets rejected by the
+# staleness guard until it crosses max_age_days. Sweden was found
+# stuck at 2025-12 (same symptom as DK/IE/NO/PL/CH/TR) via the Aug
+# 2026 data-quality sweep -- added here as the 7th affected country.
+# Confirmed via OECD's own dataflow description (COICOP 1999 dataflow
+# page explicitly says migrated countries' data now lives in the
+# COICOP 2018 dataflow instead) -- not verified yet against a live
+# response from this exact sandbox (sdmx.oecd.org is outside the
+# network allowlist here), so treat as unconfirmed until the next real
+# Actions run log shows COICOP2018 attempts actually returning data.
+OECD_PRICES_BASE_COICOP2018 = "https://sdmx.oecd.org/public/rest/data/OECD.SDD.TPS,DSD_PRICES_COICOP2018@DF_PRICES_C2018_ALL,1.0"
 
 
 def fetch_oecd_cpi(areas: tuple, freq: str) -> list | None:
@@ -287,9 +302,20 @@ def fetch_oecd_cpi(areas: tuple, freq: str) -> list | None:
             ("PA", "GY", False, "", ""),
             ("IX", "_Z", True, "", ""),
         )
-        for unit_measure, trans_code, needs_yoy, meth, adj in attempts:
-            tag = f"{area}.{meth or '*'}.{unit_measure}.{trans_code}"
-            url = (f"{OECD_PRICES_BASE}/{area}.{freq}.{meth}.CPI."
+        # Try COICOP 2018 first (fresher, for countries that have
+        # migrated), then fall back to the legacy COICOP 1999 dataflow
+        # (still the only source for countries that haven't migrated
+        # yet) -- same attempt variants against each base, so a country
+        # not yet on COICOP 2018 just falls through with 0 usable rows
+        # from those attempts and picks up its existing COICOP 1999
+        # result exactly as before.
+        bases = ((OECD_PRICES_BASE_COICOP2018, "C2018"), (OECD_PRICES_BASE, "C1999"))
+        combos = [(base_url, base_tag, um, tc, ny, me, ad)
+                  for base_url, base_tag in bases
+                  for um, tc, ny, me, ad in attempts]
+        for base_url, base_tag, unit_measure, trans_code, needs_yoy, meth, adj in combos:
+            tag = f"{base_tag}.{area}.{meth or '*'}.{unit_measure}.{trans_code}"
+            url = (f"{base_url}/{area}.{freq}.{meth}.CPI."
                    f"{unit_measure}._T.{adj}.{trans_code}"
                    f"?format=csvfile&startPeriod=2015")
             try:

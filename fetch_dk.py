@@ -534,15 +534,38 @@ def main() -> int:
             failures.append("gdp_level")
             print(f"FAIL  gdp_level (WB USD fallback) {exc}")
 
-    if not out["series"]:
-        print("\nNothing fetched.")
-        return 1
-
     try:
         with open("data-dk.json") as f:
             prev_full = json.load(f)
     except Exception:
         prev_full = {}
+
+    # Carry forward any series that failed THIS run but succeeded on a
+    # previous run, so a transient failure (e.g. OECD 429 rate-limiting --
+    # this exact thing happened to Denmark's cpi and business_confidence
+    # in the Aug 2026 data-quality sweep) doesn't wipe good data from the
+    # live page and leave it with nothing at all instead of a disclosed-
+    # stale reading. Same pattern already used for Turkey/Poland/
+    # Switzerland/Chile/Colombia/Indonesia -- Denmark was missing it.
+    # Placed BEFORE the "nothing fetched" bailout below (matching
+    # Turkey's ordering) so a run where every single series fails still
+    # gets rescued by carried-over data rather than giving up entirely.
+    _prev_series = prev_full.get("series", {})
+    carried_over = []
+    for k, v in _prev_series.items():
+        if k not in out["series"]:
+            out["series"][k] = v
+            carried_over.append(k)
+    if carried_over:
+        print(f"CARRIED OVER from previous run (failed this run, kept prior data rather than deleting it): {', '.join(carried_over)}")
+    if not out.get("fx_to_usd") and prev_full.get("fx_to_usd"):
+        out["fx_to_usd"] = prev_full["fx_to_usd"]
+        print("CARRIED OVER fx_to_usd from previous run")
+
+    if not out["series"]:
+        print("\nNothing fetched.")
+        return 1
+
     prev_meta = prev_full.get("new_points_meta")
     migrating = prev_meta is None
     backdate = prev_full.get("updated")
