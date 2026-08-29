@@ -11,22 +11,22 @@
   }catch(e){}
 })();</script>
 <meta name="viewport" content="width=device-width, initial-scale=1">
-<meta name="description" content="Every account on The Economic Atlas includes unlimited data downloads and Customise & export.">
+<meta name="description" content="How The Economic Atlas sources, updates, and converts its data -- every agency, every update cadence, every known limitation, in one place.">
 <meta property="og:type" content="website">
 <meta property="og:site_name" content="The Economic Atlas">
-<meta property="og:title" content="What's included · The Economic Atlas">
-<meta property="og:description" content="Every account on The Economic Atlas includes unlimited data downloads and Customise & export.">
-<meta property="og:url" content="https://theeconomicatlas.com/pricing">
+<meta property="og:title" content="Methodology · The Economic Atlas">
+<meta property="og:description" content="How The Economic Atlas sources, updates, and converts its data -- every agency, every update cadence, every known limitation, in one place.">
+<meta property="og:url" content="https://theeconomicatlas.com/methodology">
 <meta property="og:image" content="https://theeconomicatlas.com/og-image.png">
 <meta property="og:image:width" content="1200">
 <meta property="og:image:height" content="630">
 <meta property="og:image:alt" content="The Economic Atlas -- hourly economic data, no commentary.">
 <meta name="twitter:card" content="summary_large_image">
-<meta name="twitter:title" content="Pricing · The Economic Atlas">
-<meta name="twitter:description" content="Free to browse, or Pro for unlimited data downloads and Customise & export -- see how The Economic Atlas's plans work.">
+<meta name="twitter:title" content="Methodology · The Economic Atlas">
+<meta name="twitter:description" content="How The Economic Atlas sources, updates, and converts its data -- every agency, every update cadence, every known limitation, in one place.">
 <meta name="twitter:image" content="https://theeconomicatlas.com/og-image.png">
-<title>What's included · The Economic Atlas</title>
-<link rel="canonical" href="https://theeconomicatlas.com/pricing">
+<title>Methodology · The Economic Atlas</title>
+<link rel="canonical" href="https://theeconomicatlas.com/methodology">
 <link rel="preconnect" href="https://fonts.googleapis.com">
 <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
 <link href="https://fonts.googleapis.com/css2?family=Nunito+Sans:wght@400;600;700&display=swap" rel="stylesheet">
@@ -108,14 +108,14 @@
   </div>
   <a class="item" href="compare">Compare</a>
   <a class="item" href="dashboard">My Dashboard</a>
-  <a class="item active" href="pricing" id="planNavLink">Plan</a>
+  <a class="item" href="pricing" id="planNavLink">Plan</a>
   <div class="dropdown">
-    <button type="button" class="dropbtn" id="aboutBtn" aria-haspopup="true" aria-expanded="false">About <span class="caret">&#9662;</span></button>
+    <button type="button" class="dropbtn current" id="aboutBtn" aria-haspopup="true" aria-expanded="false">About <span class="caret">&#9662;</span></button>
     <div class="dropdown-panel" id="aboutPanel">
       <div class="dcol">
-        <a href="roadmap" >Roadmap</a>
+        <a href="roadmap">Roadmap</a>
         <a href="contact" >Contact</a>
-        <a href="methodology">Methodology</a>
+        <a href="methodology" class="active">Methodology</a>
       </div>
     </div>
   </div>
@@ -820,7 +820,15 @@
     var welcomeShown = true; // safe default: never show a false-positive popup before the real value loads
 
     function updateBanners(){
-      banners.forEach(function(el){ el.hidden = loggedIn; });
+      // Real screenshots showed this banner stacking on top of the
+      // onboarding tour's own tooltip, alongside the cookie banner --
+      // a separate bug from the mobile-notice-banner-vs-tour issue
+      // fixed elsewhere, since this banner system (alertBanner,
+      // trialBanner) is a different code path entirely. Same fix
+      // philosophy: don't reveal a banner while the tour currently has
+      // a box on screen.
+      var tourActive = !!document.querySelector(".tour-box");
+      banners.forEach(function(el){ el.hidden = loggedIn || tourActive; });
     }
 
     function resolveReady(){
@@ -1029,12 +1037,6 @@
     };
   })();
 
-  // pricingCreditsBtn/pricingProBtn/pricingProMsg no longer exist in the
-  // markup above -- every account already has full access, so there's
-  // nothing on this page left to wire a purchase flow to. The
-  // create-checkout-session / create-portal-session / create-credit-
-  // checkout-session Edge Functions themselves are untouched.
-
   // Confirms a just-completed Stripe redirect (upgrade or credits
   // purchase) with a one-off message, then strips the query params so a
   // refresh doesn't re-show it. The actual plan/credits change already
@@ -1239,64 +1241,86 @@
   // read emails back out. A unique_violation (code 23505) means the
   // address is already on the list, which gets its own friendly message
   // rather than being shown as an error.
-  var alertForm = document.getElementById("alertSignupForm");
-  if(alertForm){
-    var alertEmailInput = document.getElementById("alertSignupEmail");
-    var alertBtn = document.getElementById("alertSignupBtn");
-    var alertMsg = document.getElementById("alertSignupMsg");
-    alertForm.addEventListener("submit", function(e){
-      e.preventDefault();
-      var email = (alertEmailInput.value || "").trim();
-      if(!email) return;
-      alertBtn.disabled = true;
-      alertBtn.textContent = "Submitting\u2026";
-      alertMsg.hidden = true;
-      sb.from("alert_signups").insert({ email: email }).then(function(res){
-        alertBtn.disabled = false;
-        alertBtn.textContent = "Notify me";
-        alertMsg.hidden = false;
-        if(res.error){
-          alertMsg.textContent = (res.error.code === "23505")
-            ? "You're already on the list."
-            : "Something went wrong \u2014 please try again.";
-        } else {
-          alertForm.hidden = true;
-          alertMsg.textContent = "\u2713 You're on the list. We'll only email when there's something worth knowing.";
-          // Also stop nagging this visitor with the site-wide banner,
-          // since they've already done what it was asking for.
-          try{ localStorage.setItem("eatlas_alert_banner_dismissed", "1"); }catch(err){}
-        }
+  //
+  // NOTE: this wiring must run after the DOM has parsed the form itself.
+  // The <form id="alertSignupForm"> markup appears further down the page
+  // than this <script> block, so a plain getElementById() call here would
+  // run before the form exists and silently return null -- the `if`
+  // below would just be skipped with no error, no listener attached, and
+  // clicking "Notify me" would do nothing at all. Deferring to
+  // DOMContentLoaded guarantees the form is in the DOM first.
+  document.addEventListener("DOMContentLoaded", function(){
+    var alertForm = document.getElementById("alertSignupForm");
+    if(alertForm){
+      var alertEmailInput = document.getElementById("alertSignupEmail");
+      var alertBtn = document.getElementById("alertSignupBtn");
+      var alertMsg = document.getElementById("alertSignupMsg");
+      alertForm.addEventListener("submit", function(e){
+        e.preventDefault();
+        var email = (alertEmailInput.value || "").trim();
+        if(!email) return;
+        alertBtn.disabled = true;
+        alertBtn.textContent = "Submitting\u2026";
+        alertMsg.hidden = true;
+        sb.from("alert_signups").insert({ email: email }).then(function(res){
+          alertBtn.disabled = false;
+          alertBtn.textContent = "Notify me";
+          alertMsg.hidden = false;
+          if(res.error){
+            alertMsg.textContent = (res.error.code === "23505")
+              ? "You're already on the list."
+              : "Something went wrong \u2014 please try again.";
+          } else {
+            alertForm.hidden = true;
+            alertMsg.textContent = "\u2713 You're on the list. We'll only email when there's something worth knowing.";
+            // Also stop nagging this visitor with the site-wide banner,
+            // since they've already done what it was asking for.
+            try{ localStorage.setItem("eatlas_alert_banner_dismissed", "1"); }catch(err){}
+          }
+        });
       });
-    });
-  }
+    }
+  });
 })();
 </script>
 <div class="wrap">
 <header class="page">
   <p class="eyebrow"><span class="dot" aria-hidden="true"></span>The Economic Atlas</p>
-  <h1>What's included</h1>
-  <p class="subline">Every account includes full access -- no limits, nothing to choose between.</p>
+  <h1>Methodology</h1>
+  <p class="subline">Every source, every update cadence, every conversion, and every known limitation -- in one place, rather than scattered across 32 individual pages.</p>
 </header>
+<div class="roadmap">
+  <h2>Data first, no commentary</h2>
+  <p style="color:var(--ink2); font-size:14.5px; line-height:1.6;">
+    This site deliberately shows official statistics with no interpretation, no forecasts, and no AI-generated commentary on what the numbers mean. That's not an oversight -- it's the founding constraint the whole site is built around. If you want someone's opinion on what a number means, that's everywhere else on the internet; this is built to be the place that just shows you the number, sourced precisely, and lets you draw your own conclusion.</p>
 
-<div class="pricing-grid" style="display:grid; grid-template-columns:repeat(auto-fit, minmax(240px, 1fr)); gap:18px; margin:32px 0;">
+  <h2>Where the data comes from</h2>
+  <p style="color:var(--ink2); font-size:14.5px; line-height:1.6;">
+    Every figure on this site traces back to an official national statistics agency or a recognised international body -- never a news article, a blog, or a secondary aggregator. The primary sources in use across the site: national statistical offices (including ONS, MoSPI, and equivalents for every country covered), FRED (Federal Reserve Bank of St. Louis), OECD, World Bank, Eurostat, IMF (IFS and WEO), BIS, UN Comtrade, the Bank of England, and the European Central Bank. Every individual metric on every country page has its own ⓘ info button showing the exact agency and series code behind that specific number -- this page describes the system as a whole; the per-metric ⓘ is the precise citation for any single figure.</p>
 
-  <div class="pricing-card" style="background:var(--panel); border:1px solid var(--hair); border-radius:14px; padding:24px;">
-    <h2 style="margin:0 0 4px; font-size:19px;">Included with every account</h2>
-    <p style="margin:0 0 16px; color:var(--ink2); font-size:14px;">Sign up and you're set.</p>
-    <ul style="list-style:none; margin:0 0 20px; padding:0; font-size:14px; line-height:2;">
-      <li>&#10003; Every country page, every indicator</li>
-      <li>&#10003; <strong>Unlimited</strong> data downloads</li>
-      <li>&#10003; <strong>Unlimited</strong> Customise &amp; export</li>
-      <li>&#10003; Compare and Dashboard tools</li>
-    </ul>
-  </div>
+  <h2>How often it updates</h2>
+  <p style="color:var(--ink2); font-size:14.5px; line-height:1.6;">
+    Most series refresh hourly via an automated pipeline that queries each source directly. Trade-partner data (the country-to-country trade breakdowns) updates once daily rather than hourly, since the underlying UN Comtrade figures themselves don't change hour to hour, and hourly polling would have been needless load for no benefit. Not every series updates every hour regardless of cadence -- most official statistics are only published monthly, quarterly, or annually in the first place, so what "hourly" actually means in practice is: this site checks hourly for whether a new official reading has been published, not that a new reading exists every hour.</p>
+  <p style="color:var(--ink2); font-size:14.5px; line-height:1.6;">
+    Each series shows a small freshness indicator (green or orange) next to it. Green means the series is within its normal publication window for that source and frequency. Orange means it's gone significantly past that window -- which usually means the source hasn't published its next release yet, but occasionally means the automated fetch for that specific series needs attention. Either way, orange is a genuine signal, not decoration.</p>
 
+  <h2>Dollarise: how currency conversion works</h2>
+  <p style="color:var(--ink2); font-size:14.5px; line-height:1.6;">
+    The Dollarise toggle converts a country's own-currency figures into US dollars. Critically, this does not take today's exchange rate and apply it retroactively across history -- each historical data point is converted at its own contemporaneous exchange rate, sourced from the same monthly FX history used throughout the site. A reading from 2015 is converted at 2015's rate, not today's. Where a currency's exchange-rate history doesn't extend back as far as the underlying economic data (for example, before a currency existed in its current form), the earliest available rate is used for anything before that point, and this is disclosed on the relevant chart rather than silently applied.</p>
+
+  <h2>Make it real: nominal vs. real terms</h2>
+  <p style="color:var(--ink2); font-size:14.5px; line-height:1.6;">
+    The Make It Real toggle adjusts nominal figures for inflation, so you're looking at real (inflation-adjusted) terms rather than raw current-price numbers. For countries experiencing very high inflation (Turkey and Argentina, currently), combining Make It Real with Dollarise at the same time can produce a result that's technically calculated correctly but economically difficult to interpret meaningfully -- both pages carry an explicit warning when both toggles are active together for exactly this reason.</p>
+
+  <h2>Known limitations</h2>
+  <p style="color:var(--ink2); font-size:14.5px; line-height:1.6;">
+    This site doesn't claim complete coverage for every country on every metric. Where a genuine gap exists -- a metric with no reliable live source yet, or a country still on a fallback data source rather than a directly-fetched one -- that's disclosed on the page itself (as a "known gap" note or an illustrative-fallback label), not hidden. Two specific, current examples: business confidence for a small number of countries relies on a fallback source after the original indicator was discontinued upstream by its publisher; and any metric using a derived calculation (for example, a trade balance computed as exports minus imports rather than published directly as a single series) is labelled as derived rather than presented as if it came from one direct source.</p>
+
+  <h2>Questions about a specific number</h2>
+  <p style="color:var(--ink2); font-size:14.5px; line-height:1.6;">
+    Click the ⓘ next to any individual metric, on any country page, Compare, or your own Dashboard, for that number's exact source and any conversion caveats specific to it. If something looks wrong or you think a better source exists for a metric currently on a fallback, <a href="contact" style="color:var(--navy-2);">get in touch</a> -- most fixes to date have come from exactly that kind of report.</p>
 </div>
-
-<p style="color:var(--ink2); font-size:13px; margin-bottom:32px;">
-  See our <a href="terms" style="color:var(--navy-2);">Terms of Service</a> for the detail. Questions: <a href="contact" style="color:var(--navy-2);">get in touch</a>.
-</p>
-<footer>The Economic Atlas · Data from national statistical offices, used under open licences. <a href="privacy">Privacy</a> &middot; <a href="terms">Terms</a></footer>
+<footer>The Economic Atlas · Data from national statistical offices, used under open licences. <a href="privacy">Privacy</a> &middot; <a href="terms">Terms</a> <span id="tourReplayWrap">&middot; <button type="button" id="tourReplayLink">Take the tour</button></span></footer>
 </div>
 <script>
 (function(){
@@ -1328,5 +1352,578 @@
   }
 })();
 </script>
+<script>
+(function(){
+  "use strict";
+  // ------------------------- Onboarding tour --------------------------
+  // v4: fixes from a second round of live screenshot feedback --
+  //  (1) Auto-advance: previously every step needed a manual "Next"
+  //      click even after actually performing the described action
+  //      (e.g. clicking the real Inflation & rates tab). Now the
+  //      resolved target itself gets a real click listener that
+  //      advances the tour, in ADDITION to Next still working -- so
+  //      following the instruction IS the advance, but Next remains as
+  //      a fallback if a listener doesn't fire for some reason (it
+  //      always should, but this costs nothing and removes any chance
+  //      of a step feeling stuck).
+  //  (2) Anchor box horizontal position now centers under/over the
+  //      target's midpoint rather than starting flush at its left edge
+  //      -- flush-left meant a narrow target (like one tab in a row)
+  //      could leave the box's wide right portion drifting over
+  //      whatever sits to its right, which is what was happening here.
+  //  (3) findMapPath: a small helper so a tour step can target a
+  //      specific country's actual SVG path on the D3-rendered world
+  //      map (matched via the bound feature's .id, e.g. "826" for the
+  //      UK) -- the map has no per-feature DOM id/class to select by
+  //      directly, only data bound via d3, so this walks the rendered
+  //      paths and matches on the bound datum instead.
+  var STATE_KEY = "eatlas_tour_state";
+  var SEEN_KEY = "eatlas_tour_seen";
+  var THIS_PAGE = "methodology";
+
+  function resolvePanelChild(key, sel){
+    if(!window.ANCHORS || !window.ANCHORS[key]) return null;
+    return window.ANCHORS[key].panelEl.querySelector(sel);
+  }
+  function openModalFor(key){
+    if(!window.ANCHORS || !window.ANCHORS[key] || !window.openChartModal) return;
+    var canvas = window.ANCHORS[key].panelEl.querySelector("canvas");
+    if(canvas) window.openChartModal(canvas.id);
+  }
+  function findMapPath(isoCode){
+    var paths = document.querySelectorAll("#map path");
+    for(var i = 0; i < paths.length; i++){
+      if(paths[i].__data__ && String(paths[i].__data__.id) === isoCode) return paths[i];
+    }
+    return null;
+  }
+  function loggedIn(){
+    return !!(window.EATLAS_PREFS && window.EATLAS_PREFS.isLoggedIn && window.EATLAS_PREFS.isLoggedIn());
+  }
+  function isAdmin(){
+    return !!(window.EATLAS_PREFS && window.EATLAS_PREFS.isAdmin && window.EATLAS_PREFS.isAdmin());
+  }
+  function isPro(){
+    return !!(window.EATLAS_PREFS && window.EATLAS_PREFS.isPro && window.EATLAS_PREFS.isPro());
+  }
+  // Both pickers below are deliberately left open by the page's own code
+  // after adding a metric/country (so several can be added in one go) --
+  // these two helpers close them via a real click on the page's own close
+  // button where possible, only falling back to setting .hidden directly
+  // if that button isn't there for some reason.
+  function closeCompareMetricPickerIfOpen(){
+    var picker = document.getElementById("metricPicker");
+    if(picker && !picker.hidden){ picker.hidden = true; document.body.style.overflow = ""; }
+  }
+  function closeDashPickerIfOpen(){
+    var picker = document.getElementById("picker");
+    if(picker && !picker.hidden){
+      var closeBtn = document.getElementById("pickerClose");
+      if(closeBtn) closeBtn.click(); else { picker.hidden = true; document.body.style.overflow = ""; }
+    }
+  }
+
+  var TOUR_STEPS = [
+    { page: "index", type: "center", title: "New here? A 2-minute tour.",
+      body: "The Economic Atlas pulls hourly, official data across dozens of countries \u2014 no commentary, just numbers. This short tour shows you around. Exit any time from the link in each box." },
+    { page: "index", type: "anchor", target: function(){ return findMapPath("826"); }, title: "Start with a country",
+      body: "Click the UK on the map to see headline figures, inflation, rates, trade and more, all in one place. That's the next stop on the tour." },
+
+    { page: "uk", type: "anchor", target: "nav.cat button[data-sec='inflation']", restrictSiblings: "nav.cat button",
+      title: "Move between sections",
+      body: "Each country page is organised into sections \u2014 Headline, GDP, Inflation & rates, Labour market, Trade, Public finances. Click <strong>Inflation &amp; rates</strong> to continue (the other tabs are disabled for this step, just so it's clear where to click)." },
+    { page: "uk", type: "anchor", target: "#tiles-inflation [data-key='cpi'].stat", title: "Headline tiles are shortcuts",
+      body: "These summary tiles are clickable \u2014 click this one and it jumps straight down to the matching CPI chart, wherever it lives on the page." },
+    { page: "uk", type: "anchor", target: function(){ return resolvePanelChild("cpi", ".expandBtn"); }, title: "Go full-size",
+      body: "Click here to open a bigger, full-size view of this chart, with more room to explore." },
+    { page: "uk", type: "anchor", onEnter: function(){ openModalFor("cpi"); },
+      target: function(){ return document.querySelector(".chart-modal-box"); },
+      title: "Choose your own timeframe",
+      body: "Use the preset buttons above for common ranges, drag directly on the chart to zoom into any period you like, or pinch to zoom on a touchscreen. \u201cReset zoom\u201d brings you back out." },
+    { page: "uk", type: "anchor", onEnter: function(){ openModalFor("cpi"); }, target: "#chartModalClose",
+      title: "Back out when you're done",
+      body: "Tap here (or press Escape on desktop) to close this full-size view and get back to the page." },
+    { page: "uk", type: "anchor", target: ".mpc-head", title: "Deep dives, not just charts",
+      body: "Sections go beyond charts wherever there's a genuinely richer story in the data \u2014 here, every Bank Rate decision by the Bank of England's Monetary Policy Committee, with exactly how each member voted. Trade has the same idea with a full partner-by-partner breakdown, and Public finances shows precisely where government spending goes \u2014 worth exploring once you're browsing on your own." },
+    { page: "uk", type: "anchor", target: "nav a[href='compare']", title: "On to Compare",
+      body: "Tap the menu icon (top-right) if the nav is not showing, then <strong>Compare</strong>, to see how multiple countries stack up side by side \u2014 the next stop on the tour." },
+
+    { page: "compare", type: "anchor", target: ".addcountries-btn", title: "Add countries",
+      body: "Click here to add or remove countries from the comparison \u2014 grouped by region, so it's just as easy to bring in Brazil or Morocco as it is another G7 economy." },
+    { page: "compare", type: "anchor",
+      onEnter: function(){
+        var picker = document.getElementById("countryModal");
+        if(picker && picker.hidden) window.EATLAS_COMPARE.openCountryModal();
+      },
+      target: "#countryModal .modal-content", title: "Pick any you like",
+      suppressTargetHighlight: true,
+      suggestHighlight: { container: "#countryModal", selector: ".picker-item[data-country='Brazil']" },
+      body: "Tap any country here to add or remove it \u2014 try <strong>Brazil</strong>, highlighted below. Changes apply the moment you click, nothing to confirm. Click Next (or just close this) whenever you're ready." },
+    { page: "compare", type: "anchor", target: "#countryClose", title: "Close when you're happy",
+      body: "Click here (or just click outside the box) to get back to the comparison." },
+    { page: "compare", type: "anchor", exploratory: true, target: ".metric-card[data-concept='gdp_level'] .card-mode-switch", title: "Point in time, or change over time",
+      body: "Every card has its own version of this now \u2014 switch this one to <strong>Change over time</strong> and its slider becomes a range: drag either end to see how much GDP actually moved between any two years, not just where it stands today. Have a play, then click Next when you're ready." },
+    { page: "compare", type: "anchor", target: "#addMetricTile", title: "Add a metric",
+      body: "Click here to add a comparison card for any tracked metric \u2014 GDP, inflation, unemployment, debt, trade and more." },
+    { page: "compare", type: "anchor",
+      onEnter: function(){
+        var picker = document.getElementById("metricPicker");
+        if(picker && picker.hidden){
+          var addTile = document.getElementById("addMetricTile");
+          if(addTile) addTile.click();
+        }
+      },
+      target: "#metricPicker .modal-content", title: "Pick any you like",
+      suppressTargetHighlight: true,
+      suggestHighlight: { container: "#metricPicker", selector: ".pickeritem[data-key='debt_gdp']" },
+      body: "Tap any metric here to add it \u2014 try <strong>Government debt, % of GDP</strong>, highlighted below. Changes apply the moment you click, nothing to confirm. Click Next (or just close this) whenever you're ready." },
+    { page: "compare", type: "anchor",
+      onEnter: function(){
+        // Defensively ensure there's something to demonstrate on the map
+        // step below, regardless of what (if anything) got picked in the
+        // free-pick step above -- direct state mutation, not a simulated
+        // click, matching the pattern used for Dollarise on Dashboard.
+        window.EATLAS_COMPARE.addMetric("debt_gdp");
+      },
+      target: "#metricPickerClose", title: "Close when you're happy",
+      body: "Click here (or just click outside the box) to get back to the comparison." },
+    { page: "compare", type: "anchor",
+      onEnter: closeCompareMetricPickerIfOpen,
+      target: ".metric-card[data-concept='debt_gdp'] .card-map-toggle",
+      title: "See it on a map",
+      body: "Every card can show its own map now, on request \u2014 click here to see <strong>Government debt, % of GDP</strong> plotted for every country you've selected." },
+    { page: "compare", type: "anchor", exploratory: true,
+      onEnter: function(){
+        var card = document.querySelector(".metric-card[data-concept='debt_gdp']");
+        if(!card) return;
+        var toggleBtn = card.querySelector(".card-map-toggle");
+        var mapContainer = card.querySelector(".card-map-container");
+        if(toggleBtn && mapContainer && mapContainer.style.display === "none") toggleBtn.click();
+      },
+      target: ".metric-card[data-concept='debt_gdp'] .card-snapshot-slider", title: "Scrub through time",
+      body: "Drag this and the chart above <em>and</em> the map you just opened redraw together \u2014 a card's map always mirrors whatever year that same card's own time control is set to. Have a proper play, then click Next when you're done." },
+    { page: "compare", type: "anchor", exploratory: true,
+      onEnter: function(){
+        var card = document.querySelector(".metric-card[data-concept='debt_gdp']");
+        if(!card) return;
+        var toggleBtn = card.querySelector(".card-map-toggle");
+        var mapContainer = card.querySelector(".card-map-container");
+        if(toggleBtn && mapContainer && mapContainer.style.display === "none") toggleBtn.click();
+      },
+      target: ".metric-card[data-concept='debt_gdp'] .cardmap-zoom-in", title: "Zoom in on a region",
+      body: "Click to zoom in on this card's map \u2014 handy for comparing neighbouring countries closely, like the Eurozone members. \u201cReset\u201d underneath brings you back out. Take a look around, then click Next when you're ready." },
+    { page: "compare", type: "anchor", target: "#rankTable", title: "The summary table",
+      body: "Every selected country and metric, side by side, for whichever point in time or change window you've chosen above." },
+    { page: "compare", type: "anchor", target: "#rankTable th[data-k='debt_gdp']", title: "Sort by any column",
+      body: "Click a column heading to sort by it \u2014 click it again to flip the order. Try the debt column you just added." },
+    { page: "compare", type: "anchor", target: "nav a[href='dashboard']", title: "On to your Dashboard",
+      body: "Tap the menu icon (top-right) if the nav is not showing, then <strong>My Dashboard</strong>, to build a personal set of metrics from any country \u2014 the last stop on the tour." },
+
+    { page: "dashboard", type: "anchor", target: "#addMetricTile", title: "Add a metric",
+      body: "Click here to pin any metric, from any country, onto your own dashboard." },
+    { page: "dashboard", type: "anchor",
+      onEnter: function(){
+        var picker = document.getElementById("picker");
+        if(picker && picker.hidden){
+          var addTile = document.getElementById("addMetricTile");
+          if(addTile) addTile.click();
+        }
+        // Browse mode only shows one country (or one metric) at a time --
+        // pre-filling the search box switches to search mode, which shows
+        // every match across every country at once, so all three
+        // suggested items are visible together to highlight (see
+        // suggestHighlight below), not just whichever the picker happened
+        // to default to. Each country's own GDP label is a different raw
+        // source description (e.g. "GDP, current prices (YBHA)" for the
+        // UK, "GDP nominal, SA (...)" for Germany) -- "gdp" is the one
+        // term guaranteed to appear in all of them.
+        var search = document.getElementById("pickerSearch");
+        if(search && search.value !== "gdp"){
+          search.value = "gdp";
+          search.dispatchEvent(new Event("input"));
+        }
+      },
+      target: "#picker .modal-content", title: "Pick any you like",
+      suppressTargetHighlight: true,
+      suggestHighlight: { container: "#picker", selector: ".pickeritem[data-key='gdp_level'][data-country='Germany'], .pickeritem[data-key='gdp_level'][data-country='Brazil'], .pickeritem[data-key='gdp_level'][data-country='UK']" },
+      body: "Tap any metric, for any country, to pin it \u2014 try Germany, Brazil and the UK's GDP, highlighted below, to see how differently these three economies compare. Changes apply the moment you click, nothing to confirm. Click Next (or just close this) whenever you're ready." },
+    { page: "dashboard", type: "anchor",
+      onEnter: function(){
+        // Defensively ensure all three are pinned regardless of what (if
+        // anything) got picked above -- direct state mutation via the
+        // exported helper, not a simulated click (see EATLAS_DASH export
+        // for why a bare call here previously froze the tour entirely).
+        window.EATLAS_DASH.ensurePinned("Germany::gdp_level");
+        window.EATLAS_DASH.ensurePinned("Brazil::gdp_level");
+        window.EATLAS_DASH.ensurePinned("UK::gdp_level");
+      },
+      target: "#pickerClose", title: "Close when you're happy",
+      body: "Click here (or just click outside the box) to get back to your dashboard." },
+    { page: "dashboard", type: "anchor",
+      onEnter: function(){
+        closeDashPickerIfOpen();
+        window.EATLAS_DASH.ensurePinned("Germany::gdp_level");
+        window.EATLAS_DASH.ensurePinned("Brazil::gdp_level");
+        window.EATLAS_DASH.ensurePinned("UK::gdp_level");
+      },
+      target: "#dollariseBtn", title: "Dollarise",
+      body: "Every currency figure on this page can be converted to US dollars at today's exchange rate, so figures from any country sit on the same footing \u2014 toggle it on to see Germany, Brazil and the UK's GDP side by side, properly comparable." },
+    { page: "dashboard", type: "center", title: "That's the tour",
+      body: "That's everything \u2014 a country page, Compare, and your own Dashboard, now showing Germany, Brazil and the UK's GDP side by side in dollars. Got an idea for a metric or country we're missing? Get in touch any time from the <a href=\"contact\">Contact</a> page." }
+  ];
+
+  function getState(){
+    try{
+      var raw = localStorage.getItem(STATE_KEY);
+      return raw ? JSON.parse(raw) : { active: false, stepIndex: 0 };
+    }catch(e){ return { active: false, stepIndex: 0 }; }
+  }
+  function saveState(s){
+    try{ localStorage.setItem(STATE_KEY, JSON.stringify(s)); }catch(e){}
+  }
+  function markSeen(){
+    try{ localStorage.setItem(SEEN_KEY, "1"); }catch(e){}
+  }
+  function hasSeenBefore(){
+    try{ return localStorage.getItem(SEEN_KEY) === "1"; }catch(e){ return true; }
+  }
+
+  function stepVisible(step){
+    return !step.showIf || step.showIf();
+  }
+  function nextVisibleIndex(from, dir){
+    var i = from;
+    while(i >= 0 && i < TOUR_STEPS.length){
+      if(stepVisible(TOUR_STEPS[i])) return i;
+      i += dir;
+    }
+    return -1;
+  }
+  // Same as nextVisibleIndex, but stops (-1) the moment it would cross
+  // onto a different page's steps. Used ONLY for deciding whether to
+  // show "Next"/"Got it" and whether "Back" appears -- the click
+  // handlers themselves still use the page-agnostic nextVisibleIndex,
+  // since saving that cross-page state for later resume is correct --
+  // only the button's own label/presence needed to be page-aware.
+  function nextVisibleIndexOnPage(from, dir){
+    var i = from;
+    while(i >= 0 && i < TOUR_STEPS.length){
+      if(TOUR_STEPS[i].page !== THIS_PAGE) return -1;
+      if(stepVisible(TOUR_STEPS[i])) return i;
+      i += dir;
+    }
+    return -1;
+  }
+
+  var boxEl = null, highlightEl = null, restoreSiblingsFn = null;
+  var activeAdvanceTarget = null, activeAdvanceHandler = null;
+  var suggestObserver = null, suggestEls = [];
+
+  function clearSuggestHighlight(){
+    if(suggestObserver){ suggestObserver.disconnect(); suggestObserver = null; }
+    suggestEls.forEach(function(el){ el.classList.remove("tour-highlight"); });
+    suggestEls = [];
+  }
+  // Highlights whichever real, suggested item(s) currently match a
+  // selector inside a picker -- re-applied on every DOM mutation inside
+  // the container, since these items get destroyed and rebuilt on every
+  // selection (confirmed live: a plain one-time class-add loses the
+  // highlight the moment the picker re-renders for any reason). Matching
+  // by the item's own data-country/data-key attributes (set fresh on
+  // every rebuild) rather than holding a node reference is what makes
+  // this survive re-renders.
+  function applySuggestHighlight(step){
+    clearSuggestHighlight();
+    if(!step.suggestHighlight) return;
+    var containerEl = document.querySelector(step.suggestHighlight.container);
+    if(!containerEl) return;
+    var sel = step.suggestHighlight.selector;
+    function refresh(){
+      suggestEls.forEach(function(el){ el.classList.remove("tour-highlight"); });
+      suggestEls = Array.prototype.slice.call(document.querySelectorAll(sel));
+      suggestEls.forEach(function(el){ el.classList.add("tour-highlight"); });
+    }
+    refresh();
+    if(window.MutationObserver){
+      suggestObserver = new MutationObserver(refresh);
+      suggestObserver.observe(containerEl, { childList: true, subtree: true });
+    }
+  }
+
+  function clearHighlight(){
+    if(highlightEl){ highlightEl.classList.remove("tour-highlight"); highlightEl = null; }
+  }
+  function clearSiblingRestriction(){
+    if(restoreSiblingsFn){ restoreSiblingsFn(); restoreSiblingsFn = null; }
+  }
+
+  // Temporary bypass for demoing Customise & Export to non-Pro users
+  // during the tour, without touching real account state at all -- only
+  // the in-memory isPro() check is patched, and only for as long as
+  // that one step is showing. Reverted here rather than via a per-step
+  // "onExit" property so it's covered uniformly regardless of how the
+  // step is left (Next, clicking the target, or Exit tour) -- every one
+  // of those paths runs through removeBox() already.
+  var bypassRestore = null;
+  function revertCustomizeBypass(){
+    if(!bypassRestore) return;
+    bypassRestore();
+    bypassRestore = null;
+    if(window.EATLAS_CUSTOMIZE) window.EATLAS_CUSTOMIZE.refreshEntitlement();
+  }
+
+  function removeBox(){
+    revertCustomizeBypass();
+    // Defensive: remove EVERY .tour-box in the document, not just the
+    // one boxEl happens to reference. Two boxes were seen stacked live;
+    // rather than chase the exact mechanism, this guarantees stacking
+    // simply can't happen regardless of cause.
+    document.querySelectorAll(".tour-box").forEach(function(el){ el.remove(); });
+    boxEl = null;
+    clearHighlight();
+    clearSiblingRestriction();
+    clearSuggestHighlight();
+    // The anchor click-to-advance listener below is only ever removed
+    // automatically when it actually FIRES (it's { once: true }) --
+    // leaving via Back, Exit, or a page change instead leaves it
+    // attached forever to a live, still-on-page element (nav links,
+    // #addMetricTile, etc. are never removed from the DOM). Confirmed
+    // live: pressing Back and later clicking that same element for an
+    // unrelated reason fired a stale advanceToNext() closured over the
+    // old step index, silently restarting/corrupting the tour and
+    // leaving an orphaned box on screen. removeBox() already runs on
+    // every single transition (forward, back, exit), so cleaning up
+    // here covers all of them in one place.
+    if(activeAdvanceTarget && activeAdvanceHandler){
+      activeAdvanceTarget.removeEventListener("click", activeAdvanceHandler);
+      activeAdvanceTarget = null;
+      activeAdvanceHandler = null;
+    }
+  }
+
+  function applySiblingRestriction(step, target){
+    clearSiblingRestriction();
+    if(!step.restrictSiblings || !target) return;
+    var els = document.querySelectorAll(step.restrictSiblings);
+    var saved = [];
+    els.forEach(function(el){
+      if(el !== target){
+        saved.push({ el: el, pe: el.style.pointerEvents, op: el.style.opacity });
+        el.style.pointerEvents = "none";
+        el.style.opacity = "0.4";
+      }
+    });
+    restoreSiblingsFn = function(){
+      saved.forEach(function(s){ s.el.style.pointerEvents = s.pe; s.el.style.opacity = s.op; });
+    };
+  }
+
+  function positionAnchorBox(box, target, done){
+    var place = function(){
+      var r = target.getBoundingClientRect();
+      var boxRect = box.getBoundingClientRect();
+      var boxWidth = boxRect.width || 340;
+      var boxHeight = boxRect.height || 180;
+      var centeredLeft = r.left + (r.width / 2) - (boxWidth / 2);
+      var left = Math.min(Math.max(12, centeredLeft), window.innerWidth - boxWidth - 12);
+      var top = r.bottom + 12;
+      if(top + boxHeight + 12 > window.innerHeight){
+        top = r.top - boxHeight - 12;
+        if(top < 12) top = 12;
+      }
+      box.style.left = left + "px";
+      box.style.top = top + "px";
+      if(done) done();
+    };
+    if(target.scrollIntoView){
+      target.scrollIntoView({ block: "center", inline: "nearest", behavior: "auto" });
+      requestAnimationFrame(function(){ requestAnimationFrame(place); });
+    } else {
+      place();
+    }
+  }
+
+  function resolveTarget(step){
+    if(!step.target) return null;
+    var el = (typeof step.target === "function") ? step.target() : document.querySelector(step.target);
+    if(!el) return null;
+    if(el.offsetWidth === 0 && el.offsetHeight === 0) return null;
+    return el;
+  }
+  function resolveBody(step){
+    return (typeof step.body === "function") ? step.body() : step.body;
+  }
+
+  // Some anchor targets (e.g. Compare's "Add countries" button) are
+  // created dynamically by the page's own JS, only after its own async
+  // data has loaded -- this script runs near the end of the document,
+  // but that doesn't mean everything on the page is actually ready yet;
+  // async fetches don't block synchronous script execution. Retrying
+  // briefly before falling back to a centered, unhighlighted box (which
+  // is what "the highlight doesn't appear" looked like) covers this
+  // without needing to know which specific steps are affected.
+  function renderStepWhenReady(index, attempts){
+    attempts = attempts || 0;
+    var step = TOUR_STEPS[index];
+    if(step && step.type === "anchor" && step.page === THIS_PAGE){
+      if(!resolveTarget(step) && attempts < 30){ // up to ~3s at 100ms
+        setTimeout(function(){ renderStepWhenReady(index, attempts + 1); }, 100);
+        return;
+      }
+    }
+    renderStep(index);
+  }
+
+  function renderStep(index){
+    removeBox();
+    var step = TOUR_STEPS[index];
+    if(!step || step.page !== THIS_PAGE){
+      if(step) console.log("[EATLAS_TOUR] renderStep() bailed -- step belongs to page '" + step.page + "' but THIS_PAGE is '" + THIS_PAGE + "'.");
+      return; // this step belongs to a page not yet reached/built
+    }
+    if(!stepVisible(step)){
+      var alt = nextVisibleIndex(index + 1, 1);
+      if(alt !== -1) advance(alt); else exitTour();
+      return;
+    }
+    if(step.onEnter) step.onEnter();
+
+    var target = null;
+    if(step.type === "anchor") target = resolveTarget(step);
+    var effectiveType = (step.type === "anchor" && !target) ? "center" : step.type;
+
+    var box = document.createElement("div");
+    box.className = "tour-box" + (effectiveType === "center" ? " tour-center" : "");
+    box.style.visibility = "hidden"; // measured before being positioned/shown, to avoid a visible jump
+    box.innerHTML =
+      "<h4>" + step.title + "</h4>" +
+      "<p>" + resolveBody(step) + "</p>" +
+      "<div class=\"tour-row\">" +
+        "<div class=\"tour-actions\">" +
+          (nextVisibleIndexOnPage(index - 1, -1) !== -1 ? "<button type=\"button\" class=\"tour-prev\">Back</button>" : "") +
+          "<button type=\"button\" class=\"tour-next\">" + (nextVisibleIndexOnPage(index + 1, 1) === -1 ? "Got it" : "Next") + "</button>" +
+        "</div>" +
+      "</div>" +
+      "<div style=\"margin-top:10px; text-align:right;\"><button type=\"button\" class=\"tour-exit\">Exit tour</button></div>";
+    document.body.appendChild(box);
+
+    var advanceToNext = function(){
+      var n = nextVisibleIndex(index + 1, 1);
+      advance(n === -1 ? TOUR_STEPS.length : n);
+    };
+
+    if(effectiveType === "anchor" && target){
+      if(!step.suppressTargetHighlight){
+        target.classList.add("tour-highlight");
+        highlightEl = target;
+      }
+      positionAnchorBox(box, target, function(){
+        box.style.visibility = "";
+        requestAnimationFrame(function(){ box.classList.add("show"); });
+      });
+      applySiblingRestriction(step, target);
+      applySuggestHighlight(step);
+      // Following the instruction (clicking the real, live element the
+      // box is pointing at) advances the tour on its own -- Next stays
+      // available too, purely as a fallback. Exception: steps marked
+      // exploratory (map zoom/pan, year-scrubbing, adding several
+      // countries) deliberately skip this -- a single click firing
+      // auto-advance cuts off exploration the moment someone starts,
+      // rather than after they're actually done playing with it. Next
+      // is the only way forward on these, on purpose.
+      if(!step.exploratory){
+        activeAdvanceTarget = target;
+        activeAdvanceHandler = advanceToNext;
+        target.addEventListener("click", advanceToNext, { once: true });
+      }
+    } else {
+      box.style.visibility = "";
+      requestAnimationFrame(function(){ box.classList.add("show"); });
+    }
+
+    var nextBtn = box.querySelector(".tour-next");
+    var prevBtn = box.querySelector(".tour-prev");
+    var exitBtn = box.querySelector(".tour-exit");
+    if(nextBtn) nextBtn.addEventListener("click", advanceToNext);
+    if(prevBtn) prevBtn.addEventListener("click", function(){
+      var p = nextVisibleIndex(index - 1, -1);
+      if(p !== -1) advance(p);
+    });
+    if(exitBtn) exitBtn.addEventListener("click", exitTour);
+
+    boxEl = box;
+  }
+
+  function advance(newIndex){
+    if(newIndex >= TOUR_STEPS.length || newIndex < 0){ exitTour(); return; }
+    saveState({ active: true, stepIndex: newIndex });
+    var step = TOUR_STEPS[newIndex];
+    if(step.page === THIS_PAGE){
+      renderStepWhenReady(newIndex);
+    } else {
+      // Next step lives on a different page than this one (e.g. a map
+      // click just navigated away) -- nothing more to render here;
+      // that page's own copy of this engine picks up rendering when it
+      // loads, using the state just saved above.
+      removeBox();
+    }
+  }
+
+  function exitTour(){
+    saveState({ active: false, stepIndex: 0 });
+    markSeen();
+    removeBox();
+  }
+
+  function startTour(){
+    markSeen();
+    var first = nextVisibleIndex(0, 1);
+    if(first === -1){
+      saveState({ active: true, stepIndex: 0 });
+      return;
+    }
+    saveState({ active: true, stepIndex: first });
+    if(TOUR_STEPS[first].page !== THIS_PAGE){
+      // The tour always starts from its first step (currently the
+      // index page), but "Take the tour" lives in the footer of every
+      // page -- clicking it from anywhere else silently did nothing
+      // visible: renderStep() correctly refuses to render a step that
+      // belongs to a different page, but nothing was navigating there
+      // first (confirmed live). Navigate to the right page first; the
+      // resume-on-load check at the bottom of this file picks the
+      // saved state back up and shows the tour there.
+      window.location.href = TOUR_STEPS[first].page;
+      return;
+    }
+    renderStepWhenReady(first);
+  }
+  window.EATLAS_TOUR = { start: startTour, exit: exitTour };
+
+  var authModalEl = document.getElementById("authModal");
+  if(authModalEl && window.MutationObserver){
+    new MutationObserver(function(){
+      if(!authModalEl.hidden) removeBox();
+    }).observe(authModalEl, { attributes: true, attributeFilter: ["hidden"] });
+  }
+
+  var replayBtn = document.getElementById("tourReplayLink");
+  if(replayBtn) replayBtn.addEventListener("click", startTour);
+
+  // Tour disabled entirely, for everyone, on every device -- auto-start
+  // and resume are both hard-disabled below rather than removed outright,
+  // so re-enabling later (if ever wanted) is a one-line change back to
+  // the previous width-gated condition rather than rebuilding this block.
+  var state = getState();
+  if(false){
+    if(state.active && TOUR_STEPS[state.stepIndex] && TOUR_STEPS[state.stepIndex].page === THIS_PAGE){
+      renderStepWhenReady(state.stepIndex);
+    } else if(!state.active && !hasSeenBefore()){
+      startTour();
+    }
+  }
+})();
+</script>
+
+
 </body>
 </html>
