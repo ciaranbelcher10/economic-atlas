@@ -82,7 +82,6 @@ import requests
 
 # key: (fred_id, freq 'm'|'q'|'a', label, unit, transform None|'yoy'|'mom'|'qoq', scale)
 FRED_SERIES = {
-    "trade_balance": ("XTNTVA01ATM667S", "m", "Trade balance, goods, $", "$m", None, 1e-6),
     "gdp_level": ("CPMNACSCAB1GQAT", "q", "Nominal GDP, current prices, SA (Eurostat)", "\u20acm", None, 1.0),
     "gdp_real": ("CLVMNACSCAB1GQAT", "q", "Real GDP, chain-linked volumes, SA (Eurostat)", "\u20acm", None, 1.0),
     "unemployment": ("LRHUTTTTATM156S", "m", "Unemployment rate, 15+, SA (OECD harmonized)", "%", None, 1.0),
@@ -91,6 +90,13 @@ FRED_SERIES = {
     "bond_yield_10y": ("IRLTLT01ATM156N", "m", "10-year government bond yield", "%", None, 1.0),
     "cpi": ("CP0000ATM086NEST", "m", "HICP, all items, YoY", "%", "yoy", 1.0),
 }
+# trade_balance (XTNTVA01ATM667S) deliberately removed from the primary
+# FRED loop above -- confirmed dead (Aug 2026 data-quality sweep): every
+# unit/adjustment variant of this OECD-mirrored series on FRED shows
+# "Next Release Date: Not Available" stopped at 2025-12, not just this
+# one series ID. Kept here as a fallback constant only, tried after the
+# new Eurostat live source below, not as the primary path anymore.
+TRADE_BALANCE_FRED_FALLBACK = ("XTNTVA01ATM667S", "m", "Trade balance, goods, $ (OECD via FRED -- stale, fallback only)", "$m", None, 1e-6)
 
 FRED_URL = ("https://api.stlouisfed.org/fred/series/observations"
             "?series_id={sid}&api_key={key}&file_type=json"
@@ -203,6 +209,75 @@ def fetch_eurostat_govfinance(na_item: str) -> list | None:
         return None
 
 
+def fetch_eurostat_trade_world(stk_flow: str) -> list | None:
+    """Austria's monthly total (world-partner) merchandise trade, one
+    flow (EXP or IMP) at a time, from Eurostat's EXT_ST_27_2020MSBEC
+    ("Member States EU27 (from 2020) trade by BEC product group").
+
+    Added Aug 2026 after the FRED/OECD-mirrored trade_balance series
+    (XTNTVA01ATM667S) was confirmed dead across every variant. This
+    dataset was chosen specifically because -- unlike TEIET010/TEIET110
+    (already ruled out; those never support individual member-state geo
+    codes with a world partner, see this file's build notes) -- Eurostat
+    documentation and third-party usage examples (DBnomics, an R
+    filter against this exact dataset) confirm EXT_ST_27_2020MSBEC does
+    expose partner=WORLD at monthly frequency for individual member
+    states, not just EU/EA aggregates.
+
+    NOT independently verified against a live API response from this
+    sandbox (dissemination.ec.europa.eu is outside the network allowlist
+    here) -- confirmed only via documentation and third-party query
+    examples, the same evidentiary bar used for the COICOP2018 CPI fix
+    earlier this session. Treat as unconfirmed until the first real
+    Actions run log shows a genuine SUCCESS line here; if it 404s or
+    returns 0 points, this dataset/dimension combination was wrong and
+    needs re-deriving, not silently patching.
+
+    stk_flow: "EXP" or "IMP". Returns monthly [period, value_million_eur]
+    points, or None if the request/parse fails (caller falls through to
+    the stale FRED series rather than losing the metric entirely).
+    """
+    url = (f"{EUROSTAT_STATS_BASE}/ext_st_27_2020msbec?format=JSON&lang=EN"
+          f"&geo=AT&partner=WORLD&indic_et=TRD_VAL&bclas_bec=TOTAL"
+          f"&stk_flow={stk_flow}&sinceTimePeriod=2015")
+    try:
+        r = requests.get(url, timeout=60,
+                         headers={"User-Agent": "economic-atlas/0.1"})
+        print(f"  [eurostat-trade-world-{stk_flow}] AT status={r.status_code}")
+        r.raise_for_status()
+    except Exception as exc:
+        print(f"  [eurostat-trade-world-{stk_flow}] AT request failed: {exc}")
+        return None
+    try:
+        return _parse_jsonstat(r.text, f"eurostat-trade-world-{stk_flow}-AT")
+    except Exception as exc:
+        print(f"  [eurostat-trade-world-{stk_flow}] AT parsing failed: {exc}; "
+              f"first 300 chars: {r.text[:300]!r}")
+        return None
+
+
+def fetch_eurostat_trade_balance_world() -> list | None:
+    """Trade balance = exports - imports, both from
+    fetch_eurostat_trade_world above, matched by period. Returns None
+    (triggering the FRED fallback) if either flow is unavailable, or if
+    after matching by period there's nothing left to derive a balance
+    from -- a balance built from mismatched periods would be wrong, not
+    just incomplete."""
+    exp = fetch_eurostat_trade_world("EXP")
+    imp = fetch_eurostat_trade_world("IMP")
+    if not exp or not imp:
+        return None
+    imp_by_period = {p: v for p, v in imp}
+    balance = [[p, v - imp_by_period[p]] for p, v in exp if p in imp_by_period]
+    if not balance:
+        print("  [eurostat-trade-world] EXP and IMP returned no overlapping periods")
+        return None
+    balance.sort(key=lambda x: x[0])
+    print(f"  [eurostat-trade-world] balance derived: {len(balance)} points, "
+          f"{balance[0][0]} to {balance[-1][0]}")
+    return balance
+
+
 OECD_BASE = "https://sdmx.oecd.org/public/rest/data/OECD.SDD.STES,DSD_STES@DF_CLI"
 OECD_QUERIES = [
     f"{OECD_BASE}/AUT.M.BCICP...AA...H?format=csvfile&startPeriod=1990",
@@ -290,6 +365,46 @@ def main() -> int:
                     print(f"  ok  gdp_growth       {len(growth):>5} observations (derived)")
             except Exception as exc:
                 print(f"FAIL  gdp_growth       {exc}")
+
+    # trade_balance: try the live Eurostat world-partner reconstruction
+    # first (see fetch_eurostat_trade_balance_world docstring) -- pure
+    # Eurostat, so unlike the FRED-sourced series above this runs
+    # regardless of whether FRED_API_KEY is set. Only falls back to the
+    # confirmed-stale FRED series (which does need the key) if Eurostat
+    # fails outright, so the metric still shows *something* rather than
+    # nothing while the new source gets confirmed on a real run.
+    try:
+        tb_points = fetch_eurostat_trade_balance_world()
+        if not tb_points:
+            raise ValueError("Eurostat world-partner reconstruction returned nothing")
+        out["series"]["trade_balance"] = {
+            "label": "Trade balance, goods, total (Eurostat, world partner, derived EXP-IMP)",
+            "unit": "\u20acm", "freq": "months", "points": tb_points}
+        print(f"  ok  trade_balance    {len(tb_points):>5} observations "
+              f"({tb_points[0][0]} to {tb_points[-1][0]}, months, Eurostat)")
+    except Exception as exc:
+        print(f"  [trade_balance] Eurostat path failed ({exc}); "
+              f"falling back to stale FRED series")
+        if not key:
+            failures.append("trade_balance")
+            print("FAIL  trade_balance     no FRED_API_KEY for fallback either")
+        else:
+            try:
+                sid, freq, label, unit, tf, scale = TRADE_BALANCE_FRED_FALLBACK
+                raw = fetch_fred(sid, freq, key)
+                if scale != 1.0:
+                    raw = [[p, v * scale] for p, v in raw]
+                points = transform(raw, tf)
+                if not points:
+                    raise ValueError("no observations")
+                out["series"]["trade_balance"] = {
+                    "label": f"{label} ({sid})", "unit": unit,
+                    "freq": "months", "points": points}
+                print(f"  ok  trade_balance    {len(points):>5} observations "
+                      f"({points[0][0]} to {points[-1][0]}, months, FRED fallback)")
+            except Exception as exc2:
+                failures.append("trade_balance")
+                print(f"FAIL  trade_balance     {exc2}")
 
     extras = [
         ("business_confidence", lambda: fetch_oecd_bci(),
