@@ -476,6 +476,32 @@ def main() -> int:
             failures.append(name)
             print(f"FAIL  {name:<16} {exc}")
 
+    try:
+        with open("data-jp.json") as f:
+            _prev_full_early = json.load(f)
+    except Exception:
+        _prev_full_early = {}
+
+    # Carry forward any series that failed THIS run but succeeded on a
+    # previous run (see fetch_it.py/fetch_es.py for the incident this
+    # closes -- FRED 429-rate-limited mid-run and wiped most of a
+    # country's series in one shot, with nothing to fall back on).
+    # Placed before this exact bailout so a run where everything fails
+    # still gets rescued rather than giving up entirely. A second,
+    # separate prev_full read further below (for new_points_meta
+    # tracking) is untouched by this -- redundant but harmless.
+    _prev_series_early = _prev_full_early.get("series", {})
+    _carried_over_early = []
+    for k, v in _prev_series_early.items():
+        if k not in out["series"]:
+            out["series"][k] = v
+            _carried_over_early.append(k)
+    if _carried_over_early:
+        print(f"CARRIED OVER from previous run (failed this run, kept prior data rather than deleting it): {', '.join(_carried_over_early)}")
+    if not out.get("fx_to_usd") and _prev_full_early.get("fx_to_usd"):
+        out["fx_to_usd"] = _prev_full_early["fx_to_usd"]
+        print("CARRIED OVER fx_to_usd from previous run")
+
     if not out["series"]:
         print("\nNothing fetched.")
         return 1

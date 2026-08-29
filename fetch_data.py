@@ -356,12 +356,39 @@ def load_previous(path: str) -> dict:
         return {}
 
 
-def finalise(out: dict, previous: dict, path: str, failures: list) -> None:
+def finalise(out: dict, previous: dict, path: str, failures: list) -> bool:
     try:
         with open(path) as f:
             prev_full = json.load(f)
     except Exception:
         prev_full = {}
+
+    # Carry forward any series that failed THIS run but succeeded on a
+    # previous run (see fetch_it.py/fetch_es.py for the incident this
+    # closes -- FRED 429-rate-limited mid-run and wiped most of a
+    # country's series in one shot, with nothing to fall back on).
+    # Both UK and US builds call this same finalise() with their own
+    # `out`/`path`, so fixing it here covers both in one place rather
+    # than duplicating the logic at each of their two separate
+    # "nothing fetched" bailouts (removed from build_uk()/build_us() --
+    # this replaces them, now placed after carry-over so a run where
+    # everything fails still gets rescued rather than giving up).
+    _prev_series = prev_full.get("series", {})
+    carried_over = []
+    for k, v in _prev_series.items():
+        if k not in out["series"]:
+            out["series"][k] = v
+            carried_over.append(k)
+    if carried_over:
+        print(f"CARRIED OVER from previous run (failed this run, kept prior data rather than deleting it): {', '.join(carried_over)}")
+    if not out.get("fx_to_usd") and prev_full.get("fx_to_usd"):
+        out["fx_to_usd"] = prev_full["fx_to_usd"]
+        print("CARRIED OVER fx_to_usd from previous run")
+
+    if not out["series"]:
+        print(f"{path}: nothing fetched, even after checking for carry-over data.")
+        return False
+
     prev_meta = prev_full.get("new_points_meta")
     # migrating from the old pipeline (or a corrupted/missing meta file): back-date
     # everything to the last known-good run instead of "now", so turning this
@@ -400,6 +427,7 @@ def finalise(out: dict, previous: dict, path: str, failures: list) -> None:
     print(f"Wrote {path} with {len(out['series'])} series.")
     if failures:
         print(f"Missing: {', '.join(failures)} — the page will still render.")
+    return True
 
 
 def stamp() -> str:
@@ -456,10 +484,6 @@ def build_uk() -> bool:
             failures.append(key)
             print(f"FAIL  {key:<16} {exc}")
 
-    if not out["series"]:
-        print("UK: nothing fetched.")
-        return False
-
     try:
         fx = fetch_latest_fx("DEXUSUK", api_key) if api_key else None
         if fx:
@@ -498,8 +522,7 @@ def build_uk() -> bool:
     except Exception as exc:
         print(f"FAIL  fx_to_usd        {exc}")
 
-    finalise(out, previous, "data.json", failures)
-    return True
+    return finalise(out, previous, "data.json", failures)
 
 
 # ===========================================================================
@@ -567,11 +590,7 @@ def build_us() -> bool:
             failures.append(key)
             print(f"FAIL  {key:<16} {exc}")
 
-    if not out["series"]:
-        print("US: nothing fetched.")
-        return False
-    finalise(out, previous, "data-us.json", failures)
-    return True
+    return finalise(out, previous, "data-us.json", failures)
 
 
 def main() -> int:

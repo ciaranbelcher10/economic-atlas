@@ -476,15 +476,39 @@ def main() -> int:
             failures.append("gdp_level")
             print(f"FAIL  gdp_level        {exc2}")
 
-    if not out["series"]:
-        print("\nNothing fetched.")
-        return 1
-
     try:
         with open("data-th.json") as f:
             prev_full = json.load(f)
     except Exception:
         prev_full = {}
+
+    # Carry forward any series that failed THIS run but succeeded on a
+    # previous run, so a transient failure (confirmed Aug 2026: FRED
+    # itself 429-rate-limited mid-run and took out most of a country's
+    # series in one shot -- Italy and Spain lost 7-8 series each with
+    # no fallback, since this protection previously only existed on 9
+    # countries that had needed it for a different, earlier reason)
+    # doesn't wipe good data from the live page and leave the country's
+    # whole page blank instead of a disclosed-stale reading. Placed
+    # BEFORE the "nothing fetched" bailout below (matching the pattern
+    # already used elsewhere) so a run where every series fails still
+    # gets rescued by carried-over data rather than giving up entirely.
+    _prev_series = prev_full.get("series", {})
+    carried_over = []
+    for k, v in _prev_series.items():
+        if k not in out["series"]:
+            out["series"][k] = v
+            carried_over.append(k)
+    if carried_over:
+        print(f"CARRIED OVER from previous run (failed this run, kept prior data rather than deleting it): {', '.join(carried_over)}")
+    if not out.get("fx_to_usd") and prev_full.get("fx_to_usd"):
+        out["fx_to_usd"] = prev_full["fx_to_usd"]
+        print("CARRIED OVER fx_to_usd from previous run")
+
+    if not out["series"]:
+        print("\nNothing fetched.")
+        return 1
+
     prev_meta = prev_full.get("new_points_meta")
     migrating = prev_meta is None
     backdate = prev_full.get("updated")
