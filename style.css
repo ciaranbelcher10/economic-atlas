@@ -663,7 +663,9 @@ html[data-theme="dark"] .tour-box{
    earlier translucent version was illegible (page content ghosted
    through) and later had a z-index bug (backdrop-filter creates a
    stacking context, trapping the dropdown's z-index inside nav's
-   own layer -- fixed via nav.top{z-index:50}).
+   own layer -- fixed via nav.top{z-index:50} at the time; nav.top's
+   z-index was later raised again to 60, see the comment on that rule
+   below, to fix a second, different stacking clash against nav.sub).
 
    IMPORTANT: .stat, .newdata, nav.cat button, and nav.viztoggle
    button are ALSO defined inline in every individual country
@@ -680,19 +682,29 @@ html[data-theme="dark"] .tour-box{
    ============================================================ */
 nav.top{
   position:relative;
-  z-index:50;
+  /* Deliberately higher than nav.sub's z-index below. nav.top and
+     nav.sub are siblings, each its own stacking context (position:
+     relative + z-index) -- with EQUAL z-index (both were 50), a tie
+     resolves in favour of whichever is later in the DOM, which is
+     nav.sub. That meant nav.sub painted over anything in nav.top's
+     stacking context that visually overflowed into nav.sub's screen
+     area -- including the About dropdown-panel, whose "position:
+     absolute; top:100%" extends down past nav.top's own box into
+     exactly the space nav.sub occupies. The panel's own z-index:20
+     (in .dropdown-panel) can't fix this: it's only compared against
+     OTHER CHILDREN of nav.top, not against nav.sub, once nav.top has
+     its own stacking context. Result: the About panel's first item
+     (Roadmap) rendered invisibly behind nav.sub, and clicks meant for
+     it landed on whatever was actually in nav.sub at that position.
+     Country Breakdowns' own mega-panel never hit this, because it's a
+     DESCENDANT of nav.sub, not a sibling competing with it. */
+  z-index:60;
   background:#2A5A82;
 }
-/* nav.sub needs the exact same treatment as nav.top above, for the same
-   two reasons: (1) an unconditional-of-theme background so the two
-   ribbons are genuinely identical in both light and dark mode, not just
-   matched via the --navy variable which this more specific/later rule
-   would otherwise override for nav.top only; (2) the same z-index/
-   stacking-context fix already applied to nav.top's own dropdown --
-   without it, Country Breakdowns' dropdown-panel (now living in
-   nav.sub since the two-ribbon split) gets trapped behind the
-   backdrop-filter glass stacking context exactly as described above,
-   which is what "the dropdown doesn't work" turned out to be. */
+/* nav.sub needs the exact same treatment as nav.top above for its own
+   background/theme consistency, but stays at a LOWER z-index than
+   nav.top (see nav.top's comment above) -- that ordering is now the
+   fix, not incidental. */
 nav.sub{
   position:relative;
   z-index:50;
