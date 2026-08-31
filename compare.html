@@ -1830,6 +1830,12 @@ var REGION_GROUPS = [
   {name: "Africa", countries: ["South Africa", "Morocco"]}
 ];
 var MONTHS = ["Jan","Feb","Mar","Apr","May","Jun","Jul","Aug","Sep","Oct","Nov","Dec"];
+// Exposed globally -- this whole <script> tag is its own IIFE, and the
+// Save & Share code in a later, separate <script> block/IIFE (which
+// needs this for czFormatSavedAt) has no access to this file's local
+// `MONTHS` otherwise. Same class of cross-scope bug as the original
+// window.sb fix, just missed for this one constant.
+window.MONTHS = MONTHS;
 function fmtPeriod(p){
   if(/^\d{4}-\d{2}$/.test(p)) return MONTHS[+p.slice(5)-1] + " " + p.slice(0,4);
   if(/^\d{4}-Q\d$/.test(p)) return p.slice(5) + " " + p.slice(0,4);
@@ -3946,7 +3952,15 @@ function redrawAllOpenMaps(){
 // three times over for one "Open chart" click.
 function loadSavedSelection(concept, countries, chartType, cardTime){
   var validCountries = (countries || []).filter(function(c){ return COUNTRY_LABEL[c]; });
-  if(validCountries.length) selected = validCountries;
+  if(validCountries.length){
+    selected = validCountries;
+    // Every other path that changes `selected` (toggleCountry, drag
+    // reorder, "select all"/"clear") persists it immediately -- missing
+    // this here was exactly why opening a saved chart's country list
+    // reverted back to the last explicitly-saved selection (or the
+    // default 4) on a page refresh instead of sticking.
+    if(window.EATLAS_PREFS) window.EATLAS_PREFS.set("compareSelectedCountries", selected);
+  }
   if(visibleMetrics.indexOf(concept) === -1){
     visibleMetrics.push(concept);
     saveVisibleMetrics();
