@@ -4962,13 +4962,38 @@ function czSaveStyleSnapshot(){
     refLine: czState.refLine, threshold2Color: czState.threshold2Color
   };
 }
+// Country pages and Compare save/query saved_charts.country_code using
+// the site's URL-routing 2-letter code (e.g. "de", "uk") -- Dashboard's
+// own internals (REGISTRY, METRIC_SOURCES, FX_RATES, FILES) are instead
+// keyed by the display name used in its own country picker ("Germany",
+// "UK", "South Korea"...), inherited from Dashboard's older, page-
+// specific data-loading code that predates Save & Share entirely. A
+// chart saved on e.g. germany.html therefore arrives here with
+// country_code "de", which REGISTRY has never heard of -- this map is
+// what makes cross-page "Open" actually work instead of silently
+// failing with "isn't available".
+var REGISTRY_KEY_TO_CODE = {
+  UK: "uk", US: "us", Eurozone: "ez", Japan: "jp", India: "in", Canada: "ca",
+  Australia: "au", "South Korea": "kr", Israel: "il", Mexico: "mx", Brazil: "br",
+  "South Africa": "za", Morocco: "ma", Germany: "de", France: "fr", Italy: "it",
+  Spain: "es", Netherlands: "nl", Denmark: "dk", Ireland: "ie", Norway: "no",
+  Chile: "cl", Colombia: "co", Turkey: "tr", Indonesia: "id", Poland: "pl",
+  Switzerland: "ch", Argentina: "ar", Sweden: "se", Singapore: "sg", Austria: "at",
+  Thailand: "th"
+};
+var CODE_TO_REGISTRY_KEY = {};
+Object.keys(REGISTRY_KEY_TO_CODE).forEach(function(name){ CODE_TO_REGISTRY_KEY[REGISTRY_KEY_TO_CODE[name]] = name; });
 function loadSavedChart(row){
-  var series = REGISTRY[row.country_code] && REGISTRY[row.country_code][row.metric_key];
+  // Accepts either form: a Dashboard-native save already used the exact
+  // REGISTRY key (checked first, so nothing already working changes),
+  // a country-page/Compare-style save used the 2-letter code instead.
+  var country = REGISTRY[row.country_code] ? row.country_code : (CODE_TO_REGISTRY_KEY[row.country_code] || row.country_code);
+  var series = REGISTRY[country] && REGISTRY[country][row.metric_key];
   if(!series || !series.points){
-    window.alert("This saved chart's series isn't available (the data for " + row.country_code + " may not have loaded).");
+    window.alert("This saved chart's series isn't available (the data for " + country + " may not have loaded).");
     return;
   }
-  var pts = effectivePoints(row.country_code, row.metric_key, series);
+  var pts = effectivePoints(country, row.metric_key, series);
   if(row.from_period || row.to_period){
     var filtered = pts.filter(function(p){
       return (!row.from_period || p[0] >= row.from_period) && (!row.to_period || p[0] <= row.to_period);
@@ -4976,10 +5001,10 @@ function loadSavedChart(row){
     if(filtered.length) pts = filtered;
   }
   var kind = BAR_KEYS[row.metric_key] ? "bar" : "line";
-  var fmtY = function(v){ return fmtVal(v, series.unit, row.metric_key, row.country_code); };
-  var srcNote = metricSourceNote(row.country_code, row.metric_key, series.label);
-  var title = row.name || (row.country_code + " " + series.label);
-  window.EATLAS_OPEN_CUSTOMIZE(pts, title, srcNote, fmtY, "", row.country_code + "_" + row.metric_key, kind, fmtPeriod, row.metric_key, row.country_code, row.style || {});
+  var fmtY = function(v){ return fmtVal(v, series.unit, row.metric_key, country); };
+  var srcNote = metricSourceNote(country, row.metric_key, series.label);
+  var title = row.name || (country + " " + series.label);
+  window.EATLAS_OPEN_CUSTOMIZE(pts, title, srcNote, fmtY, "", country + "_" + row.metric_key, kind, fmtPeriod, row.metric_key, country, row.style || {});
 }
 // ---- Saved charts list: lives in the "Open chart" popover next to
 // Save chart inside Customise & Export, mirroring the country pages'
@@ -5002,7 +5027,13 @@ window.EATLAS_SAVED_CHARTS = (function(){
       nameEl.textContent = row.name;
       nameEl.style.cssText = "font-weight:600; color:var(--ink);";
       var metaEl = document.createElement("span");
-      metaEl.textContent = row.country_code + " · " + row.metric_key + " · saved " + czFormatSavedAt(row.created_at);
+      // Display-only normalisation -- a row saved from a country page
+      // has a 2-letter country_code (e.g. "de"); a Dashboard-native one
+      // (saved before this fix) may still have the full REGISTRY key
+      // ("Germany"). Both open correctly either way (see loadSavedChart);
+      // this just makes the list read consistently regardless of origin.
+      var displayCountry = CODE_TO_REGISTRY_KEY[row.country_code] || row.country_code;
+      metaEl.textContent = displayCountry + " · " + row.metric_key + " · saved " + czFormatSavedAt(row.created_at);
       metaEl.style.cssText = "font-size:11.5px; color:var(--ink2); margin-top:2px;";
       labelWrap.appendChild(nameEl); labelWrap.appendChild(metaEl);
       var btnWrap = document.createElement("span");
@@ -5083,7 +5114,12 @@ window.EATLAS_SAVED_CHARTS = (function(){
           return window.sb.from("saved_charts").insert({
             user_id: user.id,
             name: name,
-            country_code: czState.countryCode,
+            // Written as the 2-letter code (matching every country page
+            // and Compare) rather than Dashboard's own internal REGISTRY
+            // key ("Germany") -- so a chart saved here is openable
+            // correctly if a future page ever needs to look it up the
+            // same way. loadSavedChart resolves either form regardless.
+            country_code: REGISTRY_KEY_TO_CODE[czState.countryCode] || czState.countryCode,
             metric_key: czState.metricKey,
             from_period: czState.from,
             to_period: czState.to,
