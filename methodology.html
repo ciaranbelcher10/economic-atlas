@@ -42,6 +42,22 @@
   </button>
   <div class="navlinks" id="navLinks">
   <div class="dropdown">
+    <button type="button" class="dropbtn current" id="aboutBtn" aria-haspopup="true" aria-expanded="false">About <span class="caret">&#9662;</span></button>
+    <div class="dropdown-panel" id="aboutPanel">
+      <div class="dcol">
+        <a href="roadmap">Roadmap</a>
+        <a href="contact" >Contact</a>
+        <a href="methodology" class="active">Methodology</a>
+      </div>
+    </div>
+  </div>
+  <a class="item" href="pricing" id="planNavLink">Plan</a>
+  <button type="button" class="authbtn" id="authBtn">Log in</button>
+  <button type="button" class="theme-toggle" id="themeToggle" aria-label="Switch to dark mode" title="Switch to dark mode">&#127769;</button>
+  </div>
+</div></nav>
+<nav class="sub"><div class="wrap">
+  <div class="dropdown">
     <button type="button" class="dropbtn" id="macroBtn" aria-haspopup="true" aria-expanded="false">Country Breakdowns <span class="caret">&#9662;</span></button>
     <div class="dropdown-panel" id="macroPanel">
       <div class="doverview">
@@ -103,25 +119,10 @@
         <a href="norway">Norway</a>
         <a href="sweden">Sweden</a>
       </div>
-      
     </div>
   </div>
   <a class="item" href="compare">Compare</a>
   <a class="item" href="dashboard">My Dashboard</a>
-  <a class="item" href="pricing" id="planNavLink">Plan</a>
-  <div class="dropdown">
-    <button type="button" class="dropbtn current" id="aboutBtn" aria-haspopup="true" aria-expanded="false">About <span class="caret">&#9662;</span></button>
-    <div class="dropdown-panel" id="aboutPanel">
-      <div class="dcol">
-        <a href="roadmap">Roadmap</a>
-        <a href="contact" >Contact</a>
-        <a href="methodology" class="active">Methodology</a>
-      </div>
-    </div>
-  </div>
-  <button type="button" class="authbtn" id="authBtn">Log in</button>
-  <button type="button" class="theme-toggle" id="themeToggle" aria-label="Switch to dark mode" title="Switch to dark mode">&#127769;</button>
-  </div>
 </div></nav>
 <script>
 // Optimistic Plan-link render: applies whatever we last confirmed about
@@ -223,7 +224,6 @@
     </div>
   </div>
 </div>
-
 <div class="modal" id="welcomeProModal" hidden>
   <div class="modal-backdrop" id="welcomeProBackdrop"></div>
   <div class="modal-content">
@@ -263,7 +263,6 @@
   }
   wireDropdown("macroBtn", "macroPanel");
   wireDropdown("aboutBtn", "aboutPanel");
-
   // Mobile hamburger menu -- independent of the country-breakdown
   // dropdown above (which still works exactly the same way, just
   // nested inside this menu once it's open on narrow screens).
@@ -284,7 +283,6 @@
     if(!navLinks.contains(e.target) && e.target !== navToggle) closeNavMenu();
   });
   document.addEventListener("keydown", function(e){ if(e.key === "Escape") closeNavMenu(); });
-
   var themeBtn = document.getElementById("themeToggle");
   function updateThemeIcon(){
     var isDark = document.documentElement.getAttribute("data-theme") === "dark";
@@ -306,7 +304,6 @@
       updateThemeIcon();
     });
   }
-
   /* ---------------------------- cookie consent / GA4 ------------------------- */
   // GA4 only ever loads after an explicit Accept click (or a previously
   // saved "granted" choice) -- never on page load by default, since
@@ -314,7 +311,6 @@
   // non-essential cookies are set, not implied consent with an opt-out.
   var GA_MEASUREMENT_ID = "G-PJSXJN5H6G"; // theeconomicatlas.com data stream (the canonical domain going forward)
   var CONSENT_KEY = "eatlas_cookie_consent";
-
   function loadGA(){
     if(window._gaLoaded || GA_MEASUREMENT_ID.indexOf("XXXX") !== -1) return;
     window._gaLoaded = true;
@@ -328,17 +324,14 @@
     gtag("js", new Date());
     gtag("config", GA_MEASUREMENT_ID);
   }
-
   var cookieBanner = document.getElementById("cookieBanner");
   var consent = null;
   try { consent = localStorage.getItem(CONSENT_KEY); } catch(e){}
-
   if(consent === "granted"){
     loadGA();
   } else if(consent !== "denied" && cookieBanner){
     cookieBanner.classList.add("show");
   }
-
   var cookieAccept = document.getElementById("cookieAccept");
   var cookieReject = document.getElementById("cookieReject");
   if(cookieAccept){
@@ -362,7 +355,6 @@
   var SUPABASE_URL = "https://skluvrxnuibkordzgtmu.supabase.co";
   var SUPABASE_KEY = "sb_publishable_p6_GqrC8qcNC6KwPE46hkw_qdWQTuyT";
   var sb = supabase.createClient(SUPABASE_URL, SUPABASE_KEY);
-
   var authBtn = document.getElementById("authBtn");
   var authModal = document.getElementById("authModal");
   var authModalBackdrop = document.getElementById("authModalBackdrop");
@@ -392,9 +384,7 @@
   var authResetSubmitBtn = document.getElementById("authResetSubmitBtn");
   var authResetMsg = document.getElementById("authResetMsg");
   var authChangePasswordBtn = document.getElementById("authChangePasswordBtn");
-
   var mode = "login";
-
   function showMsg(el, text, kind){
     el.textContent = text;
     el.className = "auth-msg show " + kind;
@@ -403,14 +393,12 @@
     el.className = "auth-msg";
     el.textContent = "";
   }
-
   function hideAllViews(){
     authFormView.hidden = true;
     authForgotView.hidden = true;
     authResetView.hidden = true;
     authSignedInView.hidden = true;
   }
-
   function wireToggleBtn(label, nextMode){
     var btn = document.createElement("button");
     btn.type = "button";
@@ -418,7 +406,6 @@
     btn.addEventListener("click", function(){ setMode(nextMode); });
     return btn;
   }
-
   function setMode(newMode){
     mode = newMode;
     clearMsg(authMsg);
@@ -437,7 +424,6 @@
       authToggleRow.appendChild(wireToggleBtn("Log in", "login"));
     }
   }
-
   function showLoginView(){
     hideAllViews();
     authFormView.hidden = false;
@@ -460,7 +446,6 @@
     authSignedInView.hidden = false;
     authUserEmail.textContent = session.user.email;
   }
-
   function openAuthModal(){
     authModal.hidden = false;
     document.body.style.overflow = "hidden";
@@ -484,7 +469,6 @@
     authModal.hidden = true;
     document.body.style.overflow = "";
   }
-
   function updateAuthUI(session){
     if(session && session.user){
       authBtn.textContent = session.user.email;
@@ -496,7 +480,6 @@
     if(window.EATLAS_DOWNLOAD) window.EATLAS_DOWNLOAD.setAuthState(!!(session && session.user));
     if(window.EATLAS_PREFS) window.EATLAS_PREFS.setAuthState(!!(session && session.user), session && session.user ? session.user.id : null);
   }
-
   authBtn.addEventListener("click", function(){
     sb.auth.getSession().then(function(res){
       var session = res.data.session;
@@ -509,18 +492,15 @@
       }
     });
   });
-
   authModalClose.addEventListener("click", closeAuthModal);
   authModalBackdrop.addEventListener("click", closeAuthModal);
   document.addEventListener("keydown", function(e){ if(e.key === "Escape" && !authModal.hidden) closeAuthModal(); });
-
   authForm.addEventListener("submit", function(e){
     e.preventDefault();
     var email = authEmail.value.trim();
     var password = authPassword.value;
     authSubmitBtn.disabled = true;
     clearMsg(authMsg);
-
     if(mode === "signup"){
       sb.auth.signUp({ email: email, password: password }).then(function(res){
         authSubmitBtn.disabled = false;
@@ -544,11 +524,9 @@
       });
     }
   });
-
   // --- Forgot password ---
   authForgotBtn.addEventListener("click", showForgotView);
   authBackToLoginBtn.addEventListener("click", showLoginView);
-
   authForgotForm.addEventListener("submit", function(e){
     e.preventDefault();
     var email = authForgotEmail.value.trim();
@@ -564,7 +542,6 @@
       }
     });
   });
-
   // --- Set / change password ---
   // The same form and handler serve two different entry points: someone
   // who clicked a "forgot password" reset link (Supabase creates a
@@ -586,15 +563,12 @@
       }
     });
   });
-
   authChangePasswordBtn.addEventListener("click", showResetView);
-
   authSignOutBtn.addEventListener("click", function(){
     sb.auth.signOut().then(function(){
       closeAuthModal();
     });
   });
-
   sb.auth.onAuthStateChange(function(event, session){
     updateAuthUI(session);
     if(event === "PASSWORD_RECOVERY"){
@@ -607,15 +581,12 @@
       showResetView();
     }
   });
-
   sb.auth.getSession().then(function(res){
     updateAuthUI(res.data.session);
   });
-
   // Expose so any chart on this page can send someone straight into the
   // signup/login flow when they click a download button while logged out.
   window.EATLAS_OPEN_AUTH_MODAL = openAuthModal;
-
   // Shared, page-wide helper: every chart's "Download data" button (built
   // by completely different code on country pages, Dashboard and Compare)
   // calls into this one place to register itself. It tracks every button
@@ -625,7 +596,6 @@
   window.EATLAS_DOWNLOAD = (function(){
     var loggedIn = false;
     var wired = []; // {btn, kind:'series'|'multi', pts/rows, title}
-
     function csvEscape(v){
       var s = String(v);
       return /[",\n]/.test(s) ? '"' + s.replace(/"/g, '""') + '"' : s;
@@ -654,18 +624,15 @@
       document.body.removeChild(a);
       setTimeout(function(){ URL.revokeObjectURL(url); }, 200);
     }
-
     function setButtonLabel(btn, text, iconHtml){
       btn.innerHTML = (iconHtml || "") + text;
     }
-
     function doDownload(entry){
       var btn = entry.btn;
       btn.classList.remove("unlocked", "dl-success");
       btn.classList.add("dl-downloading");
       setButtonLabel(btn, "Downloading\u2026");
       btn.onclick = null; // ignore clicks mid-download rather than re-trigger
-
       // The actual CSV build + browser download hand-off is effectively
       // instant, but that means "Downloading..." would otherwise flash
       // for a single frame -- this is about giving visible feedback for
@@ -674,11 +641,9 @@
       setTimeout(function(){
         var csv = entry.kind === "multi" ? multiToCSV(entry.data) : seriesToCSV(entry.data);
         triggerDownload(csv, entry.title);
-
         btn.classList.remove("dl-downloading");
         btn.classList.add("dl-success");
         setButtonLabel(btn, "Downloaded \u2713");
-
         // Re-derive the real state after the brief "Downloaded" flash,
         // rather than assuming "unlocked" -- a credits-balance download
         // that just spent its last 50p should land back on the locked
@@ -686,7 +651,6 @@
         setTimeout(function(){ applyState(entry); }, 1600);
       }, 450);
     }
-
     function startDownload(entry){
       var prefs = window.EATLAS_PREFS;
       if(prefs && prefs.isPro()){
@@ -718,12 +682,10 @@
         doDownload(entry);
       }).catch(function(){ applyState(entry); });
     }
-
     function applyState(entry){
       var btn = entry.btn;
       btn.classList.remove("dl-downloading", "dl-success");
       var prefs = window.EATLAS_PREFS;
-
       if(!loggedIn){
         btn.classList.remove("unlocked");
         btn.setAttribute("data-tip", "Create a free account to unlock this feature.");
@@ -734,7 +696,6 @@
         };
         return;
       }
-
       if(prefs && prefs.isPro()){
         btn.classList.add("unlocked");
         btn.setAttribute("data-tip", "Download this chart's data as a CSV file.");
@@ -742,7 +703,6 @@
         btn.onclick = function(e){ e.preventDefault(); startDownload(entry); };
         return;
       }
-
       if(prefs && prefs.hasCreditsFor("download")){
         btn.classList.add("unlocked");
         btn.setAttribute("data-tip", "Uses 50p of credit to download this chart's data as a CSV file.");
@@ -750,7 +710,6 @@
         btn.onclick = function(e){ e.preventDefault(); startDownload(entry); };
         return;
       }
-
       // Logged in, not Pro, no credits left: locked, but a different
       // Unreachable under the current isPro() override (every logged-in
       // account is treated as Pro, so this branch never fires) -- kept
@@ -765,7 +724,6 @@
         window.EATLAS_OPEN_AUTH_MODAL();
       };
     }
-
     function register(btn, kind, data, title){
       var entry = null;
       for(var i = 0; i < wired.length; i++){ if(wired[i].btn === btn){ entry = wired[i]; break; } }
@@ -777,7 +735,6 @@
       }
       applyState(entry);
     }
-
     return {
       // pts: array of [date, value] pairs -- a single time series.
       wire: function(btn, pts, title){ register(btn, "series", pts, title); },
@@ -796,7 +753,6 @@
       }
     };
   })();
-
   // Shared, page-wide preferences store, backed by the profiles table's
   // `preferences` jsonb column -- the actual replacement for what used
   // to be per-device localStorage. Deliberately does NOT fall back to
@@ -818,7 +774,6 @@
     var trialEndsAt = null;
     var creditsBalancePence = 0;
     var welcomeShown = true; // safe default: never show a false-positive popup before the real value loads
-
     function updateBanners(){
       // Real screenshots showed this banner stacking on top of the
       // onboarding tour's own tooltip, alongside the cookie banner --
@@ -830,11 +785,9 @@
       var tourActive = !!document.querySelector(".tour-box");
       banners.forEach(function(el){ el.hidden = loggedIn || tourActive; });
     }
-
     function resolveReady(){
       if(!readyDone){ readyDone = true; readyResolve(); }
     }
-
     function fetchPrefs(wasLoggedOutBefore){
       if(!loggedIn || !userId){
         cache = {};
@@ -876,7 +829,6 @@
         settledCallbacks.forEach(function(cb){ cb(); });
       });
     }
-
     return {
       ready: readyPromise,
       isLoggedIn: function(){ return loggedIn; },
@@ -943,7 +895,6 @@
       }
     };
   })();
-
   // Renders the Plan section inside the signed-in account view (trial
   // countdown / Pro status / credits balance) and wires the three
   // purchase-adjacent actions -- upgrade to Pro, manage subscription, buy
@@ -952,13 +903,11 @@
   // always in sync with whatever gated Download/Customise & export.
   window.EATLAS_ACCOUNT = (function(){
     var FUNCTIONS_URL = "https://skluvrxnuibkordzgtmu.supabase.co/functions/v1";
-
     function getAccessToken(){
       return sb.auth.getSession().then(function(res){
         return res.data.session ? res.data.session.access_token : null;
       });
     }
-
     function callFunction(name, body){
       return getAccessToken().then(function(token){
         if(!token) return Promise.reject(new Error("Not signed in"));
@@ -971,15 +920,12 @@
         });
       });
     }
-
     function fmtPence(p){ return "\u00a3" + (p / 100).toFixed(2); }
-
     function daysLeft(trialEndsAt){
       if(!trialEndsAt) return 0;
       var ms = new Date(trialEndsAt).getTime() - Date.now();
       return Math.max(0, Math.ceil(ms / 86400000));
     }
-
     // Shared by all three buttons below: disable + show a redirecting
     // state, call the function, then either navigate to the URL Stripe
     // gave back or restore the button and surface the error. Nothing
@@ -1004,18 +950,15 @@
         alert(err.message || "Something went wrong. Please try again.");
       });
     }
-
     function render(){
       var box = document.getElementById("acctPlanBox");
       if(!box) return;
       var prefs = window.EATLAS_PREFS;
       if(!prefs || !prefs.isLoggedIn()){ box.innerHTML = ""; return; }
-
       if(prefs.isAdmin()){
         box.innerHTML = '<p class="acct-plan-line"><strong>Admin account</strong> \u2014 full access to everything.</p>';
         return;
       }
-
       // Every account gets full Pro access, unconditionally -- no trial
       // countdown, no credits balance, no upgrade/manage-subscription
       // buttons. This mirrors the isPro() override above: a deliberate,
@@ -1036,7 +979,6 @@
       }
     };
   })();
-
   // Confirms a just-completed Stripe redirect (upgrade or credits
   // purchase) with a one-off message, then strips the query params so a
   // refresh doesn't re-show it. The actual plan/credits change already
@@ -1048,7 +990,6 @@
     var hasRelevantParam = ["upgraded", "upgrade_cancelled", "credits_purchased", "credits_cancelled"]
       .some(function(k){ return params.has(k); });
     if(!hasRelevantParam) return;
-
     window.EATLAS_PREFS.ready.then(function(){
       setTimeout(function(){
         if(params.get("upgraded") === "1"){
@@ -1058,28 +999,23 @@
         }
       }, 300);
     });
-
     var url = new URL(window.location.href);
     ["upgraded", "upgrade_cancelled", "credits_purchased", "credits_cancelled", "session_id"].forEach(function(k){
       url.searchParams.delete(k);
     });
     window.history.replaceState({}, document.title, url.toString());
   })();
-
-
   // "Customise & export" unlocks for Pro (paid or trial), Pro-or-credits
   // (spend 100p to unlock once), or an admin account. Previously
   // admin-only while the feature was being tested; now a real Pro
   // entitlement, per the pricing decision.
   window.EATLAS_CUSTOMIZE = (function(){
     var wired = [];
-
     function openEditor(entry){
       if(window.EATLAS_OPEN_CUSTOMIZE){
         window.EATLAS_OPEN_CUSTOMIZE(entry.pts, entry.title, entry.srcNote, entry.fmtY, entry.yTitle, entry.filenameBase);
       }
     }
-
     function openViaCredit(entry, btn){
       var prefs = window.EATLAS_PREFS;
       var original = btn.innerHTML;
@@ -1102,32 +1038,27 @@
         applyState(entry);
       });
     }
-
     function applyState(entry){
       var btn = entry.btn;
       var prefs = window.EATLAS_PREFS;
-
       if(prefs && prefs.isPro()){
         btn.classList.add("unlocked");
         btn.setAttribute("data-tip", "Customise this chart and export it as an image.");
         btn.onclick = function(e){ e.preventDefault(); openEditor(entry); };
         return;
       }
-
       if(prefs && prefs.hasCreditsFor("customise_export")){
         btn.classList.add("unlocked");
         btn.setAttribute("data-tip", "Uses \u00a31 of credit to customise and export this chart as an image.");
         btn.onclick = function(e){ e.preventDefault(); openViaCredit(entry, btn); };
         return;
       }
-
       btn.classList.remove("unlocked");
       btn.setAttribute("data-tip", "Create a free account to unlock this feature.");
       btn.onclick = (prefs && prefs.isLoggedIn())
         ? function(e){ e.preventDefault(); window.EATLAS_OPEN_AUTH_MODAL(); }
         : null; // falls back to the plain href="contact" already on the link
     }
-
     function register(btn, pts, title, srcNote, fmtY, yTitle, filenameBase){
       var entry = null;
       for(var i = 0; i < wired.length; i++){ if(wired[i].btn === btn){ entry = wired[i]; break; } }
@@ -1136,7 +1067,6 @@
       entry.fmtY = fmtY; entry.yTitle = yTitle; entry.filenameBase = filenameBase;
       applyState(entry);
     }
-
     return {
       wire: register,
       refreshEntitlement: function(){
@@ -1161,7 +1091,6 @@
     link.classList.toggle("is-pro", isPro);
     try{ localStorage.setItem("eatlas_last_known_pro", isPro ? "1" : "0"); }catch(e){}
   }
-
   function updateTrialBanner(){
     // Always hidden -- no trial/upgrade messaging shown to anyone,
     // regardless of the real stored trial state. Deliberate, reversible
@@ -1169,7 +1098,6 @@
     var banner = document.getElementById("trialBanner");
     if(banner) banner.hidden = true;
   }
-
   // Welcome-to-Pro popup: fires exactly once per account, the first time
   // EATLAS_PREFS resolves with an active, unseen trial -- which in
   // practice means the first real page load after signing up (signup
@@ -1187,7 +1115,6 @@
     document.body.style.overflow = "hidden";
     prefs.markWelcomeShown();
   }
-
   (function(){
     var modal = document.getElementById("welcomeProModal");
     if(!modal) return;
@@ -1205,7 +1132,6 @@
       if(e.key === "Escape" && !modal.hidden) close();
     });
   })();
-
   window.EATLAS_PREFS.onSettled(function(){
     window.EATLAS_ACCOUNT.render();
     window.EATLAS_DOWNLOAD.refreshEntitlement();
@@ -1214,7 +1140,6 @@
     maybeShowWelcomeProModal();
     updatePlanNavLink();
   });
-
   // If this page load is the redirect back from clicking "confirm your
   // email" in the inbox, Supabase appends #access_token=...&type=signup
   // to the URL before supabase-js quietly consumes it into a real
@@ -1234,7 +1159,6 @@
       }, 5000);
     }
   })();
-
   // "Get notified" email capture -- insert-only table, no read access
   // from the client at all (see the alert_signups RLS policy), so this
   // is deliberately a one-way drop box rather than anything that could
@@ -1293,29 +1217,23 @@
   <h2>Data first, no commentary</h2>
   <p style="color:var(--ink2); font-size:14.5px; line-height:1.6;">
     This site deliberately shows official statistics with no interpretation, no forecasts, and no AI-generated commentary on what the numbers mean. That's not an oversight -- it's the founding constraint the whole site is built around. If you want someone's opinion on what a number means, that's everywhere else on the internet; this is built to be the place that just shows you the number, sourced precisely, and lets you draw your own conclusion.</p>
-
   <h2>Where the data comes from</h2>
   <p style="color:var(--ink2); font-size:14.5px; line-height:1.6;">
     Every figure on this site traces back to an official national statistics agency or a recognised international body -- never a news article, a blog, or a secondary aggregator. The primary sources in use across the site: national statistical offices (including ONS, MoSPI, and equivalents for every country covered), FRED (Federal Reserve Bank of St. Louis), OECD, World Bank, Eurostat, IMF (IFS and WEO), BIS, UN Comtrade, the Bank of England, and the European Central Bank. Every individual metric on every country page has its own ⓘ info button showing the exact agency and series code behind that specific number -- this page describes the system as a whole; the per-metric ⓘ is the precise citation for any single figure.</p>
-
   <h2>How often it updates</h2>
   <p style="color:var(--ink2); font-size:14.5px; line-height:1.6;">
     Most series refresh hourly via an automated pipeline that queries each source directly. Trade-partner data (the country-to-country trade breakdowns) updates once daily rather than hourly, since the underlying UN Comtrade figures themselves don't change hour to hour, and hourly polling would have been needless load for no benefit. Not every series updates every hour regardless of cadence -- most official statistics are only published monthly, quarterly, or annually in the first place, so what "hourly" actually means in practice is: this site checks hourly for whether a new official reading has been published, not that a new reading exists every hour.</p>
   <p style="color:var(--ink2); font-size:14.5px; line-height:1.6;">
     Each series shows a small freshness indicator (green or orange) next to it. Green means the series is within its normal publication window for that source and frequency. Orange means it's gone significantly past that window -- which usually means the source hasn't published its next release yet, but occasionally means the automated fetch for that specific series needs attention. Either way, orange is a genuine signal, not decoration.</p>
-
   <h2>Dollarise: how currency conversion works</h2>
   <p style="color:var(--ink2); font-size:14.5px; line-height:1.6;">
     The Dollarise toggle converts a country's own-currency figures into US dollars. Critically, this does not take today's exchange rate and apply it retroactively across history -- each historical data point is converted at its own contemporaneous exchange rate, sourced from the same monthly FX history used throughout the site. A reading from 2015 is converted at 2015's rate, not today's. Where a currency's exchange-rate history doesn't extend back as far as the underlying economic data (for example, before a currency existed in its current form), the earliest available rate is used for anything before that point, and this is disclosed on the relevant chart rather than silently applied.</p>
-
   <h2>Make it real: nominal vs. real terms</h2>
   <p style="color:var(--ink2); font-size:14.5px; line-height:1.6;">
     The Make It Real toggle adjusts nominal figures for inflation, so you're looking at real (inflation-adjusted) terms rather than raw current-price numbers. For countries experiencing very high inflation (Turkey and Argentina, currently), combining Make It Real with Dollarise at the same time can produce a result that's technically calculated correctly but economically difficult to interpret meaningfully -- both pages carry an explicit warning when both toggles are active together for exactly this reason.</p>
-
   <h2>Known limitations</h2>
   <p style="color:var(--ink2); font-size:14.5px; line-height:1.6;">
     This site doesn't claim complete coverage for every country on every metric. Where a genuine gap exists -- a metric with no reliable live source yet, or a country still on a fallback data source rather than a directly-fetched one -- that's disclosed on the page itself (as a "known gap" note or an illustrative-fallback label), not hidden. Two specific, current examples: business confidence for a small number of countries relies on a fallback source after the original indicator was discontinued upstream by its publisher; and any metric using a derived calculation (for example, a trade balance computed as exports minus imports rather than published directly as a single series) is labelled as derived rather than presented as if it came from one direct source.</p>
-
   <h2>Questions about a specific number</h2>
   <p style="color:var(--ink2); font-size:14.5px; line-height:1.6;">
     Click the ⓘ next to any individual metric, on any country page, Compare, or your own Dashboard, for that number's exact source and any conversion caveats specific to it. If something looks wrong or you think a better source exists for a metric currently on a fallback, <a href="contact" style="color:var(--navy-2);">get in touch</a> -- most fixes to date have come from exactly that kind of report.</p>
@@ -1338,7 +1256,6 @@
   var dismissed = false;
   try{ dismissed = localStorage.getItem(DISMISS_KEY) === "1"; }catch(e){}
   if(dismissed) return;
-
   var closeBtn = document.getElementById("alertBannerClose");
   if(closeBtn){
     closeBtn.addEventListener("click", function(){
@@ -1346,7 +1263,6 @@
       try{ localStorage.setItem(DISMISS_KEY, "1"); }catch(e){}
     });
   }
-
   if(window.EATLAS_PREFS && window.EATLAS_PREFS.registerBanner){
     window.EATLAS_PREFS.registerBanner(banner);
   }
@@ -1380,7 +1296,6 @@
   var STATE_KEY = "eatlas_tour_state";
   var SEEN_KEY = "eatlas_tour_seen";
   var THIS_PAGE = "methodology";
-
   function resolvePanelChild(key, sel){
     if(!window.ANCHORS || !window.ANCHORS[key]) return null;
     return window.ANCHORS[key].panelEl.querySelector(sel);
@@ -1422,13 +1337,11 @@
       if(closeBtn) closeBtn.click(); else { picker.hidden = true; document.body.style.overflow = ""; }
     }
   }
-
   var TOUR_STEPS = [
     { page: "index", type: "center", title: "New here? A 2-minute tour.",
       body: "The Economic Atlas pulls hourly, official data across dozens of countries \u2014 no commentary, just numbers. This short tour shows you around. Exit any time from the link in each box." },
     { page: "index", type: "anchor", target: function(){ return findMapPath("826"); }, title: "Start with a country",
       body: "Click the UK on the map to see headline figures, inflation, rates, trade and more, all in one place. That's the next stop on the tour." },
-
     { page: "uk", type: "anchor", target: "nav.cat button[data-sec='inflation']", restrictSiblings: "nav.cat button",
       title: "Move between sections",
       body: "Each country page is organised into sections \u2014 Headline, GDP, Inflation & rates, Labour market, Trade, Public finances. Click <strong>Inflation &amp; rates</strong> to continue (the other tabs are disabled for this step, just so it's clear where to click)." },
@@ -1447,7 +1360,6 @@
       body: "Sections go beyond charts wherever there's a genuinely richer story in the data \u2014 here, every Bank Rate decision by the Bank of England's Monetary Policy Committee, with exactly how each member voted. Trade has the same idea with a full partner-by-partner breakdown, and Public finances shows precisely where government spending goes \u2014 worth exploring once you're browsing on your own." },
     { page: "uk", type: "anchor", target: "nav a[href='compare']", title: "On to Compare",
       body: "Tap the menu icon (top-right) if the nav is not showing, then <strong>Compare</strong>, to see how multiple countries stack up side by side \u2014 the next stop on the tour." },
-
     { page: "compare", type: "anchor", target: ".addcountries-btn", title: "Add countries",
       body: "Click here to add or remove countries from the comparison \u2014 grouped by region, so it's just as easy to bring in Brazil or Morocco as it is another G7 economy." },
     { page: "compare", type: "anchor",
@@ -1518,7 +1430,6 @@
       body: "Click a column heading to sort by it \u2014 click it again to flip the order. Try the debt column you just added." },
     { page: "compare", type: "anchor", target: "nav a[href='dashboard']", title: "On to your Dashboard",
       body: "Tap the menu icon (top-right) if the nav is not showing, then <strong>My Dashboard</strong>, to build a personal set of metrics from any country \u2014 the last stop on the tour." },
-
     { page: "dashboard", type: "anchor", target: "#addMetricTile", title: "Add a metric",
       body: "Click here to pin any metric, from any country, onto your own dashboard." },
     { page: "dashboard", type: "anchor",
@@ -1571,7 +1482,6 @@
     { page: "dashboard", type: "center", title: "That's the tour",
       body: "That's everything \u2014 a country page, Compare, and your own Dashboard, now showing Germany, Brazil and the UK's GDP side by side in dollars. Got an idea for a metric or country we're missing? Get in touch any time from the <a href=\"contact\">Contact</a> page." }
   ];
-
   function getState(){
     try{
       var raw = localStorage.getItem(STATE_KEY);
@@ -1587,7 +1497,6 @@
   function hasSeenBefore(){
     try{ return localStorage.getItem(SEEN_KEY) === "1"; }catch(e){ return true; }
   }
-
   function stepVisible(step){
     return !step.showIf || step.showIf();
   }
@@ -1614,11 +1523,9 @@
     }
     return -1;
   }
-
   var boxEl = null, highlightEl = null, restoreSiblingsFn = null;
   var activeAdvanceTarget = null, activeAdvanceHandler = null;
   var suggestObserver = null, suggestEls = [];
-
   function clearSuggestHighlight(){
     if(suggestObserver){ suggestObserver.disconnect(); suggestObserver = null; }
     suggestEls.forEach(function(el){ el.classList.remove("tour-highlight"); });
@@ -1649,14 +1556,12 @@
       suggestObserver.observe(containerEl, { childList: true, subtree: true });
     }
   }
-
   function clearHighlight(){
     if(highlightEl){ highlightEl.classList.remove("tour-highlight"); highlightEl = null; }
   }
   function clearSiblingRestriction(){
     if(restoreSiblingsFn){ restoreSiblingsFn(); restoreSiblingsFn = null; }
   }
-
   // Temporary bypass for demoing Customise & Export to non-Pro users
   // during the tour, without touching real account state at all -- only
   // the in-memory isPro() check is patched, and only for as long as
@@ -1671,7 +1576,6 @@
     bypassRestore = null;
     if(window.EATLAS_CUSTOMIZE) window.EATLAS_CUSTOMIZE.refreshEntitlement();
   }
-
   function removeBox(){
     revertCustomizeBypass();
     // Defensive: remove EVERY .tour-box in the document, not just the
@@ -1700,7 +1604,6 @@
       activeAdvanceHandler = null;
     }
   }
-
   function applySiblingRestriction(step, target){
     clearSiblingRestriction();
     if(!step.restrictSiblings || !target) return;
@@ -1717,7 +1620,6 @@
       saved.forEach(function(s){ s.el.style.pointerEvents = s.pe; s.el.style.opacity = s.op; });
     };
   }
-
   function positionAnchorBox(box, target, done){
     var place = function(){
       var r = target.getBoundingClientRect();
@@ -1742,7 +1644,6 @@
       place();
     }
   }
-
   function resolveTarget(step){
     if(!step.target) return null;
     var el = (typeof step.target === "function") ? step.target() : document.querySelector(step.target);
@@ -1753,7 +1654,6 @@
   function resolveBody(step){
     return (typeof step.body === "function") ? step.body() : step.body;
   }
-
   // Some anchor targets (e.g. Compare's "Add countries" button) are
   // created dynamically by the page's own JS, only after its own async
   // data has loaded -- this script runs near the end of the document,
@@ -1773,7 +1673,6 @@
     }
     renderStep(index);
   }
-
   function renderStep(index){
     removeBox();
     var step = TOUR_STEPS[index];
@@ -1787,11 +1686,9 @@
       return;
     }
     if(step.onEnter) step.onEnter();
-
     var target = null;
     if(step.type === "anchor") target = resolveTarget(step);
     var effectiveType = (step.type === "anchor" && !target) ? "center" : step.type;
-
     var box = document.createElement("div");
     box.className = "tour-box" + (effectiveType === "center" ? " tour-center" : "");
     box.style.visibility = "hidden"; // measured before being positioned/shown, to avoid a visible jump
@@ -1806,12 +1703,10 @@
       "</div>" +
       "<div style=\"margin-top:10px; text-align:right;\"><button type=\"button\" class=\"tour-exit\">Exit tour</button></div>";
     document.body.appendChild(box);
-
     var advanceToNext = function(){
       var n = nextVisibleIndex(index + 1, 1);
       advance(n === -1 ? TOUR_STEPS.length : n);
     };
-
     if(effectiveType === "anchor" && target){
       if(!step.suppressTargetHighlight){
         target.classList.add("tour-highlight");
@@ -1840,7 +1735,6 @@
       box.style.visibility = "";
       requestAnimationFrame(function(){ box.classList.add("show"); });
     }
-
     var nextBtn = box.querySelector(".tour-next");
     var prevBtn = box.querySelector(".tour-prev");
     var exitBtn = box.querySelector(".tour-exit");
@@ -1850,10 +1744,8 @@
       if(p !== -1) advance(p);
     });
     if(exitBtn) exitBtn.addEventListener("click", exitTour);
-
     boxEl = box;
   }
-
   function advance(newIndex){
     if(newIndex >= TOUR_STEPS.length || newIndex < 0){ exitTour(); return; }
     saveState({ active: true, stepIndex: newIndex });
@@ -1868,13 +1760,11 @@
       removeBox();
     }
   }
-
   function exitTour(){
     saveState({ active: false, stepIndex: 0 });
     markSeen();
     removeBox();
   }
-
   function startTour(){
     markSeen();
     var first = nextVisibleIndex(0, 1);
@@ -1898,17 +1788,14 @@
     renderStepWhenReady(first);
   }
   window.EATLAS_TOUR = { start: startTour, exit: exitTour };
-
   var authModalEl = document.getElementById("authModal");
   if(authModalEl && window.MutationObserver){
     new MutationObserver(function(){
       if(!authModalEl.hidden) removeBox();
     }).observe(authModalEl, { attributes: true, attributeFilter: ["hidden"] });
   }
-
   var replayBtn = document.getElementById("tourReplayLink");
   if(replayBtn) replayBtn.addEventListener("click", startTour);
-
   // Tour disabled entirely, for everyone, on every device -- auto-start
   // and resume are both hard-disabled below rather than removed outright,
   // so re-enabling later (if ever wanted) is a one-line change back to
@@ -1923,7 +1810,5 @@
   }
 })();
 </script>
-
-
 </body>
 </html>

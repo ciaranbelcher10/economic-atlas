@@ -95,7 +95,6 @@ nav.cat button.active{background:var(--blue); border-color:var(--blue); color:#f
 .secnote{font-size:13px; color:var(--ink2); margin:18px 0 0;
   padding:12px 16px; background:var(--panel); border:1px dashed #C9CEC8; border-radius:10px;}
 .sec[hidden]{display:none;}
-
 /* Chart interactivity (v9.2.0) */
 .panelhead{display:flex; align-items:flex-start; justify-content:space-between; gap:10px;}
 .panelhead h2{margin:0;}
@@ -132,7 +131,6 @@ nav.cat button.active{background:var(--blue); border-color:var(--blue); color:#f
 .chart-modal-box{flex:1; min-height:0; position:relative; margin:14px 0;}
 .chart-modal-box canvas{max-height:100%;}
 .chart-modal-src{font-size:12.5px; color:var(--ink2); margin:0;}
-
 /* v4 critical styles inlined (belt and braces vs cached style.css) */
 .hero{display:flex; flex-wrap:wrap; justify-content:center;
   background:transparent; border:none; gap:14px; overflow:visible; margin:30px 0 10px;}
@@ -164,7 +162,6 @@ nav.cat button.active{background:var(--blue); border-color:var(--blue); color:#f
 .hero .stat, .hero.mini .stat{padding:16px 18px; flex:1 1 195px;
   max-width:255px; min-width:180px; min-height:0;}
 .hero .stat .figure, .hero.mini .stat .figure{font-size:28px;}
-
 .tpm-head{display:flex; align-items:baseline; justify-content:space-between; flex-wrap:wrap;
   gap:8px; margin:30px 0 4px;}
 .tpm-head h3{font-size:17px; margin:0;}
@@ -260,7 +257,6 @@ html[data-theme="dark"] .tpm-scopenote strong{color:var(--blue);}
 button.mtoggle.fx-real{background:#E3B341; border-color:#E3B341; color:#171B1E;}
 button.mtoggle.fx-dollar{background:var(--blue); border-color:var(--blue); color:#fff;}
 button.mtoggle.fx-both{background:#2FA463; border-color:#2FA463; color:#fff;}
-
 /* ---- info button + popover ---- */
 .infoBtn{display:inline-flex; align-items:center; justify-content:center;
   width:16px; height:16px; margin-left:6px; padding:0; border:none;
@@ -298,13 +294,28 @@ button.mtoggle.fx-both{background:#2FA463; border-color:#2FA463; color:#fff;}
 </script>
 </head>
 <body>
-
 <nav class="top"><div class="wrap">
   <a class="brand" href="index"><img src="logo-64.png" alt="" width="26" height="26" style="display:block;border-radius:50%;background:#fff;padding:1px;">The Economic Atlas</a>
   <button type="button" class="navtoggle" id="navToggle" aria-label="Menu" aria-expanded="false" aria-controls="navLinks">
     <span></span><span></span><span></span>
   </button>
   <div class="navlinks" id="navLinks">
+  <div class="dropdown">
+    <button type="button" class="dropbtn" id="aboutBtn" aria-haspopup="true" aria-expanded="false">About <span class="caret">&#9662;</span></button>
+    <div class="dropdown-panel" id="aboutPanel">
+      <div class="dcol">
+        <a href="roadmap">Roadmap</a>
+        <a href="contact">Contact</a>
+        <a href="methodology">Methodology</a>
+      </div>
+    </div>
+  </div>
+  <a class="item" href="pricing" id="planNavLink">Plan</a>
+  <button type="button" class="authbtn" id="authBtn">Log in</button>
+  <button type="button" class="theme-toggle" id="themeToggle" aria-label="Switch to dark mode" title="Switch to dark mode">&#127769;</button>
+  </div>
+</div></nav>
+<nav class="sub"><div class="wrap">
   <div class="dropdown">
     <button type="button" class="dropbtn" id="macroBtn" aria-haspopup="true" aria-expanded="false">Country Breakdowns <span class="caret">&#9662;</span></button>
     <div class="dropdown-panel" id="macroPanel">
@@ -367,25 +378,10 @@ button.mtoggle.fx-both{background:#2FA463; border-color:#2FA463; color:#fff;}
         <a href="norway">Norway</a>
         <a href="sweden" class="active">Sweden</a>
       </div>
-      
     </div>
   </div>
   <a class="item" href="compare">Compare</a>
   <a class="item" href="dashboard">My Dashboard</a>
-  <a class="item" href="pricing" id="planNavLink">Plan</a>
-  <div class="dropdown">
-    <button type="button" class="dropbtn" id="aboutBtn" aria-haspopup="true" aria-expanded="false">About <span class="caret">&#9662;</span></button>
-    <div class="dropdown-panel" id="aboutPanel">
-      <div class="dcol">
-        <a href="roadmap">Roadmap</a>
-        <a href="contact">Contact</a>
-        <a href="methodology">Methodology</a>
-      </div>
-    </div>
-  </div>
-  <button type="button" class="authbtn" id="authBtn">Log in</button>
-  <button type="button" class="theme-toggle" id="themeToggle" aria-label="Switch to dark mode" title="Switch to dark mode">&#127769;</button>
-  </div>
 </div></nav>
 <script>
 // Optimistic Plan-link render: applies whatever we last confirmed about
@@ -487,7 +483,6 @@ button.mtoggle.fx-both{background:#2FA463; border-color:#2FA463; color:#fff;}
     </div>
   </div>
 </div>
-
 <div class="modal" id="welcomeProModal" hidden>
   <div class="modal-backdrop" id="welcomeProBackdrop"></div>
   <div class="modal-content">
@@ -527,7 +522,6 @@ button.mtoggle.fx-both{background:#2FA463; border-color:#2FA463; color:#fff;}
   }
   wireDropdown("macroBtn", "macroPanel");
   wireDropdown("aboutBtn", "aboutPanel");
-
   // Mobile hamburger menu -- independent of the country-breakdown
   // dropdown above (which still works exactly the same way, just
   // nested inside this menu once it's open on narrow screens).
@@ -548,7 +542,6 @@ button.mtoggle.fx-both{background:#2FA463; border-color:#2FA463; color:#fff;}
     if(!navLinks.contains(e.target) && e.target !== navToggle) closeNavMenu();
   });
   document.addEventListener("keydown", function(e){ if(e.key === "Escape") closeNavMenu(); });
-
   var themeBtn = document.getElementById("themeToggle");
   function updateThemeIcon(){
     var isDark = document.documentElement.getAttribute("data-theme") === "dark";
@@ -570,7 +563,6 @@ button.mtoggle.fx-both{background:#2FA463; border-color:#2FA463; color:#fff;}
       updateThemeIcon();
     });
   }
-
   /* ---------------------------- cookie consent / GA4 ------------------------- */
   // GA4 only ever loads after an explicit Accept click (or a previously
   // saved "granted" choice) -- never on page load by default, since
@@ -578,7 +570,6 @@ button.mtoggle.fx-both{background:#2FA463; border-color:#2FA463; color:#fff;}
   // non-essential cookies are set, not implied consent with an opt-out.
   var GA_MEASUREMENT_ID = "G-PJSXJN5H6G"; // theeconomicatlas.com data stream (the canonical domain going forward)
   var CONSENT_KEY = "eatlas_cookie_consent";
-
   function loadGA(){
     if(window._gaLoaded || GA_MEASUREMENT_ID.indexOf("XXXX") !== -1) return;
     window._gaLoaded = true;
@@ -592,17 +583,14 @@ button.mtoggle.fx-both{background:#2FA463; border-color:#2FA463; color:#fff;}
     gtag("js", new Date());
     gtag("config", GA_MEASUREMENT_ID);
   }
-
   var cookieBanner = document.getElementById("cookieBanner");
   var consent = null;
   try { consent = localStorage.getItem(CONSENT_KEY); } catch(e){}
-
   if(consent === "granted"){
     loadGA();
   } else if(consent !== "denied" && cookieBanner){
     cookieBanner.classList.add("show");
   }
-
   var cookieAccept = document.getElementById("cookieAccept");
   var cookieReject = document.getElementById("cookieReject");
   if(cookieAccept){
@@ -626,7 +614,6 @@ button.mtoggle.fx-both{background:#2FA463; border-color:#2FA463; color:#fff;}
   var SUPABASE_URL = "https://skluvrxnuibkordzgtmu.supabase.co";
   var SUPABASE_KEY = "sb_publishable_p6_GqrC8qcNC6KwPE46hkw_qdWQTuyT";
   var sb = supabase.createClient(SUPABASE_URL, SUPABASE_KEY);
-
   var authBtn = document.getElementById("authBtn");
   var authModal = document.getElementById("authModal");
   var authModalBackdrop = document.getElementById("authModalBackdrop");
@@ -656,9 +643,7 @@ button.mtoggle.fx-both{background:#2FA463; border-color:#2FA463; color:#fff;}
   var authResetSubmitBtn = document.getElementById("authResetSubmitBtn");
   var authResetMsg = document.getElementById("authResetMsg");
   var authChangePasswordBtn = document.getElementById("authChangePasswordBtn");
-
   var mode = "login";
-
   function showMsg(el, text, kind){
     el.textContent = text;
     el.className = "auth-msg show " + kind;
@@ -667,14 +652,12 @@ button.mtoggle.fx-both{background:#2FA463; border-color:#2FA463; color:#fff;}
     el.className = "auth-msg";
     el.textContent = "";
   }
-
   function hideAllViews(){
     authFormView.hidden = true;
     authForgotView.hidden = true;
     authResetView.hidden = true;
     authSignedInView.hidden = true;
   }
-
   function wireToggleBtn(label, nextMode){
     var btn = document.createElement("button");
     btn.type = "button";
@@ -682,7 +665,6 @@ button.mtoggle.fx-both{background:#2FA463; border-color:#2FA463; color:#fff;}
     btn.addEventListener("click", function(){ setMode(nextMode); });
     return btn;
   }
-
   function setMode(newMode){
     mode = newMode;
     clearMsg(authMsg);
@@ -701,7 +683,6 @@ button.mtoggle.fx-both{background:#2FA463; border-color:#2FA463; color:#fff;}
       authToggleRow.appendChild(wireToggleBtn("Log in", "login"));
     }
   }
-
   function showLoginView(){
     hideAllViews();
     authFormView.hidden = false;
@@ -724,7 +705,6 @@ button.mtoggle.fx-both{background:#2FA463; border-color:#2FA463; color:#fff;}
     authSignedInView.hidden = false;
     authUserEmail.textContent = session.user.email;
   }
-
   function openAuthModal(){
     authModal.hidden = false;
     document.body.style.overflow = "hidden";
@@ -748,7 +728,6 @@ button.mtoggle.fx-both{background:#2FA463; border-color:#2FA463; color:#fff;}
     authModal.hidden = true;
     document.body.style.overflow = "";
   }
-
   function updateAuthUI(session){
     if(session && session.user){
       authBtn.textContent = session.user.email;
@@ -760,7 +739,6 @@ button.mtoggle.fx-both{background:#2FA463; border-color:#2FA463; color:#fff;}
     if(window.EATLAS_DOWNLOAD) window.EATLAS_DOWNLOAD.setAuthState(!!(session && session.user));
     if(window.EATLAS_PREFS) window.EATLAS_PREFS.setAuthState(!!(session && session.user), session && session.user ? session.user.id : null);
   }
-
   authBtn.addEventListener("click", function(){
     sb.auth.getSession().then(function(res){
       var session = res.data.session;
@@ -773,18 +751,15 @@ button.mtoggle.fx-both{background:#2FA463; border-color:#2FA463; color:#fff;}
       }
     });
   });
-
   authModalClose.addEventListener("click", closeAuthModal);
   authModalBackdrop.addEventListener("click", closeAuthModal);
   document.addEventListener("keydown", function(e){ if(e.key === "Escape" && !authModal.hidden) closeAuthModal(); });
-
   authForm.addEventListener("submit", function(e){
     e.preventDefault();
     var email = authEmail.value.trim();
     var password = authPassword.value;
     authSubmitBtn.disabled = true;
     clearMsg(authMsg);
-
     if(mode === "signup"){
       sb.auth.signUp({ email: email, password: password }).then(function(res){
         authSubmitBtn.disabled = false;
@@ -808,11 +783,9 @@ button.mtoggle.fx-both{background:#2FA463; border-color:#2FA463; color:#fff;}
       });
     }
   });
-
   // --- Forgot password ---
   authForgotBtn.addEventListener("click", showForgotView);
   authBackToLoginBtn.addEventListener("click", showLoginView);
-
   authForgotForm.addEventListener("submit", function(e){
     e.preventDefault();
     var email = authForgotEmail.value.trim();
@@ -828,7 +801,6 @@ button.mtoggle.fx-both{background:#2FA463; border-color:#2FA463; color:#fff;}
       }
     });
   });
-
   // --- Set / change password ---
   // The same form and handler serve two different entry points: someone
   // who clicked a "forgot password" reset link (Supabase creates a
@@ -850,15 +822,12 @@ button.mtoggle.fx-both{background:#2FA463; border-color:#2FA463; color:#fff;}
       }
     });
   });
-
   authChangePasswordBtn.addEventListener("click", showResetView);
-
   authSignOutBtn.addEventListener("click", function(){
     sb.auth.signOut().then(function(){
       closeAuthModal();
     });
   });
-
   sb.auth.onAuthStateChange(function(event, session){
     updateAuthUI(session);
     if(event === "PASSWORD_RECOVERY"){
@@ -871,15 +840,12 @@ button.mtoggle.fx-both{background:#2FA463; border-color:#2FA463; color:#fff;}
       showResetView();
     }
   });
-
   sb.auth.getSession().then(function(res){
     updateAuthUI(res.data.session);
   });
-
   // Expose so any chart on this page can send someone straight into the
   // signup/login flow when they click a download button while logged out.
   window.EATLAS_OPEN_AUTH_MODAL = openAuthModal;
-
   // Shared, page-wide helper: every chart's "Download data" button (built
   // by completely different code on country pages, Dashboard and Compare)
   // calls into this one place to register itself. It tracks every button
@@ -889,7 +855,6 @@ button.mtoggle.fx-both{background:#2FA463; border-color:#2FA463; color:#fff;}
   window.EATLAS_DOWNLOAD = (function(){
     var loggedIn = false;
     var wired = []; // {btn, kind:'series'|'multi', pts/rows, title}
-
     function csvEscape(v){
       var s = String(v);
       return /[",\n]/.test(s) ? '"' + s.replace(/"/g, '""') + '"' : s;
@@ -918,18 +883,15 @@ button.mtoggle.fx-both{background:#2FA463; border-color:#2FA463; color:#fff;}
       document.body.removeChild(a);
       setTimeout(function(){ URL.revokeObjectURL(url); }, 200);
     }
-
     function setButtonLabel(btn, text, iconHtml){
       btn.innerHTML = (iconHtml || "") + text;
     }
-
     function doDownload(entry){
       var btn = entry.btn;
       btn.classList.remove("unlocked", "dl-success");
       btn.classList.add("dl-downloading");
       setButtonLabel(btn, "Downloading\u2026");
       btn.onclick = null; // ignore clicks mid-download rather than re-trigger
-
       // The actual CSV build + browser download hand-off is effectively
       // instant, but that means "Downloading..." would otherwise flash
       // for a single frame -- this is about giving visible feedback for
@@ -938,11 +900,9 @@ button.mtoggle.fx-both{background:#2FA463; border-color:#2FA463; color:#fff;}
       setTimeout(function(){
         var csv = entry.kind === "multi" ? multiToCSV(entry.data) : seriesToCSV(entry.data);
         triggerDownload(csv, entry.title);
-
         btn.classList.remove("dl-downloading");
         btn.classList.add("dl-success");
         setButtonLabel(btn, "Downloaded \u2713");
-
         // Re-derive the real state after the brief "Downloaded" flash,
         // rather than assuming "unlocked" -- a credits-balance download
         // that just spent its last 50p should land back on the locked
@@ -950,7 +910,6 @@ button.mtoggle.fx-both{background:#2FA463; border-color:#2FA463; color:#fff;}
         setTimeout(function(){ applyState(entry); }, 1600);
       }, 450);
     }
-
     function startDownload(entry){
       var prefs = window.EATLAS_PREFS;
       if(prefs && prefs.isPro()){
@@ -972,7 +931,6 @@ button.mtoggle.fx-both{background:#2FA463; border-color:#2FA463; color:#fff;}
         "Use 50p of credit to download this data? You have " + ("\u00a3" + (currentBalance/100).toFixed(2)) + " available."
       );
       if(!confirmed) return;
-
       var btn = entry.btn;
       btn.onclick = null;
       setButtonLabel(btn, "Using credit\u2026");
@@ -993,12 +951,10 @@ button.mtoggle.fx-both{background:#2FA463; border-color:#2FA463; color:#fff;}
         doDownload(entry);
       }).catch(function(){ applyState(entry); });
     }
-
     function applyState(entry){
       var btn = entry.btn;
       btn.classList.remove("dl-downloading", "dl-success");
       var prefs = window.EATLAS_PREFS;
-
       if(!loggedIn){
         btn.classList.remove("unlocked");
         btn.setAttribute("data-tip", "Create a free account to unlock this feature.");
@@ -1009,7 +965,6 @@ button.mtoggle.fx-both{background:#2FA463; border-color:#2FA463; color:#fff;}
         };
         return;
       }
-
       if(prefs && prefs.isPro()){
         btn.classList.add("unlocked");
         btn.setAttribute("data-tip", "Download this chart's data as a CSV file.");
@@ -1017,7 +972,6 @@ button.mtoggle.fx-both{background:#2FA463; border-color:#2FA463; color:#fff;}
         btn.onclick = function(e){ e.preventDefault(); startDownload(entry); };
         return;
       }
-
       if(prefs && prefs.hasCreditsFor("download")){
         btn.classList.add("unlocked");
         btn.setAttribute("data-tip", "Uses 50p of credit to download this chart's data as a CSV file.");
@@ -1025,7 +979,6 @@ button.mtoggle.fx-both{background:#2FA463; border-color:#2FA463; color:#fff;}
         btn.onclick = function(e){ e.preventDefault(); startDownload(entry); };
         return;
       }
-
       // Logged in, not Pro, no credits left: locked, but a different
       // Unreachable under the current isPro() override (every logged-in
       // account is treated as Pro, so this branch never fires) -- kept
@@ -1040,7 +993,6 @@ button.mtoggle.fx-both{background:#2FA463; border-color:#2FA463; color:#fff;}
         window.EATLAS_OPEN_AUTH_MODAL();
       };
     }
-
     function register(btn, kind, data, title){
       var entry = null;
       for(var i = 0; i < wired.length; i++){ if(wired[i].btn === btn){ entry = wired[i]; break; } }
@@ -1052,7 +1004,6 @@ button.mtoggle.fx-both{background:#2FA463; border-color:#2FA463; color:#fff;}
       }
       applyState(entry);
     }
-
     return {
       // pts: array of [date, value] pairs -- a single time series.
       wire: function(btn, pts, title){ register(btn, "series", pts, title); },
@@ -1071,7 +1022,6 @@ button.mtoggle.fx-both{background:#2FA463; border-color:#2FA463; color:#fff;}
       }
     };
   })();
-
   // Shared, page-wide preferences store, backed by the profiles table's
   // `preferences` jsonb column -- the actual replacement for what used
   // to be per-device localStorage. Deliberately does NOT fall back to
@@ -1093,15 +1043,12 @@ button.mtoggle.fx-both{background:#2FA463; border-color:#2FA463; color:#fff;}
     var trialEndsAt = null;
     var creditsBalancePence = 0;
     var welcomeShown = true; // safe default: never show a false-positive popup before the real value loads
-
     function updateBanners(){
       banners.forEach(function(el){ el.hidden = loggedIn; });
     }
-
     function resolveReady(){
       if(!readyDone){ readyDone = true; readyResolve(); }
     }
-
     function fetchPrefs(wasLoggedOutBefore){
       if(!loggedIn || !userId){
         cache = {};
@@ -1143,7 +1090,6 @@ button.mtoggle.fx-both{background:#2FA463; border-color:#2FA463; color:#fff;}
         settledCallbacks.forEach(function(cb){ cb(); });
       });
     }
-
     return {
       ready: readyPromise,
       isLoggedIn: function(){ return loggedIn; },
@@ -1216,7 +1162,6 @@ button.mtoggle.fx-both{background:#2FA463; border-color:#2FA463; color:#fff;}
       }
     };
   })();
-
   // Renders the Plan section inside the signed-in account view (trial
   // countdown / Pro status / credits balance) and wires the three
   // purchase-adjacent actions -- upgrade to Pro, manage subscription, buy
@@ -1225,13 +1170,11 @@ button.mtoggle.fx-both{background:#2FA463; border-color:#2FA463; color:#fff;}
   // always in sync with whatever gated Download/Customise & export.
   window.EATLAS_ACCOUNT = (function(){
     var FUNCTIONS_URL = "https://skluvrxnuibkordzgtmu.supabase.co/functions/v1";
-
     function getAccessToken(){
       return sb.auth.getSession().then(function(res){
         return res.data.session ? res.data.session.access_token : null;
       });
     }
-
     function callFunction(name, body){
       return getAccessToken().then(function(token){
         if(!token) return Promise.reject(new Error("Not signed in"));
@@ -1244,15 +1187,12 @@ button.mtoggle.fx-both{background:#2FA463; border-color:#2FA463; color:#fff;}
         });
       });
     }
-
     function fmtPence(p){ return "\u00a3" + (p / 100).toFixed(2); }
-
     function daysLeft(trialEndsAt){
       if(!trialEndsAt) return 0;
       var ms = new Date(trialEndsAt).getTime() - Date.now();
       return Math.max(0, Math.ceil(ms / 86400000));
     }
-
     // Shared by all three buttons below: disable + show a redirecting
     // state, call the function, then either navigate to the URL Stripe
     // gave back or restore the button and surface the error. Nothing
@@ -1277,18 +1217,15 @@ button.mtoggle.fx-both{background:#2FA463; border-color:#2FA463; color:#fff;}
         alert(err.message || "Something went wrong. Please try again.");
       });
     }
-
     function render(){
       var box = document.getElementById("acctPlanBox");
       if(!box) return;
       var prefs = window.EATLAS_PREFS;
       if(!prefs || !prefs.isLoggedIn()){ box.innerHTML = ""; return; }
-
       if(prefs.isAdmin()){
         box.innerHTML = '<p class="acct-plan-line"><strong>Admin account</strong> \u2014 full access to everything.</p>';
         return;
       }
-
       // Every account gets full Pro access, unconditionally -- no trial
       // countdown, no credits balance, no upgrade/manage-subscription
       // buttons. This mirrors the isPro() override above: a deliberate,
@@ -1309,7 +1246,6 @@ button.mtoggle.fx-both{background:#2FA463; border-color:#2FA463; color:#fff;}
       }
     };
   })();
-
   // Confirms a just-completed Stripe redirect (upgrade or credits
   // purchase) with a one-off message, then strips the query params so a
   // refresh doesn't re-show it. The actual plan/credits change already
@@ -1321,7 +1257,6 @@ button.mtoggle.fx-both{background:#2FA463; border-color:#2FA463; color:#fff;}
     var hasRelevantParam = ["upgraded", "upgrade_cancelled", "credits_purchased", "credits_cancelled"]
       .some(function(k){ return params.has(k); });
     if(!hasRelevantParam) return;
-
     window.EATLAS_PREFS.ready.then(function(){
       setTimeout(function(){
         if(params.get("upgraded") === "1"){
@@ -1331,27 +1266,22 @@ button.mtoggle.fx-both{background:#2FA463; border-color:#2FA463; color:#fff;}
         }
       }, 300);
     });
-
     var url = new URL(window.location.href);
     ["upgraded", "upgrade_cancelled", "credits_purchased", "credits_cancelled", "session_id"].forEach(function(k){
       url.searchParams.delete(k);
     });
     window.history.replaceState({}, document.title, url.toString());
   })();
-
-
   // "Customise & export" unlocks for Pro (paid or trial) or an admin
   // account. Previously admin-only while the feature was being tested;
   // now a real Pro entitlement, per the pricing decision.
   window.EATLAS_CUSTOMIZE = (function(){
     var wired = [];
-
     function openEditor(entry){
       if(window.EATLAS_OPEN_CUSTOMIZE){
         window.EATLAS_OPEN_CUSTOMIZE(entry.pts, entry.title, entry.srcNote, entry.fmtY, entry.yTitle, entry.filenameBase, entry.kind, entry.fmtPeriodFn);
       }
     }
-
     function openViaCredit(entry, btn){
       var prefs = window.EATLAS_PREFS;
       var original = btn.innerHTML;
@@ -1360,7 +1290,6 @@ button.mtoggle.fx-both{background:#2FA463; border-color:#2FA463; color:#fff;}
         "Use \u00a31 of credit to customise and export this chart? You have " + ("\u00a3" + (currentBalance/100).toFixed(2)) + " available."
       );
       if(!confirmed) return;
-
       btn.onclick = null;
       btn.innerHTML = "Using credit\u2026";
       sb.rpc("spend_credit", { action_kind: "customise_export" }).then(function(res){
@@ -1381,11 +1310,9 @@ button.mtoggle.fx-both{background:#2FA463; border-color:#2FA463; color:#fff;}
         applyState(entry);
       });
     }
-
     function applyState(entry){
       var btn = entry.btn;
       var prefs = window.EATLAS_PREFS;
-
       if(prefs && prefs.isPro()){
         btn.classList.add("unlocked");
         btn.innerHTML = "Customise &amp; export";
@@ -1393,7 +1320,6 @@ button.mtoggle.fx-both{background:#2FA463; border-color:#2FA463; color:#fff;}
         btn.onclick = function(e){ e.preventDefault(); openEditor(entry); };
         return;
       }
-
       if(prefs && prefs.hasCreditsFor("customise_export")){
         btn.classList.add("unlocked");
         btn.innerHTML = "Customise &amp; export (\u00a31)";
@@ -1401,7 +1327,6 @@ button.mtoggle.fx-both{background:#2FA463; border-color:#2FA463; color:#fff;}
         btn.onclick = function(e){ e.preventDefault(); openViaCredit(entry, btn); };
         return;
       }
-
       btn.classList.remove("unlocked");
       btn.innerHTML = '<span class="lockicon">&#128274;</span> Customise &amp; export';
       btn.setAttribute("data-tip", "Create a free account to unlock this feature.");
@@ -1409,7 +1334,6 @@ button.mtoggle.fx-both{background:#2FA463; border-color:#2FA463; color:#fff;}
         ? function(e){ e.preventDefault(); window.EATLAS_OPEN_AUTH_MODAL(); }
         : null; // falls back to the plain href="contact" already on the link
     }
-
     function register(btn, pts, title, srcNote, fmtY, yTitle, filenameBase, kind, fmtPeriodFn){
       var entry = null;
       for(var i = 0; i < wired.length; i++){ if(wired[i].btn === btn){ entry = wired[i]; break; } }
@@ -1419,7 +1343,6 @@ button.mtoggle.fx-both{background:#2FA463; border-color:#2FA463; color:#fff;}
       entry.fmtPeriodFn = fmtPeriodFn;
       applyState(entry);
     }
-
     return {
       wire: register,
       // Called from EATLAS_PREFS.onSettled -- there's no separate
@@ -1449,7 +1372,6 @@ button.mtoggle.fx-both{background:#2FA463; border-color:#2FA463; color:#fff;}
     link.classList.toggle("is-pro", isPro);
     try{ localStorage.setItem("eatlas_last_known_pro", isPro ? "1" : "0"); }catch(e){}
   }
-
   function updateTrialBanner(){
     // Always hidden -- no trial/upgrade messaging shown to anyone,
     // regardless of the real stored trial state. Deliberate, reversible
@@ -1457,7 +1379,6 @@ button.mtoggle.fx-both{background:#2FA463; border-color:#2FA463; color:#fff;}
     var banner = document.getElementById("trialBanner");
     if(banner) banner.hidden = true;
   }
-
   // Welcome-to-Pro popup: fires exactly once per account, the first time
   // EATLAS_PREFS resolves with an active, unseen trial -- which in
   // practice means the first real page load after signing up (signup
@@ -1475,7 +1396,6 @@ button.mtoggle.fx-both{background:#2FA463; border-color:#2FA463; color:#fff;}
     document.body.style.overflow = "hidden";
     prefs.markWelcomeShown();
   }
-
   (function(){
     var modal = document.getElementById("welcomeProModal");
     if(!modal) return;
@@ -1493,7 +1413,6 @@ button.mtoggle.fx-both{background:#2FA463; border-color:#2FA463; color:#fff;}
       if(e.key === "Escape" && !modal.hidden) close();
     });
   })();
-
   window.EATLAS_PREFS.onSettled(function(){
     window.EATLAS_ACCOUNT.render();
     window.EATLAS_DOWNLOAD.refreshEntitlement();
@@ -1502,7 +1421,6 @@ button.mtoggle.fx-both{background:#2FA463; border-color:#2FA463; color:#fff;}
     maybeShowWelcomeProModal();
     updatePlanNavLink();
   });
-
   // If this page load is the redirect back from clicking "confirm your
   // email" in the inbox, Supabase appends #access_token=...&type=signup
   // to the URL before supabase-js quietly consumes it into a real
@@ -1524,7 +1442,6 @@ button.mtoggle.fx-both{background:#2FA463; border-color:#2FA463; color:#fff;}
   })();
 })();
 </script>
-
 <script src="https://cdnjs.cloudflare.com/ajax/libs/d3/7.8.5/d3.min.js"></script>
 <script src="https://cdnjs.cloudflare.com/ajax/libs/topojson/3.0.2/topojson.min.js"></script>
 <script>
@@ -1554,7 +1471,6 @@ document.addEventListener("DOMContentLoaded", function(){
       :MX.has(id)?"mexico":BR.has(id)?"brazil":ZA.has(id)?"southafrica"
       :MA.has(id)?"morocco":DK.has(id)?"denmark":IEc.has(id)?"ireland":NOc.has(id)?"norway":CLc.has(id)?"chile":COc.has(id)?"colombia":TRc.has(id)?"turkey":IDc.has(id)?"indonesia":PLc.has(id)?"poland":CHc.has(id)?"switzerland":ARc.has(id)?"argentina":SEc.has(id)?"sweden":SGc.has(id)?"singapore":THc.has(id)?"thailand":null;
   }
-
   /* Same flag lookup and rendering logic as the homepage map -- kept
      identical on purpose so every map on the site behaves the same way. */
   var ALPHA2 = {
@@ -1586,10 +1502,8 @@ document.addEventListener("DOMContentLoaded", function(){
     return a2 ? String.fromCodePoint.apply(null, a2.toUpperCase().split("").map(
       function(c){ return 0x1F1E6 + c.charCodeAt(0) - 65; })) : "";
   };
-
   var wrap = document.getElementById("miniMapWrap");
   var tip = document.getElementById("maptip");
-
   fetch("https://cdn.jsdelivr.net/npm/world-atlas@2/countries-110m.json")
     .then(function(r){ return r.json(); })
     .then(function(world){
@@ -1599,7 +1513,6 @@ document.addEventListener("DOMContentLoaded", function(){
       var path = d3.geoPath(projection);
       var countries = topojson.feature(world, world.objects.countries).features
         .filter(function(f){ return f.id !== "010"; });
-
       g.selectAll("path")
         .data(countries)
         .join("path")
@@ -1626,7 +1539,6 @@ document.addEventListener("DOMContentLoaded", function(){
           tip.style.display = "block";
         })
         .on("mouseleave", function(){ tip.style.display = "none"; });
-
       var zoom = d3.zoom()
         .scaleExtent([1, 8])
         .translateExtent([[0, 0], [960, 500]])
@@ -1634,7 +1546,6 @@ document.addEventListener("DOMContentLoaded", function(){
       svg.call(zoom);
     })
     .catch(function(){ wrap.style.display = "none"; });
-
   var expandedByTap = false;
   wrap.addEventListener("click", function(){
     if(!expandedByTap && !wrap.classList.contains("expanded")){
@@ -1651,8 +1562,6 @@ document.addEventListener("DOMContentLoaded", function(){
 })();
 });
 </script>
-
-
 <div class="wrap">
 <header class="page with-map">
   <div class="head-text">
@@ -1673,12 +1582,9 @@ document.addEventListener("DOMContentLoaded", function(){
   </div>
 </div>
 </header>
-
-
 <div class="newdata" id="newdata" hidden>
   <span class="pulse" aria-hidden="true"></span><span id="newdataText"></span>
 </div>
-
 <nav class="cat" aria-label="Sections">
   <button class="active" data-sec="headline">Headline</button>
   <button data-sec="gdp">GDP</button>
@@ -1687,7 +1593,6 @@ document.addEventListener("DOMContentLoaded", function(){
   <button data-sec="trade">Trade</button>
   <button data-sec="public">Public Finances</button>
 </nav>
-
 <div class="metric-toggles" aria-label="Display options">
   <button type="button" class="mtoggle" id="toggleReal" onclick="toggleMetric('real',this)">
     <span class="mtoggle-switch" aria-hidden="true"></span>Make it real
@@ -1697,7 +1602,6 @@ document.addEventListener("DOMContentLoaded", function(){
   </button>
   <span class="mtoggle-note" id="mtoggleNote"></span>
 </div>
-
 <section class="sec" id="sec-headline">
   <div class="hero" id="hero" aria-label="Headline figures"></div>
   <p class="lightskey" aria-label="Key to freshness lights">
@@ -1706,7 +1610,6 @@ document.addEventListener("DOMContentLoaded", function(){
   </p>
   <div class="grid" id="charts-headline"></div>
 </section>
-
 <section class="sec" id="sec-gdp" hidden>
   <div class="hero mini" id="tiles-gdp"></div>
   <p class="lightskey compact" aria-label="Key to freshness lights"><span><span class="led green" aria-hidden="true"></span>&nbsp;updated on schedule</span><span><span class="led orange" aria-hidden="true"></span>&nbsp;awaiting next release</span></p>
@@ -1730,7 +1633,6 @@ document.addEventListener("DOMContentLoaded", function(){
   <div class="hero mini" id="tiles-trade"></div>
   <p class="lightskey compact" aria-label="Key to freshness lights"><span><span class="led green" aria-hidden="true"></span>&nbsp;updated on schedule</span><span><span class="led orange" aria-hidden="true"></span>&nbsp;awaiting next release</span></p>
   <div class="grid" id="charts-trade"></div>
-
   <div class="tpm-head"><h3>Sweden goods trade: top partners</h3></div>
   <p class="tpm-scopenote"><strong>Goods trade only.</strong> Services aren't covered by this data source and aren't shown here, so relationships that lean heavily on services may be understated.</p>
   <div class="tpm-banner" id="tpmBanner"><span class="dot2" aria-hidden="true"></span>
@@ -1782,7 +1684,6 @@ document.addEventListener("DOMContentLoaded", function(){
   <div class="grid" id="charts-public"></div>
   <p class="secnote">On the roadmap: federal debt stock, and a breakdown of where public money goes.</p>
 </section>
-
 <footer>
   Data: <a href="https://fred.stlouisfed.org">FRED, Federal Reserve Bank of St. Louis</a> (IMF, OECD),
   the <a href="https://www.oecd.org">OECD</a> and the <a href="https://data.worldbank.org">World Bank</a>. Series codes are shown with each metric;
@@ -1793,7 +1694,6 @@ document.addEventListener("DOMContentLoaded", function(){
   <span id="lastUpdated" class="lastupdated"></span>
 </footer>
 </div>
-
 <script src="https://cdnjs.cloudflare.com/ajax/libs/Chart.js/4.4.1/chart.umd.min.js"></script>
 <script src="https://cdnjs.cloudflare.com/ajax/libs/hammer.js/2.0.8/hammer.min.js"></script>
 <script src="https://cdnjs.cloudflare.com/ajax/libs/chartjs-plugin-zoom/2.0.1/chartjs-plugin-zoom.min.js"></script>
@@ -1813,7 +1713,6 @@ const NAMES={gdp_level:"GDP",gdp_real:"Real GDP",gdp_growth:"GDP growth",
   current_account:"Current account",trade_balance:"Trade balance",
   business_confidence:"Business confidence",fdi:"FDI",unemployment:"Unemployment",
   participation_rate:"Labour force participation",employment_rate:"Employment rate"};
-
 /* ------------------------------- tabs ------------------------------------ */
 function showSec(name){
   document.querySelectorAll("nav.cat button").forEach(b=>
@@ -1831,7 +1730,6 @@ document.querySelectorAll("nav.cat button").forEach(btn=>
 if(location.hash &&
    document.querySelector(`nav.cat button[data-sec="${location.hash.slice(1)}"]`))
   showSec(location.hash.slice(1));
-
 /* ------------------------------ period utils ----------------------------- */
 function fmtPeriod(p){
   if(/^\d{4}-\d{2}$/.test(p)) return MONTHS[+p.slice(5)-1]+" "+p.slice(0,4);
@@ -1850,7 +1748,6 @@ function freshness(series){
   const age=(Date.now()-periodEnd(last).getTime())/86400000;
   return age<=(STALE_DAYS[series.freq]||90) ? "green" : "orange";
 }
-
 /* --------------------------- derived series ------------------------------ */
 /* Annual GDP: rolling sum of the last four quarterly levels, in \u20acm */
 function annualGDP(gdp){
@@ -1872,7 +1769,6 @@ function yoyGDP(gdpReal){
     out.push([p[i][0], +((p[i][1]/p[i-lag][1]-1)*100).toFixed(1)]);
   return {label:"Real GDP growth, year on year", unit:"%", freq:gdpReal.freq, points:out};
 }
-
 /* --------------- fallback sample data (until fetch_data.py) -------------- */
 function interp(keys, periods){
   const kIdx = keys.map(k=>periods.indexOf(k[0]));
@@ -1959,8 +1855,6 @@ function sampleData(){
       yearsBetween(1996,2025))),
   }};
 }
-
-
 /* ------------------------------- charts ---------------------------------- */
 const refLinePlugin = {
   id: "refLine",
@@ -1983,7 +1877,6 @@ const refLinePlugin = {
   }
 };
 if(typeof Chart !== "undefined") Chart.register(refLinePlugin);
-
 const baseScales=(fmtY)=>({
   x:{grid:{display:false}, border:{color:HAIR},
      ticks:{color:INK2, font:{family:"'Avenir Next','Nunito Sans',sans-serif",size:11.5},
@@ -2040,7 +1933,6 @@ function lineChart(canvas, pts, fmtY, fmtTip, refLine, key){
 function barChart(canvas, pts, fmtY, fmtTip, refLine, key){
   return new Chart(canvas, chartConfig("bar", pts, fmtY, fmtTip, refLine, key));
 }
-
 /* ---------------------------- range presets ------------------------------- */
 function sliceRange(pts, years){
   if(years==="max") return pts;
@@ -2074,7 +1966,6 @@ function wireRangePresets(scopeEl, pts, kind, chart){
     });
   });
 }
-
 /* ------------------------------ enlarge modal ------------------------------ */
 const CHART_REGISTRY = {};
 let modalChart = null;
@@ -2110,13 +2001,11 @@ document.addEventListener("DOMContentLoaded", ()=>{
   if(backdrop) backdrop.addEventListener("click", closeChartModal);
 });
 document.addEventListener("keydown", e=>{ if(e.key==="Escape") closeChartModal(); });
-
 /* -------------------------------- render ---------------------------------- */
 const SEC_OF={"charts-headline":"headline","charts-gdp":"gdp","charts-inflation":"inflation",
   "charts-labour":"labour","charts-trade":"trade","charts-public":"public"};
 const ANCHORS={};   /* series key -> {sec, panelEl} */
 let panelId=0;
-
 function statTile(el, key, title, series, opts){
   const pts=series.points, last=pts[pts.length-1], prev=pts[pts.length-2];
   const d=+(last[1]-prev[1]).toFixed(2);
@@ -2178,19 +2067,14 @@ function chartPanel(key, containerId, title, expl, series, kind, fmtY, fmtTip, s
   if(dlBtn && window.EATLAS_DOWNLOAD) window.EATLAS_DOWNLOAD.wire(dlBtn, pts, title);
   const czBtn = panel.querySelector(".cz-btn");
   if(czBtn && window.EATLAS_CUSTOMIZE) window.EATLAS_CUSTOMIZE.wire(czBtn, pts, title, srcNote, fmtY, "", title, kind, fmtPeriod);
-
   const refLineVal = refLine==null ? null : refLine;
   const chart = (kind==="bar"?barChart:lineChart)(document.getElementById(id), pts, fmtY, fmtTip, refLineVal, key);
   CHART_REGISTRY[id] = {pts, kind, fmtY, fmtTip, refLine:refLineVal, title, srcNote};
-
   wireRangePresets(panel, pts, kind, chart);
   panel.querySelector(".resetzoom").addEventListener("click", ()=>{ if(chart.resetZoom) chart.resetZoom(); });
   panel.querySelector(".expandBtn").addEventListener("click", ()=> openChartModal(id));
 }
-
-
 const COUNTRY_LABEL="Sweden";
-
 function renderNewDataBanner(meta){
   if(!meta) return;
   const now=Date.now();
@@ -2223,7 +2107,6 @@ function renderNewDataBanner(meta){
   });
   document.getElementById("newdata").hidden=false;
 }
-
 function renderLastUpdated(updatedIso){
   const el=document.getElementById("lastUpdated");
   if(!el || !updatedIso) return;
@@ -2235,16 +2118,13 @@ function renderLastUpdated(updatedIso){
   const mi=String(dt.getUTCMinutes()).padStart(2,"0");
   el.textContent=`Data last refreshed: ${dd} ${mo} ${yy}, ${hh}:${mi} UTC`;
 }
-
 function render(data){
   const s=data.series;
   if(data.sample){const sb=document.getElementById("sampleBadge");sb.textContent="Sample data: run fetch_se.py for live figures";sb.classList.add("show");}
   const gdpAnnual = s.gdp_level ? annualGDP(s.gdp_level) : null;   /* FIX (7.6.3): this series is the literal quarterly level (IMF IFS), NOT a seasonally-adjusted-annual-rate like UK/US -- must roll up 4 quarters, was previously used raw and inflated headline GDP ~4x */
   const gdpYoY = s.gdp_real ? yoyGDP(s.gdp_real) : null;
-
   const pct=v=>v.toFixed(1)+"%", pp=v=>v.toFixed(1)+"pp";
   /* currency formatting handled dynamically by curFmt() below */
-  
   const idx=v=>v.toFixed(1);
   const SRC_GDP_NOMINAL_SEK="FRED series CPMNACSCAB1GQSE \u00b7 Eurostat (Statistical Office of the European Communities), trailing 4-quarter sum, seasonally adjusted";
   const SRC_GDP_LEVEL_USD_FALLBACK="World Bank NY.GDP.MKTP.CD \u00b7 current US$, annual (fallback, used only if the live SEK series is unavailable this run)";
@@ -2268,14 +2148,12 @@ function render(data){
   const SRC_BCI="OECD \u00b7 BCICP, amplitude-adjusted, long-term average = 100";
   const SRC_BOND="FRED series IRLTLT01SEM156N \u00b7 OECD, monthly";
   const SRC_UNEMP="FRED series LRHUTTTTSEM156S \u00b7 OECD harmonized, seasonally adjusted, monthly";
-
   if(s.business_confidence) chartPanel("business_confidence","charts-headline","Business confidence",
     "How optimistic firms are about the months ahead. 100 is the long-run average; above it, firms expect better times.",
     s.business_confidence,"line",idx,v=>idx(v)+" (avg = 100)",SRC_BCI,undefined,100);
   if(s.fdi) chartPanel("fdi","charts-headline","Foreign direct investment",
     "Money invested into Swedish businesses from abroad each year, as a share of GDP.",
     s.fdi,"line",v=>v+"%",pct,SRC_WB);
-
   if(gdpAnnual) chartPanel("gdp_level","charts-gdp","GDP",
     "The total value of everything Sweden produces in a year, at current prices.",
     gdpAnnual,"line",v=>curFmt(v,s.gdp_level.unit,2),v=>curFmt(v,s.gdp_level.unit,2),SRC_GDP,1996);
@@ -2285,32 +2163,27 @@ function render(data){
   if(gdpYoY) chartPanel(null,"charts-gdp","Real GDP growth, year on year",
     "How much bigger or smaller the economy is than a year ago, adjusted for inflation.",
     gdpYoY,"line",v=>v+"%",pct,SRC_GDP_GROWTH,1999,0,"gdp_growth");
-
   if(s.cpi) chartPanel("cpi","charts-inflation","CPI inflation, annual rate",
     "How much consumer prices are rising compared with a year ago. Sveriges Riksbank targets 2%.",
     s.cpi,"line",v=>v+"%",pct,"OECD live prices system \u00b7 CPI, all items, YoY");
   if(s.bond_yield_10y) chartPanel("bond_yield_10y","charts-inflation","10-year government bond yield",
     "The yield on 10-year Swedish government bonds, a market gauge of inflation and rate expectations. Not the Riksbank's policy rate.",
     s.bond_yield_10y,"line",v=>v+"%",v=>v.toFixed(2)+"%",SRC_BOND);
-
   if(s.unemployment) chartPanel("unemployment","charts-labour","Unemployment rate",
     "The share of people 15 and over who want a job but can't find one.",
     s.unemployment,"line",v=>v+"%",pct,SRC_UNEMP);
-
   if(s.trade_balance) chartPanel("trade_balance","charts-trade","Trade balance, goods",
     "Exports minus imports of goods each quarter. Below zero means Sweden buys more than it sells.",
     s.trade_balance,"bar",v=>curFmt(v,s.trade_balance.unit,0),v=>curFmt(v,s.trade_balance.unit,1),SRC_TRADE,2000,0);
   if(s.current_account) chartPanel("current_account","charts-trade","Current account",
     "Sweden's overall balance with the rest of the world (trade plus investment income) as a share of GDP.",
     s.current_account,"line",v=>v+"%",pct,SRC_WB,undefined,0);
-
   if(s.debt_gdp) chartPanel("debt_gdp","charts-public","General government debt, % of GDP",
     "Everything federal, provincial and local governments owe combined, compared with the size of the economy.",
     s.debt_gdp,"line",v=>v+"%",pct,SRC_FISCAL);
   if(s.deficit) chartPanel("deficit","charts-public","General government net lending/borrowing, % of GDP",
     "The yearly gap between government spending and revenue across all levels of government. Negative means a deficit.",
     s.deficit,"bar",v=>v+"%",pct,SRC_FISCAL,undefined,0);
-
   const hero=document.getElementById("hero");
   if(gdpAnnual) statTile(hero,"gdp_level","GDP (annual)",gdpAnnual,
     {fmt:v=>curFmt(v,s.gdp_level.unit,2),fmtD:v=>curFmt(v,s.gdp_level.unit,1),upIsGood:true,source:SRC_GDP});
@@ -2334,7 +2207,6 @@ function render(data){
     {fmt:pct,fmtD:pp,upIsGood:true,source:SRC_WB});
   if(s.trade_balance) statTile(hero,"trade_balance","Trade balance",s.trade_balance,
     {fmt:v=>curFmt(v,s.trade_balance.unit,1),fmtD:v=>curFmt(v,s.trade_balance.unit,1),upIsGood:true,source:SRC_TRADE});
-
   const tg=document.getElementById("tiles-gdp");
   if(gdpAnnual) statTile(tg,"gdp_level","GDP (annual)",gdpAnnual,
     {fmt:v=>curFmt(v,s.gdp_level.unit,2),fmtD:v=>curFmt(v,s.gdp_level.unit,1),upIsGood:true,source:SRC_GDP});
@@ -2342,23 +2214,19 @@ function render(data){
     {fmt:pct,fmtD:pp,upIsGood:true,source:SRC_GDP_GROWTH});
   if(gdpYoY) statTile(tg,null,"Growth (YoY)",gdpYoY,
     {fmt:pct,fmtD:pp,upIsGood:true,source:SRC_GDP_GROWTH,infoKey:"gdp_growth"});
-
   const tinf=document.getElementById("tiles-inflation");
   if(s.cpi) statTile(tinf,"cpi","CPI (YoY)",s.cpi,
     {fmt:pct,fmtD:pp,upIsGood:false,source:"OECD live prices system"});
   if(s.bond_yield_10y) statTile(tinf,"bond_yield_10y","10Y bond yield",s.bond_yield_10y,
     {fmt:v=>v.toFixed(2)+"%",fmtD:v=>v.toFixed(2)+"pp",upIsGood:false,source:SRC_BOND});
-
   const tl=document.getElementById("tiles-labour");
   if(s.unemployment) statTile(tl,"unemployment","Unemployment",s.unemployment,
     {fmt:pct,fmtD:pp,upIsGood:false,source:SRC_UNEMP});
-
   const tt=document.getElementById("tiles-trade");
   if(s.trade_balance) statTile(tt,"trade_balance","Trade balance",s.trade_balance,
     {fmt:v=>curFmt(v,s.trade_balance.unit,1),fmtD:v=>curFmt(v,s.trade_balance.unit,1),upIsGood:true,source:SRC_TRADE});
   if(s.current_account) statTile(tt,"current_account","Current account",s.current_account,
     {fmt:pct,fmtD:pp,upIsGood:true,source:SRC_WB});
-
   const tp=document.getElementById("tiles-public");
   if(s.debt_gdp) statTile(tp,"debt_gdp","Gov. debt (% of GDP)",s.debt_gdp,
     {fmt:pct,fmtD:pp,upIsGood:false,source:SRC_FISCAL});
@@ -2367,14 +2235,12 @@ function render(data){
   renderNewDataBanner(data.new_points_meta);
   renderLastUpdated(data.updated);
 }
-
 /* ---------------------- Dollarise / Make it real ---------------------- */
 let PAGE_DATA = null;
 const TOGGLE_STATE = { real:false, dollar:false };
 const CURRENCY_KEYS = ["gdp_level","gdp_real","net_debt","deficit","trade_balance","exports","imports"];
 const CONTAINER_IDS = ["hero","tiles-gdp","tiles-inflation","tiles-labour","tiles-trade","tiles-public",
                         "charts-headline","charts-gdp","charts-inflation","charts-labour","charts-trade","charts-public"];
-
 function scaleOf(unitStr){
   // Strip a trailing descriptive suffix like " (2021 prices)" before
   // checking the scale marker -- several countries' gdp_real unit
@@ -2456,7 +2322,6 @@ function convertSeriesToUSD(series, fx){
   const newUnit = "$"+series.unit.replace(/^(?:[A-Za-z]+(?=(?:m|bn|tn)$)|[^a-zA-Z0-9]+)/,"");
   return {...series, unit:newUnit, points: series.points.map(([p,v])=>[p, toUSD(v,p)])};
 }
-
 /* ------------------ historical FX period-matching lookup ------------------
    fx.history is a sorted array of [period, rate] pairs at MONTHLY
    resolution. A data point being converted can be annual ("1980"),
@@ -2510,7 +2375,6 @@ function hasPreHistoryPoints(series, fx){
   const earliest = monthKey(fx.history[0][0]);
   return series.points.some(([p])=> monthKey(p) !== null && monthKey(p) < earliest);
 }
-
 /* ---- per-metric info popover content ----
    Mirrors uk.html's pattern. "Make it real" swaps gdp_level for gdp_real.
    Dollarise converts every key in CURRENCY_KEYS using DEXSDUS (Federal
@@ -2585,7 +2449,6 @@ const INFO_CONTENT = {
     dollar: "Already expressed as a % of GDP \u2014 currency-agnostic. \u201cDollarise\u201d has no effect on this figure."
   }
 };
-
 function infoIconHtml(infoKey){
   if(!infoKey || !INFO_CONTENT[infoKey]) return "";
   return `<button type="button" class="infoBtn" data-infokey="${infoKey}" aria-label="What is this metric and how do the toggles affect it?" title="About this metric">&#9432;</button>`;
@@ -2664,7 +2527,6 @@ document.addEventListener("click", e=>{
   }
   openInfoPopover(btn, infoKey, title);
 }, true);
-
 function buildDisplaySeries(rawSeries){
   const out = {};
   for(const k in rawSeries) out[k]=rawSeries[k];
@@ -2679,14 +2541,12 @@ function buildDisplaySeries(rawSeries){
   }
   return out;
 }
-
 function toggleMetric(which, el){
   if(el.classList.contains("disabled")) return;
   TOGGLE_STATE[which] = !TOGGLE_STATE[which];
   el.classList.toggle("on", TOGGLE_STATE[which]);
   rerender();
 }
-
 function rerender(){
   if(!PAGE_DATA || !PAGE_DATA.series) return;
   const s = PAGE_DATA.series;
@@ -2705,7 +2565,6 @@ function rerender(){
     dollarBtn.classList.add("disabled");
     dollarBtn.title="Exchange rate not available yet";
   }
-
   const notes = [];
   if(TOGGLE_STATE.dollar && PAGE_DATA.fx_to_usd){
     const fx = PAGE_DATA.fx_to_usd;
@@ -2723,7 +2582,6 @@ function rerender(){
   }
   if(TOGGLE_STATE.real) notes.push("GDP shown in real terms (chained volume / constant prices)");
   note.textContent = notes.join(" · ");
-
   CONTAINER_IDS.forEach(id=>{
     const el = document.getElementById(id);
     if(el) el.innerHTML = "";
@@ -2740,7 +2598,6 @@ function rerender(){
      buildDisplaySeries() converts anything. */
   applyToggleHighlighting();
 }
-
 /* --------------------- toggle-affected metric highlighting ---------------
    Same mechanism as uk.html/us.html/germany.html, with one refinement:
    "Dollarise" highlighting now checks isAlreadyUSD() against each key's
@@ -2784,17 +2641,14 @@ function applyToggleHighlighting(){
     if(dollarOn && dollarBtn) dollarBtn.classList.add("fx-dollar");
   }
 }
-
 fetch("data-se.json",{cache: "no-cache"})
   .then(r=>{ if(!r.ok) throw new Error(r.status); return r.json(); })
   .then(d=>{ PAGE_DATA=d; rerender(); })
   .catch(()=>{ PAGE_DATA=sampleData(); rerender(); });
 </script>
-
 <script>
 (function(){
 "use strict";
-
 // Illustrative fallback only, used if the live Comtrade fetch fails or
 // COMTRADE_API_KEY isn't set yet. See tpmBanner for the live/fallback text.
 // Reasoned specifically for Sweden's real trade profile: Germany is the
@@ -2825,7 +2679,6 @@ var currentMetric = "total"; // "total" | "exports" | "imports"
 var rankExpanded = false;
 var RANK_INITIAL_N = 20;
 var RANK_EXPANDED_N = 50;
-
 function metricValue(p){ return p[currentMetric]; }
 function metricShare(p){
   return currentMetric === "exports" ? p.exportShare
@@ -2837,7 +2690,6 @@ function metricLabel(){
        : currentMetric === "imports" ? "Sweden goods imports"
        : "Sweden goods trade";
 }
-
 function computeScales(){
   // Domain is calibrated to the DISPLAYED set (top 50), not the full
   // fetched dataset (up to ~230 partners down to $0.0bn). Confirmed live
@@ -2864,11 +2716,9 @@ function computeScales(){
   // ground between the two, giving a bigger, more honest visual gap
   // between big and small trading partners without exaggerating it.
 }
-
 var activeHighlightFn = null;
 var geoHighlightFn = null;
 var radialHighlightFn = null;
-
 function renderRanking(){
   var list = document.getElementById("tpmRankList");
   if(!list) return;
@@ -2899,7 +2749,6 @@ function renderRanking(){
     }
   }
 }
-
 function highlightRankRow(code, on){
   document.querySelectorAll(".tpm-rankrow").forEach(function(row){
     row.classList.toggle("hi", on && row.dataset.code === code);
@@ -2907,8 +2756,6 @@ function highlightRankRow(code, on){
 }
 computeScales();
 renderRanking();
-
-
 var tip = document.getElementById("viztip");
 function showTip(e, p){
   tip.innerHTML = "<strong>" + p.name + "</strong><span class=\"v\">" + CURRENCY_SYMBOL + metricValue(p).toFixed(1)
@@ -2919,9 +2766,7 @@ function showTip(e, p){
   tip.style.display = "block";
 }
 function hideTip(){ tip.style.display = "none"; }
-
 var geoPath, geoById, geoUkXY, geoArcsG, geoNodesG;
-
 function drawGeo(world){
   var svg = d3.select("#geoSvg");
   var g = svg.append("g");
@@ -2929,35 +2774,29 @@ function drawGeo(world){
   geoPath = d3.geoPath(projection);
   var countries = topojson.feature(world, world.objects.countries).features
     .filter(function(f){ return f.id !== "010"; });
-
   g.selectAll("path.country2")
     .data(countries)
     .join("path")
     .attr("class", function(f){ return "country2" + (f.id === UK_ID ? " home" : ""); })
     .attr("d", geoPath);
-
   geoById = {};
   countries.forEach(function(f){ geoById[f.id] = f; });
   var ukFeature = geoById[UK_ID];
   if(!ukFeature) return;
   geoUkXY = geoPath.centroid(ukFeature);
-
   geoArcsG = g.append("g");
   geoNodesG = g.append("g");
   drawGeoArcs();
-
   var zoom = d3.zoom()
     .scaleExtent([1, 6])
     .translateExtent([[0, 0], [960, 500]])
     .on("zoom", function(e){ g.attr("transform", e.transform); });
   svg.call(zoom);
 }
-
 function drawGeoArcs(){
   if(!geoArcsG) return;
   geoArcsG.selectAll("*").remove();
   geoNodesG.selectAll("*").remove();
-
   function highlightGeo(code, on){
     geoArcsG.selectAll("path").classed("dim", function(p){ return on && p.code !== code; })
       .classed("hi", function(p){ return on && p.code === code; });
@@ -2965,7 +2804,6 @@ function drawGeoArcs(){
   }
   geoHighlightFn = highlightGeo;
   if(!document.getElementById("viewGeo").hidden) activeHighlightFn = geoHighlightFn;
-
   var geoTop = PARTNERS.slice().sort(function(a,b){ return metricValue(b) - metricValue(a); })
     .slice(0, GEO_TOP_N);
   geoTop.forEach(function(p){
@@ -2973,7 +2811,6 @@ function drawGeoArcs(){
     if(!f) return;
     var xy = geoPath.centroid(f);
     if(!isFinite(xy[0]) || !isFinite(geoUkXY[0])) return;
-
     var mx = (geoUkXY[0] + xy[0]) / 2, my = (geoUkXY[1] + xy[1]) / 2;
     var dx = xy[0] - geoUkXY[0], dy = xy[1] - geoUkXY[1];
     var dist = Math.sqrt(dx*dx + dy*dy);
@@ -2981,7 +2818,6 @@ function drawGeoArcs(){
     var cx = mx - dy / (dist || 1) * offset;
     var cy = my + dx / (dist || 1) * offset;
     var d = "M" + geoUkXY[0] + "," + geoUkXY[1] + " Q" + cx + "," + cy + " " + xy[0] + "," + xy[1];
-
     geoArcsG.append("path")
       .datum(p)
       .attr("class", "arc-link")
@@ -2990,7 +2826,6 @@ function drawGeoArcs(){
       .attr("stroke-width", widthScale(metricValue(p)))
       .on("mousemove", function(e){ showTip(e, p); geoHighlightFn(p.code, true); })
       .on("mouseleave", function(){ hideTip(); geoHighlightFn(p.code, false); });
-
     geoNodesG.append("circle")
       .datum(p)
       .attr("class", "node-dot")
@@ -3001,12 +2836,10 @@ function drawGeoArcs(){
       .on("mouseleave", function(){ hideTip(); geoHighlightFn(p.code, false); });
   });
 }
-
 var currentOrder = "value";
 var radialInit = false;
 var RADIAL_TOP_N = 20;
 var GEO_TOP_N = 50;
-
 function orderedPartners(){
   // Radial only ever shows the top N by whichever metric is selected --
   // "order by" just controls how those N are arranged on the ring, not
@@ -3020,26 +2853,22 @@ function orderedPartners(){
   }
   return top;
 }
-
 function renderRadial(){
   var svg = d3.select("#radialSvg");
   svg.selectAll("*").remove();
   var cx = 350, cy = 350, hubR = 34, ringR = 250;
   var list = orderedPartners();
   var n = list.length;
-
   // Spokes and nodes are drawn FIRST, hub LAST -- SVG paints later elements
   // on top, so the hub circle needs to be the last thing appended to sit
   // cleanly above the spoke lines rather than have them drawn over it.
   var spokes = svg.append("g");
   var nodesG = svg.append("g");
-
   list.forEach(function(p, i){
     var angle = -Math.PI/2 + (i / n) * 2 * Math.PI;
     var nx = cx + ringR * Math.cos(angle);
     var ny = cy + ringR * Math.sin(angle);
     p._x = nx; p._y = ny; p._angle = angle;
-
     var hubEdgeX = cx + hubR * Math.cos(angle);
     var hubEdgeY = cy + hubR * Math.sin(angle);
     var bend = angle + 0.05;
@@ -3047,7 +2876,6 @@ function renderRadial(){
     var qx = cx + midR * Math.cos(bend);
     var qy = cy + midR * Math.sin(bend);
     var d = "M" + hubEdgeX + "," + hubEdgeY + " Q" + qx + "," + qy + " " + nx + "," + ny;
-
     spokes.append("path")
       .datum(p)
       .attr("class", "radial-spoke")
@@ -3057,27 +2885,22 @@ function renderRadial(){
       .attr("opacity", 0.82)
       .on("mousemove", function(e){ showTip(e, p); highlightAll(p.code, true); })
       .on("mouseleave", function(){ hideTip(); highlightAll(p.code, false); });
-
     var nodeG = nodesG.append("g").attr("class", "radial-node").datum(p);
     nodeG.append("circle")
       .attr("cx", nx).attr("cy", ny).attr("r", 5)
       .attr("fill", colorScale(metricValue(p)));
-
     var labelDx = Math.cos(angle) >= 0 ? 10 : -10;
     var anchor = Math.cos(angle) >= 0 ? "start" : "end";
     nodeG.append("text")
       .attr("x", nx + labelDx).attr("y", ny + 4)
       .attr("text-anchor", anchor)
       .text(p.name);
-
     nodeG.on("mousemove", function(e){ showTip(e, p); highlightAll(p.code, true); })
       .on("mouseleave", function(){ hideTip(); highlightAll(p.code, false); });
   });
-
   var hub = svg.append("g").attr("class", "radial-hub");
   hub.append("circle").attr("cx", cx).attr("cy", cy).attr("r", hubR);
   hub.append("text").attr("x", cx).attr("y", cy + 5).text("DK");
-
   function highlightAll(code, on){
     spokes.selectAll("path").classed("dim", function(p){ return on && p.code !== code; });
     nodesG.selectAll(".radial-node").classed("dim", function(p){ return on && p.code !== code; });
@@ -3086,9 +2909,7 @@ function renderRadial(){
   radialHighlightFn = highlightAll;
   if(!document.getElementById("viewRadial").hidden) activeHighlightFn = radialHighlightFn;
 }
-
 var dataReady = false;
-
 function applyLivePartners(payload){
   if(!payload || !Array.isArray(payload.partners) || !payload.partners.length) return false;
   var mapped = payload.partners.map(function(p){
@@ -3115,7 +2936,6 @@ function applyLivePartners(payload){
   if(rankSubtitle) rankSubtitle.textContent = "Goods trade, " + payload.period + " (US$bn, UN Comtrade)";
   return true;
 }
-
 Promise.all([
   fetch("https://cdn.jsdelivr.net/npm/world-atlas@2/countries-110m.json").then(function(r){ return r.json(); }),
   fetch("data-se-trade-partners.json", {cache: "no-cache"})
@@ -3138,8 +2958,6 @@ Promise.all([
   if(el) el.outerHTML = "<p style=\"color:var(--ink2);padding:40px;text-align:center;\">Map data unavailable right now.</p>";
   dataReady = true;
 });
-
-
 document.querySelectorAll(".vtbtn").forEach(function(btn){
   btn.addEventListener("click", function(){
     document.querySelectorAll(".vtbtn").forEach(function(b){ b.classList.remove("active"); });
@@ -3154,17 +2972,14 @@ document.querySelectorAll(".vtbtn").forEach(function(btn){
     activeHighlightFn = isRadial ? radialHighlightFn : geoHighlightFn;
   });
 });
-
 document.getElementById("orderBy").addEventListener("change", function(e){
   currentOrder = e.target.value;
   renderRadial();
 });
-
 document.getElementById("tpmRankMore").addEventListener("click", function(){
   rankExpanded = !rankExpanded;
   renderRanking();
 });
-
 document.querySelectorAll(".mtbtn").forEach(function(btn){
   btn.addEventListener("click", function(){
     document.querySelectorAll(".mtbtn").forEach(function(b){ b.classList.remove("active"); });
@@ -3179,7 +2994,6 @@ document.querySelectorAll(".mtbtn").forEach(function(btn){
 });
 })();
 </script>
-
 <div class="chart-modal" id="chartModal" hidden>
   <div class="chart-modal-backdrop" id="chartModalBackdrop"></div>
   <div class="chart-modal-content">
@@ -3196,7 +3010,6 @@ document.querySelectorAll(".mtbtn").forEach(function(btn){
     <p class="chart-modal-src" id="chartModalSrc"></p>
   </div>
 </div>
-
 <div class="chart-modal" id="customizeModal" hidden>
   <div class="chart-modal-backdrop"></div>
   <div class="chart-modal-content" style="width:min(1320px, 96vw); padding:26px 30px 22px; max-height:92vh; overflow-y:auto; overscroll-behavior:contain; display:block;">
@@ -3222,12 +3035,10 @@ document.querySelectorAll(".mtbtn").forEach(function(btn){
       </div>
     </div>
     <p id="czModalCountry" style="font-size:13px; color:var(--ink2); margin:0 0 18px;"></p>
-
     <div class="cz-layout-grid" style="display:grid; grid-template-columns:1fr 340px; gap:22px; align-items:start;">
       <div>
         <div id="czPreviewBox" style="width:100%; border:1px solid var(--hair); border-radius:10px; overflow:hidden; background:#fff;"></div>
         <p id="czModalSrc" style="font-size:12px; color:var(--ink2); margin:10px 0 0;"></p>
-
         <div class="ctl-panel" style="margin-top:16px; background:var(--panel); border:1px solid var(--hair); border-radius:12px; padding:12px 16px;">
           <h3 style="font-size:12px; text-transform:uppercase; letter-spacing:.05em; margin:0 0 8px; color:var(--ink2);">Chart style</h3>
           <div class="field" style="margin-bottom:8px;">
@@ -3299,9 +3110,7 @@ document.querySelectorAll(".mtbtn").forEach(function(btn){
             </div>
           </div>
         </div>
-
       </div>
-
       <div>
         <div class="ctl-panel" style="background:var(--panel); border:1px solid var(--hair); border-radius:12px; padding:16px 18px;">
           <h3 style="font-size:12px; text-transform:uppercase; letter-spacing:.05em; margin:0 0 12px; color:var(--ink2);">Date range</h3>
@@ -3310,7 +3119,6 @@ document.querySelectorAll(".mtbtn").forEach(function(btn){
             <div style="flex:1;"><label style="display:block; font-size:12px; font-weight:600; color:var(--ink2); margin-bottom:5px;" for="czToDate">To</label><select id="czToDate" style="width:100%; padding:7px 9px; border:1px solid var(--hair); border-radius:7px; background:var(--paper); color:var(--ink); font:inherit; font-size:13px;"></select></div>
           </div>
         </div>
-
         <div class="ctl-panel" style="margin-top:14px; background:var(--panel); border:1px solid var(--hair); border-radius:12px; padding:16px 18px;">
           <h3 style="font-size:12px; text-transform:uppercase; letter-spacing:.05em; margin:0 0 12px; color:var(--ink2);">Event lines &amp; arrows</h3>
           <div id="czAnnotList"></div>
@@ -3321,12 +3129,9 @@ document.querySelectorAll(".mtbtn").forEach(function(btn){
     </div>
   </div>
 </div>
-
-
 <script>
 (function(){
   "use strict";
-
   var G = { W:820, H:507, padL:60, padR:24, padT:34 };
   // Approximation of the seaborn "mako" palette (dark indigo through
   // blue/teal to pale mint) sampled at 8 stops -- an exact hex table
@@ -3345,7 +3150,6 @@ document.querySelectorAll(".mtbtn").forEach(function(btn){
     light: { bg:"#FFFFFF", ink:"#171B1E", ink2:"#5A6167", grid:"#E4E6E1", line:"#348FA7", fill:"rgba(52,143,167,0.12)", annot:"#9AA4A0", annotText:"#6B7470" },
     dark:  { bg:"#12181A", ink:"#EDEFEA", ink2:"#9AA4A0", grid:"#2A3436", line:"#348FA7", fill:"rgba(52,143,167,0.16)", annot:"#8A9490", annotText:"#B7BEBA" }
   };
-
   var czState = null; // set fresh each time the modal opens, for a specific chart
   var FULL_SERIES = []; // the real [date, value] points for whichever chart is currently open
   // Some pages (Dashboard in particular) keep their own fmtPeriod inside
@@ -3360,7 +3164,6 @@ document.querySelectorAll(".mtbtn").forEach(function(btn){
     if(/^\d{4}-Q\d$/.test(p)) return p.slice(5) + " " + p.slice(0, 4);
     return p;
   };
-
   function nearestIndex(pts, dateStr){
     var idx = 0, bestDiff = Infinity;
     for(var i = 0; i < pts.length; i++){
@@ -3421,11 +3224,9 @@ document.querySelectorAll(".mtbtn").forEach(function(btn){
     return { x: Math.max(box.left, Math.min(box.right, tx)), y: Math.max(box.top, Math.min(box.bottom, ty)) };
   }
   function defaultLabelPosCz(ax){ return { labelX: ax, labelY: G.padT - 8 }; }
-
   function czFilteredSeries(){
     return FULL_SERIES.filter(function(p){ return p[0] >= czState.from && p[0] <= czState.to; });
   }
-
   // Standard "nice numbers" axis algorithm (Talbot/Lin/Hanrahan-style):
   // rather than evenly slicing the padded data range -- which produces
   // arbitrary values like 0.335% or 3.085% -- this snaps both the tick
@@ -3554,7 +3355,6 @@ document.querySelectorAll(".mtbtn").forEach(function(btn){
     }
     return bestIdx;
   }
-
   // Some of the site's own formatters (e.g. GDP level's currency
   // tiering into tn/bn/m) pick a unit independently per value -- fine
   // for a single number, but on an axis it means zero can land in a
@@ -3580,7 +3380,6 @@ document.querySelectorAll(".mtbtn").forEach(function(btn){
       return decMatch ? "0." + "0".repeat(decMatch[1].length) : "0";
     }));
   }
-
   // Log-scale ticks don't follow the "round step" logic linear ticks
   // use -- by convention a log axis marks powers of ten and their 2x/5x
   // subdivisions (1, 2, 5, 10, 20, 50, 100...), which read correctly
@@ -3688,13 +3487,11 @@ document.querySelectorAll(".mtbtn").forEach(function(btn){
       }
     };
   }
-
   function czBuildSVG(theme, forExport){
     var t = THEMES[theme];
     var gm = czGeom();
     var pts = gm.pts;
     if(!pts.length) return "<svg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 " + G.W + " " + G.H + "'></svg>";
-
     var svg = [];
     svg.push("<svg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 " + G.W + " " + G.H + "' font-family='Helvetica, Arial, sans-serif'>");
     svg.push("<rect x='0' y='0' width='" + G.W + "' height='" + G.H + "' fill='" + t.bg + "'/>");
@@ -3702,30 +3499,25 @@ document.querySelectorAll(".mtbtn").forEach(function(btn){
       svg.push("<text x='" + (G.W / 2) + "' y='24' font-size='16' font-weight='700' fill='" + t.ink + "' text-anchor='middle'>" + escapeXML(czState.chartTitle) + "</text>");
     }
     var axisColor = t.ink2;
-
     gm.yTickValues.forEach(function(v){
       var gy = gm.y(v);
       svg.push("<line x1='" + G.padL + "' y1='" + gy.toFixed(1) + "' x2='" + (G.W - G.padR) + "' y2='" + gy.toFixed(1) + "' stroke='" + t.grid + "' stroke-width='1'/>");
       svg.push("<line x1='" + (G.padL - 5) + "' y1='" + gy.toFixed(1) + "' x2='" + G.padL + "' y2='" + gy.toFixed(1) + "' stroke='" + axisColor + "' stroke-width='1.3'/>");
       svg.push("<text x='" + (G.padL - 10) + "' y='" + (gy + 4).toFixed(1) + "' font-size='11' fill='" + t.ink2 + "' text-anchor='end'>" + czAxisTickLabel(v, gm.yTickValues, czState.fmtY) + "</text>");
     });
-
     var axisBottomY = gm.padT + gm.plotH;
     svg.push("<line x1='" + G.padL + "' y1='" + gm.padT + "' x2='" + G.padL + "' y2='" + axisBottomY + "' stroke='" + axisColor + "' stroke-width='1.5'/>");
     svg.push("<line x1='" + G.padL + "' y1='" + axisBottomY + "' x2='" + (G.W - G.padR) + "' y2='" + axisBottomY + "' stroke='" + axisColor + "' stroke-width='1.5'/>");
-
     if(czState.yTitlePos === "above"){
       svg.push("<text x='4' y='18' font-size='11.5' font-weight='600' fill='" + t.ink2 + "'>" + escapeXML(czState.yTitle) + "</text>");
     } else {
       var yTitleX = 16, yTitleY = gm.padT + gm.plotH / 2;
       svg.push("<text x='" + yTitleX + "' y='" + yTitleY + "' font-size='11.5' font-weight='600' fill='" + t.ink2 + "' text-anchor='middle' transform='rotate(-90 " + yTitleX + " " + yTitleY + ")'>" + escapeXML(czState.yTitle) + "</text>");
     }
-
     tickIndicesCz(czState.xTicks, pts.length).forEach(function(idx, tickPos, allTicks){
       var tx = gm.x(idx);
       svg.push("<line x1='" + tx.toFixed(1) + "' y1='" + axisBottomY + "' x2='" + tx.toFixed(1) + "' y2='" + (axisBottomY + 5) + "' stroke='" + axisColor + "' stroke-width='1.3'/>");
     });
-
     var cursorY = axisBottomY + 26;
     tickIndicesCz(czState.xTicks, pts.length).forEach(function(idx, tickPos, allTicks){
       var isFirst = tickPos === 0, isLast = tickPos === allTicks.length - 1;
@@ -3736,7 +3528,6 @@ document.querySelectorAll(".mtbtn").forEach(function(btn){
         svg.push(czXAxisLabelSVG(gm.x(idx), cursorY, czFmtPeriod(pts[idx][0]), t.ink2, czState.xLabelAngle));
       }
     });
-
     if(czState.refLine.enabled){
       var ry = gm.y(czState.refLine.value);
       svg.push("<line x1='" + G.padL + "' y1='" + ry.toFixed(1) + "' x2='" + (G.W - G.padR) + "' y2='" + ry.toFixed(1) + "' stroke='" + t.annot + "' stroke-width='1.3' stroke-dasharray='4,3'/>");
@@ -3757,11 +3548,9 @@ document.querySelectorAll(".mtbtn").forEach(function(btn){
         svg.push("<text x='" + (G.padL - 10) + "' y='" + (ry + 4).toFixed(1) + "' font-size='11' fill='" + t.ink2 + "' text-anchor='end'>" + czState.fmtY(Math.round(czState.refLine.value * 100) / 100) + "</text>");
       }
     }
-
     czState.annotations.forEach(function(a, ai){
       svg.push(czAnnotationSVG(a, ai, gm, t, forExport));
     });
-
     // Threshold value the two-colour split uses. Bars have always
     // defaulted to splitting at zero (kept as-is so nothing already
     // live regresses); "Colour by above/below reference line" only
@@ -3778,7 +3567,6 @@ document.querySelectorAll(".mtbtn").forEach(function(btn){
     // theme-driven regardless, since those aren't what the picker is for.
     var chartColor = czState.lineColor || t.line;
     var chartFillColor = czState.lineColor ? hexToRgba(czState.lineColor, theme === "dark" ? 0.16 : 0.12) : t.fill;
-
     if(czState.chartKind === "bar"){
       // Same up/down colour convention as the real site's own bar charts
       // (mako "sea" for positive, mako "indigo" for negative) -- not a
@@ -3839,7 +3627,6 @@ document.querySelectorAll(".mtbtn").forEach(function(btn){
         });
       }
     }
-
     if(forExport){
       cursorY += 20;
       svg.push("<line x1='" + G.padL + "' y1='" + cursorY + "' x2='" + (G.W - G.padR) + "' y2='" + cursorY + "' stroke='" + t.grid + "' stroke-width='1'/>");
@@ -3850,7 +3637,6 @@ document.querySelectorAll(".mtbtn").forEach(function(btn){
     svg.push("</svg>");
     return svg.join("");
   }
-
   function czAnnotationSVG(a, ai, gm, t, forExport){
     var pts = gm.pts;
     if(a.date < pts[0][0] || a.date > pts[pts.length - 1][0]) return "";
@@ -3858,7 +3644,6 @@ document.querySelectorAll(".mtbtn").forEach(function(btn){
     var ax = gm.x(idx);
     var ay = gm.y(pts[idx][1]);
     var s = ["<g data-cz-annot-group='" + ai + "'>"];
-
     if(a.type === "line"){
       s.push("<line data-cz-vline='" + ai + "' x1='" + ax.toFixed(1) + "' y1='" + gm.padT + "' x2='" + ax.toFixed(1) + "' y2='" + (gm.padT + gm.plotH) + "' stroke='" + t.annot + "' stroke-width='1.5' stroke-dasharray='4,3'/>");
       if(!forExport) s.push("<rect data-cz-line-handle='" + ai + "' x='" + (ax - 7).toFixed(1) + "' y='" + gm.padT + "' width='14' height='" + gm.plotH + "' fill='transparent' cursor='ew-resize'/>");
@@ -3876,7 +3661,6 @@ document.querySelectorAll(".mtbtn").forEach(function(btn){
       s.push("<circle cx='" + ax.toFixed(1) + "' cy='" + ay.toFixed(1) + "' r='3' fill='" + t.annot + "'/>");
       if(!forExport) s.push("<circle data-cz-line-handle='" + ai + "' cx='" + ax.toFixed(1) + "' cy='" + ay.toFixed(1) + "' r='9' fill='transparent' cursor='ew-resize'/>");
     }
-
     var anchorMap = { left: "end", center: "middle", right: "start" };
     var anchor = anchorMap[a.align] || "middle";
     var lines = String(a.label || "Event").split("\n").slice(0, 4);
@@ -3894,9 +3678,7 @@ document.querySelectorAll(".mtbtn").forEach(function(btn){
     s.push("</g>");
     return s.join("");
   }
-
   var czPreviewBox = document.getElementById("czPreviewBox");
-
   function czRenderPreview(){
     czSyncModeFields();
     czPreviewBox.innerHTML = czBuildSVG(czState.exportTheme, false);
@@ -3908,17 +3690,14 @@ document.querySelectorAll(".mtbtn").forEach(function(btn){
     var gm = czGeom();
     if(czYTickVal) czYTickVal.textContent = gm.yTickValues.length;
   }
-
   function czWireDragHandles(){
     var svgEl = czPreviewBox.querySelector("svg");
     if(!svgEl) return;
-
     function svgPoint(ev){
       var rect = svgEl.getBoundingClientRect();
       var scale = G.W / rect.width;
       return { x: (ev.clientX - rect.left) * scale, y: (ev.clientY - rect.top) * scale };
     }
-
     function refreshGroup(ai){
       var gm = czGeom();
       var t = THEMES[czState.exportTheme];
@@ -3929,14 +3708,12 @@ document.querySelectorAll(".mtbtn").forEach(function(btn){
       group.replaceChildren.apply(group, temp.childNodes);
       wireOneGroup(ai, group);
     }
-
     function wireOneGroup(ai, group){
       var lineHandle = group.querySelector("[data-cz-line-handle='" + ai + "']");
       var labelHandle = group.querySelector("[data-cz-label-handle='" + ai + "']");
       if(lineHandle) lineHandle.addEventListener("pointerdown", function(e){ startLineDrag(e, ai); });
       if(labelHandle) labelHandle.addEventListener("pointerdown", function(e){ startLabelDragOrClick(e, ai); });
     }
-
     function startLineDrag(e, ai){
       e.preventDefault();
       var gm = czGeom();
@@ -3966,7 +3743,6 @@ document.querySelectorAll(".mtbtn").forEach(function(btn){
       window.addEventListener("pointermove", move);
       window.addEventListener("pointerup", up);
     }
-
     function startLabelDragOrClick(e, ai){
       e.preventDefault();
       var a = czState.annotations[ai];
@@ -3991,13 +3767,11 @@ document.querySelectorAll(".mtbtn").forEach(function(btn){
       window.addEventListener("pointermove", move);
       window.addEventListener("pointerup", up);
     }
-
     svgEl.querySelectorAll("[data-cz-annot-group]").forEach(function(group){
       var ai = parseInt(group.getAttribute("data-cz-annot-group"), 10);
       wireOneGroup(ai, group);
     });
   }
-
   function czOpenInlineEditor(ai){
     var a = czState.annotations[ai];
     var svgEl = czPreviewBox.querySelector("svg");
@@ -4027,7 +3801,6 @@ document.querySelectorAll(".mtbtn").forEach(function(btn){
     document.body.appendChild(overlay);
     overlay.focus();
     overlay.select();
-
     function syncSidebar(){
       var boxes = document.querySelectorAll(".cz-annot-label-box");
       if(boxes[ai]) boxes[ai].value = a.label;
@@ -4045,13 +3818,11 @@ document.querySelectorAll(".mtbtn").forEach(function(btn){
       if(e.key === "Escape"){ e.preventDefault(); commit(); }
     });
   }
-
   function czSyncAnnotListInputs(){
     document.querySelectorAll(".cz-annot-date").forEach(function(input, i){
       input.value = czState.annotations[i].date;
     });
   }
-
   var czFromInput = document.getElementById("czFromDate");
   var czToInput = document.getElementById("czToDate");
   czFromInput.addEventListener("change", function(){
@@ -4064,7 +3835,6 @@ document.querySelectorAll(".mtbtn").forEach(function(btn){
     czState.to = czToInput.value;
     czRenderPreview();
   });
-
   document.getElementById("czFillToggle").addEventListener("change", function(e){ czState.showFill = e.target.checked; czRenderPreview(); });
   document.getElementById("czPointsToggle").addEventListener("change", function(e){ czState.showPoints = e.target.checked; czRenderPreview(); });
   document.getElementById("czChartTitleInput").addEventListener("input", function(e){ czState.chartTitle = e.target.value; czRenderPreview(); });
@@ -4158,18 +3928,15 @@ document.querySelectorAll(".mtbtn").forEach(function(btn){
       czRenderPreview();
     });
   });
-
   var MAX_CZ_ANNOTATIONS = 6, MIN_CZ_FS = 9, MAX_CZ_FS = 20;
   var czAnnotList = document.getElementById("czAnnotList");
   var czAddAnnotBtn = document.getElementById("czAddAnnotBtn");
-
   function czRenderAnnotList(){
     czAnnotList.innerHTML = "";
     czState.annotations.forEach(function(a, i){
       var card = document.createElement("div");
       card.className = "cz-annot-card";
       card.style.cssText = "border:1px solid var(--hair); border-radius:9px; padding:10px 11px; margin-bottom:9px; background:var(--paper);";
-
       var summarySpan = document.createElement("span");
       summarySpan.style.cssText = "font-size:12.5px; font-weight:600; overflow:hidden; text-overflow:ellipsis; white-space:nowrap; flex:1; cursor:pointer;";
       function updateSummary(){
@@ -4177,11 +3944,9 @@ document.querySelectorAll(".mtbtn").forEach(function(btn){
         summarySpan.textContent = firstLine + " \u00b7 " + czFmtPeriod(a.date);
       }
       updateSummary();
-
       var chevron = document.createElement("span");
       chevron.style.cssText = "cursor:pointer; color:var(--ink2); font-size:12px; padding:0 2px;";
       chevron.textContent = "\u25be";
-
       var header = document.createElement("div");
       header.style.cssText = "display:flex; align-items:center; gap:8px;";
       var rmBtn = document.createElement("button");
@@ -4193,7 +3958,6 @@ document.querySelectorAll(".mtbtn").forEach(function(btn){
       header.appendChild(summarySpan);
       header.appendChild(rmBtn);
       header.appendChild(chevron);
-
       var body = document.createElement("div");
       body.className = "cz-annot-body";
       body.style.cssText = "margin-top:9px;";
@@ -4214,10 +3978,8 @@ document.querySelectorAll(".mtbtn").forEach(function(btn){
           "</div>" +
           "<div style='display:flex; align-items:center; gap:6px; margin-left:auto;'><button type='button' class='cz-fs-btn cz-fs-minus' style='width:22px; height:22px; border:1px solid var(--hair); border-radius:6px; cursor:pointer; font-size:12px;'>&minus;</button><span class='cz-fs-val' style='font-size:11.5px; min-width:18px; text-align:center;'>" + a.fontSize + "</span><button type='button' class='cz-fs-btn cz-fs-plus' style='width:22px; height:22px; border:1px solid var(--hair); border-radius:6px; cursor:pointer; font-size:12px;'>+</button></div>" +
         "</div>";
-
       card.appendChild(header);
       card.appendChild(body);
-
       // Collapsed by default only for events that were already set up
       // before this render (freshly-added ones start open, so there's
       // something to actually fill in first).
@@ -4227,11 +3989,9 @@ document.querySelectorAll(".mtbtn").forEach(function(btn){
         chevron.textContent = collapsed ? "\u25b8" : "\u25be";
       }
       setCollapsed(!!a._czCollapsed);
-
       function toggleCollapsed(){ setCollapsed(!a._czCollapsed); }
       summarySpan.addEventListener("click", toggleCollapsed);
       chevron.addEventListener("click", toggleCollapsed);
-
       body.querySelector(".cz-annot-date").addEventListener("change", function(e){
         a.date = e.target.value;
         var gm = czGeom();
@@ -4280,7 +4040,6 @@ document.querySelectorAll(".mtbtn").forEach(function(btn){
     });
     czAddAnnotBtn.disabled = czState.annotations.length >= MAX_CZ_ANNOTATIONS;
   }
-
   czAddAnnotBtn.addEventListener("click", function(){
     if(czState.annotations.length >= MAX_CZ_ANNOTATIONS) return;
     var gm = czGeom();
@@ -4290,7 +4049,6 @@ document.querySelectorAll(".mtbtn").forEach(function(btn){
     czRenderAnnotList();
     czRenderPreview();
   });
-
   function czFilenameBase(){ return czState.filenameBase + "_" + czState.from + "_to_" + czState.to; }
   function czDownloadBlob(blob, filename){
     var url = URL.createObjectURL(blob);
@@ -4354,7 +4112,6 @@ document.querySelectorAll(".mtbtn").forEach(function(btn){
       czRenderPreview();
     });
   });
-
   // Swatches are built once, up front, rather than per-render -- the
   // palette itself never changes, only which swatch is marked active,
   // so rebuilding the buttons on every render would be wasted work and
@@ -4382,7 +4139,6 @@ document.querySelectorAll(".mtbtn").forEach(function(btn){
       b.style.borderColor = (b.dataset.color === czState.lineColor) ? "var(--ink)" : "transparent";
     });
   }
-
   var czExportOptsBtn = document.getElementById("czExportOptsBtn");
   var czExportOptsPopover = document.getElementById("czExportOptsPopover");
   czExportOptsBtn.addEventListener("click", function(e){
@@ -4397,7 +4153,6 @@ document.querySelectorAll(".mtbtn").forEach(function(btn){
   document.getElementById("customizeModalClose").addEventListener("click", function(){
     document.getElementById("customizeModal").hidden = true;
   });
-
   // Entry point: called with a specific chart's real data whenever an
   // admin clicks an unlocked "Customise & export" button.
   window.EATLAS_OPEN_CUSTOMIZE = function(pts, title, srcNote, fmtY, yTitle, filenameBase, kind, fmtPeriodFn){
@@ -4449,7 +4204,6 @@ document.querySelectorAll(".mtbtn").forEach(function(btn){
   };
 })();
 </script>
-
 <script>
 (function(){
   "use strict";
@@ -4466,7 +4220,6 @@ document.querySelectorAll(".mtbtn").forEach(function(btn){
   var dismissed = false;
   try{ dismissed = localStorage.getItem(DISMISS_KEY) === "1"; }catch(e){}
   if(dismissed) return;
-
   var closeBtn = document.getElementById("alertBannerClose");
   if(closeBtn){
     closeBtn.addEventListener("click", function(){
@@ -4474,7 +4227,6 @@ document.querySelectorAll(".mtbtn").forEach(function(btn){
       try{ localStorage.setItem(DISMISS_KEY, "1"); }catch(e){}
     });
   }
-
   if(window.EATLAS_PREFS && window.EATLAS_PREFS.registerBanner){
     window.EATLAS_PREFS.registerBanner(banner);
   }
