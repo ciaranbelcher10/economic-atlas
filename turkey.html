@@ -614,6 +614,10 @@ button.mtoggle.fx-both{background:#2FA463; border-color:#2FA463; color:#fff;}
   var SUPABASE_URL = "https://skluvrxnuibkordzgtmu.supabase.co";
   var SUPABASE_KEY = "sb_publishable_p6_GqrC8qcNC6KwPE46hkw_qdWQTuyT";
   var sb = supabase.createClient(SUPABASE_URL, SUPABASE_KEY);
+  // Exposed globally so the Save & Share code in the later <script>
+  // block (a separate IIFE, not sharing this function's local `sb`) can
+  // reach the same client rather than creating a second connection.
+  window.sb = sb;
   var authBtn = document.getElementById("authBtn");
   var authModal = document.getElementById("authModal");
   var authModalBackdrop = document.getElementById("authModalBackdrop");
@@ -1279,7 +1283,7 @@ button.mtoggle.fx-both{background:#2FA463; border-color:#2FA463; color:#fff;}
     var wired = [];
     function openEditor(entry){
       if(window.EATLAS_OPEN_CUSTOMIZE){
-        window.EATLAS_OPEN_CUSTOMIZE(entry.pts, entry.title, entry.srcNote, entry.fmtY, entry.yTitle, entry.filenameBase, entry.kind, entry.fmtPeriodFn);
+        window.EATLAS_OPEN_CUSTOMIZE(entry.pts, entry.title, entry.srcNote, entry.fmtY, entry.yTitle, entry.filenameBase, entry.kind, entry.fmtPeriodFn, entry.metricKey);
       }
     }
     function openViaCredit(entry, btn){
@@ -1334,13 +1338,13 @@ button.mtoggle.fx-both{background:#2FA463; border-color:#2FA463; color:#fff;}
         ? function(e){ e.preventDefault(); window.EATLAS_OPEN_AUTH_MODAL(); }
         : null; // falls back to the plain href="contact" already on the link
     }
-    function register(btn, pts, title, srcNote, fmtY, yTitle, filenameBase, kind, fmtPeriodFn){
+    function register(btn, pts, title, srcNote, fmtY, yTitle, filenameBase, kind, fmtPeriodFn, metricKey){
       var entry = null;
       for(var i = 0; i < wired.length; i++){ if(wired[i].btn === btn){ entry = wired[i]; break; } }
       if(!entry){ entry = { btn: btn }; wired.push(entry); }
       entry.pts = pts; entry.title = title; entry.srcNote = srcNote;
       entry.fmtY = fmtY; entry.yTitle = yTitle; entry.filenameBase = filenameBase; entry.kind = kind;
-      entry.fmtPeriodFn = fmtPeriodFn;
+      entry.fmtPeriodFn = fmtPeriodFn; entry.metricKey = metricKey;
       applyState(entry);
     }
     return {
@@ -1978,7 +1982,7 @@ function openChartModal(id){
   const modalDlBtn = document.getElementById("chartModalDlBtn");
   if(modalDlBtn && window.EATLAS_DOWNLOAD) window.EATLAS_DOWNLOAD.wire(modalDlBtn, entry.pts, entry.title);
   const modalCzBtn = document.getElementById("chartModalCzBtn");
-  if(modalCzBtn && window.EATLAS_CUSTOMIZE) window.EATLAS_CUSTOMIZE.wire(modalCzBtn, entry.pts, entry.title, entry.srcNote, entry.fmtY, "", entry.title, entry.kind, fmtPeriod);
+  if(modalCzBtn && window.EATLAS_CUSTOMIZE) window.EATLAS_CUSTOMIZE.wire(modalCzBtn, entry.pts, entry.title, entry.srcNote, entry.fmtY, "", entry.title, entry.kind, fmtPeriod, entry.key);
   modal.hidden = false;
   document.body.style.overflow = "hidden";
 }
@@ -2059,10 +2063,10 @@ function chartPanel(key, containerId, title, expl, series, kind, fmtY, fmtTip, s
   const dlBtn = panel.querySelector(".dl-btn");
   if(dlBtn && window.EATLAS_DOWNLOAD) window.EATLAS_DOWNLOAD.wire(dlBtn, pts, title);
   const czBtn = panel.querySelector(".cz-btn");
-  if(czBtn && window.EATLAS_CUSTOMIZE) window.EATLAS_CUSTOMIZE.wire(czBtn, pts, title, srcNote, fmtY, "", title, kind, fmtPeriod);
+  if(czBtn && window.EATLAS_CUSTOMIZE) window.EATLAS_CUSTOMIZE.wire(czBtn, pts, title, srcNote, fmtY, "", title, kind, fmtPeriod, key);
   const refLineVal = refLine==null ? null : refLine;
   const chart = (kind==="bar"?barChart:lineChart)(document.getElementById(id), pts, fmtY, fmtTip, refLineVal, key);
-  CHART_REGISTRY[id] = {pts, kind, fmtY, fmtTip, refLine:refLineVal, title, srcNote};
+  CHART_REGISTRY[id] = {pts, kind, fmtY, fmtTip, refLine:refLineVal, title, srcNote, key};
   wireRangePresets(panel, pts, kind, chart);
   panel.querySelector(".resetzoom").addEventListener("click", ()=>{ if(chart.resetZoom) chart.resetZoom(); });
   panel.querySelector(".expandBtn").addEventListener("click", ()=> openChartModal(id));
@@ -2113,6 +2117,13 @@ function renderLastUpdated(updatedIso){
 }
 function render(data){
   const s=data.series;
+  // Exposed for Save & Share (EATLAS_SAVED_CHARTS below): a saved chart
+  // stores only the metric key + date range, never the plotted values,
+  // so "loading" it means looking the key up here again -- this object
+  // is exactly as live as the page itself (re-populated fresh on every
+  // page load from data-tr.json), which is what "new data each time"
+  // means in practice for a static-data key like this.
+  window.EATLAS_SERIES = s;
   if(data.sample){const sb=document.getElementById("sampleBadge");sb.textContent="Sample data: run fetch_tr.py for live figures";sb.classList.add("show");}
   const gdpAnnual = s.gdp_level ? s.gdp_level : null;   /* NOTE: gdp_level here is already the trailing-4-quarter-sum "annual" series where available (see buildDisplaySeries()) -- gdp_level/gdp_real themselves are genuine per-quarter flows, not annualized, so the raw quarterly figure would understate true annual GDP by ~4x. Falls back to the raw World Bank USD annual series if the live TRY quarterly data (and therefore the derived annual sum) isn't available this run. */
   const gdpYoY = s.gdp_real ? yoyGDP(s.gdp_real) : null;
@@ -3028,6 +3039,18 @@ document.querySelectorAll(".mtbtn").forEach(function(btn){
     <button type="button" class="chart-modal-close" id="customizeModalClose" aria-label="Close">&times;</button>
     <div style="display:flex; align-items:center; justify-content:space-between; gap:12px; margin:0 26px 2px 0;">
       <h2 style="margin:0; font-size:20px;">Customise &amp; export</h2>
+      <div style="display:flex; align-items:center; gap:10px;">
+        <!-- Admin-only (see EATLAS_OPEN_CUSTOMIZE's showSave/showOpen check
+             above); both hidden by default so they never flash for
+             non-admins before EATLAS_PREFS resolves. -->
+        <div style="position:relative;">
+          <button type="button" id="czOpenChartBtn" hidden style="display:inline-flex; align-items:center; gap:6px; border:1px solid var(--hair); background:var(--panel); color:var(--ink); font-family:'Avenir Next','Avenir','Nunito Sans',system-ui,sans-serif; font-weight:600; font-size:13px; padding:8px 14px; border-radius:8px; cursor:pointer;">Open chart</button>
+          <div id="czOpenChartPopover" hidden style="position:absolute; top:calc(100% + 8px); left:0; z-index:20; width:300px; max-height:340px; overflow-y:auto; background:var(--panel); border:1px solid var(--hair); border-radius:12px; padding:14px; box-shadow:0 12px 32px rgba(0,0,0,.22);">
+            <h4 style="font-size:11.5px; text-transform:uppercase; letter-spacing:.05em; margin:0 0 8px; color:var(--ink2);">Saved charts</h4>
+            <div id="czOpenChartList" style="font-size:12.5px; color:var(--ink2);">Loading…</div>
+          </div>
+        </div>
+        <button type="button" id="czSaveChartBtn" hidden style="display:inline-flex; align-items:center; gap:6px; border:1px solid var(--hair); background:var(--panel); color:var(--ink); font-family:'Avenir Next','Avenir','Nunito Sans',system-ui,sans-serif; font-weight:600; font-size:13px; padding:8px 14px; border-radius:8px; cursor:pointer;">Save chart</button>
       <div style="position:relative;">
         <button type="button" class="export-opts-btn" id="czExportOptsBtn" style="display:inline-flex; align-items:center; gap:6px; border:1px solid var(--hair); background:var(--panel); color:var(--ink); font-family:'Avenir Next','Avenir','Nunito Sans',system-ui,sans-serif; font-weight:600; font-size:13px; padding:8px 14px; border-radius:8px; cursor:pointer;">Export &#9662;</button>
         <div id="czExportOptsPopover" hidden style="position:absolute; top:calc(100% + 8px); right:0; z-index:20; width:230px; background:var(--panel); border:1px solid var(--hair); border-radius:12px; padding:16px; box-shadow:0 12px 32px rgba(0,0,0,.22);">
@@ -3044,6 +3067,7 @@ document.querySelectorAll(".mtbtn").forEach(function(btn){
             <button type="button" id="czExportSvgBtn" style="flex:1; padding:8px 0; border:1px solid var(--hair); background:var(--paper); color:var(--ink); border-radius:6px; cursor:pointer; font:inherit; font-size:12px;">SVG</button>
           </div>
         </div>
+      </div>
       </div>
     </div>
     <p id="czModalCountry" style="font-size:13px; color:var(--ink2); margin:0 0 18px;"></p>
@@ -4167,7 +4191,7 @@ document.querySelectorAll(".mtbtn").forEach(function(btn){
   });
   // Entry point: called with a specific chart's real data whenever an
   // admin clicks an unlocked "Customise & export" button.
-  window.EATLAS_OPEN_CUSTOMIZE = function(pts, title, srcNote, fmtY, yTitle, filenameBase, kind, fmtPeriodFn){
+  window.EATLAS_OPEN_CUSTOMIZE = function(pts, title, srcNote, fmtY, yTitle, filenameBase, kind, fmtPeriodFn, metricKey){
     FULL_SERIES = pts;
     if(fmtPeriodFn) czFmtPeriod = fmtPeriodFn;
     var effectiveFmtY = fmtY || function(v){ return v.toFixed(1) + "%"; };
@@ -4187,8 +4211,18 @@ document.querySelectorAll(".mtbtn").forEach(function(btn){
       chartKind: kind === "bar" ? "bar" : "line", yScale: "linear", lineColor: null,
       annotations: [], exportTheme: "light",
       srcNote: srcNote, yTitle: guessedYTitle, fmtY: effectiveFmtY,
-      filenameBase: (filenameBase || title || "chart").toLowerCase().replace(/[^a-z0-9]+/g, "_").replace(/^_+|_+$/g, "")
+      filenameBase: (filenameBase || title || "chart").toLowerCase().replace(/[^a-z0-9]+/g, "_").replace(/^_+|_+$/g, ""),
+      metricKey: metricKey || null
     };
+    // Save/Open Chart buttons: admin-only (client-side hide -- RLS on the
+    // saved_charts table is the real backstop, see saved_charts.sql).
+    // Hidden entirely for non-metric charts (metricKey missing) since
+    // there's nothing stable to re-fetch by on reload.
+    var czSaveBtn = document.getElementById("czSaveChartBtn");
+    var czOpenBtn = document.getElementById("czOpenChartBtn");
+    var showSaveOpen = !!(window.EATLAS_PREFS && window.EATLAS_PREFS.isAdmin() && metricKey);
+    if(czSaveBtn) czSaveBtn.hidden = !showSaveOpen;
+    if(czOpenBtn) czOpenBtn.hidden = !showSaveOpen;
     document.getElementById("czModalCountry").textContent = title;
     document.getElementById("czModalSrc").textContent = "Source: " + srcNote;
     document.getElementById("czChartTitleInput").value = czState.chartTitle;
@@ -4214,6 +4248,204 @@ document.querySelectorAll(".mtbtn").forEach(function(btn){
     czRenderPreview();
     document.getElementById("customizeModal").hidden = false;
   };
+  // ---- Save & Share, Phase 1: UK page only, admin-only ----
+  // Saves the SELECTION (metric key + date range + a subset of style),
+  // never the plotted values -- see saved_charts.sql. Loading a saved
+  // chart re-reads window.EATLAS_SERIES (populated fresh by render() on
+  // every page load) rather than replaying stored numbers.
+  //
+  // SAVED_CHART_METRIC_META is a deliberate, temporary shortcut: title/
+  // format/source-note metadata that chartPanel() already has at each of
+  // its call sites but that isn't exposed anywhere reusable. Hardcoded
+  // here for boe_rate only while this feature is proven on one metric;
+  // rolling out beyond this page means building this from the same
+  // values chartPanel() is called with, not copy-pasting more entries.
+  var SAVED_CHART_METRIC_META = {
+    boe_rate: { title: "Bank Rate", kind: "line", fmtY: function(v){ return v + "%"; }, srcNote: "Bank of England · IUDBEDR, official Bank Rate" }
+  };
+  // Renders a saved chart's created_at (a UTC ISO string from Postgres)
+  // in the viewer's own local time -- this is "when I clicked save", a
+  // personal-convenience timestamp, not site data, so local time (not
+  // UTC, unlike renderLastUpdated elsewhere on this page) is the right
+  // call here.
+  function czFormatSavedAt(iso){
+    if(!iso) return "";
+    var dt = new Date(iso);
+    if(isNaN(dt.getTime())) return "";
+    var dd = String(dt.getDate()).padStart(2, "0");
+    var mo = MONTHS[dt.getMonth()];
+    var yy = dt.getFullYear();
+    var hh = String(dt.getHours()).padStart(2, "0");
+    var mi = String(dt.getMinutes()).padStart(2, "0");
+    return dd + " " + mo + " " + yy + ", " + hh + ":" + mi;
+  }
+  function czSaveStyleSnapshot(){
+    return {
+      chartTitle: czState.chartTitle, yTitle: czState.yTitle,
+      chartKind: czState.chartKind, showFill: czState.showFill, showPoints: czState.showPoints,
+      refLine: czState.refLine, threshold2Color: czState.threshold2Color
+    };
+  }
+  function loadSavedChart(row){
+    var meta = SAVED_CHART_METRIC_META[row.metric_key];
+    var series = window.EATLAS_SERIES && window.EATLAS_SERIES[row.metric_key];
+    if(!meta || !series || !series.points){
+      window.alert("This saved chart's series isn't available on this page.");
+      return;
+    }
+    var pts = series.points;
+    if(row.from_period || row.to_period){
+      var filtered = pts.filter(function(p){
+        return (!row.from_period || p[0] >= row.from_period) && (!row.to_period || p[0] <= row.to_period);
+      });
+      if(filtered.length) pts = filtered;
+    }
+    window.EATLAS_OPEN_CUSTOMIZE(pts, row.name || meta.title, meta.srcNote, meta.fmtY, "", meta.title, meta.kind, czFmtPeriod, row.metric_key);
+    var style = row.style || {};
+    if(style.chartTitle != null){ czState.chartTitle = style.chartTitle; document.getElementById("czChartTitleInput").value = style.chartTitle; }
+    if(style.yTitle != null){ czState.yTitle = style.yTitle; document.getElementById("czYAxisTitleInput").value = style.yTitle; }
+    if(style.chartKind){
+      czState.chartKind = style.chartKind;
+      czChartKindSeg.querySelectorAll("button").forEach(function(b){ b.classList.toggle("active", b.dataset.kind === czState.chartKind); });
+    }
+    if(style.refLine){
+      czState.refLine = style.refLine;
+      document.getElementById("czReflineToggle").checked = !!style.refLine.enabled;
+      document.getElementById("czReflineValue").value = style.refLine.value;
+    }
+    czState.showFill = style.showFill !== false;
+    document.getElementById("czFillToggle").checked = czState.showFill;
+    czState.showPoints = style.showPoints !== false;
+    document.getElementById("czPointsToggle").checked = czState.showPoints;
+    czRenderPreview();
+  }
+  // ---- Saved charts list: lives in the "Open chart" popover next to
+  // Save chart inside Customise & Export, not as a separate page panel
+  // -- superseded that earlier standalone-panel version per feedback
+  // after confirming save/load round-tripped correctly.
+  window.EATLAS_SAVED_CHARTS = (function(){
+    function render(rows){
+      var listEl = document.getElementById("czOpenChartList");
+      if(!listEl) return;
+      listEl.innerHTML = "";
+      if(!rows.length){
+        listEl.textContent = 'No saved charts yet — open "Bank Rate" → Customise & export → Save chart.';
+        return;
+      }
+      rows.forEach(function(row){
+        var line = document.createElement("div");
+        line.style.cssText = "display:flex; align-items:flex-start; justify-content:space-between; gap:10px; padding:10px 0; border-top:1px solid var(--hair);";
+        var labelWrap = document.createElement("span");
+        labelWrap.style.cssText = "display:flex; flex-direction:column; min-width:0;";
+        var nameEl = document.createElement("span");
+        nameEl.textContent = row.name;
+        nameEl.style.cssText = "font-weight:600; color:var(--ink);";
+        var metaEl = document.createElement("span");
+        metaEl.textContent = row.metric_key + " · saved " + czFormatSavedAt(row.created_at);
+        metaEl.style.cssText = "font-size:11.5px; color:var(--ink2); margin-top:2px;";
+        labelWrap.appendChild(nameEl); labelWrap.appendChild(metaEl);
+        var btnWrap = document.createElement("span");
+        btnWrap.style.cssText = "display:flex; gap:6px; flex-shrink:0;";
+        // Primary action -- same solid-fill treatment as the site's real
+        // .btn class (var(--blue) fill, navy-2 on hover) rather than a
+        // generic bordered box, so this reads as the intended action in
+        // the list, not just another neutral control.
+        var openBtn = document.createElement("button");
+        openBtn.type = "button"; openBtn.textContent = "Open";
+        openBtn.style.cssText = "font-family:inherit; font-weight:600; font-size:12px; padding:5px 12px; border:none; border-radius:6px; background:var(--blue); color:#fff; cursor:pointer;";
+        openBtn.addEventListener("mouseenter", function(){ openBtn.style.background = "var(--navy-2)"; });
+        openBtn.addEventListener("mouseleave", function(){ openBtn.style.background = "var(--blue)"; });
+        openBtn.addEventListener("click", function(){
+          loadSavedChart(row);
+          var pop = document.getElementById("czOpenChartPopover");
+          if(pop) pop.hidden = true;
+        });
+        // Destructive action -- understated until hovered (matches the
+        // site's existing pattern for secondary controls like
+        // .expandBtn/.resetzoom, which sit muted until interacted with),
+        // turning to the same warm red used elsewhere on this page for a
+        // "needs attention" state (the Compare page's clashing-color
+        // indicator) rather than introducing a new colour.
+        var delBtn = document.createElement("button");
+        delBtn.type = "button"; delBtn.textContent = "Delete";
+        delBtn.style.cssText = "font-family:inherit; font-weight:600; font-size:12px; padding:5px 12px; border:1px solid var(--hair); border-radius:6px; background:var(--paper); color:var(--ink2); cursor:pointer;";
+        delBtn.addEventListener("mouseenter", function(){ delBtn.style.color = "#D65A3C"; delBtn.style.borderColor = "#D65A3C"; });
+        delBtn.addEventListener("mouseleave", function(){ delBtn.style.color = "var(--ink2)"; delBtn.style.borderColor = "var(--hair)"; });
+        delBtn.addEventListener("click", function(){
+          if(!window.confirm('Delete "' + row.name + '"?')) return;
+          window.sb.from("saved_charts").delete().eq("id", row.id).then(function(){ refresh(); });
+        });
+        btnWrap.appendChild(openBtn); btnWrap.appendChild(delBtn);
+        line.appendChild(labelWrap); line.appendChild(btnWrap);
+        listEl.appendChild(line);
+      });
+    }
+    function refresh(){
+      window.sb.auth.getUser().then(function(res){
+        var user = res.data && res.data.user;
+        if(!user) return render([]);
+        return window.sb.from("saved_charts").select("*").eq("user_id", user.id).eq("country_code", "tr")
+          .order("created_at", { ascending: false }).then(function(qres){ render(qres.data || []); });
+      }).catch(function(){ render([]); });
+    }
+    return { refresh: refresh };
+  })();
+  var czOpenChartBtn = document.getElementById("czOpenChartBtn");
+  var czOpenChartPopover = document.getElementById("czOpenChartPopover");
+  if(czOpenChartBtn && czOpenChartPopover){
+    czOpenChartBtn.addEventListener("click", function(e){
+      e.stopPropagation();
+      var willShow = czOpenChartPopover.hidden;
+      czOpenChartPopover.hidden = !willShow;
+      if(willShow) window.EATLAS_SAVED_CHARTS.refresh();
+    });
+    document.addEventListener("click", function(e){
+      if(!czOpenChartPopover.hidden && !czOpenChartPopover.contains(e.target) && e.target !== czOpenChartBtn){
+        czOpenChartPopover.hidden = true;
+      }
+    });
+  }
+  document.getElementById("czSaveChartBtn").addEventListener("click", function(){
+    var btn = this;
+    if(!czState || !czState.metricKey) return;
+    var name = window.prompt("Name this saved chart:", czState.chartTitle || "");
+    if(name === null) return;
+    name = name.trim();
+    if(!name) return;
+    var original = btn.textContent;
+    btn.disabled = true; btn.textContent = "Saving…";
+    // Wrapped in try/catch: a synchronous error here (e.g. window.sb not
+    // existing for some reason) must not leave the button stuck on
+    // "Saving..." forever with no feedback -- that's exactly the bug
+    // this replaces, caused by window.sb not existing at the time this
+    // was first shipped.
+    try {
+      window.sb.auth.getUser().then(function(res){
+        var user = res.data && res.data.user;
+        if(!user) throw new Error("Not signed in");
+        return window.sb.from("saved_charts").insert({
+          user_id: user.id,
+          name: name,
+          country_code: "tr",
+          metric_key: czState.metricKey,
+          from_period: czState.from,
+          to_period: czState.to,
+          style: czSaveStyleSnapshot()
+        });
+      }).then(function(res){
+        if(res && res.error) throw res.error;
+        btn.textContent = "Saved ✓";
+        if(window.EATLAS_SAVED_CHARTS) window.EATLAS_SAVED_CHARTS.refresh();
+        setTimeout(function(){ btn.disabled = false; btn.textContent = original; }, 1600);
+      }).catch(function(err){
+        window.alert("Couldn't save this chart: " + (err && err.message ? err.message : "unknown error"));
+        btn.disabled = false; btn.textContent = original;
+      });
+    } catch(err){
+      window.alert("Couldn't save this chart: " + (err && err.message ? err.message : "unknown error"));
+      btn.disabled = false; btn.textContent = original;
+    }
+  });
 })();
 </script>
 <script>
