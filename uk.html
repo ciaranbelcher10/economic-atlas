@@ -4821,28 +4821,43 @@ window.refreshMPCContext = refreshMPCContext;
       }
       rows.forEach(function(row){
         var line = document.createElement("div");
-        line.style.cssText = "display:flex; align-items:center; justify-content:space-between; padding:8px 0; border-top:1px solid var(--hair);";
+        line.style.cssText = "display:flex; align-items:flex-start; justify-content:space-between; gap:10px; padding:10px 0; border-top:1px solid var(--hair);";
         var labelWrap = document.createElement("span");
-        labelWrap.style.cssText = "display:flex; flex-direction:column;";
+        labelWrap.style.cssText = "display:flex; flex-direction:column; min-width:0;";
         var nameEl = document.createElement("span");
         nameEl.textContent = row.name;
-        nameEl.style.cssText = "font-weight:600;";
+        nameEl.style.cssText = "font-weight:600; color:var(--ink);";
         var metaEl = document.createElement("span");
         metaEl.textContent = row.metric_key + " · saved " + czFormatSavedAt(row.created_at);
         metaEl.style.cssText = "font-size:11.5px; color:var(--ink2); margin-top:2px;";
         labelWrap.appendChild(nameEl); labelWrap.appendChild(metaEl);
         var btnWrap = document.createElement("span");
+        btnWrap.style.cssText = "display:flex; gap:6px; flex-shrink:0;";
+        // Primary action -- same solid-fill treatment as the site's real
+        // .btn class (var(--blue) fill, navy-2 on hover) rather than a
+        // generic bordered box, so this reads as the intended action in
+        // the list, not just another neutral control.
         var openBtn = document.createElement("button");
         openBtn.type = "button"; openBtn.textContent = "Open";
-        openBtn.style.cssText = "margin-right:8px; font-size:12px; padding:4px 10px; border:1px solid var(--hair); border-radius:6px; background:var(--paper); color:var(--ink); cursor:pointer;";
+        openBtn.style.cssText = "font-family:inherit; font-weight:600; font-size:12px; padding:5px 12px; border:none; border-radius:6px; background:var(--blue); color:#fff; cursor:pointer;";
+        openBtn.addEventListener("mouseenter", function(){ openBtn.style.background = "var(--navy-2)"; });
+        openBtn.addEventListener("mouseleave", function(){ openBtn.style.background = "var(--blue)"; });
         openBtn.addEventListener("click", function(){
           loadSavedChart(row);
           var pop = document.getElementById("czOpenChartPopover");
           if(pop) pop.hidden = true;
         });
+        // Destructive action -- understated until hovered (matches the
+        // site's existing pattern for secondary controls like
+        // .expandBtn/.resetzoom, which sit muted until interacted with),
+        // turning to the same warm red used elsewhere on this page for a
+        // "needs attention" state (the Compare page's clashing-color
+        // indicator) rather than introducing a new colour.
         var delBtn = document.createElement("button");
         delBtn.type = "button"; delBtn.textContent = "Delete";
-        delBtn.style.cssText = "font-size:12px; padding:4px 10px; border:1px solid var(--hair); border-radius:6px; background:var(--paper); color:var(--ink2); cursor:pointer;";
+        delBtn.style.cssText = "font-family:inherit; font-weight:600; font-size:12px; padding:5px 12px; border:1px solid var(--hair); border-radius:6px; background:var(--paper); color:var(--ink2); cursor:pointer;";
+        delBtn.addEventListener("mouseenter", function(){ delBtn.style.color = "#D65A3C"; delBtn.style.borderColor = "#D65A3C"; });
+        delBtn.addEventListener("mouseleave", function(){ delBtn.style.color = "var(--ink2)"; delBtn.style.borderColor = "var(--hair)"; });
         delBtn.addEventListener("click", function(){
           if(!window.confirm('Delete "' + row.name + '"?')) return;
           window.sb.from("saved_charts").delete().eq("id", row.id).then(function(){ refresh(); });
