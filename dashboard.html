@@ -5062,16 +5062,48 @@ window.EATLAS_SAVED_CHARTS = (function(){
       listEl.appendChild(line);
     });
   }
+  function renderError(msg){
+    var listEl = document.getElementById("czOpenChartList");
+    if(!listEl) return;
+    listEl.textContent = "Couldn't load saved charts: " + msg;
+  }
   function refresh(){
+    var czState = window.EATLAS_GET_CZ_STATE();
+    if(!czState || !czState.countryCode || !czState.metricKey) return render([]);
+    // Scoped to the exact (country, metric) currently open -- e.g.
+    // Germany's CPI tile only shows other saved Germany CPI charts, not
+    // the user's whole library. This is also what makes interop with
+    // the country pages/Compare "just work": any saved row for this
+    // same country+metric shows up here regardless of which page
+    // originally saved it, since they all write the same two columns.
+    // country_code needs matching in EITHER form (see REGISTRY_KEY_TO_
+    // CODE above) since a Dashboard-native row saved before that fix
+    // may still hold the old full display-name form ("Germany") rather
+    // than the 2-letter code every other page uses ("de").
+    var code = REGISTRY_KEY_TO_CODE[czState.countryCode] || czState.countryCode;
+    var altForm = code === czState.countryCode ? (CODE_TO_REGISTRY_KEY[code] || code) : czState.countryCode;
+    var codeForms = code === altForm ? [code] : [code, altForm];
     window.sb.auth.getUser().then(function(res){
       var user = res.data && res.data.user;
       if(!user) return render([]);
-      // Deliberately NOT filtered by country_code -- Dashboard is the
-      // cross-country home for saved charts, unlike a single country
-      // page which only ever has its own country's rows to show.
       return window.sb.from("saved_charts").select("*").eq("user_id", user.id)
-        .order("created_at", { ascending: false }).then(function(qres){ render(qres.data || []); });
-    }).catch(function(){ render([]); });
+        .in("country_code", codeForms).eq("metric_key", czState.metricKey)
+        .order("created_at", { ascending: false }).then(function(qres){
+          // supabase-js resolves a real backend error as {data:null,
+          // error:{...}} rather than rejecting -- treating qres.data||[]
+          // as "just empty" here would silently show "No saved charts
+          // yet" even when the query actually failed.
+          if(qres.error){
+            console.error("saved_charts select failed:", qres.error);
+            renderError(qres.error.message || "unknown error");
+            return;
+          }
+          render(qres.data || []);
+        });
+    }).catch(function(err){
+      console.error("saved_charts refresh failed:", err);
+      renderError(err && err.message ? err.message : "unknown error");
+    });
   }
   return { refresh: refresh };
 })();
