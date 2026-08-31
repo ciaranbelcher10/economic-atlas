@@ -4743,6 +4743,22 @@ window.refreshMPCContext = refreshMPCContext;
   var SAVED_CHART_METRIC_META = {
     boe_rate: { title: "Bank Rate", kind: "line", fmtY: function(v){ return v + "%"; }, srcNote: "Bank of England · IUDBEDR, official Bank Rate" }
   };
+  // Renders a saved chart's created_at (a UTC ISO string from Postgres)
+  // in the viewer's own local time -- this is "when I clicked save", a
+  // personal-convenience timestamp, not site data, so local time (not
+  // UTC, unlike renderLastUpdated elsewhere on this page) is the right
+  // call here.
+  function czFormatSavedAt(iso){
+    if(!iso) return "";
+    var dt = new Date(iso);
+    if(isNaN(dt.getTime())) return "";
+    var dd = String(dt.getDate()).padStart(2, "0");
+    var mo = MONTHS[dt.getMonth()];
+    var yy = dt.getFullYear();
+    var hh = String(dt.getHours()).padStart(2, "0");
+    var mi = String(dt.getMinutes()).padStart(2, "0");
+    return dd + " " + mo + " " + yy + ", " + hh + ":" + mi;
+  }
   function czSaveStyleSnapshot(){
     return {
       chartTitle: czState.chartTitle, yTitle: czState.yTitle,
@@ -4805,14 +4821,21 @@ window.refreshMPCContext = refreshMPCContext;
       }
       rows.forEach(function(row){
         var line = document.createElement("div");
-        line.style.cssText = "display:flex; align-items:center; justify-content:space-between; padding:6px 0; border-top:1px solid var(--hair);";
-        var label = document.createElement("span");
-        label.textContent = row.name + " (" + row.metric_key + ")";
+        line.style.cssText = "display:flex; align-items:center; justify-content:space-between; padding:8px 0; border-top:1px solid var(--hair);";
+        var labelWrap = document.createElement("span");
+        labelWrap.style.cssText = "display:flex; flex-direction:column;";
+        var nameEl = document.createElement("span");
+        nameEl.textContent = row.name;
+        nameEl.style.cssText = "font-weight:600;";
+        var metaEl = document.createElement("span");
+        metaEl.textContent = row.metric_key + " · saved " + czFormatSavedAt(row.created_at);
+        metaEl.style.cssText = "font-size:11.5px; color:var(--ink2); margin-top:2px;";
+        labelWrap.appendChild(nameEl); labelWrap.appendChild(metaEl);
         var btnWrap = document.createElement("span");
-        var loadBtn = document.createElement("button");
-        loadBtn.type = "button"; loadBtn.textContent = "Load";
-        loadBtn.style.cssText = "margin-right:8px; font-size:12px; padding:4px 10px; border:1px solid var(--hair); border-radius:6px; background:var(--paper); color:var(--ink); cursor:pointer;";
-        loadBtn.addEventListener("click", function(){ loadSavedChart(row); });
+        var openBtn = document.createElement("button");
+        openBtn.type = "button"; openBtn.textContent = "Open";
+        openBtn.style.cssText = "margin-right:8px; font-size:12px; padding:4px 10px; border:1px solid var(--hair); border-radius:6px; background:var(--paper); color:var(--ink); cursor:pointer;";
+        openBtn.addEventListener("click", function(){ loadSavedChart(row); });
         var delBtn = document.createElement("button");
         delBtn.type = "button"; delBtn.textContent = "Delete";
         delBtn.style.cssText = "font-size:12px; padding:4px 10px; border:1px solid var(--hair); border-radius:6px; background:var(--paper); color:var(--ink2); cursor:pointer;";
@@ -4820,8 +4843,8 @@ window.refreshMPCContext = refreshMPCContext;
           if(!window.confirm('Delete "' + row.name + '"?')) return;
           window.sb.from("saved_charts").delete().eq("id", row.id).then(function(){ refresh(); });
         });
-        btnWrap.appendChild(loadBtn); btnWrap.appendChild(delBtn);
-        line.appendChild(label); line.appendChild(btnWrap);
+        btnWrap.appendChild(openBtn); btnWrap.appendChild(delBtn);
+        line.appendChild(labelWrap); line.appendChild(btnWrap);
         listEl.appendChild(line);
       });
     }
