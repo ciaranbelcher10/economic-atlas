@@ -3950,7 +3950,7 @@ function redrawAllOpenMaps(){
 // one renderAll() at the end rather than reusing addMetric()/toggleCountry()
 // (each of which renders on its own) to avoid rebuilding the whole grid
 // three times over for one "Open chart" click.
-function loadSavedSelection(concept, countries, chartType, cardTime){
+function loadSavedSelection(concept, countries, chartType, cardTime, sortMode){
   var validCountries = (countries || []).filter(function(c){ return COUNTRY_LABEL[c]; });
   if(validCountries.length){
     selected = validCountries;
@@ -3975,6 +3975,13 @@ function loadSavedSelection(concept, countries, chartType, cardTime){
       changeEndYear: cardTime.changeEndYear || DEFAULT_CHANGE_END_YEAR
     };
     clampCardTimeState(concept);
+  }
+  if(chartType !== "line" && sortMode){
+    // Must happen before renderAll() -- buildBarChart() reads this via
+    // getCardSortMode(concept) to order the bars themselves, not just
+    // the modal's own sort dropdown, so setting it after the render
+    // would leave the actual chart one refresh behind the saved order.
+    setCardSortMode(concept, sortMode);
   }
   renderAll();
 }
@@ -5596,7 +5603,7 @@ window.EATLAS_COMPARE = {
       window.alert("This saved chart's countries aren't available on this page.");
       return;
     }
-    window.EATLAS_COMPARE.loadSavedSelection(concept, countries, chartType, style.cardTime || null);
+    window.EATLAS_COMPARE.loadSavedSelection(concept, countries, chartType, style.cardTime || null, style.sortMode || null);
     var card = document.querySelector('.metric-card[data-concept="' + concept + '"]');
     var btn = card && card.querySelector(".cz-btn");
     if(!btn){
@@ -5765,6 +5772,12 @@ window.EATLAS_COMPARE = {
             fromPeriod = String(cardTime.snapshotYear); toPeriod = String(cardTime.snapshotYear);
           }
         }
+        // Bar/snapshot mode's actual bar order comes from this card's own
+        // sort mode (highest-to-lowest, alphabetical, geo, manual...) --
+        // independent of `selected`'s own array order, which is why the
+        // countries list alone wasn't enough to reproduce "how the chart
+        // was ordered" on reopen.
+        var sortMode = chartType === "line" ? null : window.EATLAS_COMPARE.getCardSortMode(concept);
         var original = btn.textContent;
         btn.disabled = true; btn.textContent = "Saving…";
         try {
@@ -5782,6 +5795,7 @@ window.EATLAS_COMPARE = {
                 countries: countries,
                 chartType: chartType,
                 cardTime: cardTime,
+                sortMode: sortMode,
                 styleSnapshot: {
                   chartTitle: czmState.chartTitle, yTitle: czmState.yTitle,
                   showFill: czmState.showFill, showPoints: czmState.showPoints,
