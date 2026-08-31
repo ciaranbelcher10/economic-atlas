@@ -71,6 +71,16 @@ nav.sub a.item:hover, nav.sub a.item.active{background:rgba(255,255,255,.18); co
 
 /* ------------------------------ dropdown nav ----------------------------- */
 nav.top{position:relative;}
+/* The About dropdown's own position:relative context, unchanged.
+   Country Breakdowns moved into nav.sub with the two-ribbon split --
+   .dropdown-panel is position:absolute and has no positioning context
+   of its own (.dropdown never set position:relative; nav.top{position:
+   relative} was the only thing anchoring it, which is now wrong for
+   any dropdown living in nav.sub instead). Without this, the panel
+   anchors to whatever ancestor DOES have position set (or the initial
+   containing block if none does), landing in the wrong place entirely
+   rather than just being visually a bit off. */
+nav.sub{position:relative;}
 /* Push About/Plan/account to the far right of the utility ribbon, leaving
    the brand pinned left with the gap between them. #navLinks is
    display:contents on desktop so its children act as direct flex items
@@ -669,6 +679,21 @@ html[data-theme="dark"] .tour-box{
    alone, removing the need for !important entirely.
    ============================================================ */
 nav.top{
+  position:relative;
+  z-index:50;
+  background:#2A5A82;
+}
+/* nav.sub needs the exact same treatment as nav.top above, for the same
+   two reasons: (1) an unconditional-of-theme background so the two
+   ribbons are genuinely identical in both light and dark mode, not just
+   matched via the --navy variable which this more specific/later rule
+   would otherwise override for nav.top only; (2) the same z-index/
+   stacking-context fix already applied to nav.top's own dropdown --
+   without it, Country Breakdowns' dropdown-panel (now living in
+   nav.sub since the two-ribbon split) gets trapped behind the
+   backdrop-filter glass stacking context exactly as described above,
+   which is what "the dropdown doesn't work" turned out to be. */
+nav.sub{
   position:relative;
   z-index:50;
   background:#2A5A82;
