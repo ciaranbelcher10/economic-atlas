@@ -753,6 +753,10 @@ html[data-theme="dark"] .tpm-scopenote strong{color:var(--blue);}
   var SUPABASE_URL = "https://skluvrxnuibkordzgtmu.supabase.co";
   var SUPABASE_KEY = "sb_publishable_p6_GqrC8qcNC6KwPE46hkw_qdWQTuyT";
   var sb = supabase.createClient(SUPABASE_URL, SUPABASE_KEY);
+  // Exposed globally so the Save & Share code in the later <script>
+  // block (a separate IIFE, not sharing this function's local `sb`) can
+  // reach the same client rather than creating a second connection.
+  window.sb = sb;
   var authBtn = document.getElementById("authBtn");
   var authModal = document.getElementById("authModal");
   var authModalBackdrop = document.getElementById("authModalBackdrop");
@@ -4814,7 +4818,7 @@ window.refreshMPCContext = refreshMPCContext;
         delBtn.style.cssText = "font-size:12px; padding:4px 10px; border:1px solid var(--hair); border-radius:6px; background:var(--paper); color:var(--ink2); cursor:pointer;";
         delBtn.addEventListener("click", function(){
           if(!window.confirm('Delete "' + row.name + '"?')) return;
-          sb.from("saved_charts").delete().eq("id", row.id).then(function(){ refresh(); });
+          window.sb.from("saved_charts").delete().eq("id", row.id).then(function(){ refresh(); });
         });
         btnWrap.appendChild(loadBtn); btnWrap.appendChild(delBtn);
         line.appendChild(label); line.appendChild(btnWrap);
@@ -4822,10 +4826,10 @@ window.refreshMPCContext = refreshMPCContext;
       });
     }
     function refresh(){
-      sb.auth.getUser().then(function(res){
+      window.sb.auth.getUser().then(function(res){
         var user = res.data && res.data.user;
         if(!user) return render([]);
-        return sb.from("saved_charts").select("*").eq("user_id", user.id).eq("country_code", "uk")
+        return window.sb.from("saved_charts").select("*").eq("user_id", user.id).eq("country_code", "uk")
           .order("created_at", { ascending: false }).then(function(qres){ render(qres.data || []); });
       }).catch(function(){ render([]); });
     }
@@ -4845,27 +4849,37 @@ window.refreshMPCContext = refreshMPCContext;
     if(!name) return;
     var original = btn.textContent;
     btn.disabled = true; btn.textContent = "Saving…";
-    sb.auth.getUser().then(function(res){
-      var user = res.data && res.data.user;
-      if(!user) throw new Error("Not signed in");
-      return sb.from("saved_charts").insert({
-        user_id: user.id,
-        name: name,
-        country_code: "uk",
-        metric_key: czState.metricKey,
-        from_period: czState.from,
-        to_period: czState.to,
-        style: czSaveStyleSnapshot()
+    // Wrapped in try/catch: a synchronous error here (e.g. window.sb not
+    // existing for some reason) must not leave the button stuck on
+    // "Saving..." forever with no feedback -- that's exactly the bug
+    // this replaces, caused by window.sb not existing at the time this
+    // was first shipped.
+    try {
+      window.sb.auth.getUser().then(function(res){
+        var user = res.data && res.data.user;
+        if(!user) throw new Error("Not signed in");
+        return window.sb.from("saved_charts").insert({
+          user_id: user.id,
+          name: name,
+          country_code: "uk",
+          metric_key: czState.metricKey,
+          from_period: czState.from,
+          to_period: czState.to,
+          style: czSaveStyleSnapshot()
+        });
+      }).then(function(res){
+        if(res && res.error) throw res.error;
+        btn.textContent = "Saved ✓";
+        if(window.EATLAS_SAVED_CHARTS) window.EATLAS_SAVED_CHARTS.refresh();
+        setTimeout(function(){ btn.disabled = false; btn.textContent = original; }, 1600);
+      }).catch(function(err){
+        window.alert("Couldn't save this chart: " + (err && err.message ? err.message : "unknown error"));
+        btn.disabled = false; btn.textContent = original;
       });
-    }).then(function(res){
-      if(res && res.error) throw res.error;
-      btn.textContent = "Saved ✓";
-      if(window.EATLAS_SAVED_CHARTS) window.EATLAS_SAVED_CHARTS.refresh();
-      setTimeout(function(){ btn.disabled = false; btn.textContent = original; }, 1600);
-    }).catch(function(err){
+    } catch(err){
       window.alert("Couldn't save this chart: " + (err && err.message ? err.message : "unknown error"));
       btn.disabled = false; btn.textContent = original;
-    });
+    }
   });
   if(window.EATLAS_PREFS && window.EATLAS_PREFS.ready){
     window.EATLAS_PREFS.ready.then(function(){ window.EATLAS_SAVED_CHARTS.init(); });
