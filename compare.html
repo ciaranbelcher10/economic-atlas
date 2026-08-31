@@ -32,7 +32,7 @@
 <link href="https://fonts.googleapis.com/css2?family=Nunito+Sans:wght@400;600;700&display=swap" rel="stylesheet">
 <link rel="icon" type="image/png" sizes="32x32" href="favicon-32.png">
 <link rel="apple-touch-icon" href="apple-touch-icon.png">
-<link rel="stylesheet" href="style.css?v=42">
+<link rel="stylesheet" href="style.css?v=41">
 <style>
 :root{ --map-nodata: #E9EBE7; }
 /* ---- info button + popover (per-card data source & methodology) ---- */
@@ -658,6 +658,12 @@ footer.cmp-foot{margin-top:36px; font-size:12.5px; color:var(--ink2); border-top
   var SUPABASE_URL = "https://skluvrxnuibkordzgtmu.supabase.co";
   var SUPABASE_KEY = "sb_publishable_p6_GqrC8qcNC6KwPE46hkw_qdWQTuyT";
   var sb = supabase.createClient(SUPABASE_URL, SUPABASE_KEY);
+  // Exposed globally so the Save & Share code in a later, separate
+  // <script> block/IIFE (not sharing this function's local `sb`) can
+  // reach the same client -- same fix as every other Save & Share page
+  // (this was the exact cause of a real "stuck Saving..." bug the first
+  // time this pattern shipped, on uk.html).
+  window.sb = sb;
   var authBtn = document.getElementById("authBtn");
   var authModal = document.getElementById("authModal");
   var authModalBackdrop = document.getElementById("authModalBackdrop");
@@ -3930,6 +3936,34 @@ function redrawAllOpenMaps(){
     cardMapInstances[concept].update();
   });
 }
+// Applies a saved Compare chart's selection (countries + mode + time
+// state) and rebuilds the page around it -- used only by loadSavedChart
+// in the customize-modal <script> block further down (which owns czmState
+// and can't reach `selected`/cardChartType/cardTimeState directly, same
+// cross-scope reason getCardSortMode etc. are exposed below). Deliberately
+// one renderAll() at the end rather than reusing addMetric()/toggleCountry()
+// (each of which renders on its own) to avoid rebuilding the whole grid
+// three times over for one "Open chart" click.
+function loadSavedSelection(concept, countries, chartType, cardTime){
+  var validCountries = (countries || []).filter(function(c){ return COUNTRY_LABEL[c]; });
+  if(validCountries.length) selected = validCountries;
+  if(visibleMetrics.indexOf(concept) === -1){
+    visibleMetrics.push(concept);
+    saveVisibleMetrics();
+  }
+  ensureCardTimeState(concept);
+  cardChartType[concept] = chartType === "line" ? "line" : "bar";
+  if(chartType !== "line" && cardTime){
+    cardTimeState[concept] = {
+      mode: cardTime.mode === "change" ? "change" : "snapshot",
+      snapshotYear: cardTime.snapshotYear || DEFAULT_SNAPSHOT_YEAR,
+      changeStartYear: cardTime.changeStartYear || DEFAULT_CHANGE_START_YEAR,
+      changeEndYear: cardTime.changeEndYear || DEFAULT_CHANGE_END_YEAR
+    };
+    clampCardTimeState(concept);
+  }
+  renderAll();
+}
 window.EATLAS_COMPARE = {
   // toggleCountry/addMetric/openCountryModal/closeCountryModal are
   // private to this closure -- the tour engine runs in a separate
@@ -3958,7 +3992,15 @@ window.EATLAS_COMPARE = {
   refreshOneCard: refreshOneCard,
   openColorPicker: openColorPicker,
   getCountryColor: getCountryColor,
-  COUNTRY_LABEL: COUNTRY_LABEL
+  COUNTRY_LABEL: COUNTRY_LABEL,
+  getSelected: function(){ return selected.slice(); },
+  getCardChartType: function(concept){ return cardChartType[concept] === "line" ? "line" : "bar"; },
+  getCardTimeState: function(concept){
+    var st = cardTimeState[concept];
+    if(!st) return null;
+    return { mode: st.mode, snapshotYear: st.snapshotYear, changeStartYear: st.changeStartYear, changeEndYear: st.changeEndYear };
+  },
+  loadSavedSelection: loadSavedSelection
 };
 })();
 </script>
@@ -3976,6 +4018,18 @@ window.EATLAS_COMPARE = {
     <button type="button" class="chart-modal-close" id="customizeModalClose" aria-label="Close">&times;</button>
     <div style="display:flex; align-items:center; justify-content:space-between; gap:12px; margin:0 26px 2px 0;">
       <h2 style="margin:0; font-size:20px;">Customise &amp; export</h2>
+      <div style="display:flex; align-items:center; gap:10px;">
+        <!-- Admin-only (see czmSyncSaveOpenButtons); both hidden by
+             default so they never flash for non-admins before
+             EATLAS_PREFS resolves. -->
+        <div style="position:relative;">
+          <button type="button" id="czOpenChartBtn" hidden style="display:inline-flex; align-items:center; gap:6px; border:1px solid var(--hair); background:var(--panel); color:var(--ink); font-family:'Avenir Next','Avenir','Nunito Sans',system-ui,sans-serif; font-weight:600; font-size:13px; padding:8px 14px; border-radius:8px; cursor:pointer;">Open chart</button>
+          <div id="czOpenChartPopover" hidden style="position:absolute; top:calc(100% + 8px); left:0; z-index:20; width:320px; max-height:340px; overflow-y:auto; background:var(--panel); border:1px solid var(--hair); border-radius:12px; padding:14px; box-shadow:0 12px 32px rgba(0,0,0,.22);">
+            <h4 style="font-size:11.5px; text-transform:uppercase; letter-spacing:.05em; margin:0 0 8px; color:var(--ink2);">Saved charts</h4>
+            <div id="czOpenChartList" style="font-size:12.5px; color:var(--ink2);">Loading…</div>
+          </div>
+        </div>
+        <button type="button" id="czSaveChartBtn" hidden style="display:inline-flex; align-items:center; gap:6px; border:1px solid var(--hair); background:var(--panel); color:var(--ink); font-family:'Avenir Next','Avenir','Nunito Sans',system-ui,sans-serif; font-weight:600; font-size:13px; padding:8px 14px; border-radius:8px; cursor:pointer;">Save chart</button>
       <div style="position:relative;">
         <button type="button" class="export-opts-btn" id="czExportOptsBtn" style="display:inline-flex; align-items:center; gap:6px; border:1px solid var(--hair); background:var(--panel); color:var(--ink); font-family:'Avenir Next','Avenir','Nunito Sans',system-ui,sans-serif; font-weight:600; font-size:13px; padding:8px 14px; border-radius:8px; cursor:pointer;">Export &#9662;</button>
         <div id="czExportOptsPopover" hidden style="position:absolute; top:calc(100% + 8px); right:0; z-index:20; width:230px; background:var(--panel); border:1px solid var(--hair); border-radius:12px; padding:16px; box-shadow:0 12px 32px rgba(0,0,0,.22);">
@@ -3990,6 +4044,7 @@ window.EATLAS_COMPARE = {
             <button type="button" id="czExportSvgBtn" style="flex:1; padding:8px 0; border:1px solid var(--hair); background:var(--paper); color:var(--ink); border-radius:6px; cursor:pointer; font:inherit; font-size:12px;">SVG</button>
           </div>
         </div>
+      </div>
       </div>
     </div>
     <p id="czModalCountry" style="font-size:13px; color:var(--ink2); margin:0 0 18px;"></p>
@@ -5390,6 +5445,8 @@ window.EATLAS_COMPARE = {
     }); });
     if(!allValsForDefault.length) allValsForDefault = [0, 1];
     czmState = {
+      mode: "timeseries",
+      concept: (filenameBase || "").replace(/_comparison$/, ""),
       from: allDates[0], to: allDates[allDates.length - 1],
       showFill: false, showPoints: true, hideNoData: false,
       refLine: { enabled: isBizConf, value: isBizConf ? 100 : 0 }, centerAroundRef: isBizConf, thresholdShadeBars: false,
@@ -5399,6 +5456,7 @@ window.EATLAS_COMPARE = {
       srcNote: srcNote, yTitle: guessedYTitle, fmtY: effectiveFmtY,
       filenameBase: (filenameBase || title || "chart").toLowerCase().replace(/[^a-z0-9]+/g, "_").replace(/^_+|_+$/g, "")
     };
+    czmSyncSaveOpenButtons();
     document.getElementById("czModalCountry").textContent = title;
     document.getElementById("czModalSrc").textContent = "Source: " + srcNote;
     document.getElementById("czChartTitleInput").value = czmState.chartTitle;
@@ -5442,6 +5500,7 @@ window.EATLAS_COMPARE = {
     var defRawMin = Math.min(0, Math.min.apply(null, valsForDefault)), defRawMax = Math.max(0, Math.max.apply(null, valsForDefault));
     czmState = {
       mode: "snapshot",
+      concept: (filenameBase || "").replace(/_snapshot$/, ""),
       showFill: false, showPoints: true, hideNoData: false,
       refLine: { enabled: isBizConf, value: isBizConf ? 100 : 0 }, centerAroundRef: isBizConf, thresholdShadeBars: false,
       yTitlePos: "along", yTickStepIdx: defaultStepIdxFor(defRawMin, defRawMax, 5),
@@ -5450,6 +5509,7 @@ window.EATLAS_COMPARE = {
       srcNote: srcNote, yTitle: guessedYTitle, fmtY: effectiveFmtY,
       filenameBase: (filenameBase || title || "chart").toLowerCase().replace(/[^a-z0-9]+/g, "_").replace(/^_+|_+$/g, "")
     };
+    czmSyncSaveOpenButtons();
     document.getElementById("czModalCountry").textContent = title;
     document.getElementById("czModalSrc").textContent = "Source: " + srcNote;
     document.getElementById("czChartTitleInput").value = czmState.chartTitle;
@@ -5478,6 +5538,233 @@ window.EATLAS_COMPARE = {
     czRenderPreview();
     document.getElementById("customizeModal").hidden = false;
   };
+  // ---- Save & Share, Compare: admin-only for now ----
+  // A Compare chart's "selection" is richer than a single country page's
+  // (one metric + date range): it's a metric, a SET of countries, and
+  // which of the two fundamentally different views was showing --
+  // over-time (line) or point-in-time/change (bar) -- plus that view's
+  // own time setting. None of that fits the existing country_code /
+  // metric_key / from_period / to_period columns cleanly (country_code
+  // is a single NOT NULL value, not a list), so a Compare row uses the
+  // sentinel country_code "compare", puts the country list + chart type
+  // + card time state in the existing style jsonb column alongside the
+  // usual cosmetic style snapshot, and still populates from_period/
+  // to_period meaningfully: the line view's actual date range, or the
+  // bar view's snapshot year (from===to) / change-window years.
+  function czmSyncSaveOpenButtons(){
+    var czSaveBtn = document.getElementById("czSaveChartBtn");
+    var czOpenBtn = document.getElementById("czOpenChartBtn");
+    var showSaveOpen = !!(window.EATLAS_PREFS && window.EATLAS_PREFS.isAdmin() && czmState && czmState.concept);
+    if(czSaveBtn) czSaveBtn.hidden = !showSaveOpen;
+    if(czOpenBtn) czOpenBtn.hidden = !showSaveOpen;
+  }
+  function czFormatSavedAt(iso){
+    if(!iso) return "";
+    var dt = new Date(iso);
+    if(isNaN(dt.getTime())) return "";
+    var dd = String(dt.getDate()).padStart(2, "0");
+    var mo = MONTHS[dt.getMonth()];
+    var yy = dt.getFullYear();
+    var hh = String(dt.getHours()).padStart(2, "0");
+    var mi = String(dt.getMinutes()).padStart(2, "0");
+    return dd + " " + mo + " " + yy + ", " + hh + ":" + mi;
+  }
+  function loadSavedChart(row){
+    if(!window.EATLAS_COMPARE || !window.EATLAS_COMPARE.loadSavedSelection){
+      window.alert("This saved chart isn't available on this page.");
+      return;
+    }
+    var concept = row.metric_key;
+    var style = row.style || {};
+    var countries = style.countries || [];
+    var chartType = style.chartType === "line" ? "line" : "bar";
+    if(!countries.length){
+      window.alert("This saved chart's countries aren't available on this page.");
+      return;
+    }
+    window.EATLAS_COMPARE.loadSavedSelection(concept, countries, chartType, style.cardTime || null);
+    var card = document.querySelector('.metric-card[data-concept="' + concept + '"]');
+    var btn = card && card.querySelector(".cz-btn");
+    if(!btn){
+      window.alert("This saved chart's series isn't available on this page.");
+      return;
+    }
+    // Synchronous for a logged-in (Pro-equivalent) account -- no credit-
+    // spend promise in the way -- so czmState already reflects the
+    // freshly reopened chart by the time control returns here.
+    btn.click();
+    if(!czmState) return;
+    if(chartType === "line" && row.from_period && row.to_period){
+      czmState.from = row.from_period;
+      czmState.to = row.to_period;
+      var fromSel = document.getElementById("czFromDate"), toSel = document.getElementById("czToDate");
+      if(fromSel) fromSel.value = row.from_period;
+      if(toSel) toSel.value = row.to_period;
+    }
+    var snap = style.styleSnapshot || {};
+    if(snap.chartTitle != null){ czmState.chartTitle = snap.chartTitle; document.getElementById("czChartTitleInput").value = snap.chartTitle; }
+    if(snap.yTitle != null){ czmState.yTitle = snap.yTitle; document.getElementById("czYAxisTitleInput").value = snap.yTitle; }
+    if(snap.refLine){
+      czmState.refLine = snap.refLine;
+      document.getElementById("czReflineToggle").checked = !!snap.refLine.enabled;
+      document.getElementById("czReflineValue").value = snap.refLine.value;
+    }
+    if(chartType === "line"){
+      czmState.showFill = snap.showFill !== false;
+      document.getElementById("czFillToggle").checked = czmState.showFill;
+      czmState.showPoints = snap.showPoints !== false;
+      document.getElementById("czPointsToggle").checked = czmState.showPoints;
+    }
+    var countryEl = document.getElementById("czModalCountry");
+    if(countryEl && row.name) countryEl.textContent = row.name;
+    czRenderPreview();
+  }
+  window.EATLAS_SAVED_CHARTS = (function(){
+    function render(rows){
+      var listEl = document.getElementById("czOpenChartList");
+      if(!listEl) return;
+      listEl.innerHTML = "";
+      if(!rows.length){
+        listEl.textContent = "No saved charts yet -- open any metric's Customise & export, then Save chart.";
+        return;
+      }
+      rows.forEach(function(row){
+        var style = row.style || {};
+        var countryList = (style.countries || []).join(", ");
+        var line = document.createElement("div");
+        line.style.cssText = "display:flex; align-items:flex-start; justify-content:space-between; gap:10px; padding:10px 0; border-top:1px solid var(--hair);";
+        var labelWrap = document.createElement("span");
+        labelWrap.style.cssText = "display:flex; flex-direction:column; min-width:0;";
+        var nameEl = document.createElement("span");
+        nameEl.textContent = row.name;
+        nameEl.style.cssText = "font-weight:600; color:var(--ink);";
+        var metaEl = document.createElement("span");
+        metaEl.textContent = row.metric_key + " (" + (style.chartType === "line" ? "over time" : "point in time") + ") · " + countryList;
+        metaEl.style.cssText = "font-size:11.5px; color:var(--ink2); margin-top:2px;";
+        var savedEl = document.createElement("span");
+        savedEl.textContent = "saved " + czFormatSavedAt(row.created_at);
+        savedEl.style.cssText = "font-size:11.5px; color:var(--ink2);";
+        labelWrap.appendChild(nameEl); labelWrap.appendChild(metaEl); labelWrap.appendChild(savedEl);
+        var btnWrap = document.createElement("span");
+        btnWrap.style.cssText = "display:flex; gap:6px; flex-shrink:0;";
+        var openBtn = document.createElement("button");
+        openBtn.type = "button"; openBtn.textContent = "Open";
+        openBtn.style.cssText = "font-family:inherit; font-weight:600; font-size:12px; padding:5px 12px; border:none; border-radius:6px; background:var(--blue); color:#fff; cursor:pointer;";
+        openBtn.addEventListener("mouseenter", function(){ openBtn.style.background = "var(--navy-2)"; });
+        openBtn.addEventListener("mouseleave", function(){ openBtn.style.background = "var(--blue)"; });
+        openBtn.addEventListener("click", function(){
+          loadSavedChart(row);
+          var pop = document.getElementById("czOpenChartPopover");
+          if(pop) pop.hidden = true;
+        });
+        var delBtn = document.createElement("button");
+        delBtn.type = "button"; delBtn.textContent = "Delete";
+        delBtn.style.cssText = "font-family:inherit; font-weight:600; font-size:12px; padding:5px 12px; border:1px solid var(--hair); border-radius:6px; background:var(--paper); color:var(--ink2); cursor:pointer;";
+        delBtn.addEventListener("mouseenter", function(){ delBtn.style.color = "#D65A3C"; delBtn.style.borderColor = "#D65A3C"; });
+        delBtn.addEventListener("mouseleave", function(){ delBtn.style.color = "var(--ink2)"; delBtn.style.borderColor = "var(--hair)"; });
+        delBtn.addEventListener("click", function(){
+          if(!window.confirm('Delete "' + row.name + '"?')) return;
+          window.sb.from("saved_charts").delete().eq("id", row.id).then(function(){ refresh(); });
+        });
+        btnWrap.appendChild(openBtn); btnWrap.appendChild(delBtn);
+        line.appendChild(labelWrap); line.appendChild(btnWrap);
+        listEl.appendChild(line);
+      });
+    }
+    function refresh(){
+      window.sb.auth.getUser().then(function(res){
+        var user = res.data && res.data.user;
+        if(!user) return render([]);
+        // Compare-sourced rows only (country_code = "compare") -- a
+        // single-country page's own saved charts aren't openable here
+        // (no matching card without their exact metric_key existing as
+        // a Compare concept), so mixing them into this list would just
+        // produce broken "Open" clicks.
+        return window.sb.from("saved_charts").select("*").eq("user_id", user.id).eq("country_code", "compare")
+          .order("created_at", { ascending: false }).then(function(qres){ render(qres.data || []); });
+      }).catch(function(){ render([]); });
+    }
+    return { refresh: refresh };
+  })();
+  (function(){
+    var czOpenChartBtn = document.getElementById("czOpenChartBtn");
+    var czOpenChartPopover = document.getElementById("czOpenChartPopover");
+    if(czOpenChartBtn && czOpenChartPopover){
+      czOpenChartBtn.addEventListener("click", function(e){
+        e.stopPropagation();
+        var willShow = czOpenChartPopover.hidden;
+        czOpenChartPopover.hidden = !willShow;
+        if(willShow) window.EATLAS_SAVED_CHARTS.refresh();
+      });
+      document.addEventListener("click", function(e){
+        if(!czOpenChartPopover.hidden && !czOpenChartPopover.contains(e.target) && e.target !== czOpenChartBtn){
+          czOpenChartPopover.hidden = true;
+        }
+      });
+    }
+    var czSaveChartBtn = document.getElementById("czSaveChartBtn");
+    if(czSaveChartBtn){
+      czSaveChartBtn.addEventListener("click", function(){
+        var btn = this;
+        if(!czmState || !czmState.concept || !window.EATLAS_COMPARE) return;
+        var concept = czmState.concept;
+        var countries = window.EATLAS_COMPARE.getSelected();
+        var chartType = window.EATLAS_COMPARE.getCardChartType(concept);
+        var cardTime = chartType === "line" ? null : window.EATLAS_COMPARE.getCardTimeState(concept);
+        var name = window.prompt("Name this saved chart:", czmState.chartTitle || "");
+        if(name === null) return;
+        name = name.trim();
+        if(!name) return;
+        var fromPeriod = null, toPeriod = null;
+        if(chartType === "line"){
+          fromPeriod = czmState.from; toPeriod = czmState.to;
+        } else if(cardTime){
+          if(cardTime.mode === "change"){
+            fromPeriod = String(cardTime.changeStartYear); toPeriod = String(cardTime.changeEndYear);
+          } else {
+            fromPeriod = String(cardTime.snapshotYear); toPeriod = String(cardTime.snapshotYear);
+          }
+        }
+        var original = btn.textContent;
+        btn.disabled = true; btn.textContent = "Saving…";
+        try {
+          window.sb.auth.getUser().then(function(res){
+            var user = res.data && res.data.user;
+            if(!user) throw new Error("Not signed in");
+            return window.sb.from("saved_charts").insert({
+              user_id: user.id,
+              name: name,
+              country_code: "compare",
+              metric_key: concept,
+              from_period: fromPeriod,
+              to_period: toPeriod,
+              style: {
+                countries: countries,
+                chartType: chartType,
+                cardTime: cardTime,
+                styleSnapshot: {
+                  chartTitle: czmState.chartTitle, yTitle: czmState.yTitle,
+                  showFill: czmState.showFill, showPoints: czmState.showPoints,
+                  refLine: czmState.refLine
+                }
+              }
+            });
+          }).then(function(res){
+            if(res && res.error) throw res.error;
+            btn.textContent = "Saved ✓";
+            if(window.EATLAS_SAVED_CHARTS) window.EATLAS_SAVED_CHARTS.refresh();
+            setTimeout(function(){ btn.disabled = false; btn.textContent = original; }, 1600);
+          }).catch(function(err){
+            window.alert("Couldn't save this chart: " + (err && err.message ? err.message : "unknown error"));
+            btn.disabled = false; btn.textContent = original;
+          });
+        } catch(err){
+          window.alert("Couldn't save this chart: " + (err && err.message ? err.message : "unknown error"));
+          btn.disabled = false; btn.textContent = original;
+        }
+      });
+    }
+  })();
 })();
 </script>
 <script>
