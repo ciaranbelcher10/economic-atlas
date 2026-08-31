@@ -5671,6 +5671,11 @@ window.EATLAS_COMPARE = {
         listEl.appendChild(line);
       });
     }
+    function renderError(msg){
+      var listEl = document.getElementById("czOpenChartList");
+      if(!listEl) return;
+      listEl.textContent = "Couldn't load saved charts: " + msg;
+    }
     function refresh(){
       window.sb.auth.getUser().then(function(res){
         var user = res.data && res.data.user;
@@ -5681,8 +5686,25 @@ window.EATLAS_COMPARE = {
         // a Compare concept), so mixing them into this list would just
         // produce broken "Open" clicks.
         return window.sb.from("saved_charts").select("*").eq("user_id", user.id).eq("country_code", "compare")
-          .order("created_at", { ascending: false }).then(function(qres){ render(qres.data || []); });
-      }).catch(function(){ render([]); });
+          .order("created_at", { ascending: false }).then(function(qres){
+            // supabase-js resolves (doesn't reject) a real backend error
+            // as {data:null, error:{...}} -- treating qres.data||[] as
+            // "just empty" here would silently show "No saved charts
+            // yet" even when the query actually failed, which is exactly
+            // the class of bug that made a previous "stuck Saving..."
+            // issue invisible until a screenshot surfaced the real
+            // message. Surfacing it (console + the list itself) instead.
+            if(qres.error){
+              console.error("saved_charts select failed:", qres.error);
+              renderError(qres.error.message || "unknown error");
+              return;
+            }
+            render(qres.data || []);
+          });
+      }).catch(function(err){
+        console.error("saved_charts refresh failed:", err);
+        renderError(err && err.message ? err.message : "unknown error");
+      });
     }
     return { refresh: refresh };
   })();
