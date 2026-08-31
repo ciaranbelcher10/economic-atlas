@@ -69,7 +69,7 @@
 <link href="https://fonts.googleapis.com/css2?family=Nunito+Sans:wght@400;600;700&display=swap" rel="stylesheet">
 <link rel="icon" type="image/png" sizes="32x32" href="favicon-32.png">
 <link rel="apple-touch-icon" href="apple-touch-icon.png">
-<link rel="stylesheet" href="style.css?v=41">
+<link rel="stylesheet" href="style.css?v=43">
 <style>
 .led{display:inline-block; width:9px; height:9px; border-radius:50%;
   margin-right:9px; vertical-align:middle; position:relative; top:-3px;}
@@ -1590,13 +1590,14 @@ document.addEventListener("DOMContentLoaded", function(){
   <button data-sec="public">Public Finances</button>
 </nav>
 <div class="metric-toggles" aria-label="Display options">
-  <button type="button" class="mtoggle" id="toggleReal" onclick="toggleMetric('real',this)">
+  <button type="button" class="mtoggle" id="toggleReal" onclick="toggleMetric('real',this)" aria-pressed="false">
     <span class="mtoggle-switch" aria-hidden="true"></span>Make it real
   </button>
-  <button type="button" class="mtoggle" id="toggleDollar" onclick="toggleMetric('dollar',this)">
+  <button type="button" class="mtoggle" id="toggleDollar" onclick="toggleMetric('dollar',this)" aria-pressed="false">
     <span class="mtoggle-switch" aria-hidden="true"></span>Dollarise
   </button>
   <span class="mtoggle-note" id="mtoggleNote"></span>
+  <span id="mtoggleAnnounce" class="sr-only" role="status" aria-live="polite"></span>
 </div>
 <section class="sec" id="sec-headline">
   <div class="hero" id="hero" aria-label="Headline figures"></div>
@@ -2561,10 +2562,23 @@ function buildDisplaySeries(rawSeries){
   }
   return out;
 }
+// Announces the new on/off state via the visually-hidden live region
+// next to the toggles, so a screen reader user gets explicit positive
+// confirmation of the switch (aria-pressed alone is enough for a screen
+// reader to report the button's state ON FOCUS, but doesn't proactively
+// announce a change made via mouse click without moving focus).
+function announceToggle(which, on){
+  const el = document.getElementById("mtoggleAnnounce");
+  if(!el) return;
+  const label = which === "real" ? "Make it real" : "Dollarise";
+  el.textContent = label + ": " + (on ? "on" : "off");
+}
 function toggleMetric(which, el){
-  if(el.classList.contains("disabled")) return;
+  if(el.disabled) return;
   TOGGLE_STATE[which] = !TOGGLE_STATE[which];
   el.classList.toggle("on", TOGGLE_STATE[which]);
+  el.setAttribute("aria-pressed", String(TOGGLE_STATE[which]));
+  announceToggle(which, TOGGLE_STATE[which]);
   rerender();
 }
 function rerender(){
@@ -2575,14 +2589,25 @@ function rerender(){
   const note = document.getElementById("mtoggleNote");
   realBtn.classList.remove("disabled");
   dollarBtn.classList.remove("disabled");
+  // disabled/aria-disabled mirror the "disabled" CSS class below --
+  // previously that class was purely visual (opacity), leaving the
+  // button semantically enabled and clickable/focusable for assistive
+  // tech and keyboard users despite looking greyed out.
+  realBtn.disabled = false; realBtn.removeAttribute("aria-disabled");
+  dollarBtn.disabled = false; dollarBtn.removeAttribute("aria-disabled");
   dollarBtn.title="";
-  if(!s.gdp_real) realBtn.classList.add("disabled");
+  if(!s.gdp_real){
+    realBtn.classList.add("disabled");
+    realBtn.disabled = true; realBtn.setAttribute("aria-disabled", "true");
+  }
   const alreadyUsd = COUNTRY_LABEL==="US";
   if(alreadyUsd){
     dollarBtn.classList.add("disabled");
+    dollarBtn.disabled = true; dollarBtn.setAttribute("aria-disabled", "true");
     dollarBtn.title="Already in US dollars";
   } else if(!PAGE_DATA.fx_to_usd){
     dollarBtn.classList.add("disabled");
+    dollarBtn.disabled = true; dollarBtn.setAttribute("aria-disabled", "true");
     dollarBtn.title="Exchange rate not available yet";
   }
   const notes = [];

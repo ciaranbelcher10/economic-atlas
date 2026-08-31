@@ -32,7 +32,7 @@
 <link href="https://fonts.googleapis.com/css2?family=Nunito+Sans:wght@400;600;700&display=swap" rel="stylesheet">
 <link rel="icon" type="image/png" sizes="32x32" href="favicon-32.png">
 <link rel="apple-touch-icon" href="apple-touch-icon.png">
-<link rel="stylesheet" href="style.css?v=41">
+<link rel="stylesheet" href="style.css?v=43">
 <script src="https://cdnjs.cloudflare.com/ajax/libs/Chart.js/4.4.1/chart.umd.min.js"></script>
 <script src="https://cdnjs.cloudflare.com/ajax/libs/hammer.js/2.0.8/hammer.min.js"></script>
 <script src="https://cdnjs.cloudflare.com/ajax/libs/chartjs-plugin-zoom/2.0.1/chartjs-plugin-zoom.min.js"></script>
@@ -1496,13 +1496,14 @@ footer.dash-foot{margin-top:36px; font-size:12.5px; color:var(--ink2); border-to
   <h1 style="font-size:28px; letter-spacing:-.01em; margin-bottom:6px;">My Dashboard</h1>
   <p style="color:var(--ink2); font-size:14.5px; margin:8px 0 0;">Pin any metric from any of the 18 tracked countries into one personal view, with a chart on demand for any tile.</p>
   <div class="metric-toggles" aria-label="Display options">
-    <button type="button" class="mtoggle" id="makeRealBtn">
+    <button type="button" class="mtoggle" id="makeRealBtn" aria-pressed="false">
       <span class="mtoggle-switch" aria-hidden="true"></span>Make it real
     </button>
-    <button type="button" class="mtoggle" id="dollariseBtn">
+    <button type="button" class="mtoggle" id="dollariseBtn" aria-pressed="false">
       <span class="mtoggle-switch" aria-hidden="true"></span>Dollarise
     </button>
     <span class="mtoggle-note">"Make it real" shows GDP level tiles inflation-adjusted. Dollarise shows currency figures (GDP, debt, trade) in USD, using the same FX rates as each country's own page.</span>
+    <span id="mtoggleAnnounce" class="sr-only" role="status" aria-live="polite"></span>
     <button type="button" class="dashexportbtn" id="exportDashboardBtn" style="margin-left:auto;">Export dashboard (PNG)</button>
   </div>
   <div id="loadMsg" class="loadmsg">Loading every country&#39;s data&hellip;</div>
@@ -4804,15 +4805,28 @@ loadAll().then(function(){
     });
   }
   document.getElementById("exportDashboardBtn").addEventListener("click", exportDashboardPng);
+  // Announces the new on/off state via the visually-hidden live region
+  // next to the toggles, so a screen reader user gets explicit positive
+  // confirmation of the switch (aria-pressed alone is enough for a screen
+  // reader to report the button's state ON FOCUS, but doesn't proactively
+  // announce a change made via mouse click without moving focus).
+  function announceToggle(which, on){
+    var el = document.getElementById("mtoggleAnnounce");
+    if(!el) return;
+    var label = which === "real" ? "Make it real" : "Dollarise";
+    el.textContent = label + ": " + (on ? "on" : "off");
+  }
   var dollarBtn = document.getElementById("dollariseBtn");
   function updateDollarBtn(){
     dollarBtn.classList.toggle("on", dollarise);
+    dollarBtn.setAttribute("aria-pressed", String(dollarise));
   }
   updateDollarBtn();
   dollarBtn.addEventListener("click", function(){
     dollarise = !dollarise;
     try { localStorage.setItem(DOLLARISE_KEY, dollarise ? "1" : "0"); } catch(e){}
     updateDollarBtn();
+    announceToggle("dollar", dollarise);
     // Currency figures depend on dollarise, and any tile with its chart
     // already open needs its chart torn down and rebuilt with the newly
     // converted (or reverted) points -- simplest correct way to do that
@@ -4824,12 +4838,14 @@ loadAll().then(function(){
   var realBtn = document.getElementById("makeRealBtn");
   function updateRealBtn(){
     realBtn.classList.toggle("on", makeItReal);
+    realBtn.setAttribute("aria-pressed", String(makeItReal));
   }
   updateRealBtn();
   realBtn.addEventListener("click", function(){
     makeItReal = !makeItReal;
     try { localStorage.setItem(MAKE_REAL_KEY, makeItReal ? "1" : "0"); } catch(e){}
     updateRealBtn();
+    announceToggle("real", makeItReal);
     // Same reasoning as Dollarise's own handler just above: the
     // underlying series a GDP-level tile points to changes entirely
     // (nominal vs real), so any already-open chart needs tearing down
