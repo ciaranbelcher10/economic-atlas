@@ -69,7 +69,7 @@
 <link href="https://fonts.googleapis.com/css2?family=Nunito+Sans:wght@400;600;700&display=swap" rel="stylesheet">
 <link rel="icon" type="image/png" sizes="32x32" href="favicon-32.png">
 <link rel="apple-touch-icon" href="apple-touch-icon.png">
-<link rel="stylesheet" href="style.css?v=42">
+<link rel="stylesheet" href="style.css?v=41">
 <style>
 .led{display:inline-block; width:9px; height:9px; border-radius:50%;
   margin-right:9px; vertical-align:middle; position:relative; top:-3px;}
@@ -2067,6 +2067,15 @@ function chartPanel(key, containerId, title, expl, series, kind, fmtY, fmtTip, s
   const refLineVal = refLine==null ? null : refLine;
   const chart = (kind==="bar"?barChart:lineChart)(document.getElementById(id), pts, fmtY, fmtTip, refLineVal, key);
   CHART_REGISTRY[id] = {pts, kind, fmtY, fmtTip, refLine:refLineVal, title, srcNote, key};
+  // Auto-registers this chart's title/format/source metadata for Save &
+  // Share's "Open chart" -- so every chartPanel() chart with a stable key
+  // is save/loadable automatically, with nothing to hand-maintain per
+  // metric. Replaces the earlier one-off hardcoded lookup that only knew
+  // about boe_rate.
+  if(key){
+    window.EATLAS_CHART_META = window.EATLAS_CHART_META || {};
+    window.EATLAS_CHART_META[key] = { title: title, srcNote: srcNote, fmtY: fmtY, kind: kind };
+  }
   wireRangePresets(panel, pts, kind, chart);
   panel.querySelector(".resetzoom").addEventListener("click", ()=>{ if(chart.resetZoom) chart.resetZoom(); });
   panel.querySelector(".expandBtn").addEventListener("click", ()=> openChartModal(id));
@@ -4248,21 +4257,17 @@ document.querySelectorAll(".mtbtn").forEach(function(btn){
     czRenderPreview();
     document.getElementById("customizeModal").hidden = false;
   };
-  // ---- Save & Share, Phase 1: UK page only, admin-only ----
+  // ---- Save & Share, Phase 2: all charts on the UK page, admin-only ----
   // Saves the SELECTION (metric key + date range + a subset of style),
   // never the plotted values -- see saved_charts.sql. Loading a saved
   // chart re-reads window.EATLAS_SERIES (populated fresh by render() on
   // every page load) rather than replaying stored numbers.
   //
-  // SAVED_CHART_METRIC_META is a deliberate, temporary shortcut: title/
-  // format/source-note metadata that chartPanel() already has at each of
-  // its call sites but that isn't exposed anywhere reusable. Hardcoded
-  // here for boe_rate only while this feature is proven on one metric;
-  // rolling out beyond this page means building this from the same
-  // values chartPanel() is called with, not copy-pasting more entries.
-  var SAVED_CHART_METRIC_META = {
-    boe_rate: { title: "Bank Rate", kind: "line", fmtY: function(v){ return v + "%"; }, srcNote: "Bank of England · IUDBEDR, official Bank Rate" }
-  };
+  // Metadata (title/format/source note) for each metric key now comes
+  // from window.EATLAS_CHART_META, auto-registered by chartPanel() itself
+  // as it builds each chart -- replaces the earlier hardcoded map that
+  // only knew about boe_rate, so every chart with a key on this page is
+  // save/loadable with nothing to hand-maintain per metric.
   // Renders a saved chart's created_at (a UTC ISO string from Postgres)
   // in the viewer's own local time -- this is "when I clicked save", a
   // personal-convenience timestamp, not site data, so local time (not
@@ -4287,7 +4292,7 @@ document.querySelectorAll(".mtbtn").forEach(function(btn){
     };
   }
   function loadSavedChart(row){
-    var meta = SAVED_CHART_METRIC_META[row.metric_key];
+    var meta = window.EATLAS_CHART_META && window.EATLAS_CHART_META[row.metric_key];
     var series = window.EATLAS_SERIES && window.EATLAS_SERIES[row.metric_key];
     if(!meta || !series || !series.points){
       window.alert("This saved chart's series isn't available on this page.");
