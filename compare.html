@@ -32,7 +32,7 @@
 <link href="https://fonts.googleapis.com/css2?family=Nunito+Sans:wght@400;600;700&display=swap" rel="stylesheet">
 <link rel="icon" type="image/png" sizes="32x32" href="favicon-32.png">
 <link rel="apple-touch-icon" href="apple-touch-icon.png">
-<link rel="stylesheet" href="style.css?v=46">
+<link rel="stylesheet" href="style.css?v=47">
 <style>
 :root{ --map-nodata: #E9EBE7; }
 /* ---- info button + popover (per-card data source & methodology) ---- */
@@ -1867,14 +1867,537 @@ function currencySymbol(unitStr){
   var m = unitStr.match(/^[^a-zA-Z0-9]+/);
   return m ? m[0] : "";
 }
-function curFmt(rawValue, unitStr, decimals){
-  var scale = scaleOf(unitStr);
-  var symbol = currencySymbol(unitStr);
-  var a = Math.abs(rawValue) * scale;
-  var sign = rawValue < 0 ? "\u2212" : "";
-  if(a >= 1e12) return sign + symbol + (a/1e12).toFixed(decimals) + "tn";
-  if(a >= 1e9) return sign + symbol + (a/1e9).toFixed(decimals) + "bn";
-  return sign + symbol + (a/1e6).toFixed(0) + "m";
+
+/* ============================== source citations ============================== */
+// Real per-metric, per-country citations -- the same text already live
+// in each country page's own INFO_CONTENT (the ⓘ info popover). The
+// Customise & Export "Source:" footer used to be a *description* of the
+// chart ("Unemployment rate, current selection...") mislabelled as a
+// citation -- this replaces that with an actual attribution.
+var SOURCE_MAP = {
+  "Argentina": {
+    business_confidence: "OECD · Business Confidence Indicator (BCICP), amplitude-adjusted, long-term average = 100.",
+    cpi: "OECD live prices system · CPI, all items, year on year.",
+    debt_gdp: "FRED series GGGDTAARA188N · IMF World Economic Outlook, general government, % of GDP, annual.",
+    deficit: "FRED series GGNLBAARA188N · IMF World Economic Outlook, general government, % of GDP, annual.",
+    fdi: "World Bank · % of GDP, annual.",
+    gdp_growth: "FRED series NGDPRNSAXDCARQ · IMF International Financial Statistics, quarterly, not seasonally adjusted.",
+    gdp_level: "FRED series NGDPSAXDCARQ · IMF International Financial Statistics, trailing 4-quarter sum, seasonally adjusted (falls back to World Bank current US$, annual, only if the live ARS series is unavailable on a given run).",
+    gdp_real: "FRED series NGDPRNSAXDCARQ · IMF International Financial Statistics, quarterly, NOT seasonally adjusted (no seasonally-adjusted version was confirmed available for Argentina, unlike most other pages here -- large regular swings between quarters partly reflect seasonal patterns, not just the underlying trend).",
+    trade_balance: "OECD · merchandise trade, monthly.",
+    unemployment: "World Bank SL.UEM.TOTL.ZS · modeled ILO estimate, % of total labour force, annual.",
+  },
+  "Australia": {
+    bond_yield_10y: "FRED series IRLTLT01AUM156N · monthly average.",
+    business_confidence: "OECD · Business Confidence Indicator (BCICP), amplitude-adjusted, long-term average = 100.",
+    cpi: "OECD live prices system · CPI, all items, year on year, quarterly.",
+    current_account: "World Bank · % of GDP, annual.",
+    debt_gdp: "FRED (IMF World Economic Outlook), annual.",
+    deficit: "FRED (IMF World Economic Outlook), annual.",
+    fdi: "World Bank · % of GDP, annual.",
+    gdp_growth: "IMF International Financial Statistics, via FRED, quarter-on-quarter.",
+    gdp_level: "FRED series (IMF International Financial Statistics), quarterly.",
+    gdp_real: "IMF International Financial Statistics, via FRED, quarterly.",
+    trade_balance: "FRED series XTNTVA01AUM667S · OECD merchandise trade, monthly.",
+    unemployment: "FRED series LRUNTTTTAUQ156S · seasonally adjusted, quarterly.",
+  },
+  "Austria": {
+    bond_yield_10y: "FRED series IRLTLT01ATM156N · OECD, monthly.",
+    business_confidence: "OECD · Business Confidence Indicator (BCICP), amplitude-adjusted, long-term average = 100.",
+    cpi: "FRED series CP0000ATM086NEST · HICP, all items, year on year.",
+    current_account: "World Bank · % of GDP, annual.",
+    debt_gdp: "Eurostat gov_10dd_edpt1 · EDP notification table, general government, % of GDP, annual.",
+    deficit: "Eurostat gov_10dd_edpt1 · EDP notification table, general government, % of GDP, annual.",
+    employment_rate: "FRED series LREM64TTATQ156S · OECD, ages 15-64, seasonally adjusted, quarterly. This naming pattern is confirmed working for other OECD members but hasn't been individually re-verified against the live API specifically for Austria.",
+    fdi: "World Bank · % of GDP, annual.",
+    gdp_growth: "FRED series CLVMNACSCAB1GQAT · Eurostat, quarterly, quarter-on-quarter.",
+    gdp_level: "FRED series CPMNACSCAB1GQAT · Eurostat, quarterly, seasonally adjusted, trailing 4-quarter sum.",
+    gdp_real: "FRED series CLVMNACSCAB1GQAT · Eurostat, quarterly, seasonally adjusted, trailing 4-quarter sum.",
+    participation_rate: "FRED series LRAC64TTATQ156S · OECD, ages 15-64, seasonally adjusted, quarterly. This naming pattern is confirmed working for other OECD members but hasn't been individually re-verified against the live API specifically for Austria.",
+    trade_balance: "Eurostat · goods trade, total, monthly.",
+    unemployment: "FRED series LRHUTTTTATM156S · OECD harmonized, seasonally adjusted, monthly.",
+  },
+  "Brazil": {
+    bond_yield_10y: "FRED series IRLTLT01BRM156N · monthly average.",
+    business_confidence: "OECD · Business Confidence Indicator (BCICP), amplitude-adjusted, long-term average = 100.",
+    cpi: "OECD live prices system · CPI, all items, year on year.",
+    current_account: "World Bank · % of GDP, annual.",
+    debt_gdp: "FRED (IMF World Economic Outlook), annual.",
+    deficit: "FRED (IMF World Economic Outlook), annual.",
+    fdi: "World Bank · % of GDP, annual.",
+    gdp_growth: "IMF International Financial Statistics, via FRED, quarter-on-quarter.",
+    gdp_level: "FRED series NGDPNSAXDCBRQ · IMF International Financial Statistics, quarterly, not seasonally adjusted.",
+    gdp_real: "IMF International Financial Statistics, via FRED, quarterly.",
+    trade_balance: "FRED series XTNTVA01BRQ667S · OECD merchandise trade, quarterly.",
+    unemployment: "World Bank · % of total labor force, annual.",
+  },
+  "Canada": {
+    business_confidence: "OECD · Business Confidence Indicator (BCICP), amplitude-adjusted, long-term average = 100.",
+    cpi: "OECD live prices system · CPI, all items, year on year.",
+    current_account: "World Bank · % of GDP, annual.",
+    debt_gdp: "FRED (IMF World Economic Outlook), annual.",
+    deficit: "FRED (IMF World Economic Outlook), annual.",
+    fdi: "World Bank · % of GDP, annual.",
+    gdp_growth: "FRED (IMF International Financial Statistics), quarter-on-quarter.",
+    gdp_level: "FRED series (IMF International Financial Statistics), quarterly.",
+    gdp_real: "IMF International Financial Statistics, via FRED, quarterly.",
+    overnight_rate: "FRED series IRSTCI01CAM156N · interbank overnight rate, monthly.",
+    trade_balance: "FRED series CANXTNTVA01CXMLQ · OECD merchandise trade, quarterly.",
+    unemployment: "FRED series LRUNTTTTCAM156S · seasonally adjusted, monthly.",
+  },
+  "Chile": {
+    bond_yield_10y: "FRED series IRLTLT01CLM156N · monthly average.",
+    business_confidence: "OECD · Business Confidence Indicator (BCICP), amplitude-adjusted, long-term average = 100.",
+    cpi: "OECD live prices system · CPI, all items, year on year.",
+    current_account: "World Bank · % of GDP, annual.",
+    debt_gdp: "FRED (IMF Western Hemisphere Regional Economic Outlook), annual.",
+    deficit: "FRED (IMF Western Hemisphere Regional Economic Outlook), annual.",
+    employment_rate: "FRED series LREM64TTCLQ156S · OECD, ages 15-64, seasonally adjusted, quarterly.",
+    fdi: "World Bank · % of GDP, annual.",
+    gdp_growth: "FRED series NAEXKP01CLQ657S · OECD, real GDP growth quarter-on-quarter, as published.",
+    gdp_growth_yoy: "FRED series CHLGDPRQPSMEI · OECD, real GDP growth year-on-year, as published.",
+    gdp_level: "World Bank NY.GDP.MKTP.CN · current local-currency units (CLP), annual.",
+    gdp_real: "World Bank NY.GDP.MKTP.KN · constant local-currency units (CLP), annual.",
+    participation_rate: "FRED series LRAC64TTCLQ156S · OECD, ages 15-64, seasonally adjusted, quarterly.",
+    trade_balance: "FRED series XTNTVA01CLM667S · OECD merchandise trade, monthly.",
+    unemployment: "FRED series LRHUTTTTCLQ156S · OECD-harmonized, seasonally adjusted, quarterly.",
+  },
+  "Colombia": {
+    bond_yield_10y: "FRED series COLIRLTLT01STM · monthly average.",
+    business_confidence: "OECD · Business Confidence Indicator (BCICP), amplitude-adjusted, long-term average = 100.",
+    cpi: "OECD live prices system · CPI, all items, year on year.",
+    current_account: "World Bank · % of GDP, annual.",
+    debt_gdp: "FRED (IMF Western Hemisphere Regional Economic Outlook), annual.",
+    deficit: "FRED (IMF Western Hemisphere Regional Economic Outlook), annual.",
+    employment_rate: "FRED series COLLREM64TTSTSAM · OECD, ages 15-64, seasonally adjusted, monthly.",
+    fdi: "World Bank · % of GDP, annual.",
+    gdp_growth: "FRED series COLNAEXKP01GPSAQ · OECD, real GDP growth quarter-on-quarter, as published.",
+    gdp_growth_yoy: "FRED series COLNAEXKP01GYSAQ · OECD, real GDP growth year-on-year, as published.",
+    gdp_level: "World Bank NY.GDP.MKTP.CN · current local-currency units (COP), annual.",
+    gdp_real: "World Bank NY.GDP.MKTP.KN · constant local-currency units (COP), annual.",
+    participation_rate: "FRED series COLLRACTTTTSTSAM · OECD, ages 15+, seasonally adjusted, monthly.",
+    trade_balance: "FRED series COLXTNTVA01CXMLSAM · OECD merchandise trade, USD converted, seasonally adjusted, monthly.",
+    unemployment: "FRED series COLLRHUTTTTSTSAM · OECD-harmonized, seasonally adjusted, monthly.",
+  },
+  "Denmark": {
+    bond_yield_10y: "FRED series IRLTLT01DKM156N · OECD, monthly.",
+    business_confidence: "OECD · Business Confidence Indicator (BCICP), amplitude-adjusted, long-term average = 100.",
+    cpi: "OECD live prices system · CPI, all items, year on year.",
+    current_account: "World Bank · % of GDP, annual.",
+    debt_gdp: "Eurostat · general government, % of GDP, annual.",
+    deficit: "Eurostat · general government, % of GDP, annual.",
+    employment_rate: "FRED series LREM64TTDKQ156S · OECD, ages 15-64, seasonally adjusted, quarterly.",
+    fdi: "World Bank · % of GDP, annual.",
+    gdp_growth: "Derived from Eurostat CLVMNACSCAB1GQDK, via FRED, quarter-on-quarter.",
+    gdp_level: "Eurostat CPMNACSCAB1GQDK, via FRED · current prices, seasonally adjusted, quarterly (rolled up to annual).",
+    gdp_real: "Eurostat CLVMNACSCAB1GQDK, via FRED, quarterly.",
+    participation_rate: "FRED series LRAC64TTDKQ156S · OECD, ages 15-64, seasonally adjusted, quarterly.",
+    trade_balance: "OECD · merchandise trade, quarterly.",
+    unemployment: "FRED series LRHUTTTTDKM156S · OECD harmonized, monthly.",
+  },
+  "Eurozone": {
+    business_confidence: "OECD · Business Confidence Indicator (BCICP), amplitude-adjusted, long-term average = 100.",
+    cpi: "Calculated from FRED series CP0000EZ19M086NEST · HICP, all items, EA19 aggregate.",
+    cpi_mom: "Derived from FRED series CP0000EZ19M086NEST (Eurostat).",
+    current_account: "World Bank · % of GDP, annual, euro-area aggregate.",
+    debt_gdp: "FRED series GGGDTAEZA188N · IMF, general government, annual.",
+    deficit: "FRED series GGNLBAEZA188N · IMF, net lending/borrowing, annual.",
+    ecb_rate: "FRED series ECBDFR · end-of-month value.",
+    exports: "Prefers a live Eurostat ext_st feed -- falls back to FRED series XTEXVA01EZM667S (OECD, discontinued April 2023) only if the live feed is unavailable on a given run.",
+    fdi: "World Bank · FDI net inflows, % of GDP, annual, euro-area aggregate.",
+    gdp_growth: "Calculated from FRED series CLVMEURSCAB1GQEA19 (Eurostat).",
+    gdp_level: "FRED series CPMNACSCAB1GQEA19 · Eurostat, EA19 aggregate, nominal, rolling four-quarter sum.",
+    gdp_real: "FRED series CLVMEURSCAB1GQEA19 · Eurostat, EA19 aggregate, quarterly.",
+    imports: "Prefers a live Eurostat ext_st feed -- falls back to FRED series XTIMVA01EZM667S (OECD, discontinued April 2023) only if the live feed is unavailable on a given run.",
+    trade_balance: "Prefers a live Eurostat ext_st feed (extra-euro-area goods trade) -- falls back to an OECD-mirrored series that was confirmed discontinued in April 2023 only if the live feed is unavailable on a given run.",
+    unemployment: "FRED series LRHUTTTTEZM156S · OECD, seasonally adjusted.",
+  },
+  "France": {
+    bond_yield_10y: "FRED series IRLTLT01FRM156N · monthly average.",
+    business_confidence: "OECD · Business Confidence Indicator (BCICP), amplitude-adjusted, long-term average = 100.",
+    cpi: "FRED series CP0000FRM086NEST · HICP, all items, year on year.",
+    current_account: "World Bank · % of GDP, annual.",
+    debt_gdp: "Eurostat · general government, % of GDP, annual.",
+    deficit: "Eurostat · general government, % of GDP, annual.",
+    employment_rate: "FRED series LREM64TTFRQ156S · OECD, ages 15-64, seasonally adjusted, quarterly.",
+    fdi: "World Bank · % of GDP, annual.",
+    gdp_growth: "FRED series NGDPSAXDCFRQ · IMF International Financial Statistics, quarterly, quarter-on-quarter.",
+    gdp_level: "FRED series NGDPSAXDCFRQ · IMF International Financial Statistics, quarterly.",
+    gdp_real: "IMF International Financial Statistics, via FRED, quarterly.",
+    participation_rate: "FRED series LRAC64TTFRQ156S · OECD, ages 15-64, seasonally adjusted, quarterly.",
+    trade_balance: "Eurostat · goods trade, total, monthly.",
+    unemployment: "FRED series LRHUTTTTFRM156S · seasonally adjusted, monthly.",
+  },
+  "Germany": {
+    bond_yield_10y: "FRED series IRLTLT01DEM156N · monthly average.",
+    business_confidence: "OECD · Business Confidence Indicator (BCICP), amplitude-adjusted, long-term average = 100.",
+    cpi: "FRED series CP0000DEM086NEST · HICP, all items, year on year.",
+    current_account: "World Bank · % of GDP, annual.",
+    debt_gdp: "Eurostat · general government, % of GDP, annual.",
+    deficit: "Eurostat · general government, % of GDP, annual.",
+    employment_rate: "FRED series LREM64TTDEQ156S · OECD, ages 15-64, seasonally adjusted, quarterly.",
+    fdi: "World Bank · % of GDP, annual.",
+    gdp_growth: "FRED series NGDPSAXDCDEQ · IMF International Financial Statistics, quarterly, quarter-on-quarter.",
+    gdp_level: "FRED series NGDPSAXDCDEQ · IMF International Financial Statistics, quarterly.",
+    gdp_real: "IMF International Financial Statistics, via FRED, quarterly.",
+    participation_rate: "FRED series LRAC64TTDEQ156S · OECD, ages 15-64, seasonally adjusted, quarterly.",
+    trade_balance: "Eurostat · goods trade, total, monthly.",
+    unemployment: "FRED series LRHUTTTTDEM156S · seasonally adjusted, monthly.",
+  },
+  "India": {
+    bond_yield_10y: "FRED series INDIRLTLT01STM · monthly average.",
+    business_confidence: "OECD · Business Confidence Indicator (BCICP), amplitude-adjusted, long-term average = 100.",
+    cpi: "OECD consumer price statistics · all items, year on year.",
+    current_account: "World Bank · % of GDP, annual.",
+    debt_gdp: "FRED (IMF World Economic Outlook), annual.",
+    deficit: "FRED (IMF World Economic Outlook), annual.",
+    exports: "FRED series XTEXVA01INM667S · OECD merchandise trade.",
+    fdi: "World Bank · % of GDP, annual.",
+    gdp_growth: "FRED (IMF International Financial Statistics), quarterly, year-on-year.",
+    gdp_level: "FRED (IMF International Financial Statistics), quarterly.",
+    gdp_real: "IMF International Financial Statistics, via FRED, quarterly.",
+    trade_balance: "FRED series XTNTVA01INM667S · OECD merchandise trade.",
+    unemployment: "MoSPI eSankhyiki API · PLFS, Current Weekly Status, monthly.",
+  },
+  "Indonesia": {
+    business_confidence: "OECD · Business Confidence Indicator (BCICP), amplitude-adjusted, long-term average = 100.",
+    cpi: "OECD live prices system · CPI, all items, year on year.",
+    debt_gdp: "FRED series GGGDTAIDA188N · IMF World Economic Outlook, general government, % of GDP, annual.",
+    deficit: "FRED series GGNLBAIDA188N · IMF World Economic Outlook, general government, % of GDP, annual.",
+    fdi: "World Bank · % of GDP, annual.",
+    gdp_growth: "FRED series NGDPRSAXDCIDQ · IMF International Financial Statistics, quarterly, seasonally adjusted.",
+    gdp_level: "FRED series NGDPSAXDCIDQ · IMF International Financial Statistics, trailing 4-quarter sum, seasonally adjusted (falls back to World Bank current US$, annual, only if the live IDR series is unavailable on a given run).",
+    gdp_real: "FRED series NGDPRSAXDCIDQ · IMF International Financial Statistics, quarterly, seasonally adjusted.",
+    trade_balance: "OECD · merchandise trade, monthly.",
+    unemployment: "World Bank SL.UEM.TOTL.ZS · modeled ILO estimate, % of total labour force, annual.",
+  },
+  "Ireland": {
+    bond_yield_10y: "FRED series IRLTLT01IEM156N · OECD, monthly.",
+    business_confidence: "OECD · Business Confidence Indicator (BCICP), amplitude-adjusted, long-term average = 100.",
+    cpi: "OECD · CPI, all items, harmonized, year on year.",
+    current_account: "World Bank · % of GDP, annual.",
+    debt_gdp: "Eurostat · general government, % of GDP, annual.",
+    deficit: "Eurostat · general government, % of GDP, annual.",
+    employment_rate: "FRED series LREM64TTIEQ156S · OECD, ages 15-64, seasonally adjusted, quarterly.",
+    fdi: "World Bank · % of GDP, annual.",
+    gdp_growth: "Eurostat, via FRED, quarter-on-quarter.",
+    gdp_level: "Eurostat, via FRED (CPMNACNSAB1GQIE nominal / CLVMNACNSAB1GQIE real).",
+    gdp_real: "Eurostat, via FRED (CLVMNACNSAB1GQIE).",
+    participation_rate: "FRED series LRAC64TTIEQ156S · OECD, ages 15-64, seasonally adjusted, quarterly.",
+    trade_balance: "Eurostat · goods trade, total, monthly.",
+    unemployment: "FRED series LRHUTTTTIEM156S · OECD harmonized, monthly.",
+  },
+  "Israel": {
+    bond_yield_10y: "FRED series IRLTLT01ILM156N · monthly average.",
+    business_confidence: "OECD · Business Confidence Indicator (BCICP), amplitude-adjusted, long-term average = 100.",
+    cpi: "OECD live prices system · CPI, all items, year on year.",
+    current_account: "World Bank · % of GDP, annual.",
+    debt_gdp: "World Bank · % of GDP, annual.",
+    deficit: "World Bank · % of GDP, annual.",
+    employment_rate: "FRED series LREM64TTILQ156S · OECD, ages 15-64, seasonally adjusted, quarterly.",
+    fdi: "World Bank · % of GDP, annual.",
+    gdp_growth: "Derived from World Bank NY.GDP.MKTP.KN (see gdp_real entry).",
+    gdp_level: "World Bank NY.GDP.MKTP.CN · current local-currency units (ILS), annual.",
+    gdp_real: "World Bank NY.GDP.MKTP.KN · constant local-currency units (ILS), annual.",
+    participation_rate: "FRED series LRAC64TTILQ156S · OECD, ages 15-64, seasonally adjusted, quarterly.",
+    trade_balance: "FRED series XTNTVA01ILQ667S · OECD merchandise trade, quarterly.",
+    unemployment: "FRED series LRHUTTTTILM156S · seasonally adjusted, monthly.",
+  },
+  "Italy": {
+    bond_yield_10y: "FRED series IRLTLT01ITQ156N · quarterly average.",
+    business_confidence: "OECD · Business Confidence Indicator (BCICP), amplitude-adjusted, long-term average = 100.",
+    cpi: "FRED series CP0000ITM086NEST · HICP, all items, year on year.",
+    current_account: "World Bank · % of GDP, annual.",
+    debt_gdp: "Eurostat · general government, % of GDP, annual.",
+    deficit: "Eurostat · general government, % of GDP, annual.",
+    employment_rate: "FRED series LREM64TTITQ156S · OECD, ages 15-64, seasonally adjusted, quarterly.",
+    fdi: "World Bank · % of GDP, annual.",
+    gdp_growth: "FRED series NGDPSAXDCITQ · IMF International Financial Statistics, quarterly, quarter-on-quarter.",
+    gdp_level: "FRED series NGDPSAXDCITQ · IMF International Financial Statistics, quarterly.",
+    gdp_real: "IMF International Financial Statistics, via FRED, quarterly.",
+    participation_rate: "FRED series LRAC64TTITQ156S · OECD, ages 15-64, seasonally adjusted, quarterly.",
+    trade_balance: "Eurostat · goods trade, total, monthly.",
+    unemployment: "FRED series LRHUTTTTITM156S · seasonally adjusted, monthly.",
+  },
+  "Japan": {
+    boj_rate: "FRED series IRSTCI01JPM156N · monthly average (OECD).",
+    business_confidence: "OECD · Business Confidence Indicator (BCICP), amplitude-adjusted, long-term average = 100.",
+    cpi: "Statistics Bureau of Japan (e-Stat) · all items, year on year.",
+    cpi_mom: "FRED · OECD, derived from the same underlying CPI series.",
+    current_account: "World Bank · % of GDP, annual.",
+    debt_gdp: "FRED series GGGDTAJPA188N · general government, annual (IMF).",
+    deficit: "FRED series GGNLBAJPA188N · net lending/borrowing, annual (IMF).",
+    exports: "FRED series XTEXVA01JPM667S · goods, seasonally adjusted (OECD).",
+    fdi: "World Bank · FDI net inflows, % of GDP, annual.",
+    gdp_growth: "Calculated from FRED series JPNRGDPEXP (Cabinet Office of Japan), quarter-on-quarter.",
+    gdp_level: "FRED series JPNNGDP · nominal, seasonally adjusted annual rate (Cabinet Office of Japan).",
+    imports: "FRED series XTIMVA01JPM667S · goods, seasonally adjusted (OECD).",
+    trade_balance: "Derived from OECD goods trade series, converted to yen at ingestion time (the OECD's own source is USD-denominated).",
+    unemployment: "FRED series LRHUTTTTJPM156S · seasonally adjusted (OECD).",
+  },
+  "Mexico": {
+    bond_yield_10y: "FRED series IRLTLT01MXM156N · monthly average.",
+    business_confidence: "OECD · Business Confidence Indicator (BCICP), amplitude-adjusted, long-term average = 100.",
+    cpi: "OECD live prices system · CPI, all items, year on year.",
+    current_account: "World Bank · % of GDP, annual.",
+    debt_gdp: "FRED (IMF World Economic Outlook), annual.",
+    deficit: "FRED (IMF World Economic Outlook), annual.",
+    employment_rate: "FRED series LREM64TTMXQ156S · OECD, ages 15-64, seasonally adjusted, quarterly.",
+    fdi: "World Bank · % of GDP, annual.",
+    gdp_growth: "IMF International Financial Statistics, via FRED, quarter-on-quarter.",
+    gdp_level: "FRED series NGDPSAXDCMXQ · IMF International Financial Statistics, quarterly.",
+    gdp_real: "IMF International Financial Statistics, via FRED, quarterly.",
+    participation_rate: "FRED series LRAC64TTMXQ156S · OECD, ages 15-64, seasonally adjusted, quarterly.",
+    trade_balance: "FRED series XTNTVA01MXQ667S · OECD merchandise trade, quarterly.",
+    unemployment: "FRED series LRUNTTTTMXQ156S · seasonally adjusted, quarterly.",
+  },
+  "Morocco": {
+    business_confidence: "OECD · Business Confidence Indicator (BCICP), amplitude-adjusted, long-term average = 100.",
+    cpi: "OECD live prices system · CPI, all items, year on year.",
+    current_account: "World Bank · % of GDP, annual.",
+    debt_gdp: "FRED (IMF Middle East and Central Asia Regional Economic Outlook), annual.",
+    deficit: "World Bank · % of GDP, annual.",
+    fdi: "World Bank · % of GDP, annual.",
+    gdp_growth: "Derived from World Bank NY.GDP.MKTP.KN (see gdp_real entry).",
+    gdp_level: "World Bank NY.GDP.MKTP.CN · current local-currency units (MAD), annual.",
+    gdp_real: "World Bank NY.GDP.MKTP.KN · constant local-currency units (MAD), annual.",
+    trade_balance: "FRED series XTNTVA01MAQ667S · OECD merchandise trade, quarterly.",
+    unemployment: "World Bank · % of total labor force, annual.",
+  },
+  "Netherlands": {
+    bond_yield_10y: "FRED series IRLTLT01NLM156N · monthly average.",
+    business_confidence: "OECD · Business Confidence Indicator (BCICP), amplitude-adjusted, long-term average = 100.",
+    cpi: "FRED series CP0000NLM086NEST · HICP, all items, year on year.",
+    current_account: "World Bank · % of GDP, annual.",
+    debt_gdp: "Eurostat · general government, % of GDP, annual.",
+    deficit: "Eurostat · general government, % of GDP, annual.",
+    employment_rate: "FRED series LREM64TTNLQ156S · OECD, ages 15-64, seasonally adjusted, quarterly.",
+    fdi: "World Bank · % of GDP, annual.",
+    gdp_growth: "FRED series CPMNACSCAB1GQNL · Eurostat quarterly national accounts, quarter-on-quarter.",
+    gdp_level: "FRED series CPMNACSCAB1GQNL · Eurostat quarterly national accounts.",
+    gdp_real: "Eurostat quarterly national accounts, via FRED.",
+    participation_rate: "FRED series LRAC64TTNLQ156S · OECD, ages 15-64, seasonally adjusted, quarterly.",
+    trade_balance: "Eurostat · goods trade, total, monthly.",
+    unemployment: "FRED series LRHUTTTTNLM156N · seasonally adjusted, monthly.",
+  },
+  "Norway": {
+    bond_yield_10y: "FRED series IRLTLT01NOM156N · OECD, monthly.",
+    business_confidence: "OECD · Business Confidence Indicator (BCICP), amplitude-adjusted, long-term average = 100.",
+    cpi: "OECD live prices system · CPI, all items, year on year.",
+    current_account: "World Bank · % of GDP, annual.",
+    debt_gdp: "Eurostat gov_10q_ggdebt/gov_10q_ggnfa · general government, % of GDP, quarterly.",
+    deficit: "Eurostat gov_10q_ggdebt/gov_10q_ggnfa · general government, % of GDP, quarterly.",
+    employment_rate: "FRED series LREM64TTNOQ156S · OECD, ages 15-64, seasonally adjusted, quarterly.",
+    fdi: "World Bank · % of GDP, annual.",
+    gdp_growth: "FRED series NORGDPRQPSMEI · OECD, real GDP growth year on year, as published.",
+    gdp_level: "World Bank NY.GDP.MKTP.CN · current local-currency units (NOK), annual.",
+    gdp_real: "World Bank NY.GDP.MKTP.KN · constant local-currency units (NOK), annual.",
+    participation_rate: "FRED series LRAC64TTNOQ156S · OECD, ages 15-64, seasonally adjusted, quarterly.",
+    trade_balance: "OECD · merchandise trade, monthly.",
+    unemployment: "FRED series LRHUTTTTNOQ156S · OECD harmonized, seasonally adjusted, quarterly.",
+  },
+  "Poland": {
+    bond_yield_10y: "FRED series IRLTLT01PLM156N · OECD, monthly.",
+    business_confidence: "OECD · Business Confidence Indicator (BCICP), amplitude-adjusted, long-term average = 100.",
+    cpi: "OECD live prices system · CPI, all items, year on year.",
+    debt_gdp: "FRED series GGGDTAPLA188N · IMF World Economic Outlook, general government, % of GDP, annual.",
+    deficit: "FRED series GGNLBAPLA188N · IMF World Economic Outlook, general government, % of GDP, annual.",
+    fdi: "World Bank · % of GDP, annual.",
+    gdp_growth: "FRED series NGDPRSAXDCPLQ · IMF International Financial Statistics, quarterly.",
+    gdp_level: "FRED series NGDPSAXDCPLQ · IMF International Financial Statistics, trailing 4-quarter sum (falls back to World Bank current US$, annual, only if the live PLN series is unavailable on a given run).",
+    gdp_real: "FRED series NGDPRSAXDCPLQ · IMF International Financial Statistics, quarterly, seasonally adjusted.",
+    trade_balance: "OECD · merchandise trade, monthly.",
+    unemployment: "FRED series LRHUTTTTPLM156S · OECD harmonized, seasonally adjusted, monthly.",
+  },
+  "Singapore": {
+    business_confidence: "OECD · Business Confidence Indicator (BCICP), amplitude-adjusted, long-term average = 100.",
+    cpi: "OECD live prices system · CPI, all items, year on year.",
+    current_account: "World Bank · % of GDP, annual.",
+    debt_gdp: "FRED series DEBTTLSGA188A · World Bank World Development Indicators, central government debt, % of GDP, annual.",
+    fdi: "World Bank · % of GDP, annual.",
+    gdp_growth: "FRED series SGPNGDPRPCPPPT · IMF Asia and Pacific Regional Economic Outlook, annual, % change. Genuinely confirmed live and updated through 2026 -- unlike several other series in the same IMF REO family for Singapore (domestic demand, exports volume, general-government debt), which are stale 2019-vintage projections and were deliberately excluded from this build rather than used.",
+    gdp_level: "World Bank NY.GDP.MKTP.CN.AD · GDP, current prices, linked series, local currency units, annual (falls back to World Bank NY.GDP.MKTP.CD, current US$, only if the SGD linked series is unavailable this run).",
+    trade_balance: "OECD · merchandise trade, monthly.",
+    unemployment: "World Bank SL.UEM.TOTL.ZS · modeled ILO estimate, % of total labour force, annual.",
+  },
+  "South Africa": {
+    bond_yield_10y: "FRED series IRLTLT01ZAM156N · monthly average.",
+    business_confidence: "OECD · Business Confidence Indicator (BCICP), amplitude-adjusted, long-term average = 100.",
+    cpi: "OECD live prices system · CPI, all items, year on year.",
+    current_account: "World Bank · % of GDP, annual.",
+    debt_gdp: "FRED (IMF World Economic Outlook), annual.",
+    deficit: "FRED (IMF World Economic Outlook), annual.",
+    fdi: "World Bank · % of GDP, annual.",
+    gdp_growth: "IMF International Financial Statistics, via FRED, quarter-on-quarter.",
+    gdp_level: "FRED series NGDPSAXDCZAQ · IMF International Financial Statistics, quarterly.",
+    gdp_real: "IMF International Financial Statistics, via FRED, quarterly.",
+    trade_balance: "FRED series XTNTVA01ZAQ667S · OECD merchandise trade, quarterly.",
+    unemployment: "FRED series LRUN64TTZAQ156S · seasonally adjusted, quarterly, ages 15-64.",
+  },
+  "South Korea": {
+    bond_yield_10y: "FRED series IRLTLT01KRM156N · monthly average.",
+    business_confidence: "OECD · Business Confidence Indicator (BCICP), amplitude-adjusted, long-term average = 100.",
+    cpi: "OECD live prices system · CPI, all items, year on year.",
+    current_account: "World Bank · % of GDP, annual.",
+    debt_gdp: "FRED (IMF World Economic Outlook), annual.",
+    deficit: "FRED (IMF World Economic Outlook), annual.",
+    employment_rate: "FRED series LREM64TTKRQ156S · OECD, ages 15-64, seasonally adjusted, quarterly.",
+    fdi: "World Bank · % of GDP, annual.",
+    gdp_growth: "IMF International Financial Statistics, via FRED, quarter-on-quarter.",
+    gdp_level: "FRED (IMF International Financial Statistics), quarterly.",
+    gdp_real: "IMF International Financial Statistics, via FRED, quarterly.",
+    participation_rate: "FRED series LRAC64TTKRQ156S · OECD, ages 15-64, seasonally adjusted, quarterly.",
+    trade_balance: "FRED series XTNTVA01KRQ667S · OECD merchandise trade, quarterly.",
+    unemployment: "FRED series LRHUTTTTKRM156S · seasonally adjusted, monthly.",
+  },
+  "Spain": {
+    bond_yield_10y: "FRED series IRLTLT01ESQ156N · quarterly average.",
+    business_confidence: "OECD · Business Confidence Indicator (BCICP), amplitude-adjusted, long-term average = 100.",
+    cpi: "FRED series CP0000ESM086NEST · HICP, all items, year on year.",
+    current_account: "World Bank · % of GDP, annual.",
+    debt_gdp: "Eurostat · general government, % of GDP, annual.",
+    deficit: "Eurostat · general government, % of GDP, annual.",
+    employment_rate: "FRED series LREM64TTESQ156S · OECD, ages 15-64, seasonally adjusted, quarterly.",
+    fdi: "World Bank · % of GDP, annual.",
+    gdp_growth: "FRED series ESPGDPRQPSMEI · OECD, already a year-on-year growth rate.",
+    gdp_level: "Eurostat namq_10_gdp · quarterly, EUR-denominated (falls back to World Bank current US$, annual, only if Eurostat is unavailable on a given run).",
+    gdp_real: "Eurostat namq_10_gdp · quarterly, chain-linked volume, EUR-denominated (same World-Bank USD fallback as GDP current prices).",
+    participation_rate: "FRED series LRAC64TTESQ156S · OECD, ages 15-64, seasonally adjusted, quarterly.",
+    trade_balance: "Eurostat · goods trade, total, monthly.",
+    unemployment: "FRED series LRHUTTTTESM156S · seasonally adjusted, monthly.",
+  },
+  "Sweden": {
+    bond_yield_10y: "FRED series IRLTLT01SEM156N · OECD, monthly.",
+    business_confidence: "OECD · Business Confidence Indicator (BCICP), amplitude-adjusted, long-term average = 100.",
+    cpi: "OECD live prices system · CPI, all items, year on year.",
+    current_account: "World Bank · % of GDP, annual.",
+    debt_gdp: "Eurostat gov_10q_ggdebt/gov_10q_ggnfa · general government, % of GDP, quarterly.",
+    deficit: "Eurostat gov_10q_ggdebt/gov_10q_ggnfa · general government, % of GDP, quarterly.",
+    fdi: "World Bank · % of GDP, annual.",
+    gdp_growth: "FRED series CLVMNACSCAB1GQSE · Eurostat, quarterly, quarter-on-quarter.",
+    gdp_level: "FRED series CPMNACSCAB1GQSE · Eurostat, seasonally adjusted (falls back to World Bank current US$, annual, only if the live Eurostat SEK series is unavailable on a given run).",
+    gdp_real: "FRED series CLVMNACSCAB1GQSE · Eurostat, trailing 4-quarter sum, seasonally adjusted.",
+    trade_balance: "OECD · merchandise trade, quarterly.",
+    unemployment: "FRED series LRHUTTTTSEM156S · OECD harmonized, seasonally adjusted, monthly.",
+  },
+  "Switzerland": {
+    bond_yield_10y: "FRED series IRLTLT01CHM156N · OECD, monthly.",
+    business_confidence: "OECD · Business Confidence Indicator (BCICP), amplitude-adjusted, long-term average = 100.",
+    cpi: "OECD live prices system · CPI, all items, year on year.",
+    debt_gdp: "FRED series DEBTTLCHA188A · World Bank World Development Indicators, central government debt, % of GDP, annual.",
+    fdi: "World Bank · % of GDP, annual.",
+    gdp_growth: "FRED series CLVMNACSAB1GQCH · Eurostat, quarterly, quarter-on-quarter.",
+    gdp_level: "World Bank NY.GDP.MKTP.CD · current US$, annual -- this is the only live source for Switzerland's nominal GDP, so it's shown in its native currency (USD) rather than converted.",
+    gdp_real: "FRED series CLVMNACSAB1GQCH · Eurostat, quarterly, seasonally adjusted. Switzerland is not an EU member but this series is Eurostat-sourced via a bilateral data-sharing arrangement, unlike the IMF IFS series used for most other non-EU pages on this site.",
+    trade_balance: "OECD · merchandise trade, monthly.",
+    unemployment: "FRED series LRUNTTTTCHQ156S · OECD, seasonally adjusted, quarterly. Note: the LRHUTTTT-prefixed series used on most other pages here is explicitly marked discontinued for Switzerland -- this is the OECD's replacement series.",
+  },
+  "Thailand": {
+    business_confidence: "OECD · Business Confidence Indicator (BCICP), amplitude-adjusted, long-term average = 100.",
+    cpi: "OECD live prices system · CPI, all items, year on year.",
+    debt_gdp: "FRED series DEBTTLTHA188A · World Bank World Development Indicators, central government debt, % of GDP, annual.",
+    fdi: "World Bank · % of GDP, annual.",
+    gdp_growth: "World Bank NY.GDP.MKTP.KN · GDP, constant prices, local currency units, annual (same basis as gdp_level). Switched from Penn World Table's PPP-benchmarked rgdpna in a prior session, which produced a distorted “real GDP” figure roughly 2.6x nominal when substituted into the level card.",
+    gdp_level: "World Bank NY.GDP.MKTP.CN.AD · GDP, current prices, linked series, local currency units, annual (falls back to World Bank NY.GDP.MKTP.CD, current US$, only if the THB linked series is unavailable this run).",
+    trade_balance: "OECD · merchandise trade, monthly.",
+    unemployment: "World Bank SL.UEM.TOTL.ZS · modeled ILO estimate, % of total labour force, annual.",
+  },
+  "Turkey": {
+    business_confidence: "OECD · Business Confidence Indicator (BCICP), amplitude-adjusted, long-term average = 100.",
+    cpi: "OECD live prices system · CPI, all items, year on year.",
+    debt_gdp: "FRED series GGGDTATRA188N · IMF World Economic Outlook, general government, % of GDP, annual.",
+    deficit: "FRED series GGNLBATRA188N · IMF World Economic Outlook, general government, % of GDP, annual.",
+    fdi: "World Bank · % of GDP, annual.",
+    gdp_growth: "FRED series NGDPRSAXDCTRQ · IMF International Financial Statistics, quarterly.",
+    gdp_level: "FRED series NGDPSAXDCTRQ · IMF International Financial Statistics, trailing 4-quarter sum (falls back to World Bank current US$, annual, only if the live TRY series is unavailable on a given run).",
+    gdp_real: "FRED series NGDPRSAXDCTRQ · IMF International Financial Statistics, quarterly, seasonally adjusted.",
+    participation_rate: "FRED series LRAC64TTTRQ156S · OECD, ages 15-64, seasonally adjusted, quarterly.",
+    trade_balance: "OECD · merchandise trade, monthly.",
+    unemployment: "FRED series LRHUTTTTTRM156S · OECD harmonized, seasonally adjusted, monthly.",
+  },
+  "UK": {
+    boe_rate: "Bank of England · IUDBEDR, official Bank Rate.",
+    business_confidence: "OECD · Business Confidence Indicator (BCICP), amplitude-adjusted, long-term average = 100.",
+    cpi: "ONS series D7G7 (MM23) · all items.",
+    cpi_mom: "Derived from ONS series D7OE (MM23).",
+    cpih: "ONS series L55O (MM23) · all items.",
+    current_account: "ONS series AA6H · % of GDP, annual (from the UK Balance of Payments “Pink Book”).",
+    debt_gdp: "ONS series HF6X (PUSF) · excluding public sector banks, not seasonally adjusted.",
+    debt_interest: "ONS series NMFX (PUSF) · central government, net interest payable.",
+    deficit: "ONS series DZLS (PUSF) · excluding public sector banks, monthly.",
+    employment: "ONS series LF24 (LMS) · aged 16 to 64, seasonally adjusted.",
+    exports: "ONS series IKBH (MRET) · goods and services, current prices, seasonally adjusted.",
+    fdi: "World Bank · FDI net inflows, % of GDP, annual (sourced from IMF balance-of-payments data).",
+    gdp_growth: "ONS series IHYQ (PN2) · chained volume measure, quarter-on-quarter growth rate.",
+    gdp_level: "ONS series YBHA (PN2) · current prices, rolling four-quarter sum, seasonally adjusted.",
+    gdp_real: "ONS series ABMI (PN2) · chained volume measure, rolling four-quarter sum, seasonally adjusted.",
+    imports: "ONS series IKBI (MRET) · goods and services, current prices, seasonally adjusted.",
+    inactivity: "ONS series LF2S (LMS) · aged 16 to 64, seasonally adjusted.",
+    net_debt: "ONS series HF6W (PUSF) · excluding public sector banks, not seasonally adjusted.",
+    productivity: "ONS series LZVB (PRDY) · output per hour worked, index 2023 = 100, seasonally adjusted.",
+    trade_balance: "ONS series IKBJ (MRET) · goods and services, current prices, seasonally adjusted.",
+    trade_intensity: "Calculated from ONS series IKBH, IKBI and YBHA · complete calendar years only.",
+    unemployment: "ONS series MGSX (LMS) · aged 16 and over, seasonally adjusted.",
+    unemployment_1624: "ONS series MGWY (LMS) · aged 16 to 24, seasonally adjusted.",
+  },
+  "US": {
+    business_confidence: "OECD · Business Confidence Indicator (BCICP), amplitude-adjusted, long-term average = 100.",
+    core_cpi: "Calculated from FRED series CPILFESL · seasonally adjusted (BLS).",
+    cpi: "Calculated from FRED series CPIAUCSL · all items, seasonally adjusted (BLS).",
+    cpi_mom: "Derived from FRED series CPIAUCSL (BLS).",
+    current_account: "World Bank · % of GDP, annual (IMF balance-of-payments data).",
+    debt_gdp: "FRED series GFDEGDQ188S · total public debt, % of GDP (Treasury/OMB).",
+    deficit: "FRED series MTSDS133FMS · Monthly Treasury Statement.",
+    employment: "FRED series EMRATIO · seasonally adjusted (BLS).",
+    exports: "FRED series BOPTEXP · goods and services, seasonally adjusted (BEA/Census).",
+    fdi: "World Bank · FDI net inflows, % of GDP, annual (sourced from IMF balance-of-payments data).",
+    fed_funds: "FRED series FEDFUNDS · effective rate, monthly average.",
+    gdp_growth: "FRED series A191RL1Q225SBEA · chained 2017 dollars, quarter-on-quarter annualised rate (BEA).",
+    gdp_level: "FRED series GDP · nominal, seasonally adjusted annual rate (BEA).",
+    gdp_real: "FRED series GDPC1 · chained 2017 dollars, seasonally adjusted annual rate (BEA).",
+    imports: "FRED series BOPTIMP · goods and services, seasonally adjusted (BEA/Census).",
+    net_debt: "FRED series GFDEBTN · total public debt (Treasury).",
+    participation: "FRED series CIVPART · seasonally adjusted (BLS).",
+    productivity: "FRED series OPHNFB · nonfarm business output per hour, index (BLS).",
+    trade_balance: "FRED series BOPGSTB · goods and services, seasonally adjusted (BEA/Census).",
+    trade_intensity: "Calculated from FRED series BOPTEXP, BOPTIMP and GDP · complete calendar years only.",
+    unemployment: "FRED series UNRATE · seasonally adjusted (BLS).",
+  },
+};
+var POLICY_RATE_KEYS = ["boe_rate", "fed_funds", "ecb_rate", "boj_rate", "overnight_rate", "rate"];
+var SOURCE_ALT_KEYS = {
+  policy_rate: POLICY_RATE_KEYS,
+  employment: ["employment_rate"],
+  participation: ["participation_rate"]
+};
+function getSourceNote(country, concept){
+  var map = SOURCE_MAP[country];
+  if(!map) return null;
+  if(map[concept]) return map[concept];
+  var alts = SOURCE_ALT_KEYS[concept];
+  if(alts){
+    for(var i=0;i<alts.length;i++){ if(map[alts[i]]) return map[alts[i]]; }
+  }
+  return null;
+}
+function shortSourceNote(country, concept){
+  var full = getSourceNote(country, concept);
+  if(!full) return null;
+  return full.split("\u00b7")[0].trim();
+}
+// Combined real citation for a chart covering one concept across
+// several countries -- one real per-country attribution, not a
+// description of the chart mislabelled as a source.
+function buildRealSrcNote(concept, countries){
+  var fallback = CONCEPT_LABEL[concept] + " \u2014 see theeconomicatlas.com/methodology for full data sources.";
+  if(!countries || !countries.length) return fallback;
+  var seen = {}; var parts = [];
+  countries.forEach(function(c){
+    if(seen[c]) return; seen[c] = true;
+    var short = shortSourceNote(c, concept);
+    if(short) parts.push(c + ": " + short);
+  });
+  return parts.length ? parts.join("; ") : fallback;
 }
 /* ----------------------------- live data registry --------------------------- */
 var REGISTRY = {}; // REGISTRY[country][key] = {label, unit, freq, points}
@@ -3442,7 +3965,7 @@ function fillCardChart(card, concept){
       var czFmtY = lineResult.isCurrencyMetric
         ? function(v){ return curFmt(v, "$m", 2); }
         : function(v){ return axisTickLabel(v, concept); };
-      var czSrcNote = CONCEPT_LABEL[concept] + " over time, " + lineResult.datasets.length + " countries" + (lineResult.isCurrencyMetric ? " (converted to USD)" : "") + ".";
+      var czSrcNote = buildRealSrcNote(concept, czSeriesList.map(function(s){ return s.country; })) + (lineResult.isCurrencyMetric ? " (converted to USD)" : "");
       window.EATLAS_CUSTOMIZE.wireMulti(czBtnLine, czSeriesList, CONCEPT_LABEL[concept] + " over time", czSrcNote, czFmtY, concept + "_comparison", fmtPeriod);
     }
   } else {
@@ -3476,7 +3999,7 @@ function fillCardChart(card, concept){
       var czSnapFmtY = (CONCEPT_UNIT[concept] === "currency" && !czIsCumulative)
         ? function(v){ return curFmt(v, czRawUnit || "$m", 0); }
         : function(v){ return axisTickLabel(v, concept, czIsCumulative); };
-      window.EATLAS_CUSTOMIZE.wireSnapshot(czBtnBar, czSnapshotRows, CONCEPT_LABEL[concept] + barResult.titleSuffix, CONCEPT_LABEL[concept] + ", current selection. " + barResult.horizonNote, czSnapFmtY, concept + "_snapshot");
+      window.EATLAS_CUSTOMIZE.wireSnapshot(czBtnBar, czSnapshotRows, CONCEPT_LABEL[concept] + barResult.titleSuffix, buildRealSrcNote(concept, barResult.rows.filter(function(r){ return r.dv != null; }).map(function(r){ return r.country; })), czSnapFmtY, concept + "_snapshot");
     }
   }
 }
@@ -5635,6 +6158,33 @@ window.EATLAS_COMPARE = {
     var mi = String(dt.getMinutes()).padStart(2, "0");
     return dd + " " + mo + " " + yy + ", " + hh + ":" + mi;
   }
+  // A ChartMaker-saved chart uses a different style shape (style.series,
+  // potentially several metrics/countries) than Compare's own
+  // (style.countries, one metric per card). Only genuinely compatible
+  // ChartMaker charts -- every series using the SAME metric as this
+  // card -- can be represented here at all; anything else is dropped
+  // from the list rather than shown with a broken Open button.
+  function normalizeChartmakerRow(row, concept){
+    if(row.country_code !== "chartmaker") return row;
+    var series = (row.style && row.style.series) || [];
+    if(!series.length || !series.every(function(s){ return s.metric === concept; })) return null;
+    var countries = [];
+    series.forEach(function(s){ if(countries.indexOf(s.country) === -1) countries.push(s.country); });
+    var snap = (row.style && row.style.snapshot) || {};
+    return {
+      id: row.id, name: row.name, created_at: row.created_at,
+      metric_key: row.metric_key, from_period: row.from_period, to_period: row.to_period,
+      style: {
+        countries: countries,
+        chartType: snap.chartType === "bar" ? "bar" : "line",
+        cardTime: null, sortMode: null,
+        styleSnapshot: {
+          chartTitle: snap.chartTitle, yTitle: snap.yAxisTitle,
+          showFill: snap.showFill, showPoints: snap.showPoints, refLine: snap.refLine
+        }
+      }
+    };
+  }
   function loadSavedChart(row){
     if(!window.EATLAS_COMPARE || !window.EATLAS_COMPARE.loadSavedSelection){
       window.alert("This saved chart isn't available on this page.");
@@ -5747,14 +6297,12 @@ window.EATLAS_COMPARE = {
       window.sb.auth.getUser().then(function(res){
         var user = res.data && res.data.user;
         if(!user) return render([]);
-        // Compare-sourced rows only (country_code = "compare") -- a
-        // single-country page's own saved charts aren't openable here
-        // (no matching card without their exact metric_key existing as
-        // a Compare concept), so mixing them into this list would just
-        // produce broken "Open" clicks. Also scoped to the concept
-        // currently open (metric_key) -- e.g. GDP's Open list only shows
-        // other saved GDP comparisons, not an unrelated Exports one.
-        return window.sb.from("saved_charts").select("*").eq("user_id", user.id).eq("country_code", "compare")
+        // Compare-sourced AND compatible ChartMaker-sourced rows --
+        // scoped to the concept currently open (metric_key), same as
+        // before. ChartMaker rows go through normalizeChartmakerRow()
+        // below since their saved shape is different (style.series,
+        // potentially multiple metrics) from Compare's own.
+        return window.sb.from("saved_charts").select("*").eq("user_id", user.id).in("country_code", ["compare", "chartmaker"])
           .eq("metric_key", czmState.concept)
           .order("created_at", { ascending: false }).then(function(qres){
             // supabase-js resolves (doesn't reject) a real backend error
@@ -5769,7 +6317,10 @@ window.EATLAS_COMPARE = {
               renderError(qres.error.message || "unknown error");
               return;
             }
-            render(qres.data || []);
+            var normalized = (qres.data || [])
+              .map(function(row){ return normalizeChartmakerRow(row, czmState.concept); })
+              .filter(function(row){ return row != null; });
+            render(normalized);
           });
       }).catch(function(err){
         console.error("saved_charts refresh failed:", err);
