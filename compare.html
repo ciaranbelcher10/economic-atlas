@@ -426,7 +426,6 @@ footer.cmp-foot{margin-top:36px; font-size:12.5px; color:var(--ink2); border-top
   </div>
   <a class="item" href="compare">Compare</a>
   <a class="item" href="dashboard">My Dashboard</a>
-  <a class="item" href="chartmaker">Chartmaker</a>
 </div></nav>
 <script>
 // Optimistic Plan-link render: applies whatever we last confirmed about
@@ -4849,7 +4848,10 @@ window.EATLAS_COMPARE = {
     if(a.date < UNIFIED_DATES[0] || a.date > UNIFIED_DATES[UNIFIED_DATES.length - 1]) return "";
     var idx = nearestUnifiedIndex(a.date);
     var ax = gm.xForIndex(idx);
-    var refSeries = SERIES_LIST[0];
+    var refSeries = SERIES_LIST[a.seriesIndex] || SERIES_LIST[0]; // per-annotation
+    // target line -- previously always pointed at the first country
+    // regardless of which line an arrow visually needs to anchor to
+    // once more than one is selected.
     var refPts = refSeries ? czmFilteredSeries(refSeries) : [];
     var refIdx = refPts.length ? Math.min(idx, refPts.length - 1) : 0;
     var ay = refPts.length ? gm.y(refPts[refIdx][1]) : gm.padT + gm.plotH / 2;
@@ -5288,6 +5290,15 @@ window.EATLAS_COMPARE = {
           "<button type='button' data-type='line' class='" + (a.type === "line" ? "active" : "") + "' style='flex:1; border:none; font:inherit; font-size:12px; font-weight:600; padding:7px 0; cursor:pointer;'>Line</button>" +
           "<button type='button' data-type='arrow' class='" + (a.type === "arrow" ? "active" : "") + "' style='flex:1; border:none; font:inherit; font-size:12px; font-weight:600; padding:7px 0; cursor:pointer;'>Arrow</button>" +
         "</div>" +
+        // Which country's line the arrow points at -- only shown once
+        // there's more than one to choose between. Fixes a real gap: an
+        // arrow used to always anchor to the first selected country
+        // regardless of which one this control implies it should.
+        (SERIES_LIST.length > 1 ?
+          "<div style='margin-bottom:8px;'><label style='display:block; font-size:11px; font-weight:700; color:var(--ink2); margin-bottom:4px;'>Points at</label>" +
+          "<select class='cz-annot-target' style='width:100%; padding:6px 8px; border:1px solid var(--hair); border-radius:6px; background:var(--panel); color:var(--ink); font:inherit; font-size:12.5px;'>" +
+            SERIES_LIST.map(function(s, si){ return "<option value='" + si + "'" + (si === (a.seriesIndex||0) ? " selected" : "") + ">" + s.country.replace(/</g,"&lt;") + "</option>"; }).join("") +
+          "</select></div>" : "") +
         "<textarea class='cz-annot-label-box' rows='1' maxlength='90' placeholder='Label (Enter for a new line)' style='width:100%; border:1px solid var(--hair); border-radius:6px; background:var(--panel); color:var(--ink); font:inherit; font-size:12.5px; padding:6px 8px; resize:vertical; min-height:40px; margin-bottom:8px;'>" + a.label.replace(/</g, "&lt;") + "</textarea>" +
         "<div style='display:flex; align-items:center; gap:10px;'>" +
           "<div class='align-seg' style='display:flex; border:1px solid var(--hair); border-radius:6px; overflow:hidden; flex-shrink:0;'>" +
@@ -5334,6 +5345,13 @@ window.EATLAS_COMPARE = {
           czRenderPreview();
         });
       });
+      var targetSelEl = body.querySelector(".cz-annot-target");
+      if(targetSelEl){
+        targetSelEl.addEventListener("change", function(e){
+          a.seriesIndex = parseInt(e.target.value, 10) || 0;
+          czRenderPreview();
+        });
+      }
       var labelBoxEl = body.querySelector(".cz-annot-label-box");
       labelBoxEl.addEventListener("input", function(e){
         a.label = e.target.value || "Event";
@@ -5357,7 +5375,7 @@ window.EATLAS_COMPARE = {
     var gm = czmGeom();
     var idx = nearestUnifiedIndex(czmState.from);
     var ax = gm.xForIndex(idx);
-    czmState.annotations.push({ type: "line", date: czmState.from, label: "New event", align: "center", labelX: ax, labelY: G.padT - 8, fontSize: 11 });
+    czmState.annotations.push({ type: "line", date: czmState.from, label: "New event", align: "center", labelX: ax, labelY: gm.padT - 8, fontSize: 11, seriesIndex: 0 }); // gm.padT not the static G.padT -- G.padT never accounts for the extra space a chart title reserves, so a fresh annotation could land right inside the title's own space
     czRenderAnnotList(); czRenderPreview();
   });
   function czFilenameBase(){ return czmState.filenameBase + "_" + czmState.from + "_to_" + czmState.to; }

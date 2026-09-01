@@ -2380,7 +2380,24 @@ if(stickyToggleEl){
 function addAnnotation(){
   if(annotations.length >= MAX_ANNOTATIONS) return;
   var defaultDate = fromPeriodSel.value || PERIODS[0];
-  annotations.push({ id:"a"+(++annotSeq), date:defaultDate, label:"Event", type:"line", align:"center", collapsed:false });
+  // Root-cause fix for the title-collision bug: the old default used the
+  // STATIC G.padT constant, which never accounts for the extra space a
+  // chart title reserves -- so a fresh annotation's label landed right
+  // inside that reserved title area. gm.padT is the actual, per-render
+  // geometry (already correctly larger when a title is set), so basing
+  // the default on that instead puts new annotations just above the
+  // plot, never inside the title's own space.
+  var labelX = 0, labelY = 40;
+  if(series.length){
+    var gm = chartType === "bar" ? czmSnapshotGeom() : czmGeom();
+    var idx = nearestUnifiedIndex(defaultDate);
+    labelX = gm.xForIndex(idx);
+    labelY = gm.padT - 8;
+  }
+  annotations.push({
+    id: "a"+(++annotSeq), date: defaultDate, label: "Event", type: "line", align: "center", collapsed: false,
+    labelX: labelX, labelY: labelY, seriesIndex: 0, fontSize: 11
+  });
   renderAnnotList(); renderChart();
 }
 function renderAnnotList(){
@@ -2400,26 +2417,58 @@ function renderAnnotList(){
     head.appendChild(summary); head.appendChild(rm); head.appendChild(chevron);
     var body = document.createElement("div"); body.className = "cm-annot-body";
     body.style.display = a.collapsed ? "none" : "flex";
+    // Repositions labelX from the current geometry, matching the real
+    // engine's own align/date handlers exactly (offset ax by +/-50 for
+    // left/right, dead-centre otherwise) -- labelY is deliberately left
+    // untouched here, same as the real one: only a drag (or brand-new
+    // creation) ever changes vertical position.
+    function repositionX(){
+      if(!series.length) return;
+      var gm = chartType === "bar" ? czmSnapshotGeom() : czmGeom();
+      var idx = nearestUnifiedIndex(a.date);
+      var ax = gm.xForIndex(idx);
+      a.labelX = a.align === "left" ? ax - 50 : a.align === "right" ? ax + 50 : ax;
+    }
     var dateSel = document.createElement("select");
     PERIODS.forEach(function(p){ var o=document.createElement("option"); o.value=p; o.textContent=fmtPeriod(p); if(p===a.date) o.selected=true; dateSel.appendChild(o); });
-    dateSel.addEventListener("change", function(){ a.date = dateSel.value; updateSummary(); renderChart(); });
+    dateSel.addEventListener("change", function(){ a.date = dateSel.value; repositionX(); updateSummary(); renderChart(); });
     var typeSeg = document.createElement("div"); typeSeg.className = "seg";
     ["line","arrow"].forEach(function(t){
       var b = document.createElement("button"); b.type="button"; b.textContent = t==="line"?"Line":"Arrow"; b.style.flex="1";
       if(a.type===t) b.classList.add("active");
-      b.addEventListener("click", function(){ a.type=t; typeSeg.querySelectorAll("button").forEach(function(x){x.classList.toggle("active",x===b);}); renderChart(); });
+      b.addEventListener("click", function(){ a.type=t; typeSeg.querySelectorAll("button").forEach(function(x){x.classList.toggle("active",x===b);}); renderAnnotList(); renderChart(); });
       typeSeg.appendChild(b);
     });
     var alignSeg = document.createElement("div"); alignSeg.className = "seg";
     [["left","\u2190"],["center","\u25cf"],["right","\u2192"]].forEach(function(pair){
       var b = document.createElement("button"); b.type="button"; b.innerHTML = pair[1]; b.style.flex="1";
       if(a.align===pair[0]) b.classList.add("active");
-      b.addEventListener("click", function(){ a.align=pair[0]; alignSeg.querySelectorAll("button").forEach(function(x){x.classList.toggle("active",x===b);}); renderChart(); });
+      b.addEventListener("click", function(){ a.align=pair[0]; alignSeg.querySelectorAll("button").forEach(function(x){x.classList.toggle("active",x===b);}); repositionX(); renderChart(); });
       alignSeg.appendChild(b);
     });
     var labelBox = document.createElement("textarea"); labelBox.value = a.label; labelBox.maxLength = 90;
+    labelBox.className = "cm-annot-label-box";
     labelBox.addEventListener("input", function(){ a.label = labelBox.value || "Event"; updateSummary(); renderChart(); });
-    body.appendChild(dateSel); body.appendChild(typeSeg); body.appendChild(alignSeg); body.appendChild(labelBox);
+    body.appendChild(dateSel); body.appendChild(typeSeg); body.appendChild(alignSeg);
+    // Which line the arrow points at -- only meaningful for the arrow
+    // type, and only worth showing once there's more than one line to
+    // choose between. This is the fix for the reported bug: an arrow
+    // used to always point at the first series regardless of what was
+    // actually selected.
+    if(a.type === "arrow" && series.length > 1){
+      var targetSel = document.createElement("select");
+      series.forEach(function(s, i){
+        var o = document.createElement("option"); o.value = i; o.textContent = seriesLabel(s);
+        if((a.seriesIndex||0) === i) o.selected = true;
+        targetSel.appendChild(o);
+      });
+      var targetLabel = document.createElement("label");
+      targetLabel.style.cssText = "font-size:11px; font-weight:700; color:var(--ink2); margin-top:2px;";
+      targetLabel.textContent = "Points at";
+      targetSel.addEventListener("change", function(){ a.seriesIndex = parseInt(targetSel.value, 10) || 0; renderChart(); });
+      body.appendChild(targetLabel); body.appendChild(targetSel);
+    }
+    body.appendChild(labelBox);
     summary.addEventListener("click", function(){ a.collapsed = !a.collapsed; body.style.display = a.collapsed?"none":"flex"; chevron.textContent = a.collapsed?"\u25b8":"\u25be"; });
     chevron.addEventListener("click", function(){ summary.click(); });
     card.appendChild(head); card.appendChild(body);
@@ -2869,13 +2918,18 @@ function czmAnnotationSVG(a, ai, gm, t, forExport){
   if(a.date < UNIFIED_DATES[0] || a.date > UNIFIED_DATES[UNIFIED_DATES.length - 1]) return "";
   var idx = nearestUnifiedIndex(a.date);
   var ax = gm.xForIndex(idx);
-  var refSeries = SERIES_LIST[0];
+  // Per-annotation target line -- was always SERIES_LIST[0] regardless of
+  // which line the arrow visually needs to point at when there's more
+  // than one on the chart (a real gap in the original Customise & Export
+  // engine too, not just this port).
+  var refSeries = SERIES_LIST[a.seriesIndex] || SERIES_LIST[0];
   var refPts = refSeries ? czmFilteredSeries(refSeries) : [];
   var refIdx = refPts.length ? Math.min(idx, refPts.length - 1) : 0;
   var ay = refPts.length ? gm.y(refPts[refIdx][1]) : gm.padT + gm.plotH / 2;
   var s = ["<g data-cz-annot-group='" + ai + "'>"];
   if(a.type === "line"){
-    s.push("<line x1='" + ax.toFixed(1) + "' y1='" + gm.padT + "' x2='" + ax.toFixed(1) + "' y2='" + (gm.padT + gm.plotH) + "' stroke='" + t.annot + "' stroke-width='1.5' stroke-dasharray='4,3'/>");
+    s.push("<line data-cz-vline='" + ai + "' x1='" + ax.toFixed(1) + "' y1='" + gm.padT + "' x2='" + ax.toFixed(1) + "' y2='" + (gm.padT + gm.plotH) + "' stroke='" + t.annot + "' stroke-width='1.5' stroke-dasharray='4,3'/>");
+    if(!forExport) s.push("<rect data-cz-line-handle='" + ai + "' x='" + (ax - 7).toFixed(1) + "' y='" + gm.padT + "' width='14' height='" + gm.plotH + "' fill='transparent' cursor='ew-resize'/>");
   } else {
     var box = labelBoxCz(a);
     var start = closestBoxPointCz(box, ax, ay);
@@ -2885,20 +2939,25 @@ function czmAnnotationSVG(a, ai, gm, t, forExport){
     var hy1 = ay - headLen * Math.sin(angle - Math.PI / 7);
     var hx2 = ax - headLen * Math.cos(angle + Math.PI / 7);
     var hy2 = ay - headLen * Math.sin(angle + Math.PI / 7);
-    s.push("<line x1='" + start.x.toFixed(1) + "' y1='" + start.y.toFixed(1) + "' x2='" + ax.toFixed(1) + "' y2='" + ay.toFixed(1) + "' stroke='" + t.annot + "' stroke-width='1.5'/>");
+    s.push("<line data-cz-vline='" + ai + "' x1='" + start.x.toFixed(1) + "' y1='" + start.y.toFixed(1) + "' x2='" + ax.toFixed(1) + "' y2='" + ay.toFixed(1) + "' stroke='" + t.annot + "' stroke-width='1.5'/>");
     s.push("<path d='M" + ax.toFixed(1) + "," + ay.toFixed(1) + " L" + hx1.toFixed(1) + "," + hy1.toFixed(1) + " L" + hx2.toFixed(1) + "," + hy2.toFixed(1) + " Z' fill='" + t.annot + "'/>");
     s.push("<circle cx='" + ax.toFixed(1) + "' cy='" + ay.toFixed(1) + "' r='3' fill='" + t.annot + "'/>");
+    if(!forExport) s.push("<circle data-cz-line-handle='" + ai + "' cx='" + ax.toFixed(1) + "' cy='" + ay.toFixed(1) + "' r='9' fill='transparent' cursor='ew-resize'/>");
   }
   var anchorMap = { left: "end", center: "middle", right: "start" };
   var anchor = anchorMap[a.align] || "middle";
   var lines = String(a.label || "Event").split("\n").slice(0, 4);
   var fs = a.fontSize || 11;
   var lineH = fs * 1.25;
-  s.push("<text x='" + a.labelX.toFixed(1) + "' y='" + a.labelY.toFixed(1) + "' font-size='" + fs + "' font-weight='600' fill='" + t.annotText + "' text-anchor='" + anchor + "'>");
+  s.push("<text data-cz-label='" + ai + "' x='" + a.labelX.toFixed(1) + "' y='" + a.labelY.toFixed(1) + "' font-size='" + fs + "' font-weight='600' fill='" + t.annotText + "' text-anchor='" + anchor + "'>");
   lines.forEach(function(ln, li){
     s.push("<tspan x='" + a.labelX.toFixed(1) + "' dy='" + (li === 0 ? 0 : lineH) + "'>" + escapeXML(ln) + "</tspan>");
   });
   s.push("</text>");
+  if(!forExport){
+    var box2 = labelBoxCz(a);
+    s.push("<rect data-cz-label-handle='" + ai + "' x='" + (box2.left - 4).toFixed(1) + "' y='" + (box2.top - 2).toFixed(1) + "' width='" + (box2.w + 8).toFixed(1) + "' height='" + (box2.h + 6).toFixed(1) + "' fill='transparent' cursor='grab'/>");
+  }
   s.push("</g>");
   return s.join("");
 }
@@ -3035,9 +3094,13 @@ function resetYTickStepIdx(){
 }
 
 function buildCzmState(){
-  var annots = annotations.map(function(a){
-    return { type: a.type, date: a.date, label: a.label, align: a.align, labelX: 0, labelY: 0, fontSize: 11 };
-  });
+  // annotations IS czmState.annotations now -- single source of truth
+  // (previously this rebuilt a transformed copy with labelX/labelY
+  // zeroed out every render, which is what refreshAnnotationPositions()
+  // used to have to patch up afterwards; that two-copy setup is exactly
+  // the kind of drift risk that caused real bugs elsewhere in this
+  // build, and it also made persistent drag positions impossible since
+  // any full render would wipe them straight back to 0).
   return {
     chartTitle: style.chartTitle,
     yTitle: style.yAxisTitle,
@@ -3056,7 +3119,7 @@ function buildCzmState(){
     to: toPeriodSel.value,
     fmtY: buildFmtY(),
     srcNote: "Chartmaker selection (sample data)",
-    annotations: annots
+    annotations: annotations
   };
 }
 
@@ -3083,19 +3146,6 @@ function buildSnapshotRows(){
 }
 
 // Annotation label positions aren't dragged in ChartMaker (no drag UI),
-// so they're recomputed fresh every render from the real engine's own
-// default-on-creation position: labelX at the date's x-position, labelY
-// pinned just above the plot -- exactly where a brand-new annotation
-// starts out in Customise & Export before anyone drags it.
-function refreshAnnotationPositions(gm){
-  czmState.annotations.forEach(function(a){
-    if(a.date < UNIFIED_DATES[0] || a.date > UNIFIED_DATES[UNIFIED_DATES.length - 1]) return;
-    var idx = nearestUnifiedIndex(a.date);
-    a.labelX = gm.xForIndex(idx);
-    a.labelY = G.padT - 8;
-  });
-}
-
 var svgBoxEl = document.getElementById("cmSvgBox");
 
 function renderChart(){
@@ -3119,7 +3169,6 @@ function renderChart(){
   } else {
     SERIES_LIST = buildSeriesList();
     var gm = czmGeom(); // also (re)builds UNIFIED_DATES as a side effect
-    refreshAnnotationPositions(gm);
     allVals = [];
     SERIES_LIST.forEach(function(s){ czmFilteredSeries(s).forEach(function(p){ allVals.push(p[1]); }); });
   }
@@ -3152,7 +3201,135 @@ function renderChart(){
   document.getElementById("cmYStartValue").disabled = yStartDisabled;
 
   svgBoxEl.innerHTML = chartType === "bar" ? czmBuildSVGSnapshot(exportTheme, false) : czmBuildSVG(exportTheme, false);
+  wireDragHandles();
 }
+
+/* ---- drag-to-reposition + click-to-edit-in-place for event lines/arrows,
+   ported from Customise & Export's own czWireDragHandles/
+   czOpenInlineEditor almost verbatim -- same two drag handles (the
+   vertical line/arrow itself, draggable left-right to change date; the
+   label, freely draggable, or a plain click opens an inline textarea
+   right over the SVG for fast editing without opening the sidebar
+   card). This didn't exist in ChartMaker before -- annotations only had
+   the sidebar form controls, unlike the real modal. ---- */
+function wireDragHandles(){
+  var svgEl = svgBoxEl.querySelector("svg");
+  if(!svgEl) return;
+  function svgPoint(ev){
+    var rect = svgEl.getBoundingClientRect();
+    var scale = G.W / rect.width;
+    return { x: (ev.clientX - rect.left) * scale, y: (ev.clientY - rect.top) * scale };
+  }
+  function currentGm(){ return chartType === "bar" ? czmSnapshotGeom() : czmGeom(); }
+  function currentBuilder(theme, forExport){ return chartType === "bar" ? czmBuildSVGSnapshot(theme, forExport) : czmBuildSVG(theme, forExport); }
+  function refreshGroup(ai){
+    var gm = currentGm();
+    var t = THEMES[exportTheme];
+    var group = svgEl.querySelector("[data-cz-annot-group='" + ai + "']");
+    if(!group) return;
+    var temp = document.createElementNS("http://www.w3.org/2000/svg", "g");
+    temp.innerHTML = czmAnnotationSVG(annotations[ai], ai, gm, t, false).replace(/^<g[^>]*>/, "").replace(/<\/g>$/, "");
+    group.replaceChildren.apply(group, temp.childNodes);
+    wireOneGroup(ai, group);
+  }
+  function wireOneGroup(ai, group){
+    var lineHandle = group.querySelector("[data-cz-line-handle='" + ai + "']");
+    var labelHandle = group.querySelector("[data-cz-label-handle='" + ai + "']");
+    if(lineHandle) lineHandle.addEventListener("pointerdown", function(e){ startLineDrag(e, ai); });
+    if(labelHandle) labelHandle.addEventListener("pointerdown", function(e){ startLabelDragOrClick(e, ai); });
+  }
+  function startLineDrag(e, ai){
+    e.preventDefault();
+    function move(ev){
+      var gm = currentGm();
+      var p = svgPoint(ev);
+      var idx = 0, best = Infinity;
+      for(var i = 0; i < UNIFIED_DATES.length; i++){
+        var d = Math.abs(gm.xForIndex(i) - p.x);
+        if(d < best){ best = d; idx = i; }
+      }
+      var a = annotations[ai];
+      a.date = UNIFIED_DATES[idx];
+      var ax = gm.xForIndex(idx);
+      a.labelX = a.align === "left" ? ax - 50 : a.align === "right" ? ax + 50 : ax;
+      refreshGroup(ai);
+    }
+    function up(){
+      window.removeEventListener("pointermove", move);
+      window.removeEventListener("pointerup", up);
+      renderAnnotList();
+      renderChart();
+    }
+    window.addEventListener("pointermove", move);
+    window.addEventListener("pointerup", up);
+  }
+  function startLabelDragOrClick(e, ai){
+    e.preventDefault();
+    var a = annotations[ai];
+    var startClient = { x: e.clientX, y: e.clientY };
+    var startSvg = svgPoint(e);
+    var offX = startSvg.x - a.labelX, offY = startSvg.y - a.labelY;
+    var moved = false;
+    function move(ev){
+      if(Math.abs(ev.clientX - startClient.x) > 4 || Math.abs(ev.clientY - startClient.y) > 4) moved = true;
+      if(!moved) return;
+      var p = svgPoint(ev);
+      a.labelX = Math.max(20, Math.min(G.W - 20, p.x - offX));
+      a.labelY = Math.max(16, Math.min(G.H - 16, p.y - offY));
+      refreshGroup(ai);
+    }
+    function up(){
+      window.removeEventListener("pointermove", move);
+      window.removeEventListener("pointerup", up);
+      if(moved){ renderChart(); } else { openInlineEditor(ai); }
+    }
+    window.addEventListener("pointermove", move);
+    window.addEventListener("pointerup", up);
+  }
+  svgEl.querySelectorAll("[data-cz-annot-group]").forEach(function(group){
+    var ai = parseInt(group.getAttribute("data-cz-annot-group"), 10);
+    wireOneGroup(ai, group);
+  });
+}
+function openInlineEditor(ai){
+  var a = annotations[ai];
+  var svgEl = svgBoxEl.querySelector("svg");
+  if(!svgEl) return;
+  var rect = svgEl.getBoundingClientRect();
+  var scale = rect.width / G.W;
+  var box = labelBoxCz(a);
+  var overlay = document.createElement("textarea");
+  overlay.style.position = "fixed";
+  overlay.style.border = "1.5px dashed var(--blue)";
+  overlay.style.background = "rgba(255,255,255,.94)";
+  overlay.style.borderRadius = "3px";
+  overlay.style.padding = "1px 3px";
+  overlay.style.zIndex = "60";
+  overlay.style.resize = "none";
+  overlay.style.outline = "none";
+  overlay.value = a.label;
+  overlay.style.left = (rect.left + box.left * scale - 4) + "px";
+  overlay.style.top = (rect.top + box.top * scale - 2) + "px";
+  overlay.style.width = Math.max(70, box.w * scale + 8) + "px";
+  overlay.style.height = Math.max(24, box.h * scale + 6) + "px";
+  overlay.style.fontSize = Math.max(10, (a.fontSize||11) * scale) + "px";
+  overlay.style.fontWeight = "600";
+  overlay.style.fontFamily = "Helvetica, Arial, sans-serif";
+  overlay.style.color = THEMES[exportTheme].annotText;
+  overlay.style.textAlign = a.align === "left" ? "right" : a.align === "right" ? "left" : "center";
+  document.body.appendChild(overlay);
+  overlay.focus();
+  overlay.select();
+  var cardBoxes = document.querySelectorAll(".cm-annot-label-box");
+  overlay.addEventListener("input", function(){
+    a.label = overlay.value || "Event";
+    if(cardBoxes[ai]) cardBoxes[ai].value = a.label;
+  });
+  function commit(){ if(overlay.parentNode) overlay.remove(); renderAnnotList(); renderChart(); }
+  overlay.addEventListener("blur", commit);
+  overlay.addEventListener("keydown", function(e){ if(e.key === "Escape"){ e.preventDefault(); commit(); } });
+}
+
 
 /* ---- export: same pipeline as the real engine -- build the SVG string,
    render it through an <img> (which properly waits for/uses whatever
@@ -3172,8 +3349,7 @@ btnPng.addEventListener("click", function(){
     svgStr = czmBuildSVGSnapshot(exportTheme, true);
   } else {
     SERIES_LIST = buildSeriesList();
-    var gm = czmGeom();
-    refreshAnnotationPositions(gm);
+    czmGeom();
     svgStr = czmBuildSVG(exportTheme, true);
   }
   var url = URL.createObjectURL(new Blob([svgStr], { type: "image/svg+xml;charset=utf-8" }));
@@ -3544,6 +3720,23 @@ function loadSavedChart(row){
   if(row.from_period) fromPeriodSel.value = row.from_period;
   if(row.to_period) toPeriodSel.value = row.to_period;
   renderChart();
+  // Saved rows only carry date/label/type/align/seriesIndex, same as the
+  // real product's own save schema -- never exact drag pixel positions.
+  // Fill in a fresh default position for each restored annotation now
+  // that series/date-range are actually loaded and geometry is real,
+  // same defaulting addAnnotation() uses (gm.padT, not the static G.padT
+  // that caused the title-collision bug).
+  if(annotations.length && series.length){
+    var gmLoad = chartType === "bar" ? czmSnapshotGeom() : czmGeom();
+    annotations.forEach(function(a){
+      var idx = nearestUnifiedIndex(a.date);
+      var ax = gmLoad.xForIndex(idx);
+      a.labelX = a.align === "left" ? ax - 50 : a.align === "right" ? ax + 50 : ax;
+      a.labelY = gmLoad.padT - 8;
+      a.fontSize = a.fontSize || 11;
+    });
+    renderChart();
+  }
 }
 
 // Same open/close pattern as the country and metric picker modals --
@@ -3577,7 +3770,7 @@ saveConfirmBtn.addEventListener("click", function(){
     to_period: toPeriodSel.value,
     style: {
       series: series.map(function(s){ return { country:s.country, metric:s.metric, transform:s.transform, color:s.color, manualColor:s.manualColor, customLabel:s.customLabel }; }),
-      annotations: annotations.map(function(a){ return { date:a.date, label:a.label, type:a.type, align:a.align }; }),
+      annotations: annotations.map(function(a){ return { date:a.date, label:a.label, type:a.type, align:a.align, seriesIndex:a.seriesIndex||0 }; }),
       snapshot: {
         chartTitle: style.chartTitle, yAxisTitle: style.yAxisTitle, legendTitle: style.legendTitle,
         yTitlePos: style.yTitlePos, showFill: style.showFill, showPoints: style.showPoints,
