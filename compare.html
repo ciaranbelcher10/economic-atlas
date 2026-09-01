@@ -32,7 +32,7 @@
 <link href="https://fonts.googleapis.com/css2?family=Nunito+Sans:wght@400;600;700&display=swap" rel="stylesheet">
 <link rel="icon" type="image/png" sizes="32x32" href="favicon-32.png">
 <link rel="apple-touch-icon" href="apple-touch-icon.png">
-<link rel="stylesheet" href="style.css?v=47">
+<link rel="stylesheet" href="style.css?v=48">
 <style>
 :root{ --map-nodata: #E9EBE7; }
 /* ---- info button + popover (per-card data source & methodology) ---- */
@@ -1866,6 +1866,15 @@ function scaleOf(unitStr){
 function currencySymbol(unitStr){
   var m = unitStr.match(/^[^a-zA-Z0-9]+/);
   return m ? m[0] : "";
+}
+function curFmt(rawValue, unitStr, decimals){
+  var scale = scaleOf(unitStr);
+  var symbol = currencySymbol(unitStr);
+  var a = Math.abs(rawValue) * scale;
+  var sign = rawValue < 0 ? "\u2212" : "";
+  if(a >= 1e12) return sign + symbol + (a/1e12).toFixed(decimals) + "tn";
+  if(a >= 1e9) return sign + symbol + (a/1e9).toFixed(decimals) + "bn";
+  return sign + symbol + (a/1e6).toFixed(0) + "m";
 }
 
 /* ============================== source citations ============================== */
