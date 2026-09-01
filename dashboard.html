@@ -415,7 +415,7 @@ footer.dash-foot{margin-top:36px; font-size:12.5px; color:var(--ink2); border-to
   </div>
   <a class="item" href="compare">Compare</a>
   <a class="item" href="dashboard">My Dashboard</a>
-  <a class="item" href="chartmaker">Chartmaker</a>
+  <a class="item" href="chartmaker" id="navChartmakerLink" hidden>Chartmaker</a>
 </div></nav>
 <script>
 // Optimistic Plan-link render: applies whatever we last confirmed about
@@ -1447,6 +1447,11 @@ footer.dash-foot{margin-top:36px; font-size:12.5px; color:var(--ink2); border-to
     });
   })();
   window.EATLAS_PREFS.onSettled(function(){
+    // Chartmaker isn't public yet -- the page itself is admin-gated, but
+    // the nav link needs to actually be invisible to non-admins too, not
+    // just point at a page that says "not public" once clicked.
+    var navChartmakerLink = document.getElementById("navChartmakerLink");
+    if(navChartmakerLink) navChartmakerLink.hidden = !(window.EATLAS_PREFS.isAdmin && window.EATLAS_PREFS.isAdmin());
     window.EATLAS_ACCOUNT.render();
     window.EATLAS_DOWNLOAD.refreshEntitlement();
     window.EATLAS_CUSTOMIZE.refreshEntitlement();
@@ -2787,7 +2792,7 @@ footer.dash-foot{margin-top:36px; font-size:12.5px; color:var(--ink2); border-to
     // missing) since there's nothing stable to re-fetch by on reload.
     var czSaveBtn = document.getElementById("czSaveChartBtn");
     var czOpenBtn = document.getElementById("czOpenChartBtn");
-    var showSaveOpen = !!(window.EATLAS_PREFS && window.EATLAS_PREFS.isAdmin() && metricKey && countryCode);
+    var showSaveOpen = !!(metricKey && countryCode); // admin gate removed -- Save & Share is now available to all logged-in users, same as before minus the isAdmin() check
     if(czSaveBtn) czSaveBtn.hidden = !showSaveOpen;
     if(czOpenBtn) czOpenBtn.hidden = !showSaveOpen;
     document.getElementById("czModalCountry").textContent = title;
