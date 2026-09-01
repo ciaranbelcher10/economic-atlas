@@ -1,0 +1,3618 @@
+<!DOCTYPE html>
+<html lang="en-GB">
+<head>
+<meta charset="utf-8">
+<script>(function(){
+  try{
+    var saved = localStorage.getItem("eatlas_theme");
+    if(saved === "dark" || (!saved && window.matchMedia && window.matchMedia("(prefers-color-scheme: dark)").matches)){
+      document.documentElement.setAttribute("data-theme", "dark");
+    }
+  }catch(e){}
+})();</script>
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<meta name="description" content="Build your own chart: pick any countries and indicators, overlay them, style it, and export -- Customise & Export, generalised.">
+<meta property="og:type" content="website">
+<meta property="og:site_name" content="The Economic Atlas">
+<meta property="og:title" content="Chartmaker · The Economic Atlas">
+<meta property="og:description" content="Build your own chart: pick any countries and indicators, overlay them, style it, and export.">
+<meta property="og:url" content="https://theeconomicatlas.com/chartmaker">
+<meta property="og:image" content="https://theeconomicatlas.com/og-image.png">
+<meta property="og:image:width" content="1200">
+<meta property="og:image:height" content="630">
+<meta property="og:image:alt" content="The Economic Atlas -- hourly economic data, no commentary.">
+<meta name="twitter:card" content="summary_large_image">
+<meta name="twitter:title" content="Chartmaker · The Economic Atlas">
+<meta name="twitter:description" content="Build your own chart: pick any countries and indicators, overlay them, style it, and export.">
+<meta name="twitter:image" content="https://theeconomicatlas.com/og-image.png">
+<title>Chartmaker · The Economic Atlas</title>
+<link rel="canonical" href="https://theeconomicatlas.com/chartmaker">
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+<link href="https://fonts.googleapis.com/css2?family=Nunito+Sans:wght@400;600;700&display=swap" rel="stylesheet">
+<link rel="icon" type="image/png" sizes="32x32" href="favicon-32.png">
+<link rel="apple-touch-icon" href="apple-touch-icon.png">
+<link rel="stylesheet" href="style.css?v=43">
+</head>
+<body>
+<nav class="top"><div class="wrap">
+  <a class="brand" href="index"><img src="logo-64.png" alt="" width="26" height="26" style="display:block;border-radius:50%;background:#fff;padding:1px;">The Economic Atlas</a>
+  <button type="button" class="navtoggle" id="navToggle" aria-label="Menu" aria-expanded="false" aria-controls="navLinks">
+    <span></span><span></span><span></span>
+  </button>
+  <div class="navlinks" id="navLinks">
+  <div class="dropdown">
+    <button type="button" class="dropbtn current" id="aboutBtn" aria-haspopup="true" aria-expanded="false">About <span class="caret">&#9662;</span></button>
+    <div class="dropdown-panel" id="aboutPanel">
+      <div class="dcol">
+        <a href="roadmap" >Roadmap</a>
+        <a href="contact" class="active">Contact</a>
+        <a href="methodology">Methodology</a>
+      </div>
+    </div>
+  </div>
+  <a class="item" href="pricing" id="planNavLink">Plan</a>
+  <button type="button" class="authbtn" id="authBtn">Log in</button>
+  <button type="button" class="theme-toggle" id="themeToggle" aria-label="Switch to dark mode" title="Switch to dark mode">&#127769;</button>
+  </div>
+</div></nav>
+<nav class="sub"><div class="wrap">
+  <div class="dropdown">
+    <button type="button" class="dropbtn" id="macroBtn" aria-haspopup="true" aria-expanded="false">Country Breakdowns <span class="caret">&#9662;</span></button>
+    <div class="dropdown-panel" id="macroPanel">
+      <div class="doverview">
+        <a href="index">Overview</a>
+      </div>
+      <div class="dcol">
+        <p class="dhead">Europe</p>
+        <a href="austria">Austria</a>
+        <a href="eurozone">Eurozone</a>
+        <a href="france">France</a>
+        <a href="germany">Germany</a>
+        <a href="ireland">Ireland</a>
+        <a href="italy">Italy</a>
+        <a href="netherlands">Netherlands</a>
+        <a href="poland">Poland</a>
+        <a href="spain">Spain</a>
+        <a href="switzerland">Switzerland</a>
+        <a href="turkey">Turkey</a>
+        <a href="uk">UK</a>
+      </div>
+      <div class="dcol">
+        <p class="dhead">North America</p>
+        <a href="canada">Canada</a>
+        <a href="mexico">Mexico</a>
+        <a href="us">U.S.</a>
+      </div>
+      <div class="dcol">
+        <p class="dhead">Asia</p>
+        <a href="india">India</a>
+        <a href="indonesia">Indonesia</a>
+        <a href="japan">Japan</a>
+        <a href="singapore">Singapore</a>
+        <a href="southkorea">South Korea</a>
+        <a href="thailand">Thailand</a>
+      </div>
+      <div class="dcol">
+        <p class="dhead">Oceania</p>
+        <a href="australia">Australia</a>
+      </div>
+      <div class="dcol">
+        <p class="dhead">Middle East</p>
+        <a href="israel">Israel</a>
+      </div>
+      <div class="dcol">
+        <p class="dhead">South America</p>
+        <a href="argentina">Argentina</a>
+        <a href="brazil">Brazil</a>
+        <a href="chile">Chile</a>
+        <a href="colombia">Colombia</a>
+      </div>
+      <div class="dcol">
+        <p class="dhead">Africa</p>
+        <a href="morocco">Morocco</a>
+        <a href="southafrica">South Africa</a>
+      </div>
+      <div class="dcol">
+        <p class="dhead">Scandinavia</p>
+        <a href="denmark">Denmark</a>
+        <a href="norway">Norway</a>
+        <a href="sweden">Sweden</a>
+      </div>
+    </div>
+  </div>
+  <a class="item" href="compare">Compare</a>
+  <a class="item" href="dashboard">My Dashboard</a>
+  <a class="item" href="chartmaker">Chartmaker</a>
+</div></nav>
+<script>
+// Optimistic Plan-link render: applies whatever we last confirmed about
+// this browser's Pro status immediately, before the real (async)
+// profile fetch even starts. Without this, the link always starts as
+// plain "Plan" on every single page load and only corrects to "Pro
+// Plan" once that fetch resolves -- visible as a flash/flicker on every
+// navigation for an actual Pro account. updatePlanNavLink() (later in
+// the page) overwrites this the moment real data arrives either way, so
+// a stale cached guess here is corrected within a normal page-load's
+// worth of time, never left wrong.
+(function(){
+  try{
+    var link = document.getElementById("planNavLink");
+    if(link && localStorage.getItem("eatlas_last_known_pro") === "1"){
+      link.textContent = "Pro Plan";
+      link.classList.add("is-pro");
+    }
+  }catch(e){}
+})();
+</script>
+<div class="wrap" style="padding-top:16px;">
+  <div class="savebar" id="alertBanner" hidden>
+    <span class="savebar-icon" aria-hidden="true">&#128276;</span>
+    <p>Want to know when new countries, indicators or features land? <a href="roadmap#alertSignupBox" style="color:inherit; text-decoration:underline;">Leave your email</a> -- no account needed.</p>
+    <button type="button" class="savebar-close" id="alertBannerClose" aria-label="Dismiss">&times;</button>
+  </div>
+  <div class="savebar" id="trialBanner" hidden>
+    <span class="savebar-icon" aria-hidden="true">&#9203;</span>
+    <p id="trialBannerText"></p>
+  </div>
+</div>
+<div id="cookieBanner" role="region" aria-label="Cookie consent">
+  <div class="cookie-inner">
+    <div>
+      <p class="cookie-icon" aria-hidden="true">&#127850;</p>
+      <p class="cookie-text"><strong>A quick cookie question.</strong><br>We'd like to use Google Analytics to see how the site is used, which pages people find useful, roughly how many visits we get. It only runs if you say yes, and no personal data is sold or shared either way. <a href="contact">Questions? Get in touch</a>.</p>
+    </div>
+    <div class="cookie-actions">
+      <button type="button" class="btn ghost" id="cookieReject">Reject</button>
+      <button type="button" class="btn" id="cookieAccept">Accept</button>
+    </div>
+  </div>
+</div>
+<div class="auth-modal" id="authModal" hidden>
+  <div class="auth-modal-backdrop" id="authModalBackdrop"></div>
+  <div class="auth-modal-content">
+    <button type="button" class="auth-modal-close" id="authModalClose" aria-label="Close">&times;</button>
+    <div id="authFormView">
+      <h2 id="authModalTitle">Log in</h2>
+      <p class="auth-modal-sub" id="authModalSub">Welcome back.</p>
+      <form id="authForm">
+        <div class="auth-field">
+          <label for="authEmail">Email</label>
+          <input type="email" id="authEmail" required autocomplete="email">
+        </div>
+        <div class="auth-field">
+          <label for="authPassword">Password</label>
+          <input type="password" id="authPassword" required autocomplete="current-password" minlength="6">
+        </div>
+        <button type="submit" class="btn auth-submit" id="authSubmitBtn">Log in</button>
+      </form>
+      <p class="auth-toggle" id="authForgotRow"><button type="button" id="authForgotBtn">Forgot password?</button></p>
+      <p class="auth-toggle" id="authToggleRow">Don't have an account? <button type="button" id="authToggleBtn">Sign up</button></p>
+      <p class="auth-msg" id="authMsg"></p>
+    </div>
+    <div id="authForgotView" hidden>
+      <h2>Reset password</h2>
+      <p class="auth-modal-sub">Enter your email and we'll send a reset link.</p>
+      <form id="authForgotForm">
+        <div class="auth-field">
+          <label for="authForgotEmail">Email</label>
+          <input type="email" id="authForgotEmail" required autocomplete="email">
+        </div>
+        <button type="submit" class="btn auth-submit" id="authForgotSubmitBtn">Send reset link</button>
+      </form>
+      <p class="auth-toggle"><button type="button" id="authBackToLoginBtn">Back to log in</button></p>
+      <p class="auth-msg" id="authForgotMsg"></p>
+    </div>
+    <div id="authResetView" hidden>
+      <h2>Set a new password</h2>
+      <p class="auth-modal-sub">Choose a new password for your account.</p>
+      <form id="authResetForm">
+        <div class="auth-field">
+          <label for="authNewPassword">New password</label>
+          <input type="password" id="authNewPassword" required autocomplete="new-password" minlength="6">
+        </div>
+        <button type="submit" class="btn auth-submit" id="authResetSubmitBtn">Set new password</button>
+      </form>
+      <p class="auth-msg" id="authResetMsg"></p>
+    </div>
+    <div id="authSignedInView" hidden class="auth-signedin-box">
+      <h2>Account</h2>
+      <p>Signed in as</p>
+      <p><strong id="authUserEmail"></strong></p>
+      <div id="acctPlanBox" class="acct-plan-box"></div>
+      <button type="button" class="btn ghost" id="authChangePasswordBtn" style="margin-bottom:10px;">Change password</button>
+      <button type="button" class="btn ghost" id="authSignOutBtn">Log out</button>
+    </div>
+  </div>
+</div>
+<div class="modal" id="welcomeProModal" hidden>
+  <div class="modal-backdrop" id="welcomeProBackdrop"></div>
+  <div class="modal-content">
+    <button type="button" class="modal-close" id="welcomeProClose" aria-label="Close">&times;</button>
+    <h2>Welcome to Pro</h2>
+    <p class="modal-sub">Your account includes:</p>
+    <ul style="margin:0 0 20px; padding-left:20px; line-height:1.9; font-size:14.5px;">
+      <li><strong>Unlimited data downloads</strong>, on any chart, any country</li>
+      <li><strong>Unlimited Customise &amp; export</strong> -- annotate, style and export any chart as an image</li>
+    </ul>
+    <button type="button" class="btn" id="welcomeProGotIt" style="width:100%;">Got it</button>
+  </div>
+</div>
+<script>
+(function(){
+  // Shared toggle behaviour for any nav dropdown -- originally written
+  // just for Country Breakdowns, now reused for About too rather than
+  // duplicating the same open/close/outside-click/Escape logic twice.
+  function wireDropdown(btnId, panelId){
+    var btn = document.getElementById(btnId);
+    var panel = document.getElementById(panelId);
+    if(!btn || !panel) return;
+    function close(){
+      panel.classList.remove("open"); btn.classList.remove("open");
+      btn.setAttribute("aria-expanded","false");
+    }
+    btn.addEventListener("click", function(e){
+      e.stopPropagation();
+      var isOpen = panel.classList.toggle("open");
+      btn.classList.toggle("open", isOpen);
+      btn.setAttribute("aria-expanded", isOpen ? "true" : "false");
+    });
+    document.addEventListener("click", function(e){
+      if(!panel.contains(e.target) && e.target !== btn) close();
+    });
+    document.addEventListener("keydown", function(e){ if(e.key === "Escape") close(); });
+  }
+  wireDropdown("macroBtn", "macroPanel");
+  wireDropdown("aboutBtn", "aboutPanel");
+  // Mobile hamburger menu -- independent of the country-breakdown
+  // dropdown above (which still works exactly the same way, just
+  // nested inside this menu once it's open on narrow screens).
+  var navToggle = document.getElementById("navToggle");
+  var navLinks = document.getElementById("navLinks");
+  function closeNavMenu(){
+    navLinks.classList.remove("open");
+    navToggle.classList.remove("open");
+    navToggle.setAttribute("aria-expanded", "false");
+  }
+  navToggle.addEventListener("click", function(e){
+    e.stopPropagation();
+    var isOpen = navLinks.classList.toggle("open");
+    navToggle.classList.toggle("open", isOpen);
+    navToggle.setAttribute("aria-expanded", isOpen ? "true" : "false");
+  });
+  document.addEventListener("click", function(e){
+    if(!navLinks.contains(e.target) && e.target !== navToggle) closeNavMenu();
+  });
+  document.addEventListener("keydown", function(e){ if(e.key === "Escape") closeNavMenu(); });
+  var themeBtn = document.getElementById("themeToggle");
+  function updateThemeIcon(){
+    var isDark = document.documentElement.getAttribute("data-theme") === "dark";
+    themeBtn.innerHTML = isDark ? "&#9728;&#65039;" : "&#127769;";
+    themeBtn.setAttribute("aria-label", isDark ? "Switch to light mode" : "Switch to dark mode");
+    themeBtn.setAttribute("title", isDark ? "Switch to light mode" : "Switch to dark mode");
+  }
+  if(themeBtn){
+    updateThemeIcon();
+    themeBtn.addEventListener("click", function(){
+      var isDark = document.documentElement.getAttribute("data-theme") === "dark";
+      if(isDark){
+        document.documentElement.removeAttribute("data-theme");
+        try{ localStorage.setItem("eatlas_theme", "light"); }catch(e){}
+      } else {
+        document.documentElement.setAttribute("data-theme", "dark");
+        try{ localStorage.setItem("eatlas_theme", "dark"); }catch(e){}
+      }
+      updateThemeIcon();
+    });
+  }
+  /* ---------------------------- cookie consent / GA4 ------------------------- */
+  // GA4 only ever loads after an explicit Accept click (or a previously
+  // saved "granted" choice) -- never on page load by default, since
+  // that's the actual UK GDPR/PECR requirement: consent BEFORE
+  // non-essential cookies are set, not implied consent with an opt-out.
+  var GA_MEASUREMENT_ID = "G-PJSXJN5H6G"; // theeconomicatlas.com data stream (the canonical domain going forward)
+  var CONSENT_KEY = "eatlas_cookie_consent";
+  function loadGA(){
+    if(window._gaLoaded || GA_MEASUREMENT_ID.indexOf("XXXX") !== -1) return;
+    window._gaLoaded = true;
+    var s = document.createElement("script");
+    s.async = true;
+    s.src = "https://www.googletagmanager.com/gtag/js?id=" + GA_MEASUREMENT_ID;
+    document.head.appendChild(s);
+    window.dataLayer = window.dataLayer || [];
+    function gtag(){ window.dataLayer.push(arguments); }
+    window.gtag = gtag;
+    gtag("js", new Date());
+    gtag("config", GA_MEASUREMENT_ID);
+  }
+  var cookieBanner = document.getElementById("cookieBanner");
+  var consent = null;
+  try { consent = localStorage.getItem(CONSENT_KEY); } catch(e){}
+  if(consent === "granted"){
+    loadGA();
+  } else if(consent !== "denied" && cookieBanner){
+    cookieBanner.classList.add("show");
+  }
+  var cookieAccept = document.getElementById("cookieAccept");
+  var cookieReject = document.getElementById("cookieReject");
+  if(cookieAccept){
+    cookieAccept.addEventListener("click", function(){
+      try{ localStorage.setItem(CONSENT_KEY, "granted"); }catch(e){}
+      cookieBanner.classList.remove("show");
+      loadGA();
+    });
+  }
+  if(cookieReject){
+    cookieReject.addEventListener("click", function(){
+      try{ localStorage.setItem(CONSENT_KEY, "denied"); }catch(e){}
+      cookieBanner.classList.remove("show");
+    });
+  }
+})();
+</script>
+<script src="https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2"></script>
+<script>
+(function(){
+  var SUPABASE_URL = "https://skluvrxnuibkordzgtmu.supabase.co";
+  var SUPABASE_KEY = "sb_publishable_p6_GqrC8qcNC6KwPE46hkw_qdWQTuyT";
+  var sb = supabase.createClient(SUPABASE_URL, SUPABASE_KEY);
+  window.sb = sb; // ChartMaker needs this for saved_charts -- contact.html (this page's base template) never exposed it globally like compare.html does.
+  var authBtn = document.getElementById("authBtn");
+  var authModal = document.getElementById("authModal");
+  var authModalBackdrop = document.getElementById("authModalBackdrop");
+  var authModalClose = document.getElementById("authModalClose");
+  var authForm = document.getElementById("authForm");
+  var authEmail = document.getElementById("authEmail");
+  var authPassword = document.getElementById("authPassword");
+  var authSubmitBtn = document.getElementById("authSubmitBtn");
+  var authMsg = document.getElementById("authMsg");
+  var authToggleRow = document.getElementById("authToggleRow");
+  var authModalTitle = document.getElementById("authModalTitle");
+  var authModalSub = document.getElementById("authModalSub");
+  var authFormView = document.getElementById("authFormView");
+  var authSignedInView = document.getElementById("authSignedInView");
+  var authUserEmail = document.getElementById("authUserEmail");
+  var authSignOutBtn = document.getElementById("authSignOutBtn");
+  var authForgotBtn = document.getElementById("authForgotBtn");
+  var authForgotView = document.getElementById("authForgotView");
+  var authForgotForm = document.getElementById("authForgotForm");
+  var authForgotEmail = document.getElementById("authForgotEmail");
+  var authForgotSubmitBtn = document.getElementById("authForgotSubmitBtn");
+  var authForgotMsg = document.getElementById("authForgotMsg");
+  var authBackToLoginBtn = document.getElementById("authBackToLoginBtn");
+  var authResetView = document.getElementById("authResetView");
+  var authResetForm = document.getElementById("authResetForm");
+  var authNewPassword = document.getElementById("authNewPassword");
+  var authResetSubmitBtn = document.getElementById("authResetSubmitBtn");
+  var authResetMsg = document.getElementById("authResetMsg");
+  var authChangePasswordBtn = document.getElementById("authChangePasswordBtn");
+  var mode = "login";
+  function showMsg(el, text, kind){
+    el.textContent = text;
+    el.className = "auth-msg show " + kind;
+  }
+  function clearMsg(el){
+    el.className = "auth-msg";
+    el.textContent = "";
+  }
+  function hideAllViews(){
+    authFormView.hidden = true;
+    authForgotView.hidden = true;
+    authResetView.hidden = true;
+    authSignedInView.hidden = true;
+  }
+  function wireToggleBtn(label, nextMode){
+    var btn = document.createElement("button");
+    btn.type = "button";
+    btn.textContent = label;
+    btn.addEventListener("click", function(){ setMode(nextMode); });
+    return btn;
+  }
+  function setMode(newMode){
+    mode = newMode;
+    clearMsg(authMsg);
+    authForm.reset();
+    if(mode === "login"){
+      authModalTitle.textContent = "Log in";
+      authModalSub.textContent = "Welcome back.";
+      authSubmitBtn.textContent = "Log in";
+      authToggleRow.textContent = "Don't have an account? ";
+      authToggleRow.appendChild(wireToggleBtn("Sign up", "signup"));
+    } else {
+      authModalTitle.textContent = "Sign up";
+      authModalSub.textContent = "Free, for now -- this may change in future.";
+      authSubmitBtn.textContent = "Sign up";
+      authToggleRow.textContent = "Already have an account? ";
+      authToggleRow.appendChild(wireToggleBtn("Log in", "login"));
+    }
+  }
+  function showLoginView(){
+    hideAllViews();
+    authFormView.hidden = false;
+    setMode("login");
+  }
+  function showForgotView(){
+    hideAllViews();
+    authForgotView.hidden = false;
+    clearMsg(authForgotMsg);
+    authForgotForm.reset();
+  }
+  function showResetView(){
+    hideAllViews();
+    authResetView.hidden = false;
+    clearMsg(authResetMsg);
+    authResetForm.reset();
+  }
+  function showSignedInView(session){
+    hideAllViews();
+    authSignedInView.hidden = false;
+    authUserEmail.textContent = session.user.email;
+  }
+  function openAuthModal(){
+    authModal.hidden = false;
+    document.body.style.overflow = "hidden";
+    // Was unconditionally showing the login form, even for an
+    // already-logged-in account -- every "locked, click to unlock"
+    // button (buy credits, upgrade to Pro) calls this, and for someone
+    // already signed in that meant clicking "buy credits" appeared to
+    // demand a login instead of showing the account panel where credits
+    // actually get bought. Check the real session first, same as the
+    // top-right account button's own handler already correctly does.
+    sb.auth.getSession().then(function(res){
+      var session = res.data.session;
+      if(session){
+        showSignedInView(session);
+      } else {
+        showLoginView();
+      }
+    });
+  }
+  function closeAuthModal(){
+    authModal.hidden = true;
+    document.body.style.overflow = "";
+  }
+  function updateAuthUI(session){
+    if(session && session.user){
+      authBtn.textContent = session.user.email;
+      authBtn.classList.add("signed-in");
+    } else {
+      authBtn.textContent = "Log in";
+      authBtn.classList.remove("signed-in");
+    }
+    if(window.EATLAS_DOWNLOAD) window.EATLAS_DOWNLOAD.setAuthState(!!(session && session.user));
+    if(window.EATLAS_PREFS) window.EATLAS_PREFS.setAuthState(!!(session && session.user), session && session.user ? session.user.id : null);
+  }
+  authBtn.addEventListener("click", function(){
+    sb.auth.getSession().then(function(res){
+      var session = res.data.session;
+      authModal.hidden = false;
+      document.body.style.overflow = "hidden";
+      if(session){
+        showSignedInView(session);
+      } else {
+        showLoginView();
+      }
+    });
+  });
+  authModalClose.addEventListener("click", closeAuthModal);
+  authModalBackdrop.addEventListener("click", closeAuthModal);
+  document.addEventListener("keydown", function(e){ if(e.key === "Escape" && !authModal.hidden) closeAuthModal(); });
+  authForm.addEventListener("submit", function(e){
+    e.preventDefault();
+    var email = authEmail.value.trim();
+    var password = authPassword.value;
+    authSubmitBtn.disabled = true;
+    clearMsg(authMsg);
+    if(mode === "signup"){
+      sb.auth.signUp({ email: email, password: password }).then(function(res){
+        authSubmitBtn.disabled = false;
+        if(res.error){
+          showMsg(authMsg, res.error.message, "error");
+        } else if(res.data.user && !res.data.session){
+          showMsg(authMsg, "Check your email to confirm your account before logging in.", "success");
+          authForm.reset();
+        } else {
+          showMsg(authMsg, "Account created.", "success");
+        }
+      });
+    } else {
+      sb.auth.signInWithPassword({ email: email, password: password }).then(function(res){
+        authSubmitBtn.disabled = false;
+        if(res.error){
+          showMsg(authMsg, res.error.message, "error");
+        } else {
+          closeAuthModal();
+        }
+      });
+    }
+  });
+  // --- Forgot password ---
+  authForgotBtn.addEventListener("click", showForgotView);
+  authBackToLoginBtn.addEventListener("click", showLoginView);
+  authForgotForm.addEventListener("submit", function(e){
+    e.preventDefault();
+    var email = authForgotEmail.value.trim();
+    authForgotSubmitBtn.disabled = true;
+    clearMsg(authForgotMsg);
+    sb.auth.resetPasswordForEmail(email).then(function(res){
+      authForgotSubmitBtn.disabled = false;
+      if(res.error){
+        showMsg(authForgotMsg, res.error.message, "error");
+      } else {
+        showMsg(authForgotMsg, "Check your email for a password reset link.", "success");
+        authForgotForm.reset();
+      }
+    });
+  });
+  // --- Set / change password ---
+  // The same form and handler serve two different entry points: someone
+  // who clicked a "forgot password" reset link (Supabase creates a
+  // temporary session just for this) and someone who's already properly
+  // logged in and wants to change their password from the account view.
+  // Either way, updateUser() is exactly the same call.
+  authResetForm.addEventListener("submit", function(e){
+    e.preventDefault();
+    var password = authNewPassword.value;
+    authResetSubmitBtn.disabled = true;
+    clearMsg(authResetMsg);
+    sb.auth.updateUser({ password: password }).then(function(res){
+      authResetSubmitBtn.disabled = false;
+      if(res.error){
+        showMsg(authResetMsg, res.error.message, "error");
+      } else {
+        showMsg(authResetMsg, "Password updated.", "success");
+        authResetForm.reset();
+      }
+    });
+  });
+  authChangePasswordBtn.addEventListener("click", showResetView);
+  authSignOutBtn.addEventListener("click", function(){
+    sb.auth.signOut().then(function(){
+      closeAuthModal();
+    });
+  });
+  sb.auth.onAuthStateChange(function(event, session){
+    updateAuthUI(session);
+    if(event === "PASSWORD_RECOVERY"){
+      // Someone landed here via a password-reset email link -- open
+      // straight into the "set a new password" view rather than
+      // leaving them to notice they're now (temporarily) signed in
+      // and have to hunt for how to actually finish resetting it.
+      authModal.hidden = false;
+      document.body.style.overflow = "hidden";
+      showResetView();
+    }
+  });
+  sb.auth.getSession().then(function(res){
+    updateAuthUI(res.data.session);
+  });
+  // Expose so any chart on this page can send someone straight into the
+  // signup/login flow when they click a download button while logged out.
+  window.EATLAS_OPEN_AUTH_MODAL = openAuthModal;
+  // Shared, page-wide helper: every chart's "Download data" button (built
+  // by completely different code on country pages, Dashboard and Compare)
+  // calls into this one place to register itself. It tracks every button
+  // it's ever seen so that logging in or out updates all of them at once,
+  // without needing a page reload -- rather than each surface re-deriving
+  // login state independently.
+  window.EATLAS_DOWNLOAD = (function(){
+    var loggedIn = false;
+    var wired = []; // {btn, kind:'series'|'multi', pts/rows, title}
+    function csvEscape(v){
+      var s = String(v);
+      return /[",\n]/.test(s) ? '"' + s.replace(/"/g, '""') + '"' : s;
+    }
+    function seriesToCSV(pts){
+      var lines = ["Date,Value"];
+      pts.forEach(function(p){ lines.push(csvEscape(p[0]) + "," + csvEscape(p[1])); });
+      return lines.join("\n");
+    }
+    function multiToCSV(rows){
+      var lines = ["Country,Date,Value"];
+      rows.forEach(function(r){ lines.push(csvEscape(r.country) + "," + csvEscape(r.date || "") + "," + csvEscape(r.value)); });
+      return lines.join("\n");
+    }
+    function filenameFor(title){
+      return title.toLowerCase().replace(/[^a-z0-9]+/g, "_").replace(/^_+|_+$/g, "") + ".csv";
+    }
+    function triggerDownload(csv, title){
+      var blob = new Blob([csv], { type: "text/csv;charset=utf-8;" });
+      var url = URL.createObjectURL(blob);
+      var a = document.createElement("a");
+      a.href = url;
+      a.download = filenameFor(title);
+      document.body.appendChild(a);
+      a.click();
+      document.body.removeChild(a);
+      setTimeout(function(){ URL.revokeObjectURL(url); }, 200);
+    }
+    function setButtonLabel(btn, text, iconHtml){
+      btn.innerHTML = (iconHtml || "") + text;
+    }
+    function doDownload(entry){
+      var btn = entry.btn;
+      btn.classList.remove("unlocked", "dl-success");
+      btn.classList.add("dl-downloading");
+      setButtonLabel(btn, "Downloading\u2026");
+      btn.onclick = null; // ignore clicks mid-download rather than re-trigger
+      // The actual CSV build + browser download hand-off is effectively
+      // instant, but that means "Downloading..." would otherwise flash
+      // for a single frame -- this is about giving visible feedback for
+      // an action that's real but too fast to actually see, not about
+      // timing anything genuinely slow.
+      setTimeout(function(){
+        var csv = entry.kind === "multi" ? multiToCSV(entry.data) : seriesToCSV(entry.data);
+        triggerDownload(csv, entry.title);
+        btn.classList.remove("dl-downloading");
+        btn.classList.add("dl-success");
+        setButtonLabel(btn, "Downloaded \u2713");
+        // Re-derive the real state after the brief "Downloaded" flash,
+        // rather than assuming "unlocked" -- a credits-balance download
+        // that just spent its last 50p should land back on the locked
+        // state, not stay looking unlocked.
+        setTimeout(function(){ applyState(entry); }, 1600);
+      }, 450);
+    }
+    function startDownload(entry){
+      var prefs = window.EATLAS_PREFS;
+      if(prefs && prefs.isPro()){
+        doDownload(entry);
+        return;
+      }
+      // Not Pro: this click has to actually spend a credit first, via
+      // the spend_credit() RPC (row-locked server-side, so this can't be
+      // tricked into a double-spend by a fast double-click or two open
+      // tabs). Spend and download are two separate steps, so the button
+      // shows a distinct "using credit" state for the brief gap between
+      // them, rather than jumping straight to "Downloading...".
+      var btn = entry.btn;
+      btn.onclick = null;
+      setButtonLabel(btn, "Using credit\u2026");
+      sb.rpc("spend_credit", { action_kind: "download" }).then(function(res){
+        var ok = res.data && res.data.ok;
+        if(prefs && res.data && typeof res.data.balance === "number"){
+          prefs.setCreditsBalance(res.data.balance);
+        }
+        if(window.EATLAS_ACCOUNT) window.EATLAS_ACCOUNT.render();
+        if(!ok){
+          // Balance changed since this button was last rendered (spent
+          // elsewhere, another tab) -- reflect the real state instead of
+          // pretending the download happened.
+          applyState(entry);
+          return;
+        }
+        doDownload(entry);
+      }).catch(function(){ applyState(entry); });
+    }
+    function applyState(entry){
+      var btn = entry.btn;
+      btn.classList.remove("dl-downloading", "dl-success");
+      var prefs = window.EATLAS_PREFS;
+      if(!loggedIn){
+        btn.classList.remove("unlocked");
+        btn.setAttribute("data-tip", "Create a free account to unlock this feature.");
+        setButtonLabel(btn, "Download data", '<span class="lockicon">&#128274;</span> ');
+        btn.onclick = function(e){
+          e.preventDefault();
+          window.EATLAS_OPEN_AUTH_MODAL();
+        };
+        return;
+      }
+      if(prefs && prefs.isPro()){
+        btn.classList.add("unlocked");
+        btn.setAttribute("data-tip", "Download this chart's data as a CSV file.");
+        setButtonLabel(btn, "Download data");
+        btn.onclick = function(e){ e.preventDefault(); startDownload(entry); };
+        return;
+      }
+      if(prefs && prefs.hasCreditsFor("download")){
+        btn.classList.add("unlocked");
+        btn.setAttribute("data-tip", "Uses 50p of credit to download this chart's data as a CSV file.");
+        setButtonLabel(btn, "Download data (50p)");
+        btn.onclick = function(e){ e.preventDefault(); startDownload(entry); };
+        return;
+      }
+      // Logged in, not Pro, no credits left: locked, but a different
+      // Unreachable under the current isPro() override (every logged-in
+      // account is treated as Pro, so this branch never fires) -- kept
+      // as a safe fallback with no payment language, not deleted, so
+      // the branch still degrades sensibly if that override is ever
+      // reverted.
+      btn.classList.remove("unlocked");
+      btn.setAttribute("data-tip", "This feature isn't available right now.");
+      setButtonLabel(btn, "Download data", '<span class="lockicon">&#128274;</span> ');
+      btn.onclick = function(e){
+        e.preventDefault();
+        window.EATLAS_OPEN_AUTH_MODAL();
+      };
+    }
+    function register(btn, kind, data, title){
+      var entry = null;
+      for(var i = 0; i < wired.length; i++){ if(wired[i].btn === btn){ entry = wired[i]; break; } }
+      if(!entry){
+        entry = { btn: btn, kind: kind, data: data, title: title };
+        wired.push(entry);
+      } else {
+        entry.kind = kind; entry.data = data; entry.title = title;
+      }
+      applyState(entry);
+    }
+    return {
+      // pts: array of [date, value] pairs -- a single time series.
+      wire: function(btn, pts, title){ register(btn, "series", pts, title); },
+      // rows: array of {country, date, value} -- a cross-country comparison.
+      wireMulti: function(btn, rows, title){ register(btn, "multi", rows, title); },
+      setAuthState: function(isLoggedIn){
+        loggedIn = isLoggedIn;
+        wired.forEach(applyState);
+      },
+      // Called from EATLAS_PREFS.onSettled once Pro/credits status is
+      // actually known -- setAuthState() alone fires as soon as login
+      // state resolves, which is often before that fetch completes, so
+      // this is what applies the real (not just logged-in) state.
+      refreshEntitlement: function(){
+        wired.forEach(applyState);
+      }
+    };
+  })();
+  // Shared, page-wide preferences store, backed by the profiles table's
+  // `preferences` jsonb column -- the actual replacement for what used
+  // to be per-device localStorage. Deliberately does NOT fall back to
+  // localStorage when logged out: nothing persists at all in that case,
+  // by design, since the whole point is making an account the only way
+  // to keep anything.
+  window.EATLAS_PREFS = (function(){
+    var loggedIn = false;
+    var userId = null;
+    var cache = null;
+    var readyDone = false;
+    var readyResolve;
+    var readyPromise = new Promise(function(res){ readyResolve = res; });
+    var banners = [];
+    var loginCallbacks = [];
+    var settledCallbacks = [];
+    var adminFlag = false;
+    var planFlag = "free";
+    var trialEndsAt = null;
+    var creditsBalancePence = 0;
+    var welcomeShown = true; // safe default: never show a false-positive popup before the real value loads
+    function updateBanners(){
+      banners.forEach(function(el){ el.hidden = loggedIn; });
+    }
+    function resolveReady(){
+      if(!readyDone){ readyDone = true; readyResolve(); }
+    }
+    function fetchPrefs(wasLoggedOutBefore){
+      if(!loggedIn || !userId){
+        cache = {};
+        adminFlag = false;
+        planFlag = "free";
+        trialEndsAt = null;
+        creditsBalancePence = 0;
+        welcomeShown = true;
+        resolveReady();
+        settledCallbacks.forEach(function(cb){ cb(); });
+        return;
+      }
+      // Same query, same round-trip -- also grabs is_admin, plan,
+      // trial_ends_at, the credits balance, and whether the welcome
+      // popup has already been shown, rather than firing separate
+      // requests just for those.
+      sb.from("profiles").select("preferences, is_admin, plan, trial_ends_at, credits_balance_pence, welcome_shown").eq("id", userId).single().then(function(res){
+        cache = (res.data && res.data.preferences) || {};
+        adminFlag = !!(res.data && res.data.is_admin);
+        planFlag = (res.data && res.data.plan) || "free";
+        trialEndsAt = (res.data && res.data.trial_ends_at) || null;
+        creditsBalancePence = (res.data && res.data.credits_balance_pence) || 0;
+        welcomeShown = !!(res.data && res.data.welcome_shown);
+        resolveReady();
+        // A live login (not the initial page load) -- whatever was
+        // already pinned/selected this session, while unsaved, shouldn't
+        // just vanish now that saving is actually possible.
+        if(wasLoggedOutBefore) loginCallbacks.forEach(function(cb){ cb(); });
+        settledCallbacks.forEach(function(cb){ cb(); });
+      }).catch(function(){
+        cache = {};
+        adminFlag = false;
+        planFlag = "free";
+        trialEndsAt = null;
+        creditsBalancePence = 0;
+        welcomeShown = true;
+        resolveReady();
+        if(wasLoggedOutBefore) loginCallbacks.forEach(function(cb){ cb(); });
+        settledCallbacks.forEach(function(cb){ cb(); });
+      });
+    }
+    return {
+      ready: readyPromise,
+      isLoggedIn: function(){ return loggedIn; },
+      isAdmin: function(){ return loggedIn && adminFlag; },
+      // Pro entitlements (unlimited downloads, unlimited Customise &
+      // export) unlock for an active paid/trial plan OR an admin account
+      // -- admin is always a superset of Pro, never a separate check
+      // callers need to add.
+      isPro: function(){ return loggedIn && (adminFlag || planFlag === "pro" || planFlag === "premium"); },
+      getPlan: function(){ return planFlag; },
+      getTrialEndsAt: function(){ return trialEndsAt; },
+      getCreditsBalance: function(){ return creditsBalancePence; },
+      // Called after a successful spend_credit() RPC or a credits
+      // top-up, so the UI reflects the new balance immediately without
+      // needing a full re-fetch (or, for a top-up, without needing to
+      // wait on the webhook -- the actual balance is still whatever the
+      // next page load confirms from the database either way).
+      setCreditsBalance: function(pence){ creditsBalancePence = pence; },
+      hasSeenWelcome: function(){ return welcomeShown; },
+      // Fires once, right after the welcome popup is actually shown --
+      // a real column (not client-only), so a second device or a
+      // second browser never re-shows it. Fire-and-forget: worst case
+      // of the write failing is the popup shows once more than
+      // intended, never a functional problem.
+      markWelcomeShown: function(){
+        welcomeShown = true;
+        if(!loggedIn || !userId) return;
+        sb.from("profiles").update({ welcome_shown: true }).eq("id", userId).then(function(res){
+          if(res.error) console.error("Failed to mark welcome popup as shown:", res.error);
+        });
+      },
+      // Not logged in => no account => no access at all, per the pricing
+      // decision -- this and isPro() are the two checks Download and
+      // Customise & Export actually gate on.
+      hasCreditsFor: function(actionKind){
+        if(!loggedIn) return false;
+        var cost = actionKind === "customise_export" ? 100 : 50;
+        return creditsBalancePence >= cost;
+      },
+      get: function(key, fallback){
+        if(!cache || !(key in cache)) return fallback;
+        return cache[key];
+      },
+      set: function(key, value){
+        if(!cache) cache = {};
+        cache[key] = value;
+        if(!loggedIn || !userId) return; // logged out -- nothing to save, by design
+        sb.from("profiles").update({ preferences: cache }).eq("id", userId).then(function(res){
+          if(res.error) console.error("Failed to save preference:", res.error);
+        });
+      },
+      registerBanner: function(el){
+        banners.push(el);
+        updateBanners();
+      },
+      onLogin: function(cb){ loginCallbacks.push(cb); },
+      onSettled: function(cb){ settledCallbacks.push(cb); },
+      setAuthState: function(isLoggedIn, uid){
+        var wasLoggedOut = !loggedIn && isLoggedIn;
+        loggedIn = isLoggedIn;
+        userId = uid;
+        updateBanners();
+        fetchPrefs(wasLoggedOut);
+      }
+    };
+  })();
+  // Renders the Plan section inside the signed-in account view (trial
+  // countdown / Pro status / credits balance) and wires the three
+  // purchase-adjacent actions -- upgrade to Pro, manage subscription, buy
+  // credits -- to their Edge Functions. Reads all its state from
+  // EATLAS_PREFS rather than tracking anything independently, so it's
+  // always in sync with whatever gated Download/Customise & export.
+  window.EATLAS_ACCOUNT = (function(){
+    var FUNCTIONS_URL = "https://skluvrxnuibkordzgtmu.supabase.co/functions/v1";
+    function getAccessToken(){
+      return sb.auth.getSession().then(function(res){
+        return res.data.session ? res.data.session.access_token : null;
+      });
+    }
+    function callFunction(name, body){
+      return getAccessToken().then(function(token){
+        if(!token) return Promise.reject(new Error("Not signed in"));
+        return fetch(FUNCTIONS_URL + "/" + name, {
+          method: "POST",
+          headers: { "Authorization": "Bearer " + token, "Content-Type": "application/json" },
+          body: JSON.stringify(body || {})
+        }).then(function(r){
+          return r.json().then(function(data){ return { ok: r.ok, data: data }; });
+        });
+      });
+    }
+    function fmtPence(p){ return "\u00a3" + (p / 100).toFixed(2); }
+    function daysLeft(trialEndsAt){
+      if(!trialEndsAt) return 0;
+      var ms = new Date(trialEndsAt).getTime() - Date.now();
+      return Math.max(0, Math.ceil(ms / 86400000));
+    }
+    // Shared by all three buttons below: disable + show a redirecting
+    // state, call the function, then either navigate to the URL Stripe
+    // gave back or restore the button and surface the error. Nothing
+    // about this ever assumes success client-side -- the actual
+    // plan/credits change only ever happens via the webhook, confirmed
+    // on the next page load after returning from Stripe.
+    function redirectingAction(btn, functionName, body){
+      var original = btn.textContent;
+      btn.disabled = true;
+      btn.textContent = "Redirecting\u2026";
+      callFunction(functionName, body).then(function(res){
+        if(res.ok && res.data.url){
+          window.location.href = res.data.url;
+        } else {
+          btn.disabled = false;
+          btn.textContent = original;
+          alert(res.data.error || "Something went wrong. Please try again.");
+        }
+      }).catch(function(err){
+        btn.disabled = false;
+        btn.textContent = original;
+        alert(err.message || "Something went wrong. Please try again.");
+      });
+    }
+    function render(){
+      var box = document.getElementById("acctPlanBox");
+      if(!box) return;
+      var prefs = window.EATLAS_PREFS;
+      if(!prefs || !prefs.isLoggedIn()){ box.innerHTML = ""; return; }
+      if(prefs.isAdmin()){
+        box.innerHTML = '<p class="acct-plan-line"><strong>Admin account</strong> \u2014 full access to everything.</p>';
+        return;
+      }
+      // Every account gets full Pro access, unconditionally -- no trial
+      // countdown, no credits balance, no upgrade/manage-subscription
+      // buttons. This mirrors the isPro() override above: a deliberate,
+      // reversible client-side simplification, not a change to what's
+      // actually stored in the database.
+      box.innerHTML =
+        '<p class="acct-plan-line"><strong>Pro</strong> \u2014 unlimited downloads and Customise &amp; export.</p>';
+    }
+    return {
+      render: render,
+      callFunction: callFunction,
+      // Called after a successful spend_credit() RPC (see the Download /
+      // Customise & export gating) so the balance shown updates
+      // immediately rather than waiting for a page reload.
+      refreshAfterSpend: function(newBalancePence){
+        if(window.EATLAS_PREFS) window.EATLAS_PREFS.setCreditsBalance(newBalancePence);
+        render();
+      }
+    };
+  })();
+  // Confirms a just-completed Stripe redirect (upgrade or credits
+  // purchase) with a one-off message, then strips the query params so a
+  // refresh doesn't re-show it. The actual plan/credits change already
+  // happened server-side via the webhook before this redirect even
+  // occurred -- this is purely a "here's what just happened" courtesy,
+  // not what makes the upgrade/purchase real.
+  (function(){
+    var params = new URLSearchParams(window.location.search);
+    var hasRelevantParam = ["upgraded", "upgrade_cancelled", "credits_purchased", "credits_cancelled"]
+      .some(function(k){ return params.has(k); });
+    if(!hasRelevantParam) return;
+    window.EATLAS_PREFS.ready.then(function(){
+      setTimeout(function(){
+        if(params.get("upgraded") === "1"){
+          alert("You're on Pro! Unlimited downloads and Customise & export are unlocked.");
+        } else if(params.get("credits_purchased") === "1"){
+          alert("Credits added to your account.");
+        }
+      }, 300);
+    });
+    var url = new URL(window.location.href);
+    ["upgraded", "upgrade_cancelled", "credits_purchased", "credits_cancelled", "session_id"].forEach(function(k){
+      url.searchParams.delete(k);
+    });
+    window.history.replaceState({}, document.title, url.toString());
+  })();
+  // "Customise & export" unlocks for Pro (paid or trial), Pro-or-credits
+  // (spend 100p to unlock once), or an admin account. Previously
+  // admin-only while the feature was being tested; now a real Pro
+  // entitlement, per the pricing decision.
+  window.EATLAS_CUSTOMIZE = (function(){
+    var wired = [];
+    function openEditor(entry){
+      if(window.EATLAS_OPEN_CUSTOMIZE){
+        window.EATLAS_OPEN_CUSTOMIZE(entry.pts, entry.title, entry.srcNote, entry.fmtY, entry.yTitle, entry.filenameBase);
+      }
+    }
+    function openViaCredit(entry, btn){
+      var prefs = window.EATLAS_PREFS;
+      var original = btn.innerHTML;
+      btn.onclick = null;
+      btn.innerHTML = "Using credit\u2026";
+      sb.rpc("spend_credit", { action_kind: "customise_export" }).then(function(res){
+        var ok = res.data && res.data.ok;
+        if(prefs && res.data && typeof res.data.balance === "number"){
+          prefs.setCreditsBalance(res.data.balance);
+        }
+        if(window.EATLAS_ACCOUNT) window.EATLAS_ACCOUNT.render();
+        if(!ok){
+          applyState(entry); // balance changed since render -- reflect the real state
+          return;
+        }
+        openEditor(entry);
+        applyState(entry); // one-off unlock spent; next render reflects the new balance
+      }).catch(function(){
+        btn.innerHTML = original;
+        applyState(entry);
+      });
+    }
+    function applyState(entry){
+      var btn = entry.btn;
+      var prefs = window.EATLAS_PREFS;
+      if(prefs && prefs.isPro()){
+        btn.classList.add("unlocked");
+        btn.setAttribute("data-tip", "Customise this chart and export it as an image.");
+        btn.onclick = function(e){ e.preventDefault(); openEditor(entry); };
+        return;
+      }
+      if(prefs && prefs.hasCreditsFor("customise_export")){
+        btn.classList.add("unlocked");
+        btn.setAttribute("data-tip", "Uses \u00a31 of credit to customise and export this chart as an image.");
+        btn.onclick = function(e){ e.preventDefault(); openViaCredit(entry, btn); };
+        return;
+      }
+      btn.classList.remove("unlocked");
+      btn.setAttribute("data-tip", "Create a free account to unlock this feature.");
+      btn.onclick = (prefs && prefs.isLoggedIn())
+        ? function(e){ e.preventDefault(); window.EATLAS_OPEN_AUTH_MODAL(); }
+        : null; // falls back to the plain href="contact" already on the link
+    }
+    function register(btn, pts, title, srcNote, fmtY, yTitle, filenameBase){
+      var entry = null;
+      for(var i = 0; i < wired.length; i++){ if(wired[i].btn === btn){ entry = wired[i]; break; } }
+      if(!entry){ entry = { btn: btn }; wired.push(entry); }
+      entry.pts = pts; entry.title = title; entry.srcNote = srcNote;
+      entry.fmtY = fmtY; entry.yTitle = yTitle; entry.filenameBase = filenameBase;
+      applyState(entry);
+    }
+    return {
+      wire: register,
+      refreshEntitlement: function(){
+        wired.forEach(applyState);
+      }
+    };
+  })();
+  // Non-dismissible trial countdown banner -- unlike alertBanner (which
+  // has a close button and remembers dismissal via localStorage), this
+  // one has no close button in its markup at all. That's deliberate:
+  // "cannot delete" is enforced by there being nothing to click, not by
+  // JS re-showing something a user closed.
+  // Plan nav link: shows "Pro Plan" in gold for an active Pro account
+  // (paid or trial), plain "Plan" otherwise -- a visible status
+  // indicator, not just a link to the pricing page.
+  function updatePlanNavLink(){
+    var link = document.getElementById("planNavLink");
+    if(!link) return;
+    var prefs = window.EATLAS_PREFS;
+    var isPro = !!(prefs && prefs.isPro());
+    link.textContent = isPro ? "Pro Plan" : "Plan";
+    link.classList.toggle("is-pro", isPro);
+    try{ localStorage.setItem("eatlas_last_known_pro", isPro ? "1" : "0"); }catch(e){}
+  }
+  function updateTrialBanner(){
+    // Always hidden -- no trial/upgrade messaging shown to anyone,
+    // regardless of the real stored trial state. Deliberate, reversible
+    // client-side override; the underlying trial/plan data is untouched.
+    var banner = document.getElementById("trialBanner");
+    if(banner) banner.hidden = true;
+  }
+  // Welcome-to-Pro popup: fires exactly once per account, the first time
+  // EATLAS_PREFS resolves with an active, unseen trial -- which in
+  // practice means the first real page load after signing up (signup
+  // itself doesn't have full plan/trial data loaded yet at that exact
+  // moment, so this fires on the very next load rather than trying to
+  // catch the instant of signup itself).
+  function maybeShowWelcomeProModal(){
+    var prefs = window.EATLAS_PREFS;
+    if(!prefs || !prefs.isLoggedIn()) return;
+    if(prefs.getPlan() !== "pro" || !prefs.getTrialEndsAt()) return;
+    if(prefs.hasSeenWelcome()) return;
+    var modal = document.getElementById("welcomeProModal");
+    if(!modal) return;
+    modal.hidden = false;
+    document.body.style.overflow = "hidden";
+    prefs.markWelcomeShown();
+  }
+  (function(){
+    var modal = document.getElementById("welcomeProModal");
+    if(!modal) return;
+    function close(){
+      modal.hidden = true;
+      document.body.style.overflow = "";
+    }
+    var closeBtn = document.getElementById("welcomeProClose");
+    var backdrop = document.getElementById("welcomeProBackdrop");
+    var gotIt = document.getElementById("welcomeProGotIt");
+    if(closeBtn) closeBtn.addEventListener("click", close);
+    if(backdrop) backdrop.addEventListener("click", close);
+    if(gotIt) gotIt.addEventListener("click", close);
+    document.addEventListener("keydown", function(e){
+      if(e.key === "Escape" && !modal.hidden) close();
+    });
+  })();
+  window.EATLAS_PREFS.onSettled(function(){
+    window.EATLAS_ACCOUNT.render();
+    window.EATLAS_DOWNLOAD.refreshEntitlement();
+    window.EATLAS_CUSTOMIZE.refreshEntitlement();
+    updateTrialBanner();
+    maybeShowWelcomeProModal();
+    updatePlanNavLink();
+  });
+  // If this page load is the redirect back from clicking "confirm your
+  // email" in the inbox, Supabase appends #access_token=...&type=signup
+  // to the URL before supabase-js quietly consumes it into a real
+  // session. That hand-off is otherwise invisible -- a visitor lands
+  // back on the homepage with no indication anything happened besides
+  // the nav button subtly changing. This makes it unmissable instead.
+  (function checkEmailConfirmation(){
+    if(window.location.hash && window.location.hash.indexOf("type=signup") !== -1){
+      var toast = document.createElement("div");
+      toast.className = "auth-toast";
+      toast.textContent = "\u2713 Email confirmed \u2014 you're now signed in.";
+      document.body.appendChild(toast);
+      setTimeout(function(){ toast.classList.add("show"); }, 10);
+      setTimeout(function(){
+        toast.classList.remove("show");
+        setTimeout(function(){ toast.remove(); }, 400);
+      }, 5000);
+    }
+  })();
+})();
+</script>
+<style>
+/* ---- reused base patterns from compare.html (picker, modal, chart-modal) ---- */
+.picker-region{margin-bottom:16px;}
+.picker-region:last-child{margin-bottom:4px;}
+.picker-region h4{font-size:11.5px; text-transform:uppercase; letter-spacing:.04em; color:var(--ink2); margin:0 0 8px;}
+.picker-grid{display:flex; flex-wrap:wrap; gap:8px;}
+.picker-item{border:1.5px solid var(--hair); background:var(--panel); color:var(--ink);
+  font:600 13.5px "Avenir Next","Avenir","Nunito Sans",sans-serif; padding:8px 15px 8px 11px;
+  border-radius:999px; cursor:pointer; display:flex; align-items:center; gap:7px; user-select:none;}
+.picker-item .dot{width:9px; height:9px; border-radius:50%; flex:none; background:var(--hair);}
+.picker-item.active{border-color:transparent; color:#fff;}
+.pickercat{font-size:11.5px; font-weight:700; color:var(--ink2); text-transform:uppercase; letter-spacing:.04em;
+  margin:14px 0 8px; grid-column:1 / -1;}
+.pickercat:first-child{margin-top:0;}
+.pickergrid{display:grid; grid-template-columns:repeat(2,1fr); gap:10px; max-height:440px; overflow-y:auto; padding-right:4px;}
+.pickeritem{border:1px solid var(--hair); border-radius:10px; padding:11px 13px; cursor:pointer; font-size:13.5px;
+  background:var(--paper); grid-column:span 1;}
+.pickeritem:hover{border-color:var(--blue); background:#F0F6FA;}
+.pickeritem.added{opacity:.45; cursor:default; pointer-events:none;}
+.pickeritem .e{font-size:12px; color:var(--ink2); margin-top:4px; font-weight:400;}
+.pickerhead{display:flex; align-items:center; gap:10px; margin-bottom:6px;}
+.pickerhint{font-size:12.5px; color:var(--ink2); margin:0 0 14px;}
+.pickerdone{border:1px solid var(--navy); background:var(--navy); color:#fff;
+  font:700 13px "Avenir Next","Avenir","Nunito Sans",sans-serif; padding:8px 18px; border-radius:999px; cursor:pointer;}
+.pickerdone:hover{background:var(--navy-2); border-color:var(--navy-2);}
+.pickerback{border:1px solid var(--hair); background:var(--panel); color:var(--ink);
+  font:700 13px "Avenir Next","Avenir","Nunito Sans",sans-serif; padding:7px 14px; border-radius:999px; cursor:pointer; display:inline-flex; align-items:center; gap:6px;}
+.pickerback:hover{border-color:var(--blue); color:var(--navy);}
+.picker-actions{display:flex; gap:10px; margin:2px 0 18px;}
+.picker-actions button{border:1px solid var(--hair); background:var(--panel); color:var(--ink2);
+  font:600 12.5px "Avenir Next","Avenir","Nunito Sans",sans-serif; padding:7px 14px; border-radius:8px; cursor:pointer;}
+.picker-actions button:hover{border-color:var(--blue); color:var(--navy);}
+.modal{position:fixed; inset:0; z-index:200; display:flex; align-items:center; justify-content:center; padding:24px;}
+.modal[hidden]{display:none;}
+.modal-backdrop{position:absolute; inset:0; background:rgba(20,26,22,.6);}
+.modal-content{position:relative; background:var(--paper); border-radius:16px; padding:26px 30px;
+  width:min(760px, 94vw); max-height:90vh; overflow:auto; box-shadow:0 20px 60px rgba(0,0,0,.35);}
+.modal-content.narrow{width:min(560px, 94vw);}
+.modal-content.wide{width:min(980px, 94vw);}
+.modal-close{position:absolute; top:14px; right:16px; width:32px; height:32px; border-radius:50%;
+  border:1px solid var(--hair); background:var(--panel); color:var(--ink2); font-size:18px; cursor:pointer;}
+.modal-close:hover{border-color:var(--blue); color:var(--navy);}
+.modal-content h2{margin:0 30px 4px 0; font-size:19px;}
+.modal-sub{font-size:13.5px; color:var(--ink2); margin:0 0 14px;}
+.seg{display:inline-flex; border:1px solid var(--hair); border-radius:8px; overflow:hidden;}
+.seg button{background:transparent; color:var(--ink2); border:none; font:700 12.5px "Avenir Next","Avenir","Nunito Sans",sans-serif; padding:8px 12px; cursor:pointer; white-space:nowrap;}
+.seg button.active{background:var(--blue); color:#fff;}
+.seg.fullwidth{display:flex;}
+.seg.fullwidth button{flex:1;}
+.savebtn-row{display:flex; gap:8px; margin-bottom:14px; position:relative;}
+.savebtn-row button{flex:1; display:inline-flex; align-items:center; justify-content:center; gap:6px; border:1px solid var(--hair); background:var(--panel); color:var(--ink);
+  font:700 13px "Avenir Next","Avenir","Nunito Sans",sans-serif; padding:9px 12px; border-radius:8px; cursor:pointer;}
+.savebtn-row button:hover{border-color:var(--navy); color:var(--navy);}
+.savebtn-row button:disabled{opacity:.5; cursor:not-allowed;}
+.cm-openfilters{display:flex; flex-wrap:wrap; gap:8px; margin-bottom:16px;}
+.cm-openfilters button{border:1.5px solid var(--hair); background:var(--panel); color:var(--ink2);
+  font:700 12.5px "Avenir Next","Avenir","Nunito Sans",sans-serif; padding:7px 14px; border-radius:999px; cursor:pointer;}
+.cm-openfilters button.active{border-color:var(--navy); background:var(--navy); color:#fff;}
+.cm-openlist-wrap{position:relative;}
+.cm-opengrid{max-height:60vh; overflow-y:auto; padding-right:4px;
+  display:grid; grid-template-columns:repeat(3,1fr); gap:16px; align-content:start;}
+@media (max-width:760px){ .cm-opengrid{grid-template-columns:repeat(2,1fr);} }
+.cm-opengrid h4{grid-column:1/-1; font-size:11.5px; text-transform:uppercase; letter-spacing:.05em;
+  margin:14px 0 2px; color:var(--ink2);}
+.cm-opengrid h4:first-child{margin-top:0;}
+/* Address-book-style current-letter badge -- ported from My Dashboard's
+   own scrollable picker, same idea: floats over the grid, shows whichever
+   letter heading is currently at the top of the visible scroll area. */
+.cm-openletter{position:absolute; top:6px; right:16px; width:30px; height:30px; border-radius:50%;
+  background:var(--navy); color:#fff; font:700 13.5px "Avenir Next","Avenir","Nunito Sans",sans-serif;
+  display:none; align-items:center; justify-content:center; pointer-events:none; box-shadow:0 2px 10px rgba(0,0,0,.3); z-index:2;}
+.cm-openletter.show{display:flex;}
+/* Real card, not a compact row -- the whole point is seeing the chart
+   you're about to open, not just its name. */
+.cm-savedrow{display:flex; flex-direction:column; border:1px solid var(--hair); border-radius:12px;
+  overflow:hidden; background:var(--panel); transition:border-color .12s;}
+.cm-savedrow:hover{border-color:var(--blue);}
+.cm-savedthumb{width:100%; aspect-ratio:1.618/1; background:#fff; border-bottom:1px solid var(--hair);
+  display:flex; align-items:center; justify-content:center; overflow:hidden;}
+.cm-savedthumb canvas, .cm-savedthumb svg{width:100%; height:100%; display:block;}
+.cm-savedmeta{padding:12px 14px 4px; display:flex; flex-direction:column;}
+.cm-savedname{font-weight:700; font-size:13.5px; color:var(--ink); overflow:hidden; text-overflow:ellipsis; white-space:nowrap;}
+.cm-savedsub{font-size:11.5px; color:var(--ink2); margin-top:3px; line-height:1.4;}
+.cm-savedbtns{display:flex; gap:8px; padding:10px 14px 14px;}
+.cm-savedbtns button{flex:1; font:700 12.5px "Avenir Next","Avenir","Nunito Sans",sans-serif; padding:8px 0; border-radius:8px; cursor:pointer; border:none;}
+.cm-savedbtns .open{background:var(--blue); color:#fff;}
+.cm-savedbtns .open:hover{background:var(--navy-2);}
+.cm-savedbtns .open:disabled{opacity:.4; cursor:not-allowed;}
+.cm-savedbtns .del{background:var(--paper); color:var(--ink2); border:1px solid var(--hair) !important;}
+.cm-savedbtns .del:hover{color:#D65A3C; border-color:#D65A3C !important;}
+
+/* ---- ChartMaker layout ---- */
+.cm-wrap{max-width:1520px;}
+.cm-gate{max-width:520px; margin:60px auto; text-align:center; padding:34px 30px; background:var(--panel); border:1px solid var(--hair); border-radius:14px;}
+.cm-gate h2{margin:0 0 8px; font-size:19px;}
+.cm-gate p{color:var(--ink2); font-size:13.5px; line-height:1.6; margin:0;}
+.cm-layout{display:none; margin-top:8px;}
+.cm-layout.show{display:block;}
+.cm-toprow{display:grid; grid-template-columns:270px 1fr 290px; gap:20px; align-items:start;}
+@media (max-width:1180px){ .cm-toprow{grid-template-columns:1fr;} }
+.cm-chart-sticky-wrap.is-sticky .cm-chartarea{position:sticky; top:16px; z-index:5;}
+.cm-stickytoggle{display:flex; align-items:center; gap:8px; margin-top:14px; font-size:12.5px; color:var(--ink2);}
+.cm-stickytoggle input{width:16px; height:16px; accent-color:var(--navy); cursor:pointer;}
+.cm-layout, .cm-layout input, .cm-layout select, .cm-layout button, .cm-layout textarea{
+  font-family:"Avenir Next","Avenir","Nunito Sans",system-ui,sans-serif;
+}
+.cm-stylerow{display:grid; grid-template-columns:1.2fr 0.8fr 1fr; gap:20px; align-items:start; margin-top:20px;}
+@media (max-width:1180px){ .cm-stylerow{grid-template-columns:1fr;} }
+.ctl-panel{background:var(--panel); border:1px solid var(--hair); border-radius:12px; padding:16px 18px 18px; margin-bottom:0;}
+.ctl-panel h3{font-size:12px; text-transform:uppercase; letter-spacing:.05em; margin:0 0 12px; color:var(--ink2); font-weight:700;}
+.cm-field{margin-bottom:11px;}
+.cm-field label{display:block; font-size:12.5px; font-weight:700; color:var(--ink2); margin-bottom:4px;}
+.cm-field input[type=text], .cm-field select{width:100%; padding:8px 10px; border:1px solid var(--hair); border-radius:7px; background:var(--paper); color:var(--ink); font:inherit; font-size:13.5px;}
+.cm-dateselect{
+  width:100%; padding:10px 34px 10px 14px; border:1.5px solid var(--hair); border-radius:999px;
+  background:var(--paper) url("data:image/svg+xml;utf8,<svg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 20 20' fill='none' stroke='%235A6167' stroke-width='2' stroke-linecap='round' stroke-linejoin='round'><polyline points='5 8 10 13 15 8'/></svg>") no-repeat right 12px center / 14px 14px;
+  color:var(--ink); font:700 13.5px "Avenir Next","Avenir","Nunito Sans",sans-serif; cursor:pointer;
+  -webkit-appearance:none; -moz-appearance:none; appearance:none;
+}
+.cm-dateselect:hover{border-color:var(--blue);}
+.cm-dateselect:focus{border-color:var(--navy); outline:none; box-shadow:0 0 0 3px rgba(30,123,173,.18);}
+.cm-row{display:flex; align-items:center; justify-content:space-between; font-size:13.5px; margin-bottom:10px; gap:10px;}
+.cm-row span:first-child{color:var(--ink);}
+.cm-row input[type=checkbox]{width:16px; height:16px; accent-color:var(--navy); cursor:pointer;}
+.cm-fs-btn{width:24px; height:24px; border:1px solid var(--hair); background:var(--paper); color:var(--ink); border-radius:6px; cursor:pointer; font-size:13px;}
+.cm-addbtn{width:100%; padding:10px 0; border:1.5px dashed var(--blue); background:none; color:var(--navy);
+  font:700 13.5px "Avenir Next","Avenir","Nunito Sans",sans-serif; border-radius:8px; cursor:pointer; margin-top:4px;}
+.cm-addbtn:hover{background:#F0F6FA;}
+.cm-serieslist{list-style:none; margin:0 0 10px; padding:0; display:flex; flex-direction:column; gap:7px;}
+.cm-seriesitem{display:flex; align-items:center; gap:9px; border:1px solid var(--hair); border-radius:8px; padding:8px 9px; font-size:13px;}
+.cm-lbl{flex:1; min-width:0;}
+.cm-lbl .main{font-weight:700; white-space:nowrap; overflow:hidden; text-overflow:ellipsis; font-size:12.5px;}
+.cm-lbl .main-edit{font-weight:700; font-size:12.5px; width:100%; border:1px solid transparent; background:none; color:var(--ink); padding:2px 4px; border-radius:5px; font-family:inherit;}
+.cm-lbl .main-edit:hover{border-color:var(--hair);}
+.cm-lbl .main-edit:focus{border-color:var(--blue); background:var(--paper); outline:none;}
+.cm-lbl select{width:100%; margin-top:4px; padding:4px 6px; font-size:12px; border:1px solid var(--hair); border-radius:6px; background:var(--paper); color:var(--ink);}
+.cm-rm{background:none; border:none; color:var(--ink2); font-size:17px; padding:0 2px; line-height:1; cursor:pointer; flex:0 0 auto;}
+.cm-rm:hover{color:#AD1E1E;}
+.cm-clashwarn{margin-bottom:10px; padding:10px 11px; border-radius:8px; background:rgba(214,90,60,.12); border:1px solid rgba(214,90,60,.4); font-size:12.5px; color:var(--ink); line-height:1.5;}
+.cm-status{font-size:12px; color:var(--ink2); margin-top:8px;}
+.cm-chartarea{background:var(--panel); border:1px solid var(--hair); border-radius:12px; padding:36px 38px 30px; display:flex; flex-direction:column;}
+/* Golden ratio (1.618:1) rather than a tall flex-fill box, matching the
+   real Customise & Export canvas's own W:820/H:507 proportions. Width
+   comes from the grid column; height is derived from it via aspect-ratio
+   so the box never stretches taller than it should on a short page. */
+.cm-chart-outer{position:relative; width:100%; aspect-ratio:1.618 / 1; border-radius:8px; border:1px solid var(--hair); background:#FFFFFF; transition:background .15s;}
+.cm-chart-outer.dark-preview{background:#12181A;}
+.cm-empty{position:absolute; inset:0; display:flex; align-items:center; justify-content:center; color:#8A9490; font-size:13.5px; text-align:center; padding:40px;}
+.cm-exportbar{display:flex; align-items:center; gap:10px; margin-top:14px; flex-wrap:wrap;}
+.cm-exportbar button{border:1px solid var(--hair); background:var(--panel); color:var(--ink); font:700 13.5px "Avenir Next","Avenir","Nunito Sans",sans-serif; padding:9px 16px; border-radius:8px; cursor:pointer;}
+.cm-exportbar button:hover:not(:disabled){border-color:var(--navy); color:var(--navy);}
+.cm-exportbar button:disabled{opacity:.4; cursor:not-allowed;}
+.cm-exportbar .seg{width:130px;}
+.cm-swatch{width:22px; height:22px; border-radius:50%; flex:0 0 auto; border:2px solid rgba(255,255,255,.5); cursor:pointer; padding:0;}
+.cm-swatch.clash{border-color:#D65A3C;}
+.cm-colorrow{display:flex; align-items:center; gap:11px; padding:8px 0; border-bottom:1px solid var(--hair); position:relative;}
+.cm-colorrow:last-child{border-bottom:none;}
+.cm-colorrow span{font-size:13px;}
+.cm-annot-card{border:1px solid var(--hair); border-radius:9px; padding:10px 11px; margin-bottom:9px; background:var(--paper);}
+.cm-annot-head{display:flex; align-items:center; gap:9px;}
+.cm-annot-summary{font-size:13px; font-weight:700; overflow:hidden; text-overflow:ellipsis; white-space:nowrap; flex:1; cursor:pointer;}
+.cm-annot-body{margin-top:9px; display:flex; flex-direction:column; gap:8px;}
+.cm-annot-body select, .cm-annot-body textarea{width:100%; border:1px solid var(--hair); border-radius:6px; background:var(--panel); color:var(--ink); font:inherit; font-size:13px; padding:6px 8px;}
+.cm-annot-body textarea{resize:vertical; min-height:38px;}
+.cm-swpop{position:absolute; z-index:60; background:var(--panel); border:1px solid var(--hair); border-radius:10px; padding:11px; box-shadow:0 12px 32px rgba(0,0,0,.22); width:264px;}
+.cm-swpop-grid{display:grid; grid-template-columns:repeat(8,1fr); gap:7px; margin-bottom:9px;}
+.cm-swpop-grid button{width:24px; height:24px; border-radius:50%; border:2px solid rgba(255,255,255,.5); cursor:pointer; padding:0;}
+.cm-swpop input[type=color]{width:100%; height:30px; border:1px solid var(--hair); border-radius:6px; cursor:pointer; background:none;}
+.nudge{display:none; background:#F0F6FA; border:1px solid var(--blue); border-radius:10px;
+  padding:10px 14px; margin:0 0 14px; font-size:12.5px; color:var(--ink2);}
+.nudge.show{display:block;}
+.nudge .nudgehead{font-weight:700; color:var(--navy); margin-bottom:7px; display:flex;
+  align-items:center; justify-content:space-between;}
+.nudge .nudgeclose{border:none; background:none; color:var(--ink2); font-size:15px; cursor:pointer; line-height:1; padding:2px;}
+.nudge .nudgeclose:hover{color:var(--navy);}
+.nudge .nudgechips{display:flex; gap:8px; flex-wrap:wrap;}
+.nudge .nudgechip{border:1px solid var(--blue); background:var(--paper); color:var(--navy);
+  font:600 12px "Avenir Next","Avenir","Nunito Sans",sans-serif; padding:5px 12px; border-radius:999px; cursor:pointer;}
+.nudge .nudgechip:hover{background:var(--blue); color:#fff;}
+.nudge .nudgechip.added{opacity:.5; cursor:default; pointer-events:none;}
+.cm-swpop-tabs{display:flex; gap:6px; margin-bottom:9px;}
+.cm-swpop-tabs button{flex:1; border:1px solid var(--hair); background:var(--paper); color:var(--ink2); font:700 11px "Avenir Next","Avenir","Nunito Sans",sans-serif; padding:5px 0; border-radius:6px; cursor:pointer;}
+.cm-swpop-tabs button.active{background:var(--navy); border-color:var(--navy); color:#fff;}
+</style>
+<div class="wrap cm-wrap">
+<header class="page">
+  <p class="eyebrow"><span class="dot" aria-hidden="true"></span>The Economic Atlas</p>
+  <h1>Chartmaker</h1>
+  <p class="expl" style="margin-top:6px;">Customise &amp; Export, generalised: pick any countries and indicators, overlay them, style every part of the chart, and export. Currently running on sample data while the layout gets shaped up.</p>
+</header>
+
+<div class="cm-gate" id="cmGate">
+  <h2>Admin preview</h2>
+  <p>Chartmaker is still being built and isn't public yet. Log in with an admin account to view it.</p>
+</div>
+
+<div class="cm-layout" id="cmLayout">
+  <div class="cm-toprow">
+    <!-- LEFT: save/open + metrics -->
+    <div>
+      <div class="savebtn-row">
+        <button type="button" id="cmOpenBtn">Open</button>
+        <button type="button" id="cmSaveBtn">Save chart</button>
+      </div>
+      <div class="seg fullwidth" id="cmChartTypeSeg" style="margin-bottom:14px;">
+        <button type="button" data-type="line" class="active" style="flex:1;">Line</button>
+        <button type="button" data-type="bar" style="flex:1;">Bar</button>
+      </div>
+      <p id="cmChartTypeNote" style="font-size:11px; color:var(--ink2); margin:-8px 0 14px; line-height:1.4; display:none;">Bar shows each metric's latest value in the selected date range, one bar per metric -- same as Compare's own Bar view, which is a snapshot rather than a chart over time.</p>
+      <div class="ctl-panel">
+        <h3>Metrics</h3>
+        <ul class="cm-serieslist" id="cmSeriesList"></ul>
+        <button type="button" class="cm-addbtn" id="cmAddBtn">+ Add metric</button>
+        <div class="cm-status" id="cmStatus">No metrics added yet.</div>
+      </div>
+    </div>
+
+    <!-- CENTER: chart -->
+    <div class="cm-chart-sticky-wrap is-sticky" id="cmChartStickyWrap">
+      <div class="cm-chartarea">
+        <div class="cm-chart-outer" id="cmChartOuter">
+          <div class="cm-empty" id="cmEmptyState">Add a metric on the left to start building a chart.</div>
+          <div id="cmSvgBox" style="display:none; width:100%; height:100%;"></div>
+        </div>
+        <p style="font-size:12px; color:var(--ink2); margin:10px 0 0;" id="cmSrcNote">Sample data for layout purposes only -- not live figures.</p>
+        <div class="cm-exportbar">
+          <div class="seg fullwidth" id="cmThemeSeg">
+            <button type="button" data-theme="light" class="active" style="flex:1;">Light</button>
+            <button type="button" data-theme="dark" style="flex:1;">Dark</button>
+          </div>
+          <button type="button" id="cmPngBtn" disabled>Download PNG</button>
+          <button type="button" id="cmCsvBtn" disabled>Download CSV</button>
+        </div>
+        <label class="cm-stickytoggle"><input type="checkbox" id="cmStickyToggle" checked> Keep the chart in view while scrolling (turn off on a small screen)</label>
+      </div>
+    </div>
+
+    <!-- RIGHT: colours -->
+    <div class="ctl-panel" id="cmColorsPanel">
+      <h3>Line colours</h3>
+      <p style="font-size:11.5px; color:var(--ink2); margin:0 0 10px; line-height:1.5;">Comparing one metric across countries defaults to each country's usual colour; comparing several metrics for one country defaults to a Mako gradient. Recolour any line individually below, or choose a palette for all of them at once.</p>
+      <button type="button" id="cmOpenPaletteModalBtn" style="width:100%; margin-bottom:12px; padding:8px 0; border:1px solid var(--hair); border-radius:8px; background:var(--paper); color:var(--ink); font:700 12.5px 'Avenir Next','Avenir','Nunito Sans',sans-serif; cursor:pointer;">Choose palette for all lines&hellip;</button>
+      <div class="cm-clashwarn" id="cmClashWarn" hidden></div>
+      <div id="cmColorsEmpty" class="cm-status" style="margin-top:0;">Add a metric to choose its colour.</div>
+      <div id="cmColorsList"></div>
+    </div>
+  </div>
+
+  <!-- BELOW: chart style, date range, events -->
+  <div class="cm-stylerow">
+    <div class="ctl-panel">
+      <h3>Chart style</h3>
+      <div class="cm-field">
+        <label for="cmChartTitle">Chart title (optional)</label>
+        <input type="text" id="cmChartTitle" maxlength="80">
+      </div>
+      <div class="cm-field">
+        <label for="cmYAxisTitle">Y-axis title</label>
+        <input type="text" id="cmYAxisTitle" maxlength="40" placeholder="e.g. % change, year-on-year">
+      </div>
+      <div class="cm-field">
+        <label for="cmLegendTitle">Legend title (optional)</label>
+        <input type="text" id="cmLegendTitle" maxlength="30" placeholder="e.g. Countries">
+      </div>
+      <div class="cm-row">
+        <span>Y-axis title position</span>
+        <div class="seg" id="cmYTitlePosSeg">
+          <button type="button" data-pos="along" class="active">Alongside</button>
+          <button type="button" data-pos="above">Above</button>
+        </div>
+      </div>
+      <div style="border-top:1px solid var(--hair); margin:4px 0 10px;"></div>
+      <div class="cm-row" id="cmFillRow">
+        <span>Shade area under each line</span>
+        <input type="checkbox" id="cmFillToggle">
+      </div>
+      <div class="cm-row" id="cmPointsRow">
+        <span>Show data point markers</span>
+        <input type="checkbox" id="cmPointsToggle">
+      </div>
+    </div>
+
+    <div class="ctl-panel">
+      <h3>Reference &amp; scale</h3>
+      <div class="cm-row">
+        <span>Reference line</span>
+        <input type="checkbox" id="cmRefToggle">
+      </div>
+      <div class="cm-row">
+        <span>Value</span>
+        <div style="display:flex; align-items:center; gap:8px;">
+          <button type="button" id="cmUseAvgBtn" style="font-size:12px; padding:5px 10px; border:1px solid var(--hair); border-radius:999px; background:var(--paper); color:var(--ink2); cursor:pointer; font-weight:600;">Use average</button>
+          <input type="number" id="cmRefValue" value="0" step="0.1" style="width:66px; padding:6px 7px; border:1px solid var(--hair); border-radius:6px; background:var(--paper); color:var(--ink); font:inherit; font-size:13px;">
+        </div>
+      </div>
+      <div class="cm-row" id="cmLogRow">
+        <span id="cmLogLabel">Log scale</span>
+        <input type="checkbox" id="cmLogToggle">
+      </div>
+      <div class="cm-row" id="cmCenterRefRow">
+        <span>Centre axis around reference line</span>
+        <input type="checkbox" id="cmCenterRefToggle" disabled>
+      </div>
+      <p id="cmCenterRefNote" style="font-size:11px; color:var(--ink2); margin:2px 0 10px; display:none;">Turn on a reference line above to use this.</p>
+      <div id="cmYStartGroup">
+        <div class="cm-row" id="cmYStartRow">
+          <span>Y-axis starts at</span>
+          <div class="seg" id="cmYStartSeg">
+            <button type="button" data-mode="auto" class="active">Auto</button>
+            <button type="button" data-mode="zero">Zero</button>
+            <button type="button" data-mode="custom">Custom</button>
+          </div>
+        </div>
+        <div class="cm-row" id="cmYStartCustomRow" style="display:none;">
+          <span>Custom start value</span>
+          <input type="number" id="cmYStartValue" value="0" step="0.1" style="width:80px; padding:6px 7px; border:1px solid var(--hair); border-radius:6px; background:var(--paper); color:var(--ink); font:inherit; font-size:13px;">
+        </div>
+        <p style="font-size:11px; color:var(--ink2); margin:2px 0 10px; line-height:1.4;">Not part of the original Customise &amp; Export controls -- a ChartMaker-only addition. Not available with log scale on.</p>
+      </div>
+      <p id="cmYStartBarNote" style="font-size:11px; color:var(--ink2); margin:2px 0 10px; display:none;">Bars always start at zero, same as Compare's Bar view.</p>
+      <div class="cm-row">
+        <span>Y-axis labels</span>
+        <div style="display:flex; align-items:center; gap:7px;"><button type="button" class="cm-fs-btn" id="cmYTickMinus">&minus;</button><span id="cmYTickVal" style="font-size:13px; min-width:16px; text-align:center;">5</span><button type="button" class="cm-fs-btn" id="cmYTickPlus">+</button></div>
+      </div>
+      <div class="cm-row" id="cmXTickRow">
+        <span>X-axis labels</span>
+        <div style="display:flex; align-items:center; gap:7px;"><button type="button" class="cm-fs-btn" id="cmXTickMinus">&minus;</button><span id="cmXTickVal" style="font-size:13px; min-width:16px; text-align:center;">8</span><button type="button" class="cm-fs-btn" id="cmXTickPlus">+</button></div>
+      </div>
+      <p id="cmXTickBarNote" style="font-size:11px; color:var(--ink2); margin:2px 0 10px; display:none;">Bar mode always labels every bar -- there's no separate label count to set.</p>
+      <div class="cm-row" style="margin-bottom:0;">
+        <span>X-axis label angle</span>
+      </div>
+      <div class="seg fullwidth" id="cmXAngleSeg" style="width:100%; margin-top:6px;">
+        <button type="button" data-angle="straight" class="active" style="flex:1;">Straight</button>
+        <button type="button" data-angle="diagonal" style="flex:1;">Diagonal</button>
+        <button type="button" data-angle="vertical" style="flex:1;">Vertical</button>
+      </div>
+    </div>
+
+    <div>
+      <div class="ctl-panel" style="margin-bottom:20px;">
+        <h3>Date range</h3>
+        <div style="display:flex; gap:10px;">
+          <div style="flex:1;"><label style="display:block; font-size:12.5px; font-weight:700; color:var(--ink2); margin-bottom:5px;" for="cmFromPeriod">From</label><select class="cm-dateselect" id="cmFromPeriod"></select></div>
+          <div style="flex:1;"><label style="display:block; font-size:12.5px; font-weight:700; color:var(--ink2); margin-bottom:5px;" for="cmToPeriod">To</label><select class="cm-dateselect" id="cmToPeriod"></select></div>
+        </div>
+      </div>
+      <div class="ctl-panel" id="cmEventsPanel">
+        <h3>Event lines &amp; arrows</h3>
+        <div id="cmAnnotList"></div>
+        <button type="button" class="cm-addbtn" id="cmAddAnnotBtn">+ Add event</button>
+        <p style="font-size:11.5px; color:var(--ink2); margin:9px 0 0; line-height:1.4;">Up to 6. Pick the date, line or arrow, and where the label sits relative to it.</p>
+      </div>
+    </div>
+  </div>
+</div>
+
+<!-- Country picker modal -->
+<div class="modal" id="cmCountryModal" hidden>
+  <div class="modal-backdrop" id="cmCountryBackdrop"></div>
+  <div class="modal-content">
+    <button type="button" class="modal-close" id="cmCountryClose" aria-label="Close">&times;</button>
+    <h2>Choose a country</h2>
+    <p class="modal-sub">Grouped the same way as Country Breakdowns. Pick one to move on to choosing an indicator.</p>
+    <div id="cmCountryRegions"></div>
+  </div>
+</div>
+
+<!-- Metric picker modal -->
+<div class="modal" id="cmMetricModal" hidden>
+  <div class="modal-backdrop" id="cmMetricBackdrop"></div>
+  <div class="modal-content">
+    <button type="button" class="modal-close" id="cmMetricClose" aria-label="Close">&times;</button>
+    <div class="pickerhead">
+      <button type="button" class="pickerback" id="cmMetricBackBtn">&larr; Back</button>
+      <h2 id="cmMetricTitle" style="margin:0;">Choose an indicator</h2>
+    </div>
+    <p class="modal-sub">Click as many indicators as you like for <strong id="cmMetricCountryName"></strong>; they'll keep appearing on the chart without closing this window.</p>
+    <div class="nudge" id="cmNudge">
+      <div class="nudgehead"><span id="cmNudgeTitle"></span>
+        <button type="button" class="nudgeclose" id="cmNudgeClose" aria-label="Dismiss">&times;</button></div>
+      <div class="nudgechips" id="cmNudgeChips"></div>
+    </div>
+    <div class="pickergrid" id="cmMetricGrid"></div>
+    <div style="text-align:right; margin-top:14px;"><button type="button" class="pickerdone" id="cmMetricDoneBtn">Done</button></div>
+  </div>
+</div>
+
+<!-- Open a saved chart -- same pattern as the country/metric picker
+     modals (large, centered, backdrop), not a small dropdown, so people
+     can actually see the charts they're choosing between. -->
+<div class="modal" id="cmOpenModal" hidden>
+  <div class="modal-backdrop" id="cmOpenBackdrop"></div>
+  <div class="modal-content wide">
+    <button type="button" class="modal-close" id="cmOpenClose" aria-label="Close">&times;</button>
+    <h2>Open a saved chart</h2>
+    <p class="modal-sub">Everything you've saved here, on Compare, My Dashboard, or any country page.</p>
+    <div class="cm-openfilters" id="cmOpenFilters"></div>
+    <div class="cm-openlist-wrap">
+      <div class="cm-opengrid" id="cmOpenPopBody">Loading&hellip;</div>
+      <div class="cm-openletter" id="cmOpenLetter"></div>
+    </div>
+  </div>
+</div>
+
+<!-- Palette picker modal -- applies to ALL current lines/bars at once -->
+<div class="modal" id="cmPaletteModal" hidden>
+  <div class="modal-backdrop" id="cmPaletteBackdrop"></div>
+  <div class="modal-content narrow">
+    <button type="button" class="modal-close" id="cmPaletteClose" aria-label="Close">&times;</button>
+    <h2>Choose a palette</h2>
+    <p class="modal-sub">Applies to every metric currently on the chart, line or bar. You can still recolour any single one afterwards from Line colours.</p>
+    <div class="seg fullwidth" id="cmPaletteModalTabs" style="margin-bottom:14px;">
+      <button type="button" data-pal="standard" class="active">Standard</button>
+      <button type="button" data-pal="mako">Mako</button>
+      <button type="button" data-pal="custom">Custom</button>
+    </div>
+    <div class="cm-swpop-grid" id="cmPaletteModalGrid"></div>
+    <div id="cmPaletteModalCustomTools" style="display:none;">
+      <div class="cm-field">
+        <label for="cmPaletteImportText">Add your own colours (upload a palette)</label>
+        <textarea id="cmPaletteImportText" rows="3" placeholder="Paste hex codes, one per line or comma-separated, e.g.&#10;#1E4566, #AD1E1E, #49AD1E" style="width:100%; border:1px solid var(--hair); border-radius:7px; background:var(--paper); color:var(--ink); font:inherit; font-size:12.5px; padding:8px 10px; resize:vertical;"></textarea>
+      </div>
+      <div style="display:flex; gap:8px; margin-bottom:14px;">
+        <button type="button" class="pickerback" id="cmPaletteImportBtn">Import list</button>
+        <button type="button" class="pickerback" id="cmPaletteClearCustomBtn">Clear custom</button>
+      </div>
+    </div>
+    <p class="cm-status" id="cmPaletteModalMsg"></p>
+    <div style="display:flex; justify-content:flex-end; gap:10px;">
+      <button type="button" class="pickerback" id="cmPaletteModalCancel">Cancel</button>
+      <button type="button" class="pickerdone" id="cmPaletteModalApply">Apply to all lines</button>
+    </div>
+  </div>
+</div>
+
+<!-- Save name prompt modal -->
+<div class="modal" id="cmSaveModal" hidden>
+  <div class="modal-backdrop" id="cmSaveBackdrop"></div>
+  <div class="modal-content narrow">
+    <button type="button" class="modal-close" id="cmSaveClose" aria-label="Close">&times;</button>
+    <h2>Save this chart</h2>
+    <p class="modal-sub">Give it a name so you can find it again from Open.</p>
+    <div class="cm-field"><input type="text" id="cmSaveNameInput" maxlength="80" placeholder="e.g. UK vs US growth"></div>
+    <div style="text-align:right;"><button type="button" class="pickerdone" id="cmSaveConfirmBtn">Save</button></div>
+    <p class="cm-status" id="cmSaveMsg" style="margin-top:10px;"></p>
+  </div>
+</div>
+
+<footer>The Economic Atlas · Data from national statistical offices, used under open licences. <a href="privacy">Privacy</a> &middot; <a href="terms">Terms</a></footer>
+</div>
+<script>
+(function(){
+  "use strict";
+  // Site-wide "get notified" banner -- logged-out visitors only (anyone
+  // with an account already gets updates through the account itself),
+  // and remembers a dismissal permanently via localStorage rather than
+  // just for the current page, since this shows on every page and would
+  // be genuinely annoying otherwise. Placed here (just before </body>)
+  // rather than immediately after the banner's own HTML because
+  // window.EATLAS_PREFS isn't defined until later in the page.
+  var DISMISS_KEY = "eatlas_alert_banner_dismissed";
+  var banner = document.getElementById("alertBanner");
+  if(!banner) return;
+  var dismissed = false;
+  try{ dismissed = localStorage.getItem(DISMISS_KEY) === "1"; }catch(e){}
+  if(dismissed) return;
+  var closeBtn = document.getElementById("alertBannerClose");
+  if(closeBtn){
+    closeBtn.addEventListener("click", function(){
+      banner.hidden = true;
+      try{ localStorage.setItem(DISMISS_KEY, "1"); }catch(e){}
+    });
+  }
+  if(window.EATLAS_PREFS && window.EATLAS_PREFS.registerBanner){
+    window.EATLAS_PREFS.registerBanner(banner);
+  }
+})();
+</script>
+<script>
+(function(){
+"use strict";
+
+/* ============================== registries ============================== */
+var REGION_GROUPS = [
+  {name: "Europe", countries: ["UK", "Eurozone", "Germany", "France", "Italy", "Spain", "Netherlands", "Ireland", "Poland", "Switzerland", "Austria", "Sweden", "Turkey"]},
+  {name: "Scandinavia", countries: ["Denmark", "Norway"]},
+  {name: "North America", countries: ["US", "Canada", "Mexico"]},
+  {name: "Asia", countries: ["Japan", "India", "South Korea", "Indonesia", "Singapore", "Thailand"]},
+  {name: "Oceania", countries: ["Australia"]},
+  {name: "Middle East", countries: ["Israel"]},
+  {name: "South America", countries: ["Brazil", "Chile", "Colombia", "Argentina"]},
+  {name: "Africa", countries: ["South Africa", "Morocco"]}
+];
+
+var CONCEPT_LABEL = {
+  gdp_level: "GDP level", gdp_growth: "GDP growth (annual, real)", cpi: "Inflation (CPI)",
+  unemployment: "Unemployment rate", policy_rate: "Policy rate"
+};
+var CONCEPT_CATEGORY = {
+  gdp_level: "GDP & growth", gdp_growth: "GDP & growth", cpi: "Prices",
+  unemployment: "Labour market", policy_rate: "Rates & yields"
+};
+var CATEGORY_ORDER = ["GDP & growth", "Labour market", "Prices", "Rates & yields"];
+var CONCEPT_EXPLAINER = {
+  gdp_level: "The total value of everything the economy produces, current prices.",
+  gdp_growth: "How much the real economy grew or shrank versus a year earlier.",
+  cpi: "How much consumer prices are rising compared with a year ago.",
+  unemployment: "The share of people who want a job but can't find one.",
+  policy_rate: "The central bank's key interest rate."
+};
+var CONCEPT_UNIT = { gdp_level:"index", gdp_growth:"%", cpi:"%", unemployment:"%", policy_rate:"%" };
+var SAMPLE_COUNTRIES = ["UK","US","Germany","Japan","India","Brazil","Australia","South Korea"];
+
+/* ============================== dummy data ============================== */
+function seededRand(seed){
+  var s = seed % 2147483647; if(s <= 0) s += 2147483646;
+  return function(){ s = (s * 16807) % 2147483647; return (s - 1) / 2147483646; };
+}
+function hashStr(str){
+  var h = 0;
+  for(var i=0;i<str.length;i++){ h = (h * 31 + str.charCodeAt(i)) | 0; }
+  return Math.abs(h) || 1;
+}
+function quarters(fromY, toY){
+  var out = [];
+  for(var y=fromY; y<=toY; y++){ for(var q=1; q<=4; q++){ out.push(y + "-Q" + q); } }
+  return out;
+}
+var PERIODS = quarters(2015, 2026).slice(0, quarters(2015,2026).length - 2);
+var COUNTRY_BASE = {
+  UK:{gdp_growth:1.5, cpi:2.5, unemployment:4.2, policy_rate:4.0, gdp_level:180},
+  US:{gdp_growth:2.2, cpi:2.8, unemployment:3.9, policy_rate:4.5, gdp_level:520},
+  Germany:{gdp_growth:0.6, cpi:2.2, unemployment:5.8, policy_rate:3.25, gdp_level:220},
+  Japan:{gdp_growth:0.8, cpi:1.8, unemployment:2.5, policy_rate:0.5, gdp_level:340},
+  India:{gdp_growth:6.5, cpi:5.0, unemployment:7.5, policy_rate:6.25, gdp_level:95},
+  Brazil:{gdp_growth:2.4, cpi:4.2, unemployment:8.0, policy_rate:10.5, gdp_level:60},
+  Australia:{gdp_growth:2.0, cpi:3.1, unemployment:4.1, policy_rate:4.1, gdp_level:75},
+  "South Korea":{gdp_growth:2.1, cpi:2.3, unemployment:3.0, policy_rate:3.0, gdp_level:110}
+};
+function genSeries(country, metric){
+  var base = (COUNTRY_BASE[country] && COUNTRY_BASE[country][metric]) || 2;
+  var rand = seededRand(hashStr(country + "|" + metric));
+  var pts = [];
+  var trendDrift = (rand() - 0.5) * 0.03;
+  var level = base;
+  PERIODS.forEach(function(p, i){
+    var noise = (rand() - 0.5) * (metric === "gdp_level" ? base * 0.01 : 0.35);
+    var cycle = Math.sin(i / 6) * (metric === "unemployment" ? 0.6 : metric === "gdp_level" ? base * 0.015 : 0.4);
+    if(metric === "gdp_level"){
+      level = level * (1 + 0.006 + trendDrift * 0.02) + noise + cycle * 0.1;
+    } else {
+      level = base + cycle + noise + trendDrift * i * 0.02;
+      if(metric === "unemployment" || metric === "policy_rate") level = Math.max(0.1, level);
+    }
+    pts.push([p, Math.round(level * 100) / 100]);
+  });
+  return { label: CONCEPT_LABEL[metric], unit: CONCEPT_UNIT[metric], freq: "quarters", points: pts };
+}
+var SAMPLE_DATA = {};
+SAMPLE_COUNTRIES.forEach(function(c){
+  SAMPLE_DATA[c] = {};
+  Object.keys(CONCEPT_LABEL).forEach(function(m){ SAMPLE_DATA[c][m] = genSeries(c, m); });
+});
+
+/* ============================== admin gate ============================== */
+var gateEl = document.getElementById("cmGate");
+var layoutEl = document.getElementById("cmLayout");
+function revealIfAdmin(){
+  var admin = !!(window.EATLAS_PREFS && window.EATLAS_PREFS.isAdmin && window.EATLAS_PREFS.isAdmin());
+  if(admin){
+    gateEl.style.display = "none";
+    layoutEl.classList.add("show");
+    initChartMaker();
+  } else {
+    gateEl.style.display = "";
+    layoutEl.classList.remove("show");
+  }
+}
+if(window.EATLAS_PREFS && window.EATLAS_PREFS.ready){
+  window.EATLAS_PREFS.ready.then(revealIfAdmin);
+  if(window.EATLAS_PREFS.onSettled) window.EATLAS_PREFS.onSettled(revealIfAdmin);
+  if(window.EATLAS_PREFS.onLogin) window.EATLAS_PREFS.onLogin(revealIfAdmin);
+}
+
+var initedOnce = false;
+function initChartMaker(){
+  if(initedOnce) return;
+  initedOnce = true;
+  runChartMaker();
+}
+
+/* ============================== main app ============================== */
+function runChartMaker(){
+
+// Chart.js defaults to its own built-in font family unless told otherwise
+// -- every title/legend/tick label was silently using that instead of
+// the site's real font. Set once, applies everywhere nothing else
+// specifies its own family (which is every Chart.js-native text element
+// below; the hand-drawn canvas plugin text already names Nunito Sans
+// directly).
+if(window.Chart && Chart.defaults){
+  Chart.defaults.font.family = "'Avenir Next','Avenir','Nunito Sans',system-ui,sans-serif";
+}
+
+// The site's real per-country default colour, exactly as Compare/My
+// Dashboard/country pages use it -- same country always gets the same
+// colour, which is what "adopt Compare's approach" means in practice.
+var COUNTRY_COLOR = {UK:"#1E4566", US:"#AD1E1E", Eurozone:"#D47353", Japan:"#AD5132", India:"#BB8A4D", Canada:"#AD7B1E", Australia:"#ADA61E", "South Korea":"#D4D453", Israel:"#A5BB4D", Mexico:"#82AD32", Brazil:"#7AD453", "South Africa":"#49AD1E", Morocco:"#1E8F1E", Germany:"#1EAD42", France:"#53D493", Italy:"#1E8F67", Spain:"#1EAD7B", Netherlands:"#32A7AD", Denmark:"#376A80", Ireland:"#1E7BAD", Norway:"#4D74BB", Chile:"#535AD4", Colombia:"#2D2672", Turkey:"#2C1EAD", Indonesia:"#6A32AD", Poland:"#CD53D4", Switzerland:"#891E8F", Argentina:"#AD32AD", Sweden:"#D453A7", Singapore:"#AD1E5E", Austria:"#722648", Thailand:"#D45366"};
+// Same real code<->name registry country pages/Dashboard/Compare all
+// share -- needed so a saved chart from any of those pages (which store
+// 2-letter codes, or "compare" with its own countries[] array) can be
+// interpreted here, not just ChartMaker's own saves.
+var REGISTRY_KEY_TO_CODE = {
+  UK: "uk", US: "us", Eurozone: "ez", Japan: "jp", India: "in", Canada: "ca",
+  Australia: "au", "South Korea": "kr", Israel: "il", Mexico: "mx", Brazil: "br",
+  "South Africa": "za", Morocco: "ma", Germany: "de", France: "fr", Italy: "it",
+  Spain: "es", Netherlands: "nl", Denmark: "dk", Ireland: "ie", Norway: "no",
+  Chile: "cl", Colombia: "co", Turkey: "tr", Indonesia: "id", Poland: "pl",
+  Switzerland: "ch", Argentina: "ar", Sweden: "se", Singapore: "sg", Austria: "at",
+  Thailand: "th"
+};
+var CODE_TO_REGISTRY_KEY = {};
+Object.keys(REGISTRY_KEY_TO_CODE).forEach(function(name){ CODE_TO_REGISTRY_KEY[REGISTRY_KEY_TO_CODE[name]] = name; });
+
+// The Standard swatch-popover grid still benefits from a wide, evenly-spread
+// set to manually pick from -- kept as its own list, separate from the
+// per-country defaults above.
+var SWATCH_PALETTE = ["#AD1E1E","#8F3A1E","#D47353","#AD5132","#BB8A4D","#D4A053","#AD7B1E","#726326","#ADA61E","#D4D453","#A5BB4D","#788F1E","#82AD32","#447226","#7AD453","#49AD1E","#1E8F1E","#4DBB5E","#1EAD42","#37804D","#53D493","#1E8F67","#1EAD7B","#1E8F8F","#32A7AD","#53C0D4","#376A80","#1E7BAD","#1E4566","#538DD4","#4D74BB","#1E49AD","#535AD4","#2D2672","#2C1EAD","#543780","#6A32AD","#8F4DBB","#CD53D4","#891E8F","#AD32AD","#80376E","#D453A7","#BB4D8A","#AD1E5E","#722648","#D45366","#AD323E"];
+// Mako preset: interpolated from the site's own --mako-1..--mako-7 custom
+// properties (read live, so it follows whatever light/dark values are
+// currently in effect) rather than a hardcoded copy that could drift out
+// of sync with style.css.
+function readMakoStops(){
+  var cs = getComputedStyle(document.documentElement);
+  var stops = [];
+  for(var i=1;i<=7;i++){ var v = cs.getPropertyValue("--mako-" + i).trim(); if(v) stops.push(v); }
+  return stops.length ? stops : ["#2E1E3B","#413D7B","#37659E","#348FA7","#40B7AD","#8AD9B1","#DEF5E5"];
+}
+function lerpHex(a, b, t){
+  var ca = hexToRgb(a), cb = hexToRgb(b);
+  var r = Math.round(ca.r + (cb.r-ca.r)*t), g = Math.round(ca.g + (cb.g-ca.g)*t), bl = Math.round(ca.b + (cb.b-ca.b)*t);
+  return "#" + [r,g,bl].map(function(v){ return Math.max(0,Math.min(255,v)).toString(16).padStart(2,"0"); }).join("");
+}
+function buildMakoPalette(count){
+  var stops = readMakoStops();
+  var out = [];
+  for(var i=0;i<count;i++){
+    var pos = (i/(count-1)) * (stops.length-1);
+    var lo = Math.floor(pos), hi = Math.min(stops.length-1, lo+1);
+    out.push(lerpHex(stops[lo], stops[hi], pos-lo));
+  }
+  return out;
+}
+var customSwatches = []; // session-only custom palette the person builds themselves
+var PALETTES = { standard: SWATCH_PALETTE, get mako(){ return buildMakoPalette(40); }, get custom(){ return customSwatches; } };
+var activePaletteName = "standard";
+var CLASH_THRESHOLD = 42;
+var colorIdx = 0;
+var chartType = "line";
+var seriesSeq = 0;
+var annotSeq = 0;
+var MAX_ANNOTATIONS = 6;
+
+var series = [];
+var annotations = [];
+var chart = null;
+var exportTheme = "light";
+var pendingCountry = null;
+var pendingNudgeMetric = null; // metric key just added, drives the inline nudge banner in the metric modal
+
+var style = {
+  chartTitle: "", yAxisTitle: "", legendTitle: "", yTitlePos: "along",
+  showFill: false, showPoints: false,
+  refLine: { enabled:false, value:0 }, centerAroundRef: false,
+  logScale: false, xTicks: 8, xLabelAngle: "straight",
+  yStartMode: "auto", yStartValue: 0
+};
+
+/* ---- element refs ---- */
+var seriesListEl = document.getElementById("cmSeriesList");
+var statusEl = document.getElementById("cmStatus");
+var addBtn = document.getElementById("cmAddBtn");
+var colorsListEl = document.getElementById("cmColorsList");
+var colorsEmptyEl = document.getElementById("cmColorsEmpty");
+var clashWarnEl = document.getElementById("cmClashWarn");
+var emptyStateEl = document.getElementById("cmEmptyState");
+var chartOuterEl = document.getElementById("cmChartOuter");
+var fromPeriodSel = document.getElementById("cmFromPeriod");
+var toPeriodSel = document.getElementById("cmToPeriod");
+var btnPng = document.getElementById("cmPngBtn");
+var btnCsv = document.getElementById("cmCsvBtn");
+var annotListEl = document.getElementById("cmAnnotList");
+var addAnnotBtn = document.getElementById("cmAddAnnotBtn");
+
+/* ---- helpers ---- */
+function transformLabel(mode){
+  return {raw:"Raw values", yoy:"YoY % change", index100:"Indexed to 100", ma3:"3-period moving avg", ma12:"12-period moving avg"}[mode] || mode;
+}
+function periodIndex(p){ return PERIODS.indexOf(p); }
+function hexToRgb(hex){
+  var m = /^#?([a-f\d]{2})([a-f\d]{2})([a-f\d]{2})$/i.exec(hex);
+  return m ? {r:parseInt(m[1],16), g:parseInt(m[2],16), b:parseInt(m[3],16)} : {r:0,g:0,b:0};
+}
+function colorDist(a,b){
+  var ca = hexToRgb(a), cb = hexToRgb(b);
+  return Math.sqrt(Math.pow(ca.r-cb.r,2) + Math.pow(ca.g-cb.g,2) + Math.pow(ca.b-cb.b,2));
+}
+function applyTransform(points, mode){
+  if(mode === "raw") return points;
+  if(mode === "index100"){
+    var base = points.length ? points[0].y : null;
+    if(!base) return points;
+    return points.map(function(p){ return {x:p.x, y:(p.y/base)*100}; });
+  }
+  if(mode === "yoy"){
+    var out = [];
+    points.forEach(function(cur){
+      var idx = periodIndex(cur.x);
+      var priorIdx = idx - 4;
+      if(priorIdx >= 0){
+        var priorPeriod = PERIODS[priorIdx];
+        var prior = points.find(function(p){ return p.x === priorPeriod; });
+        if(prior && prior.y){ out.push({x:cur.x, y:((cur.y-prior.y)/Math.abs(prior.y))*100}); }
+      }
+    });
+    return out;
+  }
+  if(mode === "ma3" || mode === "ma12"){
+    var w = mode === "ma3" ? 3 : 12;
+    var out2 = [];
+    for(var j=0;j<points.length;j++){
+      if(j < w-1) continue;
+      var slice = points.slice(j-w+1, j+1);
+      out2.push({x:points[j].x, y: slice.reduce(function(s,p){return s+p.y;},0)/slice.length});
+    }
+    return out2;
+  }
+  return points;
+}
+function fmtPeriod(p){
+  var m = /^(\d{4})-Q(\d)$/.exec(p);
+  return m ? ("Q" + m[2] + " " + m[1]) : p;
+}
+
+/* ---- country modal ---- */
+var countryModal = document.getElementById("cmCountryModal");
+var countryRegionsEl = document.getElementById("cmCountryRegions");
+function renderCountryModal(){
+  countryRegionsEl.innerHTML = "";
+  REGION_GROUPS.forEach(function(g){
+    var avail = g.countries.filter(function(c){ return SAMPLE_DATA[c]; });
+    if(!avail.length) return;
+    var region = document.createElement("div");
+    region.className = "picker-region";
+    var h4 = document.createElement("h4"); h4.textContent = g.name; region.appendChild(h4);
+    var grid = document.createElement("div"); grid.className = "picker-grid";
+    avail.forEach(function(c){
+      var item = document.createElement("button");
+      item.type = "button"; item.className = "picker-item";
+      item.innerHTML = "<span class='dot'></span>" + c;
+      item.addEventListener("click", function(){
+        pendingCountry = c;
+        closeModal(countryModal);
+        openMetricModal();
+      });
+      grid.appendChild(item);
+    });
+    region.appendChild(grid);
+    countryRegionsEl.appendChild(region);
+  });
+}
+function openModal(m){ m.hidden = false; }
+function closeModal(m){ m.hidden = true; }
+document.getElementById("cmCountryClose").addEventListener("click", function(){ closeModal(countryModal); });
+document.getElementById("cmCountryBackdrop").addEventListener("click", function(){ closeModal(countryModal); });
+addBtn.addEventListener("click", function(){ renderCountryModal(); openModal(countryModal); });
+
+/* ---- metric modal ---- */
+var metricModal = document.getElementById("cmMetricModal");
+var metricGridEl = document.getElementById("cmMetricGrid");
+var metricCountryNameEl = document.getElementById("cmMetricCountryName");
+function openMetricModal(){
+  metricCountryNameEl.textContent = pendingCountry;
+  renderMetricGrid();
+  renderNudge(null);
+  openModal(metricModal);
+}
+function renderMetricGrid(){
+  metricGridEl.innerHTML = "";
+  CATEGORY_ORDER.forEach(function(cat){
+    var keys = Object.keys(CONCEPT_LABEL).filter(function(k){ return CONCEPT_CATEGORY[k] === cat; });
+    if(!keys.length) return;
+    var heading = document.createElement("div");
+    heading.className = "pickercat"; heading.textContent = cat;
+    metricGridEl.appendChild(heading);
+    keys.forEach(function(k){
+      var already = series.some(function(s){ return s.country === pendingCountry && s.metric === k; });
+      var item = document.createElement("div");
+      item.className = "pickeritem" + (already ? " added" : "");
+      item.innerHTML = "<div style='font-weight:700;'>" + CONCEPT_LABEL[k] + "</div><div class='e'>" + (already ? "Already on the chart" : CONCEPT_EXPLAINER[k]) + "</div>";
+      if(!already){
+        item.addEventListener("click", function(){
+          addSeries(pendingCountry, k);
+          renderMetricGrid();
+          renderNudge(k);
+        });
+      }
+      metricGridEl.appendChild(item);
+    });
+  });
+}
+document.getElementById("cmMetricClose").addEventListener("click", function(){ closeModal(metricModal); });
+document.getElementById("cmMetricBackdrop").addEventListener("click", function(){ closeModal(metricModal); });
+document.getElementById("cmMetricDoneBtn").addEventListener("click", function(){ closeModal(metricModal); });
+document.getElementById("cmMetricBackBtn").addEventListener("click", function(){
+  closeModal(metricModal);
+  renderCountryModal();
+  openModal(countryModal);
+});
+
+/* ---- "also tracked for N other countries" nudge, inline in the metric
+   modal -- ported from My Dashboard's real add-metric nudge (same
+   .nudge/.nudgechip classes and click-to-instantly-add interaction)
+   rather than a separate confirm-step modal. ---- */
+var nudgeEl = document.getElementById("cmNudge");
+var nudgeTitleEl = document.getElementById("cmNudgeTitle");
+var nudgeChipsEl = document.getElementById("cmNudgeChips");
+function renderNudge(metric){
+  pendingNudgeMetric = metric;
+  if(!metric){ nudgeEl.classList.remove("show"); return; }
+  var others = SAMPLE_COUNTRIES.filter(function(c){
+    return c !== pendingCountry && !series.some(function(s){ return s.country === c && s.metric === metric; });
+  });
+  if(!others.length){ nudgeEl.classList.remove("show"); return; }
+  nudgeTitleEl.textContent = "\uD83C\uDF0D " + CONCEPT_LABEL[metric] + " is also tracked for " + others.length + (others.length === 1 ? " other country:" : " other countries:");
+  nudgeChipsEl.innerHTML = "";
+  others.forEach(function(c){
+    var chip = document.createElement("button");
+    chip.type = "button"; chip.className = "nudgechip";
+    chip.textContent = c + " +";
+    chip.addEventListener("click", function(){
+      addSeries(c, metric);
+      chip.textContent = c + " \u2713";
+      chip.classList.add("added");
+      renderMetricGrid();
+    });
+    nudgeChipsEl.appendChild(chip);
+  });
+  nudgeEl.classList.add("show");
+}
+document.getElementById("cmNudgeClose").addEventListener("click", function(){ nudgeEl.classList.remove("show"); });
+
+/* ---- series management ---- */
+function addSeries(country, metric){
+  var s = SAMPLE_DATA[country][metric];
+  var pts = s.points.map(function(p){ return {x:p[0], y:p[1]}; });
+  series.push({
+    id: "s" + (++seriesSeq), country: country, metric: metric, transform: "raw",
+    unit: s.unit, label: s.label, color: "#1E4566", manualColor: false, customLabel: null, rawPoints: pts
+  });
+  assignColors();
+  syncAutoYAxisTitle();
+  resetYTickStepIdx();
+  renderSeriesList();
+  renderColorsPanel();
+  populateDateRange();
+  renderChart();
+}
+function removeSeries(id){
+  series = series.filter(function(s){ return s.id !== id; });
+  assignColors();
+  syncAutoYAxisTitle();
+  resetYTickStepIdx();
+  renderSeriesList();
+  renderColorsPanel();
+  populateDateRange();
+  renderChart();
+}
+function defaultSeriesLabel(s){ return s.country + " \u2014 " + CONCEPT_LABEL[s.metric]; }
+function seriesLabel(s){ return s.customLabel || defaultSeriesLabel(s); }
+// Colour logic, per your brief:
+// - Comparing the SAME metric across MULTIPLE countries -> each series
+//   gets its country's fixed default colour (same one Compare/Dashboard/
+//   country pages already use for that country).
+// - Comparing MULTIPLE metrics for a SINGLE country -> a flat per-country
+//   colour would make every line identical, so those default to a Mako
+//   gradient instead, one shade per metric.
+// A manually-recoloured series (via the swatch popover) is left alone by
+// this on every future add/remove, until "Use Mako palette" explicitly
+// resets everything.
+function assignColors(){
+  var countries = [];
+  series.forEach(function(s){ if(countries.indexOf(s.country) === -1) countries.push(s.country); });
+  var singleCountryMode = countries.length === 1 && series.length > 1;
+  if(singleCountryMode){
+    var makoColors = buildMakoPalette(Math.max(series.length, 3));
+    series.forEach(function(s, i){ if(!s.manualColor) s.color = makoColors[i % makoColors.length]; });
+  } else {
+    series.forEach(function(s){ if(!s.manualColor) s.color = COUNTRY_COLOR[s.country] || "#1E4566"; });
+  }
+}
+// applyMakoToAll() removed -- superseded by the palette picker modal
+// below, which covers Mako plus Standard and Custom in one place.
+function renderSeriesList(){
+  seriesListEl.innerHTML = "";
+  series.forEach(function(s){
+    var li = document.createElement("li"); li.className = "cm-seriesitem";
+    var lbl = document.createElement("div"); lbl.className = "cm-lbl";
+    // Editable title -- defaults to "Country -- Metric" but can be
+    // renamed freely; the custom text then drives the legend, the Line
+    // colours panel, and the CSV header too (see seriesLabel()).
+    var main = document.createElement("input");
+    main.type = "text"; main.className = "main-edit"; main.maxLength = 60;
+    main.value = seriesLabel(s);
+    main.title = "Click to rename this metric's title";
+    main.addEventListener("input", function(){
+      s.customLabel = main.value.trim() || null;
+      renderColorsPanel(); renderChart();
+    });
+    main.addEventListener("blur", function(){ main.value = seriesLabel(s); });
+    var tSel = document.createElement("select");
+    ["raw","yoy","index100","ma3","ma12"].forEach(function(t){
+      var o = document.createElement("option"); o.value = t; o.textContent = transformLabel(t);
+      if(t === s.transform) o.selected = true;
+      tSel.appendChild(o);
+    });
+    tSel.addEventListener("change", function(){ s.transform = tSel.value; renderChart(); });
+    lbl.appendChild(main); lbl.appendChild(tSel);
+    var rm = document.createElement("button"); rm.className = "cm-rm"; rm.type = "button"; rm.innerHTML = "&times;"; rm.title = "Remove";
+    rm.addEventListener("click", function(){ removeSeries(s.id); });
+    li.appendChild(lbl); li.appendChild(rm);
+    seriesListEl.appendChild(li);
+  });
+  statusEl.textContent = series.length ? (series.length + " metric" + (series.length===1?"":"s") + " on the chart") : "No metrics added yet.";
+}
+
+/* ---- colours panel (with clash detection) ---- */
+var openSwatchPop = null;
+function closeSwatchPop(){
+  if(openSwatchPop){ openSwatchPop.remove(); openSwatchPop = null; }
+}
+document.addEventListener("click", function(e){
+  if(openSwatchPop && !openSwatchPop.contains(e.target) && !e.target.classList.contains("cm-swatch")){ closeSwatchPop(); }
+});
+function renderColorsPanel(){
+  colorsEmptyEl.style.display = series.length ? "none" : "";
+  colorsListEl.innerHTML = "";
+  var clashing = {};
+  var clashPairs = [];
+  for(var i=0;i<series.length;i++){
+    for(var j=i+1;j<series.length;j++){
+      if(colorDist(series[i].color, series[j].color) < CLASH_THRESHOLD){
+        clashing[series[i].id] = true; clashing[series[j].id] = true;
+        clashPairs.push(seriesLabel(series[i]) + " & " + seriesLabel(series[j]));
+      }
+    }
+  }
+  if(clashPairs.length){
+    clashWarnEl.hidden = false;
+    clashWarnEl.textContent = "These colours look very similar and may be hard to tell apart: " + clashPairs.join("; ") + ".";
+  } else {
+    clashWarnEl.hidden = true;
+  }
+  series.forEach(function(s){
+    var row = document.createElement("div"); row.className = "cm-colorrow";
+    var sw = document.createElement("button");
+    sw.type = "button"; sw.className = "cm-swatch" + (clashing[s.id] ? " clash" : "");
+    sw.style.background = s.color;
+    sw.title = "Change colour";
+    sw.addEventListener("click", function(e){
+      e.stopPropagation();
+      closeSwatchPop();
+      openSwatchPopover(sw, s);
+    });
+    var label = document.createElement("span");
+    label.textContent = seriesLabel(s);
+    label.style.color = clashing[s.id] ? "#D65A3C" : "var(--ink)";
+    row.appendChild(sw); row.appendChild(label);
+    colorsListEl.appendChild(row);
+  });
+}
+/* ---- palette picker modal: choose a palette for every current line/bar
+   at once (Standard / Mako / Custom), including a bulk "upload" of your
+   own hex codes for Custom rather than adding one colour at a time. ---- */
+var paletteModal = document.getElementById("cmPaletteModal");
+var paletteModalGrid = document.getElementById("cmPaletteModalGrid");
+var paletteModalTabs = document.getElementById("cmPaletteModalTabs");
+var paletteModalCustomTools = document.getElementById("cmPaletteModalCustomTools");
+var paletteModalMsg = document.getElementById("cmPaletteModalMsg");
+var activeModalPalette = "standard";
+function renderPaletteModalGrid(){
+  paletteModalGrid.innerHTML = "";
+  var pal = PALETTES[activeModalPalette];
+  if(activeModalPalette === "custom" && !pal.length){
+    var empty = document.createElement("div");
+    empty.style.cssText = "grid-column:1/-1; font-size:12px; color:var(--ink2); padding:6px 0;";
+    empty.textContent = "No custom colours yet -- paste some below and import them.";
+    paletteModalGrid.appendChild(empty);
+  }
+  pal.forEach(function(c){
+    var b = document.createElement("button");
+    b.type = "button"; b.style.background = c; b.title = c;
+    paletteModalGrid.appendChild(b);
+  });
+  paletteModalCustomTools.style.display = activeModalPalette === "custom" ? "block" : "none";
+}
+document.getElementById("cmOpenPaletteModalBtn").addEventListener("click", function(){
+  if(!series.length){ return; }
+  paletteModalMsg.textContent = "";
+  renderPaletteModalGrid();
+  openModal(paletteModal);
+});
+paletteModalTabs.querySelectorAll("button").forEach(function(b){
+  b.addEventListener("click", function(){
+    activeModalPalette = b.dataset.pal;
+    paletteModalTabs.querySelectorAll("button").forEach(function(x){ x.classList.toggle("active", x===b); });
+    renderPaletteModalGrid();
+  });
+});
+document.getElementById("cmPaletteImportBtn").addEventListener("click", function(){
+  var raw = document.getElementById("cmPaletteImportText").value;
+  var candidates = raw.split(/[\n,]/).map(function(x){ return x.trim(); }).filter(Boolean);
+  var validHex = /^#?[0-9a-fA-F]{6}$/;
+  var added = 0;
+  candidates.forEach(function(hex){
+    if(!validHex.test(hex)) return;
+    var normalized = hex[0] === "#" ? hex : "#" + hex;
+    if(customSwatches.indexOf(normalized) === -1){ customSwatches.push(normalized); added++; }
+  });
+  paletteModalMsg.textContent = added ? ("Added " + added + " colour" + (added===1?"":"s") + " to your custom palette.") : "Nothing valid found -- use 6-digit hex codes like #1E4566.";
+  document.getElementById("cmPaletteImportText").value = "";
+  renderPaletteModalGrid();
+});
+document.getElementById("cmPaletteClearCustomBtn").addEventListener("click", function(){
+  customSwatches.length = 0;
+  renderPaletteModalGrid();
+});
+document.getElementById("cmPaletteModalCancel").addEventListener("click", function(){ closeModal(paletteModal); });
+document.getElementById("cmPaletteClose").addEventListener("click", function(){ closeModal(paletteModal); });
+document.getElementById("cmPaletteBackdrop").addEventListener("click", function(){ closeModal(paletteModal); });
+document.getElementById("cmPaletteModalApply").addEventListener("click", function(){
+  var pal = PALETTES[activeModalPalette];
+  if(!pal.length){ paletteModalMsg.textContent = "Nothing to apply yet."; return; }
+  // Works the same whether the current chart type is line or bar --
+  // this only ever changes each series' underlying colour, and both
+  // the line stroke and the bar fill already read straight from that.
+  series.forEach(function(s, i){ s.manualColor = false; s.color = pal[i % pal.length]; });
+  renderColorsPanel(); renderChart();
+  closeModal(paletteModal);
+});
+function openSwatchPopover(anchorBtn, s){
+  var pop = document.createElement("div");
+  pop.className = "cm-swpop";
+  var tabs = document.createElement("div"); tabs.className = "cm-swpop-tabs";
+  var grid = document.createElement("div"); grid.className = "cm-swpop-grid";
+  var customRow = document.createElement("div"); customRow.style.cssText = "display:none; gap:6px; margin-bottom:9px;";
+  var customAddInput = document.createElement("input");
+  customAddInput.type = "color"; customAddInput.value = s.color;
+  customAddInput.style.cssText = "flex:1; height:28px; border:1px solid var(--hair); border-radius:6px; cursor:pointer; background:none;";
+  var customAddBtn = document.createElement("button");
+  customAddBtn.type = "button"; customAddBtn.textContent = "+ Add to palette";
+  customAddBtn.style.cssText = "flex:0 0 auto; font:700 11px \"Avenir Next\",\"Avenir\",\"Nunito Sans\",sans-serif; padding:0 10px; border:1px solid var(--hair); border-radius:6px; background:var(--paper); color:var(--ink); cursor:pointer;";
+  customAddBtn.addEventListener("click", function(e){
+    e.stopPropagation();
+    var hex = customAddInput.value;
+    if(customSwatches.indexOf(hex) === -1) customSwatches.push(hex);
+    renderGrid();
+  });
+  customRow.appendChild(customAddInput); customRow.appendChild(customAddBtn);
+  function renderGrid(){
+    grid.innerHTML = "";
+    var pal = PALETTES[activePaletteName];
+    if(activePaletteName === "custom" && !pal.length){
+      var empty = document.createElement("div");
+      empty.style.cssText = "grid-column:1/-1; font-size:11px; color:var(--ink2); padding:4px 0;";
+      empty.textContent = "No custom colours yet -- pick one below and add it.";
+      grid.appendChild(empty);
+    }
+    pal.forEach(function(c){
+      var b = document.createElement("button");
+      b.type = "button"; b.style.background = c; b.title = c;
+      b.addEventListener("click", function(e){
+        e.stopPropagation();
+        s.color = c;
+        s.manualColor = true;
+        closeSwatchPop();
+        renderColorsPanel(); renderChart();
+      });
+      grid.appendChild(b);
+    });
+    customRow.style.display = activePaletteName === "custom" ? "flex" : "none";
+  }
+  [["standard","Standard"],["mako","Mako"],["custom","Custom"]].forEach(function(pair){
+    var b = document.createElement("button");
+    b.type = "button"; b.textContent = pair[1];
+    b.classList.toggle("active", activePaletteName === pair[0]);
+    b.addEventListener("click", function(e){
+      e.stopPropagation();
+      activePaletteName = pair[0];
+      tabs.querySelectorAll("button").forEach(function(x){ x.classList.toggle("active", x===b); });
+      renderGrid();
+    });
+    tabs.appendChild(b);
+  });
+  renderGrid();
+  pop.appendChild(tabs);
+  pop.appendChild(grid);
+  pop.appendChild(customRow);
+  document.body.appendChild(pop);
+  var r = anchorBtn.getBoundingClientRect();
+  pop.style.top = (window.scrollY + r.bottom + 6) + "px";
+  pop.style.left = (window.scrollX + r.left) + "px";
+  openSwatchPop = pop;
+}
+
+/* ---- date range ---- */
+function populateDateRange(){
+  var prevFrom = fromPeriodSel.value, prevTo = toPeriodSel.value;
+  fromPeriodSel.innerHTML = ""; toPeriodSel.innerHTML = "";
+  PERIODS.forEach(function(p){
+    var o1 = document.createElement("option"); o1.value = p; o1.textContent = fmtPeriod(p);
+    var o2 = o1.cloneNode(true);
+    fromPeriodSel.appendChild(o1); toPeriodSel.appendChild(o2);
+  });
+  fromPeriodSel.value = PERIODS.includes(prevFrom) ? prevFrom : PERIODS[0];
+  toPeriodSel.value = PERIODS.includes(prevTo) ? prevTo : PERIODS[PERIODS.length-1];
+}
+fromPeriodSel.addEventListener("change", function(){ syncBarLegendTitle(); renderChart(); });
+toPeriodSel.addEventListener("change", function(){ syncBarLegendTitle(); renderChart(); });
+
+/* ---- chart style control wiring ---- */
+document.getElementById("cmChartTitle").addEventListener("input", function(e){ style.chartTitle = e.target.value; renderChart(); });
+var yAxisTitleTouched = false;
+var UNIT_AXIS_LABEL = { "%": "%", index: "Index", currency: "Value" };
+function syncAutoYAxisTitle(){
+  if(yAxisTitleTouched || !series.length) return;
+  var units = {}; series.forEach(function(s){ units[s.unit] = true; });
+  var unitKeys = Object.keys(units);
+  var text = unitKeys.length === 1 ? (UNIT_AXIS_LABEL[unitKeys[0]] || "") : "";
+  style.yAxisTitle = text;
+  document.getElementById("cmYAxisTitle").value = text;
+}
+document.getElementById("cmYAxisTitle").addEventListener("input", function(e){ yAxisTitleTouched = true; style.yAxisTitle = e.target.value; renderChart(); });
+var legendTitleTouched = false;
+document.getElementById("cmLegendTitle").addEventListener("input", function(e){ legendTitleTouched = true; style.legendTitle = e.target.value; renderChart(); });
+// Bar mode replaces the "per country" legend with one bar per metric, so
+// the legend title is free real estate -- auto-filled with the period
+// each bar actually shows (the end of the selected date range), same
+// value Bar mode itself reads to pick "latest". Still fully editable;
+// switching back to Line leaves whatever the person typed alone rather
+// than silently reverting it.
+function syncBarLegendTitle(){
+  if(chartType !== "bar" || legendTitleTouched) return;
+  var text = fmtPeriod(toPeriodSel.value);
+  style.legendTitle = text;
+  document.getElementById("cmLegendTitle").value = text;
+}
+document.getElementById("cmYTitlePosSeg").querySelectorAll("button").forEach(function(b){
+  b.addEventListener("click", function(){
+    document.getElementById("cmYTitlePosSeg").querySelectorAll("button").forEach(function(x){x.classList.toggle("active", x===b);});
+    style.yTitlePos = b.dataset.pos; renderChart();
+  });
+});
+document.getElementById("cmFillToggle").addEventListener("change", function(e){ style.showFill = e.target.checked; renderChart(); });
+document.getElementById("cmPointsToggle").addEventListener("change", function(e){ style.showPoints = e.target.checked; renderChart(); });
+document.getElementById("cmRefToggle").addEventListener("change", function(e){ style.refLine.enabled = e.target.checked; renderChart(); });
+document.getElementById("cmRefValue").addEventListener("input", function(e){ style.refLine.value = parseFloat(e.target.value)||0; renderChart(); });
+document.getElementById("cmUseAvgBtn").addEventListener("click", function(){
+  var vals = [];
+  series.forEach(function(s){ applyTransform(s.rawPoints, s.transform).forEach(function(p){ vals.push(p.y); }); });
+  if(!vals.length) return;
+  var avg = vals.reduce(function(a,b){return a+b;},0)/vals.length;
+  style.refLine.value = Math.round(avg*100)/100;
+  style.refLine.enabled = true;
+  document.getElementById("cmRefValue").value = style.refLine.value;
+  document.getElementById("cmRefToggle").checked = true;
+  renderChart();
+});
+document.getElementById("cmLogToggle").addEventListener("change", function(e){
+  style.logScale = e.target.checked;
+  renderChart();
+});
+// Walks yTickStepIdx through the real niceStepCandidates() list for the
+// CURRENT data range -- same mechanism as Customise & Export's own
+// Y-axis-labels +/- buttons, not an arbitrary tick-count slider.
+document.getElementById("cmYTickMinus").addEventListener("click", function(){ yTickStepIdx = Math.max(0, yTickStepIdx-1); renderChart(); });
+document.getElementById("cmYTickPlus").addEventListener("click", function(){ yTickStepIdx = yTickStepIdx+1; renderChart(); });
+document.getElementById("cmXTickMinus").addEventListener("click", function(){ style.xTicks = Math.max(2, style.xTicks-1); document.getElementById("cmXTickVal").textContent = style.xTicks; renderChart(); });
+document.getElementById("cmXTickPlus").addEventListener("click", function(){ style.xTicks = Math.min(20, style.xTicks+1); document.getElementById("cmXTickVal").textContent = style.xTicks; renderChart(); });
+document.getElementById("cmXAngleSeg").querySelectorAll("button").forEach(function(b){
+  b.addEventListener("click", function(){
+    document.getElementById("cmXAngleSeg").querySelectorAll("button").forEach(function(x){x.classList.toggle("active", x===b);});
+    style.xLabelAngle = b.dataset.angle; renderChart();
+  });
+});
+// FIX: previously this only stored exportTheme for the PNG export path
+// and never re-rendered the on-screen preview, so clicking Light/Dark
+// visibly did nothing -- reported directly after the first layout
+// pass. Now it also flips the preview box background and re-renders
+// with the matching Chart.js theme colours immediately.
+document.getElementById("cmThemeSeg").querySelectorAll("button").forEach(function(b){
+  b.addEventListener("click", function(){
+    document.getElementById("cmThemeSeg").querySelectorAll("button").forEach(function(x){x.classList.toggle("active", x===b);});
+    exportTheme = b.dataset.theme;
+    // No CSS dark-preview toggle needed any more -- the SVG paints its
+    // own background rect for whichever theme is chosen, same as the
+    // real preview.
+    renderChart();
+  });
+});
+
+/* ---- sticky chart toggle ---- */
+var stickyWrapEl = document.getElementById("cmChartStickyWrap");
+var stickyToggleEl = document.getElementById("cmStickyToggle");
+if(stickyToggleEl){
+  stickyToggleEl.addEventListener("change", function(){
+    stickyWrapEl.classList.toggle("is-sticky", stickyToggleEl.checked);
+  });
+}
+
+/* ---- event lines & arrows ---- */
+function addAnnotation(){
+  if(annotations.length >= MAX_ANNOTATIONS) return;
+  var defaultDate = fromPeriodSel.value || PERIODS[0];
+  annotations.push({ id:"a"+(++annotSeq), date:defaultDate, label:"Event", type:"line", align:"center", collapsed:false });
+  renderAnnotList(); renderChart();
+}
+function renderAnnotList(){
+  annotListEl.innerHTML = "";
+  addAnnotBtn.disabled = annotations.length >= MAX_ANNOTATIONS;
+  annotations.forEach(function(a){
+    var card = document.createElement("div"); card.className = "cm-annot-card";
+    var head = document.createElement("div"); head.className = "cm-annot-head";
+    var summary = document.createElement("span"); summary.className = "cm-annot-summary";
+    function updateSummary(){ summary.textContent = (a.label || "Event").split("\n")[0] + " \u00b7 " + fmtPeriod(a.date); }
+    updateSummary();
+    var chevron = document.createElement("span"); chevron.textContent = a.collapsed ? "\u25b8" : "\u25be";
+    chevron.style.cssText = "cursor:pointer; color:var(--ink2); font-size:12px; padding:0 2px;";
+    var rm = document.createElement("button"); rm.type="button"; rm.textContent = "\u00d7";
+    rm.style.cssText = "flex-shrink:0; width:24px; height:24px; border:1px solid var(--hair); background:var(--panel); color:var(--ink2); border-radius:6px; cursor:pointer; font-size:13px;";
+    rm.addEventListener("click", function(){ annotations = annotations.filter(function(x){return x.id!==a.id;}); renderAnnotList(); renderChart(); });
+    head.appendChild(summary); head.appendChild(rm); head.appendChild(chevron);
+    var body = document.createElement("div"); body.className = "cm-annot-body";
+    body.style.display = a.collapsed ? "none" : "flex";
+    var dateSel = document.createElement("select");
+    PERIODS.forEach(function(p){ var o=document.createElement("option"); o.value=p; o.textContent=fmtPeriod(p); if(p===a.date) o.selected=true; dateSel.appendChild(o); });
+    dateSel.addEventListener("change", function(){ a.date = dateSel.value; updateSummary(); renderChart(); });
+    var typeSeg = document.createElement("div"); typeSeg.className = "seg";
+    ["line","arrow"].forEach(function(t){
+      var b = document.createElement("button"); b.type="button"; b.textContent = t==="line"?"Line":"Arrow"; b.style.flex="1";
+      if(a.type===t) b.classList.add("active");
+      b.addEventListener("click", function(){ a.type=t; typeSeg.querySelectorAll("button").forEach(function(x){x.classList.toggle("active",x===b);}); renderChart(); });
+      typeSeg.appendChild(b);
+    });
+    var alignSeg = document.createElement("div"); alignSeg.className = "seg";
+    [["left","\u2190"],["center","\u25cf"],["right","\u2192"]].forEach(function(pair){
+      var b = document.createElement("button"); b.type="button"; b.innerHTML = pair[1]; b.style.flex="1";
+      if(a.align===pair[0]) b.classList.add("active");
+      b.addEventListener("click", function(){ a.align=pair[0]; alignSeg.querySelectorAll("button").forEach(function(x){x.classList.toggle("active",x===b);}); renderChart(); });
+      alignSeg.appendChild(b);
+    });
+    var labelBox = document.createElement("textarea"); labelBox.value = a.label; labelBox.maxLength = 90;
+    labelBox.addEventListener("input", function(){ a.label = labelBox.value || "Event"; updateSummary(); renderChart(); });
+    body.appendChild(dateSel); body.appendChild(typeSeg); body.appendChild(alignSeg); body.appendChild(labelBox);
+    summary.addEventListener("click", function(){ a.collapsed = !a.collapsed; body.style.display = a.collapsed?"none":"flex"; chevron.textContent = a.collapsed?"\u25b8":"\u25be"; });
+    chevron.addEventListener("click", function(){ summary.click(); });
+    card.appendChild(head); card.appendChild(body);
+    annotListEl.appendChild(card);
+  });
+}
+addAnnotBtn.addEventListener("click", addAnnotation);
+
+/* ============================================================================
+   PORTED DIRECTLY from compare.html's Customise & Export engine
+   (czmBuildSVG and everything it depends on), rather than re-approximated
+   with Chart.js a fourth time. This is genuinely the same code -- same
+   geometry constants, same tick-rounding math, same SVG string builder,
+   same PNG export pipeline (render the SVG through an <img>, draw that
+   to a canvas at 2x, export). The only real adaptation is feeding it
+   ChartMaker's own SERIES_LIST/czmState shape each render instead of
+   Compare's.
+   ============================================================================ */
+var G = { W:820, H:507, padL:60, padR:24, padT:34 };
+var THEMES = {
+  light: { bg:"#FFFFFF", ink:"#171B1E", ink2:"#5A6167", grid:"#E4E6E1", annot:"#9AA4A0", annotText:"#6B7470" },
+  dark:  { bg:"#12181A", ink:"#EDEFEA", ink2:"#9AA4A0", grid:"#2A3436", annot:"#8A9490", annotText:"#B7BEBA" }
+};
+var czmState = null;
+var SERIES_LIST = []; // [{country, color, points:[[date,value],...]}]
+var UNIFIED_DATES = [];
+
+function escapeXML(s){
+  return String(s).replace(/&/g, "&amp;").replace(/</g, "&lt;").replace(/>/g, "&gt;").replace(/"/g, "&quot;");
+}
+function estTextWidth(text, fontSize){
+  var lines = String(text).split("\n");
+  var longest = lines.reduce(function(m, l){ return Math.max(m, l.length); }, 0);
+  return longest * fontSize * 0.56;
+}
+function estProseWidth(text, fontSize){
+  return String(text).length * fontSize * 0.5;
+}
+function czWrapSrcFooter(text){
+  var madeOnW = estProseWidth("Made on theeconomicatlas.com", 11);
+  var line1MaxW = (G.W - G.padR) - G.padL - madeOnW - 16;
+  var line2MaxW = (G.W - G.padR) - G.padL;
+  if(estProseWidth(text, 11) <= line1MaxW) return [text];
+  var words = String(text).split(" ");
+  var line1 = "", i = 0;
+  for(; i < words.length; i++){
+    var candidate = line1 ? line1 + " " + words[i] : words[i];
+    if(estProseWidth(candidate, 11) > line1MaxW) break;
+    line1 = candidate;
+  }
+  if(!line1){
+    var t0 = text;
+    while(t0.length > 1 && estProseWidth(t0 + "\u2026", 11) > line1MaxW){ t0 = t0.slice(0, -1); }
+    return [t0 + "\u2026"];
+  }
+  var rest = words.slice(i).join(" ");
+  if(!rest) return [line1];
+  if(estProseWidth(rest, 11) <= line2MaxW) return [line1, rest];
+  var t = rest;
+  while(t.length > 1 && estProseWidth(t + "\u2026", 11) > line2MaxW){ t = t.slice(0, -1); }
+  return [line1, t + "\u2026"];
+}
+function czSrcLineCount(text){
+  return text ? czWrapSrcFooter(text).length : 1;
+}
+function niceNum(range, round){
+  var exponent = Math.floor(Math.log10(range));
+  var fraction = range / Math.pow(10, exponent);
+  var niceFraction;
+  if(round){
+    if(fraction < 1.5) niceFraction = 1;
+    else if(fraction < 3) niceFraction = 2;
+    else if(fraction < 7) niceFraction = 5;
+    else niceFraction = 10;
+  } else {
+    if(fraction <= 1) niceFraction = 1;
+    else if(fraction <= 2) niceFraction = 2;
+    else if(fraction <= 5) niceFraction = 5;
+    else niceFraction = 10;
+  }
+  return niceFraction * Math.pow(10, exponent);
+}
+function niceTicksFromStep(rawMin, rawMax, step){
+  var niceMin = Math.floor(rawMin / step) * step;
+  var niceMax = Math.ceil(rawMax / step) * step;
+  var ticks = [];
+  for(var v = niceMin; v <= niceMax + step * 0.5; v += step){
+    ticks.push(Math.round(v / step) * step);
+  }
+  return { ticks: ticks, min: niceMin, max: niceMax };
+}
+function niceStepCandidates(rawMin, rawMax){
+  var range = niceNum(Math.max(rawMax - rawMin, 1e-9), false);
+  var baseExp = Math.floor(Math.log10(range));
+  var fracs = [10, 5, 2.5, 2, 1];
+  var raw = [];
+  for(var e = baseExp + 2; e >= baseExp - 3; e--){
+    for(var i = 0; i < fracs.length; i++) raw.push(fracs[i] * Math.pow(10, e));
+  }
+  raw = raw.filter(function(v, i, arr){ return arr.indexOf(v) === i; });
+  raw.sort(function(a, b){ return b - a; });
+  var withCounts = raw.map(function(step){
+    return { step: step, n: niceTicksFromStep(rawMin, rawMax, step).ticks.length };
+  }).filter(function(c){ return c.n >= 2 && c.n <= 15; })
+    .filter(function(c){
+      var trueSpan = Math.max(rawMax - rawMin, 1e-9);
+      var niceSpan = niceTicksFromStep(rawMin, rawMax, c.step).max - niceTicksFromStep(rawMin, rawMax, c.step).min;
+      return niceSpan <= trueSpan * 4;
+    });
+  var out = [];
+  var lastN = null;
+  withCounts.forEach(function(c){
+    if(c.n !== lastN){ out.push(c.step); lastN = c.n; }
+  });
+  if(!out.length) out = [range / 4 || 1];
+  return out;
+}
+function defaultStepIdxFor(rawMin, rawMax, targetCount){
+  var candidates = niceStepCandidates(rawMin, rawMax);
+  var bestIdx = 0, bestDiff = Infinity;
+  for(var i = 0; i < candidates.length; i++){
+    var n = Math.ceil((rawMax - rawMin) / candidates[i]) + 1;
+    var diff = Math.abs(n - targetCount);
+    if(diff < bestDiff){ bestDiff = diff; bestIdx = i; }
+  }
+  return bestIdx;
+}
+function niceLogTicks(minV, maxV){
+  var loE = Math.floor(Math.log10(minV)) - 1;
+  var hiE = Math.ceil(Math.log10(maxV)) + 1;
+  var mults = [1, 2, 5];
+  var candidates = [];
+  for(var e = loE; e <= hiE; e++){
+    mults.forEach(function(m){ candidates.push(m * Math.pow(10, e)); });
+  }
+  candidates = candidates.filter(function(v, i, arr){ return arr.indexOf(v) === i; }).sort(function(a, b){ return a - b; });
+  var axisMin = minV, axisMax = maxV;
+  for(var i = candidates.length - 1; i >= 0; i--){
+    if(candidates[i] <= minV * 1.0001){ axisMin = candidates[i]; break; }
+  }
+  for(var j = 0; j < candidates.length; j++){
+    if(candidates[j] >= maxV * 0.9999){ axisMax = candidates[j]; break; }
+  }
+  var ticks = candidates.filter(function(v){ return v >= axisMin * 0.999 && v <= axisMax * 1.001; });
+  if(ticks.length < 2) ticks = [axisMin, axisMax];
+  return { ticks: ticks, min: axisMin, max: axisMax };
+}
+function czmAxisBounds(rawMin, rawMax, stepIdx, useLog, centerAroundRef, refLineValue, refLineEnabled){
+  if(centerAroundRef && refLineEnabled){
+    var maxDev = Math.max(Math.abs(rawMax - refLineValue), Math.abs(rawMin - refLineValue), 1e-9);
+    var candidates = niceStepCandidates(refLineValue - maxDev, refLineValue + maxDev);
+    var idx = Math.max(0, Math.min(candidates.length - 1, stepIdx));
+    var step = candidates[idx] || (maxDev / 4) || 1;
+    var roundedDev = Math.ceil(maxDev / step) * step;
+    if(roundedDev === 0) roundedDev = step;
+    var cMin = refLineValue - roundedDev, cMax = refLineValue + roundedDev;
+    var cTicks = [];
+    for(var v = cMin; v <= cMax + step * 0.5; v += step) cTicks.push(Math.round(v / step) * step);
+    return { minV: cMin, maxV: cMax, ticks: cTicks };
+  }
+  if(useLog){
+    var lg = niceLogTicks(rawMin, rawMax);
+    return { minV: lg.min, maxV: lg.max, ticks: lg.ticks };
+  }
+  var stepCandidates = niceStepCandidates(rawMin, rawMax);
+  var sIdx = Math.max(0, Math.min(stepCandidates.length - 1, stepIdx));
+  var nice = niceTicksFromStep(rawMin, rawMax, stepCandidates[sIdx]);
+  return { minV: nice.min, maxV: nice.max, ticks: nice.ticks };
+}
+function czmMakeYMapper(minV, maxV, useLog, padT, plotH){
+  return function(v){
+    var py;
+    if(useLog){
+      var vc = Math.max(v, minV);
+      py = padT + plotH - ((Math.log10(vc) - Math.log10(minV)) / (Math.log10(maxV) - Math.log10(minV))) * plotH;
+    } else {
+      py = padT + plotH - ((v - minV) / (maxV - minV)) * plotH;
+    }
+    return Math.max(padT, Math.min(padT + plotH, py));
+  };
+}
+function czmLogAvailable(vals, refLineEnabled, refLineValue){
+  var v = vals.slice();
+  if(refLineEnabled) v.push(refLineValue);
+  return v.length > 0 && v.every(function(x){ return x > 0; });
+}
+function czmTrimAxisZeros(str){
+  return str.replace(/(\.\d*[1-9])0+(?!\d)|\.0+(?!\d)/g, function(m, keep){ return keep || ""; });
+}
+function czmAxisTickLabel(v, allTicks, fmtY){
+  var raw = Math.round(v * 100) / 100;
+  if(raw !== 0) return czmTrimAxisZeros(fmtY(raw));
+  var refVal = allTicks.reduce(function(best, t){ return Math.abs(t) > Math.abs(best) ? t : best; }, allTicks[0]);
+  if(refVal === 0) return czmTrimAxisZeros(fmtY(0));
+  var refLabel = fmtY(Math.round(refVal * 100) / 100);
+  return czmTrimAxisZeros(refLabel.replace(/[\d.,]+/, function(numStr){
+    var decMatch = numStr.match(/\.(\d+)/);
+    return decMatch ? "0." + "0".repeat(decMatch[1].length) : "0";
+  }));
+}
+function buildUnifiedDates(){
+  var set = {};
+  SERIES_LIST.forEach(function(s){
+    s.points.forEach(function(p){
+      if(p[0] >= czmState.from && p[0] <= czmState.to) set[p[0]] = true;
+    });
+  });
+  return Object.keys(set).sort();
+}
+function nearestUnifiedIndex(dateStr){
+  var idx = UNIFIED_DATES.indexOf(dateStr);
+  if(idx !== -1) return idx;
+  var insertAt = 0;
+  for(var i = 0; i < UNIFIED_DATES.length; i++){
+    if(UNIFIED_DATES[i] < dateStr) insertAt = i + 1; else break;
+  }
+  if(insertAt <= 0) return 0;
+  if(insertAt >= UNIFIED_DATES.length) return UNIFIED_DATES.length - 1;
+  return insertAt;
+}
+function czmFilteredSeries(s){
+  return s.points.filter(function(p){ return p[0] >= czmState.from && p[0] <= czmState.to; });
+}
+// Wraps legend items onto more than one row once they don't fit the
+// plot width -- the ORIGINAL engine's comment says it does this, but the
+// actual code only ever laid out a single row; that was invisible in
+// Compare because its legend labels are just short country names, but
+// ChartMaker's ("UK -- Unemployment rate") are long enough to genuinely
+// overflow, which is exactly the bug reported. Both the padding
+// calculation (czmBottomLayout) and the render pass (czmBuildSVG) call
+// this SAME function so row count can never drift between the two.
+function computeLegendRows(){
+  if(!SERIES_LIST.length) return [];
+  var items = SERIES_LIST.map(function(s){ return { label: s.country, color: s.color, w: 18 + 6 + estTextWidth(s.country, 11) }; });
+  var maxRowW = G.W - G.padL - G.padR;
+  var rows = [];
+  var current = [];
+  var currentW = 0;
+  items.forEach(function(it){
+    var addW = current.length ? it.w + 24 : it.w;
+    if(current.length && currentW + addW > maxRowW){
+      rows.push(current);
+      current = [it];
+      currentW = it.w;
+    } else {
+      current.push(it);
+      currentW += addW;
+    }
+  });
+  if(current.length) rows.push(current);
+  return rows;
+}
+function czmBottomLayout(hasLegend, srcText){
+  var angle = (czmState && czmState.xLabelAngle) || "straight";
+  var angleReserve = angle === "vertical" ? 54 : angle === "diagonal" ? 28 : 0;
+  var oLabels = angle === "straight" ? 26 : 14;
+  var oAfterLabels = oLabels + 8 + angleReserve;
+  var oLegendTitle = null, oLegendRow, legendRowCount = 1;
+  var oAfterLegend;
+  if(hasLegend){
+    legendRowCount = Math.max(1, computeLegendRows().length);
+    if(czmState.legendTitle){ oLegendTitle = oAfterLabels + 14; oLegendRow = oLegendTitle + 16; }
+    else { oLegendRow = oAfterLabels + 14; }
+    oAfterLegend = oLegendRow + (legendRowCount - 1) * 16 + 12;
+  } else {
+    // Bar mode's own legend-title stand-in (the auto-filled period
+    // label, e.g. "Q2 2026") needs its own reserved row here too --
+    // computed once, in the same place the footer offsets below derive
+    // from, so the two can never drift out of sync with each other the
+    // way a second independent +18 elsewhere on this page once did.
+    oAfterLegend = oAfterLabels + 10 + (czmState.legendTitle ? 18 : 0);
+  }
+  var oDivider = oAfterLegend;
+  var oSource = oDivider + 18;
+  var srcLines = czSrcLineCount(srcText);
+  var oSourceExtra = (srcLines - 1) * 14;
+  return {
+    oLabels: oLabels, oLegendTitle: oLegendTitle, oLegendRow: oLegendRow, legendRowCount: legendRowCount,
+    oDivider: oDivider, oSource: oSource, srcLines: srcLines,
+    padB: oSource + oSourceExtra + 12
+  };
+}
+function czmGeom(){
+  UNIFIED_DATES = buildUnifiedDates();
+  var padB = czmBottomLayout(true, czmState.srcNote).padB;
+  var allVals = [];
+  SERIES_LIST.forEach(function(s){
+    czmFilteredSeries(s).forEach(function(p){ allVals.push(p[1]); });
+  });
+  if(allVals.length === 0) allVals = [0, 1];
+  var rawMin = Math.min.apply(null, allVals), rawMax = Math.max.apply(null, allVals);
+  var useLog = czmState.yScale === "log" && czmLogAvailable(allVals, czmState.refLine.enabled, czmState.refLine.value);
+  // ChartMaker-only addition, not part of the original engine: force the
+  // axis floor to zero or an explicit value. Applied to rawMin BEFORE the
+  // nice-tick algorithm runs (not as a post-hoc override of the chosen
+  // bounds) -- doing it after left the newly-extended region with no
+  // gridlines or labels in it at all, since bounds.ticks had already been
+  // generated for the ORIGINAL, unextended range. Skipped on a log axis
+  // (a fixed/zero floor isn't meaningful there) and when centring around
+  // a reference line (that already picks its own symmetric bounds).
+  if(!useLog && !czmState.centerAroundRef){
+    if(czmState.yStartMode === "zero") rawMin = Math.min(rawMin, 0);
+    else if(czmState.yStartMode === "custom") rawMin = Math.min(rawMin, czmState.yStartValue);
+  }
+  var bounds = czmAxisBounds(rawMin, rawMax, czmState.yTickStepIdx, useLog, czmState.centerAroundRef, czmState.refLine.value, czmState.refLine.enabled);
+  var minV = bounds.minV, maxV = bounds.maxV;
+  var padT = (czmState.yTitlePos === "above" ? G.padT + 18 : G.padT) + (czmState.chartTitle ? 24 : 0);
+  var plotW = G.W - G.padL - G.padR, plotH = G.H - padT - padB;
+  var n = Math.max(1, UNIFIED_DATES.length);
+  return {
+    minV: minV, maxV: maxV, plotW: plotW, plotH: plotH, padB: padB, padT: padT,
+    yTickValues: bounds.ticks, yScale: useLog ? "log" : "linear",
+    xForDate: function(dateStr){
+      var idx = nearestUnifiedIndex(dateStr);
+      return G.padL + (n === 1 ? plotW / 2 : (idx / (n - 1)) * plotW);
+    },
+    xForIndex: function(idx){ return G.padL + (n === 1 ? plotW / 2 : (idx / (n - 1)) * plotW); },
+    y: czmMakeYMapper(minV, maxV, useLog, padT, plotH)
+  };
+}
+function czmXAxisLabelSVG(x, y, text, fill){
+  var angle = (czmState && czmState.xLabelAngle) || "straight";
+  if(angle === "diagonal"){
+    return "<text x='" + x.toFixed(1) + "' y='" + (y - 2) + "' font-size='11' fill='" + fill + "' text-anchor='end' transform='rotate(-45 " + x.toFixed(1) + " " + (y - 2) + ")'>" + escapeXML(text) + "</text>";
+  }
+  if(angle === "vertical"){
+    return "<text x='" + x.toFixed(1) + "' y='" + (y - 2) + "' font-size='11' fill='" + fill + "' text-anchor='end' transform='rotate(-90 " + x.toFixed(1) + " " + (y - 2) + ")'>" + escapeXML(text) + "</text>";
+  }
+  return "<text x='" + (x + 3).toFixed(1) + "' y='" + y + "' font-size='11' fill='" + fill + "' text-anchor='middle'>" + escapeXML(text) + "</text>";
+}
+var SNAPSHOT_ROWS = []; // [{country, value, color}] -- one row per current series/metric
+function czmEffectiveSnapshotRows(){
+  return SNAPSHOT_ROWS;
+}
+function czmSnapshotGeom(){
+  var rows = czmEffectiveSnapshotRows();
+  var padB = czmBottomLayout(false, czmState.srcNote).padB;
+  var vals = rows.map(function(r){ return r.value; }).filter(function(v){ return v != null; });
+  if(vals.length === 0) vals = [0, 1];
+  var useLog = czmState.yScale === "log" && czmLogAvailable(vals, czmState.refLine.enabled, czmState.refLine.value);
+  var forceZero = !czmState.centerAroundRef && !useLog;
+  var rawMin = forceZero ? Math.min(0, Math.min.apply(null, vals)) : Math.min.apply(null, vals);
+  var rawMax = forceZero ? Math.max(0, Math.max.apply(null, vals)) : Math.max.apply(null, vals);
+  var bounds = czmAxisBounds(rawMin, rawMax, czmState.yTickStepIdx, useLog, czmState.centerAroundRef, czmState.refLine.value, czmState.refLine.enabled);
+  var padT = (czmState.yTitlePos === "above" ? G.padT + 18 : G.padT) + (czmState.chartTitle ? 24 : 0);
+  var plotW = G.W - G.padL - G.padR, plotH = G.H - padT - padB;
+  var n = Math.max(1, rows.length);
+  var slot = plotW / n;
+  return {
+    minV: bounds.minV, maxV: bounds.maxV, plotW: plotW, plotH: plotH, padB: padB, padT: padT,
+    yTickValues: bounds.ticks, yScale: useLog ? "log" : "linear",
+    xForIndex: function(i){ return G.padL + slot * (i + 0.5); },
+    barWidth: Math.min(64, slot * 0.6),
+    y: czmMakeYMapper(bounds.minV, bounds.maxV, useLog, padT, plotH)
+  };
+}
+function czmBuildSVGSnapshot(theme, forExport){
+  var t = THEMES[theme];
+  var gm = czmSnapshotGeom();
+  var rows = czmEffectiveSnapshotRows();
+  if(rows.length === 0) return "<svg xmlns=\'http://www.w3.org/2000/svg\' viewBox=\'0 0 " + G.W + " " + G.H + "\'></svg>";
+  var svg = [];
+  svg.push("<svg xmlns=\'http://www.w3.org/2000/svg\' viewBox=\'0 0 " + G.W + " " + G.H + "\' font-family=\'Helvetica, Arial, sans-serif\'>");
+  svg.push("<rect x=\'0\' y=\'0\' width=\'" + G.W + "\' height=\'" + G.H + "\' fill=\'" + t.bg + "\'/>");
+  if(czmState.chartTitle){
+    svg.push("<text x=\'" + (G.W / 2) + "\' y=\'24\' font-size=\'16\' font-weight=\'700\' fill=\'" + t.ink + "\' text-anchor=\'middle\'>" + escapeXML(czmState.chartTitle) + "</text>");
+  }
+  var axisColor = t.ink2;
+  gm.yTickValues.forEach(function(v){
+    var gy = gm.y(v);
+    svg.push("<line x1=\'" + G.padL + "\' y1=\'" + gy.toFixed(1) + "\' x2=\'" + (G.W - G.padR) + "\' y2=\'" + gy.toFixed(1) + "\' stroke=\'" + t.grid + "\' stroke-width=\'1\'/>");
+    svg.push("<line x1=\'" + (G.padL - 5) + "\' y1=\'" + gy.toFixed(1) + "\' x2=\'" + G.padL + "\' y2=\'" + gy.toFixed(1) + "\' stroke=\'" + axisColor + "\' stroke-width=\'1.3\'/>");
+    svg.push("<text x=\'" + (G.padL - 10) + "\' y=\'" + (gy + 4).toFixed(1) + "\' font-size=\'11\' fill=\'" + t.ink2 + "\' text-anchor=\'end\'>" + czmAxisTickLabel(v, gm.yTickValues, czmState.fmtY) + "</text>");
+  });
+  var zeroY = gm.y(0);
+  svg.push("<line x1=\'" + G.padL + "\' y1=\'" + gm.padT + "\' x2=\'" + G.padL + "\' y2=\'" + (gm.padT + gm.plotH) + "\' stroke=\'" + axisColor + "\' stroke-width=\'1.5\'/>");
+  svg.push("<line x1=\'" + G.padL + "\' y1=\'" + zeroY.toFixed(1) + "\' x2=\'" + (G.W - G.padR) + "\' y2=\'" + zeroY.toFixed(1) + "\' stroke=\'" + axisColor + "\' stroke-width=\'1.5\'/>");
+  if(czmState.yTitlePos === "above"){
+    svg.push("<text x=\'4\' y=\'18\' font-size=\'11.5\' font-weight=\'600\' fill=\'" + t.ink2 + "\'>" + escapeXML(czmState.yTitle) + "</text>");
+  } else {
+    var yTitleX = 16, yTitleY = gm.padT + gm.plotH / 2;
+    svg.push("<text x=\'" + yTitleX + "\' y=\'" + yTitleY + "\' font-size=\'11.5\' font-weight=\'600\' fill=\'" + t.ink2 + "\' text-anchor=\'middle\' transform=\'rotate(-90 " + yTitleX + " " + yTitleY + ")\'>" + escapeXML(czmState.yTitle) + "</text>");
+  }
+  if(czmState.refLine.enabled){
+    var ry = gm.y(czmState.refLine.value);
+    svg.push("<line x1=\'" + G.padL + "\' y1=\'" + ry.toFixed(1) + "\' x2=\'" + (G.W - G.padR) + "\' y2=\'" + ry.toFixed(1) + "\' stroke=\'" + t.annot + "\' stroke-width=\'1.3\' stroke-dasharray=\'4,3\'/>");
+    var collidesWithTick = gm.yTickValues.some(function(tv){ return Math.abs(gm.y(tv) - ry) < 9; });
+    if(!collidesWithTick){
+      svg.push("<text x=\'" + (G.padL - 10) + "\' y=\'" + (ry + 4).toFixed(1) + "\' font-size=\'11\' fill=\'" + t.ink2 + "\' text-anchor=\'end\'>" + czmAxisTickLabel(czmState.refLine.value, gm.yTickValues, czmState.fmtY) + "</text>");
+    }
+  }
+  var axisBottomY = gm.padT + gm.plotH;
+  var bl = czmBottomLayout(false, czmState.srcNote);
+  rows.forEach(function(r, i){
+    var bx = gm.xForIndex(i);
+    if(r.value == null){
+      var midY = gm.padT + gm.plotH / 2;
+      svg.push("<text x=\'" + bx.toFixed(1) + "\' y=\'" + midY.toFixed(1) + "\' font-size=\'10\' fill=\'" + t.ink2 + "\' text-anchor=\'middle\' transform=\'rotate(-90 " + bx.toFixed(1) + " " + midY.toFixed(1) + ")\'>No data</text>");
+    } else {
+      var by = gm.y(r.value);
+      var top = Math.min(by, zeroY);
+      var h = Math.max(0.6, Math.abs(by - zeroY));
+      svg.push("<rect x=\'" + (bx - gm.barWidth / 2).toFixed(1) + "\' y=\'" + top.toFixed(1) + "\' width=\'" + gm.barWidth.toFixed(1) + "\' height=\'" + h.toFixed(1) + "\' rx=\'3\' fill=\'" + r.color + "\'/>");
+    }
+    svg.push("<line x1=\'" + bx.toFixed(1) + "\' y1=\'" + axisBottomY + "\' x2=\'" + bx.toFixed(1) + "\' y2=\'" + (axisBottomY + 5) + "\' stroke=\'" + axisColor + "\' stroke-width=\'1.3\'/>");
+    svg.push(czmXAxisLabelSVG(bx, axisBottomY + bl.oLabels, r.country, t.ink2));
+  });
+  // Bar mode repurposes "legend title" as a period label (auto-filled
+  // with e.g. "Q2 2026" -- see syncBarLegendTitle) since bars don't have
+  // an actual legend to title. Drawn centred below the x-axis category
+  // labels, in the space czmSnapshotGeom's padB reserves for it. The
+  // real engine never rendered this field in its own Bar view at all --
+  // this whole thing is a ChartMaker-only addition.
+  if(czmState.legendTitle){
+    svg.push("<text x='" + (G.W / 2) + "' y='" + (axisBottomY + bl.oLabels + 18) + "' font-size='12' font-weight='700' fill='" + t.ink2 + "' text-anchor='middle'>" + escapeXML(czmState.legendTitle) + "</text>");
+  }
+  if(forExport){
+    var dividerY = axisBottomY + bl.oDivider, srcY = axisBottomY + bl.oSource;
+    svg.push("<line x1=\'" + G.padL + "\' y1=\'" + dividerY + "\' x2=\'" + (G.W - G.padR) + "\' y2=\'" + dividerY + "\' stroke=\'" + t.grid + "\' stroke-width=\'1\'/>");
+    var srcLines = czWrapSrcFooter(czmState.srcNote);
+    srcLines.forEach(function(line, li){
+      var lineLabel = li === 0 ? "Source: " + line : line;
+      svg.push("<text x=\'" + G.padL + "\' y=\'" + (srcY + li * 14) + "\' font-size=\'11\' fill=\'" + t.ink2 + "\'>" + escapeXML(lineLabel) + "</text>");
+    });
+    svg.push("<text x=\'" + (G.W - G.padR) + "\' y=\'" + srcY + "\' font-size=\'11\' fill=\'" + t.ink2 + "\' text-anchor=\'end\'>Made on theeconomicatlas.com</text>");
+  }
+  svg.push("</svg>");
+  return svg.join("");
+}
+function labelBoxCz(a){
+  var lines = String(a.label || "Event").split("\n").slice(0, 4);
+  var fs = a.fontSize || 11;
+  var lineH = fs * 1.25;
+  var w = estTextWidth(a.label || "Event", fs);
+  var h = lines.length * lineH;
+  var left, right;
+  if(a.align === "left"){ right = a.labelX; left = a.labelX - w; }
+  else if(a.align === "right"){ left = a.labelX; right = a.labelX + w; }
+  else { left = a.labelX - w / 2; right = a.labelX + w / 2; }
+  var top = a.labelY - fs * 0.85, bottom = a.labelY + h - fs * 0.85 + (fs * 0.3);
+  return { left: left, right: right, top: top, bottom: bottom, w: right - left, h: bottom - top };
+}
+function closestBoxPointCz(box, tx, ty){
+  return { x: Math.max(box.left, Math.min(box.right, tx)), y: Math.max(box.top, Math.min(box.bottom, ty)) };
+}
+function czmAnnotationSVG(a, ai, gm, t, forExport){
+  if(a.date < UNIFIED_DATES[0] || a.date > UNIFIED_DATES[UNIFIED_DATES.length - 1]) return "";
+  var idx = nearestUnifiedIndex(a.date);
+  var ax = gm.xForIndex(idx);
+  var refSeries = SERIES_LIST[0];
+  var refPts = refSeries ? czmFilteredSeries(refSeries) : [];
+  var refIdx = refPts.length ? Math.min(idx, refPts.length - 1) : 0;
+  var ay = refPts.length ? gm.y(refPts[refIdx][1]) : gm.padT + gm.plotH / 2;
+  var s = ["<g data-cz-annot-group='" + ai + "'>"];
+  if(a.type === "line"){
+    s.push("<line x1='" + ax.toFixed(1) + "' y1='" + gm.padT + "' x2='" + ax.toFixed(1) + "' y2='" + (gm.padT + gm.plotH) + "' stroke='" + t.annot + "' stroke-width='1.5' stroke-dasharray='4,3'/>");
+  } else {
+    var box = labelBoxCz(a);
+    var start = closestBoxPointCz(box, ax, ay);
+    var angle = Math.atan2(ay - start.y, ax - start.x);
+    var headLen = 8;
+    var hx1 = ax - headLen * Math.cos(angle - Math.PI / 7);
+    var hy1 = ay - headLen * Math.sin(angle - Math.PI / 7);
+    var hx2 = ax - headLen * Math.cos(angle + Math.PI / 7);
+    var hy2 = ay - headLen * Math.sin(angle + Math.PI / 7);
+    s.push("<line x1='" + start.x.toFixed(1) + "' y1='" + start.y.toFixed(1) + "' x2='" + ax.toFixed(1) + "' y2='" + ay.toFixed(1) + "' stroke='" + t.annot + "' stroke-width='1.5'/>");
+    s.push("<path d='M" + ax.toFixed(1) + "," + ay.toFixed(1) + " L" + hx1.toFixed(1) + "," + hy1.toFixed(1) + " L" + hx2.toFixed(1) + "," + hy2.toFixed(1) + " Z' fill='" + t.annot + "'/>");
+    s.push("<circle cx='" + ax.toFixed(1) + "' cy='" + ay.toFixed(1) + "' r='3' fill='" + t.annot + "'/>");
+  }
+  var anchorMap = { left: "end", center: "middle", right: "start" };
+  var anchor = anchorMap[a.align] || "middle";
+  var lines = String(a.label || "Event").split("\n").slice(0, 4);
+  var fs = a.fontSize || 11;
+  var lineH = fs * 1.25;
+  s.push("<text x='" + a.labelX.toFixed(1) + "' y='" + a.labelY.toFixed(1) + "' font-size='" + fs + "' font-weight='600' fill='" + t.annotText + "' text-anchor='" + anchor + "'>");
+  lines.forEach(function(ln, li){
+    s.push("<tspan x='" + a.labelX.toFixed(1) + "' dy='" + (li === 0 ? 0 : lineH) + "'>" + escapeXML(ln) + "</tspan>");
+  });
+  s.push("</text>");
+  s.push("</g>");
+  return s.join("");
+}
+function czmBuildSVG(theme, forExport){
+  var t = THEMES[theme];
+  var gm = czmGeom();
+  if(UNIFIED_DATES.length === 0) return "<svg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 " + G.W + " " + G.H + "'></svg>";
+  var svg = [];
+  // Deliberate, verbatim match to the real engine: it uses plain
+  // Helvetica/Arial for the chart's own text, NOT the site's Nunito
+  // Sans/Avenir Next webfont -- confirmed directly from source, not a
+  // guess. Matching that exactly rather than substituting a different
+  // (even if seemingly more "on-brand") font stack.
+  svg.push("<svg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 " + G.W + " " + G.H + "' font-family='Helvetica, Arial, sans-serif'>");
+  svg.push("<rect x='0' y='0' width='" + G.W + "' height='" + G.H + "' fill='" + t.bg + "'/>");
+  if(czmState.chartTitle){
+    svg.push("<text x='" + (G.W / 2) + "' y='24' font-size='16' font-weight='700' fill='" + t.ink + "' text-anchor='middle'>" + escapeXML(czmState.chartTitle) + "</text>");
+  }
+  var axisColor = t.ink2;
+  gm.yTickValues.forEach(function(v){
+    var gy = gm.y(v);
+    svg.push("<line x1='" + G.padL + "' y1='" + gy.toFixed(1) + "' x2='" + (G.W - G.padR) + "' y2='" + gy.toFixed(1) + "' stroke='" + t.grid + "' stroke-width='1'/>");
+    svg.push("<line x1='" + (G.padL - 5) + "' y1='" + gy.toFixed(1) + "' x2='" + G.padL + "' y2='" + gy.toFixed(1) + "' stroke='" + axisColor + "' stroke-width='1.3'/>");
+    svg.push("<text x='" + (G.padL - 10) + "' y='" + (gy + 4).toFixed(1) + "' font-size='11' fill='" + t.ink2 + "' text-anchor='end'>" + czmAxisTickLabel(v, gm.yTickValues, czmState.fmtY) + "</text>");
+  });
+  var axisBottomY = gm.padT + gm.plotH;
+  svg.push("<line x1='" + G.padL + "' y1='" + gm.padT + "' x2='" + G.padL + "' y2='" + axisBottomY + "' stroke='" + axisColor + "' stroke-width='1.5'/>");
+  svg.push("<line x1='" + G.padL + "' y1='" + axisBottomY + "' x2='" + (G.W - G.padR) + "' y2='" + axisBottomY + "' stroke='" + axisColor + "' stroke-width='1.5'/>");
+  if(czmState.yTitlePos === "above"){
+    svg.push("<text x='4' y='18' font-size='11.5' font-weight='600' fill='" + t.ink2 + "'>" + escapeXML(czmState.yTitle) + "</text>");
+  } else {
+    var yTitleX = 16, yTitleY = gm.padT + gm.plotH / 2;
+    svg.push("<text x='" + yTitleX + "' y='" + yTitleY + "' font-size='11.5' font-weight='600' fill='" + t.ink2 + "' text-anchor='middle' transform='rotate(-90 " + yTitleX + " " + yTitleY + ")'>" + escapeXML(czmState.yTitle) + "</text>");
+  }
+  var xTickCount = Math.min(czmState.xTicks, UNIFIED_DATES.length);
+  var xTickIdxs = [];
+  for(var k = 0; k < xTickCount; k++){
+    xTickIdxs.push(Math.round((k / Math.max(1, xTickCount - 1)) * (UNIFIED_DATES.length - 1)));
+  }
+  xTickIdxs = xTickIdxs.filter(function(v, i, arr){ return arr.indexOf(v) === i; });
+  var cursorY = axisBottomY + 26;
+  xTickIdxs.forEach(function(idx, pos){
+    var isFirst = pos === 0, isLast = pos === xTickIdxs.length - 1;
+    var tx = gm.xForIndex(idx);
+    svg.push("<line x1='" + tx.toFixed(1) + "' y1='" + axisBottomY + "' x2='" + tx.toFixed(1) + "' y2='" + (axisBottomY + 5) + "' stroke='" + axisColor + "' stroke-width='1.3'/>");
+    if((czmState.xLabelAngle || "straight") === "straight"){
+      var anchor = isFirst ? "start" : isLast ? "end" : "middle";
+      svg.push("<text x='" + tx.toFixed(1) + "' y='" + cursorY + "' font-size='11' fill='" + t.ink2 + "' text-anchor='" + anchor + "'>" + fmtPeriod(UNIFIED_DATES[idx]) + "</text>");
+    } else {
+      svg.push(czmXAxisLabelSVG(tx, cursorY, fmtPeriod(UNIFIED_DATES[idx]), t.ink2));
+    }
+  });
+  var bl = czmBottomLayout(true, czmState.srcNote);
+  var legY = axisBottomY + bl.oLegendRow;
+  if(czmState.legendTitle){
+    svg.push("<text x='" + (G.W / 2) + "' y='" + (axisBottomY + bl.oLegendTitle) + "' font-size='11' font-weight='700' fill='" + t.ink2 + "' text-anchor='middle'>" + escapeXML(czmState.legendTitle) + "</text>");
+  }
+  var legendRows = computeLegendRows();
+  legendRows.forEach(function(rowItems, rowIdx){
+    var rowW = rowItems.reduce(function(sum, it){ return sum + it.w; }, 0) + (rowItems.length - 1) * 24;
+    var rowStartX = Math.max(G.padL, (G.padL + (G.W - G.padR)) / 2 - rowW / 2);
+    var rowY = legY + rowIdx * 16;
+    var lx = rowStartX;
+    rowItems.forEach(function(it){
+      svg.push("<line x1='" + lx.toFixed(1) + "' y1='" + rowY + "' x2='" + (lx + 18).toFixed(1) + "' y2='" + rowY + "' stroke='" + it.color + "' stroke-width='2.5'/>");
+      svg.push("<text x='" + (lx + 24).toFixed(1) + "' y='" + (rowY + 4) + "' font-size='11' fill='" + t.ink2 + "'>" + escapeXML(it.label) + "</text>");
+      lx += it.w + 24;
+    });
+  });
+  if(czmState.refLine.enabled){
+    var ry = gm.y(czmState.refLine.value);
+    svg.push("<line x1='" + G.padL + "' y1='" + ry.toFixed(1) + "' x2='" + (G.W - G.padR) + "' y2='" + ry.toFixed(1) + "' stroke='" + t.annot + "' stroke-width='1.3' stroke-dasharray='4,3'/>");
+    var collidesWithTick = gm.yTickValues.some(function(tv){ return Math.abs(gm.y(tv) - ry) < 9; });
+    if(!collidesWithTick){
+      svg.push("<text x='" + (G.padL - 10) + "' y='" + (ry + 4).toFixed(1) + "' font-size='11' fill='" + t.ink2 + "' text-anchor='end'>" + czmAxisTickLabel(czmState.refLine.value, gm.yTickValues, czmState.fmtY) + "</text>");
+    }
+  }
+  czmState.annotations.forEach(function(a, ai){
+    svg.push(czmAnnotationSVG(a, ai, gm, t, forExport));
+  });
+  SERIES_LIST.forEach(function(s){
+    var pts = czmFilteredSeries(s);
+    if(!pts.length) return;
+    var path = pts.map(function(p, i){ return (i === 0 ? "M" : "L") + gm.xForDate(p[0]).toFixed(1) + "," + gm.y(p[1]).toFixed(1); }).join(" ");
+    if(czmState.showFill){
+      var last = pts[pts.length - 1], first = pts[0];
+      var area = path + " L" + gm.xForDate(last[0]).toFixed(1) + "," + (gm.padT + gm.plotH) + " L" + gm.xForDate(first[0]).toFixed(1) + "," + (gm.padT + gm.plotH) + " Z";
+      svg.push("<path d='" + area + "' fill='" + s.color + "' fill-opacity='0.12'/>");
+    }
+    svg.push("<path d='" + path + "' fill='none' stroke='" + s.color + "' stroke-width='2.5' stroke-linejoin='round' stroke-linecap='round'/>");
+    if(czmState.showPoints !== false){
+      pts.forEach(function(p){ svg.push("<circle cx='" + gm.xForDate(p[0]).toFixed(1) + "' cy='" + gm.y(p[1]).toFixed(1) + "' r='2' fill='" + s.color + "'/>"); });
+    }
+  });
+  if(forExport){
+    var dividerY = axisBottomY + bl.oDivider, srcY = axisBottomY + bl.oSource;
+    svg.push("<line x1='" + G.padL + "' y1='" + dividerY + "' x2='" + (G.W - G.padR) + "' y2='" + dividerY + "' stroke='" + t.grid + "' stroke-width='1'/>");
+    var srcLines2 = czWrapSrcFooter(czmState.srcNote);
+    srcLines2.forEach(function(line, li){
+      var lineLabel = li === 0 ? "Source: " + line : line;
+      svg.push("<text x='" + G.padL + "' y='" + (srcY + li * 14) + "' font-size='11' fill='" + t.ink2 + "'>" + escapeXML(lineLabel) + "</text>");
+    });
+    svg.push("<text x='" + (G.W - G.padR) + "' y='" + srcY + "' font-size='11' fill='" + t.ink2 + "' text-anchor='end'>Made on theeconomicatlas.com</text>");
+  }
+  svg.push("</svg>");
+  return svg.join("");
+}
+/* ============================== wiring ChartMaker's own state into the
+   ported engine above ============================== */
+
+function buildFmtY(){
+  var units = {}; series.forEach(function(s){ units[s.unit] = true; });
+  var keys = Object.keys(units);
+  if(keys.length === 1 && keys[0] === "%") return function(v){ return v.toFixed(1) + "%"; };
+  if(keys.length === 1 && keys[0] === "index") return function(v){ return v.toFixed(0); };
+  return function(v){ return v.toFixed(1); };
+}
+
+// Y-axis tick density: ChartMaker's +/- buttons walk czmState.yTickStepIdx
+// through niceStepCandidates() exactly the way Customise & Export's own
+// Y-axis-labels +/- buttons do, rather than a Chart.js maxTicksLimit
+// approximation. Recomputed to a sensible default (defaultStepIdxFor)
+// whenever the series list changes, since adding/removing a metric can
+// change the data range enough that the old index no longer makes sense.
+var yTickStepIdx = 0;
+function resetYTickStepIdx(){
+  var allVals = [];
+  series.forEach(function(s){
+    applyTransform(s.rawPoints, s.transform).forEach(function(p){ allVals.push(p.y); });
+  });
+  if(!allVals.length){ yTickStepIdx = 0; return; }
+  var lo = Math.min.apply(null, allVals), hi = Math.max.apply(null, allVals);
+  yTickStepIdx = defaultStepIdxFor(lo, hi, 5);
+}
+
+function buildCzmState(){
+  var annots = annotations.map(function(a){
+    return { type: a.type, date: a.date, label: a.label, align: a.align, labelX: 0, labelY: 0, fontSize: 11 };
+  });
+  return {
+    chartTitle: style.chartTitle,
+    yTitle: style.yAxisTitle,
+    yTitlePos: style.yTitlePos,
+    legendTitle: style.legendTitle,
+    showFill: style.showFill,
+    showPoints: style.showPoints,
+    refLine: style.refLine,
+    centerAroundRef: style.centerAroundRef,
+    yStartMode: style.yStartMode, yStartValue: style.yStartValue,
+    yScale: style.logScale ? "log" : "linear",
+    yTickStepIdx: yTickStepIdx,
+    xTicks: style.xTicks,
+    xLabelAngle: style.xLabelAngle,
+    from: fromPeriodSel.value,
+    to: toPeriodSel.value,
+    fmtY: buildFmtY(),
+    srcNote: "Chartmaker selection (sample data)",
+    annotations: annots
+  };
+}
+
+function buildSeriesList(){
+  return series.map(function(s){
+    var pts = applyTransform(s.rawPoints, s.transform).map(function(p){ return [p.x, p.y]; });
+    return { country: seriesLabel(s), color: s.color, points: pts };
+  });
+}
+
+// Bar mode is a snapshot, same as Compare's own Bar view -- one bar per
+// metric showing its LATEST value within the current date range, not a
+// bar-per-period chart over time (that's a genuinely different feature,
+// not what "Bar" means anywhere else on the site). Adapts automatically
+// to whatever's currently on the chart since it's rebuilt from `series`
+// on every render, same as the line view.
+function buildSnapshotRows(){
+  var fromV = fromPeriodSel.value, toV = toPeriodSel.value;
+  return series.map(function(s){
+    var pts = applyTransform(s.rawPoints, s.transform).filter(function(p){ return p.x >= fromV && p.x <= toV; });
+    var last = pts.length ? pts[pts.length - 1] : null;
+    return { country: seriesLabel(s), value: last ? last.y : null, color: s.color };
+  });
+}
+
+// Annotation label positions aren't dragged in ChartMaker (no drag UI),
+// so they're recomputed fresh every render from the real engine's own
+// default-on-creation position: labelX at the date's x-position, labelY
+// pinned just above the plot -- exactly where a brand-new annotation
+// starts out in Customise & Export before anyone drags it.
+function refreshAnnotationPositions(gm){
+  czmState.annotations.forEach(function(a){
+    if(a.date < UNIFIED_DATES[0] || a.date > UNIFIED_DATES[UNIFIED_DATES.length - 1]) return;
+    var idx = nearestUnifiedIndex(a.date);
+    a.labelX = gm.xForIndex(idx);
+    a.labelY = G.padT - 8;
+  });
+}
+
+var svgBoxEl = document.getElementById("cmSvgBox");
+
+function renderChart(){
+  if(!series.length){
+    emptyStateEl.style.display = "flex";
+    svgBoxEl.style.display = "none";
+    btnPng.disabled = true; btnCsv.disabled = true;
+    renderColorsPanel();
+    return;
+  }
+  emptyStateEl.style.display = "none";
+  svgBoxEl.style.display = "block";
+  btnPng.disabled = false; btnCsv.disabled = false;
+  renderColorsPanel();
+
+  czmState = buildCzmState();
+  var allVals;
+  if(chartType === "bar"){
+    SNAPSHOT_ROWS = buildSnapshotRows();
+    allVals = SNAPSHOT_ROWS.map(function(r){ return r.value; }).filter(function(v){ return v != null; });
+  } else {
+    SERIES_LIST = buildSeriesList();
+    var gm = czmGeom(); // also (re)builds UNIFIED_DATES as a side effect
+    refreshAnnotationPositions(gm);
+    allVals = [];
+    SERIES_LIST.forEach(function(s){ czmFilteredSeries(s).forEach(function(p){ allVals.push(p[1]); }); });
+  }
+
+  // Log scale isn't valid once any current value (or the reference line)
+  // is zero/negative -- grey the control out rather than silently
+  // producing a broken axis, same guard the real engine applies.
+  var logAvailable = czmLogAvailable(allVals, style.refLine.enabled, style.refLine.value);
+  var logToggleEl = document.getElementById("cmLogToggle");
+  logToggleEl.disabled = !logAvailable;
+  if(!logAvailable && style.logScale){ style.logScale = false; logToggleEl.checked = false; czmState.yScale = "linear"; }
+  // Y-tick step-index +/- doesn't apply to a log axis (log ticks come
+  // from niceLogTicks instead), same as the real controls.
+  document.getElementById("cmYTickMinus").disabled = style.logScale;
+  document.getElementById("cmYTickPlus").disabled = style.logScale;
+
+  var centerToggleEl = document.getElementById("cmCenterRefToggle");
+  var centerNoteEl = document.getElementById("cmCenterRefNote");
+  centerToggleEl.disabled = !style.refLine.enabled;
+  centerNoteEl.style.display = style.refLine.enabled ? "none" : "";
+  if(!style.refLine.enabled && style.centerAroundRef){ style.centerAroundRef = false; centerToggleEl.checked = false; }
+
+  // Y-axis start: unavailable on a log axis (no meaningful zero/fixed
+  // floor), moot once centring around a reference line (which already
+  // picks its own symmetric bounds), and moot in Bar mode (bars already
+  // force a zero baseline by default, same as Compare's Bar view).
+  var yStartDisabled = style.logScale || style.centerAroundRef || chartType === "bar";
+  document.querySelectorAll("#cmYStartSeg button").forEach(function(b){ b.disabled = yStartDisabled; });
+  document.getElementById("cmYStartSeg").style.opacity = yStartDisabled ? ".45" : "1";
+  document.getElementById("cmYStartValue").disabled = yStartDisabled;
+
+  svgBoxEl.innerHTML = chartType === "bar" ? czmBuildSVGSnapshot(exportTheme, false) : czmBuildSVG(exportTheme, false);
+}
+
+/* ---- export: same pipeline as the real engine -- build the SVG string,
+   render it through an <img> (which properly waits for/uses whatever
+   font is actually available, sidestepping the canvas-text-before-font-
+   loads race a raw canvas.fillText approach is prone to), draw that
+   image onto a 2x canvas, export as PNG. Also offers a direct SVG
+   download, matching Customise & Export's own Export menu. ---- */
+function czFilenameBase(){
+  return "chartmaker-export";
+}
+btnPng.addEventListener("click", function(){
+  if(!series.length) return;
+  czmState = buildCzmState();
+  var svgStr;
+  if(chartType === "bar"){
+    SNAPSHOT_ROWS = buildSnapshotRows();
+    svgStr = czmBuildSVGSnapshot(exportTheme, true);
+  } else {
+    SERIES_LIST = buildSeriesList();
+    var gm = czmGeom();
+    refreshAnnotationPositions(gm);
+    svgStr = czmBuildSVG(exportTheme, true);
+  }
+  var url = URL.createObjectURL(new Blob([svgStr], { type: "image/svg+xml;charset=utf-8" }));
+  var img = new Image();
+  img.onload = function(){
+    var scale = 2;
+    var canvas = document.createElement("canvas");
+    canvas.width = G.W * scale; canvas.height = G.H * scale;
+    var ctx = canvas.getContext("2d");
+    ctx.scale(scale, scale);
+    ctx.drawImage(img, 0, 0, G.W, G.H);
+    URL.revokeObjectURL(url);
+    canvas.toBlob(function(blob){
+      var a = document.createElement("a");
+      a.href = URL.createObjectURL(blob); a.download = czFilenameBase() + ".png"; a.click();
+    }, "image/png");
+  };
+  img.src = url;
+});
+btnCsv.addEventListener("click", function(){
+  if(!series.length) return;
+  var fromV = fromPeriodSel.value, toV = toPeriodSel.value;
+  var perSeries = series.map(function(s){
+    var transformed = applyTransform(s.rawPoints, s.transform);
+    var map = {};
+    transformed.forEach(function(p){ if(p.x >= fromV && p.x <= toV) map[p.x] = p.y; });
+    return { s: s, map: map };
+  });
+  var allPeriods = {};
+  perSeries.forEach(function(ps){ Object.keys(ps.map).forEach(function(k){ allPeriods[k] = true; }); });
+  var labels = Object.keys(allPeriods).sort();
+  var header = ["period"].concat(perSeries.map(function(ps){ return seriesLabel(ps.s); }));
+  var rows = [header.join(",")];
+  labels.forEach(function(l){
+    var row = [l].concat(perSeries.map(function(ps){ var v = ps.map[l]; return v === undefined ? "" : v; }));
+    rows.push(row.join(","));
+  });
+  var blob = new Blob([rows.join("\n")], {type:"text/csv"});
+  var url = URL.createObjectURL(blob);
+  var a = document.createElement("a"); a.href = url; a.download = "chartmaker-export.csv"; a.click();
+  URL.revokeObjectURL(url);
+});
+
+// Hides/greys controls that don't apply to Bar mode -- shading and point
+// markers are line-only concepts, X-axis label COUNT is meaningless once
+// every bar always gets its own label, event lines/arrows are date-based
+// annotations that only make sense on a timeline, and the Y-axis-start
+// picker is moot since bars already force a zero baseline (same as
+// Compare's own Bar view).
+function syncBarModeVisibility(){
+  var isBar = chartType === "bar";
+  document.getElementById("cmFillRow").style.display = isBar ? "none" : "";
+  document.getElementById("cmPointsRow").style.display = isBar ? "none" : "";
+  document.getElementById("cmYStartGroup").style.display = isBar ? "none" : "";
+  document.getElementById("cmYStartBarNote").style.display = isBar ? "" : "none";
+  document.getElementById("cmXTickRow").style.display = isBar ? "none" : "";
+  document.getElementById("cmXTickBarNote").style.display = isBar ? "" : "none";
+  document.getElementById("cmEventsPanel").style.display = isBar ? "none" : "";
+  document.getElementById("cmChartTypeNote").style.display = isBar ? "" : "none";
+}
+document.getElementById("cmChartTypeSeg").querySelectorAll("button").forEach(function(b){
+  b.addEventListener("click", function(){
+    document.getElementById("cmChartTypeSeg").querySelectorAll("button").forEach(function(x){ x.classList.toggle("active", x===b); });
+    chartType = b.dataset.type;
+    syncBarModeVisibility();
+    syncBarLegendTitle();
+    renderChart();
+  });
+});
+document.getElementById("cmCenterRefToggle").addEventListener("change", function(e){
+  style.centerAroundRef = e.target.checked; renderChart();
+});
+
+/* ---- Y-axis start (ChartMaker-only addition) ---- */
+document.getElementById("cmYStartSeg").querySelectorAll("button").forEach(function(b){
+  b.addEventListener("click", function(){
+    if(b.disabled) return;
+    document.getElementById("cmYStartSeg").querySelectorAll("button").forEach(function(x){ x.classList.toggle("active", x===b); });
+    style.yStartMode = b.dataset.mode;
+    document.getElementById("cmYStartCustomRow").style.display = style.yStartMode === "custom" ? "flex" : "none";
+    renderChart();
+  });
+});
+document.getElementById("cmYStartValue").addEventListener("input", function(e){
+  style.yStartValue = parseFloat(e.target.value) || 0;
+  renderChart();
+});
+
+/* ============================== save / open (Supabase) ==============================
+   Reuses the exact saved_charts table Save & Share already built for
+   country pages / Compare / Dashboard (country_code, metric_key,
+   from_period, to_period, style jsonb). ChartMaker's selection is a
+   whole LIST of (country, metric) series rather than one country/one
+   metric, so -- same approach Compare took for its own multi-country
+   selection -- this uses a sentinel country_code ("chartmaker") and
+   packs the real selection into the style jsonb column. metric_key is
+   set to the FIRST series' metric, purely so Open can group saved
+   charts by "metric type" the way the brief asked; it isn't load-bearing
+   for reopening a chart, the full series list in style jsonb is. */
+var openBtn = document.getElementById("cmOpenBtn");
+var saveBtn = document.getElementById("cmSaveBtn");
+var cmOpenModalEl = document.getElementById("cmOpenModal");
+var openPopBody = document.getElementById("cmOpenPopBody");
+var cmOpenFiltersEl = document.getElementById("cmOpenFilters");
+var cmOpenLetterEl = document.getElementById("cmOpenLetter");
+var saveModal = document.getElementById("cmSaveModal");
+var saveNameInput = document.getElementById("cmSaveNameInput");
+var saveConfirmBtn = document.getElementById("cmSaveConfirmBtn");
+var saveMsgEl = document.getElementById("cmSaveMsg");
+
+function sbReady(){ return !!(window.sb && window.EATLAS_PREFS && window.EATLAS_PREFS.isLoggedIn && window.EATLAS_PREFS.isLoggedIn()); }
+
+// Plain canvas sparkline -- Chart.js was removed from the page entirely
+// when ChartMaker switched to the ported SVG engine, so this was
+// silently failing (new Chart(...) threw, caught by the try/catch,
+// leaving an empty box) every time the Open list rendered. Draws
+// directly with the 2D context instead; no library dependency to drift
+// out of sync with again.
+// Uses the SAME engine the main chart does -- real title, axes, legend,
+// not a bare sparkline -- rather than a second hand-drawn approximation
+// that would inevitably drift from what the actual chart looks like.
+// czmBuildSVG/czmBuildSVGSnapshot read from the module-level
+// SERIES_LIST/czmState/UNIFIED_DATES globals (same ones the live chart
+// uses), so this swaps them in, renders, then restores the real values
+// synchronously -- nothing else runs in between since JS is
+// single-threaded, so the visible chart behind the modal is never
+// touched.
+function renderThumb(container, item){
+  var savedSeriesList = SERIES_LIST, savedCzmState = czmState, savedUnifiedDates = UNIFIED_DATES;
+  try{
+    var thumbSeries = item.seriesSpec.map(function(ss){
+      var sd = SAMPLE_DATA[ss.country] && SAMPLE_DATA[ss.country][ss.metric];
+      if(!sd) return null;
+      var pts = applyTransform(sd.points.map(function(p){ return {x:p[0], y:p[1]}; }), ss.transform || "raw");
+      return { country: ss.country + " \u2014 " + (CONCEPT_LABEL[ss.metric] || ss.metric), color: ss.color || SWATCH_PALETTE[0], points: pts.map(function(p){ return [p.x, p.y]; }) };
+    }).filter(Boolean);
+    if(!thumbSeries.length) return;
+    var snap = item.snapshot || {};
+    var units = {}; item.seriesSpec.forEach(function(ss){ var sd = SAMPLE_DATA[ss.country] && SAMPLE_DATA[ss.country][ss.metric]; if(sd) units[sd.unit] = true; });
+    var unitKeys = Object.keys(units);
+    var fmtY = (unitKeys.length === 1 && unitKeys[0] === "%") ? function(v){ return v.toFixed(1) + "%"; } : function(v){ return v.toFixed(1); };
+    var from = item.from_period || (thumbSeries[0].points[0] && thumbSeries[0].points[0][0]);
+    var to = item.to_period || (thumbSeries[0].points[thumbSeries[0].points.length-1] && thumbSeries[0].points[thumbSeries[0].points.length-1][0]);
+    var allVals = [];
+    thumbSeries.forEach(function(s){ s.points.forEach(function(p){ if(p[0] >= from && p[0] <= to) allVals.push(p[1]); }); });
+    var lo = allVals.length ? Math.min.apply(null, allVals) : 0, hi = allVals.length ? Math.max.apply(null, allVals) : 1;
+    // The real saved settings, not a redesigned/reduced version -- this
+    // is meant to be exactly what exporting that chart would produce,
+    // just displayed small (like a photo thumbnail), not redrawn with
+    // different tick density for the smaller box.
+    var thumbState = {
+      chartTitle: snap.chartTitle || item.name, yTitle: snap.yAxisTitle || "", yTitlePos: snap.yTitlePos || "along",
+      legendTitle: snap.legendTitle || "", showFill: !!snap.showFill, showPoints: !!snap.showPoints,
+      refLine: snap.refLine || {enabled:false, value:0}, centerAroundRef: !!snap.centerAroundRef,
+      yStartMode: snap.yStartMode || "auto", yStartValue: snap.yStartValue || 0,
+      yScale: snap.logScale ? "log" : "linear",
+      yTickStepIdx: typeof snap.yTickStepIdx === "number" ? snap.yTickStepIdx : defaultStepIdxFor(lo, hi, 5),
+      xTicks: snap.xTicks || 8, xLabelAngle: snap.xLabelAngle || "straight",
+      from: from, to: to, fmtY: fmtY, srcNote: "", annotations: []
+    };
+    SERIES_LIST = thumbSeries;
+    czmState = thumbState;
+    container.innerHTML = czmBuildSVG("light", false);
+  }catch(e){ /* thumbnail is best-effort only */ }
+  finally{
+    SERIES_LIST = savedSeriesList; czmState = savedCzmState; UNIFIED_DATES = savedUnifiedDates;
+  }
+}
+
+function formatSavedAt(iso){
+  if(!iso) return "";
+  var dt = new Date(iso);
+  if(isNaN(dt.getTime())) return "";
+  var MONTHS_ = ["Jan","Feb","Mar","Apr","May","Jun","Jul","Aug","Sep","Oct","Nov","Dec"];
+  var dd = String(dt.getDate()).padStart(2,"0");
+  return dd + " " + MONTHS_[dt.getMonth()] + " " + dt.getFullYear() + ", " + String(dt.getHours()).padStart(2,"0") + ":" + String(dt.getMinutes()).padStart(2,"0");
+}
+
+// Turns ANY saved_charts row -- ChartMaker's own, a country page's, a
+// Dashboard tile's, or Compare's -- into one common shape so Open can
+// show every chart the person has saved anywhere on the site, not just
+// ones saved from ChartMaker itself. The three real shapes, confirmed
+// directly from each page's own save code:
+//  - country page / Dashboard: {country_code:"<2-letter code>", metric_key, style:{...one metric's styling}}
+//  - Compare: {country_code:"compare", metric_key, style:{countries:[...codes...], styleSnapshot:{...}}}
+//  - ChartMaker: {country_code:"chartmaker", style:{series:[...]}}
+function normalizeSavedRow(row){
+  var code = row.country_code;
+  var seriesSpec;
+  if(code === "chartmaker"){
+    seriesSpec = (row.style && row.style.series) || [];
+  } else if(code === "compare"){
+    var countries = (row.style && row.style.countries) || [];
+    seriesSpec = countries.map(function(c){
+      var name = CODE_TO_REGISTRY_KEY[c] || c;
+      return { country: name, metric: row.metric_key, transform: "raw" };
+    });
+  } else {
+    var singleName = CODE_TO_REGISTRY_KEY[code] || code;
+    seriesSpec = [{ country: singleName, metric: row.metric_key, transform: "raw" }];
+  }
+  var available = seriesSpec.length > 0 && seriesSpec.every(function(s){
+    return SAMPLE_DATA[s.country] && SAMPLE_DATA[s.country][s.metric];
+  });
+  return {
+    id: row.id, name: row.name, created_at: row.created_at,
+    source: code === "chartmaker" ? "Chartmaker" : code === "compare" ? "Compare" : "Country page / Dashboard",
+    seriesSpec: seriesSpec, available: available,
+    category: seriesSpec.length ? (CONCEPT_CATEGORY[seriesSpec[0].metric] || "Other") : "Other",
+    annotations: (row.style && row.style.annotations) || [],
+    snapshot: (row.style && row.style.snapshot) || null,
+    from_period: row.from_period, to_period: row.to_period,
+    raw: row
+  };
+}
+var openListNormalized = [];
+var openListActiveFilter = "all";
+function refreshOpenList(){
+  if(!sbReady()){
+    openPopBody.textContent = "Log in to save or open charts.";
+    cmOpenFiltersEl.innerHTML = "";
+    return;
+  }
+  openPopBody.textContent = "Loading\u2026";
+  window.sb.auth.getUser().then(function(res){
+    var user = res.data && res.data.user;
+    if(!user){ openPopBody.textContent = "Log in to save or open charts."; return; }
+    return window.sb.from("saved_charts").select("*").eq("user_id", user.id)
+      .order("created_at", { ascending:false }).then(function(qres){
+        if(qres.error){
+          openPopBody.textContent = "Couldn't load saved charts: " + qres.error.message;
+          return;
+        }
+        openListNormalized = (qres.data || []).map(normalizeSavedRow);
+        openListActiveFilter = "all";
+        renderOpenFilters();
+        renderOpenList();
+      });
+  }).catch(function(err){
+    openPopBody.textContent = "Couldn't load saved charts: " + (err && err.message ? err.message : "unknown error");
+  });
+}
+function renderOpenFilters(){
+  cmOpenFiltersEl.innerHTML = "";
+  var present = {};
+  openListNormalized.forEach(function(r){ present[r.category] = true; });
+  var cats = ["all"].concat(CATEGORY_ORDER.filter(function(c){ return present[c]; }));
+  Object.keys(present).forEach(function(c){ if(cats.indexOf(c) === -1) cats.push(c); });
+  cats.forEach(function(c){
+    var b = document.createElement("button");
+    b.type = "button"; b.textContent = c === "all" ? "All" : c;
+    b.classList.toggle("active", c === openListActiveFilter);
+    b.addEventListener("click", function(){
+      openListActiveFilter = c;
+      cmOpenFiltersEl.querySelectorAll("button").forEach(function(x){ x.classList.toggle("active", x===b); });
+      renderOpenList();
+    });
+    cmOpenFiltersEl.appendChild(b);
+  });
+}
+function renderOpenList(){
+  openPopBody.innerHTML = "";
+  if(!openListNormalized.length){
+    openPopBody.textContent = "No saved charts yet -- build one and use Save chart, or save one from any country page, Compare, or My Dashboard.";
+    updateOpenLetterBadge();
+    return;
+  }
+  var filtered = openListNormalized.filter(function(r){ return openListActiveFilter === "all" || r.category === openListActiveFilter; });
+  if(!filtered.length){
+    openPopBody.textContent = "Nothing saved in this category yet.";
+    updateOpenLetterBadge();
+    return;
+  }
+  filtered.sort(function(a,b){ return a.name.localeCompare(b.name); });
+  var lastLetter = null;
+  filtered.forEach(function(item){
+    var letter = (item.name.trim().charAt(0) || "#").toUpperCase();
+    if(letter !== lastLetter){
+      var h = document.createElement("h4");
+      h.textContent = letter;
+      openPopBody.appendChild(h);
+      lastLetter = letter;
+    }
+    var line = document.createElement("div"); line.className = "cm-savedrow";
+    var thumb = document.createElement("div"); thumb.className = "cm-savedthumb";
+    if(item.available) renderThumb(thumb, item);
+    var meta = document.createElement("div"); meta.className = "cm-savedmeta";
+    var nameEl = document.createElement("span"); nameEl.className = "cm-savedname"; nameEl.textContent = item.name;
+    var subEl = document.createElement("span"); subEl.className = "cm-savedsub";
+    subEl.textContent = item.source + " \u00b7 " + item.seriesSpec.length + " metric" + (item.seriesSpec.length===1?"":"s")
+      + (item.available ? "" : " \u00b7 not in this sample-data preview") + " \u00b7 " + formatSavedAt(item.created_at);
+    meta.appendChild(nameEl); meta.appendChild(subEl);
+    var btns = document.createElement("div"); btns.className = "cm-savedbtns";
+    var openB = document.createElement("button"); openB.className = "open"; openB.type="button"; openB.textContent = "Open";
+    openB.disabled = !item.available;
+    openB.title = item.available ? "" : "This chart references data not in ChartMaker's current sample set";
+    openB.addEventListener("click", function(){ loadSavedChart(item); closeModal(cmOpenModalEl); });
+    var delB = document.createElement("button"); delB.className = "del"; delB.type="button"; delB.textContent = "Delete";
+    delB.addEventListener("click", function(){
+      if(!window.confirm('Delete "' + item.name + '"?')) return;
+      window.sb.from("saved_charts").delete().eq("id", item.id).then(function(){ refreshOpenList(); });
+    });
+    btns.appendChild(openB); btns.appendChild(delB);
+    line.appendChild(thumb); line.appendChild(meta); line.appendChild(btns);
+    openPopBody.appendChild(line);
+  });
+  updateOpenLetterBadge();
+}
+function updateOpenLetterBadge(){
+  var grid = openPopBody, badge = cmOpenLetterEl;
+  var headings = Array.prototype.slice.call(grid.querySelectorAll("h4"));
+  if(!headings.length || grid.scrollHeight <= grid.clientHeight + 2){
+    badge.classList.remove("show");
+    return;
+  }
+  var gridTop = grid.getBoundingClientRect().top;
+  var current = headings[0];
+  headings.forEach(function(h){
+    if(h.getBoundingClientRect().top - gridTop <= 6) current = h;
+  });
+  badge.textContent = current.textContent.trim().charAt(0).toUpperCase();
+  badge.classList.add("show");
+}
+openPopBody.addEventListener("scroll", updateOpenLetterBadge);
+function loadSavedChart(row){
+  // row is a NORMALIZED item from normalizeSavedRow() now, not a raw
+  // saved_charts row -- works the same whether it originally came from
+  // ChartMaker, Compare, a country page, or Dashboard.
+  var savedSeries = row.seriesSpec || [];
+  series = [];
+  colorIdx = 0;
+  savedSeries.forEach(function(ss){
+    if(!SAMPLE_DATA[ss.country] || !SAMPLE_DATA[ss.country][ss.metric]) return;
+    var s = SAMPLE_DATA[ss.country][ss.metric];
+    var pts = s.points.map(function(p){ return {x:p[0], y:p[1]}; });
+    series.push({ id:"s"+(++seriesSeq), country:ss.country, metric:ss.metric, transform:ss.transform||"raw", unit:s.unit, label:s.label, color: ss.color || COUNTRY_COLOR[ss.country] || "#1E4566", manualColor: !!ss.manualColor, customLabel: ss.customLabel || null, rawPoints:pts });
+    colorIdx++;
+  });
+  if(row.snapshot){
+    var snap = row.snapshot;
+    style.chartTitle = snap.chartTitle || ""; document.getElementById("cmChartTitle").value = style.chartTitle;
+    style.yAxisTitle = snap.yAxisTitle || ""; document.getElementById("cmYAxisTitle").value = style.yAxisTitle; yAxisTitleTouched = true;
+    style.legendTitle = snap.legendTitle || ""; document.getElementById("cmLegendTitle").value = style.legendTitle;
+    if(snap.legendTitle) legendTitleTouched = true;
+    style.yTitlePos = snap.yTitlePos || "along";
+    document.querySelectorAll("#cmYTitlePosSeg button").forEach(function(b){ b.classList.toggle("active", b.dataset.pos===style.yTitlePos); });
+    style.showFill = !!snap.showFill; document.getElementById("cmFillToggle").checked = style.showFill;
+    style.showPoints = snap.showPoints !== false; document.getElementById("cmPointsToggle").checked = style.showPoints;
+    style.refLine = snap.refLine || {enabled:false, value:0};
+    document.getElementById("cmRefToggle").checked = !!style.refLine.enabled;
+    document.getElementById("cmRefValue").value = style.refLine.value || 0;
+    style.logScale = !!snap.logScale; document.getElementById("cmLogToggle").checked = style.logScale;
+    style.centerAroundRef = !!snap.centerAroundRef; document.getElementById("cmCenterRefToggle").checked = style.centerAroundRef;
+    style.yStartMode = snap.yStartMode || "auto"; style.yStartValue = snap.yStartValue || 0;
+    document.querySelectorAll("#cmYStartSeg button").forEach(function(b){ b.classList.toggle("active", b.dataset.mode===style.yStartMode); });
+    document.getElementById("cmYStartValue").value = style.yStartValue;
+    document.getElementById("cmYStartCustomRow").style.display = style.yStartMode === "custom" ? "flex" : "none";
+    chartType = snap.chartType || "line";
+    document.querySelectorAll("#cmChartTypeSeg button").forEach(function(b){ b.classList.toggle("active", b.dataset.type===chartType); });
+    syncBarModeVisibility();
+    yTickStepIdx = typeof snap.yTickStepIdx === "number" ? snap.yTickStepIdx : 0;
+    style.xTicks = snap.xTicks || 8;
+    style.xLabelAngle = snap.xLabelAngle || "straight";
+    document.querySelectorAll("#cmXAngleSeg button").forEach(function(b){ b.classList.toggle("active", b.dataset.angle===style.xLabelAngle); });
+  }
+  annotations = (row.annotations || []).map(function(a){ a.id = "a"+(++annotSeq); return a; });
+  renderSeriesList(); renderColorsPanel(); renderAnnotList(); populateDateRange();
+  if(row.from_period) fromPeriodSel.value = row.from_period;
+  if(row.to_period) toPeriodSel.value = row.to_period;
+  renderChart();
+}
+
+// Same open/close pattern as the country and metric picker modals --
+// a real centered modal, not a small anchored dropdown, so people can
+// actually see the charts they're choosing between.
+openBtn.addEventListener("click", function(){
+  openModal(cmOpenModalEl);
+  refreshOpenList();
+});
+document.getElementById("cmOpenClose").addEventListener("click", function(){ closeModal(cmOpenModalEl); });
+document.getElementById("cmOpenBackdrop").addEventListener("click", function(){ closeModal(cmOpenModalEl); });
+
+saveBtn.addEventListener("click", function(){
+  if(!series.length){ window.alert("Add at least one metric before saving."); return; }
+  if(!sbReady()){ window.alert("Log in to save charts."); return; }
+  saveNameInput.value = style.chartTitle || "";
+  saveMsgEl.textContent = "";
+  openModal(saveModal);
+});
+document.getElementById("cmSaveClose").addEventListener("click", function(){ closeModal(saveModal); });
+document.getElementById("cmSaveBackdrop").addEventListener("click", function(){ closeModal(saveModal); });
+saveConfirmBtn.addEventListener("click", function(){
+  var name = saveNameInput.value.trim();
+  if(!name){ saveMsgEl.textContent = "Give it a name first."; return; }
+  saveConfirmBtn.disabled = true; saveConfirmBtn.textContent = "Saving\u2026";
+  var payload = {
+    name: name,
+    country_code: "chartmaker",
+    metric_key: series[0].metric,
+    from_period: fromPeriodSel.value,
+    to_period: toPeriodSel.value,
+    style: {
+      series: series.map(function(s){ return { country:s.country, metric:s.metric, transform:s.transform, color:s.color, manualColor:s.manualColor, customLabel:s.customLabel }; }),
+      annotations: annotations.map(function(a){ return { date:a.date, label:a.label, type:a.type, align:a.align }; }),
+      snapshot: {
+        chartTitle: style.chartTitle, yAxisTitle: style.yAxisTitle, legendTitle: style.legendTitle,
+        yTitlePos: style.yTitlePos, showFill: style.showFill, showPoints: style.showPoints,
+        refLine: style.refLine, centerAroundRef: style.centerAroundRef, logScale: style.logScale, chartType: chartType,
+        yStartMode: style.yStartMode, yStartValue: style.yStartValue,
+        yTickStepIdx: yTickStepIdx, xTicks: style.xTicks, xLabelAngle: style.xLabelAngle
+      }
+    }
+  };
+  window.sb.auth.getUser().then(function(res){
+    var user = res.data && res.data.user;
+    if(!user) throw new Error("Not signed in");
+    payload.user_id = user.id;
+    return window.sb.from("saved_charts").insert(payload);
+  }).then(function(res){
+    if(res && res.error) throw res.error;
+    saveConfirmBtn.disabled = false; saveConfirmBtn.textContent = "Save";
+    saveMsgEl.textContent = "Saved.";
+    setTimeout(function(){ closeModal(saveModal); }, 700);
+  }).catch(function(err){
+    saveConfirmBtn.disabled = false; saveConfirmBtn.textContent = "Save";
+    saveMsgEl.textContent = "Couldn't save: " + (err && err.message ? err.message : "unknown error");
+  });
+});
+
+/* ---- init ---- */
+populateDateRange();
+renderSeriesList();
+renderColorsPanel();
+renderChart();
+
+} // end runChartMaker
+
+})();
+</script>
+
+</body>
+</html>
