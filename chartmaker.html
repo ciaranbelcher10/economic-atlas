@@ -32,7 +32,7 @@
 <link href="https://fonts.googleapis.com/css2?family=Nunito+Sans:wght@400;600;700&display=swap" rel="stylesheet">
 <link rel="icon" type="image/png" sizes="32x32" href="favicon-32.png">
 <link rel="apple-touch-icon" href="apple-touch-icon.png">
-<link rel="stylesheet" href="style.css?v=44">
+<link rel="stylesheet" href="style.css?v=45">
 </head>
 <body>
 <nav class="top"><div class="wrap">
@@ -1128,7 +1128,7 @@
   })();
   window.EATLAS_PREFS.onSettled(function(){
     var navChartmakerLink = document.getElementById("navChartmakerLink");
-    if(navChartmakerLink) navChartmakerLink.hidden = !(window.EATLAS_PREFS.isAdmin && window.EATLAS_PREFS.isAdmin());
+    if(navChartmakerLink) navChartmakerLink.hidden = !(window.EATLAS_PREFS.isPro && window.EATLAS_PREFS.isPro());
     window.EATLAS_ACCOUNT.render();
     window.EATLAS_DOWNLOAD.refreshEntitlement();
     window.EATLAS_CUSTOMIZE.refreshEntitlement();
@@ -1349,8 +1349,8 @@
 </header>
 
 <div class="cm-gate" id="cmGate">
-  <h2>Admin preview</h2>
-  <p>Chartmaker is still being built and isn't public yet. Log in with an admin account to view it.</p>
+  <h2>Chartmaker is a Pro feature</h2>
+  <p>Log in to use Chartmaker -- pick any countries and indicators, overlay them, and export your own chart.</p>
 </div>
 
 <div class="cm-layout" id="cmLayout">
@@ -1652,82 +1652,156 @@ var REGION_GROUPS = [
   {name: "Africa", countries: ["South Africa", "Morocco"]}
 ];
 
+var CONCEPT_KEYS = {
+  gdp_level: ["gdp_level"], gdp_real: ["gdp_real"], gdp_growth: ["gdp_growth"],
+  cpi: ["cpi"], core_cpi: ["core_cpi"], cpi_mom: ["cpi_mom"], cpih: ["cpih"],
+  unemployment: ["unemployment"], employment: ["employment"], inactivity: ["inactivity"],
+  participation: ["participation"], unemployment_1624: ["unemployment_1624"],
+  debt_gdp: ["debt_gdp"], deficit: ["deficit"], net_debt: ["net_debt"], debt_interest: ["debt_interest"],
+  current_account: ["current_account"], fdi: ["fdi"],
+  trade_balance: ["trade_balance"], exports: ["exports"], imports: ["imports"],
+  business_confidence: ["business_confidence"], productivity: ["productivity"],
+  bond_yield_10y: ["bond_yield_10y"],
+  policy_rate: ["boe_rate", "fed_funds", "ecb_rate", "boj_rate", "overnight_rate", "rate"]
+};
 var CONCEPT_LABEL = {
-  gdp_level: "GDP level", gdp_growth: "GDP growth (annual, real)", cpi: "Inflation (CPI)",
-  unemployment: "Unemployment rate", policy_rate: "Policy rate"
+  gdp_level: "GDP level", gdp_real: "Real GDP level", gdp_growth: "GDP growth (annual, real)",
+  cpi: "Inflation (CPI)", core_cpi: "Core inflation", cpi_mom: "Inflation (month on month)", cpih: "Inflation (CPIH)",
+  unemployment: "Unemployment rate", employment: "Employment rate", inactivity: "Economic inactivity",
+  participation: "Labour force participation", unemployment_1624: "Youth unemployment (16-24)",
+  debt_gdp: "Government debt, % of GDP", deficit: "Government deficit, % of GDP",
+  net_debt: "Government net debt", debt_interest: "Government debt interest",
+  current_account: "Current account, % of GDP", fdi: "FDI, % of GDP",
+  trade_balance: "Trade balance", exports: "Exports", imports: "Imports",
+  business_confidence: "Business confidence", productivity: "Productivity",
+  bond_yield_10y: "10-year bond yield", policy_rate: "Policy rate"
 };
 var CONCEPT_CATEGORY = {
-  gdp_level: "GDP & growth", gdp_growth: "GDP & growth", cpi: "Prices",
-  unemployment: "Labour market", policy_rate: "Rates & yields"
+  gdp_level:"GDP & growth", gdp_real:"GDP & growth", gdp_growth:"GDP & growth", productivity:"GDP & growth",
+  unemployment:"Labour market", employment:"Labour market", inactivity:"Labour market",
+  participation:"Labour market", unemployment_1624:"Labour market",
+  cpi:"Prices", core_cpi:"Prices", cpi_mom:"Prices", cpih:"Prices",
+  debt_gdp:"Public finances", net_debt:"Public finances", deficit:"Public finances", debt_interest:"Public finances",
+  current_account:"Public finances",
+  trade_balance:"Trade", exports:"Trade", imports:"Trade",
+  business_confidence:"Business & investment", fdi:"Business & investment",
+  bond_yield_10y:"Rates & yields", policy_rate:"Rates & yields"
 };
-var CATEGORY_ORDER = ["GDP & growth", "Labour market", "Prices", "Rates & yields"];
+var CATEGORY_ORDER = ["GDP & growth", "Labour market", "Prices", "Public finances", "Trade", "Business & investment", "Rates & yields"];
 var CONCEPT_EXPLAINER = {
-  gdp_level: "The total value of everything the economy produces, current prices.",
-  gdp_growth: "How much the real economy grew or shrank versus a year earlier.",
+  gdp_level: "The total value of everything the economy produces in a year, at current prices.",
+  gdp_real: "The size of the economy adjusted for inflation.",
+  gdp_growth: "How much the real (inflation-adjusted) economy grew or shrank compared with the same period a year earlier.",
   cpi: "How much consumer prices are rising compared with a year ago.",
+  core_cpi: "Inflation excluding volatile food and energy prices.",
+  cpi_mom: "How much prices moved compared with the previous month.",
+  cpih: "Like CPI, but also includes owner-occupiers' housing costs.",
   unemployment: "The share of people who want a job but can't find one.",
+  employment: "The share of working-age people who are in work.",
+  inactivity: "The share of working-age people neither working nor looking for work.",
+  participation: "The share of people either working or actively looking for work.",
+  unemployment_1624: "The unemployment rate specifically among 16-24 year-olds.",
+  debt_gdp: "Everything the government owes, compared with the size of the economy.",
+  deficit: "How much the government borrows to cover the gap between spending and tax.",
+  net_debt: "The actual government debt stock in currency terms.",
+  debt_interest: "What the government pays to service its existing debt.",
+  current_account: "The country's overall balance with the rest of the world, as a share of GDP.",
+  fdi: "Money invested into local businesses from abroad, as a share of GDP.",
+  trade_balance: "Exports minus imports.",
+  exports: "The value of goods and services sold to the rest of the world.",
+  imports: "The value of goods and services bought from the rest of the world.",
+  business_confidence: "A survey-based index of business optimism; 100 marks the long-term average.",
+  productivity: "How much the economy produces for each hour worked.",
+  bond_yield_10y: "The yield on 10-year government bonds, a market gauge of inflation and rate expectations.",
   policy_rate: "The central bank's key interest rate."
 };
-var CONCEPT_UNIT = { gdp_level:"index", gdp_growth:"%", cpi:"%", unemployment:"%", policy_rate:"%" };
-var SAMPLE_COUNTRIES = ["UK","US","Germany","Japan","India","Brazil","Australia","South Korea"];
-
-/* ============================== dummy data ============================== */
-function seededRand(seed){
-  var s = seed % 2147483647; if(s <= 0) s += 2147483646;
-  return function(){ s = (s * 16807) % 2147483647; return (s - 1) / 2147483646; };
-}
-function hashStr(str){
-  var h = 0;
-  for(var i=0;i<str.length;i++){ h = (h * 31 + str.charCodeAt(i)) | 0; }
-  return Math.abs(h) || 1;
-}
-function quarters(fromY, toY){
-  var out = [];
-  for(var y=fromY; y<=toY; y++){ for(var q=1; q<=4; q++){ out.push(y + "-Q" + q); } }
-  return out;
-}
-var PERIODS = quarters(2015, 2026).slice(0, quarters(2015,2026).length - 2);
-var COUNTRY_BASE = {
-  UK:{gdp_growth:1.5, cpi:2.5, unemployment:4.2, policy_rate:4.0, gdp_level:180},
-  US:{gdp_growth:2.2, cpi:2.8, unemployment:3.9, policy_rate:4.5, gdp_level:520},
-  Germany:{gdp_growth:0.6, cpi:2.2, unemployment:5.8, policy_rate:3.25, gdp_level:220},
-  Japan:{gdp_growth:0.8, cpi:1.8, unemployment:2.5, policy_rate:0.5, gdp_level:340},
-  India:{gdp_growth:6.5, cpi:5.0, unemployment:7.5, policy_rate:6.25, gdp_level:95},
-  Brazil:{gdp_growth:2.4, cpi:4.2, unemployment:8.0, policy_rate:10.5, gdp_level:60},
-  Australia:{gdp_growth:2.0, cpi:3.1, unemployment:4.1, policy_rate:4.1, gdp_level:75},
-  "South Korea":{gdp_growth:2.1, cpi:2.3, unemployment:3.0, policy_rate:3.0, gdp_level:110}
+var CONCEPT_UNIT = {
+  gdp_level:"currency", gdp_real:"currency", gdp_growth:"%", cpi:"%", core_cpi:"%", cpi_mom:"%", cpih:"%",
+  unemployment:"%", employment:"%", inactivity:"%", participation:"%", unemployment_1624:"%",
+  debt_gdp:"%", deficit:"%", net_debt:"currency", debt_interest:"currency",
+  current_account:"%", fdi:"%", trade_balance:"currency", exports:"currency", imports:"currency",
+  business_confidence:"index", productivity:"index", bond_yield_10y:"%", policy_rate:"%"
 };
-function genSeries(country, metric){
-  var base = (COUNTRY_BASE[country] && COUNTRY_BASE[country][metric]) || 2;
-  var rand = seededRand(hashStr(country + "|" + metric));
-  var pts = [];
-  var trendDrift = (rand() - 0.5) * 0.03;
-  var level = base;
-  PERIODS.forEach(function(p, i){
-    var noise = (rand() - 0.5) * (metric === "gdp_level" ? base * 0.01 : 0.35);
-    var cycle = Math.sin(i / 6) * (metric === "unemployment" ? 0.6 : metric === "gdp_level" ? base * 0.015 : 0.4);
-    if(metric === "gdp_level"){
-      level = level * (1 + 0.006 + trendDrift * 0.02) + noise + cycle * 0.1;
-    } else {
-      level = base + cycle + noise + trendDrift * i * 0.02;
-      if(metric === "unemployment" || metric === "policy_rate") level = Math.max(0.1, level);
-    }
-    pts.push([p, Math.round(level * 100) / 100]);
-  });
-  return { label: CONCEPT_LABEL[metric], unit: CONCEPT_UNIT[metric], freq: "quarters", points: pts };
-}
-var SAMPLE_DATA = {};
-SAMPLE_COUNTRIES.forEach(function(c){
-  SAMPLE_DATA[c] = {};
-  Object.keys(CONCEPT_LABEL).forEach(function(m){ SAMPLE_DATA[c][m] = genSeries(c, m); });
-});
 
-/* ============================== admin gate ============================== */
+/* ============================== live data layer ============================== */
+// Same live per-country JSON files every country page, Dashboard and
+// Compare already use -- no separate sample/dummy generator, no
+// separate data-entry step. See compare.html's own live-data-layer
+// comment for the history here (this replaces an 8-country/5-metric
+// synthetic generator that existed only because this page hadn't been
+// wired up yet).
+var FILES = {
+  UK: "data.json", US: "data-us.json", Eurozone: "data-ez.json", Japan: "data-jp.json",
+  India: "data-in.json", Canada: "data-ca.json", Australia: "data-au.json", "South Korea": "data-kr.json",
+  Israel: "data-il.json", Mexico: "data-mx.json", Brazil: "data-br.json", "South Africa": "data-za.json",
+  Morocco: "data-ma.json", Germany: "data-de.json", France: "data-fr.json", Italy: "data-it.json",
+  Spain: "data-es.json", Netherlands: "data-nl.json", Denmark: "data-dk.json", Ireland: "data-ie.json",
+  Norway: "data-no.json", Chile: "data-cl.json", Colombia: "data-co.json", Turkey: "data-tr.json",
+  Indonesia: "data-id.json", Poland: "data-pl.json", Switzerland: "data-ch.json", Argentina: "data-ar.json",
+  Sweden: "data-se.json", Singapore: "data-sg.json", Austria: "data-at.json", Thailand: "data-th.json"
+};
+var ALL_COUNTRIES = Object.keys(FILES);
+var REGISTRY = {};
+function fetchWithTimeout(url, ms){
+  return Promise.race([
+    fetch(url, {cache: "no-cache"}),
+    new Promise(function(_, reject){ setTimeout(function(){ reject(new Error("timed out after " + ms + "ms")); }, ms); })
+  ]);
+}
+var dataLoadPromise = null;
+function loadAllCountryData(){
+  if(dataLoadPromise) return dataLoadPromise;
+  dataLoadPromise = Promise.all(ALL_COUNTRIES.map(function(country){
+    return fetchWithTimeout(FILES[country], 12000)
+      .then(function(r){ if(!r.ok) throw new Error(r.status); return r.json(); })
+      .then(function(payload){
+        var series = payload.series || {};
+        REGISTRY[country] = {};
+        Object.keys(series).forEach(function(key){
+          var s = series[key];
+          if(s && Array.isArray(s.points) && s.points.length) REGISTRY[country][key] = s;
+        });
+      })
+      .catch(function(err){
+        console.warn("Couldn't load data for " + country + ":", err);
+        REGISTRY[country] = REGISTRY[country] || {};
+      });
+  }));
+  return dataLoadPromise;
+}
+// Concept-aware accessor returning the same {label, unit, freq, points}
+// shape the old SAMPLE_DATA[country][metric] entries had, so every
+// downstream chart-building call site is unchanged -- just backed by
+// real data now. unit comes from the series' own real recorded unit
+// (e.g. "\u00a3m", "$m", "%") rather than a single fixed guess, since that's
+// what's actually correct per country/currency.
+function getSeries(country, concept){
+  var candidates = CONCEPT_KEYS[concept];
+  var reg = REGISTRY[country];
+  if(!candidates || !reg) return null;
+  for(var i=0;i<candidates.length;i++){
+    var raw = reg[candidates[i]];
+    if(raw) return { label: CONCEPT_LABEL[concept], unit: raw.unit || CONCEPT_UNIT[concept], freq: raw.freq, points: raw.points };
+  }
+  return null;
+}
+function hasCountryData(country){
+  return !!(REGISTRY[country] && Object.keys(REGISTRY[country]).length);
+}
+
+/* ============================== access gate ============================== */
+// Was admin-only while ChartMaker was still on sample data and
+// unverified. Now that it's been reviewed live against real data and
+// the sample generator is gone, it's gated the same way every other
+// paid surface on the site is -- isPro() (currently true for every
+// logged-in account, per the site-wide Pro override) rather than
+// isAdmin() specifically, which was only ever a "nobody but me should
+// see this yet" placeholder, not a deliberate long-term restriction.
 var gateEl = document.getElementById("cmGate");
 var layoutEl = document.getElementById("cmLayout");
-function revealIfAdmin(){
-  var admin = !!(window.EATLAS_PREFS && window.EATLAS_PREFS.isAdmin && window.EATLAS_PREFS.isAdmin());
-  if(admin){
+function revealIfAllowed(){
+  var allowed = !!(window.EATLAS_PREFS && window.EATLAS_PREFS.isPro && window.EATLAS_PREFS.isPro());
+  if(allowed){
     gateEl.style.display = "none";
     layoutEl.classList.add("show");
     initChartMaker();
@@ -1737,10 +1811,15 @@ function revealIfAdmin(){
   }
 }
 if(window.EATLAS_PREFS && window.EATLAS_PREFS.ready){
-  window.EATLAS_PREFS.ready.then(revealIfAdmin);
-  if(window.EATLAS_PREFS.onSettled) window.EATLAS_PREFS.onSettled(revealIfAdmin);
-  if(window.EATLAS_PREFS.onLogin) window.EATLAS_PREFS.onLogin(revealIfAdmin);
+  window.EATLAS_PREFS.ready.then(revealIfAllowed);
+  if(window.EATLAS_PREFS.onSettled) window.EATLAS_PREFS.onSettled(revealIfAllowed);
+  if(window.EATLAS_PREFS.onLogin) window.EATLAS_PREFS.onLogin(revealIfAllowed);
 }
+// Kick off the real data fetch immediately, in parallel with the auth
+// check -- by the time someone clears the gate, the 32-country fetch
+// is usually already done or close to it, rather than waiting until
+// after admin/Pro status resolves to even start.
+loadAllCountryData();
 
 var initedOnce = false;
 function initChartMaker(){
@@ -1908,7 +1987,7 @@ var countryRegionsEl = document.getElementById("cmCountryRegions");
 function renderCountryModal(){
   countryRegionsEl.innerHTML = "";
   REGION_GROUPS.forEach(function(g){
-    var avail = g.countries.filter(function(c){ return SAMPLE_DATA[c]; });
+    var avail = g.countries.filter(function(c){ return hasCountryData(c); });
     if(!avail.length) return;
     var region = document.createElement("div");
     region.className = "picker-region";
@@ -1948,7 +2027,7 @@ function openMetricModal(){
 function renderMetricGrid(){
   metricGridEl.innerHTML = "";
   CATEGORY_ORDER.forEach(function(cat){
-    var keys = Object.keys(CONCEPT_LABEL).filter(function(k){ return CONCEPT_CATEGORY[k] === cat; });
+    var keys = Object.keys(CONCEPT_LABEL).filter(function(k){ return CONCEPT_CATEGORY[k] === cat && !!getSeries(pendingCountry, k); });
     if(!keys.length) return;
     var heading = document.createElement("div");
     heading.className = "pickercat"; heading.textContent = cat;
@@ -1988,8 +2067,8 @@ var nudgeChipsEl = document.getElementById("cmNudgeChips");
 function renderNudge(metric){
   pendingNudgeMetric = metric;
   if(!metric){ nudgeEl.classList.remove("show"); return; }
-  var others = SAMPLE_COUNTRIES.filter(function(c){
-    return c !== pendingCountry && !series.some(function(s){ return s.country === c && s.metric === metric; });
+  var others = ALL_COUNTRIES.filter(function(c){
+    return c !== pendingCountry && !!getSeries(c, metric) && !series.some(function(s){ return s.country === c && s.metric === metric; });
   });
   if(!others.length){ nudgeEl.classList.remove("show"); return; }
   nudgeTitleEl.textContent = "\uD83C\uDF0D " + CONCEPT_LABEL[metric] + " is also tracked for " + others.length + (others.length === 1 ? " other country:" : " other countries:");
@@ -2012,7 +2091,8 @@ document.getElementById("cmNudgeClose").addEventListener("click", function(){ nu
 
 /* ---- series management ---- */
 function addSeries(country, metric){
-  var s = SAMPLE_DATA[country][metric];
+  var s = getSeries(country, metric);
+  if(!s) return;
   var pts = s.points.map(function(p){ return {x:p[0], y:p[1]}; });
   series.push({
     id: "s" + (++seriesSeq), country: country, metric: metric, transform: "raw",
@@ -3483,14 +3563,14 @@ function renderThumb(container, item){
   var savedSeriesList = SERIES_LIST, savedCzmState = czmState, savedUnifiedDates = UNIFIED_DATES;
   try{
     var thumbSeries = item.seriesSpec.map(function(ss){
-      var sd = SAMPLE_DATA[ss.country] && SAMPLE_DATA[ss.country][ss.metric];
+      var sd = getSeries(ss.country, ss.metric);
       if(!sd) return null;
       var pts = applyTransform(sd.points.map(function(p){ return {x:p[0], y:p[1]}; }), ss.transform || "raw");
       return { country: ss.country + " \u2014 " + (CONCEPT_LABEL[ss.metric] || ss.metric), color: ss.color || SWATCH_PALETTE[0], points: pts.map(function(p){ return [p.x, p.y]; }) };
     }).filter(Boolean);
     if(!thumbSeries.length) return;
     var snap = item.snapshot || {};
-    var units = {}; item.seriesSpec.forEach(function(ss){ var sd = SAMPLE_DATA[ss.country] && SAMPLE_DATA[ss.country][ss.metric]; if(sd) units[sd.unit] = true; });
+    var units = {}; item.seriesSpec.forEach(function(ss){ var sd = getSeries(ss.country, ss.metric); if(sd) units[sd.unit] = true; });
     var unitKeys = Object.keys(units);
     var fmtY = (unitKeys.length === 1 && unitKeys[0] === "%") ? function(v){ return v.toFixed(1) + "%"; } : function(v){ return v.toFixed(1); };
     var from = item.from_period || (thumbSeries[0].points[0] && thumbSeries[0].points[0][0]);
@@ -3554,7 +3634,7 @@ function normalizeSavedRow(row){
     seriesSpec = [{ country: singleName, metric: row.metric_key, transform: "raw" }];
   }
   var available = seriesSpec.length > 0 && seriesSpec.every(function(s){
-    return SAMPLE_DATA[s.country] && SAMPLE_DATA[s.country][s.metric];
+    return !!getSeries(s.country, s.metric);
   });
   return {
     id: row.id, name: row.name, created_at: row.created_at,
@@ -3684,8 +3764,8 @@ function loadSavedChart(row){
   series = [];
   colorIdx = 0;
   savedSeries.forEach(function(ss){
-    if(!SAMPLE_DATA[ss.country] || !SAMPLE_DATA[ss.country][ss.metric]) return;
-    var s = SAMPLE_DATA[ss.country][ss.metric];
+    var s = getSeries(ss.country, ss.metric);
+    if(!s) return;
     var pts = s.points.map(function(p){ return {x:p[0], y:p[1]}; });
     series.push({ id:"s"+(++seriesSeq), country:ss.country, metric:ss.metric, transform:ss.transform||"raw", unit:s.unit, label:s.label, color: ss.color || COUNTRY_COLOR[ss.country] || "#1E4566", manualColor: !!ss.manualColor, customLabel: ss.customLabel || null, rawPoints:pts });
     colorIdx++;
