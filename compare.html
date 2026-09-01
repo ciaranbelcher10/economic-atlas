@@ -32,7 +32,7 @@
 <link href="https://fonts.googleapis.com/css2?family=Nunito+Sans:wght@400;600;700&display=swap" rel="stylesheet">
 <link rel="icon" type="image/png" sizes="32x32" href="favicon-32.png">
 <link rel="apple-touch-icon" href="apple-touch-icon.png">
-<link rel="stylesheet" href="style.css?v=45">
+<link rel="stylesheet" href="style.css?v=46">
 <style>
 :root{ --map-nodata: #E9EBE7; }
 /* ---- info button + popover (per-card data source & methodology) ---- */
@@ -4519,6 +4519,27 @@ window.EATLAS_COMPARE = {
   // + source/watermark line. Both geometry functions use this to size
   // padB, and both render functions use the same offsets to place
   // elements, so the two can never drift out of sync with each other.
+  function computeLegendRows(){
+    if(!SERIES_LIST.length) return [];
+    var items = SERIES_LIST.map(function(s){ return { label: s.country, color: s.color, w: 18 + 6 + estTextWidth(s.country, 11) }; });
+    var maxRowW = G.W - G.padL - G.padR;
+    var rows = [];
+    var current = [];
+    var currentW = 0;
+    items.forEach(function(it){
+      var addW = current.length ? it.w + 24 : it.w;
+      if(current.length && currentW + addW > maxRowW){
+        rows.push(current);
+        current = [it];
+        currentW = it.w;
+      } else {
+        current.push(it);
+        currentW += addW;
+      }
+    });
+    if(current.length) rows.push(current);
+    return rows;
+  }
   function czmBottomLayout(hasLegend, srcText){
     var angle = (czmState && czmState.xLabelAngle) || "straight";
     var angleReserve = angle === "vertical" ? 54 : angle === "diagonal" ? 28 : 0;
@@ -4532,12 +4553,13 @@ window.EATLAS_COMPARE = {
     // "closer to the axis, and clearer which label is whose."
     var oLabels = angle === "straight" ? 26 : 14;
     var oAfterLabels = oLabels + 8 + angleReserve;
-    var oLegendTitle = null, oLegendRow;
+    var oLegendTitle = null, oLegendRow, legendRowCount = 1;
     var oAfterLegend;
     if(hasLegend){
+      legendRowCount = Math.max(1, computeLegendRows().length);
       if(czmState.legendTitle){ oLegendTitle = oAfterLabels + 14; oLegendRow = oLegendTitle + 16; }
       else { oLegendRow = oAfterLabels + 14; }
-      oAfterLegend = oLegendRow + 12;
+      oAfterLegend = oLegendRow + (legendRowCount - 1) * 16 + 12;
     } else {
       oAfterLegend = oAfterLabels + 10;
     }
@@ -4549,7 +4571,7 @@ window.EATLAS_COMPARE = {
     var srcLines = czSrcLineCount(srcText);
     var oSourceExtra = (srcLines - 1) * 14;
     return {
-      oLabels: oLabels, oLegendTitle: oLegendTitle, oLegendRow: oLegendRow,
+      oLabels: oLabels, oLegendTitle: oLegendTitle, oLegendRow: oLegendRow, legendRowCount: legendRowCount,
       oDivider: oDivider, oSource: oSource, srcLines: srcLines,
       padB: oSource + oSourceExtra + 12
     };
@@ -4781,14 +4803,17 @@ window.EATLAS_COMPARE = {
     if(czmState.legendTitle){
       svg.push("<text x='" + (G.W / 2) + "' y='" + (axisBottomY + bl.oLegendTitle) + "' font-size='11' font-weight='700' fill='" + t.ink2 + "' text-anchor='middle'>" + escapeXML(czmState.legendTitle) + "</text>");
     }
-    var legItems = SERIES_LIST.map(function(s){ return { label: s.country, color: s.color, w: 18 + 6 + estTextWidth(s.country, 11) }; });
-    var totalLegW = legItems.reduce(function(sum, it){ return sum + it.w; }, 0) + (legItems.length - 1) * 24;
-    var legStartX = Math.max(G.padL, (G.padL + (G.W - G.padR)) / 2 - totalLegW / 2);
-    var lx = legStartX;
-    legItems.forEach(function(it){
-      svg.push("<line x1='" + lx.toFixed(1) + "' y1='" + legY + "' x2='" + (lx + 18).toFixed(1) + "' y2='" + legY + "' stroke='" + it.color + "' stroke-width='2.5'/>");
-      svg.push("<text x='" + (lx + 24).toFixed(1) + "' y='" + (legY + 4) + "' font-size='11' fill='" + t.ink2 + "'>" + escapeXML(it.label) + "</text>");
-      lx += it.w + 24;
+    var legendRows = computeLegendRows();
+    legendRows.forEach(function(rowItems, rowIdx){
+      var rowY = legY + rowIdx * 16;
+      var totalRowW = rowItems.reduce(function(sum, it){ return sum + it.w; }, 0) + (rowItems.length - 1) * 24;
+      var rowStartX = Math.max(G.padL, (G.padL + (G.W - G.padR)) / 2 - totalRowW / 2);
+      var rx = rowStartX;
+      rowItems.forEach(function(it){
+        svg.push("<line x1='" + rx.toFixed(1) + "' y1='" + rowY + "' x2='" + (rx + 18).toFixed(1) + "' y2='" + rowY + "' stroke='" + it.color + "' stroke-width='2.5'/>");
+        svg.push("<text x='" + (rx + 24).toFixed(1) + "' y='" + (rowY + 4) + "' font-size='11' fill='" + t.ink2 + "'>" + escapeXML(it.label) + "</text>");
+        rx += it.w + 24;
+      });
     });
     if(czmState.refLine.enabled){
       var ry = gm.y(czmState.refLine.value);
@@ -4854,7 +4879,7 @@ window.EATLAS_COMPARE = {
     if(a.date < UNIFIED_DATES[0] || a.date > UNIFIED_DATES[UNIFIED_DATES.length - 1]) return "";
     var idx = nearestUnifiedIndex(a.date);
     var ax = gm.xForIndex(idx);
-    var refSeries = SERIES_LIST[0];
+    var refSeries = SERIES_LIST[a.seriesIndex] || SERIES_LIST[0];
     var refPts = refSeries ? czmFilteredSeries(refSeries) : [];
     var refIdx = refPts.length ? Math.min(idx, refPts.length - 1) : 0;
     var ay = refPts.length ? gm.y(refPts[refIdx][1]) : gm.padT + gm.plotH / 2;
@@ -5293,6 +5318,13 @@ window.EATLAS_COMPARE = {
           "<button type='button' data-type='line' class='" + (a.type === "line" ? "active" : "") + "' style='flex:1; border:none; font:inherit; font-size:12px; font-weight:600; padding:7px 0; cursor:pointer;'>Line</button>" +
           "<button type='button' data-type='arrow' class='" + (a.type === "arrow" ? "active" : "") + "' style='flex:1; border:none; font:inherit; font-size:12px; font-weight:600; padding:7px 0; cursor:pointer;'>Arrow</button>" +
         "</div>" +
+        (a.type === "arrow" && SERIES_LIST.length > 1 ?
+          "<div style='margin-bottom:8px;'>" +
+            "<label style='font-size:11px; font-weight:700; color:var(--ink2); display:block; margin-bottom:4px;'>Points at</label>" +
+            "<select class='cz-annot-target' style='width:100%; padding:6px 8px; border:1px solid var(--hair); border-radius:6px; background:var(--panel); font:inherit; font-size:12.5px;'>" +
+              SERIES_LIST.map(function(s, i){ return "<option value='" + i + "'" + ((a.seriesIndex||0) === i ? " selected" : "") + ">" + s.country + "</option>"; }).join("") +
+            "</select>" +
+          "</div>" : "") +
         "<textarea class='cz-annot-label-box' rows='1' maxlength='90' placeholder='Label (Enter for a new line)' style='width:100%; border:1px solid var(--hair); border-radius:6px; background:var(--panel); color:var(--ink); font:inherit; font-size:12.5px; padding:6px 8px; resize:vertical; min-height:40px; margin-bottom:8px;'>" + a.label.replace(/</g, "&lt;") + "</textarea>" +
         "<div style='display:flex; align-items:center; gap:10px;'>" +
           "<div class='align-seg' style='display:flex; border:1px solid var(--hair); border-radius:6px; overflow:hidden; flex-shrink:0;'>" +
@@ -5324,10 +5356,17 @@ window.EATLAS_COMPARE = {
       body.querySelectorAll("[data-type]").forEach(function(btn){
         btn.addEventListener("click", function(){
           a.type = btn.dataset.type;
-          body.querySelectorAll("[data-type]").forEach(function(b){ b.classList.toggle("active", b === btn); });
+          czRenderAnnotList();
           czRenderPreview();
         });
       });
+      var targetSel = body.querySelector(".cz-annot-target");
+      if(targetSel){
+        targetSel.addEventListener("change", function(e){
+          a.seriesIndex = parseInt(e.target.value, 10) || 0;
+          czRenderPreview();
+        });
+      }
       body.querySelectorAll("[data-align]").forEach(function(btn){
         btn.addEventListener("click", function(){
           a.align = btn.dataset.align;
@@ -5362,7 +5401,7 @@ window.EATLAS_COMPARE = {
     var gm = czmGeom();
     var idx = nearestUnifiedIndex(czmState.from);
     var ax = gm.xForIndex(idx);
-    czmState.annotations.push({ type: "line", date: czmState.from, label: "New event", align: "center", labelX: ax, labelY: G.padT - 8, fontSize: 11 });
+    czmState.annotations.push({ type: "line", date: czmState.from, label: "New event", align: "center", labelX: ax, labelY: gm.padT - 8, fontSize: 11 });
     czRenderAnnotList(); czRenderPreview();
   });
   function czFilenameBase(){ return czmState.filenameBase + "_" + czmState.from + "_to_" + czmState.to; }

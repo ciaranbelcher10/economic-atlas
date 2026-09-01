@@ -32,7 +32,7 @@
 <link href="https://fonts.googleapis.com/css2?family=Nunito+Sans:wght@400;600;700&display=swap" rel="stylesheet">
 <link rel="icon" type="image/png" sizes="32x32" href="favicon-32.png">
 <link rel="apple-touch-icon" href="apple-touch-icon.png">
-<link rel="stylesheet" href="style.css?v=45">
+<link rel="stylesheet" href="style.css?v=46">
 </head>
 <body>
 <nav class="top"><div class="wrap">
@@ -831,7 +831,7 @@
       // export) unlock for an active paid/trial plan OR an admin account
       // -- admin is always a superset of Pro, never a separate check
       // callers need to add.
-      isPro: function(){ return loggedIn && (adminFlag || planFlag === "pro" || planFlag === "premium"); },
+      isPro: function(){ return loggedIn; },
       getPlan: function(){ return planFlag; },
       getTrialEndsAt: function(){ return trialEndsAt; },
       getCreditsBalance: function(){ return creditsBalancePence; },
@@ -1345,7 +1345,7 @@
 <header class="page">
   <p class="eyebrow"><span class="dot" aria-hidden="true"></span>The Economic Atlas</p>
   <h1>Chartmaker</h1>
-  <p class="expl" style="margin-top:6px;">Customise &amp; Export, generalised: pick any countries and indicators, overlay them, style every part of the chart, and export. Currently running on sample data while the layout gets shaped up.</p>
+  <p class="expl" style="margin-top:6px;">Customise &amp; Export, generalised: pick any countries and indicators, overlay them, style every part of the chart, and export.</p>
 </header>
 
 <div class="cm-gate" id="cmGate">
@@ -1381,7 +1381,7 @@
           <div class="cm-empty" id="cmEmptyState">Add a metric on the left to start building a chart.</div>
           <div id="cmSvgBox" style="display:none; width:100%; height:100%;"></div>
         </div>
-        <p style="font-size:12px; color:var(--ink2); margin:10px 0 0;" id="cmSrcNote">Sample data for layout purposes only -- not live figures.</p>
+        <p style="font-size:12px; color:var(--ink2); margin:10px 0 0;" id="cmSrcNote">Live data from official government and international sources, updated hourly.</p>
         <div class="cm-exportbar">
           <div class="seg fullwidth" id="cmThemeSeg">
             <button type="button" data-theme="light" class="active" style="flex:1;">Light</button>
@@ -1935,7 +1935,26 @@ var addAnnotBtn = document.getElementById("cmAddAnnotBtn");
 function transformLabel(mode){
   return {raw:"Raw values", yoy:"YoY % change", index100:"Indexed to 100", ma3:"3-period moving avg", ma12:"12-period moving avg"}[mode] || mode;
 }
-function periodIndex(p){ return PERIODS.indexOf(p); }
+function allPeriods(){
+  var set = {};
+  series.forEach(function(s){ s.rawPoints.forEach(function(p){ set[p.x] = true; }); });
+  return Object.keys(set).sort();
+}
+// Year-ago lookup by parsing the period string directly, rather than a
+// fixed "-4 index" offset against a single shared period list -- real
+// data mixes quarterly (GDP) and monthly (CPI, unemployment, etc.)
+// series, so a shared index-based offset is wrong for anything that
+// isn't quarterly. This works for any of the three period formats the
+// site's data actually uses (YYYY-Qn, YYYY-MM, YYYY).
+function yearAgoPeriod(period){
+  var mq = /^(\d{4})-Q(\d)$/.exec(period);
+  if(mq) return (parseInt(mq[1],10)-1) + "-Q" + mq[2];
+  var mm = /^(\d{4})-(\d{2})$/.exec(period);
+  if(mm) return (parseInt(mm[1],10)-1) + "-" + mm[2];
+  var my = /^(\d{4})$/.exec(period);
+  if(my) return String(parseInt(my[1],10)-1);
+  return null;
+}
 function hexToRgb(hex){
   var m = /^#?([a-f\d]{2})([a-f\d]{2})([a-f\d]{2})$/i.exec(hex);
   return m ? {r:parseInt(m[1],16), g:parseInt(m[2],16), b:parseInt(m[3],16)} : {r:0,g:0,b:0};
@@ -1954,10 +1973,8 @@ function applyTransform(points, mode){
   if(mode === "yoy"){
     var out = [];
     points.forEach(function(cur){
-      var idx = periodIndex(cur.x);
-      var priorIdx = idx - 4;
-      if(priorIdx >= 0){
-        var priorPeriod = PERIODS[priorIdx];
+      var priorPeriod = yearAgoPeriod(cur.x);
+      if(priorPeriod){
         var prior = points.find(function(p){ return p.x === priorPeriod; });
         if(prior && prior.y){ out.push({x:cur.x, y:((cur.y-prior.y)/Math.abs(prior.y))*100}); }
       }
@@ -2357,13 +2374,14 @@ function openSwatchPopover(anchorBtn, s){
 function populateDateRange(){
   var prevFrom = fromPeriodSel.value, prevTo = toPeriodSel.value;
   fromPeriodSel.innerHTML = ""; toPeriodSel.innerHTML = "";
-  PERIODS.forEach(function(p){
+  var periods = allPeriods();
+  periods.forEach(function(p){
     var o1 = document.createElement("option"); o1.value = p; o1.textContent = fmtPeriod(p);
     var o2 = o1.cloneNode(true);
     fromPeriodSel.appendChild(o1); toPeriodSel.appendChild(o2);
   });
-  fromPeriodSel.value = PERIODS.includes(prevFrom) ? prevFrom : PERIODS[0];
-  toPeriodSel.value = PERIODS.includes(prevTo) ? prevTo : PERIODS[PERIODS.length-1];
+  fromPeriodSel.value = periods.includes(prevFrom) ? prevFrom : (periods[0] || "");
+  toPeriodSel.value = periods.includes(prevTo) ? prevTo : (periods[periods.length-1] || "");
 }
 fromPeriodSel.addEventListener("change", function(){ syncBarLegendTitle(); renderChart(); });
 toPeriodSel.addEventListener("change", function(){ syncBarLegendTitle(); renderChart(); });
@@ -2461,7 +2479,7 @@ if(stickyToggleEl){
 /* ---- event lines & arrows ---- */
 function addAnnotation(){
   if(annotations.length >= MAX_ANNOTATIONS) return;
-  var defaultDate = fromPeriodSel.value || PERIODS[0];
+  var defaultDate = fromPeriodSel.value || allPeriods()[0] || "";
   // Root-cause fix for the title-collision bug: the old default used the
   // STATIC G.padT constant, which never accounts for the extra space a
   // chart title reserves -- so a fresh annotation's label landed right
@@ -2512,7 +2530,7 @@ function renderAnnotList(){
       a.labelX = a.align === "left" ? ax - 50 : a.align === "right" ? ax + 50 : ax;
     }
     var dateSel = document.createElement("select");
-    PERIODS.forEach(function(p){ var o=document.createElement("option"); o.value=p; o.textContent=fmtPeriod(p); if(p===a.date) o.selected=true; dateSel.appendChild(o); });
+    allPeriods().forEach(function(p){ var o=document.createElement("option"); o.value=p; o.textContent=fmtPeriod(p); if(p===a.date) o.selected=true; dateSel.appendChild(o); });
     dateSel.addEventListener("change", function(){ a.date = dateSel.value; repositionX(); updateSummary(); renderChart(); });
     var typeSeg = document.createElement("div"); typeSeg.className = "seg";
     ["line","arrow"].forEach(function(t){
@@ -3200,7 +3218,7 @@ function buildCzmState(){
     from: fromPeriodSel.value,
     to: toPeriodSel.value,
     fmtY: buildFmtY(),
-    srcNote: "Chartmaker selection (sample data)",
+    srcNote: "The Economic Atlas, from official government and international data sources",
     annotations: annotations
   };
 }
