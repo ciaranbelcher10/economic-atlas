@@ -1257,21 +1257,6 @@
 .cm-layout.show{display:block;}
 .cm-toprow{display:grid; grid-template-columns:270px 1fr 290px; gap:20px; align-items:start;}
 @media (max-width:1180px){ .cm-toprow{grid-template-columns:1fr;} }
-/* Two earlier approaches both reserved dead space to give position:sticky
-   "room" to float into (stretching to the tallest sibling, then a
-   JS-measured min-height) -- both leave a visible blank gap at rest,
-   because that reserved room sits empty until you actually scroll into
-   it. Replaced with a real pin/land mechanism instead (see pinChart()
-   in the sticky chart script below): the wrap takes zero extra space
-   while idle, JS switches the chart to position:fixed only while
-   actively scrolling through the space below it, and lands it back in
-   normal flow once it reaches the bottom of the lower control panels.
-   No CSS sticky positioning or stretch/min-height hack needed any more. */
-.cm-chart-sticky-wrap{ position: relative; }
-.cm-chartarea.cm-pinned{ position: fixed; top: 16px; z-index: 5; }
-.cm-chartarea.cm-landed{ position: absolute; z-index: 5; }
-.cm-stickytoggle{display:flex; align-items:center; gap:8px; margin-top:14px; font-size:12.5px; color:var(--ink2);}
-.cm-stickytoggle input{width:16px; height:16px; accent-color:var(--navy); cursor:pointer;}
 .cm-layout, .cm-layout input, .cm-layout select, .cm-layout button, .cm-layout textarea{
   font-family:"Avenir Next","Avenir","Nunito Sans",system-ui,sans-serif;
 }
@@ -1387,7 +1372,6 @@
  </div>
 
  <!-- CENTER: chart -->
- <div class="cm-chart-sticky-wrap is-sticky" id="cmChartStickyWrap">
  <div class="cm-chartarea">
  <div class="cm-chart-outer" id="cmChartOuter">
  <div class="cm-empty" id="cmEmptyState">Add a metric on the left to start building a chart.</div>
@@ -1401,8 +1385,6 @@
  </div>
  <button type="button" id="cmPngBtn" disabled>Download PNG</button>
  <button type="button" id="cmCsvBtn" disabled>Download CSV</button>
- </div>
- <label class="cm-stickytoggle"><input type="checkbox" id="cmStickyToggle" checked> Keep the chart in view while scrolling (turn off on a small screen)</label>
  </div>
  </div>
 
@@ -3013,130 +2995,6 @@ document.getElementById("cmThemeSeg").querySelectorAll("button").forEach(functio
   });
 });
 
-/* ---- sticky chart toggle ---- */
-// Third attempt at this, so the reasoning is worth spelling out. Both
-// earlier approaches (stretch-to-tallest-sibling, then a JS-measured
-// min-height) tried to give position:sticky "room" to float into by
-// reserving that room as real, empty box height -- which is visible as
-// a blank gap at rest, before you've scrolled into it (the bug just
-// reported). The min-height version also had a feedback loop: writing
-// its own measurement back as height moved the thing it was measuring
-// next time, so it compounded instead of settling.
-//
-// This version reserves no extra space at all. Instead it explicitly
-// pins the chart to position:fixed only while the page is scrolled
-// through the "travel zone" between (a) the chart's natural resting
-// position and (b) the bottom of the lower control panels, and lands
-// it back into normal, unreserved flow outside that zone. Three states:
-//   idle   -- above the travel zone: chart sits in normal document flow
-//   pinned -- inside the travel zone: position:fixed, top:16px
-//   landed -- past the travel zone: position:absolute, resting at the
-//             bottom of its travel range so it scrolls away with the
-//             rest of the page from that point rather than overlapping
-//             the lower panels
-var stickyWrapEl = document.getElementById("cmChartStickyWrap");
-var stickyChartAreaEl = document.querySelector(".cm-chart-sticky-wrap .cm-chartarea");
-var stickyToggleEl = document.getElementById("cmStickyToggle");
-var stickyEnabled = !!(stickyToggleEl && stickyToggleEl.checked);
-var stickyMetrics = null; // {pinStartY, landY, chartHeight, wrapLeft, wrapWidth}
-var stickyRafPending = false;
-
-function unpinChart(){
-  if(!stickyChartAreaEl) return;
-  stickyChartAreaEl.classList.remove("cm-pinned", "cm-landed");
-  stickyChartAreaEl.style.top = "";
-  stickyChartAreaEl.style.left = "";
-  stickyChartAreaEl.style.width = "";
-  if(stickyWrapEl) stickyWrapEl.style.height = "";
-}
-
-// Measures the natural (unpinned) layout. Must run with the chart
-// temporarily unpinned, or it would measure a layout already distorted
-// by fixed/absolute positioning from a previous pass.
-function measureStickyMetrics(){
-  if(!stickyWrapEl || !stickyChartAreaEl) { stickyMetrics = null; return; }
-  var styleRowEl = document.querySelector(".cm-stylerow");
-  if(!styleRowEl || window.innerWidth <= 1180){
-    // Below the 1180px breakpoint the layout collapses to a single
-    // column and the toggle's own label tells people to turn it off --
-    // don't fight that with pinning there.
-    stickyMetrics = null;
-    return;
-  }
-  var wasPinned = stickyChartAreaEl.classList.contains("cm-pinned");
-  var wasLanded = stickyChartAreaEl.classList.contains("cm-landed");
-  if(wasPinned || wasLanded) unpinChart();
-
-  var wrapRect = stickyWrapEl.getBoundingClientRect();
-  var chartRect = stickyChartAreaEl.getBoundingClientRect();
-  var wrapDocTop = wrapRect.top + window.scrollY;
-  var chartHeight = chartRect.height;
-  var stopTop = styleRowEl.getBoundingClientRect().top + window.scrollY;
-
-  stickyMetrics = {
-    pinStartY: wrapDocTop - 16,
-    // Land the instant the pinned chart's bottom edge would first touch
-    // the top of the lower control panels -- not their bottom. Using
-    // the bottom (my first pass at this) would let the fixed chart
-    // visually cover the whole Chart style / Reference & scale / Date
-    // range / Event lines section while scrolling through it, blocking
-    // those controls the entire time instead of clearing out of the way.
-    landY: stopTop - 16 - chartHeight,
-    chartHeight: chartHeight,
-    wrapLeft: wrapRect.left,
-    wrapWidth: wrapRect.width
-  };
-
-  if(wasPinned || wasLanded) applyStickyState();
-}
-
-function applyStickyState(){
-  if(!stickyEnabled || !stickyMetrics || !stickyChartAreaEl){ unpinChart(); return; }
-  var y = window.scrollY;
-  if(y < stickyMetrics.pinStartY){
-    unpinChart();
-  } else if(y < stickyMetrics.landY){
-    stickyChartAreaEl.classList.remove("cm-landed");
-    stickyChartAreaEl.classList.add("cm-pinned");
-    stickyChartAreaEl.style.left = stickyMetrics.wrapLeft + "px";
-    stickyChartAreaEl.style.width = stickyMetrics.wrapWidth + "px";
-    stickyChartAreaEl.style.top = "16px";
-    stickyWrapEl.style.height = stickyMetrics.chartHeight + "px";
-  } else {
-    stickyChartAreaEl.classList.remove("cm-pinned");
-    stickyChartAreaEl.classList.add("cm-landed");
-    stickyChartAreaEl.style.left = "0";
-    stickyChartAreaEl.style.width = "100%";
-    stickyChartAreaEl.style.top = (stickyMetrics.landY - stickyMetrics.pinStartY) + "px";
-    stickyWrapEl.style.height = stickyMetrics.chartHeight + "px";
-  }
-}
-
-function onStickyScroll(){
-  if(stickyRafPending) return;
-  stickyRafPending = true;
-  requestAnimationFrame(function(){ stickyRafPending = false; applyStickyState(); });
-}
-
-function recalcSticky(){
-  measureStickyMetrics();
-  applyStickyState();
-}
-
-if(stickyToggleEl){
-  stickyToggleEl.addEventListener("change", function(){
-    stickyEnabled = stickyToggleEl.checked;
-    recalcSticky();
-  });
-}
-window.addEventListener("scroll", onStickyScroll, { passive: true });
-window.addEventListener("resize", recalcSticky);
-window.addEventListener("load", recalcSticky);
-if(window.ResizeObserver){
-  var cmWrapEl = document.querySelector(".cm-wrap");
-  if(cmWrapEl) new ResizeObserver(recalcSticky).observe(cmWrapEl);
-}
-recalcSticky();
 
 /* ---- event lines & arrows ---- */
 function addAnnotation(){
