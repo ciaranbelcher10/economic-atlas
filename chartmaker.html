@@ -32,7 +32,7 @@
 <link href="https://fonts.googleapis.com/css2?family=Nunito+Sans:wght@400;600;700&display=swap" rel="stylesheet">
 <link rel="icon" type="image/png" sizes="32x32" href="favicon-32.png">
 <link rel="apple-touch-icon" href="apple-touch-icon.png">
-<link rel="stylesheet" href="style.css?v=49">
+<link rel="stylesheet" href="style.css?v=50">
 </head>
 <body>
 <nav class="top"><div class="wrap">
@@ -1469,6 +1469,10 @@
         <input type="checkbox" id="cmCenterRefToggle" disabled>
       </div>
       <p id="cmCenterRefNote" style="font-size:11px; color:var(--ink2); margin:2px 0 10px; display:none;">Turn on a reference line above to use this.</p>
+      <div class="cm-row" id="cmThresholdShadeRow" style="display:none;">
+        <span>Colour bars by above/below reference line (overrides country colours)</span>
+        <input type="checkbox" id="cmThresholdShadeToggle">
+      </div>
       <div id="cmYStartGroup">
         <div class="cm-row" id="cmYStartRow">
           <span>Y-axis starts at</span>
@@ -2443,7 +2447,7 @@ var pendingNudgeMetric = null; // metric key just added, drives the inline nudge
 var style = {
   chartTitle: "", yAxisTitle: "", legendTitle: "", yTitlePos: "along",
   showFill: false, showPoints: false,
-  refLine: { enabled:false, value:0 }, centerAroundRef: false,
+  refLine: { enabled:false, value:0 }, centerAroundRef: false, thresholdShadeBars: false,
   logScale: false, xTicks: 8, xLabelAngle: "straight",
   yStartMode: "auto", yStartValue: 0
 };
@@ -2942,6 +2946,11 @@ document.getElementById("cmLegendTitle").addEventListener("input", function(e){ 
 // than silently reverting it.
 function syncBarLegendTitle(){
   if(chartType !== "bar" || legendTitleTouched) return;
+  if(series.length === 1){
+    style.legendTitle = "";
+    document.getElementById("cmLegendTitle").value = "";
+    return;
+  }
   var text = fmtPeriod(toPeriodSel.value);
   style.legendTitle = text;
   document.getElementById("cmLegendTitle").value = text;
@@ -3495,6 +3504,19 @@ function czmBuildSVGSnapshot(theme, forExport){
   }
   var axisBottomY = gm.padT + gm.plotH;
   var bl = czmBottomLayout(false, czmState.srcNote);
+  // "Colour bars by above/below reference line" is opt-in and
+  // deliberately overrides each series' own colour -- that's the whole
+  // point (grouping by value rather than by which series each bar is),
+  // so it's only ever active when explicitly requested via the
+  // checkbox, never a silent default. Ported from Compare's own
+  // Customise & Export, same colors.
+  var useThresholdColor = czmState.refLine.enabled && czmState.thresholdShadeBars;
+  // Every bar gets a tick mark, but with many bars (a single-series
+  // time-series-of-bars can easily run to 50-100+ periods) showing a
+  // text label under every one would overlap into an unreadable mess --
+  // thin to roughly a dozen labels regardless of how many bars there
+  // are, same principle line mode's own tick thinning already applies.
+  var labelStep = Math.max(1, Math.ceil(rows.length / 12));
   rows.forEach(function(r, i){
     var bx = gm.xForIndex(i);
     if(r.value == null){
@@ -3504,10 +3526,13 @@ function czmBuildSVGSnapshot(theme, forExport){
       var by = gm.y(r.value);
       var top = Math.min(by, zeroY);
       var h = Math.max(0.6, Math.abs(by - zeroY));
-      svg.push("<rect x=\'" + (bx - gm.barWidth / 2).toFixed(1) + "\' y=\'" + top.toFixed(1) + "\' width=\'" + gm.barWidth.toFixed(1) + "\' height=\'" + h.toFixed(1) + "\' rx=\'3\' fill=\'" + r.color + "\'/>");
+      var barColor = useThresholdColor
+        ? (r.value >= czmState.refLine.value ? "#348FA7" : "#413D7B")
+        : r.color;
+      svg.push("<rect x=\'" + (bx - gm.barWidth / 2).toFixed(1) + "\' y=\'" + top.toFixed(1) + "\' width=\'" + gm.barWidth.toFixed(1) + "\' height=\'" + h.toFixed(1) + "\' rx=\'3\' fill=\'" + barColor + "\'/>");
     }
     svg.push("<line x1=\'" + bx.toFixed(1) + "\' y1=\'" + axisBottomY + "\' x2=\'" + bx.toFixed(1) + "\' y2=\'" + (axisBottomY + 5) + "\' stroke=\'" + axisColor + "\' stroke-width=\'1.3\'/>");
-    svg.push(czmXAxisLabelSVG(bx, axisBottomY + bl.oLabels, r.country, t.ink2));
+    if(i % labelStep === 0) svg.push(czmXAxisLabelSVG(bx, axisBottomY + bl.oLabels, r.country, t.ink2));
   });
   // Bar mode repurposes "legend title" as a period label (auto-filled
   // with e.g. "Q2 2026" -- see syncBarLegendTitle) since bars don't have
@@ -3811,6 +3836,7 @@ function buildCzmState(){
     showPoints: style.showPoints,
     refLine: style.refLine,
     centerAroundRef: style.centerAroundRef,
+    thresholdShadeBars: style.thresholdShadeBars,
     yStartMode: style.yStartMode, yStartValue: style.yStartValue,
     yScale: style.logScale ? "log" : "linear",
     yTickStepIdx: yTickStepIdx,
@@ -3839,6 +3865,11 @@ function buildSeriesList(){
 // on every render, same as the line view.
 function buildSnapshotRows(){
   var fromV = fromPeriodSel.value, toV = toPeriodSel.value;
+  if(series.length === 1){
+    var only = series[0];
+    var pts = applyTransform(only.rawPoints, only.transform).filter(function(p){ return p.x >= fromV && p.x <= toV; });
+    return pts.map(function(p){ return { country: fmtPeriod(p.x), value: p.y, color: only.color }; });
+  }
   return series.map(function(s){
     var pts = applyTransform(s.rawPoints, s.transform).filter(function(p){ return p.x >= fromV && p.x <= toV; });
     var last = pts.length ? pts[pts.length - 1] : null;
@@ -3863,6 +3894,7 @@ function renderChart(){
   renderColorsPanel();
 
   czmState = buildCzmState();
+  if(chartType === "bar"){ syncBarModeVisibility(); syncBarLegendTitle(); }
   var allVals;
   if(chartType === "bar"){
     SNAPSHOT_ROWS = buildSnapshotRows();
@@ -3891,6 +3923,17 @@ function renderChart(){
   centerToggleEl.disabled = !style.refLine.enabled;
   centerNoteEl.style.display = style.refLine.enabled ? "none" : "";
   if(!style.refLine.enabled && style.centerAroundRef){ style.centerAroundRef = false; centerToggleEl.checked = false; }
+
+  // Threshold-by-value bar colouring is a Bar-mode-only concept -- in
+  // Line mode, colour is what lets you track which series belongs to
+  // which country over time, so recolouring by value there would
+  // destroy that rather than add to it. Same rule Compare's own
+  // Customise & Export applies.
+  var thresholdRowEl = document.getElementById("cmThresholdShadeRow");
+  var thresholdToggleEl = document.getElementById("cmThresholdShadeToggle");
+  var showThreshold = style.refLine.enabled && chartType === "bar";
+  thresholdRowEl.style.display = showThreshold ? "flex" : "none";
+  if(!showThreshold && style.thresholdShadeBars){ style.thresholdShadeBars = false; thresholdToggleEl.checked = false; }
 
   // Y-axis start: unavailable on a log axis (no meaningful zero/fixed
   // floor), moot once centring around a reference line (which already
@@ -4109,7 +4152,13 @@ function syncBarModeVisibility(){
   document.getElementById("cmXTickRow").style.display = isBar ? "none" : "";
   document.getElementById("cmXTickBarNote").style.display = isBar ? "" : "none";
   document.getElementById("cmEventsPanel").style.display = isBar ? "none" : "";
-  document.getElementById("cmChartTypeNote").style.display = isBar ? "" : "none";
+  var noteEl = document.getElementById("cmChartTypeNote");
+  noteEl.style.display = isBar ? "" : "none";
+  if(isBar){
+    noteEl.textContent = series.length === 1
+      ? "With a single metric, Bar shows its full history as a time series of bars, one per period in the selected date range."
+      : "Bar shows each metric's latest value in the selected date range, one bar per metric -- same as Compare's own Bar view, which is a snapshot rather than a chart over time.";
+  }
 }
 document.getElementById("cmChartTypeSeg").querySelectorAll("button").forEach(function(b){
   b.addEventListener("click", function(){
@@ -4122,6 +4171,9 @@ document.getElementById("cmChartTypeSeg").querySelectorAll("button").forEach(fun
 });
 document.getElementById("cmCenterRefToggle").addEventListener("change", function(e){
   style.centerAroundRef = e.target.checked; renderChart();
+});
+document.getElementById("cmThresholdShadeToggle").addEventListener("change", function(e){
+  style.thresholdShadeBars = e.target.checked; renderChart();
 });
 
 /* ---- Y-axis start (ChartMaker-only addition) ---- */
@@ -4404,6 +4456,7 @@ function loadSavedChart(row){
     document.getElementById("cmRefValue").value = style.refLine.value || 0;
     style.logScale = !!snap.logScale; document.getElementById("cmLogToggle").checked = style.logScale;
     style.centerAroundRef = !!snap.centerAroundRef; document.getElementById("cmCenterRefToggle").checked = style.centerAroundRef;
+    style.thresholdShadeBars = !!snap.thresholdShadeBars; document.getElementById("cmThresholdShadeToggle").checked = style.thresholdShadeBars;
     style.yStartMode = snap.yStartMode || "auto"; style.yStartValue = snap.yStartValue || 0;
     document.querySelectorAll("#cmYStartSeg button").forEach(function(b){ b.classList.toggle("active", b.dataset.mode===style.yStartMode); });
     document.getElementById("cmYStartValue").value = style.yStartValue;
@@ -4475,7 +4528,7 @@ saveConfirmBtn.addEventListener("click", function(){
       snapshot: {
         chartTitle: style.chartTitle, yAxisTitle: style.yAxisTitle, legendTitle: style.legendTitle,
         yTitlePos: style.yTitlePos, showFill: style.showFill, showPoints: style.showPoints,
-        refLine: style.refLine, centerAroundRef: style.centerAroundRef, logScale: style.logScale, chartType: chartType,
+        refLine: style.refLine, centerAroundRef: style.centerAroundRef, thresholdShadeBars: style.thresholdShadeBars, logScale: style.logScale, chartType: chartType,
         yStartMode: style.yStartMode, yStartValue: style.yStartValue,
         yTickStepIdx: yTickStepIdx, xTicks: style.xTicks, xLabelAngle: style.xLabelAngle
       }
