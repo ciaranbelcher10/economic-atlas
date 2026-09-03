@@ -32,7 +32,7 @@
 <link href="https://fonts.googleapis.com/css2?family=Nunito+Sans:wght@400;600;700&display=swap" rel="stylesheet">
 <link rel="icon" type="image/png" sizes="32x32" href="favicon-32.png">
 <link rel="apple-touch-icon" href="apple-touch-icon.png">
-<link rel="stylesheet" href="style.css?v=50">
+<link rel="stylesheet" href="style.css?v=51">
 </head>
 <body>
 <nav class="top"><div class="wrap">
@@ -3863,13 +3863,29 @@ function buildSeriesList(){
 // not what "Bar" means anywhere else on the site). Adapts automatically
 // to whatever's currently on the chart since it's rebuilt from `series`
 // on every render, same as the line view.
+var lastBarChartThinned = false;
 function buildSnapshotRows(){
   var fromV = fromPeriodSel.value, toV = toPeriodSel.value;
   if(series.length === 1){
     var only = series[0];
     var pts = applyTransform(only.rawPoints, only.transform).filter(function(p){ return p.x >= fromV && p.x <= toV; });
+    // A long-running single series (decades of quarterly or monthly
+    // data) can easily have 200+ periods -- cramming that many bars
+    // into ~736px of plot width drops each one below ~2px, which
+    // doesn't read as individual bars any more, just a solid mass (and
+    // makes threshold above/below colouring invisible, since adjacent
+    // colours blur together at that density). Thin to a real maximum
+    // bar count that stays legibly bar-shaped, same principle as the
+    // x-axis label thinning below, applied to the bars themselves.
+    var maxBars = 90;
+    lastBarChartThinned = pts.length > maxBars;
+    if(lastBarChartThinned){
+      var step = Math.ceil(pts.length / maxBars);
+      pts = pts.filter(function(p, i){ return i % step === 0 || i === pts.length - 1; });
+    }
     return pts.map(function(p){ return { country: fmtPeriod(p.x), value: p.y, color: only.color }; });
   }
+  lastBarChartThinned = false;
   return series.map(function(s){
     var pts = applyTransform(s.rawPoints, s.transform).filter(function(p){ return p.x >= fromV && p.x <= toV; });
     var last = pts.length ? pts[pts.length - 1] : null;
@@ -3894,10 +3910,10 @@ function renderChart(){
   renderColorsPanel();
 
   czmState = buildCzmState();
-  if(chartType === "bar"){ syncBarModeVisibility(); syncBarLegendTitle(); }
   var allVals;
   if(chartType === "bar"){
     SNAPSHOT_ROWS = buildSnapshotRows();
+    syncBarModeVisibility(); syncBarLegendTitle();
     allVals = SNAPSHOT_ROWS.map(function(r){ return r.value; }).filter(function(v){ return v != null; });
   } else {
     SERIES_LIST = buildSeriesList();
@@ -4156,7 +4172,9 @@ function syncBarModeVisibility(){
   noteEl.style.display = isBar ? "" : "none";
   if(isBar){
     noteEl.textContent = series.length === 1
-      ? "With a single metric, Bar shows its full history as a time series of bars, one per period in the selected date range."
+      ? (lastBarChartThinned
+          ? "With a single metric, Bar shows its history as a time series of bars. This date range has more periods than can be shown as individual bars legibly, so it's sampled down to a representative subset -- narrow the date range to see every period."
+          : "With a single metric, Bar shows its full history as a time series of bars, one per period in the selected date range.")
       : "Bar shows each metric's latest value in the selected date range, one bar per metric -- same as Compare's own Bar view, which is a snapshot rather than a chart over time.";
   }
 }
