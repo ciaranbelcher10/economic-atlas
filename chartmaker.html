@@ -3040,6 +3040,17 @@ function recalcStickyRoom(){
   // and the toggle's own label tells people to turn it off -- don't
   // fight that with a forced min-height there.
   if(window.innerWidth <= 1180){ stickyWrapEl.style.minHeight = ""; return; }
+  // Bug found in testing: measuring "distance down to .cm-stylerow"
+  // WHILE min-height is still set from the previous run measures a
+  // layout that our own previous min-height already inflated (growing
+  // this column also grows .cm-toprow's grid row, which pushes
+  // .cm-stylerow further down the page) -- and since that inflated
+  // distance becomes the next min-height, each ResizeObserver firing
+  // compounded the last one instead of settling, producing a runaway
+  // blank gap. Clearing min-height back to natural BEFORE measuring
+  // means every call measures the same true layout and converges to
+  // the same answer, instead of measuring its own previous mistake.
+  stickyWrapEl.style.minHeight = "";
   var wrapTop = stickyWrapEl.getBoundingClientRect().top + window.scrollY;
   var roomBottom = styleRowEl.getBoundingClientRect().bottom + window.scrollY;
   var room = Math.round(roomBottom - wrapTop);
