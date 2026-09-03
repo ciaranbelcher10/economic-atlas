@@ -1257,18 +1257,19 @@
 .cm-layout.show{display:block;}
 .cm-toprow{display:grid; grid-template-columns:270px 1fr 290px; gap:20px; align-items:start;}
 @media (max-width:1180px){ .cm-toprow{grid-template-columns:1fr;} }
-.cm-chart-sticky-wrap.is-sticky .cm-chartarea{position:sticky; top:16px; z-index:5;}
-/* This column's box is the sticky element's containing block, and
-   position:sticky only has room to visibly "stick" for as long as that
-   box is taller than the sticky child itself. Stretching to the tallest
-   top-row sibling (the old approach) isn't reliable -- with few metrics
-   the chart is often the tallest of the three columns already, giving
-   zero slack. The real room comes from the JS-computed min-height set
-   in recalcStickyRoom() (see the sticky chart toggle script below),
-   which measures all the way down through the lower control panels.
-   align-self:stretch is kept as a harmless floor for the common case
-   where the Metrics sidebar genuinely is taller. */
-.cm-chart-sticky-wrap{ align-self: stretch; }
+/* Two earlier approaches both reserved dead space to give position:sticky
+   "room" to float into (stretching to the tallest sibling, then a
+   JS-measured min-height) -- both leave a visible blank gap at rest,
+   because that reserved room sits empty until you actually scroll into
+   it. Replaced with a real pin/land mechanism instead (see pinChart()
+   in the sticky chart script below): the wrap takes zero extra space
+   while idle, JS switches the chart to position:fixed only while
+   actively scrolling through the space below it, and lands it back in
+   normal flow once it reaches the bottom of the lower control panels.
+   No CSS sticky positioning or stretch/min-height hack needed any more. */
+.cm-chart-sticky-wrap{ position: relative; }
+.cm-chartarea.cm-pinned{ position: fixed; top: 16px; z-index: 5; }
+.cm-chartarea.cm-landed{ position: absolute; z-index: 5; }
 .cm-stickytoggle{display:flex; align-items:center; gap:8px; margin-top:14px; font-size:12.5px; color:var(--ink2);}
 .cm-stickytoggle input{width:16px; height:16px; accent-color:var(--navy); cursor:pointer;}
 .cm-layout, .cm-layout input, .cm-layout select, .cm-layout button, .cm-layout textarea{
@@ -3013,57 +3014,129 @@ document.getElementById("cmThemeSeg").querySelectorAll("button").forEach(functio
 });
 
 /* ---- sticky chart toggle ---- */
+// Third attempt at this, so the reasoning is worth spelling out. Both
+// earlier approaches (stretch-to-tallest-sibling, then a JS-measured
+// min-height) tried to give position:sticky "room" to float into by
+// reserving that room as real, empty box height -- which is visible as
+// a blank gap at rest, before you've scrolled into it (the bug just
+// reported). The min-height version also had a feedback loop: writing
+// its own measurement back as height moved the thing it was measuring
+// next time, so it compounded instead of settling.
+//
+// This version reserves no extra space at all. Instead it explicitly
+// pins the chart to position:fixed only while the page is scrolled
+// through the "travel zone" between (a) the chart's natural resting
+// position and (b) the bottom of the lower control panels, and lands
+// it back into normal, unreserved flow outside that zone. Three states:
+//   idle   -- above the travel zone: chart sits in normal document flow
+//   pinned -- inside the travel zone: position:fixed, top:16px
+//   landed -- past the travel zone: position:absolute, resting at the
+//             bottom of its travel range so it scrolls away with the
+//             rest of the page from that point rather than overlapping
+//             the lower panels
 var stickyWrapEl = document.getElementById("cmChartStickyWrap");
+var stickyChartAreaEl = document.querySelector(".cm-chart-sticky-wrap .cm-chartarea");
 var stickyToggleEl = document.getElementById("cmStickyToggle");
-if(stickyToggleEl){
-  stickyToggleEl.addEventListener("change", function(){
-    stickyWrapEl.classList.toggle("is-sticky", stickyToggleEl.checked);
-  });
+var stickyEnabled = !!(stickyToggleEl && stickyToggleEl.checked);
+var stickyMetrics = null; // {pinStartY, landY, chartHeight, wrapLeft, wrapWidth}
+var stickyRafPending = false;
+
+function unpinChart(){
+  if(!stickyChartAreaEl) return;
+  stickyChartAreaEl.classList.remove("cm-pinned", "cm-landed");
+  stickyChartAreaEl.style.top = "";
+  stickyChartAreaEl.style.left = "";
+  stickyChartAreaEl.style.width = "";
+  if(stickyWrapEl) stickyWrapEl.style.height = "";
 }
 
-// The previous approach (stretching this column to match whichever
-// top-row sibling is tallest) assumed the Metrics sidebar would usually
-// be taller than the chart. With only 1-2 metrics -- the common case --
-// the chart column IS the tallest of the three, so that stretch gave
-// the wrap back exactly its own height: zero slack for position:sticky
-// to actually stick into, regardless of the toggle. The real amount of
-// "room" a sticky chart should have is the full distance down to the
-// bottom of the lower control panels (Chart style / Reference & scale /
-// Date range / Event lines), not just its own top-row siblings -- so
-// measure that directly and set it as an explicit min-height, recomputed
-// whenever the layout's content changes size (adding/removing a metric,
-// an event line, opening the palette modal, etc).
-function recalcStickyRoom(){
+// Measures the natural (unpinned) layout. Must run with the chart
+// temporarily unpinned, or it would measure a layout already distorted
+// by fixed/absolute positioning from a previous pass.
+function measureStickyMetrics(){
+  if(!stickyWrapEl || !stickyChartAreaEl) { stickyMetrics = null; return; }
   var styleRowEl = document.querySelector(".cm-stylerow");
-  if(!stickyWrapEl || !styleRowEl) return;
-  // Below the 1180px breakpoint the layout collapses to a single column
-  // and the toggle's own label tells people to turn it off -- don't
-  // fight that with a forced min-height there.
-  if(window.innerWidth <= 1180){ stickyWrapEl.style.minHeight = ""; return; }
-  // Bug found in testing: measuring "distance down to .cm-stylerow"
-  // WHILE min-height is still set from the previous run measures a
-  // layout that our own previous min-height already inflated (growing
-  // this column also grows .cm-toprow's grid row, which pushes
-  // .cm-stylerow further down the page) -- and since that inflated
-  // distance becomes the next min-height, each ResizeObserver firing
-  // compounded the last one instead of settling, producing a runaway
-  // blank gap. Clearing min-height back to natural BEFORE measuring
-  // means every call measures the same true layout and converges to
-  // the same answer, instead of measuring its own previous mistake.
-  stickyWrapEl.style.minHeight = "";
-  var wrapTop = stickyWrapEl.getBoundingClientRect().top + window.scrollY;
-  var roomBottom = styleRowEl.getBoundingClientRect().bottom + window.scrollY;
-  var room = Math.round(roomBottom - wrapTop);
-  var next = Math.max(room, 0) + "px";
-  if(stickyWrapEl.style.minHeight !== next) stickyWrapEl.style.minHeight = next;
+  if(!styleRowEl || window.innerWidth <= 1180){
+    // Below the 1180px breakpoint the layout collapses to a single
+    // column and the toggle's own label tells people to turn it off --
+    // don't fight that with pinning there.
+    stickyMetrics = null;
+    return;
+  }
+  var wasPinned = stickyChartAreaEl.classList.contains("cm-pinned");
+  var wasLanded = stickyChartAreaEl.classList.contains("cm-landed");
+  if(wasPinned || wasLanded) unpinChart();
+
+  var wrapRect = stickyWrapEl.getBoundingClientRect();
+  var chartRect = stickyChartAreaEl.getBoundingClientRect();
+  var wrapDocTop = wrapRect.top + window.scrollY;
+  var chartHeight = chartRect.height;
+  var stopTop = styleRowEl.getBoundingClientRect().top + window.scrollY;
+
+  stickyMetrics = {
+    pinStartY: wrapDocTop - 16,
+    // Land the instant the pinned chart's bottom edge would first touch
+    // the top of the lower control panels -- not their bottom. Using
+    // the bottom (my first pass at this) would let the fixed chart
+    // visually cover the whole Chart style / Reference & scale / Date
+    // range / Event lines section while scrolling through it, blocking
+    // those controls the entire time instead of clearing out of the way.
+    landY: stopTop - 16 - chartHeight,
+    chartHeight: chartHeight,
+    wrapLeft: wrapRect.left,
+    wrapWidth: wrapRect.width
+  };
+
+  if(wasPinned || wasLanded) applyStickyState();
 }
-window.addEventListener("resize", recalcStickyRoom);
-window.addEventListener("load", recalcStickyRoom);
+
+function applyStickyState(){
+  if(!stickyEnabled || !stickyMetrics || !stickyChartAreaEl){ unpinChart(); return; }
+  var y = window.scrollY;
+  if(y < stickyMetrics.pinStartY){
+    unpinChart();
+  } else if(y < stickyMetrics.landY){
+    stickyChartAreaEl.classList.remove("cm-landed");
+    stickyChartAreaEl.classList.add("cm-pinned");
+    stickyChartAreaEl.style.left = stickyMetrics.wrapLeft + "px";
+    stickyChartAreaEl.style.width = stickyMetrics.wrapWidth + "px";
+    stickyChartAreaEl.style.top = "16px";
+    stickyWrapEl.style.height = stickyMetrics.chartHeight + "px";
+  } else {
+    stickyChartAreaEl.classList.remove("cm-pinned");
+    stickyChartAreaEl.classList.add("cm-landed");
+    stickyChartAreaEl.style.left = "0";
+    stickyChartAreaEl.style.width = "100%";
+    stickyChartAreaEl.style.top = (stickyMetrics.landY - stickyMetrics.pinStartY) + "px";
+    stickyWrapEl.style.height = stickyMetrics.chartHeight + "px";
+  }
+}
+
+function onStickyScroll(){
+  if(stickyRafPending) return;
+  stickyRafPending = true;
+  requestAnimationFrame(function(){ stickyRafPending = false; applyStickyState(); });
+}
+
+function recalcSticky(){
+  measureStickyMetrics();
+  applyStickyState();
+}
+
+if(stickyToggleEl){
+  stickyToggleEl.addEventListener("change", function(){
+    stickyEnabled = stickyToggleEl.checked;
+    recalcSticky();
+  });
+}
+window.addEventListener("scroll", onStickyScroll, { passive: true });
+window.addEventListener("resize", recalcSticky);
+window.addEventListener("load", recalcSticky);
 if(window.ResizeObserver){
   var cmWrapEl = document.querySelector(".cm-wrap");
-  if(cmWrapEl) new ResizeObserver(recalcStickyRoom).observe(cmWrapEl);
+  if(cmWrapEl) new ResizeObserver(recalcSticky).observe(cmWrapEl);
 }
-recalcStickyRoom();
+recalcSticky();
 
 /* ---- event lines & arrows ---- */
 function addAnnotation(){
