@@ -21,7 +21,7 @@
 <meta property="og:image" content="https://theeconomicatlas.com/og-image.png">
 <meta property="og:image:width" content="1200">
 <meta property="og:image:height" content="630">
-<meta property="og:image:alt" content="The Economic Atlas -- hourly economic data, no commentary.">
+<meta property="og:image:alt" content="The Economic Atlas, hourly economic data, no commentary.">
 <meta name="twitter:card" content="summary_large_image">
 <meta name="twitter:title" content="Compare Countries · The Economic Atlas">
 <meta name="twitter:description" content="Compare GDP growth, inflation, unemployment, debt and policy rates across dozens of economies at once, with real historical data.">
@@ -451,7 +451,7 @@ footer.cmp-foot{margin-top:36px; font-size:12.5px; color:var(--ink2); border-top
 <div class="wrap" style="padding-top:16px;">
   <div class="savebar" id="alertBanner" hidden>
     <span class="savebar-icon" aria-hidden="true">&#128276;</span>
-    <p>Want to know when new countries, indicators or features land? <a href="roadmap#alertSignupBox" style="color:inherit; text-decoration:underline;">Leave your email</a> -- no account needed.</p>
+    <p>Want to know when new countries, indicators or features land? <a href="roadmap#alertSignupBox" style="color:inherit; text-decoration:underline;">Leave your email</a>, no account needed.</p>
     <button type="button" class="savebar-close" id="alertBannerClose" aria-label="Dismiss">&times;</button>
   </div>
   <div class="savebar" id="trialBanner" hidden>
@@ -536,7 +536,7 @@ footer.cmp-foot{margin-top:36px; font-size:12.5px; color:var(--ink2); border-top
     <p class="modal-sub">Your account includes:</p>
     <ul style="margin:0 0 20px; padding-left:20px; line-height:1.9; font-size:14.5px;">
       <li><strong>Unlimited data downloads</strong>, on any chart, any country</li>
-      <li><strong>Unlimited Customise &amp; export</strong> -- annotate, style and export any chart as an image</li>
+      <li><strong>Unlimited Customise &amp; export</strong>, annotate, style and export any chart as an image</li>
     </ul>
     <button type="button" class="btn" id="welcomeProGotIt" style="width:100%;">Got it</button>
   </div>
@@ -728,7 +728,7 @@ footer.cmp-foot{margin-top:36px; font-size:12.5px; color:var(--ink2); border-top
       authToggleRow.appendChild(wireToggleBtn("Sign up", "signup"));
     } else {
       authModalTitle.textContent = "Sign up";
-      authModalSub.textContent = "Free, for now -- this may change in future.";
+      authModalSub.textContent = "Free, for now, this may change in future.";
       authSubmitBtn.textContent = "Sign up";
       authToggleRow.textContent = "Already have an account? ";
       authToggleRow.appendChild(wireToggleBtn("Log in", "login"));
@@ -945,7 +945,7 @@ footer.cmp-foot{margin-top:36px; font-size:12.5px; color:var(--ink2); border-top
       btn.onclick = null; // ignore clicks mid-download rather than re-trigger
       // The actual CSV build + browser download hand-off is effectively
       // instant, but that means "Downloading..." would otherwise flash
-      // for a single frame -- this is about giving visible feedback for
+      // for a single frame, this is about giving visible feedback for
       // an action that's real but too fast to actually see, not about
       // timing anything genuinely slow.
       setTimeout(function(){
@@ -955,7 +955,7 @@ footer.cmp-foot{margin-top:36px; font-size:12.5px; color:var(--ink2); border-top
         btn.classList.add("dl-success");
         setButtonLabel(btn, "Downloaded \u2713");
         // Re-derive the real state after the brief "Downloaded" flash,
-        // rather than assuming "unlocked" -- a credits-balance download
+        // rather than assuming "unlocked", a credits-balance download
         // that just spent its last 50p should land back on the locked
         // state, not stay looking unlocked.
         setTimeout(function(){ applyState(entry); }, 1600);
@@ -974,7 +974,7 @@ footer.cmp-foot{margin-top:36px; font-size:12.5px; color:var(--ink2); border-top
       // shows a distinct "using credit" state for the brief gap between
       // them, rather than jumping straight to "Downloading...".
       // A confirm step happens first (before any charge), and an explicit
-      // charged/balance alert happens right after -- the site's paid tier
+      // charged/balance alert happens right after, the site's paid tier
       // is the representation/tooling, not the underlying data, so being
       // unambiguous about exactly what's being charged matters here.
       var currentBalance = prefs ? prefs.getCreditsBalance() : 0;
@@ -993,7 +993,7 @@ footer.cmp-foot{margin-top:36px; font-size:12.5px; color:var(--ink2); border-top
         if(window.EATLAS_ACCOUNT) window.EATLAS_ACCOUNT.render();
         if(!ok){
           // Balance changed since this button was last rendered (spent
-          // elsewhere, another tab) -- reflect the real state instead of
+          // elsewhere, another tab), reflect the real state instead of
           // pretending the download happened.
           applyState(entry);
           return;
@@ -1032,7 +1032,7 @@ footer.cmp-foot{margin-top:36px; font-size:12.5px; color:var(--ink2); border-top
       }
       // Logged in, not Pro, no credits left: locked, but a different
       // Unreachable under the current isPro() override (every logged-in
-      // account is treated as Pro, so this branch never fires) -- kept
+      // account is treated as Pro, so this branch never fires), kept
       // as a safe fallback with no payment language, not deleted, so
       // the branch still degrades sensibly if that override is ever
       // reverted.
@@ -1056,16 +1056,16 @@ footer.cmp-foot{margin-top:36px; font-size:12.5px; color:var(--ink2); border-top
       applyState(entry);
     }
     return {
-      // pts: array of [date, value] pairs -- a single time series.
+      // pts: array of [date, value] pairs, a single time series.
       wire: function(btn, pts, title){ register(btn, "series", pts, title); },
-      // rows: array of {country, date, value} -- a cross-country comparison.
+      // rows: array of {country, date, value}, a cross-country comparison.
       wireMulti: function(btn, rows, title){ register(btn, "multi", rows, title); },
       setAuthState: function(isLoggedIn){
         loggedIn = isLoggedIn;
         wired.forEach(applyState);
       },
       // Called from EATLAS_PREFS.onSettled once Pro/credits status is
-      // actually known -- setAuthState() alone fires as soon as login
+      // actually known, setAuthState() alone fires as soon as login
       // state resolves, which is often before that fetch completes, so
       // this is what applies the real (not just logged-in) state.
       refreshEntitlement: function(){
@@ -1550,7 +1550,7 @@ footer.cmp-foot{margin-top:36px; font-size:12.5px; color:var(--ink2); border-top
     <button type="button" class="savebar-close" id="saveBarClose" aria-label="Dismiss">&times;</button>
   </div>
   <h1 style="font-size:28px; letter-spacing:-.01em; margin-bottom:6px;">Compare Countries</h1>
-  <p style="color:var(--ink2); font-size:14.5px; margin:8px 0 0;">Compare any of the 18 tracked countries across GDP, inflation, unemployment, debt, trade, rates and more -- side by side, for one year or over the last 1, 2, 5 or 10 years.</p>
+  <p style="color:var(--ink2); font-size:14.5px; margin:8px 0 0;">Compare any of the 18 tracked countries across GDP, inflation, unemployment, debt, trade, rates and more, side by side, for one year or over the last 1, 2, 5 or 10 years.</p>
   <p class="loadmsg" id="loadMsg">Loading every country&#39;s data&hellip;</p>
   <div id="mainContent" style="display:none; position:relative;">
   <button type="button" id="countriesToggleBtn" style="display:block; width:100%; text-align:center;
@@ -1610,7 +1610,7 @@ footer.cmp-foot{margin-top:36px; font-size:12.5px; color:var(--ink2); border-top
     </div>
   </div>
   <footer class="cmp-foot">
-    Figures: ONS, FRED, Eurostat, e-Stat/Bank of Japan, MoSPI, Bank of Korea and OECD, the same sources already cited on each country&#39;s own page. Every figure on this page is anchored to a specific calendar year -- in <strong>Point in time</strong> mode, that's whichever year the slider is set to; in <strong>Change over time</strong> mode, it's the change between the two years the slider spans. Where a metric is published more often than annually, the year's figure is the average of that year's real observations, not a single point-in-time reading. GDP growth over a change window shows total real growth across that period, compounded from each country's own real GDP level. A slower annual-only metric like FDI, current account or the government deficit can show "n/a" for a given year if its own latest published figure hasn't caught up yet -- that's a real, honest gap in the underlying data's timing, not a missing figure or a bug. Currency-denominated figures (GDP, government debt, trade) are converted to US dollars at today's exchange rate so every country is shown in the same unit in Point in time mode; a Change over time window is shown as a % instead, which doesn't need converting since the ratio is the same in any currency. Morocco has no live exchange-rate source for the dirham, so its currency figures show "n/a" rather than a converted guess. Historical lines (Line view) are also converted to USD at today's rate throughout, so older years are an approximation. The Eurozone doesn't appear on any card's map, since it isn&#39;t a single country UN Comtrade or world-atlas can plot; it still appears in every chart and table above. <a href="privacy">Privacy</a> &middot; <a href="terms">Terms</a> <span id="tourReplayWrap">&middot; <button type="button" id="tourReplayLink">Take the tour</button></span>
+    Figures: ONS, FRED, Eurostat, e-Stat/Bank of Japan, MoSPI, Bank of Korea and OECD, the same sources already cited on each country&#39;s own page. Every figure on this page is anchored to a specific calendar year, in <strong>Point in time</strong> mode, that's whichever year the slider is set to; in <strong>Change over time</strong> mode, it's the change between the two years the slider spans. Where a metric is published more often than annually, the year's figure is the average of that year's real observations, not a single point-in-time reading. GDP growth over a change window shows total real growth across that period, compounded from each country's own real GDP level. A slower annual-only metric like FDI, current account or the government deficit can show "n/a" for a given year if its own latest published figure hasn't caught up yet, that's a real, honest gap in the underlying data's timing, not a missing figure or a bug. Currency-denominated figures (GDP, government debt, trade) are converted to US dollars at today's exchange rate so every country is shown in the same unit in Point in time mode; a Change over time window is shown as a % instead, which doesn't need converting since the ratio is the same in any currency. Morocco has no live exchange-rate source for the dirham, so its currency figures show "n/a" rather than a converted guess. Historical lines (Line view) are also converted to USD at today's rate throughout, so older years are an approximation. The Eurozone doesn't appear on any card's map, since it isn&#39;t a single country UN Comtrade or world-atlas can plot; it still appears in every chart and table above. <a href="privacy">Privacy</a> &middot; <a href="terms">Terms</a> <span id="tourReplayWrap">&middot; <button type="button" id="tourReplayLink">Take the tour</button></span>
   </footer>
   </div>
 </div>
@@ -1892,7 +1892,7 @@ var SOURCE_MAP = {
     fdi: "World Bank · % of GDP, annual.",
     gdp_growth: "FRED series NGDPRNSAXDCARQ · IMF International Financial Statistics, quarterly, not seasonally adjusted.",
     gdp_level: "FRED series NGDPSAXDCARQ · IMF International Financial Statistics, trailing 4-quarter sum, seasonally adjusted (falls back to World Bank current US$, annual, only if the live ARS series is unavailable on a given run).",
-    gdp_real: "FRED series NGDPRNSAXDCARQ · IMF International Financial Statistics, quarterly, NOT seasonally adjusted (no seasonally-adjusted version was confirmed available for Argentina, unlike most other pages here -- large regular swings between quarters partly reflect seasonal patterns, not just the underlying trend).",
+    gdp_real: "FRED series NGDPRNSAXDCARQ · IMF International Financial Statistics, quarterly, NOT seasonally adjusted (no seasonally-adjusted version was confirmed available for Argentina, unlike most other pages here, large regular swings between quarters partly reflect seasonal patterns, not just the underlying trend).",
     trade_balance: "OECD · merchandise trade, monthly.",
     unemployment: "World Bank SL.UEM.TOTL.ZS · modeled ILO estimate, % of total labour force, annual.",
   },
@@ -2012,13 +2012,13 @@ var SOURCE_MAP = {
     debt_gdp: "FRED series GGGDTAEZA188N · IMF, general government, annual.",
     deficit: "FRED series GGNLBAEZA188N · IMF, net lending/borrowing, annual.",
     ecb_rate: "FRED series ECBDFR · end-of-month value.",
-    exports: "Prefers a live Eurostat ext_st feed -- falls back to FRED series XTEXVA01EZM667S (OECD, discontinued April 2023) only if the live feed is unavailable on a given run.",
+    exports: "Prefers a live Eurostat ext_st feed, falls back to FRED series XTEXVA01EZM667S (OECD, discontinued April 2023) only if the live feed is unavailable on a given run.",
     fdi: "World Bank · FDI net inflows, % of GDP, annual, euro-area aggregate.",
     gdp_growth: "Calculated from FRED series CLVMEURSCAB1GQEA19 (Eurostat).",
     gdp_level: "FRED series CPMNACSCAB1GQEA19 · Eurostat, EA19 aggregate, nominal, rolling four-quarter sum.",
     gdp_real: "FRED series CLVMEURSCAB1GQEA19 · Eurostat, EA19 aggregate, quarterly.",
-    imports: "Prefers a live Eurostat ext_st feed -- falls back to FRED series XTIMVA01EZM667S (OECD, discontinued April 2023) only if the live feed is unavailable on a given run.",
-    trade_balance: "Prefers a live Eurostat ext_st feed (extra-euro-area goods trade) -- falls back to an OECD-mirrored series that was confirmed discontinued in April 2023 only if the live feed is unavailable on a given run.",
+    imports: "Prefers a live Eurostat ext_st feed, falls back to FRED series XTIMVA01EZM667S (OECD, discontinued April 2023) only if the live feed is unavailable on a given run.",
+    trade_balance: "Prefers a live Eurostat ext_st feed (extra-euro-area goods trade), falls back to an OECD-mirrored series that was confirmed discontinued in April 2023 only if the live feed is unavailable on a given run.",
     unemployment: "FRED series LRHUTTTTEZM156S · OECD, seasonally adjusted.",
   },
   "France": {
@@ -2224,7 +2224,7 @@ var SOURCE_MAP = {
     current_account: "World Bank · % of GDP, annual.",
     debt_gdp: "FRED series DEBTTLSGA188A · World Bank World Development Indicators, central government debt, % of GDP, annual.",
     fdi: "World Bank · % of GDP, annual.",
-    gdp_growth: "FRED series SGPNGDPRPCPPPT · IMF Asia and Pacific Regional Economic Outlook, annual, % change. Genuinely confirmed live and updated through 2026 -- unlike several other series in the same IMF REO family for Singapore (domestic demand, exports volume, general-government debt), which are stale 2019-vintage projections and were deliberately excluded from this build rather than used.",
+    gdp_growth: "FRED series SGPNGDPRPCPPPT · IMF Asia and Pacific Regional Economic Outlook, annual, % change. Genuinely confirmed live and updated through 2026, unlike several other series in the same IMF REO family for Singapore (domestic demand, exports volume, general-government debt), which are stale 2019-vintage projections and were deliberately excluded from this build rather than used.",
     gdp_level: "World Bank NY.GDP.MKTP.CN.AD · GDP, current prices, linked series, local currency units, annual (falls back to World Bank NY.GDP.MKTP.CD, current US$, only if the SGD linked series is unavailable this run).",
     trade_balance: "OECD · merchandise trade, monthly.",
     unemployment: "World Bank SL.UEM.TOTL.ZS · modeled ILO estimate, % of total labour force, annual.",
@@ -2296,10 +2296,10 @@ var SOURCE_MAP = {
     debt_gdp: "FRED series DEBTTLCHA188A · World Bank World Development Indicators, central government debt, % of GDP, annual.",
     fdi: "World Bank · % of GDP, annual.",
     gdp_growth: "FRED series CLVMNACSAB1GQCH · Eurostat, quarterly, quarter-on-quarter.",
-    gdp_level: "World Bank NY.GDP.MKTP.CD · current US$, annual -- this is the only live source for Switzerland's nominal GDP, so it's shown in its native currency (USD) rather than converted.",
+    gdp_level: "World Bank NY.GDP.MKTP.CD · current US$, annual, this is the only live source for Switzerland's nominal GDP, so it's shown in its native currency (USD) rather than converted.",
     gdp_real: "FRED series CLVMNACSAB1GQCH · Eurostat, quarterly, seasonally adjusted. Switzerland is not an EU member but this series is Eurostat-sourced via a bilateral data-sharing arrangement, unlike the IMF IFS series used for most other non-EU pages on this site.",
     trade_balance: "OECD · merchandise trade, monthly.",
-    unemployment: "FRED series LRUNTTTTCHQ156S · OECD, seasonally adjusted, quarterly. Note: the LRHUTTTT-prefixed series used on most other pages here is explicitly marked discontinued for Switzerland -- this is the OECD's replacement series.",
+    unemployment: "FRED series LRUNTTTTCHQ156S · OECD, seasonally adjusted, quarterly. Note: the LRHUTTTT-prefixed series used on most other pages here is explicitly marked discontinued for Switzerland, this is the OECD's replacement series.",
   },
   "Thailand": {
     business_confidence: "OECD · Business Confidence Indicator (BCICP), amplitude-adjusted, long-term average = 100.",
@@ -2596,14 +2596,14 @@ function openInfoPopover(btn, concept){
       var src = metricSourceNote(c, concept);
       var row = document.createElement("p");
       row.className = "infoPopoverSrcRow";
-      row.innerHTML = "<strong>" + c + ":</strong> " + (src || "not tracked for this country -- see the " + c + " page for what is available.");
+      row.innerHTML = "<strong>" + c + ":</strong> " + (src || "not tracked for this country, see the " + c + " page for what is available.");
       listEl.appendChild(row);
     });
   }
   var caveatEl = el.querySelector(".infoPopoverCaveat");
   var isCurrency = CONCEPT_UNIT[concept] === "currency";
   caveatEl.textContent = isCurrency
-    ? "Different countries' statistics agencies publish this on different schedules and with different revision practices. Currency figures shown here are converted to USD -- see each card's own methodology note above its chart for exactly how."
+    ? "Different countries' statistics agencies publish this on different schedules and with different revision practices. Currency figures shown here are converted to USD, see each card's own methodology note above its chart for exactly how."
     : "Different countries' statistics agencies publish this on different schedules and with different revision practices, so treat cross-country comparisons as broadly indicative rather than perfectly like-for-like.";
   el.hidden = false;
   var rect = btn.getBoundingClientRect();
@@ -2695,7 +2695,7 @@ function freshnessTitle(series){
   var last = series.points[series.points.length - 1][0];
   var age = (Date.now() - periodEnd(last).getTime()) / 86400000;
   if(age <= (STALE_DAYS[series.freq] || 90)) return "Latest version of the data is live";
-  return "Data may be outdated -- awaiting next update (last published " + fmtPeriod(last) + ")";
+  return "Data may be outdated, awaiting next update (last published " + fmtPeriod(last) + ")";
 }
 // concept-aware wrapper: gdp_growth has no raw series of its own here
 // (derived from gdp_real), everything else resolves via resolveKey the
@@ -3486,7 +3486,7 @@ function buildBarChart(canvas, concept){
   var yearInProgress = !isDelta && firstReal.year >= new Date().getFullYear();
   var horizonNote = isCumulative ? "Cumulative % change from " + firstReal.year + " to " + firstReal.endYear + "."
     : isDelta ? "Change from " + firstReal.year + " to " + firstReal.endYear + "."
-    : yearInProgress ? "Latest available reading for " + firstReal.year + " so far -- the year isn't complete yet."
+    : yearInProgress ? "Latest available reading for " + firstReal.year + " so far, the year isn't complete yet."
     : "Figure for " + firstReal.year + ", averaged across the year's real observations where more than one exists.";
   var titleSuffix = isCumulative ? " (cumulative change)" : isDelta ? " (change)" : "";
   var chart = new Chart(canvas, {
@@ -3954,7 +3954,7 @@ function fillCardChart(card, concept){
     }
     titleEl.textContent = CONCEPT_LABEL[concept] + " (over time)";
     explEl.textContent = CONCEPT_EXPLAINER[concept] + " Full published history, for each selected country that tracks it." +
-      (lineResult.isCurrencyMetric ? " Converted to USD at today's exchange rate throughout, including older years, since historical rates aren't available -- treat older figures as an approximation." : "");
+      (lineResult.isCurrencyMetric ? " Converted to USD at today's exchange rate throughout, including older years, since historical rates aren't available, treat older figures as an approximation." : "");
     charts[concept] = lineResult.chart;
     card.querySelector("#rankSub").textContent = "Latest available value per country.";
     renderLineRankList(rankBody, concept, lineResult.datasets, lineResult.chart);
@@ -4749,7 +4749,7 @@ window.EATLAS_COMPARE = {
   // estTextWidth's 0.56/char factor is tuned to be safely conservative
   // for short label text (axis ticks, legend entries) but runs noticeably
   // wide for long lowercase-heavy prose like source notes, where real
-  // rendered width averages closer to 0.5em/char -- using the wider
+  // rendered width averages closer to 0.5em/char, using the wider
   // factor here was truncating source notes well before they'd actually
   // reach the watermark, leaving visible empty space. A narrower,
   // prose-tuned estimate (still applied identically to both sides of the
@@ -4777,7 +4777,7 @@ window.EATLAS_COMPARE = {
       if(estProseWidth(candidate, 11) > line1MaxW) break;
       line1 = candidate;
     }
-    if(!line1){ // single word already exceeds the line -- fall back to char-truncation
+    if(!line1){ // single word already exceeds the line, fall back to char-truncation
       var t0 = text;
       while(t0.length > 1 && estProseWidth(t0 + "\u2026", 11) > line1MaxW){ t0 = t0.slice(0, -1); }
       return [t0 + "\u2026"];
@@ -4833,7 +4833,7 @@ window.EATLAS_COMPARE = {
     raw.sort(function(a, b){ return b - a; });
     // Count ticks the SAME way the axis actually renders them (via
     // niceTicksFromStep against the real rawMin/rawMax), not via a
-    // formula estimate off the rounded 'range' -- an estimate-based
+    // formula estimate off the rounded 'range', an estimate-based
     // count can still under/over-count relative to what actually
     // renders (rounding rawMin/rawMax up/down to the nearest step can
     // add a tick the formula didn't predict), which silently let
@@ -4844,7 +4844,7 @@ window.EATLAS_COMPARE = {
     }).filter(function(c){ return c.n >= 2 && c.n <= 15; })
       // A step several orders of magnitude too large for the actual
       // data (e.g. a step of 10,000 for a series spanning -2 to 6) can
-      // still innocently pass the n>=2/n<=15 count filter -- rounding
+      // still innocently pass the n>=2/n<=15 count filter, rounding
       // a tiny span up to the nearest huge step naturally lands on a
       // "3 ticks" result even though the resulting axis (-10,000 to
       // 10,000) bears no relation to the real data. Left in, these
@@ -4859,7 +4859,7 @@ window.EATLAS_COMPARE = {
         return niceSpan <= trueSpan * 4;
       });
     // Several large steps (e.g. 1bn, 500m, 100m for a ~4tn range) all
-    // round the same data down to the same "2 ticks" result -- keeping
+    // round the same data down to the same "2 ticks" result, keeping
     // every one of them as a separate index is what caused the original
     // bug in a different guise: clicking + would silently re-select a
     // different step that LOOKS identical because it produces the same
@@ -4885,7 +4885,7 @@ window.EATLAS_COMPARE = {
     return { ticks: ticks, min: niceMin, max: niceMax };
   }
   // Picks the step-candidate index (out of niceStepCandidates()) whose
-  // resulting tick count is closest to targetCount -- used only once,
+  // resulting tick count is closest to targetCount, used only once,
   // to establish a sensible DEFAULT index when the modal first opens
   // for a chart (so it still starts out looking like ~5 ticks), never
   // called again afterwards. From then on the index is just walked
@@ -4910,7 +4910,7 @@ window.EATLAS_COMPARE = {
     }
     candidates = candidates.filter(function(v, i, arr){ return arr.indexOf(v) === i; }).sort(function(a, b){ return a - b; });
     // The axis bounds MUST bracket the true data range, not just the
-    // displayed tick labels -- picking ticks[0] as the axis minimum (the
+    // displayed tick labels, picking ticks[0] as the axis minimum (the
     // earlier version of this function) meant that whenever no nice 1/2/5
     // value happened to land close to the real minimum, the chosen floor
     // could end up ABOVE it, silently clamping every point below that
@@ -6250,7 +6250,7 @@ window.EATLAS_COMPARE = {
       if(!listEl) return;
       listEl.innerHTML = "";
       if(!rows.length){
-        listEl.textContent = "No saved charts yet -- open any metric's Customise & export, then Save chart.";
+        listEl.textContent = "No saved charts yet, open any metric's Customise & export, then Save chart.";
         return;
       }
       rows.forEach(function(row){
@@ -6863,7 +6863,7 @@ window.EATLAS_COMPARE = {
     removeBox();
     var step = TOUR_STEPS[index];
     if(!step || step.page !== THIS_PAGE){
-      if(step) console.log("[EATLAS_TOUR] renderStep() bailed -- step belongs to page '" + step.page + "' but THIS_PAGE is '" + THIS_PAGE + "'.");
+      if(step) console.log("[EATLAS_TOUR] renderStep() bailed, step belongs to page '" + step.page + "' but THIS_PAGE is '" + THIS_PAGE + "'.");
       return; // this step belongs to a page not yet reached/built
     }
     if(!stepVisible(step)){
