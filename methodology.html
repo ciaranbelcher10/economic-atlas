@@ -124,6 +124,7 @@
  <a class="item" href="compare">Compare</a>
  <a class="item" href="dashboard">My Dashboard</a>
  <a class="item" href="chartmaker" id="navChartmakerLink" hidden>Chartmaker</a>
+ <a class="item" href="calendar" id="navCalendarLink" hidden>Calendar</a>
 </div></nav>
 <script>
 // Optimistic Plan-link render: applies whatever we last confirmed about
@@ -1139,6 +1140,14 @@
     // too, not just point at a page that says "log in" once clicked.
     var navChartmakerLink = document.getElementById("navChartmakerLink");
     if(navChartmakerLink) navChartmakerLink.hidden = !(window.EATLAS_PREFS.isPro && window.EATLAS_PREFS.isPro());
+    // Calendar is a genuinely admin-only preview right now (real data,
+    // real fetch scripts written, but only 17 of 32 countries have
+    // confirmed dates and several fetch scripts are still untested
+    // against the live internet) -- gated on isAdmin() specifically,
+    // not isPro(), the same way Chartmaker itself was gated before it
+    // was reviewed and promoted (see chartmaker.html's own history).
+    var navCalendarLink = document.getElementById("navCalendarLink");
+    if(navCalendarLink) navCalendarLink.hidden = !(window.EATLAS_PREFS.isAdmin && window.EATLAS_PREFS.isAdmin());
     window.EATLAS_ACCOUNT.render();
     window.EATLAS_DOWNLOAD.refreshEntitlement();
     window.EATLAS_CUSTOMIZE.refreshEntitlement();
