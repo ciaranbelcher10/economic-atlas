@@ -54,17 +54,34 @@ RELEASE_DATE_RE = re.compile(
     r"Release date:\s*(\d{1,2} [A-Za-z]+ \d{4})\s*([\d:]+(?:am|pm))?", re.I)
 
 
-def month_year_slugs(months_ahead: int = 4) -> list[str]:
-    """e.g. ['september2026', 'october2026', ...] starting this month."""
+def month_year_slugs() -> list[str]:
+    """Real bug found by testing this script against live pages after
+    the first workflow run: ONS's slug-month convention is NOT
+    consistent across bulletins. The GDP monthly estimate slug uses
+    the DATA's reference month (confirmed live: the bulletin due out
+    11 September 2026 lives at .../gdpmonthlyestimateukjuly2026, a
+    2-month lag), while the CPI bulletin slug uses the RELEASE month
+    itself (confirmed live: the release due 16 September 2026, covering
+    August data, lives at .../consumerpriceinflationukseptember2026,
+    zero lag). The original version of this function only ever guessed
+    forward from the current month, so it could find CPI's slug but
+    could never find GDP's, since july2026 is chronologically behind
+    today -- which is exactly why the first real run returned zero UK
+    events. Rather than hardcode a per-bulletin offset (fragile, and
+    the labour market bulletin's own convention hasn't been separately
+    confirmed), this tries a wide window covering both known
+    conventions with margin either side."""
     now = datetime.now(timezone.utc)
     out = []
-    y, m = now.year, now.month
-    for _ in range(months_ahead):
-        out.append(f"{MONTH_NAMES[m - 1]}{y}")
+    y, m = now.year, now.month - 3
+    while y < now.year or (y == now.year and m <= now.month + 3):
+        yy, mm = y, m
+        while mm < 1:
+            mm += 12; yy -= 1
+        while mm > 12:
+            mm -= 12; yy += 1
+        out.append(f"{MONTH_NAMES[mm - 1]}{yy}")
         m += 1
-        if m > 12:
-            m = 1
-            y += 1
     return out
 
 

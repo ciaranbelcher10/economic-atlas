@@ -1732,6 +1732,122 @@ function initCalendar(){
   initedOnce = true;
   wireCalendarInteractions();
   renderAll();
+  loadLiveCalendarData();
+}
+
+/* ============================================================
+   Live data wiring, added after the first real workflow run
+   (2026-09-04). Found on inspecting the actual output, not assumed
+   correct just because the scripts didn't error:
+     - US: the "fomc" concept came back with 119 dates in a ~120 day
+       window (should be ~2-3) -- fetch_calendar_us.py's FRED release-id
+       lookup for "FOMC Press Release" is matching the wrong release.
+       Real bug, not yet fixed.
+     - Turkey: dates come in suspicious pairs exactly 7 days apart
+       (10 & 17 September, 10 & 17 December) -- consistent with the
+       secondary-sourcing caveat already flagged in that script's
+       docstring, now confirmed as a real duplication problem, not a
+       hypothetical one.
+     - UK, BoJ rate decisions, Bank of Canada, RBA: all returned zero
+       events against the real live pages despite passing tests against
+       reconstructed page fixtures earlier -- the UK one had a genuine,
+       fixed bug (ONS's bulletin-slug convention differs between GDP
+       and CPI bulletins in a way the original slug generator never
+       tried). The other three need the same kind of live debugging,
+       not done yet.
+     - Poland, Israel, Morocco: produced no output file at all --
+       something failed before the write step, not yet diagnosed.
+
+   Given that, this does NOT blindly trust every fetched file. The hand
+   verified September 2026 data (the EVENTS object above) stays
+   authoritative for September specifically -- live data is only used
+   to extend the calendar into months beyond what was hand-checked, and
+   even then only through a defensive filter that rejects any single
+   country+concept combination producing an implausible number of
+   dates in one calendar month (catches exactly the US "fomc" bug
+   above, generically, without needing to special-case it).
+   ============================================================ */
+var CALENDAR_DATA_FILES = [
+  "data-calendar-us.json", "data-calendar-uk.json", "data-calendar-ez.json",
+  "data-calendar-jp.json", "data-calendar-jp-stats.json", "data-calendar-ca.json",
+  "data-calendar-ca-stats.json", "data-calendar-au.json", "data-calendar-se.json",
+  "data-calendar-no.json", "data-calendar-pl.json", "data-calendar-il.json",
+  "data-calendar-cl.json", "data-calendar-ma.json", "data-calendar-id.json",
+  "data-calendar-br.json", "data-calendar-tr.json"
+];
+
+var CONCEPT_TO_SHORT_AND_RATE = {
+  gdp: ["GDP", false], cpi: ["CPI", false], jobs: ["Jobs report", false],
+  ppi: ["PPI", false], pce: ["PCE", false],
+  fomc: ["Rate decision", true], rate_decision: ["Rate decision", true]
+};
+
+var MAX_EVENTS_PER_CONCEPT_PER_MONTH = 4; // defensive cap, see comment above
+
+function mergeLiveEvent(ev){
+  if(!ev || !ev.date || !ev.country || !ev.concept) return;
+  // September 2026 is the hand-verified baseline -- don't let live data
+  // (some of it known-buggy right now) overwrite or duplicate it.
+  if(ev.date.slice(0, 7) === "2026-09") return;
+  var mapped = CONCEPT_TO_SHORT_AND_RATE[ev.concept];
+  var shortLabel = mapped ? mapped[0] : ev.concept;
+  var isRate = mapped ? mapped[1] : false;
+  if(!EVENTS[ev.date]) EVENTS[ev.date] = [];
+  EVENTS[ev.date].push({
+    time: ev.time || "Not fixed in advance",
+    country: ev.country,
+    concept: ev.concept,
+    name: ev.name,
+    sub: "From the live daily fetch (fetch_calendar_" + ev.country.toLowerCase().slice(0,2) + ".py and related scripts). Not hand verified the way September's data was.",
+    rate: isRate,
+    src: ev.source
+  });
+}
+
+function applyDefensiveCapAndMerge(events){
+  // Group by country+concept+year-month, drop any group past the cap.
+  var groups = {};
+  events.forEach(function(ev){
+    if(!ev.date) return;
+    var key = ev.country + "|" + ev.concept + "|" + ev.date.slice(0,7);
+    (groups[key] = groups[key] || []).push(ev);
+  });
+  Object.keys(groups).forEach(function(key){
+    var group = groups[key];
+    if(group.length > MAX_EVENTS_PER_CONCEPT_PER_MONTH){
+      console.warn("Calendar: dropped " + group.length + " '" + key +
+        "' events -- implausible count for one month, likely a fetch bug " +
+        "(see the comment above loadLiveCalendarData). Not rendered.");
+      return;
+    }
+    group.forEach(mergeLiveEvent);
+  });
+}
+
+function loadLiveCalendarData(){
+  var allEvents = [];
+  var pending = CALENDAR_DATA_FILES.length;
+  function done(){
+    pending--;
+    if(pending === 0){
+      applyDefensiveCapAndMerge(allEvents);
+      renderMonth(); renderDayDetail(); renderLegend();
+    }
+  }
+  CALENDAR_DATA_FILES.forEach(function(file){
+    fetch(file).then(function(r){
+      if(!r.ok) throw new Error("HTTP " + r.status);
+      return r.json();
+    }).then(function(data){
+      (data.events || []).forEach(function(ev){ allEvents.push(ev); });
+      done();
+    }).catch(function(err){
+      console.warn("Calendar: couldn't load " + file + " -- " + err.message +
+        ". That country's live data just won't show up beyond September; " +
+        "doesn't block anything else.");
+      done();
+    });
+  });
 }
 
 /* ---- gate: same real isAdmin()-gated pattern Chartmaker itself used
