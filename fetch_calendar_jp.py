@@ -79,18 +79,20 @@ def main():
     today = datetime.now(timezone.utc).date()
     current_year = today.year
 
-    # Isolate roughly the section for the current year's table, so a
-    # stray date-like string elsewhere on the page (there are many links
-    # to PDFs with dates in their filenames) doesn't get picked up. Not
-    # bulletproof -- worth a manual sanity check against the live page
-    # on the first real run.
-    year_marker = f"## {current_year}" if f"## {current_year}" in text else str(current_year)
-    next_marker = str(current_year + 1)
-    start_idx = text.find(year_marker)
-    end_idx = text.find(next_marker, start_idx + 1) if start_idx != -1 else -1
-    section = text[start_idx:end_idx] if start_idx != -1 and end_idx != -1 else text
-
-    meetings = parse_year_section(section, current_year)
+    # Real bug found from the live run's debug output: the "## {year}"
+    # markdown-style marker this used to isolate the schedule table
+    # never actually exists in raw HTML -- that heading format was an
+    # artifact of the research tool used to originally read this page,
+    # not something requests.get() itself receives. The fallback (bare
+    # "2026") matched some unrelated early occurrence of the year
+    # elsewhere on the page (a footer, a meta tag, breadcrumb, etc.),
+    # confirmed by the debug output showing almost nothing was captured
+    # between that match and the next one. Removed the section
+    # isolation entirely -- MEETING_RE's own pattern (month abbreviation
+    # + two parenthetical weekdays, e.g. "Sept. 17 (Thurs.), 18 (Fri.)")
+    # is distinctive enough on its own not to need it, and scanning
+    # the whole page directly is what actually gets real matches.
+    meetings = parse_year_section(text, current_year)
     events = []
     for meeting in meetings:
         if meeting["end"] < today.isoformat():

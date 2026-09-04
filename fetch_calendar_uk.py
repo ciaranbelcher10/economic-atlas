@@ -85,29 +85,35 @@ def month_year_slugs() -> list[str]:
     return out
 
 
-def fetch_bulletin_date(slug_prefix: str) -> tuple[str, str] | None:
+def fetch_bulletin_date(slug_prefix: str, debug_log: list) -> tuple[str, str] | None:
     """Try each upcoming month's slug for this bulletin; return the first
     one that resolves with a real, not-yet-published release date."""
     for my in month_year_slugs():
         url = f"https://www.ons.gov.uk/releases/{slug_prefix}{my}"
         try:
             r = requests.get(url, timeout=30, headers={"User-Agent": "Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/120.0.0.0 Safari/537.36"})
-        except requests.RequestException:
+        except requests.RequestException as e:
+            debug_log.append(f"{url} -> request failed: {e}")
             continue
         if r.status_code != 200:
+            debug_log.append(f"{url} -> HTTP {r.status_code}")
             continue
         m = RELEASE_DATE_RE.search(r.text)
         if not m:
+            debug_log.append(f"{url} -> HTTP 200 but 'Release date:' pattern not found "
+                              f"(page length {len(r.text)} chars)")
             continue
         date_str, time_str = m.group(1), m.group(2)
         try:
             parsed = datetime.strptime(date_str, "%d %B %Y")
         except ValueError:
+            debug_log.append(f"{url} -> matched '{date_str}' but couldn't parse it")
             continue
         # Only want dates that are actually still in the future -- a
         # slug can resolve to an ALREADY-published bulletin (this
         # month's, already out) rather than the next upcoming one.
         if parsed.date() < datetime.now(timezone.utc).date():
+            debug_log.append(f"{url} -> matched '{date_str}' but that's already in the past")
             continue
         return parsed.strftime("%Y-%m-%d"), (time_str or "")
     return None
@@ -116,11 +122,15 @@ def fetch_bulletin_date(slug_prefix: str) -> tuple[str, str] | None:
 def main():
     events = []
     for key, (slug_prefix, name) in TRACKED_BULLETINS.items():
-        result = fetch_bulletin_date(slug_prefix)
+        debug_log = []
+        result = fetch_bulletin_date(slug_prefix, debug_log)
         if result is None:
             print(f"WARNING: no upcoming date found for {key} ({slug_prefix}) "
                   f"in the next few months -- check the slug pattern by hand.",
                   file=sys.stderr)
+            print(f"DEBUG: every slug tried for {key}:", file=sys.stderr)
+            for line in debug_log:
+                print(f"  {line}", file=sys.stderr)
             continue
         release_date, release_time = result
         events.append({

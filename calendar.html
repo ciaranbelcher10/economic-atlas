@@ -1170,7 +1170,8 @@
   background:var(--panel); color:var(--ink); font-size:16px; cursor:pointer; display:flex; align-items:center; justify-content:center;}
 .cal-monthnav button:hover{background:var(--paper);}
 .cal-today{font:700 12.5px "Avenir Next","Avenir","Nunito Sans",sans-serif; padding:7px 14px;
-  border-radius:8px; border:1px solid var(--hair); background:var(--panel); color:var(--ink); cursor:pointer;}
+  border-radius:8px; border:1px solid var(--hair); background:var(--panel); color:var(--ink); cursor:pointer;
+  white-space:nowrap; flex-shrink:0;}
 .cal-today:hover{background:var(--paper);}
 
 .cal-filters{display:flex; flex-wrap:wrap; gap:8px; align-items:center;}
@@ -1508,7 +1509,13 @@ function saveTrackedCountries(list){
 }
 
 var MONTH_NAMES = ["January","February","March","April","May","June","July","August","September","October","November","December"];
-var today = new Date(2026, 8, 3);
+// Real current date, not a fixed one -- this was hardcoded to
+// 2026-09-03 (whatever "today" was when this page was first built),
+// which is exactly why it drifted to pointing at yesterday: a fixed
+// date never moves forward with the actual calendar. Using the
+// visitor's real clock instead, same as any real calendar would.
+var today = new Date();
+today.setHours(0, 0, 0, 0);
 var viewYear = today.getFullYear(), viewMonth = today.getMonth();
 var trackedCountries = loadTrackedCountries();
 var rateOnly = false;

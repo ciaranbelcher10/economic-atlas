@@ -69,6 +69,8 @@ def main():
     if not table:
         print("WARNING: no <table> found on the page -- structure may have "
               "changed.", file=sys.stderr)
+        print("DEBUG: first 1500 chars of the fetched page text:\n" +
+              text[:1500], file=sys.stderr)
         sys.exit(1)
 
     today = datetime.now(timezone.utc).date()

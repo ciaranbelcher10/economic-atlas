@@ -104,6 +104,8 @@ def main():
               "and the regex against the real page; this script's date "
               "pattern was written from news-quoted NBP text, not a "
               "confirmed live fetch of nbp.pl itself.", file=sys.stderr)
+        print("DEBUG: first 1500 chars of the fetched page text:\n" +
+              text[:1500], file=sys.stderr)
 
     out = {
         "generated": datetime.now(timezone.utc).isoformat(),
