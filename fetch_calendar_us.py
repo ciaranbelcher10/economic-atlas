@@ -41,10 +41,41 @@ FRED_BASE = "https://api.stlouisfed.org/fred"
 # fetching https://fred.stlouisfed.org/releases/calendar directly) --
 # looked up by substring match against fred/releases, not by a
 # hardcoded rid, so a FRED-side renumbering can't silently break this.
+# Human names as they appear in FRED's own release list (confirmed by
+# fetching https://fred.stlouisfed.org/releases/calendar directly) --
+# looked up by substring match against fred/releases, not by a
+# hardcoded rid, so a FRED-side renumbering can't silently break this.
+#
+# "fomc" deliberately removed from here after the first live run: FRED's
+# "FOMC Press Release" release_id returned 27-31 dates per month (should
+# be about 1) -- it's matching something that publishes far more often
+# than actual FOMC decisions, not yet understood why. Rather than keep
+# guessing at FRED's release catalog, FOMC dates are now taken from the
+# Federal Reserve's own published 2026 schedule directly (see
+# FOMC_DATES_2026 below), the same reasoning as fetch_calendar_br.py's
+# hardcoded Copom dates: the Fed publishes this a year ahead and it is
+# about as stable as a real-world schedule gets, so a static list is
+# actually MORE reliable here than a dynamic lookup that's currently
+# broken.
+# Federal Reserve's own published 2026 FOMC meeting calendar --
+# confirmed directly from federalreserve.gov earlier this session, each
+# a two-day meeting with the decision on the second day. Hardcoded
+# rather than looked up dynamically -- see the comment on
+# TRACKED_RELEASE_NAMES below for why.
+FOMC_DATES_2026 = [
+    (date(2026, 1, 27), date(2026, 1, 28)),
+    (date(2026, 3, 17), date(2026, 3, 18)),
+    (date(2026, 4, 28), date(2026, 4, 29)),
+    (date(2026, 6, 16), date(2026, 6, 17)),
+    (date(2026, 7, 28), date(2026, 7, 29)),
+    (date(2026, 9, 15), date(2026, 9, 16)),
+    (date(2026, 10, 27), date(2026, 10, 28)),
+    (date(2026, 12, 8), date(2026, 12, 9)),
+]
+
 TRACKED_RELEASE_NAMES = {
     "cpi": "Consumer Price Index",
     "jobs": "Employment Situation",
-    "fomc": "FOMC Press Release",
     "gdp": "Gross Domestic Product",
     "ppi": "Producer Price Index",
     "pce": "Personal Income and Outlays",
@@ -55,7 +86,7 @@ def find_release_ids(key: str) -> dict[str, int]:
     """Map our short keys -> FRED's own numeric release id, by name match."""
     r = requests.get(f"{FRED_BASE}/releases", params={
         "api_key": key, "file_type": "json", "limit": 1000,
-    }, timeout=60, headers={"User-Agent": "economic-atlas/0.1"})
+    }, timeout=60, headers={"User-Agent": "Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/120.0.0.0 Safari/537.36"})
     r.raise_for_status()
     releases = r.json().get("releases", [])
     found = {}
@@ -86,7 +117,7 @@ def fetch_upcoming_dates(release_id: int, key: str, horizon_days: int = 120) -> 
         "realtime_start": today.isoformat(),
         "realtime_end": (today + timedelta(days=horizon_days)).isoformat(),
         "sort_order": "asc",
-    }, timeout=60, headers={"User-Agent": "economic-atlas/0.1"})
+    }, timeout=60, headers={"User-Agent": "Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/120.0.0.0 Safari/537.36"})
     r.raise_for_status()
     return [d["date"] for d in r.json().get("release_dates", [])
             if d.get("date", "") >= today.isoformat()]
@@ -121,6 +152,22 @@ def main():
                 # this, not a FRED API field. Left blank rather than
                 # guessed.
                 "time": None,
+            })
+
+    # FOMC: hardcoded from the Fed's own published 2026 schedule (see
+    # comment on TRACKED_RELEASE_NAMES above for why this isn't a live
+    # lookup right now). The decision itself lands on the SECOND day of
+    # each two-day meeting.
+    today_str = datetime.now(timezone.utc).date().isoformat()
+    for _, decision_day in FOMC_DATES_2026:
+        if decision_day.isoformat() >= today_str:
+            events.append({
+                "date": decision_day.isoformat(),
+                "country": "US",
+                "concept": "fomc",
+                "name": "FOMC rate decision",
+                "source": "federalreserve.gov (2026 meeting calendar, hardcoded -- see comment above)",
+                "time": "2:00pm ET",
             })
 
     events.sort(key=lambda e: e["date"])

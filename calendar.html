@@ -1475,7 +1475,8 @@ var EVENTS = {
 };
 
 var SHORT_LABEL = {
-  gdp: "GDP", cpi: "CPI", jobs: "Jobs report", rate_decision: "Rate decision"
+  gdp: "GDP", cpi: "CPI", jobs: "Jobs report", rate_decision: "Rate decision",
+  ppi: "PPI", pce: "PCE", fomc: "Rate decision"
 };
 
 var COUNTRY_COLOR = {UK:"#1E4566", US:"#AD1E1E", Eurozone:"#D47353", Japan:"#AD5132", India:"#BB8A4D", Canada:"#AD7B1E", Australia:"#ADA61E", "South Korea":"#D4D453", Israel:"#A5BB4D", Mexico:"#82AD32", Brazil:"#7AD453", "South Africa":"#49AD1E", Morocco:"#1E8F1E", Germany:"#1EAD42", France:"#53D493", Italy:"#1E8F67", Spain:"#1EAD7B", Netherlands:"#32A7AD", Denmark:"#376A80", Ireland:"#1E7BAD", Norway:"#4D74BB", Chile:"#535AD4", Colombia:"#2D2672", Turkey:"#2C1EAD", Indonesia:"#6A32AD", Poland:"#CD53D4", Switzerland:"#891E8F", Argentina:"#AD32AD", Sweden:"#D453A7", Singapore:"#AD1E5E", Austria:"#722648", Thailand:"#D45366"};
@@ -1580,6 +1581,16 @@ function renderMonth(){
 function renderDayDetail(){
   var el = document.getElementById("calDayDetail");
   if(!el) return;
+  if(!selectedDate){
+    // No day picked in the currently-viewed month (e.g. just navigated
+    // here with prev/next) -- show a neutral prompt rather than a
+    // stale detail panel left over from whatever was selected before,
+    // which was the actual bug: paging to a different month kept
+    // showing an unrelated earlier date's panel underneath, since
+    // nothing ever cleared it.
+    el.innerHTML = "<p class='empty'>Click a day above to see what's due.</p>";
+    return;
+  }
   var d = new Date(selectedDate + "T00:00:00");
   var heading = d.toLocaleDateString("en-GB", { weekday: "long", day: "numeric", month: "long", year: "numeric" });
   var evs = eventsForDate(selectedDate);
@@ -1645,10 +1656,10 @@ function wireCalendarInteractions(){
   var todayBtn = document.getElementById("calTodayBtn");
   var rateChip = document.getElementById("calRateFilterChip");
   if(prevBtn) prevBtn.addEventListener("click", function(){
-    viewMonth--; if(viewMonth < 0){ viewMonth = 11; viewYear--; } renderMonth();
+    viewMonth--; if(viewMonth < 0){ viewMonth = 11; viewYear--; } selectedDate = null; renderMonth(); renderDayDetail();
   });
   if(nextBtn) nextBtn.addEventListener("click", function(){
-    viewMonth++; if(viewMonth > 11){ viewMonth = 0; viewYear++; } renderMonth();
+    viewMonth++; if(viewMonth > 11){ viewMonth = 0; viewYear++; } selectedDate = null; renderMonth(); renderDayDetail();
   });
   if(todayBtn) todayBtn.addEventListener("click", function(){
     viewYear = today.getFullYear(); viewMonth = today.getMonth(); selectedDate = fmtISO(today); renderMonth(); renderDayDetail();

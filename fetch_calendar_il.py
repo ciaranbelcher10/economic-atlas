@@ -45,7 +45,7 @@ DATE_RE = re.compile(r"(\d{2})/(\d{2})/(\d{4})")
 
 def main():
     try:
-        r = requests.get(URL, timeout=30, headers={"User-Agent": "economic-atlas/0.1"})
+        r = requests.get(URL, timeout=30, headers={"User-Agent": "Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/120.0.0.0 Safari/537.36"})
         r.raise_for_status()
     except requests.RequestException as e:
         print(f"ERROR fetching Bank of Israel page: {e}", file=sys.stderr)
@@ -109,6 +109,8 @@ def main():
               "structure changed, or (more likely late in the year) this "
               "year's page has run out and interest-rate-announcement-"
               "dates-2027-2028 should be fetched instead.", file=sys.stderr)
+        print("DEBUG: first 1500 chars of the fetched page text:\n" +
+              text[:1500], file=sys.stderr)
 
     out = {
         "generated": datetime.now(timezone.utc).isoformat(),

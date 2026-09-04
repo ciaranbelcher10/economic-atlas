@@ -50,7 +50,7 @@ DATE_RE = re.compile(
 
 def main():
     try:
-        r = requests.get(URL, timeout=30, headers={"User-Agent": "economic-atlas/0.1"})
+        r = requests.get(URL, timeout=30, headers={"User-Agent": "Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/120.0.0.0 Safari/537.36"})
         r.raise_for_status()
     except requests.RequestException as e:
         print(f"ERROR fetching Norges Bank calendar: {e}", file=sys.stderr)

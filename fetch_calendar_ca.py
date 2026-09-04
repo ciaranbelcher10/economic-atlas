@@ -62,7 +62,7 @@ def main():
     url = guess_schedule_url(year)
 
     try:
-        r = requests.get(url, timeout=30, headers={"User-Agent": "economic-atlas/0.1"})
+        r = requests.get(url, timeout=30, headers={"User-Agent": "Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/120.0.0.0 Safari/537.36"})
     except requests.RequestException as e:
         print(f"ERROR fetching Bank of Canada schedule page: {e}", file=sys.stderr)
         sys.exit(1)
@@ -101,6 +101,9 @@ def main():
         "country": "Canada",
         "events": out_events,
     }
+    if not out_events:
+        print("DEBUG: first 1500 chars of the fetched page text:\n" +
+              text[:1500], file=sys.stderr)
     with open("data-calendar-ca.json", "w") as f:
         json.dump(out, f, indent=2)
     print(f"Wrote {len(out_events)} Canada calendar events. "

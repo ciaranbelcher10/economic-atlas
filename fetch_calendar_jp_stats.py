@@ -52,7 +52,7 @@ GDP_DATE_RE = re.compile(
 
 def fetch_gdp_events(today) -> list[dict]:
     try:
-        r = requests.get(GDP_URL, timeout=30, headers={"User-Agent": "economic-atlas/0.1"})
+        r = requests.get(GDP_URL, timeout=30, headers={"User-Agent": "Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/120.0.0.0 Safari/537.36"})
         r.raise_for_status()
     except requests.RequestException as e:
         print(f"WARNING: GDP fetch failed: {e}", file=sys.stderr)
@@ -102,7 +102,7 @@ def fetch_cpi_events(today) -> list[dict]:
     (BeautifulSoup) to walk actual <tr>/<td> boundaries, which is the
     correct tool for this specific structure."""
     try:
-        r = requests.get(CPI_URL, timeout=30, headers={"User-Agent": "economic-atlas/0.1"})
+        r = requests.get(CPI_URL, timeout=30, headers={"User-Agent": "Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/120.0.0.0 Safari/537.36"})
         r.raise_for_status()
     except requests.RequestException as e:
         print(f"WARNING: CPI fetch failed: {e}", file=sys.stderr)

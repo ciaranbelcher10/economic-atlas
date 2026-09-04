@@ -69,7 +69,7 @@ def parse_year_section(text: str, year: int) -> list[dict]:
 
 def main():
     try:
-        r = requests.get(URL, timeout=30, headers={"User-Agent": "economic-atlas/0.1"})
+        r = requests.get(URL, timeout=30, headers={"User-Agent": "Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/120.0.0.0 Safari/537.36"})
         r.raise_for_status()
     except requests.RequestException as e:
         print(f"ERROR fetching BoJ schedule: {e}", file=sys.stderr)
@@ -111,6 +111,8 @@ def main():
         print("WARNING: parsed zero upcoming BoJ meetings -- check the page's "
               "table structure against a fresh fetch before assuming the "
               "source is broken.", file=sys.stderr)
+        print("DEBUG: first 1500 chars of the section this script searched:\n" +
+              section[:1500], file=sys.stderr)
 
     events.sort(key=lambda e: e["date"])
     out = {

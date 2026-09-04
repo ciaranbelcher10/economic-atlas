@@ -40,14 +40,26 @@ TURKISH_MONTHS = {
 
 # e.g. "10 Eylül 2026" -- DD MonthName YYYY, confirmed as the format
 # used in every secondary source quoting TCMB's own calendar tonight.
+#
+# Real bug found from the live run: this had NO contextual anchor at
+# all, so it matched literally any date-shaped text anywhere on the
+# fetched page (news article dates, copyright footers, unrelated
+# announcements), not just PPK decisions -- which is exactly why the
+# first live run returned suspicious pairs of dates exactly 7 days
+# apart (a real decision date plus some unrelated nearby date, not two
+# real decisions a week apart). Now requires "PPK" or "Toplant" (the
+# Turkish word for "meeting", covering "Toplantısı"/"Toplantı") within
+# 200 characters before the date, the same context-anchoring approach
+# already used successfully in fetch_calendar_se.py.
 DATE_RE = re.compile(
-    r"(\d{1,2})\s+(" + "|".join(TURKISH_MONTHS.keys()) + r")\s+(\d{4})", re.I
+    r"(?:PPK|Toplant\w*)[^\n]{0,200}?(\d{1,2})\s+(" +
+    "|".join(TURKISH_MONTHS.keys()) + r")\s+(\d{4})", re.I
 )
 
 
 def main():
     try:
-        r = requests.get(URL, timeout=30, headers={"User-Agent": "economic-atlas/0.1"})
+        r = requests.get(URL, timeout=30, headers={"User-Agent": "Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/120.0.0.0 Safari/537.36"})
         r.raise_for_status()
     except requests.RequestException as e:
         print(f"ERROR fetching TCMB page: {e}", file=sys.stderr)
@@ -86,6 +98,8 @@ def main():
               "a confirmed direct fetch of tcmb.gov.tr, so a zero result "
               "here is a real signal to check the URL and page structure "
               "by hand, not just retry.", file=sys.stderr)
+        print("DEBUG: first 1500 chars of the fetched page text:\n" +
+              text[:1500], file=sys.stderr)
 
     out = {
         "generated": datetime.now(timezone.utc).isoformat(),

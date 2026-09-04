@@ -91,7 +91,7 @@ def fetch_bulletin_date(slug_prefix: str) -> tuple[str, str] | None:
     for my in month_year_slugs():
         url = f"https://www.ons.gov.uk/releases/{slug_prefix}{my}"
         try:
-            r = requests.get(url, timeout=30, headers={"User-Agent": "economic-atlas/0.1"})
+            r = requests.get(url, timeout=30, headers={"User-Agent": "Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/120.0.0.0 Safari/537.36"})
         except requests.RequestException:
             continue
         if r.status_code != 200:
