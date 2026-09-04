@@ -2,97 +2,78 @@
 data-calendar-au.json.
 
 Run:  python3 fetch_calendar_au.py
-No API key needed -- public RBA page.
+No API key needed -- no live fetch at all, see below.
 
-Source: https://www.rba.gov.au/monetary-policy/int-rate-decisions/ -- the
-RBA's own official decisions page. The RBA holds 8 Board meetings a year,
-each over two days, with the decision explained in a media release at
-2:30pm AEST on the second day.
+CHANGED FROM A LIVE SCRAPE TO A HARDCODED SCHEDULE, deliberately, after
+confirming via a real workflow run that rba.gov.au's decisions page is
+genuinely JavaScript-rendered -- the debug output from that run showed
+the raw HTML literally saying "It appears JavaScript is currently
+blocked... This website requires JavaScript for some content and
+functionality." No regex fix can find data that was never in the HTML
+to begin with. Checked for a public RBA data API as an alternative;
+found several third-party ones covering historical rate series, but
+nothing exposing the future meeting schedule specifically.
 
-This is a lighter-weight source than the US/UK/EZ/JP ones: the RBA page
-structure for FUTURE (not yet decided) meeting dates wasn't confirmed in
-as much depth as the others tonight, so this script's date-extraction
-regex is a reasonable first pass, not verified against the live page's
-exact HTML the way the ECB and BoJ ones were. Flagged here rather than
-overstated -- check the parsed output against the real page by eye on
-the first run before trusting it unattended.
+The right long-term fix is a headless browser (Playwright) in the
+workflow, which is a bigger, separate change not made here. In the
+meantime: the RBA publishes its full year of meeting dates in one media
+release each year (like Bank of Canada, unlike the more volatile NBP or
+CBRT), and that release is easy to find and about as stable as a
+real-world schedule gets. Confirmed directly from RBA's own official
+2026 media release:
+https://www.rba.gov.au/media-releases/2025/mr-25-02.html
+("Media Release: 2026 Monetary Policy Board Meeting Dates").
 
-NOT YET RUN LIVE -- rba.gov.au isn't in this sandbox's network allowlist.
+Same trade-off as fetch_calendar_br.py's Copom dates and
+fetch_calendar_us.py's FOMC dates: a static list that needs manual
+updating once a year, rather than a dynamic fetch that's currently
+broken and can't easily be un-broken.
 """
 
 from __future__ import annotations
 
 import json
-import re
 import sys
-from datetime import datetime, timezone
+from datetime import date, datetime, timezone
 
-import requests
-
-URL = "https://www.rba.gov.au/monetary-policy/int-rate-decisions/"
-
-MONTH_NAMES = ["january", "february", "march", "april", "may", "june",
-               "july", "august", "september", "october", "november", "december"]
-MONTH_RE = "|".join(MONTH_NAMES)
-
-# e.g. "29 September 2026" or "29 September 2026" appearing on the page
-# as a heading for that meeting's outcome/media release.
-DATE_RE = re.compile(
-    rf"(\d{{1,2}})\s+({MONTH_RE})\s+(\d{{4}})", re.I
-)
+# Confirmed directly from RBA's own official 2026 media release
+# (see module docstring for URL). Each meeting is two days; the
+# decision is announced 2:30pm AEST/AEDT on the second day.
+RBA_MEETINGS_2026 = [
+    (date(2026, 2, 2), date(2026, 2, 3)),
+    (date(2026, 3, 16), date(2026, 3, 17)),
+    (date(2026, 5, 4), date(2026, 5, 5)),
+    (date(2026, 6, 15), date(2026, 6, 16)),
+    (date(2026, 8, 10), date(2026, 8, 11)),
+    (date(2026, 9, 28), date(2026, 9, 29)),
+    (date(2026, 11, 2), date(2026, 11, 3)),
+    (date(2026, 12, 7), date(2026, 12, 8)),
+]
 
 
 def main():
-    try:
-        r = requests.get(URL, timeout=30, headers={"User-Agent": "Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/120.0.0.0 Safari/537.36"})
-        r.raise_for_status()
-    except requests.RequestException as e:
-        print(f"ERROR fetching RBA page: {e}", file=sys.stderr)
-        sys.exit(1)
-
-    text = re.sub(r"<[^>]+>", " ", r.text)
     today = datetime.now(timezone.utc).date()
-
     events = []
-    seen = set()
-    for m in DATE_RE.finditer(text):
-        day, month_name, year = int(m.group(1)), m.group(2).lower(), int(m.group(3))
-        month = MONTH_NAMES.index(month_name) + 1
-        try:
-            d = datetime(year, month, day).date()
-        except ValueError:
+    for _, decision_day in RBA_MEETINGS_2026:
+        if decision_day < today:
             continue
-        if d < today or d.isoformat() in seen:
-            continue
-        seen.add(d.isoformat())
-        events.append(d.isoformat())
-
-    events = sorted(events)[:8]  # cap at the next 8, roughly a year's worth of meetings
-    out_events = [{
-        "date": d,
-        "country": "Australia",
-        "concept": "rate_decision",
-        "name": "RBA cash rate decision",
-        "source": "rba.gov.au/monetary-policy/int-rate-decisions",
-        "time": "2:30pm AEST",
-    } for d in events]
-
-    if not out_events:
-        print("WARNING: parsed zero upcoming RBA dates -- check the page structure "
-              "by hand, this parser is a first pass, not verified against the "
-              "live page.", file=sys.stderr)
-        print("DEBUG: first 1500 chars of the fetched page text:\n" +
-              text[:1500], file=sys.stderr)
+        events.append({
+            "date": decision_day.isoformat(),
+            "country": "Australia",
+            "concept": "rate_decision",
+            "name": "RBA cash rate decision",
+            "source": "rba.gov.au/media-releases/2025/mr-25-02.html (official 2026 schedule)",
+            "time": "2:30pm AEST/AEDT",
+        })
 
     out = {
         "generated": datetime.now(timezone.utc).isoformat(),
         "country": "Australia",
-        "events": out_events,
+        "events": events,
     }
     with open("data-calendar-au.json", "w") as f:
         json.dump(out, f, indent=2)
-    print(f"Wrote {len(out_events)} Australia calendar events. "
-          f"Verify by eye against rba.gov.au before trusting unattended.")
+    print(f"Wrote {len(events)} Australia calendar events (hardcoded schedule).")
 
 
 if __name__ == "__main__":

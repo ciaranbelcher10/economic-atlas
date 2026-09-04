@@ -2,104 +2,60 @@
 and write data-calendar-tr.json.
 
 Run:  python3 fetch_calendar_tr.py
-No API key needed -- public tcmb.gov.tr page.
+No API key needed -- no live fetch at all, see below.
 
-Source: https://www.tcmb.gov.tr/wps/wcm/connect/TR/TCMB+TR/Main+Menu/Temel+Faaliyetler/Para+Politikasi/PPK/2026
--- TCMB's own official PPK (Monetary Policy Committee) schedule page for
-the year, confirmed to exist tonight (found via search, not yet fetched
-directly -- the September 10, 2026, 14:00 date used on this calendar
-came from several independent Turkish financial news outlets citing
-TCMB's own published calendar consistently, not from a direct fetch of
-this page itself). Fetching the primary page directly rather than
-relying on secondary reporting is the natural next step before trusting
-this script fully.
+CHANGED FROM A LIVE SCRAPE TO A HARDCODED SCHEDULE, deliberately. The
+real primary page (tcmb.gov.tr/.../PPK/2026) was confirmed to exist and
+load in a live workflow run, but the schedule table wasn't found within
+what a plain requests.get() sees -- possibly JS-rendered like RBA,
+possibly just further down the page than a simple regex reached; not
+fully diagnosed. Rather than keep guessing at that page's structure,
+the full 2026 schedule is hardcoded here instead, cross-confirmed
+across SIX independent Turkish financial news outlets (Haberturk, CNN
+Turk Finans, Bloomberg HT, QNB Invest, Sabah, Ahaber) all reporting the
+identical eight dates -- about as solid as secondary corroboration
+gets, and TCMB itself confirmed no August 2026 meeting was held,
+matching the gap in this list.
 
-Real, useful context found tonight: CBRT doesn't hold a meeting every
-month (no August 2026 meeting, confirmed across multiple sources) --
-so month-by-month assumptions would be wrong; only the actual published
-calendar tells you which months have a decision.
+All eight decisions are announced at 14:00 (2:00pm) Turkey time on the
+meeting day itself -- confirmed as TCMB's standing convention across
+every source checked.
 """
 
 from __future__ import annotations
 
 import json
-import re
-import sys
-from datetime import datetime, timezone
+from datetime import date, datetime, timezone
 
-import requests
-
-URL = ("https://www.tcmb.gov.tr/wps/wcm/connect/TR/TCMB+TR/Main+Menu/"
-       "Temel+Faaliyetler/Para+Politikasi/PPK/2026")
-
-TURKISH_MONTHS = {
-    "ocak": 1, "şubat": 2, "subat": 2, "mart": 3, "nisan": 4, "mayıs": 5, "mayis": 5,
-    "haziran": 6, "temmuz": 7, "ağustos": 8, "agustos": 8, "eylül": 9, "eylul": 9,
-    "ekim": 10, "kasım": 11, "kasim": 11, "aralık": 12, "aralik": 12,
-}
-
-# e.g. "10 Eylül 2026" -- DD MonthName YYYY, confirmed as the format
-# used in every secondary source quoting TCMB's own calendar tonight.
-#
-# Real bug found from the live run: this had NO contextual anchor at
-# all, so it matched literally any date-shaped text anywhere on the
-# fetched page (news article dates, copyright footers, unrelated
-# announcements), not just PPK decisions -- which is exactly why the
-# first live run returned suspicious pairs of dates exactly 7 days
-# apart (a real decision date plus some unrelated nearby date, not two
-# real decisions a week apart). Now requires "PPK" or "Toplant" (the
-# Turkish word for "meeting", covering "Toplantısı"/"Toplantı") within
-# 200 characters before the date, the same context-anchoring approach
-# already used successfully in fetch_calendar_se.py.
-DATE_RE = re.compile(
-    r"(?:PPK|Toplant\w*)[^\n]{0,200}?(\d{1,2})\s+(" +
-    "|".join(TURKISH_MONTHS.keys()) + r")\s+(\d{4})", re.I
-)
+# Cross-confirmed across six independent Turkish financial news sources
+# (see module docstring) -- no single meeting per month; TCMB skipped
+# August 2026 entirely.
+CBRT_MEETINGS_2026 = [
+    date(2026, 1, 22),
+    date(2026, 3, 12),
+    date(2026, 4, 22),
+    date(2026, 6, 11),
+    date(2026, 7, 23),
+    date(2026, 9, 10),
+    date(2026, 10, 22),
+    date(2026, 12, 10),
+]
 
 
 def main():
-    try:
-        r = requests.get(URL, timeout=30, headers={"User-Agent": "Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/120.0.0.0 Safari/537.36"})
-        r.raise_for_status()
-    except requests.RequestException as e:
-        print(f"ERROR fetching TCMB page: {e}", file=sys.stderr)
-        sys.exit(1)
-
-    text = re.sub(r"<[^>]+>", " ", r.text)
     today = datetime.now(timezone.utc).date()
-
     events = []
-    seen = set()
-    for m in DATE_RE.finditer(text):
-        day, month_name, year = int(m.group(1)), m.group(2).lower(), int(m.group(3))
-        month = TURKISH_MONTHS.get(month_name)
-        if not month:
+    for meeting_day in CBRT_MEETINGS_2026:
+        if meeting_day < today:
             continue
-        try:
-            d = datetime(year, month, day).date()
-        except ValueError:
-            continue
-        if d < today or d.isoformat() in seen:
-            continue
-        seen.add(d.isoformat())
         events.append({
-            "date": d.isoformat(),
+            "date": meeting_day.isoformat(),
             "country": "Turkey",
             "concept": "rate_decision",
             "name": "CBRT Monetary Policy Committee decision",
-            "source": "tcmb.gov.tr (official PPK 2026 schedule)",
+            "source": "tcmb.gov.tr (2026 PPK schedule, hardcoded -- cross-confirmed via 6 independent news sources, see script docstring)",
             "time": "2:00pm TRT",
         })
-
-    events.sort(key=lambda e: e["date"])
-    if not events:
-        print("WARNING: parsed zero upcoming PPK dates -- this script's "
-              "URL/pattern was built from secondary reporting rather than "
-              "a confirmed direct fetch of tcmb.gov.tr, so a zero result "
-              "here is a real signal to check the URL and page structure "
-              "by hand, not just retry.", file=sys.stderr)
-        print("DEBUG: first 1500 chars of the fetched page text:\n" +
-              text[:1500], file=sys.stderr)
 
     out = {
         "generated": datetime.now(timezone.utc).isoformat(),
@@ -108,7 +64,7 @@ def main():
     }
     with open("data-calendar-tr.json", "w") as f:
         json.dump(out, f, indent=2)
-    print(f"Wrote {len(events)} Turkey calendar events.")
+    print(f"Wrote {len(events)} Turkey calendar events (hardcoded schedule).")
 
 
 if __name__ == "__main__":
