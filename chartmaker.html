@@ -121,7 +121,7 @@
  </div>
  <a class="item" href="compare">Compare</a>
  <a class="item" href="dashboard">My Dashboard</a>
- <a class="item" href="chartmaker" id="navChartmakerLink" hidden>Chartmaker</a>
+ <a class="item" href="chartmaker" id="navChartmakerLink">Chartmaker</a>
  <a class="item" href="calendar" id="navCalendarLink" hidden>Calendar</a>
 </div></nav>
 <div class="wrap" style="padding-top:16px;">
@@ -1095,7 +1095,6 @@
   })();
   window.EATLAS_PREFS.onSettled(function(){
     var navChartmakerLink = document.getElementById("navChartmakerLink");
-    if(navChartmakerLink) navChartmakerLink.hidden = !(window.EATLAS_PREFS.isPro && window.EATLAS_PREFS.isPro());
     // Calendar is a genuinely admin-only preview right now (real data,
     // real fetch scripts written, but only 17 of 32 countries have
     // confirmed dates and several fetch scripts are still untested
@@ -2290,32 +2289,24 @@ function shortSourceNote(country, concept){
   return full.split("\u00b7")[0].trim();
 }
 
-// Opened up to every logged-in account (isPro(), currently true for
-// anyone logged in per the site-wide Pro override) -- previously
-// admin-only during active bug-fixing; that phase is done and this was
-// a deliberate decision to make it generally available.
+// Opened up fully: no login or Pro status required at all, per explicit
+// decision to make ChartMaker available to anyone. Previously gated on
+// isPro() (before that, isAdmin() during active bug-fixing) -- both
+// gates removed outright rather than left as an always-true check, so
+// there's no dead gating logic sitting around pretending to guard
+// something. The page's own "Download PNG"/"Download CSV" buttons
+// (cmPngBtn/cmCsvBtn) were never wired to the shared EATLAS_DOWNLOAD
+// credits system anyway (confirmed by checking -- that system is used
+// by country pages/Dashboard/Compare, not by ChartMaker's own exports),
+// so nothing else needed touching for downloads to work for anyone.
 var gateEl = document.getElementById("cmGate");
 var layoutEl = document.getElementById("cmLayout");
-function revealIfAllowed(){
-  var allowed = !!(window.EATLAS_PREFS && window.EATLAS_PREFS.isPro && window.EATLAS_PREFS.isPro());
-  if(allowed){
-    gateEl.style.display = "none";
-    layoutEl.classList.add("show");
-    initChartMaker();
-  } else {
-    gateEl.style.display = "";
-    layoutEl.classList.remove("show");
-  }
-}
-if(window.EATLAS_PREFS && window.EATLAS_PREFS.ready){
-  window.EATLAS_PREFS.ready.then(revealIfAllowed);
-  if(window.EATLAS_PREFS.onSettled) window.EATLAS_PREFS.onSettled(revealIfAllowed);
-  if(window.EATLAS_PREFS.onLogin) window.EATLAS_PREFS.onLogin(revealIfAllowed);
-}
-// Kick off the real data fetch immediately, in parallel with the auth
-// check -- by the time someone clears the gate, the 32-country fetch
-// is usually already done or close to it, rather than waiting until
-// after admin/Pro status resolves to even start.
+gateEl.style.display = "none";
+layoutEl.classList.add("show");
+initChartMaker();
+// Kick off the real data fetch immediately -- initChartMaker() runs the
+// UI setup synchronously above, so this just needs to start loading
+// data without blocking on anything else.
 loadAllCountryData();
 
 var initedOnce = false;
