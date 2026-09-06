@@ -1132,7 +1132,7 @@
 .cal-controls{display:flex; flex-wrap:wrap; align-items:center; justify-content:space-between; gap:14px; margin-bottom:18px;}
 .cal-monthnav{display:flex; align-items:center; gap:12px;}
 .cal-monthnav h2{font-size:19px; margin:0; min-width:150px; text-align:center;}
-.cal-monthnav button{width:32px; height:32px; border-radius:8px; border:1px solid var(--hair);
+.cal-monthnav button:not(.cal-today){width:32px; height:32px; border-radius:8px; border:1px solid var(--hair);
   background:var(--panel); color:var(--ink); font-size:16px; cursor:pointer; display:flex; align-items:center; justify-content:center;}
 .cal-monthnav button:hover{background:var(--paper);}
 .cal-today{font:700 12.5px "Avenir Next","Avenir","Nunito Sans",sans-serif; padding:7px 14px;
@@ -1209,6 +1209,24 @@
 .cal-detail-bell{width:100%; margin-top:14px; padding:9px 0; border-radius:8px; border:1px solid var(--hair);
   background:var(--panel); color:var(--ink2); font:700 12.5px "Avenir Next","Avenir","Nunito Sans",sans-serif; cursor:not-allowed;}
 
+/* Larger, more readable variant used specifically for the event-detail
+   pop-up, since a small modal for reading a full explainer was the
+   actual complaint -- bigger type throughout, not just a wider box. */
+.cal-detail-large .cal-detail-country{font-size:14px;}
+.cal-detail-large h2{font-size:26px; line-height:1.25;}
+.cal-detail-large .cal-detail-when{font-size:15px; gap:32px; margin:22px 0;}
+.cal-detail-large .cal-detail-when div strong{font-size:12.5px;}
+.cal-detail-large .cal-detail-desc{font-size:16px; line-height:1.7; margin:22px 0;}
+.cal-detail-large .cal-detail-src{font-size:13.5px; padding-top:16px; margin-top:16px;}
+.cal-detail-large .cal-detail-bell{padding:13px 0; font-size:14px;}
+
+.cal-email-explainer{background:var(--panel); border:1px solid var(--hair); border-radius:14px; padding:26px 28px; margin-top:22px;}
+.cal-email-explainer h2{font-size:19px; margin:0 0 12px;}
+.cal-email-explainer p{font-size:13.5px; line-height:1.6; color:var(--ink); margin:0 0 12px;}
+.cal-email-explainer-list{margin:0 0 12px; padding-left:20px; font-size:13.5px; line-height:1.7; color:var(--ink);}
+.cal-email-explainer-list li{margin-bottom:4px;}
+.cal-email-explainer-status{font-size:12px; color:var(--ink2); margin:16px 0 0; padding-top:14px; border-top:1px solid var(--hair);}
+
 .cal-gate{max-width:520px; margin:60px auto; text-align:center; padding:34px 30px; background:var(--panel); border:1px solid var(--hair); border-radius:14px;}
 .cal-gate h2{margin:0 0 8px; font-size:19px;}
 .cal-gate p{color:var(--ink2); font-size:13.5px; line-height:1.6; margin:0;}
@@ -1251,6 +1269,18 @@
 <div class="cal-day-detail" id="calDayDetail"></div>
 
 <p class="cal-legend" id="calLegend"></p>
+
+<div class="cal-email-explainer">
+<h2>How email alerts work</h2>
+<p>Use the <strong>Countries</strong> button above to pick which countries and metrics you want to follow, and turn on <strong>"Email me when something I track is coming up"</strong> in that same panel. That's the whole setup, there's nothing else to configure.</p>
+<p>Once it's on, a daily check runs against everything you're tracking. If anything is due within the <strong>next 7 days</strong>, you get one email that morning listing what's coming, the country, the release, and the date, so you don't have to keep this page open to stay on top of it.</p>
+<ul class="cal-email-explainer-list">
+<li>One email a day at most, never more, and never if nothing you track is due that week</li>
+<li>Only covers what you've explicitly ticked, add a country or a metric and it's included from the next check onward, remove one and it stops</li>
+<li>You can turn it off any time from the same Countries panel</li>
+</ul>
+<p class="cal-email-explainer-status">This is a new feature and still being tested behind the scenes, admin preview only for now, not yet available more widely.</p>
+</div>
 </div>
 
 <div class="modal" id="calCountriesModal" hidden>
@@ -1264,19 +1294,18 @@
 <button type="button" id="calPickNone">Clear countries</button>
 </div>
 <div class="cal-picker-grid" id="calPickerGrid"></div>
+<p class="cal-picker-note" style="margin-top:2px;">Not all countries have available data for the calendar yet, so only the ones with real coverage are listed here.</p>
 <h4 style="font-size:11px; font-weight:700; text-transform:uppercase; letter-spacing:.06em; color:var(--ink2); margin:18px 0 8px;">Metrics</h4>
 <div id="calMetricsPickerGrid" style="display:flex; flex-wrap:wrap; gap:8px; margin-bottom:6px;"></div>
 <div id="calEmailAlertsRow" style="margin-top:16px; padding-top:14px; border-top:1px solid var(--hair);"></div>
-<button type="button" class="cal-picker-save" id="calPickerSave">Save my preferences</button>
-<p class="cal-picker-note" id="calPickerNote">Extension not built yet: once countries and metrics can be tracked server side against an account, an email could go out when something you follow is about to be released, not just shown on this page.</p>
 </div>
 </div>
 
 <div class="modal" id="calEventModal" hidden>
 <div class="modal-backdrop" id="calEventBackdrop"></div>
-<div class="modal-content">
+<div class="modal-content" style="width:min(760px, 94vw); padding:36px 40px;">
 <button type="button" class="modal-close" id="calEventClose" aria-label="Close">&times;</button>
-<div id="calEventDetailBody"></div>
+<div id="calEventDetailBody" class="cal-detail-large"></div>
 </div>
 </div>
 
@@ -1451,6 +1480,16 @@ var SHORT_LABEL = {
 };
 
 var COUNTRY_COLOR = {UK:"#1E4566", US:"#AD1E1E", Eurozone:"#D47353", Japan:"#AD5132", India:"#BB8A4D", Canada:"#AD7B1E", Australia:"#ADA61E", "South Korea":"#D4D453", Israel:"#A5BB4D", Mexico:"#82AD32", Brazil:"#7AD453", "South Africa":"#49AD1E", Morocco:"#1E8F1E", Germany:"#1EAD42", France:"#53D493", Italy:"#1E8F67", Spain:"#1EAD7B", Netherlands:"#32A7AD", Denmark:"#376A80", Ireland:"#1E7BAD", Norway:"#4D74BB", Chile:"#535AD4", Colombia:"#2D2672", Turkey:"#2C1EAD", Indonesia:"#6A32AD", Poland:"#CD53D4", Switzerland:"#891E8F", Argentina:"#AD32AD", Sweden:"#D453A7", Singapore:"#AD1E5E", Austria:"#722648", Thailand:"#D45366"};
+// Only the countries that actually have a real event somewhere (either
+// in the hand-verified September data, or a working fetch script that
+// populates later months) -- the other 14 of the 32 tracked on country
+// pages have zero calendar coverage right now, and offering to "track"
+// them here would look broken (nothing would ever show or alert for
+// them). Update this list as more countries get real fetch scripts.
+var COUNTRIES_WITH_DATA = ["Australia", "Brazil", "Canada", "Chile", "Eurozone",
+  "Indonesia", "Israel", "Japan", "Mexico", "Morocco", "Norway", "Poland",
+  "South Africa", "Sweden", "Switzerland", "Turkey", "UK", "US"];
+var ALL_COUNTRIES = COUNTRIES_WITH_DATA.slice();
 
 var REGION_GROUPS = [
   {name: "Europe", countries: ["Austria","Eurozone","France","Germany","Ireland","Italy","Netherlands","Poland","Spain","Switzerland","Turkey","UK","Denmark","Norway","Sweden"]},
@@ -1461,7 +1500,6 @@ var REGION_GROUPS = [
   {name: "South America", countries: ["Argentina","Brazil","Chile","Colombia"]},
   {name: "Africa", countries: ["Morocco","South Africa"]}
 ];
-var ALL_COUNTRIES = Object.keys(COUNTRY_COLOR);
 
 var RATE_COLOR = "#D14343";
 function eventColor(ev){ return ev.rate ? RATE_COLOR : (COUNTRY_COLOR[ev.country] || "#5A6167"); }
@@ -1717,16 +1755,19 @@ function wireCalendarInteractions(){
     if(!pickerGrid) return;
     pickerGrid.innerHTML = "";
     REGION_GROUPS.forEach(function(g){
+      var available = g.countries.filter(function(c){ return COUNTRIES_WITH_DATA.indexOf(c) !== -1; });
+      if(!available.length) return; // whole region has zero coverage -- don't show an empty heading
       var region = document.createElement("div");
       region.className = "cal-picker-region";
       var h4 = document.createElement("h4"); h4.textContent = g.name; region.appendChild(h4);
-      g.countries.forEach(function(c){
+      available.forEach(function(c){
         var row = document.createElement("label");
         row.className = "cal-picker-row";
         var cb = document.createElement("input");
         cb.type = "checkbox";
         cb.checked = trackedCountries.indexOf(c) !== -1;
         cb.dataset.country = c;
+        cb.addEventListener("change", saveCountriesNow);
         row.appendChild(cb);
         var sw = document.createElement("span");
         sw.className = "sw";
@@ -1740,6 +1781,21 @@ function wireCalendarInteractions(){
   }
 
   var metricsGrid = document.getElementById("calMetricsPickerGrid");
+  function saveCountriesNow(){
+    var picked = [];
+    pickerGrid.querySelectorAll("input[type=checkbox]:checked").forEach(function(cb){ picked.push(cb.dataset.country); });
+    trackedCountries = picked;
+    saveTrackedCountries(picked);
+    renderAll();
+  }
+  function saveMetricsNow(){
+    var picked = [];
+    metricsGrid.querySelectorAll("input[type=checkbox]:checked").forEach(function(cb){ picked.push(cb.dataset.metric); });
+    trackedMetrics = picked;
+    saveTrackedMetrics(picked);
+    renderAll();
+  }
+
   function renderMetricsPickerGrid(){
     if(!metricsGrid) return;
     metricsGrid.innerHTML = "";
@@ -1752,6 +1808,7 @@ function wireCalendarInteractions(){
       cb.type = "checkbox";
       cb.checked = trackedMetrics.indexOf(opt.key) !== -1;
       cb.dataset.metric = opt.key;
+      cb.addEventListener("change", saveMetricsNow);
       row.appendChild(cb);
       row.appendChild(document.createTextNode(opt.label));
       metricsGrid.appendChild(row);
@@ -1771,7 +1828,9 @@ function wireCalendarInteractions(){
       "<input type='checkbox' id='calEmailAlertsToggle' " + checked + "> " +
       "Email me when something I track is coming up" +
       "</label>" +
-      "<p class='cal-picker-note' style='margin:6px 0 0;'>Not wired up to actually send yet -- this saves the preference to your account so it's ready once it is.</p>";
+      "<p class='cal-picker-note' style='margin:6px 0 0;'>Sends a summary email when a tracked release is within the next 7 days. See \"How email alerts work\" below for the full detail.</p>";
+    var toggle = document.getElementById("calEmailAlertsToggle");
+    if(toggle) toggle.addEventListener("change", function(){ saveEmailAlertsEnabled(toggle.checked); });
   }
 
   var countriesBtn = document.getElementById("calCountriesBtn");
@@ -1781,37 +1840,20 @@ function wireCalendarInteractions(){
     renderEmailAlertsRow();
     var subtext = document.getElementById("calPickerSubtext");
     if(subtext) subtext.textContent = isLoggedIn()
-      ? "Pick which countries and metrics show on this calendar. Saved to your account."
-      : "Pick which countries and metrics show on this calendar. Saved to this browser only until you log in.";
+      ? "Pick which countries and metrics show on this calendar. Changes save immediately to your account."
+      : "Pick which countries and metrics show on this calendar. Changes save immediately to this browser only, until you log in.";
     var m = document.getElementById("calCountriesModal");
     if(m) m.hidden = false;
   });
   var pickAll = document.getElementById("calPickAll");
   if(pickAll) pickAll.addEventListener("click", function(){
     pickerGrid.querySelectorAll("input[type=checkbox]").forEach(function(cb){ cb.checked = true; });
+    saveCountriesNow();
   });
   var pickNone = document.getElementById("calPickNone");
   if(pickNone) pickNone.addEventListener("click", function(){
     pickerGrid.querySelectorAll("input[type=checkbox]").forEach(function(cb){ cb.checked = false; });
-  });
-  var pickerSave = document.getElementById("calPickerSave");
-  if(pickerSave) pickerSave.addEventListener("click", function(){
-    var pickedCountries = [];
-    pickerGrid.querySelectorAll("input[type=checkbox]:checked").forEach(function(cb){ pickedCountries.push(cb.dataset.country); });
-    trackedCountries = pickedCountries;
-    saveTrackedCountries(pickedCountries);
-
-    var pickedMetrics = [];
-    metricsGrid.querySelectorAll("input[type=checkbox]:checked").forEach(function(cb){ pickedMetrics.push(cb.dataset.metric); });
-    trackedMetrics = pickedMetrics;
-    saveTrackedMetrics(pickedMetrics);
-
-    var emailToggle = document.getElementById("calEmailAlertsToggle");
-    if(emailToggle) saveEmailAlertsEnabled(emailToggle.checked);
-
-    var m = document.getElementById("calCountriesModal");
-    if(m) m.hidden = true;
-    renderAll();
+    saveCountriesNow();
   });
   function closeCountriesModal(){ var m = document.getElementById("calCountriesModal"); if(m) m.hidden = true; }
   var countriesClose = document.getElementById("calCountriesClose");

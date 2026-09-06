@@ -1,0 +1,47 @@
+CALENDAR — THIS ROUND'S FIXES (on top of everything already confirmed:
+Pro Plan removal, preferences wiring, metrics/country coverage)
+========================================================================
+65 files, same rules as always: send-calendar-alerts.yml via
+pencil-icon only, never a normal upload.
+
+1. COUNTRY PICKER FILTERED TO REAL DATA
+   Only the 18 countries with actual calendar coverage now appear
+   (previously showed all 32, including 14 with zero data). Added the
+   note "Not all countries have available data for the calendar yet,
+   so only the ones with real coverage are listed here." Verified in a
+   real browser: Colombia correctly absent, UK correctly present.
+
+2. AUTO-SAVE, NO MORE SAVE BUTTON
+   Every checkbox (countries, metrics) and the email toggle now saves
+   the instant you click it. Removed "Save my preferences" entirely.
+   Verified: unchecking a country updates the saved count immediately,
+   no extra click needed.
+
+3. "HOW EMAIL ALERTS WORK" -- REAL, VISIBLE SECTION ADDED
+   A proper explainer now lives on the page itself: how to set it up,
+   what the 7-day window means, and an honest "admin preview only, not
+   yet available more widely" status line.
+
+4. TODAY BUTTON -- ACTUAL ROOT CAUSE FOUND AND FIXED
+   Previous rounds added white-space:nowrap, which didn't fix it. This
+   time: found the real cause -- a generic ".cal-monthnav button" CSS
+   rule was force-sizing every button in that row to 32x32px, including
+   Today, and it has higher specificity than Today's own sizing rule so
+   it always won. Fixed with :not(.cal-today). Verified by measuring
+   the actual rendered element: clientWidth now equals scrollWidth
+   (64px = 64px), meaning zero text clipping, confirmed at 5 different
+   viewport widths.
+
+5. EVENT DETAIL IS NOW A GENUINELY LARGE POP-UP
+   Widened from 520px to 760px, with substantially bigger heading and
+   body text throughout, not just a wider box around the same small
+   text. Screenshot-checked.
+
+EMAIL WIRING: re-verified the matching logic once more against real
+exported data (a UK GDP/CPI tracker correctly catches the Sept 11 GDP
+release in a 7-day window). Still blocked on the same thing as before
+-- SUPABASE_SERVICE_ROLE_KEY needs to come from your Supabase dashboard
+into GitHub secrets before any real email can send. Fastest path to
+testing once that's added: turn on the email toggle for your own
+account with a country/metric combo that has something due soon, then
+manually trigger send-calendar-alerts.yml from the Actions tab.
