@@ -1,33 +1,38 @@
 """Fetch upcoming UK release dates and write data-calendar-uk.json.
 
 Run:  python3 fetch_calendar_uk.py
-No API key needed -- these are public ONS bulletin pages.
+No API key needed -- this is ONS's own public release-calendar iCal feed.
 
-ONS's old release-calendar data endpoint (/releasecalendar/data) was
-retired in 2024 in favour of a search API (api.beta.ons.gov.uk/v1/search)
-that, as of this writing, doesn't cleanly expose a "future release date"
-field per item without more investigation than fit in one overnight
-session -- flagged as a follow-up, not solved here.
+REWRITTEN from a slug-guessing regex scraper to parsing ONS's official
+iCal feed at https://www.ons.gov.uk/calendar/releasecalendar, after the
+first real workflow run wrote 0 UK events and root-causing showed TWO
+separate bugs in the old approach:
 
-What DOES work, confirmed directly (fetched live, not guessed): every ONS
-bulletin has a predictable URL of the form
-  https://www.ons.gov.uk/releases/{slug}{month}{year}
-and the NEXT release's page already exists and is publicly fetchable
-MONTHS before publication, showing "Release date: DD Month YYYY H:MMam"
-and "Important information: This release is not yet published" --
-e.g. https://www.ons.gov.uk/releases/gdpmonthlyestimateukseptember2026
-returned a real "Release date: 12 November 2026 7:00am" when fetched on
-2026-09-03, for a bulletin that won't itself be published until then.
+1. Wrong slug prefixes, confirmed by fetching real ONS search results:
+   the CPI bulletin's real slug is "consumerpriceinflationuk{month}{year}"
+   (the old script was missing the "uk"), and the labour market
+   bulletin's real slug is "uklabourmarket{month}{year}" (the old
+   script's "labourmarketoverviewuk" prefix doesn't exist at all --
+   every slug tried for it 404'd, which is exactly what the log showed).
+2. Even where the slug WAS right (GDP, public finances, trade), the
+   live page returned HTTP 200 but the "Release date:" regex still
+   didn't match against the raw HTML, despite the same text being
+   plainly visible when the page is rendered/extracted as text. Never
+   got to the bottom of the exact markup cause (no raw-HTML access from
+   this environment), and it doesn't matter now -- the iCal feed sidesteps
+   the whole problem, since it returns each release's exact name and
+   DTSTART as clean structured fields, no page-scraping or slug
+   conventions to guess at all.
 
-This script generates the next N months of slugs for each tracked
-bulletin and fetches each one, parsing the "Release date:" line. A slug
-that 404s just means that future bulletin's page hasn't been created yet
--- not an error, so those are skipped rather than failing the run.
-
-NOT YET RUN LIVE -- ons.gov.uk isn't in this sandbox's network
-allowlist. Written and reasoned through against two real fetches of
-actual ONS pages (see the URLs above), not guessed. Treat the first real
-GitHub Actions run log as the genuine test.
+The feed (confirmed live, fetched directly) returns a rolling ~3 month
+window of every upcoming ONS release as VEVENT blocks, e.g.:
+  SUMMARY:GDP monthly estimate, UK: September 2026
+  DTSTART:20261112T070000Z
+  UID:/releases/gdpmonthlyestimateukseptember2026
+This script fetches that feed once and matches each tracked bulletin by
+its exact SUMMARY prefix, filtering out the "time series"/regional/
+quarterly companion releases ONS publishes alongside the headline
+bulletin under similar names.
 """
 
 from __future__ import annotations
@@ -39,109 +44,100 @@ from datetime import datetime, timezone
 
 import requests
 
-MONTH_NAMES = ["january", "february", "march", "april", "may", "june",
-               "july", "august", "september", "october", "november", "december"]
+FEED_URL = "https://www.ons.gov.uk/calendar/releasecalendar"
 
-# key: (slug prefix, human name, source note). The slug is
-# {prefix}{month}{year}, e.g. "gdpmonthlyestimateuk" + "september2026".
+# key: (name, a function that decides whether a given SUMMARY line is
+# THIS bulletin's headline release, not a companion "time series" /
+# regional / quarterly release published under a similar name).
+def _is_gdp_monthly(s: str) -> bool:
+    return s.startswith("GDP monthly estimate, UK:") and "time series" not in s.lower()
+
+def _is_cpi(s: str) -> bool:
+    return s.startswith("Consumer price inflation, UK:") and "time series" not in s.lower()
+
+def _is_labour_market(s: str) -> bool:
+    return s.startswith("UK Labour Market:") and "time series" not in s.lower()
+
+def _is_public_finances(s: str) -> bool:
+    return s.startswith("Public sector finances, UK:") and "time series" not in s.lower()
+
+def _is_trade(s: str) -> bool:
+    sl = s.lower()
+    return sl.startswith("uk trade:") and "time series" not in sl and "quarterly" not in sl and "in services" not in sl
+
 TRACKED_BULLETINS = {
-    "gdp_monthly": ("gdpmonthlyestimateuk", "GDP monthly estimate"),
-    "cpi": ("consumerpriceinflation", "Consumer price inflation"),
-    "labour_market": ("labourmarketoverviewuk", "Labour market overview"),
-    "public_finances": ("publicsectorfinancesuk", "Public sector finances"),
-    "trade": ("uktrade", "UK trade"),
+    "gdp_monthly": ("GDP monthly estimate", _is_gdp_monthly),
+    "cpi": ("Consumer price inflation", _is_cpi),
+    "labour_market": ("UK Labour Market", _is_labour_market),
+    "public_finances": ("Public sector finances", _is_public_finances),
+    "trade": ("UK trade", _is_trade),
 }
 
-RELEASE_DATE_RE = re.compile(
-    r"Release date:\s*(\d{1,2} [A-Za-z]+ \d{4})\s*([\d:]+(?:am|pm))?", re.I)
+VEVENT_RE = re.compile(r"BEGIN:VEVENT(.*?)END:VEVENT", re.S)
+FIELD_RE = re.compile(r"^([A-Z]+):(.*)$", re.M)
 
 
-def month_year_slugs() -> list[str]:
-    """Real bug found by testing this script against live pages after
-    the first workflow run: ONS's slug-month convention is NOT
-    consistent across bulletins. The GDP monthly estimate slug uses
-    the DATA's reference month (confirmed live: the bulletin due out
-    11 September 2026 lives at .../gdpmonthlyestimateukjuly2026, a
-    2-month lag), while the CPI bulletin slug uses the RELEASE month
-    itself (confirmed live: the release due 16 September 2026, covering
-    August data, lives at .../consumerpriceinflationukseptember2026,
-    zero lag). The original version of this function only ever guessed
-    forward from the current month, so it could find CPI's slug but
-    could never find GDP's, since july2026 is chronologically behind
-    today -- which is exactly why the first real run returned zero UK
-    events. Rather than hardcode a per-bulletin offset (fragile, and
-    the labour market bulletin's own convention hasn't been separately
-    confirmed), this tries a wide window covering both known
-    conventions with margin either side."""
-    now = datetime.now(timezone.utc)
-    out = []
-    y, m = now.year, now.month - 3
-    while y < now.year or (y == now.year and m <= now.month + 3):
-        yy, mm = y, m
-        while mm < 1:
-            mm += 12; yy -= 1
-        while mm > 12:
-            mm -= 12; yy += 1
-        out.append(f"{MONTH_NAMES[mm - 1]}{yy}")
-        m += 1
-    return out
-
-
-def fetch_bulletin_date(slug_prefix: str, debug_log: list) -> tuple[str, str] | None:
-    """Try each upcoming month's slug for this bulletin; return the first
-    one that resolves with a real, not-yet-published release date."""
-    for my in month_year_slugs():
-        url = f"https://www.ons.gov.uk/releases/{slug_prefix}{my}"
+def parse_events(ics_text: str) -> list[dict]:
+    events = []
+    for block in VEVENT_RE.findall(ics_text):
+        fields = dict(FIELD_RE.findall(block))
+        summary = fields.get("SUMMARY", "").strip()
+        dtstart = fields.get("DTSTART", "").strip()
+        uid = fields.get("UID", "").strip()
+        if not summary or not dtstart:
+            continue
         try:
-            r = requests.get(url, timeout=30, headers={"User-Agent": "Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/120.0.0.0 Safari/537.36"})
-        except requests.RequestException as e:
-            debug_log.append(f"{url} -> request failed: {e}")
-            continue
-        if r.status_code != 200:
-            debug_log.append(f"{url} -> HTTP {r.status_code}")
-            continue
-        m = RELEASE_DATE_RE.search(r.text)
-        if not m:
-            debug_log.append(f"{url} -> HTTP 200 but 'Release date:' pattern not found "
-                              f"(page length {len(r.text)} chars)")
-            continue
-        date_str, time_str = m.group(1), m.group(2)
-        try:
-            parsed = datetime.strptime(date_str, "%d %B %Y")
+            dt = datetime.strptime(dtstart, "%Y%m%dT%H%M%SZ").replace(tzinfo=timezone.utc)
         except ValueError:
-            debug_log.append(f"{url} -> matched '{date_str}' but couldn't parse it")
             continue
-        # Only want dates that are actually still in the future -- a
-        # slug can resolve to an ALREADY-published bulletin (this
-        # month's, already out) rather than the next upcoming one.
-        if parsed.date() < datetime.now(timezone.utc).date():
-            debug_log.append(f"{url} -> matched '{date_str}' but that's already in the past")
-            continue
-        return parsed.strftime("%Y-%m-%d"), (time_str or "")
-    return None
+        events.append({"summary": summary, "dt": dt, "uid": uid})
+    return events
 
 
 def main():
+    try:
+        r = requests.get(FEED_URL, timeout=30, headers={"User-Agent": "Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/120.0.0.0 Safari/537.36"})
+    except requests.RequestException as e:
+        print(f"ERROR fetching ONS release calendar feed: {e}", file=sys.stderr)
+        out = {"generated": datetime.now(timezone.utc).isoformat(), "country": "UK", "events": []}
+        with open("data-calendar-uk.json", "w") as f:
+            json.dump(out, f, indent=2)
+        print("Wrote 0 UK calendar events.")
+        return
+    if r.status_code != 200:
+        print(f"ERROR: ONS release calendar feed returned HTTP {r.status_code}", file=sys.stderr)
+        out = {"generated": datetime.now(timezone.utc).isoformat(), "country": "UK", "events": []}
+        with open("data-calendar-uk.json", "w") as f:
+            json.dump(out, f, indent=2)
+        print("Wrote 0 UK calendar events.")
+        return
+
+    all_events = parse_events(r.text)
+    now = datetime.now(timezone.utc)
     events = []
-    for key, (slug_prefix, name) in TRACKED_BULLETINS.items():
-        debug_log = []
-        result = fetch_bulletin_date(slug_prefix, debug_log)
-        if result is None:
-            print(f"WARNING: no upcoming date found for {key} ({slug_prefix}) "
-                  f"in the next few months -- check the slug pattern by hand.",
-                  file=sys.stderr)
-            print(f"DEBUG: every slug tried for {key}:", file=sys.stderr)
-            for line in debug_log:
-                print(f"  {line}", file=sys.stderr)
+    for key, (name, matcher) in TRACKED_BULLETINS.items():
+        matches = [e for e in all_events if matcher(e["summary"]) and e["dt"] >= now]
+        if not matches:
+            print(f"WARNING: no upcoming '{name}' release found in the feed "
+                  f"(feed covers roughly the next 3 months -- check back closer "
+                  f"to the release, or the SUMMARY naming convention may have "
+                  f"changed on ONS's end).", file=sys.stderr)
             continue
-        release_date, release_time = result
+        matches.sort(key=lambda e: e["dt"])
+        soonest = matches[0]
         events.append({
-            "date": release_date,
+            "date": soonest["dt"].strftime("%Y-%m-%d"),
             "country": "UK",
             "concept": key,
             "name": name,
-            "source": f"ons.gov.uk/releases/{slug_prefix}...",
-            "time": release_time or None,
+            "source": f"ons.gov.uk{soonest['uid']} (official ONS release-calendar feed)",
+            # DTSTART is UTC, but ONS displays release times in UK local
+            # time (BST/GMT depending on time of year) -- converting
+            # correctly needs a real timezone library the other fetch
+            # scripts don't currently use, so left as None rather than
+            # silently showing a wrong hour (e.g. a genuine 7:00am BST
+            # release stored as UTC would display as "6:00am").
+            "time": None,
         })
 
     events.sort(key=lambda e: e["date"])
