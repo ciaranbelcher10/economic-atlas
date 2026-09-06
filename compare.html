@@ -11,12 +11,12 @@
   }catch(e){}
 })();</script>
 <meta name="viewport" content="width=device-width, initial-scale=1">
-<title>Compare Countries · The Economic Atlas</title>
-<meta name="description" content="Compare GDP growth, inflation, unemployment, debt and policy rates across dozens of economies at once, with real historical data.">
+<title>Compare and Rank Countries · The Economic Atlas</title>
+<meta name="description" content="Rank and compare GDP, inflation, unemployment, debt and policy rates across all 32 tracked countries at once, with real historical data.">
 <meta property="og:type" content="website">
 <meta property="og:site_name" content="The Economic Atlas">
 <meta property="og:title" content="Compare Countries · The Economic Atlas">
-<meta property="og:description" content="Compare GDP growth, inflation, unemployment, debt and policy rates across dozens of economies at once, with real historical data.">
+<meta property="og:description" content="Rank and compare GDP, inflation, unemployment, debt and policy rates across all 32 tracked countries at once, with real historical data.">
 <meta property="og:url" content="https://theeconomicatlas.com/compare">
 <meta property="og:image" content="https://theeconomicatlas.com/og-image.png">
 <meta property="og:image:width" content="1200">
@@ -24,7 +24,7 @@
 <meta property="og:image:alt" content="The Economic Atlas, hourly economic data, no commentary.">
 <meta name="twitter:card" content="summary_large_image">
 <meta name="twitter:title" content="Compare Countries · The Economic Atlas">
-<meta name="twitter:description" content="Compare GDP growth, inflation, unemployment, debt and policy rates across dozens of economies at once, with real historical data.">
+<meta name="twitter:description" content="Rank and compare GDP, inflation, unemployment, debt and policy rates across all 32 tracked countries at once, with real historical data.">
 <meta name="twitter:image" content="https://theeconomicatlas.com/og-image.png">
 <link rel="canonical" href="https://theeconomicatlas.com/compare">
 <link rel="preconnect" href="https://fonts.googleapis.com">
@@ -336,6 +336,18 @@ footer.cmp-foot{margin-top:36px; font-size:12.5px; color:var(--ink2); border-top
    never actually disappeared once first shown. */
 .dash-undo-toast[hidden]{display:none !important;}
 </style>
+<script type="application/ld+json">
+{
+  "@context": "https://schema.org",
+  "@type": "Dataset",
+  "name": "Country economic rankings and comparisons",
+  "description": "Rankings and side-by-side comparisons of GDP, inflation (CPI), unemployment, government debt, trade balance and central bank policy rates across 32 countries, sourced directly from national statistics offices and central banks and updated automatically.",
+  "url": "https://theeconomicatlas.com/compare",
+  "keywords": ["GDP by country", "GDP ranking", "inflation by country", "inflation ranking", "unemployment by country", "unemployment ranking", "countries by debt", "interest rates by country", "compare countries economy"],
+  "creator": {"@type": "Organization", "name": "The Economic Atlas", "url": "https://theeconomicatlas.com"},
+  "variableMeasured": ["GDP level", "GDP growth rate", "Consumer Price Index (inflation)", "Unemployment rate", "Government debt to GDP", "Trade balance", "Central bank policy rate"]
+}
+</script>
 </head>
 <body>
 <nav class="top"><div class="wrap">
@@ -1524,8 +1536,9 @@ footer.cmp-foot{margin-top:36px; font-size:12.5px; color:var(--ink2); border-top
  <button type="button" class="btn" id="saveBarSignup">Sign up free</button>
  <button type="button" class="savebar-close" id="saveBarClose" aria-label="Dismiss">&times;</button>
  </div>
- <h1 style="font-size:28px; letter-spacing:-.01em; margin-bottom:6px;">Compare Countries</h1>
- <p style="color:var(--ink2); font-size:14.5px; margin:8px 0 0;">Compare any of the 18 tracked countries across GDP, inflation, unemployment, debt, trade, rates and more, side by side, for one year or over the last 1, 2, 5 or 10 years.</p>
+ <h1 style="font-size:28px; letter-spacing:-.01em; margin-bottom:6px;">Compare and Rank Countries</h1>
+ <p style="color:var(--ink2); font-size:14.5px; margin:8px 0 0;">Rank and compare all 32 tracked countries across GDP, inflation, unemployment, debt, trade, rates and more, side by side, for one year or over the last 1, 2, 5 or 10 years.</p>
+ <p style="color:var(--ink2); font-size:13px; margin:6px 0 0;">Looking for a specific ranking, GDP by country, inflation by country, or unemployment by country, the Summary table below covers all three (and more) at once, sorted however you like.</p>
  <p class="loadmsg" id="loadMsg">Loading every country&#39;s data&hellip;</p>
  <div id="mainContent" style="display:none; position:relative;">
  <button type="button" id="countriesToggleBtn" style="display:block; width:100%; text-align:center;
@@ -2879,6 +2892,19 @@ function periodLabelFor(dv){
   return String(dv.year);
 }
 var selected = ["UK", "US", "Germany", "Japan"];
+// ?countries=all expands the default 4-country view to every tracked
+// country -- used as the link target from the standalone ranking
+// landing pages (gdp-by-country.html etc.), so someone arriving from a
+// "GDP by country" search lands on a genuinely complete ranking, not
+// just the friendly 4-country default a first-time visitor gets.
+(function(){
+  try{
+    var params = new URLSearchParams(window.location.search);
+    if(params.get("countries") === "all"){
+      selected = Object.keys(COUNTRY_COLOR);
+    }
+  }catch(e){}
+})();
 // X-axis/chip ordering. "alphabetical" is the default (stable across
 // re-renders and across which metric is currently shown, unlike a
 // value-based sort would be). "value_desc"/"value_asc" only make sense
