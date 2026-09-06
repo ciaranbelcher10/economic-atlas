@@ -1498,7 +1498,22 @@ var REGION_GROUPS = [
 ];
 
 var RATE_COLOR = "#D14343";
-function eventColor(ev){ return ev.rate ? RATE_COLOR : (COUNTRY_COLOR[ev.country] || "#5A6167"); }
+// Colour decision: colour by METRIC, not by country. Every pill already
+// prints the country name as text (e.g. "Chile - Rate decision"), so a
+// per-country colour was pure duplication of information already on
+// the page -- with 16+ tracked countries active at once it produced a
+// wall of near-random colour with no pattern a person could actually
+// use. A per-metric colour instead adds real information: you can scan
+// the month and spot every GDP day, every CPI day, etc. across every
+// country at a glance. COUNTRY_COLOR is kept only for the country
+// picker's own swatches (a different context: identifying countries
+// to select, not scanning a calendar), not for event pills.
+var METRIC_COLOR = {
+  gdp: "#3B82C4", cpi: "#E08E45", jobs: "#4CAF6D",
+  rate_decision: RATE_COLOR, fomc: RATE_COLOR,
+  ppi: "#8B5CF6", pce: "#D453A7", trade: "#C9A227", public_finances: "#5A6167"
+};
+function eventColor(ev){ return METRIC_COLOR[ev.concept] || "#5A6167"; }
 
 /* ============================================================
    Preferences: real, server-side, persisted via EATLAS_PREFS (the same
@@ -1709,12 +1724,15 @@ function openEventDetail(ev){
 function renderLegend(){
   var el = document.getElementById("calLegend");
   if(!el) return;
-  var shown = ALL_COUNTRIES.filter(function(c){ return trackedCountries.indexOf(c) !== -1; }).slice(0, 8);
-  var parts = shown.map(function(c){
-    return "<span><span class='sw' style='background:" + COUNTRY_COLOR[c] + "'></span>" + c + "</span>";
+  // Legend now mirrors eventColor's metric-based scheme rather than
+  // listing countries -- showing only the metrics actually tracked,
+  // in a stable, sensible order rather than whatever order the JS
+  // object happens to iterate in.
+  var METRIC_ORDER = ["gdp", "cpi", "jobs", "rate_decision", "ppi", "pce", "trade", "public_finances"];
+  var shownMetrics = METRIC_ORDER.filter(function(m){ return trackedMetrics.indexOf(m) !== -1; });
+  var parts = shownMetrics.map(function(m){
+    return "<span><span class='sw' style='background:" + METRIC_COLOR[m] + "'></span>" + (SHORT_LABEL[m] || m) + "</span>";
   });
-  if(trackedCountries.length > 8) parts.push("<span>+" + (trackedCountries.length - 8) + " more tracked</span>");
-  parts.push("<span><span class='sw' style='background:" + RATE_COLOR + "'></span>Rate decision</span>");
   parts.push("<span>Click a tile for the full explainer. Bell icon = get notified (not wired up)</span>");
   el.innerHTML = parts.join("");
 }
