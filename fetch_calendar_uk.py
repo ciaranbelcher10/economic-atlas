@@ -48,6 +48,8 @@ TRACKED_BULLETINS = {
     "gdp_monthly": ("gdpmonthlyestimateuk", "GDP monthly estimate"),
     "cpi": ("consumerpriceinflation", "Consumer price inflation"),
     "labour_market": ("labourmarketoverviewuk", "Labour market overview"),
+    "public_finances": ("publicsectorfinancesuk", "Public sector finances"),
+    "trade": ("uktrade", "UK trade"),
 }
 
 RELEASE_DATE_RE = re.compile(

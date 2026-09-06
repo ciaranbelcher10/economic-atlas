@@ -51,7 +51,6 @@
  </div>
  </div>
  </div>
- <a class="item" href="pricing" id="planNavLink">Plan</a>
  <button type="button" class="authbtn" id="authBtn">Log in</button>
  <button type="button" class="theme-toggle" id="themeToggle" aria-label="Switch to dark mode" title="Switch to dark mode">&#127769;</button>
  </div>
@@ -126,26 +125,6 @@
  <a class="item" href="chartmaker" id="navChartmakerLink" hidden>Chartmaker</a>
  <a class="item" href="calendar" id="navCalendarLink" hidden>Calendar</a>
 </div></nav>
-<script>
-// Optimistic Plan-link render: applies whatever we last confirmed about
-// this browser's Pro status immediately, before the real (async)
-// profile fetch even starts. Without this, the link always starts as
-// plain "Plan" on every single page load and only corrects to "Pro
-// Plan" once that fetch resolves -- visible as a flash/flicker on every
-// navigation for an actual Pro account. updatePlanNavLink() (later in
-// the page) overwrites this the moment real data arrives either way, so
-// a stale cached guess here is corrected within a normal page-load's
-// worth of time, never left wrong.
-(function(){
-  try{
-    var link = document.getElementById("planNavLink");
-    if(link && localStorage.getItem("eatlas_last_known_pro") === "1"){
-      link.textContent = "Pro Plan";
-      link.classList.add("is-pro");
-    }
-  }catch(e){}
-})();
-</script>
 <div class="wrap" style="padding-top:16px;">
  <div class="savebar" id="alertBanner" hidden>
  <span class="savebar-icon" aria-hidden="true">&#128276;</span>
@@ -230,7 +209,7 @@
  <div class="modal-backdrop" id="welcomeProBackdrop"></div>
  <div class="modal-content">
  <button type="button" class="modal-close" id="welcomeProClose" aria-label="Close">&times;</button>
- <h2>Welcome to Pro</h2>
+ <h2>Welcome</h2>
  <p class="modal-sub">Your account includes:</p>
  <ul style="margin:0 0 20px; padding-left:20px; line-height:1.9; font-size:14.5px;">
  <li><strong>Unlimited data downloads</strong>, on any chart, any country</li>
@@ -960,7 +939,7 @@
       // reversible client-side simplification, not a change to what's
       // actually stored in the database.
       box.innerHTML =
-        '<p class="acct-plan-line"><strong>Pro</strong>, unlimited downloads and Customise &amp; export.</p>';
+        '<p class="acct-plan-line">Full access, unlimited downloads and Customise &amp; export.</p>';
     }
     return {
       render: render,
@@ -988,7 +967,7 @@
     window.EATLAS_PREFS.ready.then(function(){
       setTimeout(function(){
         if(params.get("upgraded") === "1"){
-          alert("You're on Pro! Unlimited downloads and Customise & export are unlocked.");
+          alert("Unlimited downloads and Customise & export are unlocked on your account.");
         } else if(params.get("credits_purchased") === "1"){
           alert("Credits added to your account.");
         }
@@ -1074,18 +1053,6 @@
   // one has no close button in its markup at all. That's deliberate:
   // "cannot delete" is enforced by there being nothing to click, not by
   // JS re-showing something a user closed.
-  // Plan nav link: shows "Pro Plan" in gold for an active Pro account
-  // (paid or trial), plain "Plan" otherwise -- a visible status
-  // indicator, not just a link to the pricing page.
-  function updatePlanNavLink(){
-    var link = document.getElementById("planNavLink");
-    if(!link) return;
-    var prefs = window.EATLAS_PREFS;
-    var isPro = !!(prefs && prefs.isPro());
-    link.textContent = isPro ? "Pro Plan" : "Plan";
-    link.classList.toggle("is-pro", isPro);
-    try{ localStorage.setItem("eatlas_last_known_pro", isPro ? "1" : "0"); }catch(e){}
-  }
   function updateTrialBanner(){
     // Always hidden -- no trial/upgrade messaging shown to anyone,
     // regardless of the real stored trial state. Deliberate, reversible
@@ -1137,7 +1104,6 @@
     window.EATLAS_CUSTOMIZE.refreshEntitlement();
     updateTrialBanner();
     maybeShowWelcomeProModal();
-    updatePlanNavLink();
   });
   // If this page load is the redirect back from clicking "confirm your
   // email" in the inbox, Supabase appends #access_token=...&type=signup
@@ -1291,15 +1257,18 @@
 <div class="modal-backdrop" id="calCountriesBackdrop"></div>
 <div class="modal-content" style="width:min(680px, 94vw);">
 <button type="button" class="modal-close" id="calCountriesClose" aria-label="Close">&times;</button>
-<h2>Track countries</h2>
-<p class="modal-sub">Pick which countries show on this calendar. Saved to this browser, remembered next visit.</p>
+<h2>Track countries and metrics</h2>
+<p class="modal-sub" id="calPickerSubtext">Pick which countries and metrics show on this calendar.</p>
 <div class="cal-picker-actions">
-<button type="button" id="calPickAll">Select all</button>
-<button type="button" id="calPickNone">Clear</button>
+<button type="button" id="calPickAll">Select all countries</button>
+<button type="button" id="calPickNone">Clear countries</button>
 </div>
 <div class="cal-picker-grid" id="calPickerGrid"></div>
-<button type="button" class="cal-picker-save" id="calPickerSave">Save my tracked countries</button>
-<p class="cal-picker-note">Extension not built yet: once countries and metrics can be tracked server side against an account, an email could go out when something you follow is about to be released, not just shown on this page.</p>
+<h4 style="font-size:11px; font-weight:700; text-transform:uppercase; letter-spacing:.06em; color:var(--ink2); margin:18px 0 8px;">Metrics</h4>
+<div id="calMetricsPickerGrid" style="display:flex; flex-wrap:wrap; gap:8px; margin-bottom:6px;"></div>
+<div id="calEmailAlertsRow" style="margin-top:16px; padding-top:14px; border-top:1px solid var(--hair);"></div>
+<button type="button" class="cal-picker-save" id="calPickerSave">Save my preferences</button>
+<p class="cal-picker-note" id="calPickerNote">Extension not built yet: once countries and metrics can be tracked server side against an account, an email could go out when something you follow is about to be released, not just shown on this page.</p>
 </div>
 </div>
 
@@ -1477,7 +1446,8 @@ var EVENTS = {
 
 var SHORT_LABEL = {
   gdp: "GDP", cpi: "CPI", jobs: "Jobs report", rate_decision: "Rate decision",
-  ppi: "PPI", pce: "PCE", fomc: "Rate decision"
+  ppi: "PPI", pce: "PCE", fomc: "Rate decision",
+  trade: "Trade", public_finances: "Public finances"
 };
 
 var COUNTRY_COLOR = {UK:"#1E4566", US:"#AD1E1E", Eurozone:"#D47353", Japan:"#AD5132", India:"#BB8A4D", Canada:"#AD7B1E", Australia:"#ADA61E", "South Korea":"#D4D453", Israel:"#A5BB4D", Mexico:"#82AD32", Brazil:"#7AD453", "South Africa":"#49AD1E", Morocco:"#1E8F1E", Germany:"#1EAD42", France:"#53D493", Italy:"#1E8F67", Spain:"#1EAD7B", Netherlands:"#32A7AD", Denmark:"#376A80", Ireland:"#1E7BAD", Norway:"#4D74BB", Chile:"#535AD4", Colombia:"#2D2672", Turkey:"#2C1EAD", Indonesia:"#6A32AD", Poland:"#CD53D4", Switzerland:"#891E8F", Argentina:"#AD32AD", Sweden:"#D453A7", Singapore:"#AD1E5E", Austria:"#722648", Thailand:"#D45366"};
@@ -1496,16 +1466,79 @@ var ALL_COUNTRIES = Object.keys(COUNTRY_COLOR);
 var RATE_COLOR = "#D14343";
 function eventColor(ev){ return ev.rate ? RATE_COLOR : (COUNTRY_COLOR[ev.country] || "#5A6167"); }
 
-var STORAGE_KEY = "eatlas_calendar_tracked_countries";
+/* ============================================================
+   Preferences: real, server-side, persisted via EATLAS_PREFS (the same
+   get/set API already used site-wide for the "preferences" jsonb
+   column on profiles), not just localStorage. EATLAS_PREFS.set()
+   already no-ops when logged out (by the site's own existing design --
+   "logged out -- nothing to save"), which is the right behaviour here
+   too: email alerts need an actual account with an email address
+   attached, so there's nothing meaningful to persist for an anonymous
+   visitor anyway. localStorage is kept ONLY as an anonymous-preview
+   fallback so the picker still feels responsive before logging in,
+   never as the source of truth once an account exists.
+   ============================================================ */
+var LOCAL_FALLBACK_COUNTRIES_KEY = "eatlas_calendar_tracked_countries";
+var LOCAL_FALLBACK_METRICS_KEY = "eatlas_calendar_tracked_metrics";
+
+function isLoggedIn(){
+  return !!(window.EATLAS_PREFS && window.EATLAS_PREFS.isLoggedIn && window.EATLAS_PREFS.isLoggedIn());
+}
+
 function loadTrackedCountries(){
+  if(isLoggedIn()){
+    var saved = window.EATLAS_PREFS.get("calendar_tracked_countries", null);
+    if(Array.isArray(saved) && saved.length) return saved;
+    return ALL_COUNTRIES.slice();
+  }
   try{
-    var raw = localStorage.getItem(STORAGE_KEY);
+    var raw = localStorage.getItem(LOCAL_FALLBACK_COUNTRIES_KEY);
     if(raw){ var parsed = JSON.parse(raw); if(Array.isArray(parsed) && parsed.length) return parsed; }
   }catch(e){}
   return ALL_COUNTRIES.slice();
 }
 function saveTrackedCountries(list){
-  try{ localStorage.setItem(STORAGE_KEY, JSON.stringify(list)); }catch(e){}
+  if(isLoggedIn()){ window.EATLAS_PREFS.set("calendar_tracked_countries", list); return; }
+  try{ localStorage.setItem(LOCAL_FALLBACK_COUNTRIES_KEY, JSON.stringify(list)); }catch(e){}
+}
+
+// Scoped to the concepts the calendar can actually show a date for --
+// offering to "track" a metric with zero release-calendar coverage
+// (e.g. trade_balance, debt_gdp) would look broken, since nothing
+// would ever appear or alert for it. See TRACKED_METRIC_OPTIONS below
+// for the full reasoning on why this list is much shorter than the
+// ~22 metrics tracked elsewhere on the site.
+var ALL_METRIC_CONCEPTS = ["gdp", "cpi", "jobs", "rate_decision", "ppi", "pce", "trade", "public_finances"];
+var TRACKED_METRIC_OPTIONS = [
+  {key: "gdp", label: "GDP"}, {key: "cpi", label: "CPI / inflation"},
+  {key: "jobs", label: "Jobs / labour market"}, {key: "rate_decision", label: "Rate decisions"},
+  {key: "ppi", label: "PPI"}, {key: "pce", label: "PCE"},
+  {key: "trade", label: "Trade"}, {key: "public_finances", label: "Public finances"}
+];
+function loadTrackedMetrics(){
+  if(isLoggedIn()){
+    var saved = window.EATLAS_PREFS.get("calendar_tracked_metrics", null);
+    if(Array.isArray(saved) && saved.length) return saved;
+    return ALL_METRIC_CONCEPTS.slice();
+  }
+  try{
+    var raw = localStorage.getItem(LOCAL_FALLBACK_METRICS_KEY);
+    if(raw){ var parsed = JSON.parse(raw); if(Array.isArray(parsed) && parsed.length) return parsed; }
+  }catch(e){}
+  return ALL_METRIC_CONCEPTS.slice();
+}
+function saveTrackedMetrics(list){
+  if(isLoggedIn()){ window.EATLAS_PREFS.set("calendar_tracked_metrics", list); return; }
+  try{ localStorage.setItem(LOCAL_FALLBACK_METRICS_KEY, JSON.stringify(list)); }catch(e){}
+}
+
+function loadEmailAlertsEnabled(){
+  if(!isLoggedIn()) return false; // can't email an anonymous visitor
+  return !!window.EATLAS_PREFS.get("calendar_email_alerts", false);
+}
+function saveEmailAlertsEnabled(enabled){
+  if(!isLoggedIn()) return;
+  window.EATLAS_PREFS.set("calendar_email_alerts", !!enabled);
 }
 
 var MONTH_NAMES = ["January","February","March","April","May","June","July","August","September","October","November","December"];
@@ -1518,6 +1551,7 @@ var today = new Date();
 today.setHours(0, 0, 0, 0);
 var viewYear = today.getFullYear(), viewMonth = today.getMonth();
 var trackedCountries = loadTrackedCountries();
+var trackedMetrics = loadTrackedMetrics();
 var rateOnly = false;
 var selectedDate = fmtISO(today);
 
@@ -1527,6 +1561,7 @@ function eventsForDate(iso){
   var evs = EVENTS[iso] || [];
   return evs.filter(function(e){
     if(rateOnly && !e.rate) return false;
+    if(trackedMetrics.indexOf(e.concept) === -1) return false;
     return trackedCountries.indexOf(e.country) !== -1;
   });
 }
@@ -1704,9 +1739,50 @@ function wireCalendarInteractions(){
     });
   }
 
+  var metricsGrid = document.getElementById("calMetricsPickerGrid");
+  function renderMetricsPickerGrid(){
+    if(!metricsGrid) return;
+    metricsGrid.innerHTML = "";
+    TRACKED_METRIC_OPTIONS.forEach(function(opt){
+      var row = document.createElement("label");
+      row.className = "cal-picker-row";
+      row.style.display = "inline-flex";
+      row.style.marginRight = "14px";
+      var cb = document.createElement("input");
+      cb.type = "checkbox";
+      cb.checked = trackedMetrics.indexOf(opt.key) !== -1;
+      cb.dataset.metric = opt.key;
+      row.appendChild(cb);
+      row.appendChild(document.createTextNode(opt.label));
+      metricsGrid.appendChild(row);
+    });
+  }
+
+  var emailRow = document.getElementById("calEmailAlertsRow");
+  function renderEmailAlertsRow(){
+    if(!emailRow) return;
+    if(!isLoggedIn()){
+      emailRow.innerHTML = "<p class='cal-picker-note' style='margin:0;'>Log in to enable email alerts for the countries and metrics you track. Without an account, your picks here are only remembered on this browser.</p>";
+      return;
+    }
+    var checked = loadEmailAlertsEnabled() ? "checked" : "";
+    emailRow.innerHTML =
+      "<label class='cal-picker-row' style='font-weight:700;'>" +
+      "<input type='checkbox' id='calEmailAlertsToggle' " + checked + "> " +
+      "Email me when something I track is coming up" +
+      "</label>" +
+      "<p class='cal-picker-note' style='margin:6px 0 0;'>Not wired up to actually send yet -- this saves the preference to your account so it's ready once it is.</p>";
+  }
+
   var countriesBtn = document.getElementById("calCountriesBtn");
   if(countriesBtn) countriesBtn.addEventListener("click", function(){
     renderPickerGrid();
+    renderMetricsPickerGrid();
+    renderEmailAlertsRow();
+    var subtext = document.getElementById("calPickerSubtext");
+    if(subtext) subtext.textContent = isLoggedIn()
+      ? "Pick which countries and metrics show on this calendar. Saved to your account."
+      : "Pick which countries and metrics show on this calendar. Saved to this browser only until you log in.";
     var m = document.getElementById("calCountriesModal");
     if(m) m.hidden = false;
   });
@@ -1720,10 +1796,19 @@ function wireCalendarInteractions(){
   });
   var pickerSave = document.getElementById("calPickerSave");
   if(pickerSave) pickerSave.addEventListener("click", function(){
-    var picked = [];
-    pickerGrid.querySelectorAll("input[type=checkbox]:checked").forEach(function(cb){ picked.push(cb.dataset.country); });
-    trackedCountries = picked;
-    saveTrackedCountries(picked);
+    var pickedCountries = [];
+    pickerGrid.querySelectorAll("input[type=checkbox]:checked").forEach(function(cb){ pickedCountries.push(cb.dataset.country); });
+    trackedCountries = pickedCountries;
+    saveTrackedCountries(pickedCountries);
+
+    var pickedMetrics = [];
+    metricsGrid.querySelectorAll("input[type=checkbox]:checked").forEach(function(cb){ pickedMetrics.push(cb.dataset.metric); });
+    trackedMetrics = pickedMetrics;
+    saveTrackedMetrics(pickedMetrics);
+
+    var emailToggle = document.getElementById("calEmailAlertsToggle");
+    if(emailToggle) saveEmailAlertsEnabled(emailToggle.checked);
+
     var m = document.getElementById("calCountriesModal");
     if(m) m.hidden = true;
     renderAll();
@@ -1797,6 +1882,7 @@ var CALENDAR_DATA_FILES = [
 var CONCEPT_TO_SHORT_AND_RATE = {
   gdp: ["GDP", false], cpi: ["CPI", false], jobs: ["Jobs report", false],
   ppi: ["PPI", false], pce: ["PCE", false],
+  trade: ["Trade", false], public_finances: ["Public finances", false],
   fomc: ["Rate decision", true], rate_decision: ["Rate decision", true]
 };
 
@@ -1810,11 +1896,19 @@ function mergeLiveEvent(ev){
   var mapped = CONCEPT_TO_SHORT_AND_RATE[ev.concept];
   var shortLabel = mapped ? mapped[0] : ev.concept;
   var isRate = mapped ? mapped[1] : false;
+  // Normalise concept aliases to the same keys the hand-verified data
+  // and the metrics picker both use ("rate_decision", not "fomc") --
+  // a real bug caught before shipping: the metrics filter checks
+  // e.concept directly, so leaving "fomc" un-normalised would silently
+  // hide every live-merged US rate decision even with "Rate decisions"
+  // checked in the tracker, since "fomc" would never match anything
+  // in trackedMetrics.
+  var normalisedConcept = isRate ? "rate_decision" : ev.concept;
   if(!EVENTS[ev.date]) EVENTS[ev.date] = [];
   EVENTS[ev.date].push({
     time: ev.time || "Not fixed in advance",
     country: ev.country,
-    concept: ev.concept,
+    concept: normalisedConcept,
     name: ev.name,
     sub: "From the live daily fetch (fetch_calendar_" + ev.country.toLowerCase().slice(0,2) + ".py and related scripts). Not hand verified the way September's data was.",
     rate: isRate,

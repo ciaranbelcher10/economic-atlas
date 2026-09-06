@@ -354,7 +354,6 @@ footer.cmp-foot{margin-top:36px; font-size:12.5px; color:var(--ink2); border-top
  </div>
  </div>
  </div>
- <a class="item" href="pricing" id="planNavLink">Plan</a>
  <button type="button" class="authbtn" id="authBtn">Log in</button>
  <button type="button" class="theme-toggle" id="themeToggle" aria-label="Switch to dark mode" title="Switch to dark mode">&#127769;</button>
  </div>
@@ -429,26 +428,6 @@ footer.cmp-foot{margin-top:36px; font-size:12.5px; color:var(--ink2); border-top
  <a class="item" href="chartmaker" id="navChartmakerLink" hidden>Chartmaker</a>
  <a class="item" href="calendar" id="navCalendarLink" hidden>Calendar</a>
 </div></nav>
-<script>
-// Optimistic Plan-link render: applies whatever we last confirmed about
-// this browser's Pro status immediately, before the real (async)
-// profile fetch even starts. Without this, the link always starts as
-// plain "Plan" on every single page load and only corrects to "Pro
-// Plan" once that fetch resolves -- visible as a flash/flicker on every
-// navigation for an actual Pro account. updatePlanNavLink() (later in
-// the page) overwrites this the moment real data arrives either way, so
-// a stale cached guess here is corrected within a normal page-load's
-// worth of time, never left wrong.
-(function(){
-  try{
-    var link = document.getElementById("planNavLink");
-    if(link && localStorage.getItem("eatlas_last_known_pro") === "1"){
-      link.textContent = "Pro Plan";
-      link.classList.add("is-pro");
-    }
-  }catch(e){}
-})();
-</script>
 <div class="wrap" style="padding-top:16px;">
  <div class="savebar" id="alertBanner" hidden>
  <span class="savebar-icon" aria-hidden="true">&#128276;</span>
@@ -533,7 +512,7 @@ footer.cmp-foot{margin-top:36px; font-size:12.5px; color:var(--ink2); border-top
  <div class="modal-backdrop" id="welcomeProBackdrop"></div>
  <div class="modal-content">
  <button type="button" class="modal-close" id="welcomeProClose" aria-label="Close">&times;</button>
- <h2>Welcome to Pro</h2>
+ <h2>Welcome</h2>
  <p class="modal-sub">Your account includes:</p>
  <ul style="margin:0 0 20px; padding-left:20px; line-height:1.9; font-size:14.5px;">
  <li><strong>Unlimited data downloads</strong>, on any chart, any country</li>
@@ -1305,7 +1284,7 @@ footer.cmp-foot{margin-top:36px; font-size:12.5px; color:var(--ink2); border-top
       // reversible client-side simplification, not a change to what's
       // actually stored in the database.
       box.innerHTML =
-        '<p class="acct-plan-line"><strong>Pro</strong>, unlimited downloads and Customise &amp; export.</p>';
+        '<p class="acct-plan-line">Full access, unlimited downloads and Customise &amp; export.</p>';
     }
     return {
       render: render,
@@ -1333,7 +1312,7 @@ footer.cmp-foot{margin-top:36px; font-size:12.5px; color:var(--ink2); border-top
     window.EATLAS_PREFS.ready.then(function(){
       setTimeout(function(){
         if(params.get("upgraded") === "1"){
-          alert("You're on Pro! Unlimited downloads and Customise & export are unlocked.");
+          alert("Unlimited downloads and Customise & export are unlocked on your account.");
         } else if(params.get("credits_purchased") === "1"){
           alert("Credits added to your account.");
         }
@@ -1456,18 +1435,6 @@ footer.cmp-foot{margin-top:36px; font-size:12.5px; color:var(--ink2); border-top
   // one has no close button in its markup at all. That's deliberate:
   // "cannot delete" is enforced by there being nothing to click, not by
   // JS re-showing something a user closed.
-  // Plan nav link: shows "Pro Plan" in gold for an active Pro account
-  // (paid or trial), plain "Plan" otherwise -- a visible status
-  // indicator, not just a link to the pricing page.
-  function updatePlanNavLink(){
-    var link = document.getElementById("planNavLink");
-    if(!link) return;
-    var prefs = window.EATLAS_PREFS;
-    var isPro = !!(prefs && prefs.isPro());
-    link.textContent = isPro ? "Pro Plan" : "Plan";
-    link.classList.toggle("is-pro", isPro);
-    try{ localStorage.setItem("eatlas_last_known_pro", isPro ? "1" : "0"); }catch(e){}
-  }
   function updateTrialBanner(){
     // Always hidden -- no trial/upgrade messaging shown to anyone,
     // regardless of the real stored trial state. Deliberate, reversible
@@ -1528,7 +1495,6 @@ footer.cmp-foot{margin-top:36px; font-size:12.5px; color:var(--ink2); border-top
     window.EATLAS_CUSTOMIZE.refreshEntitlement();
     updateTrialBanner();
     maybeShowWelcomeProModal();
-    updatePlanNavLink();
   });
   // If this page load is the redirect back from clicking "confirm your
   // email" in the inbox, Supabase appends #access_token=...&type=signup

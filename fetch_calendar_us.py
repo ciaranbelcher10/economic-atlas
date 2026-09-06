@@ -79,6 +79,7 @@ TRACKED_RELEASE_NAMES = {
     "gdp": "Gross Domestic Product",
     "ppi": "Producer Price Index",
     "pce": "Personal Income and Outlays",
+    "trade": "U.S. International Trade in Goods and Services",
 }
 
 

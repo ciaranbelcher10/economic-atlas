@@ -1,117 +1,72 @@
-"""Fetch upcoming Bank of Canada rate-decision dates and write
+"""Fetch upcoming Bank of Canada rate decision dates and write
 data-calendar-ca.json.
 
 Run:  python3 fetch_calendar_ca.py
-No API key needed -- public Bank of Canada page.
+No API key needed -- no live fetch at all, see below.
 
-Source: the Bank of Canada publishes its FULL YEAR of fixed announcement
-dates in one press release each August (e.g. "Bank of Canada publishes
-its 2026 schedule for policy interest rate announcements..."), confirmed
-findable via a stable, predictable URL pattern under
-bankofcanada.ca/{year}/08/. All 8 dates for the year are announced at
-once and essentially never move, unlike some other central banks --
-comparatively an easier, more stable source than most.
+CHANGED FROM A LIVE SCRAPE TO A HARDCODED SCHEDULE, deliberately. A
+real workflow run confirmed the guessed schedule-announcement URL
+(bankofcanada.ca/2025/08/bank-canada-publishes-2026-schedule-...)
+genuinely resolves and contains the right press release (its title was
+visible in the debug output), but the date-extraction regex still
+found zero matches -- the real dates evidently sit further into the
+article body than what a simple flat-text search reliably picks up
+alongside all the surrounding WordPress boilerplate. Rather than keep
+tuning a regex against a page whose exact structure isn't confirmed,
+the full 2026 schedule is hardcoded here, cross-confirmed across SIX
+independent sources (Equals Money, Sphera Credit, myperch.io,
+CanadaOutlook, nesto.ca, RBC) all reporting the identical eight dates,
+plus the Bank of Canada's own individual per-announcement pages (e.g.
+bankofcanada.ca/2026/09/interest-rate-announcement-september-2-2026/)
+directly confirming the pattern.
 
-This script fetches the CURRENT year's schedule-announcement page rather
-than the 32 individual per-decision press releases (which only exist
-retroactively, one at a time, close to each date) -- one fetch, whole
-year, rather than guessing 8 URLs months in advance.
-
-NOT YET RUN LIVE -- bankofcanada.ca isn't in this sandbox's network
-allowlist. The exact URL slug for THIS year's schedule announcement
-should be confirmed by hand before the first real run (it follows last
-year's pattern closely but the exact wording varies year to year) -- see
-the fallback search step below, which tries the Bank's own site search
-if the direct guess 404s.
-
-All announcements land at 09:45 ET; four of the eight (Jan/Apr/Jul/Oct)
-also come with a Monetary Policy Report -- both are Bank of Canada
-convention, not something extracted per-date from the page.
+All eight announcements land at 09:45 ET; four (January, April, July,
+October) are accompanied by the quarterly Monetary Policy Report and a
+press conference -- noted but not treated as a separate event here.
 """
 
 from __future__ import annotations
 
 import json
-import re
-import sys
-from datetime import datetime, timezone
+from datetime import date, datetime, timezone
 
-import requests
-
-DATE_RE = re.compile(
-    r"\b((?:January|February|March|April|May|June|July|August|September|"
-    r"October|November|December)\s+\d{1,2},?\s+\d{4})\b"
-)
-
-
-def guess_schedule_url(year: int) -> str:
-    # Last year's real slug (confirmed by search) was:
-    #   bank-canada-publishes-2026-schedule-policy-interest-rate-announcements-other-major-publications
-    # published in August of the PRIOR year. Exact wording has drifted
-    # year to year in the past, so this is a best-effort guess to be
-    # confirmed/fixed by hand on the first real run, not treated as
-    # guaranteed-correct.
-    return (f"https://www.bankofcanada.ca/{year - 1}/08/"
-            f"bank-canada-publishes-{year}-schedule-policy-interest-rate-"
-            f"announcements-other-major-publications/")
+# Cross-confirmed across six independent sources plus individual BoC
+# announcement pages (see module docstring).
+BOC_MEETINGS_2026 = [
+    date(2026, 1, 28),
+    date(2026, 3, 18),
+    date(2026, 4, 29),
+    date(2026, 6, 10),
+    date(2026, 7, 15),
+    date(2026, 9, 2),
+    date(2026, 10, 28),
+    date(2026, 12, 9),
+]
 
 
 def main():
     today = datetime.now(timezone.utc).date()
-    year = today.year
-    url = guess_schedule_url(year)
-
-    try:
-        r = requests.get(url, timeout=30, headers={"User-Agent": "Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/120.0.0.0 Safari/537.36"})
-    except requests.RequestException as e:
-        print(f"ERROR fetching Bank of Canada schedule page: {e}", file=sys.stderr)
-        sys.exit(1)
-
-    if r.status_code != 200:
-        print(f"WARNING: guessed URL returned {r.status_code} -- the slug has "
-              f"likely drifted from last year's pattern. Find the real "
-              f"'Bank of Canada publishes its {year} schedule' press release "
-              f"URL by hand and hardcode it here rather than guessing again.",
-              file=sys.stderr)
-        sys.exit(1)
-
-    text = re.sub(r"<[^>]+>", " ", r.text)
     events = []
-    for m in DATE_RE.finditer(text):
-        try:
-            d = datetime.strptime(m.group(1).replace(",", ""), "%B %d %Y").date()
-        except ValueError:
+    for meeting_day in BOC_MEETINGS_2026:
+        if meeting_day < today:
             continue
-        if d.year != year or d < today:
-            continue
-        events.append(d.isoformat())
-
-    events = sorted(set(events))
-    out_events = [{
-        "date": d,
-        "country": "Canada",
-        "concept": "rate_decision",
-        "name": "Bank of Canada interest rate announcement",
-        "source": "bankofcanada.ca (annual schedule announcement)",
-        "time": "9:45am ET",
-    } for d in events]
+        events.append({
+            "date": meeting_day.isoformat(),
+            "country": "Canada",
+            "concept": "rate_decision",
+            "name": "Bank of Canada interest rate announcement",
+            "source": "bankofcanada.ca (2026 schedule, hardcoded -- cross-confirmed via 6 independent sources, see script docstring)",
+            "time": "9:45am ET",
+        })
 
     out = {
         "generated": datetime.now(timezone.utc).isoformat(),
         "country": "Canada",
-        "events": out_events,
+        "events": events,
     }
-    if not out_events:
-        print("DEBUG: first 1500 chars of the fetched page text:\n" +
-              text[:1500], file=sys.stderr)
     with open("data-calendar-ca.json", "w") as f:
         json.dump(out, f, indent=2)
-    print(f"Wrote {len(out_events)} Canada calendar events. "
-          f"NOTE: verify these are genuinely 8 rate-decision dates and not "
-          f"other dates mentioned on the page (e.g. survey release dates) "
-          f"before trusting this in production -- the regex above matches "
-          f"ANY date on the page, and the schedule announcement covers "
-          f"several different publication types, not just rate decisions.")
+    print(f"Wrote {len(events)} Canada calendar events (hardcoded schedule).")
 
 
 if __name__ == "__main__":
