@@ -1,0 +1,41 @@
+name: Send calendar email alerts
+
+# Runs after update-calendar.yml (06:00 UTC) so this checks against
+# freshly refreshed data-calendar-*.json files, not yesterday's.
+on:
+  schedule:
+    - cron: "0 7 * * *"
+  workflow_dispatch:
+
+permissions:
+  contents: read  # only reads data-calendar-*.json from the checkout, writes nothing back
+
+jobs:
+  send-alerts:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-python@v5
+        with:
+          python-version: "3.12"
+      # No pip install needed -- send_calendar_alerts.py and
+      # export_manual_calendar_events.py only use Python's standard
+      # library (json, urllib) plus Node (already on the runner image)
+      # for the manual-events export.
+
+      - name: Export hand-verified calendar.html events
+        run: |
+          python3 export_manual_calendar_events.py
+
+      - name: Send calendar email alerts
+        run: |
+          python3 send_calendar_alerts.py
+        env:
+          RESEND_API_KEY: ${{ secrets.RESEND_API_KEY }}
+          # NOT YET ADDED -- see send_calendar_alerts.py's module
+          # docstring for exactly where to get this (Supabase dashboard,
+          # Project Settings -> API -> service_role) and why the
+          # existing anon key can't be reused for it. Until this secret
+          # exists, the step above will print a clear warning and send
+          # zero emails rather than fail outright.
+          SUPABASE_SERVICE_ROLE_KEY: ${{ secrets.SUPABASE_SERVICE_ROLE_KEY }}
