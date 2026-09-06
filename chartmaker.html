@@ -11,21 +11,21 @@
   }catch(e){}
 })();</script>
 <meta name="viewport" content="width=device-width, initial-scale=1">
-<meta name="description" content="Build your own chart: pick any countries and indicators, overlay them, style it, and export, Customise & Export, generalised.">
+<meta name="description" content="Build custom economic charts comparing any country and indicator, GDP, inflation, unemployment, trade, interest rates. Overlay multiple series, style every detail, export as PNG or CSV.">
 <meta property="og:type" content="website">
 <meta property="og:site_name" content="The Economic Atlas">
-<meta property="og:title" content="Chartmaker · The Economic Atlas">
-<meta property="og:description" content="Build your own chart: pick any countries and indicators, overlay them, style it, and export.">
+<meta property="og:title" content="Chart Maker: Compare Economic Data Across Countries · The Economic Atlas">
+<meta property="og:description" content="Build custom economic charts comparing any country and indicator, GDP, inflation, unemployment, trade, interest rates. Overlay multiple series, style every detail, export as PNG or CSV.">
 <meta property="og:url" content="https://theeconomicatlas.com/chartmaker">
 <meta property="og:image" content="https://theeconomicatlas.com/og-image.png">
 <meta property="og:image:width" content="1200">
 <meta property="og:image:height" content="630">
 <meta property="og:image:alt" content="The Economic Atlas, hourly economic data, no commentary.">
 <meta name="twitter:card" content="summary_large_image">
-<meta name="twitter:title" content="Chartmaker · The Economic Atlas">
-<meta name="twitter:description" content="Build your own chart: pick any countries and indicators, overlay them, style it, and export.">
+<meta name="twitter:title" content="Chart Maker: Compare Economic Data Across Countries · The Economic Atlas">
+<meta name="twitter:description" content="Build custom economic charts comparing any country and indicator, GDP, inflation, unemployment, trade, interest rates. Overlay multiple series, style every detail, export as PNG or CSV.">
 <meta name="twitter:image" content="https://theeconomicatlas.com/og-image.png">
-<title>Chartmaker · The Economic Atlas</title>
+<title>Chart Maker: Compare GDP, Inflation &amp; Unemployment Data Across Countries | The Economic Atlas</title>
 <link rel="canonical" href="https://theeconomicatlas.com/chartmaker">
 <link rel="preconnect" href="https://fonts.googleapis.com">
 <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
@@ -45,7 +45,6 @@
  <button type="button" class="dropbtn" id="aboutBtn" aria-haspopup="true" aria-expanded="false">About <span class="caret">&#9662;</span></button>
  <div class="dropdown-panel" id="aboutPanel">
  <div class="dcol">
- <a href="roadmap" >Roadmap</a>
  <a href="contact" class="active">Contact</a>
  <a href="methodology">Methodology</a>
  </div>
@@ -128,7 +127,7 @@
 <div class="wrap" style="padding-top:16px;">
  <div class="savebar" id="alertBanner" hidden>
  <span class="savebar-icon" aria-hidden="true">&#128276;</span>
- <p>Want to know when new countries, indicators or features land? <a href="roadmap#alertSignupBox" style="color:inherit; text-decoration:underline;">Leave your email</a>, no account needed.</p>
+ <p>Want to know when new countries, indicators or features land? <a href="contact#alertSignupBox" style="color:inherit; text-decoration:underline;">Leave your email</a>, no account needed.</p>
  <button type="button" class="savebar-close" id="alertBannerClose" aria-label="Dismiss">&times;</button>
  </div>
  <div class="savebar" id="trialBanner" hidden>
@@ -1261,9 +1260,11 @@
 .cm-seriesitem{display:flex; align-items:center; gap:9px; border:1px solid var(--hair); border-radius:8px; padding:8px 9px; font-size:13px;}
 .cm-lbl{flex:1; min-width:0;}
 .cm-lbl .main{font-weight:700; white-space:nowrap; overflow:hidden; text-overflow:ellipsis; font-size:12.5px;}
-.cm-lbl .main-edit{font-weight:700; font-size:12.5px; width:100%; border:1px solid transparent; background:none; color:var(--ink); padding:2px 4px; border-radius:5px; font-family:inherit;}
+.cm-lbl-editwrap{position:relative;}
+.cm-lbl .main-edit{font-weight:700; font-size:12.5px; width:100%; border:1px solid transparent; background:none; color:var(--ink); padding:2px 20px 2px 4px; border-radius:5px; font-family:inherit;}
 .cm-lbl .main-edit:hover{border-color:var(--hair);}
 .cm-lbl .main-edit:focus{border-color:var(--blue); background:var(--paper); outline:none;}
+.cm-lbl-pencil{position:absolute; right:5px; top:50%; transform:translateY(-50%); width:12px; height:12px; color:var(--ink2); opacity:.55; pointer-events:none;}
 .cm-lbl select{width:100%; margin-top:4px; padding:4px 6px; font-size:12px; border:1px solid var(--hair); border-radius:6px; background:var(--paper); color:var(--ink);}
 .cm-rm{background:none; border:none; color:var(--ink2); font-size:17px; padding:0 2px; line-height:1; cursor:pointer; flex:0 0 auto;}
 .cm-rm:hover{color:#AD1E1E;}
@@ -1317,7 +1318,7 @@
 <header class="page">
  <p class="eyebrow"><span class="dot" aria-hidden="true"></span>The Economic Atlas</p>
  <h1>Chartmaker</h1>
- <p class="expl" style="margin-top:6px;">Customise &amp; Export, generalised: pick any countries and indicators, overlay them, style every part of the chart, and export.</p>
+ <p class="expl" style="margin-top:6px;">Build custom economic charts: compare GDP, inflation, unemployment, trade and more across any country, overlay multiple series, style every detail, and export as PNG or CSV.</p>
 </header>
 
 <div class="cm-gate" id="cmGate">
@@ -2358,18 +2359,31 @@ Object.keys(REGISTRY_KEY_TO_CODE).forEach(function(name){ CODE_TO_REGISTRY_KEY[R
 
 // The Standard swatch-popover grid still benefits from a wide, evenly-spread
 // set to manually pick from -- kept as its own list, separate from the
-// per-country defaults above.
-var SWATCH_PALETTE = ["#AD1E1E","#8F3A1E","#D47353","#AD5132","#BB8A4D","#D4A053","#AD7B1E","#726326","#ADA61E","#D4D453","#A5BB4D","#788F1E","#82AD32","#447226","#7AD453","#49AD1E","#1E8F1E","#4DBB5E","#1EAD42","#37804D","#53D493","#1E8F67","#1EAD7B","#1E8F8F","#32A7AD","#53C0D4","#376A80","#1E7BAD","#1E4566","#538DD4","#4D74BB","#1E49AD","#535AD4","#2D2672","#2C1EAD","#543780","#6A32AD","#8F4DBB","#CD53D4","#891E8F","#AD32AD","#80376E","#D453A7","#BB4D8A","#AD1E5E","#722648","#D45366","#AD323E"];
-// Mako preset: interpolated from the site's own --mako-1..--mako-7 custom
-// properties (read live, so it follows whatever light/dark values are
-// currently in effect) rather than a hardcoded copy that could drift out
-// of sync with style.css.
-function readMakoStops(){
-  var cs = getComputedStyle(document.documentElement);
-  var stops = [];
-  for(var i=1;i<=7;i++){ var v = cs.getPropertyValue("--mako-" + i).trim(); if(v) stops.push(v); }
-  return stops.length ? stops : ["#2E1E3B","#413D7B","#37659E","#348FA7","#40B7AD","#8AD9B1","#DEF5E5"];
-}
+// per-country defaults above. Previously just reused COUNTRY_COLOR's own
+// values (which are deliberately varied in both hue AND lightness/
+// saturation for maximum country-to-country distinctiveness, not for
+// looking orderly as a picker grid), which is why it read as "all over
+// the place" rather than a clean, browsable palette. Regenerated instead
+// as a proper 8-hue x 6-shade grid: each column holds one consistent hue
+// (red, orange, gold, green, teal, blue, purple, magenta), each row holds
+// one consistent vividness from bright at the top to deep/muted at the
+// bottom, so the grid reads as organised at a glance.
+var SWATCH_PALETTE = ["#E03E4B","#E0813E","#E0B73E","#74E03E","#3EE0B7","#3E8FE0","#813EE0","#E03EAA","#D22D3A","#D2722D","#D2A92D","#64D22D","#2DD2A9","#2D7FD2","#722DD2","#D22D9B","#B42D38","#B4652D","#B4922D","#5AB42D","#2DB492","#2D70B4","#652DB4","#B42D87","#A6303A","#A66130","#A68930","#57A630","#30A689","#306BA6","#6130A6","#A6307F","#8E2932","#8E5329","#8E7529","#4B8E29","#298E75","#295C8E","#53298E","#8E296D","#6F2A30","#6F472A","#6F5E2A","#416F2A","#2A6F5E","#2A4C6F","#472A6F","#6F2A58"];
+// Mako preset: a fixed 7-stop sequence, NOT read live from the site's
+// --mako-1..--mako-7 CSS custom properties. Root cause of a real bug:
+// those variables are redefined per light/dark theme, but --mako-7
+// specifically is redefined in dark mode as #2E5240 (a dark green) for
+// a completely different purpose -- the country-page map background
+// gradients (linear-gradient(--mako-7, --mako-4, --mako-1), used out of
+// numeric order as 3 curated stops, not a monotonic 1-7 sequence). That
+// dark-mode value breaks ChartMaker's assumption that 1-7 forms one
+// smooth continuous scale: interpolating toward it produced a sudden
+// dark-green fall-off at the end of the gradient instead of continuing
+// to the intended pale mint. Hardcoding the light-theme values here
+// (the actual designed sequential scale) fixes ChartMaker without
+// touching the shared variable those 31 map gradients still rely on.
+var MAKO_STOPS = ["#2E1E3B","#413D7B","#37659E","#348FA7","#40B7AD","#8AD9B1","#DEF5E5"];
+function readMakoStops(){ return MAKO_STOPS; }
 function lerpHex(a, b, t){
   var ca = hexToRgb(a), cb = hexToRgb(b);
   var r = Math.round(ca.r + (cb.r-ca.r)*t), g = Math.round(ca.g + (cb.g-ca.g)*t), bl = Math.round(ca.b + (cb.b-ca.b)*t);
@@ -2662,6 +2676,11 @@ function renderSeriesList(){
     // Editable title -- defaults to "Country -- Metric" but can be
     // renamed freely; the custom text then drives the legend, the Line
     // colours panel, and the CSV header too (see seriesLabel()).
+    // Wrapped with a small pencil icon (visual only, pointer-events:
+    // none) since the input's transparent border made it look like
+    // plain static text until hovered -- nothing signalled it was
+    // editable at all.
+    var editWrap = document.createElement("div"); editWrap.className = "cm-lbl-editwrap";
     var main = document.createElement("input");
     main.type = "text"; main.className = "main-edit"; main.maxLength = 60;
     main.value = seriesLabel(s);
@@ -2671,6 +2690,12 @@ function renderSeriesList(){
       renderColorsPanel(); renderChart();
     });
     main.addEventListener("blur", function(){ main.value = seriesLabel(s); });
+    var pencil = document.createElementNS("http://www.w3.org/2000/svg", "svg");
+    pencil.setAttribute("class", "cm-lbl-pencil"); pencil.setAttribute("viewBox", "0 0 24 24");
+    pencil.setAttribute("fill", "none"); pencil.setAttribute("stroke", "currentColor");
+    pencil.setAttribute("stroke-width", "2.2"); pencil.setAttribute("stroke-linecap", "round"); pencil.setAttribute("stroke-linejoin", "round");
+    pencil.innerHTML = "<path d='M12 20h9'/><path d='M16.5 3.5a2.12 2.12 0 0 1 3 3L7 19l-4 1 1-4Z'/>";
+    editWrap.appendChild(main); editWrap.appendChild(pencil);
     var tSel = document.createElement("select");
     ["raw","yoy","index100","ma3","ma12"].forEach(function(t){
       var o = document.createElement("option"); o.value = t; o.textContent = transformLabel(t);
@@ -2678,7 +2703,7 @@ function renderSeriesList(){
       tSel.appendChild(o);
     });
     tSel.addEventListener("change", function(){ s.transform = tSel.value; renderChart(); });
-    lbl.appendChild(main); lbl.appendChild(tSel);
+    lbl.appendChild(editWrap); lbl.appendChild(tSel);
     var rm = document.createElement("button"); rm.className = "cm-rm"; rm.type = "button"; rm.innerHTML = "&times;"; rm.title = "Remove";
     rm.addEventListener("click", function(){ removeSeries(s.id); });
     li.appendChild(lbl); li.appendChild(rm);

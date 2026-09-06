@@ -45,7 +45,6 @@
  <button type="button" class="dropbtn current" id="aboutBtn" aria-haspopup="true" aria-expanded="false">About <span class="caret">&#9662;</span></button>
  <div class="dropdown-panel" id="aboutPanel">
  <div class="dcol">
- <a href="roadmap" >Roadmap</a>
  <a href="contact" class="active">Contact</a>
  <a href="methodology">Methodology</a>
  </div>
@@ -128,7 +127,7 @@
 <div class="wrap" style="padding-top:16px;">
  <div class="savebar" id="alertBanner" hidden>
  <span class="savebar-icon" aria-hidden="true">&#128276;</span>
- <p>Want to know when new countries, indicators or features land? <a href="roadmap#alertSignupBox" style="color:inherit; text-decoration:underline;">Leave your email</a>, no account needed.</p>
+ <p>Want to know when new countries, indicators or features land? <a href="contact#alertSignupBox" style="color:inherit; text-decoration:underline;">Leave your email</a>, no account needed.</p>
  <button type="button" class="savebar-close" id="alertBannerClose" aria-label="Dismiss">&times;</button>
  </div>
  <div class="savebar" id="trialBanner" hidden>
@@ -1144,6 +1143,15 @@
  The Economic Atlas is built in the open and shaped by what its readers ask for.</p>
  <p><a class="btn" href="mailto:contact@theeconomicatlas.com">contact@theeconomicatlas.com</a></p>
 </div>
+<div class="roadmap-signup" id="alertSignupBox" style="background:var(--panel); border:1px solid var(--hair); border-radius:14px; padding:20px 22px; margin-top:24px;">
+ <h3 style="margin:0 0 6px; font-size:16px;">Get notified</h3>
+ <p style="margin:0; color:var(--ink2); font-size:14px;">Leave your email and we'll let you know when there's something worth knowing about, new countries, new indicators, or genuinely new features. No account needed, no spam, unsubscribe any time.</p>
+ <form id="alertSignupForm" style="display:flex; gap:8px; flex-wrap:wrap; margin-top:14px;">
+ <input type="email" id="alertSignupEmail" required placeholder="you@example.com" autocomplete="email" style="flex:1; min-width:220px; padding:9px 12px; border:1px solid var(--hair); border-radius:8px; background:var(--paper); color:var(--ink); font:inherit; font-size:14px;">
+ <button type="submit" class="btn" id="alertSignupBtn">Notify me</button>
+ </form>
+ <p id="alertSignupMsg" style="margin:10px 0 0; font-size:13px; color:var(--ink2);" hidden></p>
+</div>
 <footer>The Economic Atlas · Data from national statistical offices, used under open licences. <a href="privacy">Privacy</a> &middot; <a href="terms">Terms</a></footer>
 </div>
 <script>
@@ -1172,6 +1180,50 @@
   if(window.EATLAS_PREFS && window.EATLAS_PREFS.registerBanner){
     window.EATLAS_PREFS.registerBanner(banner);
   }
+})();
+</script>
+<script>
+(function(){
+  "use strict";
+  // "Get notified" email capture -- moved here from roadmap.html (which
+  // has been retired) since this is the site-wide banner's actual
+  // destination now (contact#alertSignupBox -> contact#alertSignupBox,
+  // updated across every page's shared banner link). Same insert-only
+  // table, no read access from the client at all (see the alert_signups
+  // RLS policy) -- deliberately a one-way drop box, not anything that
+  // could read emails back out. A unique_violation (code 23505) means
+  // the address is already on the list, which gets its own friendly
+  // message rather than being shown as an error.
+  document.addEventListener("DOMContentLoaded", function(){
+    var alertForm = document.getElementById("alertSignupForm");
+    if(alertForm){
+      var alertEmailInput = document.getElementById("alertSignupEmail");
+      var alertBtn = document.getElementById("alertSignupBtn");
+      var alertMsg = document.getElementById("alertSignupMsg");
+      alertForm.addEventListener("submit", function(e){
+        e.preventDefault();
+        var email = (alertEmailInput.value || "").trim();
+        if(!email) return;
+        alertBtn.disabled = true;
+        alertBtn.textContent = "Submitting\u2026";
+        alertMsg.hidden = true;
+        sb.from("alert_signups").insert({ email: email }).then(function(res){
+          alertBtn.disabled = false;
+          alertBtn.textContent = "Notify me";
+          alertMsg.hidden = false;
+          if(res.error){
+            alertMsg.textContent = (res.error.code === "23505")
+              ? "You're already on the list."
+              : "Something went wrong, please try again.";
+          } else {
+            alertForm.hidden = true;
+            alertMsg.textContent = "\u2713 You're on the list. We'll only email when there's something worth knowing.";
+            try{ localStorage.setItem("eatlas_alert_banner_dismissed", "1"); }catch(err){}
+          }
+        });
+      });
+    }
+  });
 })();
 </script>
 </body>
