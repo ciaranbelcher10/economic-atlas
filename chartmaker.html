@@ -1095,7 +1095,7 @@
   })();
   window.EATLAS_PREFS.onSettled(function(){
     var navChartmakerLink = document.getElementById("navChartmakerLink");
-    if(navChartmakerLink) navChartmakerLink.hidden = !(window.EATLAS_PREFS.isAdmin && window.EATLAS_PREFS.isAdmin());
+    if(navChartmakerLink) navChartmakerLink.hidden = !(window.EATLAS_PREFS.isPro && window.EATLAS_PREFS.isPro());
     // Calendar is a genuinely admin-only preview right now (real data,
     // real fetch scripts written, but only 17 of 32 countries have
     // confirmed dates and several fetch scripts are still untested
@@ -1458,7 +1458,6 @@
  <span>X-axis labels</span>
  <div style="display:flex; align-items:center; gap:7px;"><button type="button" class="cm-fs-btn" id="cmXTickMinus">&minus;</button><span id="cmXTickVal" style="font-size:13px; min-width:16px; text-align:center;">8</span><button type="button" class="cm-fs-btn" id="cmXTickPlus">+</button></div>
  </div>
- <p id="cmXTickBarNote" style="font-size:11px; color:var(--ink2); margin:2px 0 10px; display:none;">Bar mode always labels every bar, there's no separate label count to set.</p>
  <div class="cm-row" style="margin-bottom:0;">
  <span>X-axis label angle</span>
  </div>
@@ -2291,12 +2290,14 @@ function shortSourceNote(country, concept){
   return full.split("\u00b7")[0].trim();
 }
 
-// Admin-gated by explicit decision -- not a placeholder, a deliberate
-// long-term restriction. Do not switch this to isPro() again.
+// Opened up to every logged-in account (isPro(), currently true for
+// anyone logged in per the site-wide Pro override) -- previously
+// admin-only during active bug-fixing; that phase is done and this was
+// a deliberate decision to make it generally available.
 var gateEl = document.getElementById("cmGate");
 var layoutEl = document.getElementById("cmLayout");
 function revealIfAllowed(){
-  var allowed = !!(window.EATLAS_PREFS && window.EATLAS_PREFS.isAdmin && window.EATLAS_PREFS.isAdmin());
+  var allowed = !!(window.EATLAS_PREFS && window.EATLAS_PREFS.isPro && window.EATLAS_PREFS.isPro());
   if(allowed){
     gateEl.style.display = "none";
     layoutEl.classList.add("show");
@@ -3493,7 +3494,14 @@ function czmBuildSVGSnapshot(theme, forExport){
   // periods that actually get a text label should get a tick, exactly
   // matching the over-time line-mode logic above (czmBuildSVG's
   // xTickIdxs), which only ever draws a tick where it also draws a label.
-  var labelStep = Math.max(1, Math.ceil(rows.length / 12));
+  //
+  // Previously hardcoded to /12 regardless of the "X-axis labels" +/-
+  // control, which was also hidden entirely in Bar mode with a note
+  // saying there was no count to set -- there was, it just wasn't wired
+  // up. Now uses the same czmState.xTicks the control and Line mode both
+  // already share, so the same setting genuinely applies to both chart
+  // types instead of being Line-only.
+  var labelStep = Math.max(1, Math.ceil(rows.length / czmState.xTicks));
   rows.forEach(function(r, i){
     var bx = gm.xForIndex(i);
     if(r.value == null){
@@ -4151,8 +4159,7 @@ function syncBarModeVisibility(){
   document.getElementById("cmPointsRow").style.display = isBar ? "none" : "";
   document.getElementById("cmYStartGroup").style.display = isBar ? "none" : "";
   document.getElementById("cmYStartBarNote").style.display = isBar ? "" : "none";
-  document.getElementById("cmXTickRow").style.display = isBar ? "none" : "";
-  document.getElementById("cmXTickBarNote").style.display = isBar ? "" : "none";
+  document.getElementById("cmXTickRow").style.display = "";
   document.getElementById("cmEventsPanel").style.display = isBar ? "none" : "";
   var noteEl = document.getElementById("cmChartTypeNote");
   noteEl.style.display = isBar ? "" : "none";
