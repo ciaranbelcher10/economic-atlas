@@ -1096,7 +1096,7 @@
   })();
   window.EATLAS_PREFS.onSettled(function(){
     var navChartmakerLink = document.getElementById("navChartmakerLink");
-    if(navChartmakerLink) navChartmakerLink.hidden = !(window.EATLAS_PREFS.isPro && window.EATLAS_PREFS.isPro());
+    if(navChartmakerLink) navChartmakerLink.hidden = !(window.EATLAS_PREFS.isAdmin && window.EATLAS_PREFS.isAdmin());
     // Calendar is a genuinely admin-only preview right now (real data,
     // real fetch scripts written, but only 17 of 32 countries have
     // confirmed dates and several fetch scripts are still untested
@@ -1352,7 +1352,6 @@
  <div class="cm-empty" id="cmEmptyState">Add a metric on the left to start building a chart.</div>
  <div id="cmSvgBox" style="display:none; width:100%; height:100%;"></div>
  </div>
- <p style="font-size:12px; color:var(--ink2); margin:10px 0 0;" id="cmSrcNote">Live data from official government and international sources, updated hourly.</p>
  <div class="cm-exportbar">
  <div class="seg fullwidth" id="cmThemeSeg">
  <button type="button" data-theme="light" class="active" style="flex:1;">Light</button>
@@ -2288,17 +2287,12 @@ function shortSourceNote(country, concept){
   return full.split("\u00b7")[0].trim();
 }
 
-// Was admin-only while ChartMaker was still on sample data and
-// unverified. Now that it's been reviewed live against real data and
-// the sample generator is gone, it's gated the same way every other
-// paid surface on the site is -- isPro() (currently true for every
-// logged-in account, per the site-wide Pro override) rather than
-// isAdmin() specifically, which was only ever a "nobody but me should
-// see this yet" placeholder, not a deliberate long-term restriction.
+// Admin-gated by explicit decision -- not a placeholder, a deliberate
+// long-term restriction. Do not switch this to isPro() again.
 var gateEl = document.getElementById("cmGate");
 var layoutEl = document.getElementById("cmLayout");
 function revealIfAllowed(){
-  var allowed = !!(window.EATLAS_PREFS && window.EATLAS_PREFS.isPro && window.EATLAS_PREFS.isPro());
+  var allowed = !!(window.EATLAS_PREFS && window.EATLAS_PREFS.isAdmin && window.EATLAS_PREFS.isAdmin());
   if(allowed){
     gateEl.style.display = "none";
     layoutEl.classList.add("show");
@@ -2625,6 +2619,7 @@ function removeSeries(id){
   series = series.filter(function(s){ return s.id !== id; });
   assignColors();
   syncAutoYAxisTitle();
+  syncBarLegendTitle();
   resetYTickStepIdx();
   renderSeriesList();
   renderColorsPanel();
@@ -3464,11 +3459,12 @@ function czmBuildSVGSnapshot(theme, forExport){
   // checkbox, never a silent default. Ported from Compare's own
   // Customise & Export, same colors.
   var useThresholdColor = czmState.refLine.enabled && czmState.thresholdShadeBars;
-  // Every bar gets a tick mark, but with many bars (a single-series
-  // time-series-of-bars can easily run to 50-100+ periods) showing a
-  // text label under every one would overlap into an unreadable mess --
-  // thin to roughly a dozen labels regardless of how many bars there
-  // are, same principle line mode's own tick thinning already applies.
+  // With many bars (a single-series time-series-of-bars can easily run
+  // to 50-100+ periods), showing a tick mark under every one produces a
+  // dense unreadable row even where no label is drawn -- only the
+  // periods that actually get a text label should get a tick, exactly
+  // matching the over-time line-mode logic above (czmBuildSVG's
+  // xTickIdxs), which only ever draws a tick where it also draws a label.
   var labelStep = Math.max(1, Math.ceil(rows.length / 12));
   rows.forEach(function(r, i){
     var bx = gm.xForIndex(i);
@@ -3484,8 +3480,10 @@ function czmBuildSVGSnapshot(theme, forExport){
         : r.color;
       svg.push("<rect x=\'" + (bx - gm.barWidth / 2).toFixed(1) + "\' y=\'" + top.toFixed(1) + "\' width=\'" + gm.barWidth.toFixed(1) + "\' height=\'" + h.toFixed(1) + "\' rx=\'3\' fill=\'" + barColor + "\'/>");
     }
-    svg.push("<line x1=\'" + bx.toFixed(1) + "\' y1=\'" + axisBottomY + "\' x2=\'" + bx.toFixed(1) + "\' y2=\'" + (axisBottomY + 5) + "\' stroke=\'" + axisColor + "\' stroke-width=\'1.3\'/>");
-    if(i % labelStep === 0) svg.push(czmXAxisLabelSVG(bx, axisBottomY + bl.oLabels, r.country, t.ink2));
+    if(i % labelStep === 0){
+      svg.push("<line x1=\'" + bx.toFixed(1) + "\' y1=\'" + axisBottomY + "\' x2=\'" + bx.toFixed(1) + "\' y2=\'" + (axisBottomY + 5) + "\' stroke=\'" + axisColor + "\' stroke-width=\'1.3\'/>");
+      svg.push(czmXAxisLabelSVG(bx, axisBottomY + bl.oLabels, r.country, t.ink2));
+    }
   });
   // Bar mode repurposes "legend title" as a period label (auto-filled
   // with e.g. "Q2 2026" -- see syncBarLegendTitle) since bars don't have
