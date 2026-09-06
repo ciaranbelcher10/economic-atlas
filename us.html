@@ -1693,7 +1693,7 @@ const MONTHS=["Jan","Feb","Mar","Apr","May","Jun","Jul","Aug","Sep","Oct","Nov",
 const NAMES={gdp_level:"GDP",gdp_real:"Real GDP",gdp_growth:"GDP growth",
   productivity:"Productivity",unemployment:"Unemployment",employment:"Employment-population ratio",
   participation:"Participation rate",cpi:"CPI inflation",core_cpi:"Core CPI",
-  cpi_mom:"CPI (month on month)",fed_funds:"Fed funds rate",debt_gdp:"Federal debt",
+  cpi_mom:"CPI (month on month)",ppi:"PPI inflation",pce:"PCE inflation",fed_funds:"Fed funds rate",debt_gdp:"Federal debt",
   deficit:"Federal deficit",current_account:"Current account",trade_balance:"Trade balance",
   exports:"Exports",imports:"Imports",business_confidence:"Business confidence",fdi:"FDI",net_debt:"Federal debt ($)"};
 /* ------------------------------- tabs ------------------------------------ */
@@ -1820,6 +1820,25 @@ function sampleData(){
       [["1990-10",5.3],["1995-06",3.0],["2003-11",1.1],["2008-07",2.5],["2010-10",0.6],
        ["2016-01",2.2],["2020-05",1.2],["2022-09",6.6],["2024-06",3.3],["2026-05",3.0]],mCpi)),
     cpi_mom:S("CPI MoM (CPIAUCSL)","%","months",cpiMoM),
+    // Sample/fallback only, overwritten by the real fetch (fetch_us.py
+    // -> data-us.json, series PPIACO). Anchor points reasoned from known
+    // PPI history: mid-2008 and 2022 commodity-price spikes, the 2009
+    // and 2015 disinflation troughs, cooling through 2023-24. Most
+    // recent point (Jan 2026, +4.16% YoY) taken directly from FRED's
+    // own published PPIACO reading, not guessed.
+    ppi:S("PPI YoY (PPIACO)","%","months",interp(
+      [["1990-10",6.5],["2000-06",3.9],["2008-07",9.8],["2009-07",-6.8],
+       ["2011-09",6.9],["2015-01",-3.3],["2018-07",3.3],["2020-05",-1.2],
+       ["2022-06",11.3],["2023-06",0.1],["2024-09",1.8],["2026-01",4.16]],mCpi)),
+    // Sample/fallback only, overwritten by the real fetch (fetch_us.py
+    // -> data-us.json, series PCEPI). PCE typically runs a bit below
+    // CPI historically (broader basket, substitution-adjusted) --
+    // anchors reasoned accordingly, including the actual ~7.1% PCE
+    // peak in mid-2022 rather than reusing CPI's higher peak.
+    pce:S("PCE YoY (PCEPI)","%","months",interp(
+      [["1990-10",5.2],["2000-06",2.3],["2008-07",4.5],["2009-07",-0.5],
+       ["2011-09",2.9],["2015-01",0.2],["2018-07",2.3],["2020-05",0.5],
+       ["2022-06",7.0],["2023-06",3.0],["2024-09",2.1],["2026-05",2.3]],mCpi)),
     fed_funds:S("Fed funds (FEDFUNDS)","%","months",interp(
       [["1990-01",8.2],["1993-01",3.0],["2000-07",6.5],["2003-07",1.0],["2007-07",5.26],
        ["2009-01",0.15],["2015-11",0.12],["2019-04",2.42],["2020-04",0.05],["2022-03",0.2],
@@ -2130,6 +2149,14 @@ const INFO_CONTENT = {
     description: "How much consumer prices rose or fell compared with just the previous month, more volatile than the annual rate, useful for spotting turning points earlier.",
     source: "Derived from FRED series CPIAUCSL (BLS)."
   },
+  ppi: {
+    description: "How much prices are rising for producers and wholesalers, before goods reach consumers. Often moves ahead of CPI by a month or two, since cost changes take time to reach the shelf.",
+    source: "Calculated from FRED series PPIACO \u00b7 all commodities, not seasonally adjusted (BLS)."
+  },
+  pce: {
+    description: "The Federal Reserve's own preferred inflation gauge. Broader than CPI (covers more of what people actually spend on) and adjusted for substitution as prices change \u2014 the Fed's 2% target is set against this measure, not CPI.",
+    source: "Calculated from FRED series PCEPI \u00b7 seasonally adjusted (BEA)."
+  },
   fed_funds: {
     description: "The Federal Reserve's key interest rate, the anchor for most US mortgage, loan, and savings rates. Set by the FOMC.",
     source: "FRED series FEDFUNDS \u00b7 effective rate, monthly average."
@@ -2372,6 +2399,12 @@ function render(data){
   if(s.core_cpi) chartPanel("core_cpi","charts-inflation","Core CPI, annual rate",
     "Inflation excluding volatile food and energy prices, a cleaner read on underlying price pressure.",
     s.core_cpi,"line",v=>v+"%",pct,"Calculated from FRED series CPILFESL · SA (BLS)");
+  if(s.ppi) chartPanel("ppi","charts-inflation","PPI inflation, annual rate",
+    "How much prices are rising for producers and wholesalers, before goods reach consumers. Often moves 1-3 months ahead of CPI.",
+    s.ppi,"line",v=>v+"%",pct,"Calculated from FRED series PPIACO · all commodities, NSA (BLS)");
+  if(s.pce) chartPanel("pce","charts-inflation","PCE inflation, annual rate",
+    "The Federal Reserve's own preferred inflation gauge \u2014 broader than CPI and adjusted for how spending shifts as prices change. The Fed's 2% target is a PCE target, not a CPI target.",
+    s.pce,"line",v=>v+"%",pct,"Calculated from FRED series PCEPI · SA (BEA)");
   if(s.fed_funds) chartPanel("fed_funds","charts-inflation","Federal funds rate",
     "The Federal Reserve's key interest rate, the anchor for borrowing costs across the economy.",
     s.fed_funds,"line",v=>v+"%",v=>v.toFixed(2)+"%","FRED series FEDFUNDS · effective rate, monthly average");
@@ -2439,6 +2472,10 @@ function render(data){
     {fmt:pct,fmtD:pp,upIsGood:false,source:"FRED · CPIAUCSL"});
   if(s.cpi_mom) statTile(tinf,null,"CPI (MoM)",s.cpi_mom,
     {fmt:pct,fmtD:pp,upIsGood:false,source:"FRED · CPIAUCSL",infoKey:"cpi_mom"});
+  if(s.ppi) statTile(tinf,"ppi","PPI (YoY)",s.ppi,
+    {fmt:pct,fmtD:pp,upIsGood:false,source:"FRED · PPIACO"});
+  if(s.pce) statTile(tinf,"pce","PCE (YoY)",s.pce,
+    {fmt:pct,fmtD:pp,upIsGood:false,source:"FRED · PCEPI"});
   if(s.fed_funds) statTile(tinf,"fed_funds","Fed funds rate",s.fed_funds,
     {fmt:v=>v.toFixed(2)+"%",fmtD:v=>v.toFixed(2)+"pp",upIsGood:false,source:"FRED · FEDFUNDS"});
   const tl=document.getElementById("tiles-labour");
