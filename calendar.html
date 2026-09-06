@@ -1232,6 +1232,13 @@
 .cal-gate p{color:var(--ink2); font-size:13.5px; line-height:1.6; margin:0;}
 .cal-app{display:none; margin-top:8px;}
 .cal-app.show{display:block;}
+
+/* Colour-mode segmented toggle, same visual pattern as ChartMaker's
+   own .seg segmented controls, ported here since calendar.html didn't
+   previously have any segmented control of its own. */
+.seg{display:inline-flex; border:1px solid var(--hair); border-radius:8px; overflow:hidden;}
+.seg button{background:transparent; color:var(--ink2); border:none; font:700 12.5px "Avenir Next","Avenir","Nunito Sans",sans-serif; padding:8px 12px; cursor:pointer; white-space:nowrap;}
+.seg button.active{background:var(--blue); color:#fff;}
 </style>
 <div class="wrap cm-wrap">
 <header class="page">
@@ -1292,6 +1299,14 @@
 <div class="cal-picker-actions">
 <button type="button" id="calPickAll">Select all countries</button>
 <button type="button" id="calPickNone">Clear countries</button>
+</div>
+<div style="margin:14px 0 4px;">
+<p style="font-size:11px; font-weight:700; text-transform:uppercase; letter-spacing:.06em; color:var(--ink2); margin:0 0 8px;">Colour tiles by</p>
+<div class="seg" id="calColorModeSeg" role="group" aria-label="Colour tiles by">
+<button type="button" data-mode="metric" class="active">Metric</button>
+<button type="button" data-mode="country">Country</button>
+</div>
+<p class="cal-picker-note" style="margin:6px 0 0;">Metric colours every release by data type (GDP, CPI, rate decisions, etc.) so the same kind of release looks the same colour across every country. Country uses each country's own colour, the same ones used in Compare and ChartMaker.</p>
 </div>
 <div class="cal-picker-grid" id="calPickerGrid"></div>
 <p class="cal-picker-note" style="margin-top:2px;">Not all countries have available data for the calendar yet, so only the ones with real coverage are listed here.</p>
@@ -1498,22 +1513,37 @@ var REGION_GROUPS = [
 ];
 
 var RATE_COLOR = "#D14343";
-// Colour decision: colour by METRIC, not by country. Every pill already
-// prints the country name as text (e.g. "Chile - Rate decision"), so a
-// per-country colour was pure duplication of information already on
-// the page -- with 16+ tracked countries active at once it produced a
-// wall of near-random colour with no pattern a person could actually
-// use. A per-metric colour instead adds real information: you can scan
-// the month and spot every GDP day, every CPI day, etc. across every
-// country at a glance. COUNTRY_COLOR is kept only for the country
-// picker's own swatches (a different context: identifying countries
-// to select, not scanning a calendar), not for event pills.
+// Colour decision: the person wants control rather than one fixed
+// scheme, so this is a real, persisted preference (default "metric"),
+// not a hardcoded choice -- see calColorMode below and the calColorModeSeg
+// wiring further down.
 var METRIC_COLOR = {
   gdp: "#3B82C4", cpi: "#E08E45", jobs: "#4CAF6D",
   rate_decision: RATE_COLOR, fomc: RATE_COLOR,
   ppi: "#8B5CF6", pce: "#D453A7", trade: "#C9A227", public_finances: "#5A6167"
 };
-function eventColor(ev){ return METRIC_COLOR[ev.concept] || "#5A6167"; }
+var LOCAL_FALLBACK_COLOR_MODE_KEY = "eatlas_calendar_color_mode";
+function loadColorMode(){
+  if(isLoggedIn()){
+    var saved = window.EATLAS_PREFS.get("calendar_color_mode", null);
+    if(saved === "country" || saved === "metric") return saved;
+    return "metric";
+  }
+  try {
+    var raw = localStorage.getItem(LOCAL_FALLBACK_COLOR_MODE_KEY);
+    if(raw === "country" || raw === "metric") return raw;
+  } catch(e){}
+  return "metric";
+}
+function saveColorMode(mode){
+  if(isLoggedIn()){ window.EATLAS_PREFS.set("calendar_color_mode", mode); return; }
+  try { localStorage.setItem(LOCAL_FALLBACK_COLOR_MODE_KEY, mode); } catch(e){}
+}
+var calColorMode = loadColorMode();
+function eventColor(ev){
+  if(calColorMode === "country") return COUNTRY_COLOR[ev.country] || "#5A6167";
+  return METRIC_COLOR[ev.concept] || "#5A6167";
+}
 
 /* ============================================================
    Preferences: real, server-side, persisted via EATLAS_PREFS (the same
@@ -1724,15 +1754,23 @@ function openEventDetail(ev){
 function renderLegend(){
   var el = document.getElementById("calLegend");
   if(!el) return;
-  // Legend now mirrors eventColor's metric-based scheme rather than
-  // listing countries -- showing only the metrics actually tracked,
-  // in a stable, sensible order rather than whatever order the JS
-  // object happens to iterate in.
-  var METRIC_ORDER = ["gdp", "cpi", "jobs", "rate_decision", "ppi", "pce", "trade", "public_finances"];
-  var shownMetrics = METRIC_ORDER.filter(function(m){ return trackedMetrics.indexOf(m) !== -1; });
-  var parts = shownMetrics.map(function(m){
-    return "<span><span class='sw' style='background:" + METRIC_COLOR[m] + "'></span>" + (SHORT_LABEL[m] || m) + "</span>";
-  });
+  var parts;
+  if(calColorMode === "country"){
+    var shown = ALL_COUNTRIES.filter(function(c){ return trackedCountries.indexOf(c) !== -1; }).slice(0, 8);
+    parts = shown.map(function(c){
+      return "<span><span class='sw' style='background:" + COUNTRY_COLOR[c] + "'></span>" + c + "</span>";
+    });
+    if(trackedCountries.length > 8) parts.push("<span>+" + (trackedCountries.length - 8) + " more tracked</span>");
+  } else {
+    // Metric mode: shows only the metrics actually tracked, in a
+    // stable, sensible order rather than whatever order the JS
+    // object happens to iterate in.
+    var METRIC_ORDER = ["gdp", "cpi", "jobs", "rate_decision", "ppi", "pce", "trade", "public_finances"];
+    var shownMetrics = METRIC_ORDER.filter(function(m){ return trackedMetrics.indexOf(m) !== -1; });
+    parts = shownMetrics.map(function(m){
+      return "<span><span class='sw' style='background:" + METRIC_COLOR[m] + "'></span>" + (SHORT_LABEL[m] || m) + "</span>";
+    });
+  }
   parts.push("<span>Click a tile for the full explainer. Bell icon = get notified (not wired up)</span>");
   el.innerHTML = parts.join("");
 }
@@ -1869,6 +1907,20 @@ function wireCalendarInteractions(){
     pickerGrid.querySelectorAll("input[type=checkbox]").forEach(function(cb){ cb.checked = false; });
     saveCountriesNow();
   });
+  var colorModeSeg = document.getElementById("calColorModeSeg");
+  if(colorModeSeg){
+    colorModeSeg.querySelectorAll("button").forEach(function(b){
+      b.classList.toggle("active", b.dataset.mode === calColorMode);
+      b.addEventListener("click", function(){
+        calColorMode = b.dataset.mode;
+        colorModeSeg.querySelectorAll("button").forEach(function(x){ x.classList.toggle("active", x === b); });
+        saveColorMode(calColorMode);
+        renderMonth();
+        renderDayDetail();
+        renderLegend();
+      });
+    });
+  }
   function closeCountriesModal(){ var m = document.getElementById("calCountriesModal"); if(m) m.hidden = true; }
   var countriesClose = document.getElementById("calCountriesClose");
   if(countriesClose) countriesClose.addEventListener("click", closeCountriesModal);
