@@ -54,6 +54,120 @@
     legend.parentElement.insertBefore(cap, legend);
   }
 
+  var TICKER_COUNTRIES = [
+    { file:"data.json",     slug:"uk",      name:"UK",      flag:"\uD83C\uDDEC\uD83C\uDDE7" },
+    { file:"data-de.json",  slug:"germany", name:"Germany", flag:"\uD83C\uDDE9\uD83C\uDDEA" },
+    { file:"data-jp.json",  slug:"japan",   name:"Japan",   flag:"\uD83C\uDDEF\uD83C\uDDF5" },
+    { file:"data-fr.json",  slug:"france",  name:"France",  flag:"\uD83C\uDDEB\uD83C\uDDF7" },
+    { file:"data-br.json",  slug:"brazil",  name:"Brazil",  flag:"\uD83C\uDDE7\uD83C\uDDF7" },
+    { file:"data-in.json",  slug:"india",   name:"India",   flag:"\uD83C\uDDEE\uD83C\uDDF3" }
+  ];
+  var TICKER_METRICS = [
+    { key:"cpi", label:"inflation", fmt:function(v){ return v.toFixed(1)+"%"; } },
+    { key:"unemployment", label:"unemployment", fmt:function(v){ return v.toFixed(1)+"%"; } }
+  ];
+
+  function fetchTickerFacts(cb){
+    var facts = [];
+    var pending = TICKER_COUNTRIES.length;
+    function done(){ pending--; if(pending === 0) cb(facts); }
+    TICKER_COUNTRIES.forEach(function(c){
+      fetch(c.file, {cache:"no-cache"}).then(function(r){
+        if(!r.ok) throw new Error("HTTP "+r.status);
+        return r.json();
+      }).then(function(data){
+        var series = data.series || {};
+        TICKER_METRICS.forEach(function(m){
+          var s = series[m.key];
+          if(!s || !s.points || s.points.length < 2) return;
+          var pts = s.points;
+          var latest = pts[pts.length-1], prior = pts[pts.length-2];
+          if(latest[1] == null || prior[1] == null) return;
+          facts.push({
+            country:c.name, slug:c.slug, flag:c.flag, metricLabel:m.label,
+            value:m.fmt(latest[1]), delta:+(latest[1]-prior[1]).toFixed(2),
+            period:latest[0]
+          });
+        });
+        done();
+      }).catch(function(){ done(); });
+    });
+  }
+
+  function initHomeTicker(){
+    if(!document.querySelector(".hero-h1")) return;
+    if(document.getElementById("homeTicker") || document.getElementById("homeTicker_pending")) return;
+    var subline = document.querySelector(".subline");
+    if(!subline) return;
+    var marker = document.createElement("div");
+    marker.id = "homeTicker_pending";
+    marker.style.display = "none";
+    subline.insertAdjacentElement("afterend", marker);
+
+    fetchTickerFacts(function(facts){
+      if(!facts.length) return;
+      var strip = document.createElement("div");
+      strip.id = "homeTicker";
+      strip.setAttribute("aria-label", "Today's figures");
+      strip.innerHTML = facts.map(function(f){
+        var arrow = f.delta > 0 ? "\u25B2" : (f.delta < 0 ? "\u25BC" : "\u2013");
+        var cls = f.delta > 0 ? "up" : (f.delta < 0 ? "down" : "flat");
+        return '<a class="ht-item" href="'+f.slug+'">'+f.flag+' <b>'+f.country+'</b> '+f.metricLabel+' '+f.value
+          + ' <span class="ht-delta '+cls+'">'+arrow+' '+Math.abs(f.delta).toFixed(1)+'pp</span></a>';
+      }).join("");
+      marker.insertAdjacentElement("afterend", strip);
+    });
+  }
+
+  function initSearchPlaceholderRotation(){
+    var input = document.getElementById("hqnSearch");
+    if(!input || input._mobRotateAttached) return;
+    input._mobRotateAttached = true;
+    var examples = [
+      "Try \u201cJapan inflation\u201d\u2026",
+      "Try \u201cUK unemployment\u201d\u2026",
+      "Try \u201cGermany GDP\u201d\u2026",
+      "Jump straight to a country\u2026",
+      "Try \u201cBrazil\u201d or \u201cIndia\u201d\u2026"
+    ];
+    var i = 0;
+    setInterval(function(){
+      if(document.activeElement === input || input.value) return;
+      i = (i+1) % examples.length;
+      input.setAttribute("placeholder", examples[i]);
+    }, 2600);
+  }
+
+  function initScrollCatch(){
+    if(!document.querySelector(".hero-h1")) return;
+    if(localStorage.getItem("eatlas_scrollcatch_seen")) return;
+    if(document.getElementById("homeScrollCatch")) return;
+    var shown = false;
+    window.addEventListener("scroll", function onScroll(){
+      if(shown) return;
+      if(window.scrollY < window.innerHeight * 0.9) return;
+      shown = true;
+      window.removeEventListener("scroll", onScroll);
+      var bar = document.createElement("div");
+      bar.id = "homeScrollCatch";
+      bar.innerHTML =
+        '<input type="text" id="scrollCatchInput" placeholder="Jump to a country\u2026" autocomplete="off">' +
+        '<button type="button" id="scrollCatchClose" aria-label="Dismiss">&times;</button>';
+      document.body.appendChild(bar);
+      requestAnimationFrame(function(){ bar.classList.add("visible"); });
+      var input = document.getElementById("scrollCatchInput");
+      input.addEventListener("focus", function(){
+        var main = document.getElementById("hqnSearch");
+        if(main){ main.scrollIntoView({behavior:"smooth", block:"center"}); main.focus(); bar.remove(); }
+      });
+      document.getElementById("scrollCatchClose").addEventListener("click", function(){
+        bar.classList.remove("visible");
+        setTimeout(function(){ bar.remove(); }, 250);
+        localStorage.setItem("eatlas_scrollcatch_seen", "1");
+      });
+    }, {passive:true});
+  }
+
   /* ------------------------------------------------------------------
      3. COUNTRY PAGES — swipe between sections, dot indicator
      Hooks into the page's own global showSec(name) function rather
@@ -69,7 +183,6 @@
      is added to the dropdown, it automatically appears here too.
      ------------------------------------------------------------------ */
   function initHomeQuickNav(){
-    if(!isMobile()) return;
     var heroHeading = document.querySelector(".hero-h1");
     var subline = document.querySelector(".subline");
     if(!heroHeading || !subline || document.getElementById("homeQuickNav")) return;
@@ -459,6 +572,9 @@
     buildToolbar();
     addMapCaption();
     initHomeQuickNav();
+    initHomeTicker();
+    initSearchPlaceholderRotation();
+    initScrollCatch();
     initCountrySwipe();
     initMapCollapse();
     addTradeNote();

@@ -5,7 +5,82 @@
    tablet layouts are completely unaffected. This file is additive: it is
    linked AFTER style.css on every page (except 404.html and markets.html,
    per standing convention) and never edits style.css itself.
+
+   EXCEPTION: the homepage discovery block below (quick-nav search,
+   popular-country chips, live ticker, scroll-catch bar) is deliberately
+   NOT scoped to mobile — shown on all breakpoints by request, so these
+   rules sit outside the @media block on purpose.
    ========================================================================== */
+
+/* ---------------------------------------------------------------------
+   HOMEPAGE DISCOVERY — search + popular chips, live ticker, scroll-catch.
+   All breakpoints. Widths are capped and centered above ~640px so these
+   don't look like stretched mobile components on a desktop screen.
+   --------------------------------------------------------------------- */
+#homeQuickNav{ margin:10px 0 20px; max-width:640px; }
+.hqn-searchwrap{ position:relative; }
+#hqnSearch{
+  width:100%; padding:12px 14px; border-radius:11px; border:1px solid var(--hair);
+  font-size:16px; background:var(--panel); color:var(--ink);
+}
+.hqn-results{
+  position:absolute; left:0; right:0; top:calc(100% + 4px); z-index:20;
+  background:var(--panel); border:1px solid var(--hair); border-radius:11px;
+  max-height:260px; overflow-y:auto; box-shadow:0 10px 24px rgba(0,0,0,.25);
+}
+.hqn-results a{
+  display:block; padding:11px 14px; font-size:14.5px; color:var(--ink);
+  text-decoration:none; border-bottom:1px solid var(--hair);
+}
+.hqn-results a:last-child{ border-bottom:none; }
+.hqn-none{ padding:11px 14px; font-size:13px; color:var(--ink2); }
+.hqn-popular{
+  display:flex; flex-wrap:wrap; overflow-x:auto; gap:8px; margin-top:10px; padding-bottom:2px;
+  -webkit-overflow-scrolling:touch; scrollbar-width:none;
+}
+.hqn-popular::-webkit-scrollbar{ display:none; }
+.hqn-popular a{
+  flex:0 0 auto; padding:9px 16px; border-radius:20px; border:1px solid var(--blue,#37659E);
+  color:var(--blue,#37659E); font-size:13.5px; font-weight:700; text-decoration:none;
+}
+.hqn-popular a:hover{ background:var(--blue,#37659E); color:#fff; }
+
+#homeTicker{
+  display:flex; overflow-x:auto; gap:8px; margin:2px 0 18px; padding-bottom:2px;
+  -webkit-overflow-scrolling:touch; scrollbar-width:none; scroll-snap-type:x proximity;
+}
+#homeTicker::-webkit-scrollbar{ display:none; }
+#homeTicker::before{
+  content:"\25CF LIVE"; flex:0 0 auto; align-self:center; font-size:10px; font-weight:800;
+  color:#2FA463; letter-spacing:.04em; padding-right:2px;
+}
+.ht-item{
+  flex:0 0 auto; scroll-snap-align:start; display:flex; align-items:center; gap:5px;
+  padding:8px 12px; border-radius:20px; border:1px solid var(--hair); background:var(--panel);
+  font-size:12.5px; color:var(--ink); text-decoration:none; white-space:nowrap;
+}
+.ht-item:hover{ border-color:var(--blue,#37659E); }
+.ht-delta{ font-weight:700; font-size:11.5px; }
+.ht-delta.up{ color:#C4453B; }
+.ht-delta.down{ color:#2E8B57; }
+.ht-delta.flat{ color:var(--ink2); }
+
+#homeScrollCatch{
+  position:fixed; left:12px; right:12px; bottom:-70px; z-index:50;
+  display:flex; align-items:center; gap:8px; padding:10px 12px;
+  background:var(--navy,#1E4566); border-radius:14px; box-shadow:0 10px 28px rgba(0,0,0,.35);
+  transition:bottom .28s ease;
+  max-width:480px; margin:0 auto; /* centers as a single bar on wide screens */
+}
+#homeScrollCatch.visible{ bottom:16px; }
+#scrollCatchInput{
+  flex:1; padding:10px 12px; border-radius:9px; border:none; font-size:15px;
+  background:rgba(255,255,255,.94); color:#111;
+}
+#scrollCatchClose{
+  flex:0 0 auto; width:30px; height:30px; border-radius:50%; border:none;
+  background:rgba(255,255,255,.15); color:#fff; font-size:16px; cursor:pointer;
+}
 
 @media (max-width:760px){
 
@@ -42,35 +117,6 @@
     margin:2px 0 10px;
   }
   .mini-legend{ font-size:11.5px; gap:6px 10px; }
-
-  /* Homepage quick-nav: search + popular-country chips, an alternative
-     to the map for getting straight to a country's page. */
-  #homeQuickNav{ margin:2px 0 16px; }
-  .hqn-searchwrap{ position:relative; }
-  #hqnSearch{
-    width:100%; padding:12px 14px; border-radius:11px; border:1px solid var(--hair);
-    font-size:16px; background:var(--panel); color:var(--ink);
-  }
-  .hqn-results{
-    position:absolute; left:0; right:0; top:calc(100% + 4px); z-index:20;
-    background:var(--panel); border:1px solid var(--hair); border-radius:11px;
-    max-height:260px; overflow-y:auto; box-shadow:0 10px 24px rgba(0,0,0,.25);
-  }
-  .hqn-results a{
-    display:block; padding:11px 14px; font-size:14.5px; color:var(--ink);
-    text-decoration:none; border-bottom:1px solid var(--hair);
-  }
-  .hqn-results a:last-child{ border-bottom:none; }
-  .hqn-none{ padding:11px 14px; font-size:13px; color:var(--ink2); }
-  .hqn-popular{
-    display:flex; overflow-x:auto; gap:8px; margin-top:10px; padding-bottom:2px;
-    -webkit-overflow-scrolling:touch; scrollbar-width:none;
-  }
-  .hqn-popular::-webkit-scrollbar{ display:none; }
-  .hqn-popular a{
-    flex:0 0 auto; padding:9px 16px; border-radius:20px; border:1px solid var(--blue,#37659E);
-    color:var(--blue,#37659E); font-size:13.5px; font-weight:700; text-decoration:none;
-  }
 
   /* ---------------------------------------------------------------------
      3. COUNTRY PAGES — swipeable section carousel + dot indicator
