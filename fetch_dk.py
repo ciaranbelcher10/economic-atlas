@@ -54,12 +54,27 @@ wiring in -- v1.1.5 build):
   FRED_SERIES loop below (see the dedicated block near the end of main()).
   This also fixes the growth citation, which had been citing "Penn World
   Table" even though neither series has used PWT for some time.
-- trade_balance: NOT INCLUDED. No specific FRED series ID was verified
-  for this build (unlike Korea's confirmed XTNTVA01KRQ667S) -- flagged as
-
-  a genuine gap to fill in a follow-up session rather than guessing a
-  series ID and risking a silent wrong-scale bug (the "667 family reports
-  plain USD, not millions" pattern has bitten this codebase before).
+- trade_balance (XTNTVA01DKQ667S): ADDED in a later session -- the
+  original docstring flagged this as "a genuine gap to fill in a
+  follow-up session," and a follow-up search did find a real,
+  confirmed-live FRED series (OECD's International Merchandise Trade
+  Statistics, USD exchange-rate-converted, seasonally adjusted). QUARTERLY
+  chosen deliberately over the monthly variant (XTNTVA01DKM667S): that
+  monthly series' page content showed its most recent observation stuck
+  at Mar 2024 (updated May 2024), while the quarterly and annual USD
+  variants both showed genuinely fresh data through Q4 2025 (updated Mar
+  2026) -- the monthly USD conversion looks to have stopped updating
+  while quarterly/annual kept going, so quarterly was used instead of
+  risking silently stale data. Scale=1e-6 applied per the same "667
+  family reports plain USD, not millions" pattern already confirmed for
+  Korea. This activates the existing (previously dead) $->kr conversion
+  loop further down this file, which stores the series in Danish krone
+  rather than USD once fetched, matching this file's own convention. Not
+  independently verified against a live API response from this sandbox
+  -- the first real Actions run is the genuine test, including whether
+  the resulting "kr" unit string (vs. this file's "DKKm" convention used
+  for gdp_level/gdp_real) renders correctly on the page; worth a visual
+  check on first deploy.
 - cpi: wired in directly via OECD's live SDMX prices system (same proven
   query structure already used for Japan/India/Canada/Australia/South
   Korea), REF_AREA=DNK. Not individually executed end-to-end for Denmark
@@ -98,6 +113,7 @@ FRED_SERIES = {
     "participation_rate": ("LRAC64TTDKQ156S", "q", "Labour force participation rate, 15-64, SA", "%", None, 1.0),
     "employment_rate": ("LREM64TTDKQ156S", "q", "Employment rate, 15-64, SA", "%", None, 1.0),
     "bond_yield_10y": ("IRLTLT01DKM156N", "m", "10-year government bond yield", "%", None, 1.0),
+    "trade_balance": ("XTNTVA01DKQ667S", "q", "Trade balance, goods, USD exchange-rate-converted, SA (OECD)", "$m", None, 1e-6),
 }
 
 EUROSTAT_STATS_BASE = "https://ec.europa.eu/eurostat/api/dissemination/statistics/1.0/data"
