@@ -76,6 +76,21 @@
 .hero-h1{display:flex; align-items:center; gap:14px;}
 .hero-led{display:inline-block; width:14px; height:14px; border-radius:50%; flex-shrink:0;
   background:#2FA463; box-shadow:0 0 0 5px rgba(47,164,99,.18);}
+.features-head{margin:44px 0 6px;}
+.features-head h2{font-size:22px; font-weight:700; margin:0 0 6px;}
+.features-head p{color:var(--ink2); font-size:14.5px; max-width:640px; margin:0;}
+.features{display:grid; grid-template-columns:1fr 1fr; gap:16px; margin:22px 0 8px;}
+@media (max-width:720px){.features{grid-template-columns:1fr;}}
+.feature{background:var(--panel); border:1px solid var(--hair); border-radius:14px;
+  padding:20px 22px;}
+.feature.wide{grid-column:1 / -1;}
+.feature h3{font-size:16px; margin:0 0 8px; display:flex; align-items:center; gap:9px;}
+.feature h3 a{color:var(--ink); text-decoration:none;}
+.feature h3 a:hover{color:var(--navy-2);}
+.feature p{color:var(--ink2); font-size:14px; line-height:1.55; margin:0;}
+.feature .tag{font-size:11px; font-weight:700; letter-spacing:.04em; text-transform:uppercase;
+  color:var(--navy-2); background:rgba(30,69,102,.1); padding:2px 8px; border-radius:20px;}
+html[data-theme="dark"] .feature .tag{background:rgba(120,170,220,.15);}
 </style>
 </head>
 <body>
@@ -166,7 +181,7 @@
  <a class="item" href="compare">Compare</a>
  <a class="item" href="dashboard">My Dashboard</a>
  <a class="item" href="chartmaker" id="navChartmakerLink">Chartmaker</a>
- <a class="item" href="calendar" id="navCalendarLink" hidden>Calendar</a>
+ <a class="item" href="calendar" id="navCalendarLink">Calendar</a>
 </div></nav>
 <div class="wrap" style="padding-top:16px;">
  <div class="savebar" id="alertBanner" hidden>
@@ -1171,14 +1186,6 @@
     // and the nav link needs to actually be invisible to non-Pro users
     // too, not just point at a page that says "log in" once clicked.
     var navChartmakerLink = document.getElementById("navChartmakerLink");
-    // Calendar is a genuinely admin-only preview right now (real data,
-    // real fetch scripts written, but only 17 of 32 countries have
-    // confirmed dates and several fetch scripts are still untested
-    // against the live internet) -- gated on isAdmin() specifically,
-    // not isPro(), the same way Chartmaker itself was gated before it
-    // was reviewed and promoted (see chartmaker.html's own history).
-    var navCalendarLink = document.getElementById("navCalendarLink");
-    if(navCalendarLink) navCalendarLink.hidden = !(window.EATLAS_PREFS.isAdmin && window.EATLAS_PREFS.isAdmin());
     window.EATLAS_ACCOUNT.render();
     window.EATLAS_DOWNLOAD.refreshEntitlement();
     window.EATLAS_CUSTOMIZE.refreshEntitlement();
@@ -1222,10 +1229,36 @@
  <span><span class="swatch" style="background:#E7EAE6"></span>On the roadmap</span>
  </div>
 </div>
+<div class="features-head">
+ <h2>Six ways to look at the same numbers</h2>
+ <p>Every tool below reads from the same hourly data. Nothing here is a separate, simplified, or delayed copy of anything else.</p>
+</div>
+<div class="features">
+ <div class="feature wide">
+  <h3><a href="uk">Country pages</a> <span class="tag">32 economies</span></h3>
+  <p>Each country is split into six views: headline, GDP, inflation and rates, the labour market, trade, and public finances. Two toggles sit above the numbers on every one. "Make it real" strips out inflation so you're looking at genuine growth, not prices creeping up dressed as growth. "Dollarise" converts every historical point at that period's own exchange rate rather than today's, so a currency move this year doesn't quietly rewrite what happened five years ago.</p>
+ </div>
+ <div class="feature">
+  <h3><a href="compare">Compare</a></h3>
+  <p>Put the same metric side by side across every country that's tracked. See how UK inflation stacked up against the US last year, or how Poland's government debt compares with Turkey's, on one chart instead of six open tabs.</p>
+ </div>
+ <div class="feature">
+  <h3><a href="dashboard">My Dashboard</a></h3>
+  <p>Build a page of just the numbers you actually check. Pick metrics from any country, arrange them how you like, and they're there next time you log in instead of you hunting the site down again.</p>
+ </div>
+ <div class="feature">
+  <h3><a href="chartmaker">Chartmaker</a> <span class="tag">free, no login</span></h3>
+  <p>Pick metrics and countries, style the chart, and export it as an image or a CSV. Made for dropping a real chart into a report or a post without fighting a spreadsheet first.</p>
+ </div>
+ <div class="feature">
+  <h3><a href="calendar">Calendar</a></h3>
+  <p>Every upcoming release for the countries and metrics you track, GDP prints, CPI, jobs reports, central bank decisions, in one place. Turn on email alerts and get a heads up before the numbers land.</p>
+ </div>
+</div>
 <div class="roadmap">
  <h2>About The Economic Atlas</h2>
  <p>The Economic Atlas removes the noise by being only data. No commentary, no forecasts, no opinion, just official figures, rebuilt automatically from source every hour.</p>
- <p>Every number traces back to one of: <a href="https://www.ons.gov.uk/" target="_blank" rel="noopener" style="color:var(--navy-2);">ONS</a>, <a href="https://fred.stlouisfed.org/" target="_blank" rel="noopener" style="color:var(--navy-2);">FRED</a>, <a href="https://ec.europa.eu/eurostat" target="_blank" rel="noopener" style="color:var(--navy-2);">Eurostat</a>, <a href="https://www.e-stat.go.jp/" target="_blank" rel="noopener" style="color:var(--navy-2);">e-Stat</a> and the <a href="https://www.boj.or.jp/en/" target="_blank" rel="noopener" style="color:var(--navy-2);">Bank of Japan</a>, <a href="https://www.mospi.gov.in/" target="_blank" rel="noopener" style="color:var(--navy-2);">MoSPI</a>, the <a href="https://www.bok.or.kr/eng/main/main.do" target="_blank" rel="noopener" style="color:var(--navy-2);">Bank of Korea</a>, the <a href="https://www.oecd.org/" target="_blank" rel="noopener" style="color:var(--navy-2);">OECD</a>, and the <a href="https://www.worldbank.org/" target="_blank" rel="noopener" style="color:var(--navy-2);">World Bank</a>. Compare, My Dashboard and the country pages are just different ways of looking at that same data, never a different version of it.</p>
+ <p>Every number traces back to one of: <a href="https://www.ons.gov.uk/" target="_blank" rel="noopener" style="color:var(--navy-2);">ONS</a>, <a href="https://fred.stlouisfed.org/" target="_blank" rel="noopener" style="color:var(--navy-2);">FRED</a>, <a href="https://ec.europa.eu/eurostat" target="_blank" rel="noopener" style="color:var(--navy-2);">Eurostat</a>, <a href="https://www.e-stat.go.jp/" target="_blank" rel="noopener" style="color:var(--navy-2);">e-Stat</a> and the <a href="https://www.boj.or.jp/en/" target="_blank" rel="noopener" style="color:var(--navy-2);">Bank of Japan</a>, <a href="https://www.mospi.gov.in/" target="_blank" rel="noopener" style="color:var(--navy-2);">MoSPI</a>, the <a href="https://www.bok.or.kr/eng/main/main.do" target="_blank" rel="noopener" style="color:var(--navy-2);">Bank of Korea</a>, the <a href="https://www.oecd.org/" target="_blank" rel="noopener" style="color:var(--navy-2);">OECD</a>, and the <a href="https://www.worldbank.org/" target="_blank" rel="noopener" style="color:var(--navy-2);">World Bank</a>.</p>
  <p>Spotted something missing, wrong, or worth adding? <a href="contact" style="color:var(--navy-2);">Get in touch</a>.</p>
 </div>
 <footer>The Economic Atlas · Data from national statistical offices, used under open licences. <a href="privacy">Privacy</a> &middot; <a href="terms">Terms</a> <span id="tourReplayWrap">· <button type="button" id="tourReplayLink">Take the tour</button></span></footer>
