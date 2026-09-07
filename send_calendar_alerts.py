@@ -174,6 +174,32 @@ def _html_escape(s: str) -> str:
             .replace('"', "&quot;"))
 
 
+# The site's own font stack, taken verbatim from style.css (line 31) --
+# not the Helvetica/Arial ChartMaker deliberately uses for its own
+# canvas text. Unlike ChartMaker, this email has no reason to diverge
+# from the site's real typography, so it should actually match it.
+SITE_FONT = "\"Avenir Next\",\"Avenir\",\"Nunito Sans\",system-ui,sans-serif"
+
+# Event country strings (see ALL_CALENDAR_FILES's source data) to their
+# page slug, so each event can link straight to that country's page.
+# Covers every country name/abbreviation currently in use across the
+# calendar fetch scripts, not just the ones with events today, so a
+# newly-added country doesn't silently go unlinked.
+COUNTRY_SLUGS = {
+    "UK": "uk", "US": "us", "Eurozone": "eurozone", "Japan": "japan",
+    "Canada": "canada", "Australia": "australia", "India": "india",
+    "South Korea": "southkorea", "Israel": "israel", "Mexico": "mexico",
+    "Brazil": "brazil", "South Africa": "southafrica", "Morocco": "morocco",
+    "Germany": "germany", "France": "france", "Italy": "italy",
+    "Spain": "spain", "Netherlands": "netherlands", "Denmark": "denmark",
+    "Ireland": "ireland", "Norway": "norway", "Chile": "chile",
+    "Colombia": "colombia", "Turkey": "turkey", "Indonesia": "indonesia",
+    "Poland": "poland", "Switzerland": "switzerland", "Argentina": "argentina",
+    "Sweden": "sweden", "Singapore": "singapore", "Austria": "austria",
+    "Thailand": "thailand",
+}
+
+
 def _format_day_heading(d: date) -> str:
     # e.g. "Tuesday, 8 September" -- no year, this is always a near-term window.
     return d.strftime("%A, %-d %B")
@@ -197,19 +223,25 @@ def build_email_html(matches: list[dict]) -> str:
     for ev_date, day_events in days:
         rows = []
         for ev in day_events:
-            country = _html_escape(ev.get("country", "?"))
+            country_raw = ev.get("country", "?")
+            country = _html_escape(country_raw)
             name = _html_escape(ev.get("name", "Release"))
             time_str = _html_escape(ev["time"]) if ev.get("time") else ""
+            slug = COUNTRY_SLUGS.get(country_raw)
+            country_html = (
+                f"<a href=\"https://theeconomicatlas.com/{slug}\" style=\"color:#AD1E1E;font-weight:bold;text-decoration:none;\">{country}</a>"
+                if slug else f"<span style=\"color:#AD1E1E;font-weight:bold;\">{country}</span>"
+            )
             rows.append(f"""
               <tr>
                 <td style="padding:10px 0;border-top:1px solid #E7E2D8;">
                   <table role="presentation" width="100%" cellpadding="0" cellspacing="0">
                     <tr>
-                      <td style="font-size:15px;color:#1A1A1A;font-family:Georgia,'Times New Roman',serif;">
-                        <span style="color:#AD1E1E;font-weight:bold;">{country}</span>
+                      <td style="font-size:15px;color:#1A1A1A;font-family:{SITE_FONT};">
+                        {country_html}
                         &nbsp;&mdash;&nbsp;{name}
                       </td>
-                      <td align="right" style="font-size:13px;color:#6B6B6B;font-family:Arial,Helvetica,sans-serif;white-space:nowrap;padding-left:12px;">
+                      <td align="right" style="font-size:13px;color:#6B6B6B;font-family:{SITE_FONT};white-space:nowrap;padding-left:12px;">
                         {time_str}
                       </td>
                     </tr>
@@ -219,7 +251,7 @@ def build_email_html(matches: list[dict]) -> str:
         day_blocks.append(f"""
           <tr>
             <td style="padding:22px 0 0 0;">
-              <div style="font-family:Arial,Helvetica,sans-serif;font-size:12px;letter-spacing:0.06em;text-transform:uppercase;color:#8A8375;font-weight:bold;">
+              <div style="font-family:{SITE_FONT};font-size:12px;letter-spacing:0.06em;text-transform:uppercase;color:#8A8375;font-weight:bold;">
                 {_html_escape(_format_day_heading(ev_date))}
               </div>
               <table role="presentation" width="100%" cellpadding="0" cellspacing="0">
@@ -243,7 +275,7 @@ def build_email_html(matches: list[dict]) -> str:
                     <td style="padding-right:10px;">
                       <img src="https://theeconomicatlas.com/logo-64.png" width="28" height="28" alt="" style="display:block;border-radius:50%;">
                     </td>
-                    <td style="font-family:Georgia,'Times New Roman',serif;font-size:19px;color:#1A1A1A;font-weight:bold;">
+                    <td style="font-family:{SITE_FONT};font-size:19px;color:#1A1A1A;font-weight:bold;">
                       The Economic Atlas Calendar
                     </td>
                   </tr>
@@ -251,7 +283,7 @@ def build_email_html(matches: list[dict]) -> str:
               </td>
             </tr>
             <tr>
-              <td style="padding:20px 32px 4px 32px;font-family:Arial,Helvetica,sans-serif;font-size:13px;color:#6B6B6B;">
+              <td style="padding:20px 32px 4px 32px;font-family:{SITE_FONT};font-size:13px;color:#6B6B6B;">
                 Coming up in the next week, from your tracked countries and metrics:
               </td>
             </tr>
@@ -263,8 +295,8 @@ def build_email_html(matches: list[dict]) -> str:
               </td>
             </tr>
             <tr>
-              <td style="padding:24px 32px 28px 32px;border-top:1px solid #E7E2D8;">
-                <a href="https://theeconomicatlas.com/calendar" style="font-family:Arial,Helvetica,sans-serif;font-size:13px;color:#1E4566;text-decoration:none;">Manage what you track &rarr;</a>
+              <td align="center" style="padding:28px 32px 32px 32px;border-top:1px solid #E7E2D8;">
+                <a href="https://theeconomicatlas.com/calendar" style="display:inline-block;font-family:{SITE_FONT};font-size:15px;font-weight:bold;color:#FFFFFF;background-color:#1A1A1A;text-decoration:none;padding:12px 28px;border-radius:5px;">View full calendar &rarr;</a>
               </td>
             </tr>
           </table>
