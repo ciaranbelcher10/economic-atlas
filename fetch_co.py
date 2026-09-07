@@ -31,9 +31,16 @@ calls; the next real Actions run is still the genuine test):
   15-64 like most other countries' participation_rate on this site --
   no 15-64-specific participation series was found for Colombia during
   this build. Label adjusted accordingly ("15+" not "15-64").
-- employment_rate (COLLREM64TTSTSAM): CONFIRMED live, through Jan 2026,
-  genuinely ages 15-64, matching every other country's employment_rate
-  on this site.
+- employment_rate (COLLREMTTTTSTSAM): CONFIRMED live, through Jan 2026
+  (page shows 58.39% for that month), OECD's "Employment Rate Total:
+  15 Years or over" series. UPDATED in a later session from the
+  original COLLREM64TTSTSAM (ages 15-64 only) -- that series populated
+  correctly but sat next to participation_rate's 15+ bracket on the
+  same page, so the two tiles compared different age populations
+  side by side (a real, confusing mismatch a site reviewer caught,
+  not a data error, but worth fixing since a matching 15+ series
+  turned out to exist). Both labour-market tiles are now genuinely
+  the same 15+ population.
 - bond_yield_10y (COLIRLTLT01STM): CONFIRMED live, through Feb 2026.
 - trade_balance (COLXTNTVA01CXMLSAM): CONFIRMED live, through Nov 2025
   (updated Feb 2026), USD exchange-rate-converted, seasonally adjusted,
@@ -74,7 +81,7 @@ FRED_SERIES = {
     "gdp_growth_yoy": ("COLNAEXKP01GYSAQ", "q", "Real GDP growth, YoY (OECD, as published)", "%", None, 1.0),
     "unemployment": ("COLLRHUTTTTSTSAM", "m", "Unemployment rate, 15+, SA (OECD)", "%", None, 1.0),
     "participation_rate": ("COLLRACTTTTSTSAM", "m", "Labour force participation rate, 15+, SA", "%", None, 1.0),
-    "employment_rate": ("COLLREM64TTSTSAM", "m", "Employment rate, 15-64, SA", "%", None, 1.0),
+    "employment_rate": ("COLLREMTTTTSTSAM", "m", "Employment rate, 15+, SA (OECD)", "%", None, 1.0),
     "bond_yield_10y": ("COLIRLTLT01STM", "m", "10-year government bond yield", "%", None, 1.0),
     "trade_balance": ("COLXTNTVA01CXMLSAM", "m", "Trade balance, goods, $", "$m", None, 1e-6),
     "debt_gdp": ("COLGGXWDGGDP", "a", "General government gross debt, % of GDP (IMF WHD REO)", "%", None, 1.0),

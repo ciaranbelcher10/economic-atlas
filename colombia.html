@@ -1609,6 +1609,7 @@ document.addEventListener("DOMContentLoaded", function(){
  <div class="hero mini" id="tiles-trade"></div>
  <p class="lightskey compact" aria-label="Key to freshness lights"><span><span class="led green" aria-hidden="true"></span>&nbsp;updated on schedule</span><span><span class="led orange" aria-hidden="true"></span>&nbsp;awaiting next release</span></p>
  <div class="grid" id="charts-trade"></div>
+ <p class="secnote">The chart above shows the combined trade balance (exports minus imports). Exports and imports as individual time series aren't yet wired to a verified live source for Colombia -- a known gap, not shown here rather than estimated.</p>
  <div class="tpm-head"><h3>Colombia goods trade: top partners</h3></div>
  <p class="tpm-scopenote"><strong>Goods trade only.</strong> Services aren't covered by this data source and aren't shown here, so relationships that lean heavily on services may be understated.</p>
  <div class="tpm-banner" id="tpmBanner"><span class="dot2" aria-hidden="true"></span>
@@ -1812,9 +1813,9 @@ function sampleData(){
     participation_rate:S("Labour force participation, 15+, SA (illustrative)","%","months",interp(
       [["1996-01",62.5],["2005-01",65.5],["2013-01",69.0],["2019-12",70.5],
        ["2020-05",58.0],["2023-06",69.5],["2026-01",70.0]],mR)),
-    employment_rate:S("Employment rate, 15-64, SA (illustrative)","%","months",interp(
-      [["1996-01",55.5],["2005-01",57.0],["2013-01",61.5],["2019-12",63.0],
-       ["2020-05",47.0],["2023-06",62.0],["2026-01",62.5]],mR)),
+    employment_rate:S("Employment rate, 15+, SA (illustrative)","%","months",interp(
+      [["1996-01",51.5],["2005-01",53.0],["2013-01",57.5],["2019-12",59.0],
+       ["2020-05",43.5],["2023-06",57.5],["2026-01",58.4]],mR)),
     debt_gdp:S("General government debt % GDP (illustrative)","%","years",interp(
       [["1996",23],["2000",34],["2008",32],["2013",37],["2019",50],
        ["2020",65],["2024",61],["2025",60]],yearsBetween(1996,2025))),
@@ -2158,7 +2159,7 @@ function render(data){
   const SRC_BOND="FRED series COLIRLTLT01STM \u00b7 monthly average";
   const SRC_UNEMP="FRED series COLLRHUTTTTSTSAM \u00b7 OECD-harmonized, seasonally adjusted, monthly";
   const SRC_PART="FRED series COLLRACTTTTSTSAM \u00b7 OECD, ages 15+, seasonally adjusted, monthly";
-  const SRC_EMP="FRED series COLLREM64TTSTSAM \u00b7 OECD, ages 15-64, seasonally adjusted, monthly";
+  const SRC_EMP="FRED series COLLREMTTTTSTSAM \u00b7 OECD, ages 15+, seasonally adjusted, monthly";
   if(s.business_confidence) chartPanel("business_confidence","charts-headline","Business confidence",
     "How optimistic firms are about the months ahead. 100 is the long-run average; above it, firms expect better times.",
     s.business_confidence,"line",idx,v=>idx(v)+" (avg = 100)",SRC_BCI,undefined,100);
@@ -2187,7 +2188,7 @@ function render(data){
     "The share of people 15 and over who are either working or actively looking for work.",
     s.participation_rate,"line",v=>v+"%",pct,SRC_PART);
   if(s.employment_rate) chartPanel("employment_rate","charts-labour","Employment rate",
-    "The share of people 15-64 who are actually in work, regardless of whether others are looking.",
+    "The share of people 15 and over who are actually in work, regardless of whether others are looking.",
     s.employment_rate,"line",v=>v+"%",pct,SRC_EMP);
   if(s.trade_balance) chartPanel("trade_balance","charts-trade","Trade balance, goods",
     "Exports minus imports of goods each month. Below zero means Colombia buys more than it sells.",
@@ -2241,7 +2242,7 @@ function render(data){
     {fmt:pct,fmtD:pp,upIsGood:false,source:SRC_UNEMP});
   if(s.participation_rate) statTile(tl,"participation_rate","Participation (15+)",s.participation_rate,
     {fmt:pct,fmtD:pp,upIsGood:true,source:SRC_PART});
-  if(s.employment_rate) statTile(tl,"employment_rate","Employment rate (15-64)",s.employment_rate,
+  if(s.employment_rate) statTile(tl,"employment_rate","Employment rate (15+)",s.employment_rate,
     {fmt:pct,fmtD:pp,upIsGood:true,source:SRC_EMP});
   const tt=document.getElementById("tiles-trade");
   if(s.trade_balance) statTile(tt,"trade_balance","Trade balance",s.trade_balance,
@@ -2465,8 +2466,8 @@ const INFO_CONTENT = {
     source: "FRED series COLLRACTTTTSTSAM \u00b7 OECD, ages 15+, seasonally adjusted, monthly."
   },
   employment_rate: {
-    description: "The share of people aged 15-64 who are actually in work, regardless of whether others are looking.",
-    source: "FRED series COLLREM64TTSTSAM \u00b7 OECD, ages 15-64, seasonally adjusted, monthly."
+    description: "The share of people aged 15 and over who are actually in work, regardless of whether others are looking.",
+    source: "FRED series COLLREMTTTTSTSAM \u00b7 OECD, ages 15+, seasonally adjusted, monthly."
   },
   business_confidence: {
     description: "How optimistic firms are about the months ahead. 100 is the long-run average; readings above it mean firms expect better-than-average conditions.",
