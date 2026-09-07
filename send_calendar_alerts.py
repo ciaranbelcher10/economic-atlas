@@ -157,7 +157,8 @@ def matching_upcoming_events(all_events: list[dict], preferences: dict,
     return matches
 
 
-def build_email_body(matches: list[dict]) -> str:
+def build_email_text(matches: list[dict]) -> str:
+    """Plain-text fallback -- kept for clients that reject/strip HTML."""
     lines = ["Coming up in the next week, from your tracked countries and metrics on The Economic Atlas Calendar:", ""]
     for ev in matches:
         lines.append(f"{ev['date']}  {ev.get('country', '?')} - {ev.get('name', 'Release')}")
@@ -168,7 +169,113 @@ def build_email_body(matches: list[dict]) -> str:
     return "\n".join(lines)
 
 
-def send_alert_email(to_email: str, body: str):
+def _html_escape(s: str) -> str:
+    return (str(s).replace("&", "&amp;").replace("<", "&lt;").replace(">", "&gt;")
+            .replace('"', "&quot;"))
+
+
+def _format_day_heading(d: date) -> str:
+    # e.g. "Tuesday, 8 September" -- no year, this is always a near-term window.
+    return d.strftime("%A, %-d %B")
+
+
+def build_email_html(matches: list[dict]) -> str:
+    """Grouped-by-date HTML email: a day heading, then each event as a
+    row with the metric name and its release time laid out clearly,
+    rather than the flat repeated-date plain-text list."""
+    # Group in-order (matches already sorted by date) without re-sorting,
+    # so ties within a day keep their original relative order.
+    days: list[tuple[date, list[dict]]] = []
+    for ev in matches:
+        ev_date = datetime.strptime(ev["date"], "%Y-%m-%d").date()
+        if days and days[-1][0] == ev_date:
+            days[-1][1].append(ev)
+        else:
+            days.append((ev_date, [ev]))
+
+    day_blocks = []
+    for ev_date, day_events in days:
+        rows = []
+        for ev in day_events:
+            country = _html_escape(ev.get("country", "?"))
+            name = _html_escape(ev.get("name", "Release"))
+            time_str = _html_escape(ev["time"]) if ev.get("time") else ""
+            rows.append(f"""
+              <tr>
+                <td style="padding:10px 0;border-top:1px solid #E7E2D8;">
+                  <table role="presentation" width="100%" cellpadding="0" cellspacing="0">
+                    <tr>
+                      <td style="font-size:15px;color:#1A1A1A;font-family:Georgia,'Times New Roman',serif;">
+                        <span style="color:#AD1E1E;font-weight:bold;">{country}</span>
+                        &nbsp;&mdash;&nbsp;{name}
+                      </td>
+                      <td align="right" style="font-size:13px;color:#6B6B6B;font-family:Arial,Helvetica,sans-serif;white-space:nowrap;padding-left:12px;">
+                        {time_str}
+                      </td>
+                    </tr>
+                  </table>
+                </td>
+              </tr>""")
+        day_blocks.append(f"""
+          <tr>
+            <td style="padding:22px 0 0 0;">
+              <div style="font-family:Arial,Helvetica,sans-serif;font-size:12px;letter-spacing:0.06em;text-transform:uppercase;color:#8A8375;font-weight:bold;">
+                {_html_escape(_format_day_heading(ev_date))}
+              </div>
+              <table role="presentation" width="100%" cellpadding="0" cellspacing="0">
+                {''.join(rows)}
+              </table>
+            </td>
+          </tr>""")
+
+    return f"""\
+<!DOCTYPE html>
+<html>
+  <body style="margin:0;padding:0;background-color:#F4F1EA;">
+    <table role="presentation" width="100%" cellpadding="0" cellspacing="0" style="background-color:#F4F1EA;">
+      <tr>
+        <td align="center" style="padding:32px 16px;">
+          <table role="presentation" width="600" cellpadding="0" cellspacing="0" style="max-width:600px;width:100%;background-color:#FFFFFF;border:1px solid #E7E2D8;border-radius:6px;">
+            <tr>
+              <td style="padding:28px 32px 20px 32px;border-bottom:2px solid #1A1A1A;">
+                <table role="presentation" cellpadding="0" cellspacing="0">
+                  <tr>
+                    <td style="padding-right:10px;">
+                      <img src="https://theeconomicatlas.com/logo-64.png" width="28" height="28" alt="" style="display:block;border-radius:50%;">
+                    </td>
+                    <td style="font-family:Georgia,'Times New Roman',serif;font-size:19px;color:#1A1A1A;font-weight:bold;">
+                      The Economic Atlas Calendar
+                    </td>
+                  </tr>
+                </table>
+              </td>
+            </tr>
+            <tr>
+              <td style="padding:20px 32px 4px 32px;font-family:Arial,Helvetica,sans-serif;font-size:13px;color:#6B6B6B;">
+                Coming up in the next week, from your tracked countries and metrics:
+              </td>
+            </tr>
+            <tr>
+              <td style="padding:0 32px 8px 32px;">
+                <table role="presentation" width="100%" cellpadding="0" cellspacing="0">
+                  {''.join(day_blocks)}
+                </table>
+              </td>
+            </tr>
+            <tr>
+              <td style="padding:24px 32px 28px 32px;border-top:1px solid #E7E2D8;">
+                <a href="https://theeconomicatlas.com/calendar" style="font-family:Arial,Helvetica,sans-serif;font-size:13px;color:#1E4566;text-decoration:none;">Manage what you track &rarr;</a>
+              </td>
+            </tr>
+          </table>
+        </td>
+      </tr>
+    </table>
+  </body>
+</html>"""
+
+
+def send_alert_email(to_email: str, text_body: str, html_body: str):
     if not RESEND_API_KEY:
         print("RESEND_API_KEY not set -- skipping email.", file=sys.stderr)
         return
@@ -176,7 +283,8 @@ def send_alert_email(to_email: str, body: str):
         "from": f"The Economic Atlas Calendar <{ALERT_FROM}>",
         "to": [to_email],
         "subject": "Your tracked releases this week",
-        "text": body,
+        "text": text_body,
+        "html": html_body,
     }).encode()
     req = urllib.request.Request(
         "https://api.resend.com/emails",
@@ -222,8 +330,9 @@ def main():
         if not matches:
             skipped_no_matches += 1
             continue
-        body = build_email_body(matches)
-        send_alert_email(email, body)
+        text_body = build_email_text(matches)
+        html_body = build_email_html(matches)
+        send_alert_email(email, text_body, html_body)
         sent += 1
 
     print(f"Done. Sent: {sent}, skipped (no preferences set): {skipped_no_prefs}, "
