@@ -1,0 +1,232 @@
+/* ==========================================================================
+   The Economic Atlas — mobile.css
+   Radical mobile-only presentation layer.
+   Every rule is scoped inside @media (max-width:760px) so desktop and
+   tablet layouts are completely unaffected. This file is additive: it is
+   linked AFTER style.css on every page (except 404.html and markets.html,
+   per standing convention) and never edits style.css itself.
+   ========================================================================== */
+
+@media (max-width:760px){
+
+  /* ---------------------------------------------------------------------
+     1. PERSISTENT MOBILE TOOL BAR
+     Replaces "buried in hamburger" navigation with five always-visible
+     tabs for the core tools. Injected by mobile.js as #mobToolbar,
+     sits directly under nav.top. The hamburger menu still exists for
+     About/Contact/Methodology/legal, which people need rarely.
+     --------------------------------------------------------------------- */
+  nav.sub{ display:none !important; } /* mega-dropdown replaced by toolbar below */
+
+  #mobToolbar{
+    position:sticky; top:0; z-index:40;
+    display:flex; overflow-x:auto; -webkit-overflow-scrolling:touch;
+    scrollbar-width:none;
+    background:var(--navy,#1B2A3D); border-bottom:1px solid rgba(255,255,255,.08);
+  }
+  #mobToolbar::-webkit-scrollbar{ display:none; }
+  #mobToolbar a{
+    flex:0 0 auto; display:flex; flex-direction:column; align-items:center;
+    gap:2px; padding:10px 16px; font-size:11.5px; font-weight:600;
+    color:rgba(255,255,255,.68); text-decoration:none; white-space:nowrap;
+    border-bottom:2.5px solid transparent;
+  }
+  #mobToolbar a .ic{ font-size:16px; line-height:1; }
+  #mobToolbar a.active{ color:#fff; border-bottom-color:var(--blue,#37659E); }
+
+  /* ---------------------------------------------------------------------
+     2. HOMEPAGE MAP — calmer entrance
+     --------------------------------------------------------------------- */
+  .hero-map-cap, .mob-map-cap{
+    display:block; font-size:13px; color:var(--ink2); text-align:center;
+    margin:2px 0 10px;
+  }
+  .mini-legend{ font-size:11.5px; gap:6px 10px; }
+
+  /* ---------------------------------------------------------------------
+     3. COUNTRY PAGES — swipeable section carousel + dot indicator
+     nav.cat becomes a compact dot/position indicator; the underlying
+     .sec elements are swiped between by mobile.js, which calls the
+     page's own existing showSec() function — no data logic duplicated.
+     --------------------------------------------------------------------- */
+  nav.cat{
+    position:sticky; top:0; z-index:30; background:var(--paper);
+    display:flex; overflow-x:auto; -webkit-overflow-scrolling:touch;
+    gap:6px; padding:8px 10px; border-bottom:1px solid var(--hair);
+    scrollbar-width:none;
+  }
+  nav.cat::-webkit-scrollbar{ display:none; }
+  nav.cat button{ flex:0 0 auto; font-size:12.5px; padding:6px 12px; }
+
+  .sec{ scroll-margin-top:46px; }
+  .sec-swipehint{
+    display:flex; justify-content:center; gap:5px; margin:2px 0 10px;
+  }
+  .sec-swipehint span{
+    width:6px; height:6px; border-radius:50%; background:var(--hair);
+  }
+  .sec-swipehint span.active{ background:var(--blue,#37659E); }
+
+  /* Info popovers become bottom sheets instead of covering the chart */
+  .infopop, .metric-info-popover, [class*="info-pop"]{
+    position:fixed !important; left:0 !important; right:0 !important;
+    top:auto !important; bottom:0 !important;
+    max-height:60vh !important; overflow-y:auto;
+    border-radius:16px 16px 0 0 !important;
+    box-shadow:0 -8px 24px rgba(0,0,0,.28) !important;
+    width:100% !important; margin:0 !important;
+  }
+
+  /* ---------------------------------------------------------------------
+     4. TRADE PARTNER CHART — kill radial/geo viz on mobile, promote the
+     ranking list that already exists in .tpm-right. Desktop is untouched.
+     --------------------------------------------------------------------- */
+  .tpm-left{ display:none !important; }
+  .viztoggle .vtbtn[data-view]{ display:none !important; } /* Geographic/Radial toggle */
+  .tpm-layout{ display:block !important; }
+  .tpm-right{ width:100% !important; }
+  .tpm-mobile-note{
+    display:block; font-size:12.5px; color:var(--ink2); background:var(--panel);
+    border:1px solid var(--hair); border-radius:10px; padding:9px 12px; margin:8px 0;
+  }
+  .viztoggle{ flex-wrap:wrap; row-gap:6px; }
+  .viztoggle .spacer{ display:none; } /* was only needed to push desktop layout apart */
+  #metricWrap, #orderByWrap{ font-size:11.5px; }
+
+  /* ---------------------------------------------------------------------
+     5. COMPARE PAGE — stacked cards instead of the wide summary table,
+     search box in the country picker, tidier control bar.
+     --------------------------------------------------------------------- */
+  #rankTable, .rank-scroll-hint{ display:none !important; }
+  #cmpCardsWrap{ display:flex; flex-direction:column; gap:12px; margin-top:4px; }
+  .cmp-country-card{
+    border:1px solid var(--hair); border-radius:12px; padding:14px 16px;
+    background:var(--panel,#fff);
+  }
+  .cmp-country-card h4{
+    margin:0 0 8px; font-size:15px; display:flex; align-items:center; gap:8px;
+  }
+  .cmp-country-card .swatch{ width:10px; height:10px; border-radius:50%; display:inline-block; }
+  .cmp-country-card .row{
+    display:flex; justify-content:space-between; gap:10px; padding:6px 0;
+    border-top:1px solid var(--hair); font-size:13.5px;
+  }
+  .cmp-country-card .row:first-of-type{ border-top:none; }
+  .cmp-country-card .row .lbl{ color:var(--ink2); }
+  .cmp-country-card .row .val{ font-weight:700; text-align:right; }
+  .cmp-country-card .row .val .yr{ display:block; font-weight:400; color:var(--ink2); font-size:11px; }
+
+  #pickerSearchWrap{ margin:8px 0 12px; }
+  #pickerSearch{
+    width:100%; padding:10px 14px; border-radius:10px; border:1px solid var(--hair);
+    font-size:15px; background:var(--paper); color:var(--ink);
+  }
+
+  .cmp-controlbar{
+    display:flex; flex-wrap:wrap; gap:8px; align-items:center;
+  }
+
+  /* Intro paragraphs on Compare — hidden by text-match via mobile.js
+     (they carry no distinguishing class in the markup) */
+  .cmp-lede-hide{ display:none !important; }
+
+  /* Per-card controls (Bar/Line, Order countries by, Fullscreen) collapse
+     behind a single "Chart options" toggle so each card shows its data
+     first, not four rows of controls before any numbers appear. */
+  .metric-card .charttoggle,
+  .metric-card .card-sort-row,
+  .metric-card .card-fullscreen-btn{ display:none; }
+  .metric-card.opts-open .charttoggle,
+  .metric-card.opts-open .card-sort-row,
+  .metric-card.opts-open .card-fullscreen-btn{ display:flex; }
+  .metric-card.opts-open .charttoggle{ display:flex; }
+  .card-opts-toggle{
+    display:inline-flex; align-items:center; gap:4px; font-size:12px; font-weight:600;
+    color:var(--blue,#37659E); background:none; border:none; padding:4px 0 8px; cursor:pointer;
+  }
+  .card-opts-toggle .car{ transition:transform .15s ease; display:inline-block; }
+  .metric-card.opts-open .card-opts-toggle .car{ transform:rotate(180deg); }
+  .card-time-row{ flex-wrap:wrap; row-gap:8px; }
+
+  /* ---------------------------------------------------------------------
+     9. SIGNUP / TRIAL BANNERS ("savebar") — compact single-line strip
+     instead of a large boxed callout, on Dashboard and Compare.
+     --------------------------------------------------------------------- */
+  .savebar{
+    padding:8px 12px !important; gap:8px !important; font-size:12px !important;
+    border-radius:9px !important; align-items:center !important;
+  }
+  .savebar-icon{ font-size:13px !important; }
+  .savebar p{ font-size:12px !important; line-height:1.35 !important; margin:0 !important; }
+  .savebar .btn{
+    padding:5px 10px !important; font-size:11.5px !important; flex:0 0 auto;
+  }
+  .savebar-close{ font-size:15px !important; }
+
+  /* ---------------------------------------------------------------------
+     6. CALENDAR — full agenda rebuild replacing the 7-column month grid.
+     --------------------------------------------------------------------- */
+  .cal-grid{ display:none !important; }
+  .cal-dow{ display:none !important; }
+  #calDayDetail{ display:none !important; } /* leftover "click a day above" box from grid mode */
+  .cal-head-note{ font-size:12px; }
+  #calAgenda{ display:block; }
+  .cal-agenda-title{
+    font-size:13px; font-weight:700; color:var(--ink2); text-transform:uppercase;
+    letter-spacing:.03em; margin:2px 0 10px;
+  }
+  .cal-agenda-day{
+    border-top:1px solid var(--hair); padding:12px 2px;
+  }
+  .cal-agenda-day:first-child{ border-top:none; }
+  .cal-agenda-day .d-head{
+    display:flex; align-items:baseline; gap:8px; margin-bottom:8px;
+  }
+  .cal-agenda-day .d-num{ font-size:19px; font-weight:800; }
+  .cal-agenda-day .d-dow{ font-size:12.5px; color:var(--ink2); text-transform:uppercase; letter-spacing:.03em; }
+  .cal-agenda-day.is-today .d-num{ color:var(--blue,#37659E); }
+  .cal-agenda-empty{ font-size:13px; color:var(--ink2); padding:2px 0 2px; }
+  .cal-agenda-pill{
+    display:flex; align-items:center; gap:8px; padding:9px 12px; border-radius:9px;
+    margin-bottom:6px; font-size:13.5px; font-weight:600; color:#fff;
+  }
+  .cal-agenda-pill .dot{ width:8px; height:8px; border-radius:50%; background:rgba(255,255,255,.85); flex:0 0 auto; }
+  .cal-agenda-pill .country{ opacity:.85; font-weight:500; }
+  .cal-jump{
+    display:flex; overflow-x:auto; gap:6px; padding:2px 0 12px; -webkit-overflow-scrolling:touch;
+    scrollbar-width:none;
+  }
+  .cal-jump::-webkit-scrollbar{ display:none; }
+  .cal-jump button{
+    flex:0 0 auto; padding:6px 12px; border-radius:20px; border:1px solid var(--hair);
+    background:var(--paper); font-size:12.5px; font-weight:600;
+  }
+  .cal-jump button.has-events{ border-color:var(--blue,#37659E); color:var(--blue,#37659E); }
+
+  /* ---------------------------------------------------------------------
+     7. CHARTMAKER — hard gate, no crippled mobile version
+     --------------------------------------------------------------------- */
+  #cmLayout{ display:none !important; }
+  #cmMobileGate{
+    display:flex !important; flex-direction:column; align-items:flex-start;
+    gap:14px; padding:28px 20px; margin-top:8px;
+    border:1px solid var(--hair); border-radius:14px; background:var(--panel,#F5F6F3);
+  }
+  #cmMobileGate .ic{ font-size:30px; }
+  #cmMobileGate h3{ margin:0; font-size:19px; }
+  #cmMobileGate p{ margin:0; font-size:14.5px; color:var(--ink2); line-height:1.55; }
+  #cmMobileGate .save-hint{
+    font-size:13px; padding:9px 12px; border-radius:8px; background:var(--paper);
+    border:1px solid var(--hair); color:var(--ink2);
+  }
+
+  /* ---------------------------------------------------------------------
+     8. DASHBOARD — search box in the "Add a metric" picker
+     --------------------------------------------------------------------- */
+  #dashMetricSearchWrap{ margin:8px 0 12px; position:sticky; top:0; background:var(--paper); z-index:5; padding-top:4px; }
+  #dashMetricSearch{
+    width:100%; padding:10px 14px; border-radius:10px; border:1px solid var(--hair);
+    font-size:15px; background:var(--paper); color:var(--ink);
+  }
+
+} /* end max-width:760px */
