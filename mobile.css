@@ -20,7 +20,7 @@
    --------------------------------------------------------------------- */
 #hqnSearch, #scrollCatchInput, #dashMetricSearch, #pickerSearch,
 .card-opts-toggle, #mobToolbar a, .hqn-results a, .sc-results a,
-.hqn-popular a, .ht-item, #scrollCatchClose{
+.ht-item, #scrollCatchClose{
   font-family:"Avenir Next","Avenir","Nunito Sans",system-ui,sans-serif;
 }
 
@@ -40,7 +40,7 @@
    All breakpoints. Widths are capped and centered above ~640px so these
    don't look like stretched mobile components on a desktop screen.
    --------------------------------------------------------------------- */
-#homeQuickNav{ margin:10px 0 20px; max-width:640px; }
+#homeQuickNav{ margin:10px 0 6px; max-width:640px; }
 .hqn-searchwrap{ position:relative; }
 #hqnSearch{
   width:100%; padding:12px 14px; border-radius:11px; border:1px solid var(--hair);
@@ -57,19 +57,33 @@
 }
 .hqn-results a:last-child{ border-bottom:none; }
 .hqn-none{ padding:11px 14px; font-size:13px; color:var(--ink2); }
-.hqn-popular{
-  display:flex; flex-wrap:wrap; overflow-x:auto; gap:8px; margin-top:10px; padding-bottom:2px;
-  -webkit-overflow-scrolling:touch; scrollbar-width:none;
-}
-.hqn-popular::-webkit-scrollbar{ display:none; }
-.hqn-popular a{
-  flex:0 0 auto; padding:9px 16px; border-radius:20px; border:1px solid var(--blue,#37659E);
-  color:var(--blue,#37659E); font-size:13.5px; font-weight:700; text-decoration:none;
-}
-.hqn-popular a:hover{ background:var(--blue,#37659E); color:#fff; }
 
+/* Matches the site's own "Latest:" glass/green treatment from country
+   pages (.newdata) exactly — same colours, same blur/saturate recipe,
+   same pulsing dot — rather than inventing a new visual language. */
 #homeTicker{
   display:flex; align-items:center; gap:10px; margin:2px 0 18px; overflow:hidden;
+  background:rgba(213,238,221,.85); backdrop-filter:blur(16px) saturate(180%);
+  -webkit-backdrop-filter:blur(16px) saturate(180%);
+  border:1px solid rgba(47,164,99,.35); border-radius:10px; padding:9px 14px;
+}
+html[data-theme="dark"] #homeTicker{
+  background:rgba(30,60,45,.65) !important;
+  border:1px solid rgba(47,164,99,.4) !important;
+}
+.ht-prefix{
+  flex:0 0 auto; display:flex; align-items:center; gap:6px;
+  font-weight:700; font-size:13px; color:#1E6B48; white-space:nowrap;
+}
+html[data-theme="dark"] .ht-prefix{ color:#8FE3B0 !important; }
+.ht-prefix .pulse{
+  width:9px; height:9px; border-radius:50%; background:#2FA463;
+  box-shadow:0 0 0 3px rgba(47,164,99,.2); flex:none;
+  animation:ht-pulse 2s ease-in-out infinite;
+}
+@keyframes ht-pulse{
+  0%, 100%{ box-shadow:0 0 0 3px rgba(47,164,99,.2); }
+  50%{ box-shadow:0 0 0 6px rgba(47,164,99,.08); }
 }
 .ht-viewport{ flex:1; overflow:hidden; -webkit-mask-image:linear-gradient(to right, transparent 0, #000 24px, #000 calc(100% - 24px), transparent 100%); mask-image:linear-gradient(to right, transparent 0, #000 24px, #000 calc(100% - 24px), transparent 100%); }
 .ht-track{
@@ -83,13 +97,18 @@
 #homeTicker:hover .ht-track{ animation-play-state:paused; }
 .ht-item{
   flex:0 0 auto; display:flex; align-items:center; gap:5px;
-  padding:8px 12px; border-radius:20px; border:1px solid var(--hair); background:var(--panel);
-  font-size:12.5px; color:var(--ink); text-decoration:none; white-space:nowrap;
+  padding:5px 12px; border-radius:6px; background:var(--panel);
+  border:1px solid rgba(47,164,99,.35);
+  font-size:13px; font-weight:600; color:#1E6B48; text-decoration:none; white-space:nowrap;
 }
-.ht-item:hover{ border-color:var(--blue,#37659E); }
+html[data-theme="dark"] .ht-item{ color:#8FE3B0 !important; }
+.ht-item:hover, .ht-item:focus-visible{ background:#D5EEDD; border-color:#2FA463; }
+.ht-value{ color:inherit; }
+.ht-date{ font-weight:400; opacity:.75; }
 
 @media (prefers-reduced-motion: reduce){
   .ht-track{ animation:none; }
+  .ht-prefix .pulse{ animation:none; }
 }
 
 #homeScrollCatch{

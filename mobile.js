@@ -146,8 +146,8 @@
   }
 
   function tickerFactHtml(f){
-    return '<a class="ht-item" href="'+f.slug+'"><b>Latest:</b> Country ('+f.country+'), Metric ('
-      + f.metricShort + '), Value (' + f.valueStr + '), as of ' + f.dateStr + '</a>';
+    return '<a class="ht-item" href="'+f.slug+'">'+f.flag+' <b>'+f.country+'</b> '+f.metricShort
+      + ' <b class="ht-value">'+f.valueStr+'</b> <span class="ht-date">'+f.dateStr+'</span></a>';
   }
 
   function initHomeTicker(){
@@ -170,6 +170,7 @@
       wrap.id = "homeTicker";
       wrap.setAttribute("aria-label", "Recent updates");
       wrap.innerHTML =
+        '<span class="ht-prefix"><span class="pulse" aria-hidden="true"></span>Latest:</span>' +
         '<div class="ht-viewport"><div class="ht-track">' + itemsHtml + itemsHtml + '</div></div>';
       marker.insertAdjacentElement("afterend", wrap);
 
@@ -272,16 +273,6 @@
     if(!links.length) return;
     var isCountryPage = !document.querySelector(".hero-h1");
 
-    var POPULAR = ["uk","us","germany","japan","france","brazil","india","china"];
-    var popular = [];
-    if(!isCountryPage){
-      POPULAR.forEach(function(slug){
-        var a = links.find(function(l){ return l.getAttribute("href") === slug; });
-        if(a) popular.push(a);
-      });
-      if(popular.length < 4){ popular = links.slice(0, 8); }
-    }
-
     var placeholder = isCountryPage ? "Jump to another country\u2026" : "Jump straight to a country\u2026";
     var box = document.createElement("div");
     box.id = "homeQuickNav";
@@ -289,11 +280,7 @@
       '<div class="hqn-searchwrap">' +
         '<input type="text" id="hqnSearch" placeholder="'+placeholder+'" autocomplete="off">' +
         '<div class="hqn-results" id="hqnResults" hidden></div>' +
-      '</div>' +
-      (isCountryPage ? "" :
-      '<div class="hqn-popular" id="hqnPopular">' +
-        popular.map(function(a){ return '<a href="'+a.getAttribute("href")+'">'+a.textContent+'</a>'; }).join("") +
-      '</div>');
+      '</div>';
     header.insertAdjacentElement("beforebegin", box);
 
     var input = document.getElementById("hqnSearch");
