@@ -68,28 +68,54 @@
     { file:"data-mx.json",  slug:"mexico",     name:"Mexico",       flag:"\uD83C\uDDF2\uD83C\uDDFD" },
     { file:"data-za.json",  slug:"southafrica",name:"South Africa", flag:"\uD83C\uDDFF\uD83C\uDDE6" }
   ];
-  var TICKER_METRICS = [
-    { key:"cpi", label:"inflation", fmt:function(v){ return v.toFixed(1)+"%"; } },
-    { key:"unemployment", label:"unemployment", fmt:function(v){ return v.toFixed(1)+"%"; } }
-  ];
   var TICKER_FRESH_DAYS = 2; // matches the site's own "Latest:" freshness window exactly
 
-  // Trims the trailing "(SERIES_CODE)" / "(source)" style parentheticals
-  // that series labels carry for methodology precision but which read
-  // as noise in a one-line ticker item.
+  var METRIC_SHORT_LABELS = {
+    gdp_level:"GDP", gdp_real:"Real GDP", gdp_growth:"GDP Growth", productivity:"Productivity",
+    cpi:"CPI", cpih:"CPIH", cpi_mom:"CPI (MoM)", unemployment:"Unemployment", employment:"Employment",
+    inactivity:"Inactivity", debt_gdp:"Debt/GDP", net_debt:"Net Debt", deficit:"Deficit",
+    unemployment_1624:"Youth Unemployment", debt_interest:"Debt Interest", trade_balance:"Trade Balance",
+    current_account:"Current Account", bond_yield_10y:"10Y Bond Yield", policy_rate:"Policy Rate",
+    business_confidence:"Business Confidence"
+  };
+  // Trims trailing "(SERIES_CODE)" / "(source)" parentheticals for the rare
+  // series not covered by the short-label map above.
   function shortSeriesLabel(label){
     var s = label;
     var stripped = s.replace(/\s*\([^()]*\)\s*$/, "");
     while(stripped !== s){ s = stripped; stripped = s.replace(/\s*\([^()]*\)\s*$/, ""); }
     return s || label;
   }
+  function metricShortLabel(key, fallbackLabel){
+    return METRIC_SHORT_LABELS[key] || (fallbackLabel ? shortSeriesLabel(fallbackLabel) : key);
+  }
+
+  // Generic value formatter: percentages as-is, currency-prefixed units
+  // (£/$/€ + m/bn/tn scale) compacted to the largest sensible unit,
+  // anything else shown with its unit suffix as given.
+  function formatTickerValue(value, unit){
+    if(value == null) return null;
+    unit = unit || "";
+    if(unit.indexOf("%") !== -1) return value.toFixed(1) + "%";
+    var symMatch = unit.match(/^([\u00a3$\u20ac\u00a5])/);
+    if(symMatch){
+      var sym = symMatch[1];
+      var scaleSuffix = unit.replace(/^[\u00a3$\u20ac\u00a5]/, "").trim();
+      var scaleMultiplier = {m:1e6, bn:1e9, tn:1e12}[scaleSuffix] || 1;
+      var absValue = value * scaleMultiplier;
+      if(absValue >= 1e12) return sym + (absValue/1e12).toFixed(2) + "tn";
+      if(absValue >= 1e9) return sym + (absValue/1e9).toFixed(2) + "bn";
+      if(absValue >= 1e6) return sym + (absValue/1e6).toFixed(1) + "m";
+      return sym + absValue.toFixed(0);
+    }
+    return value.toFixed(2) + (unit ? " " + unit : "");
+  }
 
   function fetchTickerFacts(cb){
     var freshFacts = [];
-    var fallbackFacts = [];
     var pending = TICKER_COUNTRIES.length;
     var now = Date.now();
-    function done(){ pending--; if(pending === 0) cb(freshFacts, fallbackFacts); }
+    function done(){ pending--; if(pending === 0) cb(freshFacts); }
     TICKER_COUNTRIES.forEach(function(c){
       fetch(c.file, {cache:"no-cache"}).then(function(r){
         if(!r.ok) throw new Error("HTTP "+r.status);
@@ -99,26 +125,19 @@
         var meta = data.new_points_meta || {};
         Object.keys(meta).forEach(function(key){
           var m = meta[key], s = series[key];
-          if(!s || !m || !m.first_seen) return;
+          if(!s || !m || !m.first_seen || !s.points || !s.points.length) return;
           var ageDays = (now - new Date(m.first_seen).getTime()) / 86400000;
           if(ageDays < 0 || ageDays >= TICKER_FRESH_DAYS) return;
+          var latest = s.points[s.points.length - 1];
+          var valueStr = formatTickerValue(latest[1], s.unit);
+          if(valueStr == null) return;
           var dt = new Date(m.first_seen);
           var dd = String(dt.getUTCDate()).padStart(2,"0");
           var mm = String(dt.getUTCMonth()+1).padStart(2,"0");
           freshFacts.push({
             country:c.name, slug:c.slug, flag:c.flag,
-            label:shortSeriesLabel(s.label || key),
-            dateStr:dd+"/"+mm, firstSeen:m.first_seen
-          });
-        });
-        TICKER_METRICS.forEach(function(tm){
-          var s = series[tm.key];
-          if(!s || !s.points || s.points.length < 2) return;
-          var pts = s.points, latest = pts[pts.length-1], prior = pts[pts.length-2];
-          if(latest[1] == null || prior[1] == null) return;
-          fallbackFacts.push({
-            country:c.name, slug:c.slug, flag:c.flag, metricLabel:tm.label,
-            value:tm.fmt(latest[1]), delta:+(latest[1]-prior[1]).toFixed(2)
+            metricShort:metricShortLabel(key, s.label),
+            valueStr:valueStr, dateStr:dd+"/"+mm, firstSeen:m.first_seen
           });
         });
         done();
@@ -127,14 +146,8 @@
   }
 
   function tickerFactHtml(f){
-    if(f.dateStr !== undefined){
-      return '<a class="ht-item" href="'+f.slug+'">'+f.flag+' <b>'+f.country+'</b> '+f.label
-        + ' Update <span class="ht-date">'+f.dateStr+'</span></a>';
-    }
-    var arrow = f.delta > 0 ? "\u25B2" : (f.delta < 0 ? "\u25BC" : "\u2013");
-    var cls = f.delta > 0 ? "up" : (f.delta < 0 ? "down" : "flat");
-    return '<a class="ht-item" href="'+f.slug+'">'+f.flag+' <b>'+f.country+'</b> '+f.metricLabel+' '+f.value
-      + ' <span class="ht-delta '+cls+'">'+arrow+' '+Math.abs(f.delta).toFixed(1)+'pp</span></a>';
+    return '<a class="ht-item" href="'+f.slug+'"><b>Latest:</b> Country ('+f.country+'), Metric ('
+      + f.metricShort + '), Value (' + f.valueStr + '), as of ' + f.dateStr + '</a>';
   }
 
   function initHomeTicker(){
@@ -147,13 +160,9 @@
     marker.style.display = "none";
     subline.insertAdjacentElement("afterend", marker);
 
-    fetchTickerFacts(function(freshFacts, fallbackFacts){
+    fetchTickerFacts(function(freshFacts){
       freshFacts.sort(function(a,b){ return new Date(b.firstSeen) - new Date(a.firstSeen); });
-      var MIN_ITEMS = 8;
       var combined = freshFacts.slice(0, 14);
-      if(combined.length < MIN_ITEMS){
-        combined = combined.concat(fallbackFacts.slice(0, MIN_ITEMS - combined.length));
-      }
       if(!combined.length) return;
 
       var itemsHtml = combined.map(tickerFactHtml).join("");
@@ -161,7 +170,6 @@
       wrap.id = "homeTicker";
       wrap.setAttribute("aria-label", "Recent updates");
       wrap.innerHTML =
-        '<span class="ht-live">\u25CF LIVE</span>' +
         '<div class="ht-viewport"><div class="ht-track">' + itemsHtml + itemsHtml + '</div></div>';
       marker.insertAdjacentElement("afterend", wrap);
 
@@ -266,11 +274,13 @@
 
     var POPULAR = ["uk","us","germany","japan","france","brazil","india","china"];
     var popular = [];
-    POPULAR.forEach(function(slug){
-      var a = links.find(function(l){ return l.getAttribute("href") === slug; });
-      if(a) popular.push(a);
-    });
-    if(popular.length < 4){ popular = links.slice(0, 8); }
+    if(!isCountryPage){
+      POPULAR.forEach(function(slug){
+        var a = links.find(function(l){ return l.getAttribute("href") === slug; });
+        if(a) popular.push(a);
+      });
+      if(popular.length < 4){ popular = links.slice(0, 8); }
+    }
 
     var placeholder = isCountryPage ? "Jump to another country\u2026" : "Jump straight to a country\u2026";
     var box = document.createElement("div");
@@ -280,9 +290,10 @@
         '<input type="text" id="hqnSearch" placeholder="'+placeholder+'" autocomplete="off">' +
         '<div class="hqn-results" id="hqnResults" hidden></div>' +
       '</div>' +
+      (isCountryPage ? "" :
       '<div class="hqn-popular" id="hqnPopular">' +
         popular.map(function(a){ return '<a href="'+a.getAttribute("href")+'">'+a.textContent+'</a>'; }).join("") +
-      '</div>';
+      '</div>');
     header.insertAdjacentElement("beforebegin", box);
 
     var input = document.getElementById("hqnSearch");
