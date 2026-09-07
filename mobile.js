@@ -59,16 +59,90 @@
      Hooks into the page's own global showSec(name) function rather
      than re-implementing section switching.
      ------------------------------------------------------------------ */
+  /* ------------------------------------------------------------------
+     3b. COUNTRY PAGES — collapsed map, tap to expand
+     ------------------------------------------------------------------ */
+  /* ------------------------------------------------------------------
+     2. HOMEPAGE — fast paths to a country besides the map
+     Scrapes the existing (desktop) mega-menu's country links as the
+     data source, so nothing is duplicated or hardcoded — if a country
+     is added to the dropdown, it automatically appears here too.
+     ------------------------------------------------------------------ */
+  function initHomeQuickNav(){
+    if(!isMobile()) return;
+    var heroHeading = document.querySelector(".hero-h1");
+    var subline = document.querySelector(".subline");
+    if(!heroHeading || !subline || document.getElementById("homeQuickNav")) return;
+    var links = $all("#macroPanel a[href]").filter(function(a){ return a.getAttribute("href") !== "index"; });
+    if(!links.length) return;
+
+    var POPULAR = ["uk","us","germany","japan","france","brazil","india","china"];
+    var popular = [];
+    POPULAR.forEach(function(slug){
+      var a = links.find(function(l){ return l.getAttribute("href") === slug; });
+      if(a) popular.push(a);
+    });
+    if(popular.length < 4){ popular = links.slice(0, 8); }
+
+    var box = document.createElement("div");
+    box.id = "homeQuickNav";
+    box.innerHTML =
+      '<div class="hqn-searchwrap">' +
+        '<input type="text" id="hqnSearch" placeholder="Jump straight to a country\u2026" autocomplete="off">' +
+        '<div class="hqn-results" id="hqnResults" hidden></div>' +
+      '</div>' +
+      '<div class="hqn-popular" id="hqnPopular">' +
+        popular.map(function(a){ return '<a href="'+a.getAttribute("href")+'">'+a.textContent+'</a>'; }).join("") +
+      '</div>';
+    subline.insertAdjacentElement("afterend", box);
+
+    var input = document.getElementById("hqnSearch");
+    var results = document.getElementById("hqnResults");
+    input.addEventListener("input", function(){
+      var q = input.value.trim().toLowerCase();
+      if(!q){ results.hidden = true; results.innerHTML = ""; return; }
+      var matches = links.filter(function(a){ return a.textContent.toLowerCase().indexOf(q) !== -1; }).slice(0, 8);
+      if(!matches.length){
+        results.innerHTML = '<p class="hqn-none">No matching country.</p>';
+      } else {
+        results.innerHTML = matches.map(function(a){
+          return '<a href="'+a.getAttribute("href")+'">'+a.textContent+'</a>';
+        }).join("");
+      }
+      results.hidden = false;
+    });
+  }
+
+  function initMapCollapse(){
+    if(!isMobile()) return;
+    var wrap = document.getElementById("miniMapWrap");
+    if(!wrap || wrap._mobCollapseAttached) return;
+    wrap._mobCollapseAttached = true;
+    var hint = wrap.querySelector(".minihint");
+    wrap.addEventListener("click", function(e){
+      if(!wrap.classList.contains("mm-expanded")){
+        e.preventDefault();
+        e.stopPropagation();
+        wrap.classList.add("mm-expanded");
+        if(hint) hint.textContent = "Collapse";
+      }
+      // once expanded, further taps behave normally (e.g. selecting a country)
+    }, true);
+  }
+
   function initCountrySwipe(){
     var nav = document.querySelector("nav.cat");
     if(!isMobile() || !nav || typeof window.showSec !== "function") return;
     var btns = $all("button", nav);
     if(!btns.length) return;
 
-    var hint = document.createElement("div");
-    hint.className = "sec-swipehint";
-    btns.forEach(function(){ hint.appendChild(document.createElement("span")); });
-    nav.insertAdjacentElement("afterend", hint);
+    var hint = document.querySelector(".sec-swipehint");
+    if(!hint){
+      hint = document.createElement("div");
+      hint.className = "sec-swipehint";
+      btns.forEach(function(){ hint.appendChild(document.createElement("span")); });
+      nav.insertAdjacentElement("afterend", hint);
+    }
 
     function syncDots(){
       var activeIdx = btns.findIndex(function(b){ return b.classList.contains("active"); });
@@ -80,22 +154,26 @@
 
     var startX = null, startY = null;
     var main = document.querySelector("main") || document.body;
-    main.addEventListener("touchstart", function(e){
-      if(e.touches.length!==1) return;
-      startX = e.touches[0].clientX; startY = e.touches[0].clientY;
-    }, {passive:true});
-    main.addEventListener("touchend", function(e){
-      if(startX===null) return;
-      var dx = e.changedTouches[0].clientX - startX;
-      var dy = e.changedTouches[0].clientY - startY;
-      startX = null;
-      if(Math.abs(dx) < 60 || Math.abs(dx) < Math.abs(dy)*1.5) return; // not a clean horizontal swipe
-      var idx = btns.findIndex(function(b){ return b.classList.contains("active"); });
-      var next = dx < 0 ? idx+1 : idx-1;
-      if(next < 0 || next >= btns.length) return;
-      window.showSec(btns[next].dataset.sec);
-      btns[next].scrollIntoView({inline:"center", block:"nearest"});
-    }, {passive:true});
+    if(!main._mobSwipeAttached){
+      main._mobSwipeAttached = true;
+      main.addEventListener("touchstart", function(e){
+        if(e.touches.length!==1) return;
+        startX = e.touches[0].clientX; startY = e.touches[0].clientY;
+      }, {passive:true});
+      main.addEventListener("touchend", function(e){
+        if(startX===null) return;
+        var dx = e.changedTouches[0].clientX - startX;
+        var dy = e.changedTouches[0].clientY - startY;
+        startX = null;
+        if(Math.abs(dx) < 60 || Math.abs(dx) < Math.abs(dy)*1.5) return; // not a clean horizontal swipe
+        var curBtns = $all("button", nav);
+        var idx = curBtns.findIndex(function(b){ return b.classList.contains("active"); });
+        var next = dx < 0 ? idx+1 : idx-1;
+        if(next < 0 || next >= curBtns.length) return;
+        window.showSec(curBtns[next].dataset.sec);
+        curBtns[next].scrollIntoView({inline:"center", block:"nearest"});
+      }, {passive:true});
+    }
   }
 
   /* ------------------------------------------------------------------
@@ -229,11 +307,21 @@
      viewMonth and MONTH_NAMES globals rather than re-fetching data.
      Wraps the existing renderMonth() so both stay in sync.
      ------------------------------------------------------------------ */
+  /* ------------------------------------------------------------------
+     6. CALENDAR — agenda rebuild
+     IMPORTANT: calendar.html's whole script is wrapped in its own IIFE
+     ( <script>(function(){ ... })()</script> ), so EVENTS/renderMonth/
+     eventsForDate are private closure variables and were NEVER actually
+     reachable as window.EVENTS — the earlier version of this function
+     checked for exactly that and silently no-op'd on every single page
+     load. Rebuilt to read the already-rendered grid DOM instead (each
+     .cal-cell's .cal-pill children), which needs no access to the
+     page's internal variables at all and works regardless of scoping.
+     ------------------------------------------------------------------ */
   function initCalendarAgenda(){
     if(!isMobile()) return;
-    if(typeof window.EVENTS === "undefined" || typeof window.eventsForDate !== "function") return;
-    var grid = document.querySelector(".cal-grid");
-    if(!grid) return;
+    var weeksEl = document.getElementById("calWeeks");
+    if(!weeksEl) return;
 
     var agenda = document.getElementById("calAgenda");
     var heading = document.getElementById("calAgendaHeading");
@@ -241,87 +329,73 @@
       heading = document.createElement("p");
       heading.id = "calAgendaHeading";
       heading.className = "cal-agenda-title";
-      heading.textContent = "This month's tracked releases";
       agenda = document.createElement("div");
       agenda.id = "calAgenda";
-      // Insert relative to the day-detail box (present on every calendar
-      // build) rather than relying on .cal-grid's exact position, so this
-      // keeps working even if that markup shifts around in future edits.
       var dayDetail = document.getElementById("calDayDetail");
-      var anchor = dayDetail || grid;
+      var anchor = dayDetail || weeksEl;
       anchor.insertAdjacentElement("beforebegin", heading);
       anchor.insertAdjacentElement("beforebegin", agenda);
     }
 
-    var METRIC_COLOURS = {
-      gdp:"#2E6FA7", cpi:"#C97A2B", jobs:"#2E8B57", rate:"#C4453B",
-      ppi:"#7B5EC9", pce:"#C13D8A", trade:"#B99A2C", public:"#5C6470"
-    };
-    function colourFor(ev){
-      return METRIC_COLOURS[ev.concept] || METRIC_COLOURS[(ev.type||"").toLowerCase()] || "#37659E";
-    }
-
-    function renderAgenda(){
-      var yr = window.viewYear, mo = window.viewMonth;
-      var names = window.MONTH_NAMES || ["Jan","Feb","Mar","Apr","May","Jun","Jul","Aug","Sep","Oct","Nov","Dec"];
-      var daysInMonth = new Date(yr, mo+1, 0).getDate();
-      var today = new Date(); today.setHours(0,0,0,0);
-      var jumpDays = [];
+    function renderAgendaFromGrid(){
+      var monthLabel = document.getElementById("calMonthLabel");
+      heading.textContent = "This month's tracked releases";
+      var cells = $all(".cal-cell", weeksEl).filter(function(c){ return !c.classList.contains("other"); });
       var html = "";
-      for(var d=1; d<=daysInMonth; d++){
-        var dateObj = new Date(yr, mo, d);
-        var iso = dateObj.getFullYear()+"-"+String(dateObj.getMonth()+1).padStart(2,"0")+"-"+String(dateObj.getDate()).padStart(2,"0");
-        var evs = window.eventsForDate(iso) || [];
-        if(!evs.length) continue; // agenda view only lists days with tracked releases
-        var isToday = dateObj.getTime()===today.getTime();
-        jumpDays.push({d:d, iso:iso});
-        html += '<div class="cal-agenda-day'+(isToday?" is-today":"")+'" id="agenda-day-'+d+'">';
-        html += '<div class="d-head"><span class="d-num">'+d+'</span><span class="d-dow">'+dateObj.toLocaleDateString(undefined,{weekday:"short"})+(isToday?" \u00b7 Today":"")+'</span></div>';
-        evs.forEach(function(ev){
-          html += '<div class="cal-agenda-pill" style="background:'+colourFor(ev)+'">';
-          html += '<span class="dot" aria-hidden="true"></span>';
-          html += '<span class="country">'+(ev.country||"")+'</span> \u2014 '+(ev.title||ev.name||ev.concept||"Release");
+      var anyEvents = false;
+      cells.forEach(function(cell){
+        var pills = $all(".cal-pill", cell);
+        var more = cell.querySelector(".cal-more");
+        if(!pills.length && !more) return;
+        anyEvents = true;
+        var dayNum = cell.querySelector(".cal-daynum");
+        var isToday = cell.classList.contains("today");
+        var dayText = dayNum ? dayNum.textContent.trim() : "";
+        html += '<div class="cal-agenda-day'+(isToday?" is-today":"")+'" data-day="'+dayText+'">';
+        html += '<div class="d-head"><span class="d-num">'+dayText+'</span>'+(isToday?'<span class="d-dow">Today</span>':'')+'</div>';
+        pills.forEach(function(pill, i){
+          var bg = pill.style.background || "#37659E";
+          html += '<div class="cal-agenda-pill" data-cell-day="'+dayText+'" data-pill-index="'+i+'" style="background:'+bg+'">';
+          html += '<span class="dot" aria-hidden="true"></span>' + pill.textContent;
           html += '</div>';
         });
+        if(more){
+          html += '<div class="cal-agenda-more">'+more.textContent+' — full list on desktop/tablet</div>';
+        }
         html += '</div>';
-      }
-      if(!html){
-        html = '<p class="cal-agenda-empty">No tracked releases in '+names[mo]+' '+yr+'.</p>';
+      });
+      if(!anyEvents){
+        var label = monthLabel ? monthLabel.textContent : "this month";
+        html = '<p class="cal-agenda-empty">No tracked releases in '+label+'.</p>';
       }
       agenda.innerHTML = html;
 
-      var jump = document.getElementById("calAgendaJump");
-      if(!jump){
-        jump = document.createElement("div");
-        jump.id = "calAgendaJump";
-        jump.className = "cal-jump";
-        agenda.insertAdjacentElement("beforebegin", jump);
-      }
-      var jumpHtml = "";
-      for(var d2=1; d2<=daysInMonth; d2++){
-        var has = jumpDays.some(function(j){ return j.d===d2; });
-        jumpHtml += '<button type="button" data-d="'+d2+'" class="'+(has?"has-events":"")+'">'+d2+'</button>';
-      }
-      jump.innerHTML = jumpHtml;
-      $all("button", jump).forEach(function(btn){
-        btn.addEventListener("click", function(){
-          var target = document.getElementById("agenda-day-"+this.dataset.d);
-          if(target) target.scrollIntoView({behavior:"smooth", block:"start"});
+      // Wire each agenda pill to trigger the real pill's existing click
+      // handler (opens the event detail view) rather than reimplementing it.
+      $all(".cal-agenda-pill", agenda).forEach(function(agPill){
+        agPill.addEventListener("click", function(){
+          var day = this.dataset.cellDay;
+          var idx = +this.dataset.pillIndex;
+          var cell = cells.filter(function(c){
+            var dn = c.querySelector(".cal-daynum");
+            return dn && dn.textContent.trim() === day;
+          })[0];
+          if(!cell) return;
+          var realPill = $all(".cal-pill", cell)[idx];
+          if(realPill) realPill.click();
         });
       });
     }
 
-    if(!window._mobCalPatched){
-      window._mobCalPatched = true;
-      var origRenderMonth = window.renderMonth;
-      if(typeof origRenderMonth === "function"){
-        window.renderMonth = function(){
-          origRenderMonth.apply(this, arguments);
-          if(isMobile()) renderAgenda();
-        };
-      }
+    renderAgendaFromGrid();
+
+    if(!window._mobCalObserverAttached){
+      window._mobCalObserverAttached = true;
+      var mo = new MutationObserver(function(){
+        if(isMobile()) renderAgendaFromGrid();
+      });
+      mo.observe(weeksEl, {childList:true, subtree:true});
     }
-    renderAgenda();
   }
 
   // Fix stale "admin preview" copy now the calendar is un-gated for everyone.
@@ -369,15 +443,12 @@
   /* ------------------------------------------------------------------
      8. DASHBOARD — search box for "Add a metric"
      ------------------------------------------------------------------ */
-  function initDashboardSearch(){
+  // Dashboard's "Add a metric" picker already ships with its own native
+  // search box (#pickerSearch) and works correctly — no extra search
+  // needed there. Only Compare's separate country-picker modal
+  // (#pickerRegions) genuinely lacked one.
+  function initCompareCountrySearch(){
     if(!isMobile()) return;
-    var grid = document.getElementById("metricPickerGrid");
-    if(!grid) return;
-    addPickerSearch("metricPickerGrid", "dashMetricSearchWrap", "dashMetricSearch", "Search countries or metrics\u2026");
-  }
-  function initCompareMetricSearch(){
-    if(!isMobile()) return;
-    addPickerSearch("metricPickerGrid", "dashMetricSearchWrap", "dashMetricSearch", "Search countries or metrics\u2026");
     addPickerSearch("pickerRegions", "pickerSearchWrap", "pickerSearch", "Search countries\u2026");
   }
 
@@ -387,12 +458,13 @@
   function init(){
     buildToolbar();
     addMapCaption();
+    initHomeQuickNav();
     initCountrySwipe();
+    initMapCollapse();
     addTradeNote();
     watchCompareTable();
     watchComparePage();
-    initCompareMetricSearch();
-    initDashboardSearch();
+    initCompareCountrySearch();
     initCalendarAgenda();
     fixStaleCalendarCopy();
     simplifyCalendarCopy();

@@ -43,6 +43,35 @@
   }
   .mini-legend{ font-size:11.5px; gap:6px 10px; }
 
+  /* Homepage quick-nav: search + popular-country chips, an alternative
+     to the map for getting straight to a country's page. */
+  #homeQuickNav{ margin:2px 0 16px; }
+  .hqn-searchwrap{ position:relative; }
+  #hqnSearch{
+    width:100%; padding:12px 14px; border-radius:11px; border:1px solid var(--hair);
+    font-size:16px; background:var(--panel); color:var(--ink);
+  }
+  .hqn-results{
+    position:absolute; left:0; right:0; top:calc(100% + 4px); z-index:20;
+    background:var(--panel); border:1px solid var(--hair); border-radius:11px;
+    max-height:260px; overflow-y:auto; box-shadow:0 10px 24px rgba(0,0,0,.25);
+  }
+  .hqn-results a{
+    display:block; padding:11px 14px; font-size:14.5px; color:var(--ink);
+    text-decoration:none; border-bottom:1px solid var(--hair);
+  }
+  .hqn-results a:last-child{ border-bottom:none; }
+  .hqn-none{ padding:11px 14px; font-size:13px; color:var(--ink2); }
+  .hqn-popular{
+    display:flex; overflow-x:auto; gap:8px; margin-top:10px; padding-bottom:2px;
+    -webkit-overflow-scrolling:touch; scrollbar-width:none;
+  }
+  .hqn-popular::-webkit-scrollbar{ display:none; }
+  .hqn-popular a{
+    flex:0 0 auto; padding:9px 16px; border-radius:20px; border:1px solid var(--blue,#37659E);
+    color:var(--blue,#37659E); font-size:13.5px; font-weight:700; text-decoration:none;
+  }
+
   /* ---------------------------------------------------------------------
      3. COUNTRY PAGES — swipeable section carousel + dot indicator
      nav.cat becomes a compact dot/position indicator; the underlying
@@ -67,7 +96,43 @@
   }
   .sec-swipehint span.active{ background:var(--blue,#37659E); }
 
-  /* Info popovers become bottom sheets instead of covering the chart */
+  /* Data tiles (GDP, CPI, etc.) — 2 per row instead of stacked singly,
+     with tighter, more compact card styling to suit the smaller width. */
+  .hero{
+    grid-template-columns:repeat(2,1fr) !important;
+    gap:8px !important; margin:14px 0 22px !important;
+  }
+  .hero .stat{
+    padding:12px 12px 10px !important; min-height:auto !important;
+  }
+  .hero .stat .label{ font-size:10px !important; }
+  .hero .stat .figure{ font-size:20px !important; margin:5px 0 4px !important; }
+  .hero .stat .delta{ font-size:11px !important; }
+
+
+     reachable without scrolling past a full map first; tapping (or the
+     existing "Expand" hint) reveals it fully. */
+  .mini-mapwrap{
+    max-height:86px; overflow:hidden; position:relative; cursor:pointer;
+    transition:max-height .25s ease;
+  }
+  .mini-mapwrap.mm-expanded{ max-height:1200px; }
+  .mini-mapwrap .zoomhint, .mini-mapwrap .mini-legend{ display:none; }
+  .mini-mapwrap.mm-expanded .zoomhint, .mini-mapwrap.mm-expanded .mini-legend{ display:block; }
+  .mini-mapwrap .minihint{
+    position:absolute; right:10px; bottom:8px; z-index:2;
+    background:rgba(0,0,0,.55); color:#fff; padding:4px 10px; border-radius:20px;
+    font-size:11.5px; pointer-events:none;
+  }
+  .mini-mapwrap.mm-expanded .minihint{ content:"Collapse"; }
+  .mini-mapwrap::after{
+    content:""; position:absolute; left:0; right:0; bottom:0; height:36px;
+    background:linear-gradient(to bottom, transparent, var(--paper));
+    pointer-events:none;
+  }
+  .mini-mapwrap.mm-expanded::after{ display:none; }
+
+
   .infopop, .metric-info-popover, [class*="info-pop"]{
     position:fixed !important; left:0 !important; right:0 !important;
     top:auto !important; bottom:0 !important;
@@ -93,6 +158,21 @@
   .viztoggle .spacer{ display:none; } /* was only needed to push desktop layout apart */
   #metricWrap, #orderByWrap{ font-size:11.5px; }
 
+  /* Golden-ratio chart proportions everywhere a chart appears, instead
+     of a fixed pixel height that reads too tall/square on a narrow
+     screen. Canvas-based charts (Chart.js) resize with their container
+     via ResizeObserver, so changing the container's aspect is enough. */
+  .chartbox, .cmp-card .cbox, .tile .chartbox{
+    height:auto !important; aspect-ratio:1.618 / 1 !important;
+  }
+
+  /* Freshness legend (green/orange dot key) — one compact line instead
+     of two wrapped rows of icon+sentence. */
+  .lightskey{
+    font-size:11.5px !important; display:flex; flex-wrap:wrap; gap:4px 14px;
+    margin:8px 0 !important;
+  }
+
   /* ---------------------------------------------------------------------
      5. COMPARE PAGE — stacked cards instead of the wide summary table,
      search box in the country picker, tidier control bar.
@@ -114,7 +194,9 @@
   .cmp-country-card .row:first-of-type{ border-top:none; }
   .cmp-country-card .row .lbl{ color:var(--ink2); }
   .cmp-country-card .row .val{ font-weight:700; text-align:right; }
-  .cmp-country-card .row .val .yr{ display:block; font-weight:400; color:var(--ink2); font-size:11px; }
+  .cmp-country-card .row .val .cellperiod{
+    display:block; font-weight:400; color:var(--ink2); font-size:11px; margin-top:1px;
+  }
 
   #pickerSearchWrap{ margin:8px 0 12px; }
   #pickerSearch{
@@ -147,6 +229,12 @@
   .card-opts-toggle .car{ transition:transform .15s ease; display:inline-block; }
   .metric-card.opts-open .card-opts-toggle .car{ transform:rotate(180deg); }
   .card-time-row{ flex-wrap:wrap; row-gap:8px; }
+  .card-map-toggle{ display:none !important; } /* mini choropleth for 2-4 countries isn't worth the space on mobile */
+  .cmp-card.wide[style*="margin-top"]{ margin-top:10px !important; } /* tighten the big gap before the footer methodology card */
+
+  /* Tighter top-of-page spacing: title/description/picker/status */
+  header.page + p, header.page ~ p.lightskey{ margin-top:6px !important; }
+
 
   /* ---------------------------------------------------------------------
      9. SIGNUP / TRIAL BANNERS ("savebar") — compact single-line strip
@@ -191,17 +279,8 @@
     margin-bottom:6px; font-size:13.5px; font-weight:600; color:#fff;
   }
   .cal-agenda-pill .dot{ width:8px; height:8px; border-radius:50%; background:rgba(255,255,255,.85); flex:0 0 auto; }
-  .cal-agenda-pill .country{ opacity:.85; font-weight:500; }
-  .cal-jump{
-    display:flex; overflow-x:auto; gap:6px; padding:2px 0 12px; -webkit-overflow-scrolling:touch;
-    scrollbar-width:none;
-  }
-  .cal-jump::-webkit-scrollbar{ display:none; }
-  .cal-jump button{
-    flex:0 0 auto; padding:6px 12px; border-radius:20px; border:1px solid var(--hair);
-    background:var(--paper); font-size:12.5px; font-weight:600;
-  }
-  .cal-jump button.has-events{ border-color:var(--blue,#37659E); color:var(--blue,#37659E); }
+  .cal-agenda-pill{ cursor:pointer; }
+  .cal-agenda-more{ font-size:12px; color:var(--ink2); padding:2px 2px 4px; }
 
   /* ---------------------------------------------------------------------
      7. CHARTMAKER — hard gate, no crippled mobile version
@@ -228,5 +307,13 @@
     width:100%; padding:10px 14px; border-radius:10px; border:1px solid var(--hair);
     font-size:15px; background:var(--paper); color:var(--ink);
   }
+
+  /* The real bug: "Add a metric" hardcodes 2 columns regardless of
+     viewport, so on a narrow phone each card is squeezed to ~150px and
+     its text overflows/bleeds into the next card. Single column on
+     mobile fixes this outright — no other change needed here. */
+  .pickergrid{ grid-template-columns:1fr !important; max-height:60vh !important; }
+  #picker .modetoggle{ flex-wrap:wrap; }
+  #pickerSearch{ font-size:16px !important; } /* prevents iOS zoom-on-focus */
 
 } /* end max-width:760px */
