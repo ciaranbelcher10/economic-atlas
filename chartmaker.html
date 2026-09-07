@@ -33,7 +33,7 @@
 <link rel="icon" type="image/png" sizes="32x32" href="favicon-32.png">
 <link rel="apple-touch-icon" href="apple-touch-icon.png">
 <link rel="stylesheet" href="style.css?v=51">
-<link rel="stylesheet" href="mobile.css?v=5">
+<link rel="stylesheet" href="mobile.css?v=6">
 </head>
 <body>
 <nav class="top"><div class="wrap">
@@ -1101,6 +1101,7 @@
     window.EATLAS_CUSTOMIZE.refreshEntitlement();
     updateTrialBanner();
     maybeShowWelcomeProModal();
+    applyExportGateState();
   });
   // If this page load is the redirect back from clicking "confirm your
   // email" in the inbox, Supabase appends #access_token=...&type=signup
@@ -2422,6 +2423,31 @@ var fromPeriodSel = document.getElementById("cmFromPeriod");
 var toPeriodSel = document.getElementById("cmToPeriod");
 var btnPng = document.getElementById("cmPngBtn");
 var btnCsv = document.getElementById("cmCsvBtn");
+
+// Export gating: matches the exact same pattern used for Download data /
+// Customise & export on every other page (lock icon + "create a free
+// account" prompt when logged out, unlocked once logged in). Chartmaker's
+// own export previously had no gate at all here -- this closes that gap
+// rather than changing what "logged in" itself unlocks.
+var CM_PNG_LABEL = "Download PNG", CM_CSV_LABEL = "Download CSV";
+function czExportLoggedIn(){
+  return !!(window.EATLAS_PREFS && window.EATLAS_PREFS.isLoggedIn && window.EATLAS_PREFS.isLoggedIn());
+}
+function applyExportGateState(){
+  var loggedIn = czExportLoggedIn();
+  [[btnPng, CM_PNG_LABEL], [btnCsv, CM_CSV_LABEL]].forEach(function(pair){
+    var btn = pair[0], label = pair[1];
+    if(loggedIn){
+      btn.innerHTML = label;
+      btn.removeAttribute("data-tip");
+    } else {
+      btn.innerHTML = '<span class="lockicon">&#128274;</span> ' + label;
+      btn.setAttribute("data-tip", "Create a free account to export charts.");
+    }
+  });
+}
+applyExportGateState();
+
 var annotListEl = document.getElementById("cmAnnotList");
 var addAnnotBtn = document.getElementById("cmAddAnnotBtn");
 
@@ -4087,6 +4113,7 @@ function czFilenameBase(){
 }
 btnPng.addEventListener("click", function(){
   if(!series.length) return;
+  if(!czExportLoggedIn()){ window.EATLAS_OPEN_AUTH_MODAL(); return; }
   czmState = buildCzmState();
   var svgStr;
   if(chartType === "bar"){
@@ -4116,6 +4143,7 @@ btnPng.addEventListener("click", function(){
 });
 btnCsv.addEventListener("click", function(){
   if(!series.length) return;
+  if(!czExportLoggedIn()){ window.EATLAS_OPEN_AUTH_MODAL(); return; }
   var fromV = fromPeriodSel.value, toV = toPeriodSel.value;
   var perSeries = series.map(function(s){
     var transformed = applyTransform(s.rawPoints, s.transform);
@@ -4563,6 +4591,6 @@ renderChart();
 })();
 </script>
 
-<script src="mobile.js?v=5" defer></script>
+<script src="mobile.js?v=6" defer></script>
 </body>
 </html>

@@ -348,7 +348,7 @@ footer.cmp-foot{margin-top:36px; font-size:12.5px; color:var(--ink2); border-top
   "variableMeasured": ["GDP level", "GDP growth rate", "Consumer Price Index (inflation)", "Unemployment rate", "Government debt to GDP", "Trade balance", "Central bank policy rate"]
 }
 </script>
-<link rel="stylesheet" href="mobile.css?v=5">
+<link rel="stylesheet" href="mobile.css?v=6">
 </head>
 <body>
 <nav class="top"><div class="wrap">
@@ -1653,7 +1653,10 @@ var FILES = {
   Norway: "data-no.json", Chile: "data-cl.json", Colombia: "data-co.json", Turkey: "data-tr.json", Indonesia: "data-id.json", Poland: "data-pl.json", Switzerland: "data-ch.json", Argentina: "data-ar.json", Sweden: "data-se.json", Singapore: "data-sg.json", Austria: "data-at.json", Thailand: "data-th.json"
 };
 var ALL_COUNTRIES = Object.keys(FILES);
-var MAX_SELECTED = ALL_COUNTRIES.length; // no artificial cap -- capped only by how many countries actually exist
+function getMaxSelected(){
+  var loggedIn = !!(window.EATLAS_PREFS && window.EATLAS_PREFS.isLoggedIn && window.EATLAS_PREFS.isLoggedIn());
+  return loggedIn ? ALL_COUNTRIES.length : 4; // free/logged-out: compare up to 4 at once; full account: no cap
+}
 var COUNTRY_LABEL = {UK:"United Kingdom", US:"United States", Eurozone:"Eurozone", Japan:"Japan",
   India:"India", Canada:"Canada", Australia:"Australia", "South Korea":"South Korea", Israel:"Israel",
   Mexico:"Mexico", Brazil:"Brazil", "South Africa":"South Africa", Morocco:"Morocco", Germany:"Germany",
@@ -1676,8 +1679,8 @@ var COUNTRY_COLOR = {UK:"#1E4566", US:"#AD1E1E", Eurozone:"#D47353", Japan:"#AD5
 // A separate palette from mako, built for a different job: mako is a
 // sequential gradient (one hue path, dark to light) meant to encode
 // magnitude, so several of its stops sit close together in perceived
-// colour by design -- exactly wrong for picking out up to MAX_SELECTED
-// distinct countries at a glance. This is a categorical set instead:
+// colour by design -- exactly wrong for picking out up to the max
+// selectable distinct countries at a glance. This is a categorical set instead:
 // hues spread around the full wheel, richer/more saturated than the
 // muted-only first attempt, matching the original palette's character.
 // This is the FULL 48-color set (the 32 defaults above are an
@@ -3126,7 +3129,7 @@ function countryUndoClickHandler(){
   document.getElementById("countryUndoToast").hidden = true;
   var arr = selected.slice();
   var idx = Math.min(pendingCountryUndo.index, arr.length);
-  if(arr.indexOf(pendingCountryUndo.country) === -1 && arr.length < MAX_SELECTED){
+  if(arr.indexOf(pendingCountryUndo.country) === -1 && arr.length < getMaxSelected()){
     arr.splice(idx, 0, pendingCountryUndo.country);
     selected = arr;
     if(window.EATLAS_PREFS) window.EATLAS_PREFS.set("compareSelectedCountries", selected);
@@ -3214,8 +3217,17 @@ function toggleCountry(c, showToast){
   if(isRemoving){
     removedIndex = selected.indexOf(c);
     selected = selected.filter(function(x){ return x !== c; });
-  } else if(selected.length < MAX_SELECTED){
+  } else if(selected.length < getMaxSelected()){
     selected.push(c);
+  } else if(!isRemoving){
+    // Hit the logged-out cap trying to add one more: same lock+prompt
+    // pattern as Download data / Customise & export elsewhere, rather
+    // than the click silently doing nothing.
+    var loggedIn = !!(window.EATLAS_PREFS && window.EATLAS_PREFS.isLoggedIn && window.EATLAS_PREFS.isLoggedIn());
+    if(!loggedIn && window.EATLAS_OPEN_AUTH_MODAL){
+      window.EATLAS_OPEN_AUTH_MODAL();
+    }
+    return;
   }
   if(window.EATLAS_PREFS) window.EATLAS_PREFS.set("compareSelectedCountries", selected);
   renderAll();
@@ -3263,9 +3275,9 @@ function renderChips(){
   addBtn.textContent = selected.length ? "+ Add countries" : "+ Choose countries";
   addBtn.addEventListener("click", openCountryModal);
   row.appendChild(addBtn);
-  document.getElementById("chipHint").textContent = selected.length === MAX_SELECTED
-    ? "All " + MAX_SELECTED + " tracked countries selected."
-    : selected.length + " of " + MAX_SELECTED + " tracked countries selected.";
+  document.getElementById("chipHint").textContent = selected.length === getMaxSelected()
+    ? "All " + getMaxSelected() + " tracked countries selected."
+    : selected.length + " of " + getMaxSelected() + " tracked countries selected.";
   if(typeof updateCountriesToggleBtn === "function") updateCountriesToggleBtn();
 }
 // Manual chip reordering: same technique as Dashboard's tile drag
@@ -3406,7 +3418,14 @@ try {
   document.getElementById("countryClose").addEventListener("click", closeCountryModal);
   document.getElementById("countryBackdrop").addEventListener("click", closeCountryModal);
   document.getElementById("pickerSelectAll").addEventListener("click", function(){
-    selected = ALL_COUNTRIES.slice();
+    var max = getMaxSelected();
+    var loggedIn = !!(window.EATLAS_PREFS && window.EATLAS_PREFS.isLoggedIn && window.EATLAS_PREFS.isLoggedIn());
+    if(ALL_COUNTRIES.length > max && !loggedIn){
+      selected = ALL_COUNTRIES.slice(0, max);
+      if(window.EATLAS_OPEN_AUTH_MODAL) window.EATLAS_OPEN_AUTH_MODAL();
+    } else {
+      selected = ALL_COUNTRIES.slice();
+    }
     if(window.EATLAS_PREFS) window.EATLAS_PREFS.set("compareSelectedCountries", selected);
     renderAll();
     renderCountryPicker();
@@ -6991,6 +7010,6 @@ window.EATLAS_COMPARE = {
   }
 })();
 </script>
-<script src="mobile.js?v=5" defer></script>
+<script src="mobile.js?v=6" defer></script>
 </body>
 </html>
