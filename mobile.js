@@ -55,43 +55,86 @@
   }
 
   var TICKER_COUNTRIES = [
-    { file:"data.json",     slug:"uk",      name:"UK",      flag:"\uD83C\uDDEC\uD83C\uDDE7" },
-    { file:"data-de.json",  slug:"germany", name:"Germany", flag:"\uD83C\uDDE9\uD83C\uDDEA" },
-    { file:"data-jp.json",  slug:"japan",   name:"Japan",   flag:"\uD83C\uDDEF\uD83C\uDDF5" },
-    { file:"data-fr.json",  slug:"france",  name:"France",  flag:"\uD83C\uDDEB\uD83C\uDDF7" },
-    { file:"data-br.json",  slug:"brazil",  name:"Brazil",  flag:"\uD83C\uDDE7\uD83C\uDDF7" },
-    { file:"data-in.json",  slug:"india",   name:"India",   flag:"\uD83C\uDDEE\uD83C\uDDF3" }
+    { file:"data.json",     slug:"uk",         name:"UK",           flag:"\uD83C\uDDEC\uD83C\uDDE7" },
+    { file:"data-de.json",  slug:"germany",    name:"Germany",      flag:"\uD83C\uDDE9\uD83C\uDDEA" },
+    { file:"data-jp.json",  slug:"japan",      name:"Japan",        flag:"\uD83C\uDDEF\uD83C\uDDF5" },
+    { file:"data-fr.json",  slug:"france",     name:"France",       flag:"\uD83C\uDDEB\uD83C\uDDF7" },
+    { file:"data-br.json",  slug:"brazil",     name:"Brazil",       flag:"\uD83C\uDDE7\uD83C\uDDF7" },
+    { file:"data-in.json",  slug:"india",      name:"India",        flag:"\uD83C\uDDEE\uD83C\uDDF3" },
+    { file:"data-us.json",  slug:"us",         name:"US",           flag:"\uD83C\uDDFA\uD83C\uDDF8" },
+    { file:"data-ca.json",  slug:"canada",     name:"Canada",       flag:"\uD83C\uDDE8\uD83C\uDDE6" },
+    { file:"data-au.json",  slug:"australia",  name:"Australia",    flag:"\uD83C\uDDE6\uD83C\uDDFA" },
+    { file:"data-kr.json",  slug:"southkorea", name:"South Korea",  flag:"\uD83C\uDDF0\uD83C\uDDF7" },
+    { file:"data-mx.json",  slug:"mexico",     name:"Mexico",       flag:"\uD83C\uDDF2\uD83C\uDDFD" },
+    { file:"data-za.json",  slug:"southafrica",name:"South Africa", flag:"\uD83C\uDDFF\uD83C\uDDE6" }
   ];
   var TICKER_METRICS = [
     { key:"cpi", label:"inflation", fmt:function(v){ return v.toFixed(1)+"%"; } },
     { key:"unemployment", label:"unemployment", fmt:function(v){ return v.toFixed(1)+"%"; } }
   ];
+  var TICKER_FRESH_DAYS = 2; // matches the site's own "Latest:" freshness window exactly
+
+  // Trims the trailing "(SERIES_CODE)" / "(source)" style parentheticals
+  // that series labels carry for methodology precision but which read
+  // as noise in a one-line ticker item.
+  function shortSeriesLabel(label){
+    var s = label;
+    var stripped = s.replace(/\s*\([^()]*\)\s*$/, "");
+    while(stripped !== s){ s = stripped; stripped = s.replace(/\s*\([^()]*\)\s*$/, ""); }
+    return s || label;
+  }
 
   function fetchTickerFacts(cb){
-    var facts = [];
+    var freshFacts = [];
+    var fallbackFacts = [];
     var pending = TICKER_COUNTRIES.length;
-    function done(){ pending--; if(pending === 0) cb(facts); }
+    var now = Date.now();
+    function done(){ pending--; if(pending === 0) cb(freshFacts, fallbackFacts); }
     TICKER_COUNTRIES.forEach(function(c){
       fetch(c.file, {cache:"no-cache"}).then(function(r){
         if(!r.ok) throw new Error("HTTP "+r.status);
         return r.json();
       }).then(function(data){
         var series = data.series || {};
-        TICKER_METRICS.forEach(function(m){
-          var s = series[m.key];
+        var meta = data.new_points_meta || {};
+        Object.keys(meta).forEach(function(key){
+          var m = meta[key], s = series[key];
+          if(!s || !m || !m.first_seen) return;
+          var ageDays = (now - new Date(m.first_seen).getTime()) / 86400000;
+          if(ageDays < 0 || ageDays >= TICKER_FRESH_DAYS) return;
+          var dt = new Date(m.first_seen);
+          var dd = String(dt.getUTCDate()).padStart(2,"0");
+          var mm = String(dt.getUTCMonth()+1).padStart(2,"0");
+          freshFacts.push({
+            country:c.name, slug:c.slug, flag:c.flag,
+            label:shortSeriesLabel(s.label || key),
+            dateStr:dd+"/"+mm, firstSeen:m.first_seen
+          });
+        });
+        TICKER_METRICS.forEach(function(tm){
+          var s = series[tm.key];
           if(!s || !s.points || s.points.length < 2) return;
-          var pts = s.points;
-          var latest = pts[pts.length-1], prior = pts[pts.length-2];
+          var pts = s.points, latest = pts[pts.length-1], prior = pts[pts.length-2];
           if(latest[1] == null || prior[1] == null) return;
-          facts.push({
-            country:c.name, slug:c.slug, flag:c.flag, metricLabel:m.label,
-            value:m.fmt(latest[1]), delta:+(latest[1]-prior[1]).toFixed(2),
-            period:latest[0]
+          fallbackFacts.push({
+            country:c.name, slug:c.slug, flag:c.flag, metricLabel:tm.label,
+            value:tm.fmt(latest[1]), delta:+(latest[1]-prior[1]).toFixed(2)
           });
         });
         done();
       }).catch(function(){ done(); });
     });
+  }
+
+  function tickerFactHtml(f){
+    if(f.dateStr !== undefined){
+      return '<a class="ht-item" href="'+f.slug+'">'+f.flag+' <b>'+f.country+'</b> '+f.label
+        + ' Update <span class="ht-date">'+f.dateStr+'</span></a>';
+    }
+    var arrow = f.delta > 0 ? "\u25B2" : (f.delta < 0 ? "\u25BC" : "\u2013");
+    var cls = f.delta > 0 ? "up" : (f.delta < 0 ? "down" : "flat");
+    return '<a class="ht-item" href="'+f.slug+'">'+f.flag+' <b>'+f.country+'</b> '+f.metricLabel+' '+f.value
+      + ' <span class="ht-delta '+cls+'">'+arrow+' '+Math.abs(f.delta).toFixed(1)+'pp</span></a>';
   }
 
   function initHomeTicker(){
@@ -104,20 +147,32 @@
     marker.style.display = "none";
     subline.insertAdjacentElement("afterend", marker);
 
-    fetchTickerFacts(function(facts){
-      if(!facts.length) return;
-      var strip = document.createElement("div");
-      strip.id = "homeTicker";
-      strip.setAttribute("aria-label", "Today's figures");
-      strip.innerHTML = facts.map(function(f){
-        var arrow = f.delta > 0 ? "\u25B2" : (f.delta < 0 ? "\u25BC" : "\u2013");
-        var cls = f.delta > 0 ? "up" : (f.delta < 0 ? "down" : "flat");
-        return '<a class="ht-item" href="'+f.slug+'">'+f.flag+' <b>'+f.country+'</b> '+f.metricLabel+' '+f.value
-          + ' <span class="ht-delta '+cls+'">'+arrow+' '+Math.abs(f.delta).toFixed(1)+'pp</span></a>';
-      }).join("");
-      marker.insertAdjacentElement("afterend", strip);
+    fetchTickerFacts(function(freshFacts, fallbackFacts){
+      freshFacts.sort(function(a,b){ return new Date(b.firstSeen) - new Date(a.firstSeen); });
+      var MIN_ITEMS = 8;
+      var combined = freshFacts.slice(0, 14);
+      if(combined.length < MIN_ITEMS){
+        combined = combined.concat(fallbackFacts.slice(0, MIN_ITEMS - combined.length));
+      }
+      if(!combined.length) return;
+
+      var itemsHtml = combined.map(tickerFactHtml).join("");
+      var wrap = document.createElement("div");
+      wrap.id = "homeTicker";
+      wrap.setAttribute("aria-label", "Recent updates");
+      wrap.innerHTML =
+        '<span class="ht-live">\u25CF LIVE</span>' +
+        '<div class="ht-viewport"><div class="ht-track">' + itemsHtml + itemsHtml + '</div></div>';
+      marker.insertAdjacentElement("afterend", wrap);
+
+      // Pause the auto-scroll on touch so a tap reliably lands on the
+      // item the user meant to hit, rather than one that's mid-slide.
+      var track = wrap.querySelector(".ht-track");
+      wrap.addEventListener("touchstart", function(){ track.style.animationPlayState = "paused"; }, {passive:true});
+      wrap.addEventListener("touchend", function(){ track.style.animationPlayState = "running"; }, {passive:true});
     });
   }
+
 
   function initSearchPlaceholderRotation(){
     var input = document.getElementById("hqnSearch");
@@ -198,11 +253,16 @@
      is added to the dropdown, it automatically appears here too.
      ------------------------------------------------------------------ */
   function initHomeQuickNav(){
-    var heroHeading = document.querySelector(".hero-h1");
-    var subline = document.querySelector(".subline");
-    if(!heroHeading || !subline || document.getElementById("homeQuickNav")) return;
-    var links = $all("#macroPanel a[href]").filter(function(a){ return a.getAttribute("href") !== "index"; });
+    var header = document.querySelector(".hero-h1") ? document.querySelector("header.page")
+               : document.querySelector("header.page.with-map");
+    if(!header || document.getElementById("homeQuickNav")) return;
+    var currentSlug = (location.pathname.replace(/^\/+|\/+$/g,"").split("/").pop() || "index").replace(/\.html$/,"");
+    var links = $all("#macroPanel a[href]").filter(function(a){
+      var href = a.getAttribute("href");
+      return href !== "index" && href !== currentSlug;
+    });
     if(!links.length) return;
+    var isCountryPage = !document.querySelector(".hero-h1");
 
     var POPULAR = ["uk","us","germany","japan","france","brazil","india","china"];
     var popular = [];
@@ -212,17 +272,18 @@
     });
     if(popular.length < 4){ popular = links.slice(0, 8); }
 
+    var placeholder = isCountryPage ? "Jump to another country\u2026" : "Jump straight to a country\u2026";
     var box = document.createElement("div");
     box.id = "homeQuickNav";
     box.innerHTML =
       '<div class="hqn-searchwrap">' +
-        '<input type="text" id="hqnSearch" placeholder="Jump straight to a country\u2026" autocomplete="off">' +
+        '<input type="text" id="hqnSearch" placeholder="'+placeholder+'" autocomplete="off">' +
         '<div class="hqn-results" id="hqnResults" hidden></div>' +
       '</div>' +
       '<div class="hqn-popular" id="hqnPopular">' +
         popular.map(function(a){ return '<a href="'+a.getAttribute("href")+'">'+a.textContent+'</a>'; }).join("") +
       '</div>';
-    subline.insertAdjacentElement("afterend", box);
+    header.insertAdjacentElement("beforebegin", box);
 
     var input = document.getElementById("hqnSearch");
     var results = document.getElementById("hqnResults");
@@ -526,6 +587,65 @@
      .cal-cell's .cal-pill children), which needs no access to the
      page's internal variables at all and works regardless of scoping.
      ------------------------------------------------------------------ */
+  var MONTH_NAMES_FULL = ["January","February","March","April","May","June","July","August","September","October","November","December"];
+  var MONTH_SHORT = ["Jan","Feb","Mar","Apr","May","Jun","Jul","Aug","Sep","Oct","Nov","Dec"];
+  var WEEKDAY_SHORT = ["Sun","Mon","Tue","Wed","Thu","Fri","Sat"];
+
+  /* Calendar — "Next up" fact, independent of the mobile-only agenda
+     rebuild so it can run on desktop too (which keeps its normal grid).
+     Shows a real date ("Tue 8 Sep") rather than just the bare day number,
+     built from #calMonthLabel's own text ("September 2026") plus the
+     day number already on the matched cell. */
+  function renderCalendarNextUp(){
+    var weeksEl = document.getElementById("calWeeks");
+    var monthLabelEl = document.getElementById("calMonthLabel");
+    var nextUp = document.getElementById("calNextUp");
+    if(!weeksEl){ if(nextUp) nextUp.remove(); return; }
+    var cells = $all(".cal-cell", weeksEl).filter(function(c){ return !c.classList.contains("other"); });
+    var todayIdx = cells.findIndex(function(c){ return c.classList.contains("today"); });
+    var nextCell=null, nextPillText=null;
+    if(todayIdx !== -1){
+      for(var i=todayIdx; i<cells.length; i++){
+        var p = cells[i].querySelector(".cal-pill");
+        if(p){ nextCell = cells[i]; nextPillText = p.textContent; break; }
+      }
+    }
+    if(!nextCell){ if(nextUp) nextUp.remove(); return; }
+
+    var isTodayCell = nextCell.classList.contains("today");
+    var dateStr = "today";
+    if(!isTodayCell){
+      var nd = nextCell.querySelector(".cal-daynum");
+      var dayNum = nd ? parseInt(nd.textContent.trim(), 10) : null;
+      var parts = monthLabelEl ? monthLabelEl.textContent.trim().split(" ") : null;
+      if(dayNum && parts && parts.length === 2){
+        var monthIdx = MONTH_NAMES_FULL.indexOf(parts[0]);
+        var year = parseInt(parts[1], 10);
+        if(monthIdx !== -1 && year){
+          var d = new Date(year, monthIdx, dayNum);
+          dateStr = WEEKDAY_SHORT[d.getDay()] + " " + dayNum + " " + MONTH_SHORT[monthIdx];
+        } else {
+          dateStr = "day " + dayNum; // fallback if the label ever changes shape
+        }
+      }
+    }
+    if(!nextUp){
+      nextUp = document.createElement("p");
+      nextUp.id = "calNextUp";
+      var anchor = monthLabelEl && monthLabelEl.closest(".cal-controls") ? monthLabelEl.closest(".cal-controls") : weeksEl;
+      anchor.insertAdjacentElement("afterend", nextUp);
+    }
+    nextUp.innerHTML = '<b>Next up:</b> ' + nextPillText + ' \u2014 ' + dateStr;
+  }
+  function watchCalendarNextUp(){
+    var weeksEl = document.getElementById("calWeeks");
+    if(!weeksEl || weeksEl._mobNextUpWatched) return;
+    weeksEl._mobNextUpWatched = true;
+    renderCalendarNextUp();
+    var mo = new MutationObserver(renderCalendarNextUp);
+    mo.observe(weeksEl, {childList:true, subtree:true});
+  }
+
   function initCalendarAgenda(){
     if(!isMobile()) return;
     var weeksEl = document.getElementById("calWeeks");
@@ -578,30 +698,7 @@
       }
       agenda.innerHTML = html;
 
-      // "Next up" — only meaningful when viewing the current month (i.e.
-      // a real .today cell exists in this grid); silently skipped when
-      // browsing a past/future month instead of guessing at a date.
-      var nextUp = document.getElementById("calNextUp");
-      var todayIdx = cells.findIndex(function(c){ return c.classList.contains("today"); });
-      var nextCell = null, nextPillText = null;
-      if(todayIdx !== -1){
-        for(var i=todayIdx; i<cells.length; i++){
-          var p = cells[i].querySelector(".cal-pill");
-          if(p){ nextCell = cells[i]; nextPillText = p.textContent; break; }
-        }
-      }
-      if(nextCell){
-        if(!nextUp){
-          nextUp = document.createElement("p");
-          nextUp.id = "calNextUp";
-          heading.insertAdjacentElement("beforebegin", nextUp);
-        }
-        var nd = nextCell.querySelector(".cal-daynum");
-        var isTodayCell = nextCell.classList.contains("today");
-        nextUp.innerHTML = '<b>Next up:</b> ' + nextPillText + (isTodayCell ? ' — today' : ' — day '+(nd?nd.textContent.trim():''));
-      } else if(nextUp){
-        nextUp.remove();
-      }
+      renderCalendarNextUp();
 
       // Wire each agenda pill to trigger the real pill's existing click
       // handler (opens the event detail view) rather than reimplementing it.
@@ -745,6 +842,7 @@
     safeCall(watchComparePage);
     safeCall(initCompareCountrySearch);
     safeCall(initCalendarAgenda);
+    safeCall(watchCalendarNextUp);
     safeCall(fixStaleCalendarCopy);
     safeCall(simplifyCalendarCopy);
     safeCall(watchDashGlance);

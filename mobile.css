@@ -13,6 +13,29 @@
    ========================================================================== */
 
 /* ---------------------------------------------------------------------
+   FONT — every custom control this file adds (inputs/buttons don't
+   inherit font-family from the page by default in any browser's user-
+   agent stylesheet), matched exactly to the site's own root font stack
+   rather than falling back to the OS system font.
+   --------------------------------------------------------------------- */
+#hqnSearch, #scrollCatchInput, #dashMetricSearch, #pickerSearch,
+.card-opts-toggle, #mobToolbar a, .hqn-results a, .sc-results a,
+.hqn-popular a, .ht-item, #scrollCatchClose{
+  font-family:"Avenir Next","Avenir","Nunito Sans",system-ui,sans-serif;
+}
+
+/* Shared "fact banner" style — trade partner highlight, Compare's
+   widest-gap line, Calendar's next-up line, Dashboard's at-a-glance
+   summary. Global (all breakpoints): these are genuinely useful facts
+   for a desktop reader too, not a mobile-specific simplification. */
+.tpm-partner-banner, #cmpGapBanner, #calNextUp, #dashGlance{
+  font-size:13px; color:var(--ink); background:var(--panel);
+  border:1px solid var(--hair); border-left:3px solid var(--blue,#37659E);
+  border-radius:8px; padding:9px 12px; margin:8px 0 14px; max-width:640px;
+}
+.tpm-partner-banner b, #cmpGapBanner b, #calNextUp b, #dashGlance b{ color:var(--blue,#37659E); }
+
+/* ---------------------------------------------------------------------
    HOMEPAGE DISCOVERY — search + popular chips, live ticker, scroll-catch.
    All breakpoints. Widths are capped and centered above ~640px so these
    don't look like stretched mobile components on a desktop screen.
@@ -46,24 +69,36 @@
 .hqn-popular a:hover{ background:var(--blue,#37659E); color:#fff; }
 
 #homeTicker{
-  display:flex; overflow-x:auto; gap:8px; margin:2px 0 18px; padding-bottom:2px;
-  -webkit-overflow-scrolling:touch; scrollbar-width:none; scroll-snap-type:x proximity;
+  display:flex; align-items:center; gap:10px; margin:2px 0 18px; overflow:hidden;
 }
-#homeTicker::-webkit-scrollbar{ display:none; }
-#homeTicker::before{
-  content:"\25CF LIVE"; flex:0 0 auto; align-self:center; font-size:10px; font-weight:800;
-  color:#2FA463; letter-spacing:.04em; padding-right:2px;
+.ht-live{
+  flex:0 0 auto; font-size:10px; font-weight:800; color:#2FA463; letter-spacing:.04em;
 }
+.ht-viewport{ flex:1; overflow:hidden; -webkit-mask-image:linear-gradient(to right, transparent 0, #000 24px, #000 calc(100% - 24px), transparent 100%); mask-image:linear-gradient(to right, transparent 0, #000 24px, #000 calc(100% - 24px), transparent 100%); }
+.ht-track{
+  display:flex; gap:8px; width:max-content;
+  animation:ht-scroll 38s linear infinite;
+}
+@keyframes ht-scroll{
+  from{ transform:translateX(0); }
+  to{ transform:translateX(-50%); } /* content is duplicated once, so 50% is exactly one full loop */
+}
+#homeTicker:hover .ht-track{ animation-play-state:paused; }
 .ht-item{
-  flex:0 0 auto; scroll-snap-align:start; display:flex; align-items:center; gap:5px;
+  flex:0 0 auto; display:flex; align-items:center; gap:5px;
   padding:8px 12px; border-radius:20px; border:1px solid var(--hair); background:var(--panel);
   font-size:12.5px; color:var(--ink); text-decoration:none; white-space:nowrap;
 }
 .ht-item:hover{ border-color:var(--blue,#37659E); }
+.ht-date{ font-weight:700; font-size:11px; color:var(--blue,#37659E); }
 .ht-delta{ font-weight:700; font-size:11.5px; }
 .ht-delta.up{ color:#C4453B; }
 .ht-delta.down{ color:#2E8B57; }
 .ht-delta.flat{ color:var(--ink2); }
+
+@media (prefers-reduced-motion: reduce){
+  .ht-track{ animation:none; }
+}
 
 #homeScrollCatch{
   position:fixed; left:12px; right:12px; bottom:-90px; z-index:50;
@@ -214,16 +249,6 @@
   .viztoggle{ flex-wrap:wrap; row-gap:6px; }
   .viztoggle .spacer{ display:none; } /* was only needed to push desktop layout apart */
   #metricWrap, #orderByWrap{ font-size:11.5px; }
-
-  /* Shared "fact banner" style — used for the trade partner highlight,
-     Compare's widest-gap line, Calendar's next-up line, and Dashboard's
-     at-a-glance summary. One consistent look for this whole family. */
-  .tpm-partner-banner, #cmpGapBanner, #calNextUp, #dashGlance{
-    font-size:13px; color:var(--ink); background:var(--panel);
-    border:1px solid var(--hair); border-left:3px solid var(--blue,#37659E);
-    border-radius:8px; padding:9px 12px; margin:8px 0 14px;
-  }
-  .tpm-partner-banner b, #cmpGapBanner b, #calNextUp b, #dashGlance b{ color:var(--blue,#37659E); }
 
   /* Golden-ratio chart proportions everywhere a chart appears, instead
      of a fixed pixel height that reads too tall/square on a narrow
