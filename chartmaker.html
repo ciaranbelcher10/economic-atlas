@@ -3627,8 +3627,15 @@ function czmBuildSVG(theme, forExport){
     svg.push("<text x='" + (G.padL - 10) + "' y='" + (gy + 4).toFixed(1) + "' font-size='11' fill='" + t.ink2 + "' text-anchor='end'>" + czmAxisTickLabel(v, gm.yTickValues, czmState.fmtY) + "</text>");
   });
   var axisBottomY = gm.padT + gm.plotH;
+  // The horizontal axis line itself belongs at the value-0 position, not
+  // always pinned to the plot's bottom edge -- pinning it to the bottom
+  // made the chart's minimum (e.g. -1%) visually read as "zero" whenever
+  // the series actually goes negative. Falls back to the bottom edge only
+  // when 0 isn't within the plotted range at all (an all-positive or
+  // all-negative series), where a mid-chart line would be meaningless.
+  var axisLineY = (gm.minV <= 0 && gm.maxV >= 0) ? gm.y(0) : axisBottomY;
   svg.push("<line x1='" + G.padL + "' y1='" + gm.padT + "' x2='" + G.padL + "' y2='" + axisBottomY + "' stroke='" + axisColor + "' stroke-width='1.5'/>");
-  svg.push("<line x1='" + G.padL + "' y1='" + axisBottomY + "' x2='" + (G.W - G.padR) + "' y2='" + axisBottomY + "' stroke='" + axisColor + "' stroke-width='1.5'/>");
+  svg.push("<line x1='" + G.padL + "' y1='" + axisLineY.toFixed(1) + "' x2='" + (G.W - G.padR) + "' y2='" + axisLineY.toFixed(1) + "' stroke='" + axisColor + "' stroke-width='1.5'/>");
   if(czmState.yTitlePos === "above"){
     svg.push("<text x='4' y='18' font-size='11.5' font-weight='600' fill='" + t.ink2 + "'>" + escapeXML(czmState.yTitle) + "</text>");
   } else {
