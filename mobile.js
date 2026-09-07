@@ -141,25 +141,40 @@
   function initScrollCatch(){
     if(!document.querySelector(".hero-h1")) return;
     if(localStorage.getItem("eatlas_scrollcatch_seen")) return;
-    if(document.getElementById("homeScrollCatch")) return;
+    if(window._mobScrollCatchAttached) return;
+    window._mobScrollCatchAttached = true;
     var shown = false;
     window.addEventListener("scroll", function onScroll(){
       if(shown) return;
       if(window.scrollY < window.innerHeight * 0.9) return;
       shown = true;
       window.removeEventListener("scroll", onScroll);
+
+      var links = $all("#macroPanel a[href]").filter(function(a){ return a.getAttribute("href") !== "index"; });
+
       var bar = document.createElement("div");
       bar.id = "homeScrollCatch";
       bar.innerHTML =
-        '<input type="text" id="scrollCatchInput" placeholder="Jump to a country\u2026" autocomplete="off">' +
-        '<button type="button" id="scrollCatchClose" aria-label="Dismiss">&times;</button>';
+        '<div class="sc-results" id="scrollCatchResults" hidden></div>' +
+        '<div class="sc-row">' +
+          '<input type="text" id="scrollCatchInput" placeholder="Jump to a country\u2026" autocomplete="off">' +
+          '<button type="button" id="scrollCatchClose" aria-label="Dismiss">&times;</button>' +
+        '</div>';
       document.body.appendChild(bar);
       requestAnimationFrame(function(){ bar.classList.add("visible"); });
+
       var input = document.getElementById("scrollCatchInput");
-      input.addEventListener("focus", function(){
-        var main = document.getElementById("hqnSearch");
-        if(main){ main.scrollIntoView({behavior:"smooth", block:"center"}); main.focus(); bar.remove(); }
+      var results = document.getElementById("scrollCatchResults");
+      input.addEventListener("input", function(){
+        var q = input.value.trim().toLowerCase();
+        if(!q){ results.hidden = true; results.innerHTML = ""; return; }
+        var matches = links.filter(function(a){ return a.textContent.toLowerCase().indexOf(q) !== -1; }).slice(0, 6);
+        results.innerHTML = matches.length
+          ? matches.map(function(a){ return '<a href="'+a.getAttribute("href")+'">'+a.textContent+'</a>'; }).join("")
+          : '<p class="sc-none">No matching country.</p>';
+        results.hidden = false;
       });
+
       document.getElementById("scrollCatchClose").addEventListener("click", function(){
         bar.classList.remove("visible");
         setTimeout(function(){ bar.remove(); }, 250);
@@ -308,6 +323,37 @@
     });
   }
 
+  /* Trade sections — "biggest partner" fact, read straight off the
+     already-rendered #1 row of the ranking list (zero new fetches,
+     zero re-parsing of raw trade figures). */
+  function renderTradePartnerBanner(list){
+    var firstRow = list.querySelector(".tpm-rankrow");
+    var wrap = list.closest(".tpm-ranking");
+    if(!wrap) return;
+    var existing = wrap.querySelector(".tpm-partner-banner");
+    if(!firstRow){ if(existing) existing.remove(); return; }
+    var name = firstRow.querySelector(".tpm-rankname");
+    var value = firstRow.querySelector(".tpm-rankvalue");
+    if(!name || !value) return;
+    var banner = existing;
+    if(!banner){
+      banner = document.createElement("p");
+      banner.className = "tpm-partner-banner";
+      var title = wrap.querySelector("h4");
+      (title || list).insertAdjacentElement(title ? "afterend" : "beforebegin", banner);
+    }
+    banner.innerHTML = '<b>Biggest partner:</b> ' + name.textContent.trim() + ' ' + value.textContent.trim();
+  }
+  function watchTradePartnerLists(){
+    $all(".tpm-ranklist").forEach(function(list){
+      if(list._mobPartnerWatched) return;
+      list._mobPartnerWatched = true;
+      renderTradePartnerBanner(list);
+      var mo = new MutationObserver(function(){ renderTradePartnerBanner(list); });
+      mo.observe(list, {childList:true});
+    });
+  }
+
   /* ------------------------------------------------------------------
      5. COMPARE PAGE — stacked cards from the existing rank table,
      search box in the country picker.
@@ -316,7 +362,8 @@
     if(!isMobile()) return;
     var table = document.getElementById("rankTable");
     if(!table) return;
-    var wrap = table.closest("div");
+    var wrap = table.closest("div") || table.parentElement;
+    if(!wrap) return;
     var cardsWrap = document.getElementById("cmpCardsWrap");
     if(!cardsWrap){
       cardsWrap = document.createElement("div");
@@ -392,6 +439,54 @@
     var mo = new MutationObserver(function(){ tableToCards(); });
     mo.observe(table, {childList:true, subtree:true});
     window.addEventListener("resize", tableToCards);
+  }
+
+  /* Compare — "widest gap" fact banner. Reads the table's own already-
+     computed .col-hi/.col-lo markers (never recalculates or re-parses
+     formatted numbers itself) for the first metric column that has a
+     real spread, and surfaces it as a single plain-fact line above the
+     results. Neutral framing only — "widest gap", never "best/worst". */
+  function renderCompareGapBanner(){
+    var table = document.getElementById("rankTable");
+    if(!table) return;
+    var thead = table.querySelector("thead"), tbody = table.querySelector("tbody");
+    if(!thead || !tbody || !tbody.rows.length) return;
+    var headers = $all("th", thead);
+    var banner = document.getElementById("cmpGapBanner");
+
+    for(var col=1; col<headers.length; col++){
+      var hiCell=null, loCell=null, hiRow=null, loRow=null;
+      $all("tr", tbody).forEach(function(tr){
+        var cells = $all("td", tr);
+        var cell = cells[col];
+        if(!cell) return;
+        if(cell.classList.contains("col-hi")){ hiCell=cell; hiRow=tr; }
+        if(cell.classList.contains("col-lo")){ loCell=cell; loRow=tr; }
+      });
+      if(hiCell && loCell){
+        var metricLabel = headers[col].textContent.trim();
+        var hiCountry = hiRow.querySelector("td.country").textContent.trim();
+        var loCountry = loRow.querySelector("td.country").textContent.trim();
+        var hiVal = hiCell.childNodes[0] ? hiCell.childNodes[0].textContent.trim() : hiCell.textContent.trim();
+        var loVal = loCell.childNodes[0] ? loCell.childNodes[0].textContent.trim() : loCell.textContent.trim();
+        if(!banner){
+          banner = document.createElement("p");
+          banner.id = "cmpGapBanner";
+          table.insertAdjacentElement("beforebegin", banner);
+        }
+        banner.innerHTML = '<b>Widest gap</b> on ' + metricLabel + ': '
+          + hiCountry + ' ' + hiVal + ' vs ' + loCountry + ' ' + loVal;
+        return;
+      }
+    }
+    if(banner) banner.remove();
+  }
+  function watchCompareGapBanner(){
+    var table = document.getElementById("rankTable");
+    if(!table) return;
+    renderCompareGapBanner();
+    var mo = new MutationObserver(renderCompareGapBanner);
+    mo.observe(table, {childList:true, subtree:true});
   }
 
   function addPickerSearch(gridId, wrapId, inputId, placeholder){
@@ -483,6 +578,31 @@
       }
       agenda.innerHTML = html;
 
+      // "Next up" — only meaningful when viewing the current month (i.e.
+      // a real .today cell exists in this grid); silently skipped when
+      // browsing a past/future month instead of guessing at a date.
+      var nextUp = document.getElementById("calNextUp");
+      var todayIdx = cells.findIndex(function(c){ return c.classList.contains("today"); });
+      var nextCell = null, nextPillText = null;
+      if(todayIdx !== -1){
+        for(var i=todayIdx; i<cells.length; i++){
+          var p = cells[i].querySelector(".cal-pill");
+          if(p){ nextCell = cells[i]; nextPillText = p.textContent; break; }
+        }
+      }
+      if(nextCell){
+        if(!nextUp){
+          nextUp = document.createElement("p");
+          nextUp.id = "calNextUp";
+          heading.insertAdjacentElement("beforebegin", nextUp);
+        }
+        var nd = nextCell.querySelector(".cal-daynum");
+        var isTodayCell = nextCell.classList.contains("today");
+        nextUp.innerHTML = '<b>Next up:</b> ' + nextPillText + (isTodayCell ? ' — today' : ' — day '+(nd?nd.textContent.trim():''));
+      } else if(nextUp){
+        nextUp.remove();
+      }
+
       // Wire each agenda pill to trigger the real pill's existing click
       // handler (opens the event detail view) rather than reimplementing it.
       $all(".cal-agenda-pill", agenda).forEach(function(agPill){
@@ -565,26 +685,70 @@
     addPickerSearch("pickerRegions", "pickerSearchWrap", "pickerSearch", "Search countries\u2026");
   }
 
+  /* Dashboard — "at a glance" summary read from the already-rendered
+     pinned tiles (no re-fetching what's already on the page). */
+  function renderDashGlance(){
+    var grid = document.getElementById("dashGrid");
+    if(!grid) return;
+    var tiles = $all(".tile", grid);
+    var existing = document.getElementById("dashGlance");
+    if(!tiles.length){ if(existing) existing.remove(); return; }
+    var countries = {};
+    tiles.forEach(function(t){
+      var c = t.querySelector(".country");
+      if(c) countries[c.textContent.trim()] = true;
+    });
+    var countryCount = Object.keys(countries).length;
+    var glance = existing;
+    if(!glance){
+      glance = document.createElement("p");
+      glance.id = "dashGlance";
+      grid.insertAdjacentElement("beforebegin", glance);
+    }
+    glance.innerHTML = '<b>At a glance:</b> tracking ' + tiles.length + ' metric' + (tiles.length===1?"":"s")
+      + ' across ' + countryCount + ' countr' + (countryCount===1?"y":"ies") + '.';
+  }
+  function watchDashGlance(){
+    var grid = document.getElementById("dashGrid");
+    if(!grid) return;
+    renderDashGlance();
+    var mo = new MutationObserver(renderDashGlance);
+    mo.observe(grid, {childList:true});
+  }
+
   /* ------------------------------------------------------------------
      init
      ------------------------------------------------------------------ */
+  // Every feature in init() runs on every page, but each one only
+  // applies to the specific page it targets — so one throwing (e.g. an
+  // unexpected markup shape on a page nobody's tested yet) must never
+  // block the rest from running. Each call is isolated individually
+  // rather than wrapping the whole function, so a failure is traceable
+  // to exactly which feature broke.
+  function safeCall(fn){
+    try { fn(); } catch(e){ if(window.console) console.error("[mobile.js]", fn.name || "anonymous", e); }
+  }
+
   function init(){
-    buildToolbar();
-    addMapCaption();
-    initHomeQuickNav();
-    initHomeTicker();
-    initSearchPlaceholderRotation();
-    initScrollCatch();
-    initCountrySwipe();
-    initMapCollapse();
-    addTradeNote();
-    watchCompareTable();
-    watchComparePage();
-    initCompareCountrySearch();
-    initCalendarAgenda();
-    fixStaleCalendarCopy();
-    simplifyCalendarCopy();
-    chartmakerGate();
+    safeCall(buildToolbar);
+    safeCall(addMapCaption);
+    safeCall(initHomeQuickNav);
+    safeCall(initHomeTicker);
+    safeCall(initSearchPlaceholderRotation);
+    safeCall(initScrollCatch);
+    safeCall(initCountrySwipe);
+    safeCall(initMapCollapse);
+    safeCall(addTradeNote);
+    safeCall(watchTradePartnerLists);
+    safeCall(watchCompareTable);
+    safeCall(watchCompareGapBanner);
+    safeCall(watchComparePage);
+    safeCall(initCompareCountrySearch);
+    safeCall(initCalendarAgenda);
+    safeCall(fixStaleCalendarCopy);
+    safeCall(simplifyCalendarCopy);
+    safeCall(watchDashGlance);
+    safeCall(chartmakerGate);
   }
 
   if(document.readyState === "loading"){
