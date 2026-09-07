@@ -261,6 +261,27 @@
      data source, so nothing is duplicated or hardcoded — if a country
      is added to the dropdown, it automatically appears here too.
      ------------------------------------------------------------------ */
+  // Country pages: the mini-map is absolutely positioned (top:0, relative
+  // to its header), so it naturally starts wherever the header itself
+  // begins -- which is now well below our search box, since that sits
+  // as a separate element before the header. Rather than guessing a
+  // fixed pixel offset (fragile against font/zoom/content differences),
+  // this measures both elements' real on-screen positions and nudges
+  // the map up by exactly the gap between them, matching the site's own
+  // existing pattern for this kind of thing (see positionCountriesPanel
+  // in compare.html).
+  function alignCountryMapWithSearch(){
+    var box = document.getElementById("homeQuickNav");
+    var mapWrap = document.getElementById("miniMapWrap");
+    if(!box || !mapWrap) return;
+    var header = mapWrap.closest("header.page");
+    if(!header) return;
+    var boxRect = box.getBoundingClientRect();
+    var headerRect = header.getBoundingClientRect();
+    var offset = boxRect.top - headerRect.top;
+    mapWrap.style.top = offset + "px";
+  }
+
   function initHomeQuickNav(){
     var header = document.querySelector(".hero-h1") ? document.querySelector("header.page")
                : document.querySelector("header.page.with-map");
@@ -828,6 +849,7 @@
     safeCall(buildToolbar);
     safeCall(addMapCaption);
     safeCall(initHomeQuickNav);
+    safeCall(alignCountryMapWithSearch);
     safeCall(initHomeTicker);
     safeCall(initSearchPlaceholderRotation);
     safeCall(initScrollCatch);
@@ -855,6 +877,7 @@
   // Re-run the cheap, idempotent bits after async page data loads and on resize/orientation change.
   window.addEventListener("resize", function(){
     addTradeNote(); tableToCards(); chartmakerGate(); simplifyComparePage(); simplifyCalendarCopy();
+    alignCountryMapWithSearch();
   });
   window.addEventListener("load", function(){
     setTimeout(init, 400); // second pass after country/compare/calendar data fetches resolve
