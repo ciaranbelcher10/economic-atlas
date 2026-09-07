@@ -63,9 +63,17 @@ still the genuine test):
 - business_confidence: OECD BCICP via SDMX, same multi-query fallback
   pattern used for every other country, REF_AREA=IDN. Best-effort, not
   individually confirmed.
-- trade_balance: standard OECD merchandise trade, monthly -- not
-  individually confirmed for Indonesia's specific data availability;
-  best-effort, check the first Actions log.
+- trade_balance (XTNTVA01IDM667S): ADDED in a later session -- the
+  original docstring claimed this was "standard OECD merchandise
+  trade, monthly" but no actual fetch call existed anywhere in this
+  file (a genuine wiring bug caught by a site-wide review, not a
+  guess-and-fail case). CONFIRMED live via FRED page content (through
+  Dec 2025, updated Mar 2026), OECD's International Merchandise Trade
+  Statistics, USD exchange-rate-converted (not Indonesian rupiah --
+  avoids the same very-large-nominal-value distortion flagged for
+  gdp_level/gdp_real above), seasonally adjusted, monthly. Same
+  XTNTVA01-family series pattern already used for other countries on
+  this site.
 - fdi: World Bank, same indicator code used for every other country
   (BX.KLT.DINV.WD.GD.ZS), country=IDN. Not individually confirmed for
   Indonesia's specific data availability -- standard World Bank annual
@@ -87,6 +95,7 @@ FRED_SERIES = {
     "gdp_level": ("NGDPSAXDCIDQ", "q", "Nominal GDP, current prices, SA (IMF IFS)", "IDRm", None, 1.0),
     "debt_gdp": ("GGGDTAIDA188N", "a", "General government gross debt, % of GDP (IMF WEO)", "%", None, 1.0),
     "deficit": ("GGNLBAIDA188N", "a", "General government net lending/borrowing, % of GDP (IMF WEO)", "%", None, 1.0),
+    "trade_balance": ("XTNTVA01IDM667S", "m", "Trade balance, goods, USD exchange-rate-converted, SA (OECD)", "$m", None, 1e-6),
     # fx_raw removed (Aug 2026): the OECD series it pointed to
     # (CCUSMA02IDM618N) is discontinued -- fx_to_usd now uses World
     # Bank PA.NUS.FCRF via fetch_worldbank() directly, unconditionally

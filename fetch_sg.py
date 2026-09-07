@@ -68,9 +68,23 @@ genuine test):
   published figures put Singapore's unemployment at roughly 2%,
   genuinely very low by international standards -- expect small numbers
   here, not a data error.
-- deficit / participation_rate / policy_rate: NOT included. No clean
-  live source individually confirmed for any of these during this
-  build -- genuine, disclosed gaps, not guesses.
+- deficit / participation_rate / policy_rate / trade_balance: NOT
+  included. No clean live source individually confirmed for any of
+  these during this build -- genuine, disclosed gaps, not guesses.
+  trade_balance specifically: extensive search (a later session, not
+  this build) found no FRED/OECD-hosted merchandise trade series for
+  Singapore at all, unlike Argentina/Indonesia/Sweden/Mexico/Korea,
+  which all have a confirmed XTNTVA01-family series -- Singapore
+  genuinely isn't covered (consistent with its non-OECD status, same
+  reasoning already given below for business_confidence possibly
+  coming back empty). The original docstring here called this
+  "best-effort, check the first Actions log," which wrongly implied an
+  attempt was actually coded -- corrected to match the honest
+  disclosed-gap language used for the other three. The dead $->S$
+  conversion loop later in this file (for trade_balance/exports/
+  imports) is defensive code that never fires while trade_balance
+  stays unfetched -- left in place rather than removed, since exports/
+  imports may yet gain a live source independently.
 - fx_to_usd (DEXSIUS): CONFIRMED live (through Mar 2026), a real Fed
   H.10 daily series -- same quality tier as Norway/Denmark/Sweden's own
   FX series, better than the OECD monthly-average fallback used for
@@ -79,11 +93,6 @@ genuine test):
   pattern used for every other country, REF_AREA=SGP. Best-effort, not
   individually confirmed -- Singapore is not an OECD member, so this
   may well come back empty; check the Actions log.
-- trade_balance: standard OECD merchandise trade, monthly -- not
-  individually confirmed for Singapore's specific data availability;
-  best-effort, check the first Actions log. Converted from USD to SGD
-  using the live DEXSIUS rate if fetched successfully, matching the
-  pattern used for Denmark/Sweden's own-currency trade series.
 - fdi: World Bank, same indicator code used for every other country
   (BX.KLT.DINV.WD.GD.ZS), country=SGP. Not individually confirmed for
   Singapore's specific data availability -- standard World Bank annual

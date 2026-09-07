@@ -60,11 +60,18 @@ still the genuine test):
 - business_confidence: OECD BCICP via SDMX, same multi-query fallback
   pattern used for every other country, REF_AREA=SWE. Best-effort, not
   individually confirmed.
-- trade_balance: NOT INCLUDED. Same as Denmark's own fetch script --
-  no verified live source was wired in for either country; the page's
-  trade_balance panel will show sample data until this gap is closed.
-  Genuine, disclosed gap, matching Denmark's actual current behavior,
-  not a new regression introduced here.
+- trade_balance (XTNTVA01SEM667S): ADDED in a later session -- the
+  original docstring said "NOT INCLUDED, same as Denmark," but a
+  fresh search (this later session, not the original build) found a
+  genuine live FRED series after all: OECD's International Merchandise
+  Trade Statistics, USD exchange-rate-converted, seasonally adjusted,
+  monthly, confirmed live through Jan 2026 (updated Mar 2026). Same
+  XTNTVA01-family pattern already used for other countries on this
+  site. The earlier "genuine gap" framing was itself based on an
+  incomplete search, not a real absence -- caught by a later,
+  independent site-wide review. Denmark was NOT re-checked as part of
+  this specific fix; its own "NOT INCLUDED" claim should be treated as
+  unverified until someone actually re-searches it.
 - fdi: World Bank, same indicator code used for every other country
   (BX.KLT.DINV.WD.GD.ZS), country=SWE. Not individually confirmed for
   Sweden's specific data availability -- standard World Bank annual lag
@@ -87,6 +94,7 @@ FRED_SERIES = {
     "gdp_level": ("CPMNACSCAB1GQSE", "q", "Nominal GDP, current prices, SA (Eurostat)", "SEKm", None, 1.0),
     "unemployment": ("LRHUTTTTSEM156S", "m", "Unemployment rate, 15+, OECD-harmonized, SA", "%", None, 1.0),
     "bond_yield_10y": ("IRLTLT01SEM156N", "m", "10-year government bond yield (OECD)", "%", None, 1.0),
+    "trade_balance": ("XTNTVA01SEM667S", "m", "Trade balance, goods, USD exchange-rate-converted, SA (OECD)", "$m", None, 1e-6),
 }
 
 EUROSTAT_STATS_BASE = "https://ec.europa.eu/eurostat/api/dissemination/statistics/1.0/data"

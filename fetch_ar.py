@@ -67,9 +67,16 @@ still the genuine test):
 - business_confidence: OECD BCICP via SDMX, same multi-query fallback
   pattern used for every other country, REF_AREA=ARG. Best-effort, not
   individually confirmed.
-- trade_balance: standard OECD merchandise trade, monthly -- not
-  individually confirmed for Argentina's specific data availability;
-  best-effort, check the first Actions log.
+- trade_balance (ARGXTNTVA01CXMLSAM): ADDED in a later session -- the
+  original docstring claimed this was "standard OECD merchandise
+  trade, monthly" but no actual fetch call existed anywhere in this
+  file (a genuine wiring bug, not a guess-and-fail case; caught by a
+  site-wide review, not this build). CONFIRMED live via FRED page
+  content (through Jan 2026), OECD's International Merchandise Trade
+  Statistics, USD exchange-rate-converted (not Argentine peso -- avoids
+  the hyperinflation-driven scale distortion a peso-denominated series
+  would show), seasonally adjusted, monthly. Same XTNTVA01-family
+  series pattern already used for other countries on this site.
 - fdi: World Bank, same indicator code used for every other country
   (BX.KLT.DINV.WD.GD.ZS), country=ARG. Not individually confirmed for
   Argentina's specific data availability -- standard World Bank annual
@@ -94,6 +101,7 @@ FRED_SERIES = {
                   "the currency-mismatch issue this was added to fix", "ARSm", None, 1.0),
     "debt_gdp": ("GGGDTAARA188N", "a", "General government gross debt, % of GDP (IMF WEO)", "%", None, 1.0),
     "deficit": ("GGNLBAARA188N", "a", "General government net lending/borrowing, % of GDP (IMF WEO)", "%", None, 1.0),
+    "trade_balance": ("ARGXTNTVA01CXMLSAM", "m", "Trade balance, goods, USD exchange-rate-converted, SA (OECD)", "$m", None, 1e-6),
     # fx_raw removed (Aug 2026): the OECD series it pointed to
     # (ARGCCUSMA02STM) is discontinued -- fx_to_usd now uses World
     # Bank PA.NUS.FCRF via fetch_worldbank() directly, unconditionally

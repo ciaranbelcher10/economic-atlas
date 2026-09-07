@@ -52,9 +52,17 @@ genuine test):
   government debt, NOT general government -- no verified general-
   government series was found for Thailand during this build. Disclosed
   on the page itself.
-- deficit / participation_rate / policy_rate / current_account: NOT
-  included. No clean live source individually confirmed for any of
-  these during this build -- genuine, disclosed gaps, not guesses.
+- deficit / participation_rate / policy_rate / current_account /
+  trade_balance: NOT included. No clean live source individually
+  confirmed for any of these during this build -- genuine, disclosed
+  gaps, not guesses. trade_balance specifically: extensive search (a
+  later session, not this build) found no FRED/OECD-hosted merchandise
+  trade series for Thailand at all, unlike Argentina/Indonesia/Sweden/
+  Mexico/Korea, which all have a confirmed XTNTVA01-family series --
+  Thailand genuinely isn't covered by that family. The original
+  docstring here called this "best-effort, check the first Actions
+  log," which wrongly implied an attempt was actually coded; corrected
+  to match the honest disclosed-gap language used for the other four.
 - fx_to_usd (DEXTHUS): CONFIRMED live (through Jul 2026), a real Fed
   H.10 daily series -- same quality tier as Norway/Denmark/Sweden/
   Singapore's own FX series.
@@ -66,9 +74,6 @@ genuine test):
   pattern used for every other country, REF_AREA=THA. Best-effort, not
   individually confirmed -- Thailand is not an OECD member, so this may
   well come back empty; check the Actions log.
-- trade_balance: standard OECD merchandise trade, monthly -- not
-  individually confirmed for Thailand's specific data availability;
-  best-effort, check the first Actions log.
 - fdi: World Bank, same indicator code used for every other country
   (BX.KLT.DINV.WD.GD.ZS), country=THA. Not individually confirmed for
   Thailand's specific data availability -- standard World Bank annual
