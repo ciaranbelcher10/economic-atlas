@@ -36,11 +36,23 @@ still the genuine test):
   Poland's debt ratio) -- the IMF-WEO annual series was used instead
   for consistency with the fetch pipeline's simpler, already-proven
   code path, not because the Eurostat option doesn't exist.
-- participation_rate / policy_rate / current_account: NOT included. No
-  clean live source individually confirmed for any of these during this
-  build (Poland IS an OECD member, so the standard participation-rate
-  family was worth checking, but wasn't actually verified in this
-  build's research pass) -- genuine, disclosed gaps, not guesses.
+- participation_rate (LRAC64TTPLQ156S) / employment_rate (LREM64TTPLQ156S):
+  ADDED -- same portable OECD FRED family used for other full OECD
+  members (e.g. Austria's LRAC64TTATQ156S/LREM64TTATQ156S), reused here
+  with the PL code, but not individually re-verified against the live
+  API specifically for Poland -- check the first real Actions run log.
+- policy_rate / current_account: still NOT included. No clean live
+  source individually confirmed for either during this build --
+  genuine, disclosed gaps, not guesses.
+- trade_balance: ADDED via the same live Eurostat world-partner
+  reconstruction (EXT_ST_27_2020MSBEC, geo=PL) used for Austria, since
+  Poland is also an EU member state the same dataset documents support.
+  No FRED fallback exists here (unlike Austria's confirmed-stale
+  fallback series) -- if the Eurostat path fails, the metric is simply
+  omitted for that run rather than shown from a fabricated fallback.
+  Not independently verified against a live API response from this
+  sandbox (same evidentiary bar as Austria's build) -- the first real
+  Actions run log is the genuine test.
 - fx_to_usd (World Bank PA.NUS.FCRF, "Official exchange rate, LCU per
   US$"): switched Aug 2026 from CCUSMA02PLM618N (OECD monthly), which
   was confirmed discontinued (stopped updating Feb 2026). No H.10-style
@@ -53,9 +65,6 @@ still the genuine test):
 - business_confidence: OECD BCICP via SDMX, same multi-query fallback
   pattern used for every other country, REF_AREA=POL. Best-effort, not
   individually confirmed.
-- trade_balance: standard OECD merchandise trade, monthly -- not
-  individually confirmed for Poland's specific data availability;
-  best-effort, check the first Actions log.
 - fdi: World Bank, same indicator code used for every other country
   (BX.KLT.DINV.WD.GD.ZS), country=POL. Not individually confirmed for
   Poland's specific data availability -- standard World Bank annual lag
@@ -80,10 +89,118 @@ FRED_SERIES = {
     "bond_yield_10y": ("IRLTLT01PLM156N", "m", "10-year government bond yield (OECD)", "%", None, 1.0),
     "debt_gdp": ("GGGDTAPLA188N", "a", "General government gross debt, % of GDP (IMF WEO)", "%", None, 1.0),
     "deficit": ("GGNLBAPLA188N", "a", "General government net lending/borrowing, % of GDP (IMF WEO)", "%", None, 1.0),
+    "participation_rate": ("LRAC64TTPLQ156S", "q", "Labour force participation rate, 15-64, SA (OECD)", "%", None, 1.0),
+    "employment_rate": ("LREM64TTPLQ156S", "q", "Employment rate, 15-64, SA (OECD)", "%", None, 1.0),
     # fx_raw removed (Aug 2026): the OECD series it pointed to
     # (CCUSMA02PLM618N) is discontinued -- fx_to_usd now uses World
     # Bank PA.NUS.FCRF via fetch_worldbank() directly, see below.
 }
+
+EUROSTAT_STATS_BASE = "https://ec.europa.eu/eurostat/api/dissemination/statistics/1.0/data"
+
+
+def _parse_jsonstat(text: str, tag: str) -> list | None:
+    """Ported verbatim from fetch_at.py's _parse_jsonstat -- generic
+    Eurostat JSON-stat response parser, not Austria-specific. Kept as an
+    exact copy rather than a shared import since these fetch scripts
+    have no shared-module mechanism; if this ever drifts from the
+    original, that's a real inconsistency to catch, not intentional."""
+    import json as jsonlib
+    data = jsonlib.loads(text)
+    if "dimension" not in data or "time" not in data.get("dimension", {}):
+        print(f"  [{tag}] response has no time dimension; top-level keys: "
+              f"{list(data.keys())}")
+        return None
+    for dname, dim in data["dimension"].items():
+        if dname == "time" or not isinstance(dim, dict):
+            continue
+        idx = dim.get("category", {}).get("index", {})
+        if isinstance(idx, dict) and len(idx) > 1:
+            print(f"  [{tag}] dimension {dname!r} has {len(idx)} categories "
+                  f"({list(idx)[:5]}...) -- query is under-filtered, refusing "
+                  f"to parse a multi-series response")
+            return None
+    time_index = data["dimension"]["time"]["category"]["index"]
+    pos_to_period = {v: k for k, v in time_index.items()}
+    value = data.get("value")
+    points = {}
+    if isinstance(value, dict):
+        for pos_str, val in value.items():
+            try:
+                pos = int(pos_str)
+            except ValueError:
+                continue
+            if pos in pos_to_period and val is not None:
+                points[pos_to_period[pos]] = float(val)
+    elif isinstance(value, list):
+        for pos, val in enumerate(value):
+            if val is not None and pos in pos_to_period:
+                points[pos_to_period[pos]] = float(val)
+    if not points:
+        print(f"  [{tag}] parsed JSON-stat but got 0 points; "
+              f"value type={type(value)}, size={data.get('size')}, "
+              f"dim order={data.get('id')}")
+        return None
+    pts = sorted([[p, v] for p, v in points.items()], key=lambda x: x[0])
+    print(f"  [{tag}] SUCCESS: {len(pts)} points, {pts[0][0]} to {pts[-1][0]}")
+    return pts
+
+
+def fetch_eurostat_trade_world_pl(stk_flow: str) -> list | None:
+    """Poland's monthly total (world-partner) merchandise trade, one flow
+    (EXP or IMP) at a time, from Eurostat's EXT_ST_27_2020MSBEC. Same
+    dataset, query shape, and parser as fetch_at.py's
+    fetch_eurostat_trade_world, with geo=PL instead of AT -- see that
+    function's docstring for the full dataset-selection rationale (this
+    wasn't independently re-researched for Poland, the same evidentiary
+    basis applies).
+
+    Not independently verified against a live API response from this
+    sandbox (dissemination.ec.europa.eu is outside the network allowlist
+    here) -- the first real Actions run log is the genuine test.
+
+    stk_flow: "EXP" or "IMP". Returns monthly [period, value_million_eur]
+    points, or None if the request/parse fails.
+    """
+    url = (f"{EUROSTAT_STATS_BASE}/ext_st_27_2020msbec?format=JSON&lang=EN"
+          f"&geo=PL&partner=WORLD&indic_et=TRD_VAL&bclas_bec=TOTAL"
+          f"&stk_flow={stk_flow}&sinceTimePeriod=2015")
+    try:
+        r = requests.get(url, timeout=60,
+                         headers={"User-Agent": "economic-atlas/0.1"})
+        print(f"  [eurostat-trade-world-{stk_flow}] PL status={r.status_code}")
+        r.raise_for_status()
+    except Exception as exc:
+        print(f"  [eurostat-trade-world-{stk_flow}] PL request failed: {exc}")
+        return None
+    try:
+        return _parse_jsonstat(r.text, f"eurostat-trade-world-{stk_flow}-PL")
+    except Exception as exc:
+        print(f"  [eurostat-trade-world-{stk_flow}] PL parsing failed: {exc}; "
+              f"first 300 chars: {r.text[:300]!r}")
+        return None
+
+
+def fetch_eurostat_trade_balance_world_pl() -> list | None:
+    """Trade balance = exports - imports, both from
+    fetch_eurostat_trade_world_pl above, matched by period. Returns None
+    if either flow is unavailable or there's no period overlap -- a
+    balance built from mismatched periods would be wrong, not just
+    incomplete."""
+    exp = fetch_eurostat_trade_world_pl("EXP")
+    imp = fetch_eurostat_trade_world_pl("IMP")
+    if not exp or not imp:
+        return None
+    imp_by_period = {p: v for p, v in imp}
+    balance = [[p, v - imp_by_period[p]] for p, v in exp if p in imp_by_period]
+    if not balance:
+        print("  [eurostat-trade-world] EXP and IMP returned no overlapping periods")
+        return None
+    balance.sort(key=lambda x: x[0])
+    print(f"  [eurostat-trade-world] balance derived: {len(balance)} points, "
+          f"{balance[0][0]} to {balance[-1][0]}")
+    return balance
+
 
 FRED_URL = ("https://api.stlouisfed.org/fred/series/observations"
             "?series_id={sid}&api_key={key}&file_type=json"
@@ -433,6 +550,27 @@ def main() -> int:
                 print("note  fx_to_usd: no observations returned")
         except Exception as exc:
             print(f"FAIL  fx_to_usd        {exc}")
+
+    # trade_balance: live Eurostat world-partner reconstruction (exports
+    # minus imports, both from EXT_ST_27_2020MSBEC, geo=PL) -- same
+    # pattern and same dataset already used for Austria's trade_balance,
+    # since Poland is also an EU member state the same documentation
+    # confirms as covered. No FRED fallback series was confirmed for
+    # Poland specifically, so unlike Austria this metric is simply
+    # omitted (not shown from a fabricated fallback) if the Eurostat
+    # path fails -- a genuine gap for that run, not a guess.
+    try:
+        tb_points = fetch_eurostat_trade_balance_world_pl()
+        if not tb_points:
+            raise ValueError("Eurostat world-partner reconstruction returned nothing")
+        out["series"]["trade_balance"] = {
+            "label": "Trade balance, goods, total (Eurostat, world partner, derived EXP-IMP)",
+            "unit": "\u20acm", "freq": "months", "points": tb_points}
+        print(f"  ok  trade_balance    {len(tb_points):>5} observations "
+              f"({tb_points[0][0]} to {tb_points[-1][0]}, months, Eurostat)")
+    except Exception as exc:
+        failures.append("trade_balance")
+        print(f"FAIL  trade_balance     {exc}")
 
     extras = [
         ("business_confidence", lambda: fetch_oecd_bci(),

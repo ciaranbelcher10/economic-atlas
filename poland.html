@@ -1781,14 +1781,18 @@ function sampleData(){
   // government debt/GDP and 10-year bond yield trajectories anchored to
   // real IMF-WEO and OECD figures already verified for this build (debt
   // ~45% in 2019 rising to ~55% by 2024; bond yield ~1.9% in 2021 jumping
-  // to ~6% by 2022 as rates repriced). No labour-force-participation,
-  // policy-rate, or current-account series is included here at all --
-  // verified searches found no live source for any of the three (see the
-  // footer's disclosed-gaps note), so there is nothing to illustrate
-  // rather than something faked.
+  // to ~6% by 2022 as rates repriced). Participation/employment rates and
+  // trade balance were added in a later session (see fetch_pl.py's own
+  // build notes) -- illustrative shapes here follow the same low-
+  // unemployment story (participation and employment both trending up
+  // over the period) and Poland's real, well-documented shift from
+  // chronic goods-trade deficits toward surplus in the early 2020s. No
+  // policy-rate or current-account series is included here at all --
+  // verified searches found no live source for either (see the footer's
+  // disclosed-gaps note), so there is nothing to illustrate rather than
+  // something faked.
   const mR=monthsBetween("1996-01","2026-06");
   const qG=quartersBetween("1999-Q1","2026-Q1");
-  const qTr=quartersBetween("1996-Q1","2026-Q1");
   const gdpG=qG.map((p,i)=>[p,+(3.5+1.8*Math.sin(i*0.85)).toFixed(1)]);
   const put=(p,v)=>{const i=qG.indexOf(p); if(i>=0) gdpG[i]=[p,v];};
   put("2001-Q3",0.3); put("2009-Q1",0.8); put("2020-Q2",-8.2); put("2020-Q3",-1.5);
@@ -1825,9 +1829,18 @@ function sampleData(){
     business_confidence:S("Business confidence (illustrative)","index","months",interp(
       [["2009-02",87.0],["2013-12",100.0],["2018-08",102.0],["2020-04",83.0],
        ["2021-09",103.5],["2023-05",98.0],["2026-05",100.3]],monthsBetween("2009-02","2026-05"))),
-    trade_balance:S("Trade balance, goods (illustrative)","$m","quarters",interp(
-      [["1996-Q1",-1800],["2008-Q3",-4200],["2012-Q1",-2100],["2015-Q2",600],
-       ["2020-Q2",1800],["2022-Q3",-5400],["2024-Q2",2200],["2026-Q1",1500]],qTr)),
+    trade_balance:S("Trade balance, goods (illustrative)","\u20acm","months",interp(
+      [["2015-01",-600],["2017-06",-200],["2019-03",100],["2020-04",-900],
+       ["2021-08",-1400],["2022-10",-2600],["2023-06",-400],["2024-06",800],
+       ["2025-06",1100],["2026-06",900]],monthsBetween("2015-01","2026-06"))),
+    participation_rate:S("Labour force participation, 15-64, SA (illustrative)","%","quarters",interp(
+      [["1999-Q1",65.9],["2004-Q1",63.6],["2008-Q1",64.0],["2013-Q1",66.0],
+       ["2017-Q1",68.6],["2020-Q1",69.5],["2022-Q1",68.9],["2024-Q1",70.2],
+       ["2026-Q1",70.8]],qG)),
+    employment_rate:S("Employment rate, 15-64, SA (illustrative)","%","quarters",interp(
+      [["1999-Q1",58.3],["2004-Q1",51.4],["2008-Q1",59.2],["2013-Q1",59.7],
+       ["2017-Q1",65.9],["2020-Q1",67.7],["2022-Q1",67.1],["2024-Q1",68.7],
+       ["2026-Q1",69.4]],qG)),
     fdi:S("FDI net inflows % GDP (illustrative)","%","years",interp(
       [["1996",3.4],["2008",3.6],["2016",2.7],["2020",2.7],["2025",2.9]],
       yearsBetween(1996,2025))),
@@ -2134,12 +2147,15 @@ function render(data){
   const SRC_GDP_LEVEL_CURRENT = TOGGLE_STATE.real
     ? SRC_GDP_REAL_ANNUAL
     : (gdpLevelIsWbFallback ? SRC_GDP_LEVEL : SRC_GDP_NOMINAL);
-  const SRC_TRADE="OECD \u00b7 merchandise trade, monthly";
-  const SRC_FISCAL="FRED series GGGDTAPLA188N / GGNLBAPLA188N \u00b7 IMF World Economic Outlook, general government, % of GDP, annual. Poland is an EU member and Eurostat also publishes a quarterly debt/GDP series that covers it, but the IMF-WEO annual figures were used here for consistency with the fetch pipeline's simpler, already-proven code path.";
+  const SRC_TRADE="Eurostat \u00b7 goods trade, total, monthly";
+  const SRC_DEBT="FRED series GGGDTAPLA188N \u00b7 IMF World Economic Outlook, general government, % of GDP, annual.";
+  const SRC_DEFICIT="FRED series GGNLBAPLA188N \u00b7 IMF World Economic Outlook, general government, % of GDP, annual.";
   const SRC_WB="World Bank \u00b7 % of GDP, annual";
   const SRC_BCI="OECD \u00b7 BCICP, amplitude-adjusted, long-term average = 100";
   const SRC_UNEMP="FRED series LRHUTTTTPLM156S \u00b7 OECD harmonized, seasonally adjusted, monthly";
   const SRC_BOND="FRED series IRLTLT01PLM156N \u00b7 OECD, monthly";
+  const SRC_PART="FRED series LRAC64TTPLQ156S \u00b7 OECD, ages 15-64, seasonally adjusted, quarterly. Same naming pattern confirmed working for other OECD members, reused here but not individually re-verified against the live API specifically for Poland.";
+  const SRC_EMP="FRED series LREM64TTPLQ156S \u00b7 OECD, ages 15-64, seasonally adjusted, quarterly. Same naming pattern confirmed working for other OECD members, reused here but not individually re-verified against the live API specifically for Poland.";
   if(s.business_confidence) chartPanel("business_confidence","charts-headline","Business confidence",
     "How optimistic firms are about the months ahead. 100 is the long-run average; above it, firms expect better times.",
     s.business_confidence,"line",idx,v=>idx(v)+" (avg = 100)",SRC_BCI,undefined,100);
@@ -2164,15 +2180,21 @@ function render(data){
   if(s.unemployment) chartPanel("unemployment","charts-labour","Unemployment rate",
     "The share of people 15 and over who want a job but can't find one.",
     s.unemployment,"line",v=>v+"%",pct,SRC_UNEMP);
+  if(s.participation_rate) chartPanel("participation_rate","charts-labour","Labour force participation",
+    "The share of people 15-64 who are either working or actively looking for work.",
+    s.participation_rate,"line",v=>v+"%",pct,SRC_PART);
+  if(s.employment_rate) chartPanel("employment_rate","charts-labour","Employment rate",
+    "The share of people 15-64 who are actually in work, regardless of whether others are looking.",
+    s.employment_rate,"line",v=>v+"%",pct,SRC_EMP);
   if(s.trade_balance) chartPanel("trade_balance","charts-trade","Trade balance, goods",
     "Exports minus imports of goods each month. Below zero means Poland buys more than it sells.",
     s.trade_balance,"bar",v=>curFmt(v,s.trade_balance.unit,0),v=>curFmt(v,s.trade_balance.unit,1),SRC_TRADE,2000,0);
   if(s.debt_gdp) chartPanel("debt_gdp","charts-public","General government debt, % of GDP",
     "Everything federal, provincial and local governments owe combined, compared with the size of the economy.",
-    s.debt_gdp,"line",v=>v+"%",pct,SRC_FISCAL);
+    s.debt_gdp,"line",v=>v+"%",pct,SRC_DEBT);
   if(s.deficit) chartPanel("deficit","charts-public","General government net lending/borrowing, % of GDP",
     "The yearly gap between government spending and revenue across all levels of government. Negative means a deficit.",
-    s.deficit,"bar",v=>v+"%",pct,SRC_FISCAL,undefined,0);
+    s.deficit,"bar",v=>v+"%",pct,SRC_DEFICIT,undefined,0);
   const hero=document.getElementById("hero");
   if(gdpAnnual) statTile(hero,"gdp_level","GDP (annual)",gdpAnnual,
     {fmt:v=>curFmt(v,s.gdp_level.unit,2),fmtD:v=>curFmt(v,s.gdp_level.unit,1),upIsGood:true,source:SRC_GDP_LEVEL_CURRENT});
@@ -2183,9 +2205,9 @@ function render(data){
   if(s.unemployment) statTile(hero,"unemployment","Unemployment",s.unemployment,
     {fmt:pct,fmtD:pp,upIsGood:false,source:SRC_UNEMP});
   if(s.deficit) statTile(hero,"deficit","Gov. balance (annual)",s.deficit,
-    {fmt:pct,fmtD:pp,upIsGood:true,source:SRC_FISCAL});
+    {fmt:pct,fmtD:pp,upIsGood:true,source:SRC_DEFICIT});
   if(s.debt_gdp) statTile(hero,"debt_gdp","Gov. debt (% of GDP)",s.debt_gdp,
-    {fmt:pct,fmtD:pp,upIsGood:false,source:SRC_FISCAL});
+    {fmt:pct,fmtD:pp,upIsGood:false,source:SRC_DEBT});
   if(s.business_confidence) statTile(hero,"business_confidence","Business confidence",s.business_confidence,
     {fmt:idx,fmtD:v=>v.toFixed(1)+"pt",upIsGood:true,source:SRC_BCI});
   if(s.fdi) statTile(hero,"fdi","FDI (net inflows)",s.fdi,
@@ -2207,14 +2229,18 @@ function render(data){
   const tl=document.getElementById("tiles-labour");
   if(s.unemployment) statTile(tl,"unemployment","Unemployment",s.unemployment,
     {fmt:pct,fmtD:pp,upIsGood:false,source:SRC_UNEMP});
+  if(s.participation_rate) statTile(tl,"participation_rate","Participation (15-64)",s.participation_rate,
+    {fmt:pct,fmtD:pp,upIsGood:true,source:SRC_PART});
+  if(s.employment_rate) statTile(tl,"employment_rate","Employment rate (15-64)",s.employment_rate,
+    {fmt:pct,fmtD:pp,upIsGood:true,source:SRC_EMP});
   const tt=document.getElementById("tiles-trade");
   if(s.trade_balance) statTile(tt,"trade_balance","Trade balance",s.trade_balance,
     {fmt:v=>curFmt(v,s.trade_balance.unit,1),fmtD:v=>curFmt(v,s.trade_balance.unit,1),upIsGood:true,source:SRC_TRADE});
   const tp=document.getElementById("tiles-public");
   if(s.debt_gdp) statTile(tp,"debt_gdp","Gov. debt (% of GDP)",s.debt_gdp,
-    {fmt:pct,fmtD:pp,upIsGood:false,source:SRC_FISCAL});
+    {fmt:pct,fmtD:pp,upIsGood:false,source:SRC_DEBT});
   if(s.deficit) statTile(tp,"deficit","Balance (% of GDP)",s.deficit,
-    {fmt:pct,fmtD:pp,upIsGood:true,source:SRC_FISCAL});
+    {fmt:pct,fmtD:pp,upIsGood:true,source:SRC_DEFICIT});
   renderNewDataBanner(data.new_points_meta);
   renderLastUpdated(data.updated);
 }
@@ -2406,6 +2432,14 @@ const INFO_CONTENT = {
     description: "The share of people aged 15 and over who want a job and are actively looking, but can't find one.",
     source: "FRED series LRHUTTTTPLM156S \u00b7 OECD harmonized, seasonally adjusted, monthly."
   },
+  participation_rate: {
+    description: "The share of people aged 15-64 who are either working or actively looking for work.",
+    source: "FRED series LRAC64TTPLQ156S \u00b7 OECD, ages 15-64, seasonally adjusted, quarterly. This naming pattern is confirmed working for other OECD members but hasn't been individually re-verified against the live API specifically for Poland."
+  },
+  employment_rate: {
+    description: "The share of people aged 15-64 who are actually in work, regardless of whether others are looking.",
+    source: "FRED series LREM64TTPLQ156S \u00b7 OECD, ages 15-64, seasonally adjusted, quarterly. This naming pattern is confirmed working for other OECD members but hasn't been individually re-verified against the live API specifically for Poland."
+  },
   business_confidence: {
     description: "How optimistic firms are about the months ahead. 100 is the long-run average; readings above it mean firms expect better-than-average conditions.",
     source: "OECD \u00b7 Business Confidence Indicator (BCICP), amplitude-adjusted, long-term average = 100.",
@@ -2418,11 +2452,11 @@ const INFO_CONTENT = {
   },
   trade_balance: {
     description: "Exports minus imports of goods each month. Below zero means Poland buys more from abroad than it sells.",
-    source: "OECD \u00b7 merchandise trade, monthly.",
+    source: "Eurostat \u00b7 goods trade, total, monthly.",
     dollar: "Each historical point is converted at its own year's average PLN/USD rate (World Bank PA.NUS.FCRF, annual resolution), with the same earliest-rate fallback as GDP for anything before 1960, see the GDP entry for detail."
   },
   debt_gdp: {
-    description: "Everything federal, provincial and local governments owe combined, compared with the size of the economy. Poland is an EU member and Eurostat also publishes a quarterly debt/GDP series that covers it, but the IMF-WEO annual figures were used here for consistency with the fetch pipeline's simpler, already-proven code path.",
+    description: "Everything federal, provincial and local governments owe combined, compared with the size of the economy. Poland is an EU member and Eurostat also publishes a quarterly debt/GDP series covering this, but the IMF-WEO annual figures are used here instead for consistency with how other countries on this site are sourced.",
     source: "FRED series GGGDTAPLA188N \u00b7 IMF World Economic Outlook, general government, % of GDP, annual.",
     dollar: "Already expressed as a % of GDP, currency-agnostic. \u201cDollarise\u201d has no effect on this figure."
   },
