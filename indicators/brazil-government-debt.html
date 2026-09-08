@@ -17,19 +17,18 @@
 <meta name="twitter:image" content="https://theeconomicatlas.com/og/brazil-government-debt.png">
 <link rel="stylesheet" href="../style.css?v=51">
 <style>
-  .indicator-wrap{max-width:760px;margin:0 auto;padding:32px 20px 64px}
-  .indicator-hero{display:flex;align-items:baseline;gap:12px;flex-wrap:wrap;margin-bottom:4px}
-  .indicator-flag{font-size:2rem;line-height:1}
-  .indicator-latest{font-size:2.6rem;font-weight:700;margin:8px 0 4px}
-  .indicator-period{color:var(--ink);opacity:.6;font-size:.95rem;margin-bottom:24px}
-  .indicator-chart{background:var(--panel);border:1px solid var(--hair);border-radius:12px;padding:20px;margin-bottom:24px}
-  .indicator-desc{line-height:1.6;margin-bottom:20px}
-  .indicator-src{font-size:.85rem;opacity:.65;border-top:1px solid var(--hair);padding-top:16px;margin-top:24px}
-  .indicator-links{display:flex;gap:12px;flex-wrap:wrap;margin-top:28px}
-  .indicator-links a{display:inline-block;padding:10px 18px;border-radius:8px;border:1px solid var(--hair);text-decoration:none;color:var(--ink);font-weight:600}
+  .indicator-wrap{max-width:760px;margin:0 auto;padding:32px 24px 64px}
+  .indicator-crumb{font-size:13px;margin-bottom:18px}
+  .indicator-crumb a{color:var(--blue)}
+  .indicator-hero{display:flex;align-items:baseline;gap:12px;flex-wrap:wrap;margin-bottom:18px}
+  .indicator-flag{font-size:1.8rem;line-height:1}
+  .indicator-hero h1{font-size:22px;font-weight:700;margin:0}
+  .indicator-links{display:flex;gap:12px;flex-wrap:wrap;margin-top:24px}
+  .indicator-links a{display:inline-block;padding:10px 18px;border-radius:8px;border:1px solid var(--hair);text-decoration:none;color:var(--ink);font-weight:600;font-size:14px}
   .indicator-links a.primary{background:var(--navy);color:#fff;border-color:var(--navy)}
   .related{margin-top:36px}
-  .related a{display:block;padding:8px 0;border-bottom:1px solid var(--hair);text-decoration:none;color:var(--blue)}
+  .related h2{font-size:13px;font-weight:600;letter-spacing:.09em;text-transform:uppercase;color:var(--ink2)}
+  .related a{display:block;padding:9px 0;border-bottom:1px solid var(--hair);text-decoration:none;color:var(--blue);font-size:14.5px}
 </style>
 <script type="application/ld+json">
 {
@@ -54,31 +53,111 @@
 </script>
 </head>
 <body>
-<div class="indicator-wrap">
-  <p><a href="../brazil.html">&larr; Brazil overview</a></p>
+<script>(function(){
+  try{
+    var saved = localStorage.getItem("eatlas_theme");
+    if(saved === "dark" || (!saved && window.matchMedia && window.matchMedia("(prefers-color-scheme: dark)").matches)){
+      document.documentElement.setAttribute("data-theme", "dark");
+    }
+  }catch(e){}
+})();</script>
+<nav class="top"><div class="wrap">
+ <a class="brand" href="../index"><img src="../logo-64.png" alt="" width="26" height="26" style="display:block;border-radius:50%;background:#fff;padding:1px;">The Economic Atlas</a>
+ <div class="navlinks" id="navLinks">
+ <a href="../compare" style="text-decoration:none;color:inherit;font-weight:600;padding:8px 12px;">Compare</a>
+ <a href="../contact" style="text-decoration:none;color:inherit;font-weight:600;padding:8px 12px;">Contact</a>
+ <button type="button" class="theme-toggle" id="themeToggle" aria-label="Switch to dark mode" title="Switch to dark mode">&#127769;</button>
+ </div>
+</div></nav>
+
+<main class="indicator-wrap">
+  <p class="indicator-crumb"><a href="../brazil.html">&larr; Brazil overview</a></p>
   <div class="indicator-hero">
     <span class="indicator-flag">🇧🇷</span>
     <h1>Brazil Government Debt (% of GDP)</h1>
   </div>
-  <div class="indicator-latest">84.0%</div>
-  <div class="indicator-period">Latest: 2023 &middot; Updated 2026-09-08</div>
-  <div class="indicator-chart"><svg viewBox="0 0 640 180" width="100%" height="180" role="img" aria-label="Historical chart">
-  <polyline points="12.0,156.8 38.8,134.9 65.6,97.3 92.3,116.9 119.1,131.9 145.9,136.4 172.7,146.6 199.5,153.3 226.3,160.2 253.0,146.1 279.8,155.8 306.6,163.5 333.4,159.3 360.2,168.0 387.0,159.3 413.7,116.0 440.5,91.6 467.3,68.8 494.1,60.1 520.9,50.1 547.7,12.0 574.4,42.3 601.2,63.7 628.0,63.4" fill="none" stroke="#4796CE" stroke-width="2.5" stroke-linejoin="round" stroke-linecap="round"/>
-  <circle cx="628.0" cy="63.4" r="4" fill="#4796CE"/>
-</svg></div>
-  <p class="indicator-desc">Everything federal, provincial and local governments owe combined, compared with the size of the economy.</p>
-  <p class="indicator-src">Source: FRED (IMF World Economic Outlook), annual.</p>
+
+  <div class="hero" style="margin:0 0 22px;justify-content:flex-start;">
+    <div class="stat" style="max-width:320px;">
+      <p class="label">Latest</p>
+      <p class="figure">84.0%</p>
+      <p class="period">2023 &middot; updated 2026-09-07</p>
+    </div>
+  </div>
+
+  <div class="panel">
+    <div class="panelhead"><h2>Government Debt (% of GDP)</h2></div>
+    <p class="range">2000 to 2023</p>
+    <div class="chartbox"><canvas id="indicatorChart" role="img" aria-label="Brazil Government Debt (% of GDP), 2000 to 2023"></canvas></div>
+    <p class="src">Source: FRED (IMF World Economic Outlook), annual.</p>
+  </div>
+
+  <p style="line-height:1.6;margin:22px 0 0;">Everything federal, provincial and local governments owe combined, compared with the size of the economy.</p>
+
   <div class="indicator-links">
     <a class="primary" href="../brazil.html">View full Brazil data</a>
     <a href="../compare.html">Compare with other countries</a>
     <a href="../embed/brazil-government-debt.html">Embed this chart &#8599;</a>
   </div>
+
   <div class="related">
     <h2>Other Brazil indicators</h2>
     <a href="brazil-gdp.html">Brazil GDP</a>
     <a href="brazil-inflation-rate.html">Brazil Inflation Rate (CPI)</a>
     <a href="brazil-unemployment-rate.html">Brazil Unemployment Rate</a>
   </div>
-</div>
+</main>
+<footer>
+ Data from official national and international statistics sources. Series codes are shown with each metric;
+ figures are the latest published observations and are subject to revision.
+ Ideas or corrections: <a href="../contact">get in touch</a>. <a href="../privacy">Privacy</a> &middot; <a href="../terms">Terms</a>.
+</footer>
+<script>
+(function(){
+  var btn = document.getElementById("themeToggle");
+  if(!btn) return;
+  btn.addEventListener("click", function(){
+    var isDark = document.documentElement.getAttribute("data-theme") === "dark";
+    if(isDark){ document.documentElement.removeAttribute("data-theme"); try{localStorage.setItem("eatlas_theme","light");}catch(e){} }
+    else{ document.documentElement.setAttribute("data-theme","dark"); try{localStorage.setItem("eatlas_theme","dark");}catch(e){} }
+  });
+})();
+</script>
+
+<script src="https://cdnjs.cloudflare.com/ajax/libs/Chart.js/4.4.1/chart.umd.min.js"></script>
+<script>
+(function(){
+  var pts = [["2000", 62.198], ["2001", 67.331], ["2002", 76.095], ["2003", 71.514], ["2004", 68.025], ["2005", 66.969], ["2006", 64.599], ["2007", 63.025], ["2008", 61.42], ["2009", 64.702], ["2010", 62.433], ["2011", 60.634], ["2012", 61.614], ["2013", 59.595], ["2014", 61.617], ["2015", 71.73], ["2016", 77.422], ["2017", 82.745], ["2018", 84.777], ["2019", 87.118], ["2020", 96.007], ["2021", 88.934], ["2022", 83.939], ["2023", 84.001]];
+  var cs = getComputedStyle(document.documentElement);
+  var INK = cs.getPropertyValue("--ink").trim() || "#171B1E";
+  var INK2 = cs.getPropertyValue("--ink2").trim() || "#5A6167";
+  var HAIR = cs.getPropertyValue("--hair").trim() || "#E7E9E4";
+  var PANEL_BG = cs.getPropertyValue("--panel").trim() || "#fff";
+  var LINE = "#37659E";
+  var canvas = document.getElementById("indicatorChart");
+  new Chart(canvas, {
+    type: "line",
+    data: {
+      labels: pts.map(function(p){return p[0];}),
+      datasets: [{
+        data: pts.map(function(p){return p[1];}),
+        borderColor: LINE, borderWidth: 2, pointRadius: 0, pointHitRadius: 8, tension: 0.25
+      }]
+    },
+    options: {
+      responsive: true, maintainAspectRatio: false, animation: false,
+      interaction: {mode: "index", intersect: false},
+      plugins: {
+        legend: {display: false},
+        tooltip: {backgroundColor: PANEL_BG, titleColor: INK, bodyColor: INK, borderColor: HAIR, borderWidth: 1, displayColors: false}
+      },
+      scales: {
+        x: {grid: {display: false}, ticks: {color: INK2, maxTicksLimit: 7, maxRotation: 0}},
+        y: {grid: {color: HAIR}, ticks: {color: INK2, maxTicksLimit: 6}}
+      }
+    }
+  });
+})();
+</script>
 </body>
 </html>

@@ -35,7 +35,22 @@
     var last = pts[pts.length-1];
     var unit = s.unit || "";
     var v = last[1];
-    var vs = (unit.indexOf("%")>-1) ? (v.toFixed(1)+"%") : (Math.abs(v)>=1000 ? v.toLocaleString(undefined,{maximumFractionDigits:0}) : v.toLocaleString(undefined,{maximumFractionDigits:2})) + (unit && unit.indexOf("%")<0 ? " "+unit : "");
+    function fmtValue(v, unit){
+      unit = unit || "";
+      if(unit.indexOf("%") > -1) return v.toFixed(1) + "%";
+      var scales = [["bn",1e9],["m",1e6],["k",1e3]], currency = unit, mult = 1;
+      for(var i=0;i<scales.length;i++){
+        var suf = scales[i][0];
+        if(unit.slice(-suf.length) === suf && unit.length > suf.length){ currency = unit.slice(0,-suf.length); mult = scales[i][1]; break; }
+      }
+      var abs = v * mult;
+      var big = [["tn",1e12],["bn",1e9],["m",1e6],["k",1e3]];
+      for(var j=0;j<big.length;j++){
+        if(Math.abs(abs) >= big[j][1]) return currency + (abs/big[j][1]).toLocaleString(undefined,{minimumFractionDigits:2,maximumFractionDigits:2}) + big[j][0];
+      }
+      return currency + abs.toLocaleString(undefined,{minimumFractionDigits:2,maximumFractionDigits:2});
+    }
+    var vs = fmtValue(v, unit);
     document.getElementById("val").textContent = vs;
     document.getElementById("per").textContent = "Latest: " + last[0];
     var vals = pts.map(function(p){return p[1];}).filter(function(v){return v!==null;});

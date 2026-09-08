@@ -75,6 +75,42 @@ CORE_METRICS = {
     "debt_gdp":    ("government-debt", "Government Debt (% of GDP)"),
 }
 
+HEADER_HTML = """<script>(function(){
+  try{
+    var saved = localStorage.getItem("eatlas_theme");
+    if(saved === "dark" || (!saved && window.matchMedia && window.matchMedia("(prefers-color-scheme: dark)").matches)){
+      document.documentElement.setAttribute("data-theme", "dark");
+    }
+  }catch(e){}
+})();</script>
+<nav class="top"><div class="wrap">
+ <a class="brand" href="../index"><img src="../logo-64.png" alt="" width="26" height="26" style="display:block;border-radius:50%;background:#fff;padding:1px;">The Economic Atlas</a>
+ <div class="navlinks" id="navLinks">
+ <a href="../compare" style="text-decoration:none;color:inherit;font-weight:600;padding:8px 12px;">Compare</a>
+ <a href="../contact" style="text-decoration:none;color:inherit;font-weight:600;padding:8px 12px;">Contact</a>
+ <button type="button" class="theme-toggle" id="themeToggle" aria-label="Switch to dark mode" title="Switch to dark mode">&#127769;</button>
+ </div>
+</div></nav>
+"""
+
+FOOTER_HTML = """<footer>
+ Data from official national and international statistics sources. Series codes are shown with each metric;
+ figures are the latest published observations and are subject to revision.
+ Ideas or corrections: <a href="../contact">get in touch</a>. <a href="../privacy">Privacy</a> &middot; <a href="../terms">Terms</a>.
+</footer>
+<script>
+(function(){
+  var btn = document.getElementById("themeToggle");
+  if(!btn) return;
+  btn.addEventListener("click", function(){
+    var isDark = document.documentElement.getAttribute("data-theme") === "dark";
+    if(isDark){ document.documentElement.removeAttribute("data-theme"); try{localStorage.setItem("eatlas_theme","light");}catch(e){} }
+    else{ document.documentElement.setAttribute("data-theme","dark"); try{localStorage.setItem("eatlas_theme","dark");}catch(e){} }
+  });
+})();
+</script>
+"""
+
 def flag_emoji(alpha2):
     return "".join(chr(0x1F1E6 + ord(c) - 65) for c in alpha2.upper())
 
@@ -119,29 +155,9 @@ def fmt_value(v, unit):
         return f"{currency}{absolute:,.2f}".strip()
     return f"{absolute:,.2f}"
 
-def sparkline_svg(points, width=640, height=180, color="#4796CE"):
-    """Build a minimal, dependency-free inline SVG line chart from [period, value] points."""
-    vals = [p[1] for p in points if p[1] is not None]
-    if len(vals) < 2:
-        return ""
-    lo, hi = min(vals), max(vals)
-    span = (hi - lo) or 1
-    pad = 12
-    n = len(points)
-    step = (width - 2 * pad) / max(n - 1, 1)
-    coords = []
-    for i, (_, v) in enumerate(points):
-        if v is None:
-            continue
-        x = pad + i * step
-        y = pad + (height - 2 * pad) * (1 - (v - lo) / span)
-        coords.append(f"{x:.1f},{y:.1f}")
-    path = "M" + " L".join(coords)
-    last_x, last_y = coords[-1].split(",")
-    return f'''<svg viewBox="0 0 {width} {height}" width="100%" height="{height}" role="img" aria-label="Historical chart">
-  <polyline points="{" ".join(coords)}" fill="none" stroke="{color}" stroke-width="2.5" stroke-linejoin="round" stroke-linecap="round"/>
-  <circle cx="{last_x}" cy="{last_y}" r="4" fill="{color}"/>
-</svg>'''
+def sparkline_points_js(points):
+    """Return a JS array literal of [period, value] pairs for Chart.js."""
+    return json.dumps(points, ensure_ascii=False)
 
 INDICATOR_TEMPLATE = """<!DOCTYPE html>
 <html lang="en">
@@ -162,49 +178,100 @@ INDICATOR_TEMPLATE = """<!DOCTYPE html>
 <meta name="twitter:image" content="{og_image}">
 <link rel="stylesheet" href="../style.css?v=51">
 <style>
-  .indicator-wrap{{max-width:760px;margin:0 auto;padding:32px 20px 64px}}
-  .indicator-hero{{display:flex;align-items:baseline;gap:12px;flex-wrap:wrap;margin-bottom:4px}}
-  .indicator-flag{{font-size:2rem;line-height:1}}
-  .indicator-latest{{font-size:2.6rem;font-weight:700;margin:8px 0 4px}}
-  .indicator-period{{color:var(--ink);opacity:.6;font-size:.95rem;margin-bottom:24px}}
-  .indicator-chart{{background:var(--panel);border:1px solid var(--hair);border-radius:12px;padding:20px;margin-bottom:24px}}
-  .indicator-desc{{line-height:1.6;margin-bottom:20px}}
-  .indicator-src{{font-size:.85rem;opacity:.65;border-top:1px solid var(--hair);padding-top:16px;margin-top:24px}}
-  .indicator-links{{display:flex;gap:12px;flex-wrap:wrap;margin-top:28px}}
-  .indicator-links a{{display:inline-block;padding:10px 18px;border-radius:8px;border:1px solid var(--hair);text-decoration:none;color:var(--ink);font-weight:600}}
+  .indicator-wrap{{max-width:760px;margin:0 auto;padding:32px 24px 64px}}
+  .indicator-crumb{{font-size:13px;margin-bottom:18px}}
+  .indicator-crumb a{{color:var(--blue)}}
+  .indicator-hero{{display:flex;align-items:baseline;gap:12px;flex-wrap:wrap;margin-bottom:18px}}
+  .indicator-flag{{font-size:1.8rem;line-height:1}}
+  .indicator-hero h1{{font-size:22px;font-weight:700;margin:0}}
+  .indicator-links{{display:flex;gap:12px;flex-wrap:wrap;margin-top:24px}}
+  .indicator-links a{{display:inline-block;padding:10px 18px;border-radius:8px;border:1px solid var(--hair);text-decoration:none;color:var(--ink);font-weight:600;font-size:14px}}
   .indicator-links a.primary{{background:var(--navy);color:#fff;border-color:var(--navy)}}
   .related{{margin-top:36px}}
-  .related a{{display:block;padding:8px 0;border-bottom:1px solid var(--hair);text-decoration:none;color:var(--blue)}}
+  .related h2{{font-size:13px;font-weight:600;letter-spacing:.09em;text-transform:uppercase;color:var(--ink2)}}
+  .related a{{display:block;padding:9px 0;border-bottom:1px solid var(--hair);text-decoration:none;color:var(--blue);font-size:14.5px}}
 </style>
 <script type="application/ld+json">
 {jsonld}
 </script>
 </head>
 <body>
-<div class="indicator-wrap">
-  <p><a href="../{country_slug}.html">&larr; {country_name} overview</a></p>
+{header}
+<main class="indicator-wrap">
+  <p class="indicator-crumb"><a href="../{country_slug}.html">&larr; {country_name} overview</a></p>
   <div class="indicator-hero">
     <span class="indicator-flag">{flag}</span>
     <h1>{country_name} {metric_title}</h1>
   </div>
-  <div class="indicator-latest">{latest_str}</div>
-  <div class="indicator-period">Latest: {latest_period} &middot; Updated {updated}</div>
-  <div class="indicator-chart">{chart_svg}</div>
-  <p class="indicator-desc">{description}</p>
-  <p class="indicator-src">Source: {source}</p>
+
+  <div class="hero" style="margin:0 0 22px;justify-content:flex-start;">
+    <div class="stat" style="max-width:320px;">
+      <p class="label">Latest</p>
+      <p class="figure">{latest_str}</p>
+      <p class="period">{latest_period} &middot; updated {updated}</p>
+    </div>
+  </div>
+
+  <div class="panel">
+    <div class="panelhead"><h2>{metric_title}</h2></div>
+    <p class="range">{first_period} to {latest_period}</p>
+    <div class="chartbox"><canvas id="indicatorChart" role="img" aria-label="{country_name} {metric_title}, {first_period} to {latest_period}"></canvas></div>
+    <p class="src">Source: {source}</p>
+  </div>
+
+  <p style="line-height:1.6;margin:22px 0 0;">{description}</p>
+
   <div class="indicator-links">
     <a class="primary" href="../{country_slug}.html">View full {country_name} data</a>
     <a href="../compare.html">Compare with other countries</a>
     <a href="../embed/{slug}.html">Embed this chart &#8599;</a>
   </div>
+
   <div class="related">
     <h2>Other {country_name} indicators</h2>
     {related_links}
   </div>
-</div>
+</main>
+{footer}
+<script src="https://cdnjs.cloudflare.com/ajax/libs/Chart.js/4.4.1/chart.umd.min.js"></script>
+<script>
+(function(){{
+  var pts = {chart_points};
+  var cs = getComputedStyle(document.documentElement);
+  var INK = cs.getPropertyValue("--ink").trim() || "#171B1E";
+  var INK2 = cs.getPropertyValue("--ink2").trim() || "#5A6167";
+  var HAIR = cs.getPropertyValue("--hair").trim() || "#E7E9E4";
+  var PANEL_BG = cs.getPropertyValue("--panel").trim() || "#fff";
+  var LINE = "#37659E";
+  var canvas = document.getElementById("indicatorChart");
+  new Chart(canvas, {{
+    type: "line",
+    data: {{
+      labels: pts.map(function(p){{return p[0];}}),
+      datasets: [{{
+        data: pts.map(function(p){{return p[1];}}),
+        borderColor: LINE, borderWidth: 2, pointRadius: 0, pointHitRadius: 8, tension: 0.25
+      }}]
+    }},
+    options: {{
+      responsive: true, maintainAspectRatio: false, animation: false,
+      interaction: {{mode: "index", intersect: false}},
+      plugins: {{
+        legend: {{display: false}},
+        tooltip: {{backgroundColor: PANEL_BG, titleColor: INK, bodyColor: INK, borderColor: HAIR, borderWidth: 1, displayColors: false}}
+      }},
+      scales: {{
+        x: {{grid: {{display: false}}, ticks: {{color: INK2, maxTicksLimit: 7, maxRotation: 0}}}},
+        y: {{grid: {{color: HAIR}}, ticks: {{color: INK2, maxTicksLimit: 6}}}}
+      }}
+    }}
+  }});
+}})();
+</script>
 </body>
 </html>
 """
+
 
 EMBED_TEMPLATE = """<!DOCTYPE html>
 <html lang="en">
@@ -243,7 +310,22 @@ EMBED_TEMPLATE = """<!DOCTYPE html>
     var last = pts[pts.length-1];
     var unit = s.unit || "";
     var v = last[1];
-    var vs = (unit.indexOf("%")>-1) ? (v.toFixed(1)+"%") : (Math.abs(v)>=1000 ? v.toLocaleString(undefined,{{maximumFractionDigits:0}}) : v.toLocaleString(undefined,{{maximumFractionDigits:2}})) + (unit && unit.indexOf("%")<0 ? " "+unit : "");
+    function fmtValue(v, unit){{
+      unit = unit || "";
+      if(unit.indexOf("%") > -1) return v.toFixed(1) + "%";
+      var scales = [["bn",1e9],["m",1e6],["k",1e3]], currency = unit, mult = 1;
+      for(var i=0;i<scales.length;i++){{
+        var suf = scales[i][0];
+        if(unit.slice(-suf.length) === suf && unit.length > suf.length){{ currency = unit.slice(0,-suf.length); mult = scales[i][1]; break; }}
+      }}
+      var abs = v * mult;
+      var big = [["tn",1e12],["bn",1e9],["m",1e6],["k",1e3]];
+      for(var j=0;j<big.length;j++){{
+        if(Math.abs(abs) >= big[j][1]) return currency + (abs/big[j][1]).toLocaleString(undefined,{{minimumFractionDigits:2,maximumFractionDigits:2}}) + big[j][0];
+      }}
+      return currency + abs.toLocaleString(undefined,{{minimumFractionDigits:2,maximumFractionDigits:2}});
+    }}
+    var vs = fmtValue(v, unit);
     document.getElementById("val").textContent = vs;
     document.getElementById("per").textContent = "Latest: " + last[0];
     var vals = pts.map(function(p){{return p[1];}}).filter(function(v){{return v!==null;}});
@@ -325,7 +407,8 @@ def main():
             if len(meta_desc) > 300:
                 meta_desc = meta_desc[:297] + "..."
 
-            chart_svg = sparkline_svg(pts[-60:])
+            chart_pts = pts[-200:]  # cap chart payload; still plenty of history for a trend view
+            chart_points_js = sparkline_points_js(chart_pts)
 
             jsonld = json.dumps({
                 "@context": "https://schema.org",
@@ -348,10 +431,11 @@ def main():
             html_out = INDICATOR_TEMPLATE.format(
                 title_tag=esc(title_tag), meta_desc=esc(meta_desc), canonical=canonical,
                 og_title=esc(og_title), og_image=og_image, jsonld=jsonld,
+                header=HEADER_HTML, footer=FOOTER_HTML,
                 country_slug=slug, flag=flag, country_name=esc(country_name),
                 metric_title=esc(metric_title), latest_str=esc(latest_str),
-                latest_period=esc(latest_period), updated=esc(updated),
-                chart_svg=chart_svg, description=esc(description), source=esc(source_text),
+                latest_period=esc(latest_period), first_period=esc(pts[0][0]), updated=esc(updated),
+                chart_points=chart_points_js, description=esc(description), source=esc(source_text),
                 slug=page_slug, related_links=related_links,
             )
             with open(os.path.join(out_indicators, f"{page_slug}.html"), "w", encoding="utf-8") as f:
