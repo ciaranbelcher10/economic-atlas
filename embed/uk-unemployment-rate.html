@@ -4,6 +4,7 @@
 <meta charset="UTF-8">
 <meta name="viewport" content="width=device-width, initial-scale=1.0">
 <title>UK Unemployment Rate - Live | The Economic Atlas</title>
+<link rel="icon" type="image/png" sizes="32x32" href="../favicon-32.png">
 <meta name="robots" content="noindex">
 <style>
   *{box-sizing:border-box}
@@ -68,10 +69,12 @@ if(window.self === window.top){ document.body.classList.add("standalone"); }
       }
       var abs = v * mult;
       var big = [["tn",1e12],["bn",1e9],["m",1e6],["k",1e3]];
+      var out = null;
       for(var j=0;j<big.length;j++){
-        if(Math.abs(abs) >= big[j][1]) return currency + (abs/big[j][1]).toLocaleString(undefined,{minimumFractionDigits:2,maximumFractionDigits:2}) + big[j][0];
+        if(Math.abs(abs) >= big[j][1]){ out = currency + (abs/big[j][1]).toLocaleString(undefined,{minimumFractionDigits:2,maximumFractionDigits:2}) + big[j][0]; break; }
       }
-      return currency + abs.toLocaleString(undefined,{minimumFractionDigits:2,maximumFractionDigits:2});
+      if(out === null) out = currency + abs.toLocaleString(undefined,{minimumFractionDigits:2,maximumFractionDigits:2});
+      return out.replace(/(\.\d*[1-9])0+(?!\d)|\.0+(?!\d)/, function(m, keep){ return keep || ""; });
     }
     var vs = fmtValue(v, unit);
     document.getElementById("val").textContent = vs;

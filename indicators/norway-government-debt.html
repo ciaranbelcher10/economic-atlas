@@ -3,7 +3,7 @@
 <head>
 <meta charset="UTF-8">
 <meta name="viewport" content="width=device-width, initial-scale=1.0">
-<title>Norway Government Debt (% of GDP) — Live Data &amp; History | The Economic Atlas</title>
+<title>Norway Government Debt (% of GDP) · Live Data &amp; History | The Economic Atlas</title>
 <meta name="description" content="Norway government debt: 49.1% as of 2026-Q1. Everything national and local government owes combined, compared with the size of the economy. Norway is an EEA/EFTA member rather than part of the EU, so this uses Eurostat&#x27;s separate quarterly general-government datasets (which explicitly include Nor...">
 <link rel="canonical" href="https://theeconomicatlas.com/indicators/norway-government-debt">
 <meta property="og:type" content="website">
@@ -15,13 +15,14 @@
 <meta name="twitter:title" content="Norway Government Debt (% of GDP): 49.1%">
 <meta name="twitter:description" content="Norway government debt: 49.1% as of 2026-Q1. Everything national and local government owes combined, compared with the size of the economy. Norway is an EEA/EFTA member rather than part of the EU, so this uses Eurostat&#x27;s separate quarterly general-government datasets (which explicitly include Nor...">
 <meta name="twitter:image" content="https://theeconomicatlas.com/og/norway-government-debt.png">
+<link rel="icon" type="image/png" sizes="32x32" href="../favicon-32.png">
+<link rel="apple-touch-icon" href="../apple-touch-icon.png">
 <link rel="stylesheet" href="../style.css?v=51">
 <style>
   .indicator-wrap{max-width:760px;margin:0 auto;padding:32px 24px 64px}
   .indicator-crumb{font-size:13px;margin-bottom:18px}
   .indicator-crumb a{color:var(--blue)}
   .indicator-hero{display:flex;align-items:baseline;gap:12px;flex-wrap:wrap;margin-bottom:18px}
-  .indicator-flag{font-size:1.8rem;line-height:1}
   .indicator-hero h1{font-size:22px;font-weight:700;margin:0}
   .indicator-links{display:flex;gap:12px;flex-wrap:wrap;margin-top:24px}
   .indicator-links a{display:inline-block;padding:10px 18px;border-radius:8px;border:1px solid var(--hair);text-decoration:none;color:var(--ink);font-weight:600;font-size:14px}
@@ -69,32 +70,182 @@
 })();</script>
 <nav class="top"><div class="wrap">
  <a class="brand" href="../index"><img src="../logo-64.png" alt="" width="26" height="26" style="display:block;border-radius:50%;background:#fff;padding:1px;">The Economic Atlas</a>
+ <button type="button" class="navtoggle" id="navToggle" aria-label="Menu" aria-expanded="false" aria-controls="navLinks">
+ <span></span><span></span><span></span>
+ </button>
  <div class="navlinks" id="navLinks">
- <a href="../compare" style="text-decoration:none;color:inherit;font-weight:600;padding:8px 12px;">Compare</a>
- <a href="../contact" style="text-decoration:none;color:inherit;font-weight:600;padding:8px 12px;">Contact</a>
+ <div class="dropdown">
+ <button type="button" class="dropbtn" id="aboutBtn" aria-haspopup="true" aria-expanded="false">About <span class="caret">&#9662;</span></button>
+ <div class="dropdown-panel" id="aboutPanel">
+ <div class="dcol">
+ <a href="../contact">Contact</a>
+ <a href="../methodology">Methodology</a>
+ </div>
+ </div>
+ </div>
+ <button type="button" class="authbtn" id="authBtn">Log in</button>
  <button type="button" class="theme-toggle" id="themeToggle" aria-label="Switch to dark mode" title="Switch to dark mode">&#127769;</button>
  </div>
 </div></nav>
+<nav class="sub"><div class="wrap">
+ <div class="dropdown">
+ <button type="button" class="dropbtn" id="macroBtn" aria-haspopup="true" aria-expanded="false">Country Breakdowns <span class="caret">&#9662;</span></button>
+ <div class="dropdown-panel" id="macroPanel">
+ <div class="doverview">
+ <a href="../index">Overview</a>
+ </div>
+ <div class="dcol">
+ <p class="dhead">Europe</p>
+ <a href="../austria">Austria</a>
+ <a href="../eurozone">Eurozone</a>
+ <a href="../france">France</a>
+ <a href="../germany">Germany</a>
+ <a href="../ireland">Ireland</a>
+ <a href="../italy">Italy</a>
+ <a href="../netherlands">Netherlands</a>
+ <a href="../poland">Poland</a>
+ <a href="../spain">Spain</a>
+ <a href="../switzerland">Switzerland</a>
+ <a href="../turkey">Turkey</a>
+ <a href="../uk">UK</a>
+ </div>
+ <div class="dcol">
+ <p class="dhead">North America</p>
+ <a href="../canada">Canada</a>
+ <a href="../mexico">Mexico</a>
+ <a href="../us">U.S.</a>
+ </div>
+ <div class="dcol">
+ <p class="dhead">Asia</p>
+ <a href="../india">India</a>
+ <a href="../indonesia">Indonesia</a>
+ <a href="../japan">Japan</a>
+ <a href="../singapore">Singapore</a>
+ <a href="../southkorea">South Korea</a>
+ <a href="../thailand">Thailand</a>
+ </div>
+ <div class="dcol">
+ <p class="dhead">Oceania</p>
+ <a href="../australia">Australia</a>
+ </div>
+ <div class="dcol">
+ <p class="dhead">Middle East</p>
+ <a href="../israel">Israel</a>
+ </div>
+ <div class="dcol">
+ <p class="dhead">South America</p>
+ <a href="../argentina">Argentina</a>
+ <a href="../brazil">Brazil</a>
+ <a href="../chile">Chile</a>
+ <a href="../colombia">Colombia</a>
+ </div>
+ <div class="dcol">
+ <p class="dhead">Africa</p>
+ <a href="../morocco">Morocco</a>
+ <a href="../southafrica">South Africa</a>
+ </div>
+ <div class="dcol">
+ <p class="dhead">Scandinavia</p>
+ <a href="../denmark">Denmark</a>
+ <a href="../norway" class="active">Norway</a>
+ <a href="../sweden">Sweden</a>
+ </div>
+ </div>
+ </div>
+ <a class="item" href="../compare">Compare</a>
+ <a class="item" href="../dashboard">My Dashboard</a>
+ <a class="item" href="../chartmaker" id="navChartmakerLink">Chartmaker</a>
+ <a class="item" href="../calendar" id="navCalendarLink">Calendar</a>
+</div></nav>
+<script>
+(function(){
+  // Shared toggle behaviour for any nav dropdown -- originally written
+  // just for Country Breakdowns, now reused for About too rather than
+  // duplicating the same open/close/outside-click/Escape logic twice.
+  function wireDropdown(btnId, panelId){
+    var btn = document.getElementById(btnId);
+    var panel = document.getElementById(panelId);
+    if(!btn || !panel) return;
+    function close(){
+      panel.classList.remove("open"); btn.classList.remove("open");
+      btn.setAttribute("aria-expanded","false");
+    }
+    btn.addEventListener("click", function(e){
+      e.stopPropagation();
+      var isOpen = panel.classList.toggle("open");
+      btn.classList.toggle("open", isOpen);
+      btn.setAttribute("aria-expanded", isOpen ? "true" : "false");
+    });
+    document.addEventListener("click", function(e){
+      if(!panel.contains(e.target) && e.target !== btn) close();
+    });
+    document.addEventListener("keydown", function(e){ if(e.key === "Escape") close(); });
+  }
+  wireDropdown("macroBtn", "macroPanel");
+  wireDropdown("aboutBtn", "aboutPanel");
+  // Mobile hamburger menu -- independent of the country-breakdown
+  // dropdown above (which still works exactly the same way, just
+  // nested inside this menu once it's open on narrow screens).
+  var navToggle = document.getElementById("navToggle");
+  var navLinks = document.getElementById("navLinks");
+  function closeNavMenu(){
+    navLinks.classList.remove("open");
+    navToggle.classList.remove("open");
+    navToggle.setAttribute("aria-expanded", "false");
+  }
+  navToggle.addEventListener("click", function(e){
+    e.stopPropagation();
+    var isOpen = navLinks.classList.toggle("open");
+    navToggle.classList.toggle("open", isOpen);
+    navToggle.setAttribute("aria-expanded", isOpen ? "true" : "false");
+  });
+  document.addEventListener("click", function(e){
+    if(!navLinks.contains(e.target) && e.target !== navToggle) closeNavMenu();
+  });
+  document.addEventListener("keydown", function(e){ if(e.key === "Escape") closeNavMenu(); });
+  var themeBtn = document.getElementById("themeToggle");
+  function updateThemeIcon(){
+    var isDark = document.documentElement.getAttribute("data-theme") === "dark";
+    themeBtn.innerHTML = isDark ? "&#9728;&#65039;" : "&#127769;";
+    themeBtn.setAttribute("aria-label", isDark ? "Switch to light mode" : "Switch to dark mode");
+    themeBtn.setAttribute("title", isDark ? "Switch to light mode" : "Switch to dark mode");
+  }
+  if(themeBtn){
+    updateThemeIcon();
+    themeBtn.addEventListener("click", function(){
+      var isDark = document.documentElement.getAttribute("data-theme") === "dark";
+      if(isDark){
+        document.documentElement.removeAttribute("data-theme");
+        try{ localStorage.setItem("eatlas_theme", "light"); }catch(e){}
+      } else {
+        document.documentElement.setAttribute("data-theme", "dark");
+        try{ localStorage.setItem("eatlas_theme", "dark"); }catch(e){}
+      }
+      updateThemeIcon();
+    });
+  }
+})();
+</script>
 
 <main class="indicator-wrap">
   <p class="indicator-crumb"><a href="../norway">&larr; Norway overview</a></p>
   <div class="indicator-hero">
-    <span class="indicator-flag">🇳🇴</span>
     <h1>Norway Government Debt (% of GDP)</h1>
   </div>
 
   <div class="hero" style="margin:0 0 22px;justify-content:flex-start;">
     <div class="stat" style="max-width:320px;">
       <p class="label">Latest</p>
-      <p class="figure">49.1%</p>
-      <p class="period">2026-Q1 &middot; updated 2026-09-07</p>
+      <p class="figure"><span class="led orange" title="Awaiting next release · last data Q1 2026" role="img" aria-label="Awaiting next release · last data Q1 2026"></span>49.1%</p>
+      <p class="delta good"><span class="arrow" aria-hidden="true">▲</span> −5.3pp vs prior</p>
+      <p class="period">Q1 2026 &middot; updated 2026-09-07</p>
     </div>
   </div>
 
   <div class="panel indicator-panel">
     <div class="panelhead"><h2>Government Debt (% of GDP)</h2></div>
-    <p class="range">2000-Q1 to 2026-Q1</p>
-    <div class="indicator-chart-outer"><canvas id="indicatorChart" role="img" aria-label="Norway Government Debt (% of GDP), 2000-Q1 to 2026-Q1"></canvas></div>
+    <p class="range">Q1 2000 to Q1 2026</p>
+    <div class="indicator-chart-outer"><canvas id="indicatorChart" role="img" aria-label="Norway Government Debt (% of GDP), Q1 2000 to Q1 2026"></canvas></div>
     <p class="src">Source: Eurostat gov_10q_ggdebt/gov_10q_ggnfa · general government, % of GDP, quarterly.</p>
   </div>
 
@@ -134,6 +285,7 @@
 <script>
 (function(){
   var pts = [["2000-Q1", 24.0], ["2000-Q2", 23.5], ["2000-Q3", 25.1], ["2000-Q4", 28.7], ["2001-Q1", 29.3], ["2001-Q2", 25.4], ["2001-Q3", 26.6], ["2001-Q4", 27.2], ["2002-Q1", 27.9], ["2002-Q2", 27.9], ["2002-Q3", 30.4], ["2002-Q4", 33.8], ["2003-Q1", 37.3], ["2003-Q2", 41.4], ["2003-Q3", 39.8], ["2003-Q4", 41.8], ["2004-Q1", 42.0], ["2004-Q2", 47.0], ["2004-Q3", 47.1], ["2004-Q4", 42.9], ["2005-Q1", 43.1], ["2005-Q2", 41.4], ["2005-Q3", 42.3], ["2005-Q4", 41.4], ["2006-Q1", 40.8], ["2006-Q2", 43.3], ["2006-Q3", 46.9], ["2006-Q4", 51.8], ["2007-Q1", 49.4], ["2007-Q2", 47.8], ["2007-Q3", 50.0], ["2007-Q4", 48.7], ["2008-Q1", 41.4], ["2008-Q2", 39.3], ["2008-Q3", 41.6], ["2008-Q4", 46.3], ["2009-Q1", 43.3], ["2009-Q2", 41.9], ["2009-Q3", 44.1], ["2009-Q4", 41.3], ["2010-Q1", 40.8], ["2010-Q2", 41.9], ["2010-Q3", 41.6], ["2010-Q4", 41.7], ["2011-Q1", 41.4], ["2011-Q2", 40.1], ["2011-Q3", 37.2], ["2011-Q4", 28.2], ["2012-Q1", 29.8], ["2012-Q2", 28.6], ["2012-Q3", 29.1], ["2012-Q4", 29.2], ["2013-Q1", 31.0], ["2013-Q2", 31.1], ["2013-Q3", 30.3], ["2013-Q4", 29.9], ["2014-Q1", 29.3], ["2014-Q2", 27.6], ["2014-Q3", 26.9], ["2014-Q4", 27.6], ["2015-Q1", 29.5], ["2015-Q2", 29.5], ["2015-Q3", 31.2], ["2015-Q4", 32.1], ["2016-Q1", 33.1], ["2016-Q2", 35.5], ["2016-Q3", 35.3], ["2016-Q4", 35.8], ["2017-Q1", 37.1], ["2017-Q2", 36.1], ["2017-Q3", 35.3], ["2017-Q4", 36.1], ["2018-Q1", 36.4], ["2018-Q2", 35.4], ["2018-Q3", 33.9], ["2018-Q4", 37.5], ["2019-Q1", 34.6], ["2019-Q2", 33.8], ["2019-Q3", 33.5], ["2019-Q4", 38.4], ["2020-Q1", 39.3], ["2020-Q2", 38.9], ["2020-Q3", 38.7], ["2020-Q4", 43.4], ["2021-Q1", 40.7], ["2021-Q2", 36.2], ["2021-Q3", 35.0], ["2021-Q4", 39.8], ["2022-Q1", 33.1], ["2022-Q2", 32.8], ["2022-Q3", 32.7], ["2022-Q4", 35.1], ["2023-Q1", 31.8], ["2023-Q2", 30.9], ["2023-Q3", 34.2], ["2023-Q4", 42.7], ["2024-Q1", 40.7], ["2024-Q2", 41.9], ["2024-Q3", 40.8], ["2024-Q4", 53.2], ["2025-Q1", 43.6], ["2025-Q2", 41.8], ["2025-Q3", 41.8], ["2025-Q4", 54.4], ["2026-Q1", 49.1]];
+  var unit = "%";
   var cs = getComputedStyle(document.documentElement);
   var INK = cs.getPropertyValue("--ink").trim() || "#171B1E";
   var INK2 = cs.getPropertyValue("--ink2").trim() || "#5A6167";
@@ -141,6 +293,22 @@
   var PANEL_BG = cs.getPropertyValue("--panel").trim() || "#fff";
   var LINE = "#37659E";
   var FONT = {family: "'Avenir Next','Nunito Sans',sans-serif", size: 11.5};
+  function curFmt(raw, decimals){
+    if(unit.indexOf("%") > -1) return raw.toFixed(1) + "%";
+    var scales = [["bn",1e9],["m",1e6],["k",1e3]], symbol = unit, mult = 1;
+    for(var i=0;i<scales.length;i++){
+      var suf = scales[i][0];
+      if(unit.slice(-suf.length) === suf && unit.length > suf.length){ symbol = unit.slice(0,-suf.length); mult = scales[i][1]; break; }
+    }
+    var a = Math.abs(raw) * mult, sign = raw < 0 ? "\u2212" : "";
+    if(a >= 1e12) return sign + symbol + (a/1e12).toFixed(decimals) + "tn";
+    if(a >= 1e9) return sign + symbol + (a/1e9).toFixed(decimals) + "bn";
+    return sign + symbol + (a/1e6).toFixed(0) + "m";
+  }
+  function yearOf(label){
+    var m = /^(\d{4})/.exec(label);
+    return m ? m[1] : label;
+  }
   var canvas = document.getElementById("indicatorChart");
   new Chart(canvas, {
     type: "line",
@@ -158,12 +326,15 @@
         legend: {display: false},
         tooltip: {
           backgroundColor: PANEL_BG, titleColor: INK, bodyColor: INK, borderColor: HAIR, borderWidth: 1,
-          titleFont: {family: FONT.family, weight: "600"}, bodyFont: {family: FONT.family}, displayColors: false
+          titleFont: {family: FONT.family, weight: "600"}, bodyFont: {family: FONT.family}, displayColors: false,
+          callbacks: { label: function(ctx){ return curFmt(ctx.parsed.y, 2); } }
         }
       },
       scales: {
-        x: {grid: {display: false}, border: {color: HAIR}, ticks: {color: INK2, font: FONT, maxTicksLimit: 7, maxRotation: 0}},
-        y: {grid: {color: HAIR}, border: {display: false}, ticks: {color: INK2, font: FONT, maxTicksLimit: 6}}
+        x: {grid: {display: false}, border: {color: HAIR}, ticks: {color: INK2, font: FONT, maxTicksLimit: 7, maxRotation: 0,
+             callback: function(v){ return yearOf(this.getLabelForValue(v)); } }},
+        y: {grid: {color: HAIR}, border: {display: false}, ticks: {color: INK2, font: FONT, maxTicksLimit: 6,
+             callback: function(v){ return curFmt(v, 1); } }}
       }
     }
   });

@@ -3,7 +3,7 @@
 <head>
 <meta charset="UTF-8">
 <meta name="viewport" content="width=device-width, initial-scale=1.0">
-<title>Switzerland Inflation Rate (CPI) — Live Data &amp; History | The Economic Atlas</title>
+<title>Switzerland Inflation Rate (CPI) · Live Data &amp; History | The Economic Atlas</title>
 <meta name="description" content="Switzerland inflation rate: 0.4% as of 2026-07. How much consumer prices are rising compared with a year ago.">
 <link rel="canonical" href="https://theeconomicatlas.com/indicators/switzerland-inflation-rate">
 <meta property="og:type" content="website">
@@ -15,13 +15,14 @@
 <meta name="twitter:title" content="Switzerland Inflation Rate (CPI): 0.4%">
 <meta name="twitter:description" content="Switzerland inflation rate: 0.4% as of 2026-07. How much consumer prices are rising compared with a year ago.">
 <meta name="twitter:image" content="https://theeconomicatlas.com/og/switzerland-inflation-rate.png">
+<link rel="icon" type="image/png" sizes="32x32" href="../favicon-32.png">
+<link rel="apple-touch-icon" href="../apple-touch-icon.png">
 <link rel="stylesheet" href="../style.css?v=51">
 <style>
   .indicator-wrap{max-width:760px;margin:0 auto;padding:32px 24px 64px}
   .indicator-crumb{font-size:13px;margin-bottom:18px}
   .indicator-crumb a{color:var(--blue)}
   .indicator-hero{display:flex;align-items:baseline;gap:12px;flex-wrap:wrap;margin-bottom:18px}
-  .indicator-flag{font-size:1.8rem;line-height:1}
   .indicator-hero h1{font-size:22px;font-weight:700;margin:0}
   .indicator-links{display:flex;gap:12px;flex-wrap:wrap;margin-top:24px}
   .indicator-links a{display:inline-block;padding:10px 18px;border-radius:8px;border:1px solid var(--hair);text-decoration:none;color:var(--ink);font-weight:600;font-size:14px}
@@ -69,32 +70,182 @@
 })();</script>
 <nav class="top"><div class="wrap">
  <a class="brand" href="../index"><img src="../logo-64.png" alt="" width="26" height="26" style="display:block;border-radius:50%;background:#fff;padding:1px;">The Economic Atlas</a>
+ <button type="button" class="navtoggle" id="navToggle" aria-label="Menu" aria-expanded="false" aria-controls="navLinks">
+ <span></span><span></span><span></span>
+ </button>
  <div class="navlinks" id="navLinks">
- <a href="../compare" style="text-decoration:none;color:inherit;font-weight:600;padding:8px 12px;">Compare</a>
- <a href="../contact" style="text-decoration:none;color:inherit;font-weight:600;padding:8px 12px;">Contact</a>
+ <div class="dropdown">
+ <button type="button" class="dropbtn" id="aboutBtn" aria-haspopup="true" aria-expanded="false">About <span class="caret">&#9662;</span></button>
+ <div class="dropdown-panel" id="aboutPanel">
+ <div class="dcol">
+ <a href="../contact">Contact</a>
+ <a href="../methodology">Methodology</a>
+ </div>
+ </div>
+ </div>
+ <button type="button" class="authbtn" id="authBtn">Log in</button>
  <button type="button" class="theme-toggle" id="themeToggle" aria-label="Switch to dark mode" title="Switch to dark mode">&#127769;</button>
  </div>
 </div></nav>
+<nav class="sub"><div class="wrap">
+ <div class="dropdown">
+ <button type="button" class="dropbtn" id="macroBtn" aria-haspopup="true" aria-expanded="false">Country Breakdowns <span class="caret">&#9662;</span></button>
+ <div class="dropdown-panel" id="macroPanel">
+ <div class="doverview">
+ <a href="../index">Overview</a>
+ </div>
+ <div class="dcol">
+ <p class="dhead">Europe</p>
+ <a href="../austria">Austria</a>
+ <a href="../eurozone">Eurozone</a>
+ <a href="../france">France</a>
+ <a href="../germany">Germany</a>
+ <a href="../ireland">Ireland</a>
+ <a href="../italy">Italy</a>
+ <a href="../netherlands">Netherlands</a>
+ <a href="../poland">Poland</a>
+ <a href="../spain">Spain</a>
+ <a href="../switzerland" class="active">Switzerland</a>
+ <a href="../turkey">Turkey</a>
+ <a href="../uk">UK</a>
+ </div>
+ <div class="dcol">
+ <p class="dhead">North America</p>
+ <a href="../canada">Canada</a>
+ <a href="../mexico">Mexico</a>
+ <a href="../us">U.S.</a>
+ </div>
+ <div class="dcol">
+ <p class="dhead">Asia</p>
+ <a href="../india">India</a>
+ <a href="../indonesia">Indonesia</a>
+ <a href="../japan">Japan</a>
+ <a href="../singapore">Singapore</a>
+ <a href="../southkorea">South Korea</a>
+ <a href="../thailand">Thailand</a>
+ </div>
+ <div class="dcol">
+ <p class="dhead">Oceania</p>
+ <a href="../australia">Australia</a>
+ </div>
+ <div class="dcol">
+ <p class="dhead">Middle East</p>
+ <a href="../israel">Israel</a>
+ </div>
+ <div class="dcol">
+ <p class="dhead">South America</p>
+ <a href="../argentina">Argentina</a>
+ <a href="../brazil">Brazil</a>
+ <a href="../chile">Chile</a>
+ <a href="../colombia">Colombia</a>
+ </div>
+ <div class="dcol">
+ <p class="dhead">Africa</p>
+ <a href="../morocco">Morocco</a>
+ <a href="../southafrica">South Africa</a>
+ </div>
+ <div class="dcol">
+ <p class="dhead">Scandinavia</p>
+ <a href="../denmark">Denmark</a>
+ <a href="../norway">Norway</a>
+ <a href="../sweden">Sweden</a>
+ </div>
+ </div>
+ </div>
+ <a class="item" href="../compare">Compare</a>
+ <a class="item" href="../dashboard">My Dashboard</a>
+ <a class="item" href="../chartmaker" id="navChartmakerLink">Chartmaker</a>
+ <a class="item" href="../calendar" id="navCalendarLink">Calendar</a>
+</div></nav>
+<script>
+(function(){
+  // Shared toggle behaviour for any nav dropdown -- originally written
+  // just for Country Breakdowns, now reused for About too rather than
+  // duplicating the same open/close/outside-click/Escape logic twice.
+  function wireDropdown(btnId, panelId){
+    var btn = document.getElementById(btnId);
+    var panel = document.getElementById(panelId);
+    if(!btn || !panel) return;
+    function close(){
+      panel.classList.remove("open"); btn.classList.remove("open");
+      btn.setAttribute("aria-expanded","false");
+    }
+    btn.addEventListener("click", function(e){
+      e.stopPropagation();
+      var isOpen = panel.classList.toggle("open");
+      btn.classList.toggle("open", isOpen);
+      btn.setAttribute("aria-expanded", isOpen ? "true" : "false");
+    });
+    document.addEventListener("click", function(e){
+      if(!panel.contains(e.target) && e.target !== btn) close();
+    });
+    document.addEventListener("keydown", function(e){ if(e.key === "Escape") close(); });
+  }
+  wireDropdown("macroBtn", "macroPanel");
+  wireDropdown("aboutBtn", "aboutPanel");
+  // Mobile hamburger menu -- independent of the country-breakdown
+  // dropdown above (which still works exactly the same way, just
+  // nested inside this menu once it's open on narrow screens).
+  var navToggle = document.getElementById("navToggle");
+  var navLinks = document.getElementById("navLinks");
+  function closeNavMenu(){
+    navLinks.classList.remove("open");
+    navToggle.classList.remove("open");
+    navToggle.setAttribute("aria-expanded", "false");
+  }
+  navToggle.addEventListener("click", function(e){
+    e.stopPropagation();
+    var isOpen = navLinks.classList.toggle("open");
+    navToggle.classList.toggle("open", isOpen);
+    navToggle.setAttribute("aria-expanded", isOpen ? "true" : "false");
+  });
+  document.addEventListener("click", function(e){
+    if(!navLinks.contains(e.target) && e.target !== navToggle) closeNavMenu();
+  });
+  document.addEventListener("keydown", function(e){ if(e.key === "Escape") closeNavMenu(); });
+  var themeBtn = document.getElementById("themeToggle");
+  function updateThemeIcon(){
+    var isDark = document.documentElement.getAttribute("data-theme") === "dark";
+    themeBtn.innerHTML = isDark ? "&#9728;&#65039;" : "&#127769;";
+    themeBtn.setAttribute("aria-label", isDark ? "Switch to light mode" : "Switch to dark mode");
+    themeBtn.setAttribute("title", isDark ? "Switch to light mode" : "Switch to dark mode");
+  }
+  if(themeBtn){
+    updateThemeIcon();
+    themeBtn.addEventListener("click", function(){
+      var isDark = document.documentElement.getAttribute("data-theme") === "dark";
+      if(isDark){
+        document.documentElement.removeAttribute("data-theme");
+        try{ localStorage.setItem("eatlas_theme", "light"); }catch(e){}
+      } else {
+        document.documentElement.setAttribute("data-theme", "dark");
+        try{ localStorage.setItem("eatlas_theme", "dark"); }catch(e){}
+      }
+      updateThemeIcon();
+    });
+  }
+})();
+</script>
 
 <main class="indicator-wrap">
   <p class="indicator-crumb"><a href="../switzerland">&larr; Switzerland overview</a></p>
   <div class="indicator-hero">
-    <span class="indicator-flag">🇨🇭</span>
     <h1>Switzerland Inflation Rate (CPI)</h1>
   </div>
 
   <div class="hero" style="margin:0 0 22px;justify-content:flex-start;">
     <div class="stat" style="max-width:320px;">
       <p class="label">Latest</p>
-      <p class="figure">0.4%</p>
-      <p class="period">2026-07 &middot; updated 2026-09-07</p>
+      <p class="figure"><span class="led green" title="Updated on schedule" role="img" aria-label="Updated on schedule"></span>0.4%</p>
+      <p class="delta good"><span class="arrow" aria-hidden="true">▲</span> −0.1pp vs prior</p>
+      <p class="period">Jul 2026 &middot; updated 2026-09-07</p>
     </div>
   </div>
 
   <div class="panel indicator-panel">
     <div class="panelhead"><h2>Inflation Rate (CPI)</h2></div>
-    <p class="range">2015-01 to 2026-07</p>
-    <div class="indicator-chart-outer"><canvas id="indicatorChart" role="img" aria-label="Switzerland Inflation Rate (CPI), 2015-01 to 2026-07"></canvas></div>
+    <p class="range">Jan 2015 to Jul 2026</p>
+    <div class="indicator-chart-outer"><canvas id="indicatorChart" role="img" aria-label="Switzerland Inflation Rate (CPI), Jan 2015 to Jul 2026"></canvas></div>
     <p class="src">Source: OECD live prices system · CPI, all items, year on year.</p>
   </div>
 
@@ -134,6 +285,7 @@
 <script>
 (function(){
   var pts = [["2015-01", -0.485236], ["2015-02", -0.8396314], ["2015-03", -0.8747285], ["2015-04", -1.122607], ["2015-05", -1.1819], ["2015-06", -1.037357], ["2015-07", -1.275919], ["2015-08", -1.402394], ["2015-09", -1.443719], ["2015-10", -1.35989], ["2015-11", -1.392514], ["2015-12", -1.30844], ["2016-01", -1.266632], ["2016-02", -0.8285199], ["2016-03", -0.8607603], ["2016-04", -0.351908], ["2016-05", -0.4399312], ["2016-06", -0.3740938], ["2016-07", -0.2029118], ["2016-08", -0.1431266], ["2016-09", -0.1814434], ["2016-10", -0.2127422], ["2016-11", -0.3383557], ["2016-12", -0.006687181], ["2017-01", 0.3488727], ["2017-02", 0.6460894], ["2017-03", 0.5679026], ["2017-04", 0.4377867], ["2017-05", 0.4794131], ["2017-06", 0.1972813], ["2017-07", 0.3292995], ["2017-08", 0.4627321], ["2017-09", 0.6519727], ["2017-10", 0.6608853], ["2017-11", 0.7871113], ["2017-12", 0.8386502], ["2018-01", 0.7402068], ["2018-02", 0.6280893], ["2018-03", 0.7953959], ["2018-04", 0.8031029], ["2018-05", 0.9991888], ["2018-06", 1.146511], ["2018-07", 1.230311], ["2018-08", 1.181033], ["2018-09", 0.9895877], ["2018-10", 1.106533], ["2018-11", 0.9220148], ["2018-12", 0.6915474], ["2019-01", 0.5600732], ["2019-02", 0.5786022], ["2019-03", 0.7289493], ["2019-04", 0.7081229], ["2019-05", 0.6343127], ["2019-06", 0.6003636], ["2019-07", 0.3117307], ["2019-08", 0.3179261], ["2019-09", 0.1482277], ["2019-10", -0.2531282], ["2019-11", -0.1311791], ["2019-12", 0.1557379], ["2020-01", 0.2022672], ["2020-02", -0.06217454], ["2020-03", -0.515131], ["2020-04", -1.06309], ["2020-05", -1.324585], ["2020-06", -1.274764], ["2020-07", -0.9198259], ["2020-08", -0.8661666], ["2020-09", -0.7998791], ["2020-10", -0.5702685], ["2020-11", -0.6847672], ["2020-12", -0.8137541], ["2021-01", -0.5442432], ["2021-02", -0.5040757], ["2021-03", -0.2451612], ["2021-04", 0.3278266], ["2021-05", 0.5509733], ["2021-06", 0.6044865], ["2021-07", 0.6787692], ["2021-08", 0.8816176], ["2021-09", 0.942422], ["2021-10", 1.241816], ["2021-11", 1.532814], ["2021-12", 1.531035], ["2022-01", 1.648718], ["2022-02", 2.150828], ["2022-03", 2.386173], ["2022-04", 2.548141], ["2022-05", 2.942462], ["2022-06", 3.384922], ["2022-07", 3.43342], ["2022-08", 3.452147], ["2022-09", 3.252426], ["2022-10", 2.995989], ["2022-11", 2.960215], ["2022-12", 2.840423], ["2023-01", 3.282541], ["2023-02", 3.371875], ["2023-03", 2.945246], ["2023-04", 2.565336], ["2023-05", 2.158779], ["2023-06", 1.710809], ["2023-07", 1.605125], ["2023-08", 1.554256], ["2023-09", 1.654744], ["2023-10", 1.693511], ["2023-11", 1.443684], ["2023-12", 1.714761], ["2024-01", 1.278656], ["2024-02", 1.168439], ["2024-03", 1.044971], ["2024-04", 1.36778], ["2024-05", 1.39002], ["2024-06", 1.328084], ["2024-07", 1.290587], ["2024-08", 1.060382], ["2024-09", 0.8429235], ["2024-10", 0.6228701], ["2024-11", 0.7306594], ["2024-12", 0.6263927], ["2025-01", 0.4015717], ["2025-02", 0.3247188], ["2025-03", 0.3422917], ["2025-04", 0.03434028], ["2025-05", -0.09976236], ["2025-06", 0.07792197], ["2025-07", 0.2179756], ["2025-08", 0.152167], ["2025-09", 0.2244302], ["2025-10", 0.0959782], ["2025-11", 0.02120174], ["2025-12", 0.06323997], ["2026-01", 0.05806759], ["2026-02", 0.1307216], ["2026-03", 0.3146541], ["2026-04", 0.6018929], ["2026-05", 0.6158652], ["2026-06", 0.4511988], ["2026-07", 0.3542338]];
+  var unit = "%";
   var cs = getComputedStyle(document.documentElement);
   var INK = cs.getPropertyValue("--ink").trim() || "#171B1E";
   var INK2 = cs.getPropertyValue("--ink2").trim() || "#5A6167";
@@ -141,6 +293,25 @@
   var PANEL_BG = cs.getPropertyValue("--panel").trim() || "#fff";
   var LINE = "#37659E";
   var FONT = {family: "'Avenir Next','Nunito Sans',sans-serif", size: 11.5};
+  function curFmt(raw, decimals){
+    if(unit.indexOf("%") > -1) return raw.toFixed(1) + "%";
+    var scales = [["bn",1e9],["m",1e6],["k",1e3]], symbol = unit, mult = 1;
+    for(var i=0;i<scales.length;i++){
+      var suf = scales[i][0];
+      if(unit.slice(-suf.length) === suf && unit.length > suf.length){ symbol = unit.slice(0,-suf.length); mult = scales[i][1]; break; }
+    }
+    var a = Math.abs(raw) * mult, sign = raw < 0 ? "\u2212" : "";
+    var out;
+    if(a >= 1e12) out = sign + symbol + (a/1e12).toFixed(decimals) + "tn";
+    else if(a >= 1e9) out = sign + symbol + (a/1e9).toFixed(decimals) + "bn";
+    else out = sign + symbol + (a/1e6).toFixed(0) + "m";
+    // Same trim as the site's own czTrimAxisZeros / curFmt: no unnecessary trailing zeros.
+    return out.replace(/(\.\d*[1-9])0+(?!\d)|\.0+(?!\d)/, function(m, keep){ return keep || ""; });
+  }
+  function yearOf(label){
+    var m = /^(\d{4})/.exec(label);
+    return m ? m[1] : label;
+  }
   var canvas = document.getElementById("indicatorChart");
   new Chart(canvas, {
     type: "line",
@@ -158,12 +329,15 @@
         legend: {display: false},
         tooltip: {
           backgroundColor: PANEL_BG, titleColor: INK, bodyColor: INK, borderColor: HAIR, borderWidth: 1,
-          titleFont: {family: FONT.family, weight: "600"}, bodyFont: {family: FONT.family}, displayColors: false
+          titleFont: {family: FONT.family, weight: "600"}, bodyFont: {family: FONT.family}, displayColors: false,
+          callbacks: { label: function(ctx){ return curFmt(ctx.parsed.y, 2); } }
         }
       },
       scales: {
-        x: {grid: {display: false}, border: {color: HAIR}, ticks: {color: INK2, font: FONT, maxTicksLimit: 7, maxRotation: 0}},
-        y: {grid: {color: HAIR}, border: {display: false}, ticks: {color: INK2, font: FONT, maxTicksLimit: 6}}
+        x: {grid: {display: false}, border: {color: HAIR}, ticks: {color: INK2, font: FONT, maxTicksLimit: 7, maxRotation: 0,
+             callback: function(v){ return yearOf(this.getLabelForValue(v)); } }},
+        y: {grid: {color: HAIR}, border: {display: false}, ticks: {color: INK2, font: FONT, maxTicksLimit: 6,
+             callback: function(v){ return curFmt(v, 1); } }}
       }
     }
   });

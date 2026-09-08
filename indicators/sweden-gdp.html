@@ -3,7 +3,7 @@
 <head>
 <meta charset="UTF-8">
 <meta name="viewport" content="width=device-width, initial-scale=1.0">
-<title>Sweden GDP — Live Data &amp; History | The Economic Atlas</title>
+<title>Sweden GDP · Live Data &amp; History | The Economic Atlas</title>
 <meta name="description" content="Sweden gdp: SEK6.79tn as of 2026-Q2. The total value of everything Sweden produces in a year, at current prices, on a rolling four-quarter basis.">
 <link rel="canonical" href="https://theeconomicatlas.com/indicators/sweden-gdp">
 <meta property="og:type" content="website">
@@ -15,13 +15,14 @@
 <meta name="twitter:title" content="Sweden GDP: SEK6.79tn">
 <meta name="twitter:description" content="Sweden gdp: SEK6.79tn as of 2026-Q2. The total value of everything Sweden produces in a year, at current prices, on a rolling four-quarter basis.">
 <meta name="twitter:image" content="https://theeconomicatlas.com/og/sweden-gdp.png">
+<link rel="icon" type="image/png" sizes="32x32" href="../favicon-32.png">
+<link rel="apple-touch-icon" href="../apple-touch-icon.png">
 <link rel="stylesheet" href="../style.css?v=51">
 <style>
   .indicator-wrap{max-width:760px;margin:0 auto;padding:32px 24px 64px}
   .indicator-crumb{font-size:13px;margin-bottom:18px}
   .indicator-crumb a{color:var(--blue)}
   .indicator-hero{display:flex;align-items:baseline;gap:12px;flex-wrap:wrap;margin-bottom:18px}
-  .indicator-flag{font-size:1.8rem;line-height:1}
   .indicator-hero h1{font-size:22px;font-weight:700;margin:0}
   .indicator-links{display:flex;gap:12px;flex-wrap:wrap;margin-top:24px}
   .indicator-links a{display:inline-block;padding:10px 18px;border-radius:8px;border:1px solid var(--hair);text-decoration:none;color:var(--ink);font-weight:600;font-size:14px}
@@ -69,32 +70,182 @@
 })();</script>
 <nav class="top"><div class="wrap">
  <a class="brand" href="../index"><img src="../logo-64.png" alt="" width="26" height="26" style="display:block;border-radius:50%;background:#fff;padding:1px;">The Economic Atlas</a>
+ <button type="button" class="navtoggle" id="navToggle" aria-label="Menu" aria-expanded="false" aria-controls="navLinks">
+ <span></span><span></span><span></span>
+ </button>
  <div class="navlinks" id="navLinks">
- <a href="../compare" style="text-decoration:none;color:inherit;font-weight:600;padding:8px 12px;">Compare</a>
- <a href="../contact" style="text-decoration:none;color:inherit;font-weight:600;padding:8px 12px;">Contact</a>
+ <div class="dropdown">
+ <button type="button" class="dropbtn" id="aboutBtn" aria-haspopup="true" aria-expanded="false">About <span class="caret">&#9662;</span></button>
+ <div class="dropdown-panel" id="aboutPanel">
+ <div class="dcol">
+ <a href="../contact">Contact</a>
+ <a href="../methodology">Methodology</a>
+ </div>
+ </div>
+ </div>
+ <button type="button" class="authbtn" id="authBtn">Log in</button>
  <button type="button" class="theme-toggle" id="themeToggle" aria-label="Switch to dark mode" title="Switch to dark mode">&#127769;</button>
  </div>
 </div></nav>
+<nav class="sub"><div class="wrap">
+ <div class="dropdown">
+ <button type="button" class="dropbtn" id="macroBtn" aria-haspopup="true" aria-expanded="false">Country Breakdowns <span class="caret">&#9662;</span></button>
+ <div class="dropdown-panel" id="macroPanel">
+ <div class="doverview">
+ <a href="../index">Overview</a>
+ </div>
+ <div class="dcol">
+ <p class="dhead">Europe</p>
+ <a href="../austria">Austria</a>
+ <a href="../eurozone">Eurozone</a>
+ <a href="../france">France</a>
+ <a href="../germany">Germany</a>
+ <a href="../ireland">Ireland</a>
+ <a href="../italy">Italy</a>
+ <a href="../netherlands">Netherlands</a>
+ <a href="../poland">Poland</a>
+ <a href="../spain">Spain</a>
+ <a href="../switzerland">Switzerland</a>
+ <a href="../turkey">Turkey</a>
+ <a href="../uk">UK</a>
+ </div>
+ <div class="dcol">
+ <p class="dhead">North America</p>
+ <a href="../canada">Canada</a>
+ <a href="../mexico">Mexico</a>
+ <a href="../us">U.S.</a>
+ </div>
+ <div class="dcol">
+ <p class="dhead">Asia</p>
+ <a href="../india">India</a>
+ <a href="../indonesia">Indonesia</a>
+ <a href="../japan">Japan</a>
+ <a href="../singapore">Singapore</a>
+ <a href="../southkorea">South Korea</a>
+ <a href="../thailand">Thailand</a>
+ </div>
+ <div class="dcol">
+ <p class="dhead">Oceania</p>
+ <a href="../australia">Australia</a>
+ </div>
+ <div class="dcol">
+ <p class="dhead">Middle East</p>
+ <a href="../israel">Israel</a>
+ </div>
+ <div class="dcol">
+ <p class="dhead">South America</p>
+ <a href="../argentina">Argentina</a>
+ <a href="../brazil">Brazil</a>
+ <a href="../chile">Chile</a>
+ <a href="../colombia">Colombia</a>
+ </div>
+ <div class="dcol">
+ <p class="dhead">Africa</p>
+ <a href="../morocco">Morocco</a>
+ <a href="../southafrica">South Africa</a>
+ </div>
+ <div class="dcol">
+ <p class="dhead">Scandinavia</p>
+ <a href="../denmark">Denmark</a>
+ <a href="../norway">Norway</a>
+ <a href="../sweden" class="active">Sweden</a>
+ </div>
+ </div>
+ </div>
+ <a class="item" href="../compare">Compare</a>
+ <a class="item" href="../dashboard">My Dashboard</a>
+ <a class="item" href="../chartmaker" id="navChartmakerLink">Chartmaker</a>
+ <a class="item" href="../calendar" id="navCalendarLink">Calendar</a>
+</div></nav>
+<script>
+(function(){
+  // Shared toggle behaviour for any nav dropdown -- originally written
+  // just for Country Breakdowns, now reused for About too rather than
+  // duplicating the same open/close/outside-click/Escape logic twice.
+  function wireDropdown(btnId, panelId){
+    var btn = document.getElementById(btnId);
+    var panel = document.getElementById(panelId);
+    if(!btn || !panel) return;
+    function close(){
+      panel.classList.remove("open"); btn.classList.remove("open");
+      btn.setAttribute("aria-expanded","false");
+    }
+    btn.addEventListener("click", function(e){
+      e.stopPropagation();
+      var isOpen = panel.classList.toggle("open");
+      btn.classList.toggle("open", isOpen);
+      btn.setAttribute("aria-expanded", isOpen ? "true" : "false");
+    });
+    document.addEventListener("click", function(e){
+      if(!panel.contains(e.target) && e.target !== btn) close();
+    });
+    document.addEventListener("keydown", function(e){ if(e.key === "Escape") close(); });
+  }
+  wireDropdown("macroBtn", "macroPanel");
+  wireDropdown("aboutBtn", "aboutPanel");
+  // Mobile hamburger menu -- independent of the country-breakdown
+  // dropdown above (which still works exactly the same way, just
+  // nested inside this menu once it's open on narrow screens).
+  var navToggle = document.getElementById("navToggle");
+  var navLinks = document.getElementById("navLinks");
+  function closeNavMenu(){
+    navLinks.classList.remove("open");
+    navToggle.classList.remove("open");
+    navToggle.setAttribute("aria-expanded", "false");
+  }
+  navToggle.addEventListener("click", function(e){
+    e.stopPropagation();
+    var isOpen = navLinks.classList.toggle("open");
+    navToggle.classList.toggle("open", isOpen);
+    navToggle.setAttribute("aria-expanded", isOpen ? "true" : "false");
+  });
+  document.addEventListener("click", function(e){
+    if(!navLinks.contains(e.target) && e.target !== navToggle) closeNavMenu();
+  });
+  document.addEventListener("keydown", function(e){ if(e.key === "Escape") closeNavMenu(); });
+  var themeBtn = document.getElementById("themeToggle");
+  function updateThemeIcon(){
+    var isDark = document.documentElement.getAttribute("data-theme") === "dark";
+    themeBtn.innerHTML = isDark ? "&#9728;&#65039;" : "&#127769;";
+    themeBtn.setAttribute("aria-label", isDark ? "Switch to light mode" : "Switch to dark mode");
+    themeBtn.setAttribute("title", isDark ? "Switch to light mode" : "Switch to dark mode");
+  }
+  if(themeBtn){
+    updateThemeIcon();
+    themeBtn.addEventListener("click", function(){
+      var isDark = document.documentElement.getAttribute("data-theme") === "dark";
+      if(isDark){
+        document.documentElement.removeAttribute("data-theme");
+        try{ localStorage.setItem("eatlas_theme", "light"); }catch(e){}
+      } else {
+        document.documentElement.setAttribute("data-theme", "dark");
+        try{ localStorage.setItem("eatlas_theme", "dark"); }catch(e){}
+      }
+      updateThemeIcon();
+    });
+  }
+})();
+</script>
 
 <main class="indicator-wrap">
   <p class="indicator-crumb"><a href="../sweden">&larr; Sweden overview</a></p>
   <div class="indicator-hero">
-    <span class="indicator-flag">🇸🇪</span>
     <h1>Sweden GDP</h1>
   </div>
 
   <div class="hero" style="margin:0 0 22px;justify-content:flex-start;">
     <div class="stat" style="max-width:320px;">
       <p class="label">Latest</p>
-      <p class="figure">SEK6.79tn</p>
-      <p class="period">2026-Q2 &middot; updated 2026-09-07</p>
+      <p class="figure"><span class="led green" title="Updated on schedule" role="img" aria-label="Updated on schedule"></span>SEK6.79tn</p>
+      <p class="delta good"><span class="arrow" aria-hidden="true">▲</span> +SEK73.6bn vs prior</p>
+      <p class="period">Q2 2026 &middot; updated 2026-09-07</p>
     </div>
   </div>
 
   <div class="panel indicator-panel">
     <div class="panelhead"><h2>GDP</h2></div>
-    <p class="range">1993-Q4 to 2026-Q2</p>
-    <div class="indicator-chart-outer"><canvas id="indicatorChart" role="img" aria-label="Sweden GDP, 1993-Q4 to 2026-Q2"></canvas></div>
+    <p class="range">Q4 1993 to Q2 2026</p>
+    <div class="indicator-chart-outer"><canvas id="indicatorChart" role="img" aria-label="Sweden GDP, Q4 1993 to Q2 2026"></canvas></div>
     <p class="src">Source: FRED series CPMNACSCAB1GQSE · Eurostat, seasonally adjusted (falls back to World Bank current US$, annual, only if the live Eurostat SEK series is unavailable on a given run).</p>
   </div>
 
@@ -134,6 +285,7 @@
 <script>
 (function(){
   var pts = [["1993-Q4", 1652953.0], ["1994-Q1", 1675000.0], ["1994-Q2", 1699390.0], ["1994-Q3", 1727743.0], ["1994-Q4", 1760133.0], ["1995-Q1", 1798388.0], ["1995-Q2", 1837979.0], ["1995-Q3", 1873801.0], ["1995-Q4", 1904431.0], ["1996-Q1", 1928518.0], ["1996-Q2", 1936059.0], ["1996-Q3", 1950801.0], ["1996-Q4", 1958148.0], ["1997-Q1", 1966207.0], ["1997-Q2", 1992961.0], ["1997-Q3", 2015198.0], ["1997-Q4", 2051124.0], ["1998-Q1", 2080468.0], ["1998-Q2", 2106222.0], ["1998-Q3", 2131235.0], ["1998-Q4", 2155022.0], ["1999-Q1", 2181423.0], ["1999-Q2", 2205144.0], ["1999-Q3", 2234302.0], ["1999-Q4", 2263175.0], ["2000-Q1", 2289841.0], ["2000-Q2", 2332833.0], ["2000-Q3", 2374658.0], ["2000-Q4", 2408554.0], ["2001-Q1", 2444999.0], ["2001-Q2", 2468939.0], ["2001-Q3", 2483269.0], ["2001-Q4", 2507738.0], ["2002-Q1", 2532646.0], ["2002-Q2", 2558953.0], ["2002-Q3", 2586118.0], ["2002-Q4", 2606511.0], ["2003-Q1", 2636648.0], ["2003-Q2", 2655196.0], ["2003-Q3", 2682133.0], ["2003-Q4", 2707935.0], ["2004-Q1", 2729427.0], ["2004-Q2", 2761479.0], ["2004-Q3", 2793165.0], ["2004-Q4", 2819689.0], ["2005-Q1", 2840431.0], ["2005-Q2", 2860624.0], ["2005-Q3", 2886880.0], ["2005-Q4", 2919784.0], ["2006-Q1", 2963174.0], ["2006-Q2", 3015361.0], ["2006-Q3", 3063420.0], ["2006-Q4", 3116883.0], ["2007-Q1", 3169327.0], ["2007-Q2", 3220044.0], ["2007-Q3", 3261530.0], ["2007-Q4", 3314954.0], ["2008-Q1", 3358698.0], ["2008-Q2", 3382213.0], ["2008-Q3", 3405173.0], ["2008-Q4", 3388996.0], ["2009-Q1", 3360342.0], ["2009-Q2", 3338217.0], ["2009-Q3", 3318949.0], ["2009-Q4", 3324005.0], ["2010-Q1", 3352833.0], ["2010-Q2", 3402892.0], ["2010-Q3", 3468448.0], ["2010-Q4", 3541496.0], ["2011-Q1", 3606717.0], ["2011-Q2", 3654505.0], ["2011-Q3", 3693849.0], ["2011-Q4", 3697722.0], ["2012-Q1", 3700567.0], ["2012-Q2", 3708048.0], ["2012-Q3", 3708426.0], ["2012-Q4", 3728989.0], ["2013-Q1", 3745986.0], ["2013-Q2", 3756730.0], ["2013-Q3", 3774976.0], ["2013-Q4", 3808748.0], ["2014-Q1", 3844026.0], ["2014-Q2", 3888588.0], ["2014-Q3", 3933997.0], ["2014-Q4", 3972248.0], ["2015-Q1", 4028028.0], ["2015-Q2", 4099860.0], ["2015-Q3", 4161013.0], ["2015-Q4", 4228851.0], ["2016-Q1", 4273227.0], ["2016-Q2", 4298860.0], ["2016-Q3", 4339090.0], ["2016-Q4", 4381238.0], ["2017-Q1", 4437289.0], ["2017-Q2", 4492574.0], ["2017-Q3", 4536433.0], ["2017-Q4", 4575201.0], ["2018-Q1", 4620877.0], ["2018-Q2", 4668879.0], ["2018-Q3", 4721310.0], ["2018-Q4", 4781895.0], ["2019-Q1", 4836549.0], ["2019-Q2", 4902931.0], ["2019-Q3", 4964714.0], ["2019-Q4", 5026020.0], ["2020-Q1", 5088601.0], ["2020-Q2", 5021508.0], ["2020-Q3", 5014736.0], ["2020-Q4", 5010047.0], ["2021-Q1", 5035517.0], ["2021-Q2", 5181609.0], ["2021-Q3", 5279188.0], ["2021-Q4", 5402003.0], ["2022-Q1", 5487633.0], ["2022-Q2", 5606761.0], ["2022-Q3", 5725104.0], ["2022-Q4", 5801055.0], ["2023-Q1", 5910271.0], ["2023-Q2", 5984251.0], ["2023-Q3", 6084754.0], ["2023-Q4", 6144606.0], ["2024-Q1", 6233275.0], ["2024-Q2", 6304955.0], ["2024-Q3", 6350998.0], ["2024-Q4", 6443157.0], ["2025-Q1", 6478504.0], ["2025-Q2", 6533395.0], ["2025-Q3", 6586980.0], ["2025-Q4", 6657168.0], ["2026-Q1", 6718206.0], ["2026-Q2", 6791836.0]];
+  var unit = "SEKm";
   var cs = getComputedStyle(document.documentElement);
   var INK = cs.getPropertyValue("--ink").trim() || "#171B1E";
   var INK2 = cs.getPropertyValue("--ink2").trim() || "#5A6167";
@@ -141,6 +293,25 @@
   var PANEL_BG = cs.getPropertyValue("--panel").trim() || "#fff";
   var LINE = "#37659E";
   var FONT = {family: "'Avenir Next','Nunito Sans',sans-serif", size: 11.5};
+  function curFmt(raw, decimals){
+    if(unit.indexOf("%") > -1) return raw.toFixed(1) + "%";
+    var scales = [["bn",1e9],["m",1e6],["k",1e3]], symbol = unit, mult = 1;
+    for(var i=0;i<scales.length;i++){
+      var suf = scales[i][0];
+      if(unit.slice(-suf.length) === suf && unit.length > suf.length){ symbol = unit.slice(0,-suf.length); mult = scales[i][1]; break; }
+    }
+    var a = Math.abs(raw) * mult, sign = raw < 0 ? "\u2212" : "";
+    var out;
+    if(a >= 1e12) out = sign + symbol + (a/1e12).toFixed(decimals) + "tn";
+    else if(a >= 1e9) out = sign + symbol + (a/1e9).toFixed(decimals) + "bn";
+    else out = sign + symbol + (a/1e6).toFixed(0) + "m";
+    // Same trim as the site's own czTrimAxisZeros / curFmt: no unnecessary trailing zeros.
+    return out.replace(/(\.\d*[1-9])0+(?!\d)|\.0+(?!\d)/, function(m, keep){ return keep || ""; });
+  }
+  function yearOf(label){
+    var m = /^(\d{4})/.exec(label);
+    return m ? m[1] : label;
+  }
   var canvas = document.getElementById("indicatorChart");
   new Chart(canvas, {
     type: "line",
@@ -158,12 +329,15 @@
         legend: {display: false},
         tooltip: {
           backgroundColor: PANEL_BG, titleColor: INK, bodyColor: INK, borderColor: HAIR, borderWidth: 1,
-          titleFont: {family: FONT.family, weight: "600"}, bodyFont: {family: FONT.family}, displayColors: false
+          titleFont: {family: FONT.family, weight: "600"}, bodyFont: {family: FONT.family}, displayColors: false,
+          callbacks: { label: function(ctx){ return curFmt(ctx.parsed.y, 2); } }
         }
       },
       scales: {
-        x: {grid: {display: false}, border: {color: HAIR}, ticks: {color: INK2, font: FONT, maxTicksLimit: 7, maxRotation: 0}},
-        y: {grid: {color: HAIR}, border: {display: false}, ticks: {color: INK2, font: FONT, maxTicksLimit: 6}}
+        x: {grid: {display: false}, border: {color: HAIR}, ticks: {color: INK2, font: FONT, maxTicksLimit: 7, maxRotation: 0,
+             callback: function(v){ return yearOf(this.getLabelForValue(v)); } }},
+        y: {grid: {color: HAIR}, border: {display: false}, ticks: {color: INK2, font: FONT, maxTicksLimit: 6,
+             callback: function(v){ return curFmt(v, 1); } }}
       }
     }
   });

@@ -204,10 +204,11 @@ button.mtoggle.fx-both{background:#2FA463; border-color:#2FA463; color:#fff;}
   background:var(--panel); color:var(--ink2); font-size:15px; line-height:1; cursor:pointer;
   display:flex; align-items:center; justify-content:center;}
 .expandBtn:hover{border-color:var(--blue); color:var(--navy);}
-.panelPageLink{flex:none; width:30px; height:30px; border-radius:8px; border:1px solid var(--hair);
-  background:var(--panel); color:var(--ink2); font-size:15px; line-height:1; cursor:pointer;
-  display:flex; align-items:center; justify-content:center; text-decoration:none;}
-.panelPageLink:hover{border-color:var(--blue); color:var(--navy);}
+.stat.hasPageLink{position:relative;}
+.statPageLink{position:absolute; top:10px; right:10px; width:26px; height:26px; border-radius:7px;
+  border:1px solid var(--hair); background:var(--panel); color:var(--ink2); font-size:13px; line-height:1;
+  display:flex; align-items:center; justify-content:center; text-decoration:none; z-index:2;}
+.statPageLink:hover{border-color:var(--blue); color:var(--navy);}
 .charttools{display:flex; align-items:center; justify-content:space-between; gap:10px;
   margin:8px 0 2px; flex-wrap:wrap;}
 .rangepresets{display:flex; gap:6px;}
@@ -2233,7 +2234,16 @@ function statTile(el, key, title, series, opts){
     div.addEventListener("click",go);
     div.addEventListener("keydown",e=>{if(e.key==="Enter"||e.key===" "){e.preventDefault();go();}});
   }
+  const _indicatorSlug = INDICATOR_PAGE_SLUGS[key];
+  const _countrySlug = (location.pathname.split("/").pop() || "index").replace(/\.html$/,"") || "index";
+  if(_indicatorSlug){
+    div.classList.add("hasPageLink");
+  }
+  const _pageLinkHtml = _indicatorSlug
+    ? `<a class="statPageLink" href="indicators/${_countrySlug}-${_indicatorSlug}" aria-label="View ${title} as its own page" title="View as its own page" onclick="event.stopPropagation()">&#8599;</a>`
+    : "";
   div.innerHTML=`
+      ${_pageLinkHtml}
       <p class="label">${title}${infoIconHtml(opts.infoKey || key)}</p>
       <p class="figure"><span class="led ${led}" title="${ledTitle}" role="img"
         aria-label="${ledTitle}"></span>${opts.fmt(last[1])}</p>
@@ -2251,14 +2261,9 @@ function chartPanel(key, containerId, title, expl, series, kind, fmtY, fmtTip, s
   const panel=document.createElement("div");
   panel.className="panel";
   panel.dataset.key = key || infoKey || "";
-  const indicatorSlug = INDICATOR_PAGE_SLUGS[key];
-  const countrySlug = (location.pathname.split("/").pop() || "index").replace(/\.html$/,"") || "index";
-  const pageLinkHtml = indicatorSlug
-    ? `<a class="panelPageLink" href="indicators/${countrySlug}-${indicatorSlug}" aria-label="View ${title} as its own page" title="View as its own page">&#8599;</a>`
-    : "";
   panel.innerHTML=`
       <div class="panelhead"><h2>${title}${infoIconHtml(infoKey || key)}</h2>
-        ${pageLinkHtml}<button type="button" class="expandBtn" aria-label="Enlarge ${title} chart" title="Enlarge">&#9974;</button></div>
+        <button type="button" class="expandBtn" aria-label="Enlarge ${title} chart" title="Enlarge">&#9974;</button></div>
       <p class="expl">${expl}</p>
       <p class="range"${series.next?` title="Next release: ${series.next}" style="cursor:help;"`:""}>${fmtPeriod(pts[0][0])} to ${fmtPeriod(pts[pts.length-1][0])}${series.next?" ·":""}</p>
       <div class="chartbox"><canvas id="${id}" role="img" aria-label="${title}, ${fmtPeriod(pts[0][0])} to ${fmtPeriod(pts[pts.length-1][0])}"></canvas></div>
@@ -2734,9 +2739,14 @@ function curFmt(rawValue, unitStr, decimals){
   const symbol = currencySymbol(unitStr);
   const a = Math.abs(rawValue) * scale;
   const sign = rawValue<0 ? "\u2212" : "";
-  if(a>=1e12) return sign+symbol+(a/1e12).toFixed(decimals)+"tn";
-  if(a>=1e9) return sign+symbol+(a/1e9).toFixed(decimals)+"bn";
-  return sign+symbol+(a/1e6).toFixed(0)+"m";
+  var out;
+  if(a>=1e12) out = sign+symbol+(a/1e12).toFixed(decimals)+"tn";
+  else if(a>=1e9) out = sign+symbol+(a/1e9).toFixed(decimals)+"bn";
+  else out = sign+symbol+(a/1e6).toFixed(0)+"m";
+  // Same trailing-zero trim already used in the Customise & Export tool's
+  // czTrimAxisZeros -- extended here so every consumer of curFmt (chart
+  // tooltips, axis ticks, stat tile deltas) gets it too, not just exports.
+  return out.replace(/(\.\d*[1-9])0+(?!\d)|\.0+(?!\d)/, function(m, keep){ return keep || ""; });
 }
 function isCurrencyUnit(u){
   return u!=="%" && u!=="index" && /(m|bn|tn)$/.test(u);

@@ -27,6 +27,7 @@ country/metric pair is silently skipped rather than shipping with
 placeholder text.
 """
 import json, os, re, html as htmllib
+from datetime import date, timedelta
 
 ROOT = os.path.dirname(os.path.abspath(__file__))
 SITE_URL = "https://theeconomicatlas.com"
@@ -75,6 +76,82 @@ CORE_METRICS = {
     "debt_gdp":    ("government-debt", "Government Debt (% of GDP)"),
 }
 
+# Matches each metric's real statTile() upIsGood setting on the actual
+# country pages exactly (checked uk.html's real call sites) -- controls
+# whether the delta arrow renders green (good) or red (bad) on an increase.
+UP_IS_GOOD = {"gdp_level": True, "cpi": False, "unemployment": False, "debt_gdp": False}
+
+# Matches the real site's STALE_DAYS thresholds exactly (used to decide
+# the freshness LED colour on the LATEST card).
+STALE_DAYS = {"months": 75, "quarters": 150, "years": 660}
+
+MONTH_NAMES = ["Jan","Feb","Mar","Apr","May","Jun","Jul","Aug","Sep","Oct","Nov","Dec"]
+
+def fmt_period_label(period):
+    """Python port of the real site's fmtPeriod(): '2026-Q2' -> 'Q2 2026',
+    '2026-05' -> 'May 2026', '2026' stays '2026'."""
+    m = re.match(r"^(\d{4})-(\d{2})$", period)
+    if m:
+        year, mon = m.groups()
+        return f"{MONTH_NAMES[int(mon)-1]} {year}"
+    m = re.match(r"^(\d{4})-Q(\d)$", period)
+    if m:
+        year, q = m.groups()
+        return f"Q{q} {year}"
+    return period
+
+def period_end_date(period):
+    """Python port of the real site's periodEnd()."""
+    m = re.match(r"^(\d{4})-(\d{2})$", period)
+    if m:
+        y, mo = int(m.group(1)), int(m.group(2))
+        ny, nmo = (y + 1, 1) if mo == 12 else (y, mo + 1)
+        return date(ny, nmo, 1) - timedelta(days=1)
+    m = re.match(r"^(\d{4})-Q(\d)$", period)
+    if m:
+        y, q = int(m.group(1)), int(m.group(2))
+        mo = q * 3
+        ny, nmo = (y + 1, 1) if mo == 12 else (y, mo + 1)
+        return date(ny, nmo, 1) - timedelta(days=1)
+    m = re.match(r"^(\d{4})$", period)
+    if m:
+        return date(int(m.group(1)), 12, 31)
+    return date.today()
+
+def freshness_led(latest_period, freq):
+    """Python port of the real site's freshness(): green if within the
+    normal stale-days window for this frequency, orange otherwise."""
+    age_days = (date.today() - period_end_date(latest_period)).days
+    threshold = STALE_DAYS.get(freq, 90)
+    return "green" if age_days <= threshold else "orange"
+
+def cur_fmt(raw_value, unit, decimals=2):
+    """Python port of the real site's curFmt() -- NOT the same as
+    fmt_value() below (that one is for the headline OG/meta figure and
+    uses comma grouping); this one matches the live chart-axis/tile
+    formatting exactly, decimal-only, no thousands separator.
+
+    Also trims unnecessary trailing zeros (100.0bn -> 100bn), matching
+    the site's own czTrimAxisZeros used in Customise & Export -- this
+    port applies the same trim, and the real curFmt() on every country
+    page was updated to do the same so tooltips/deltas/axis ticks match."""
+    scale_map = [("bn", 1_000_000_000), ("m", 1_000_000), ("k", 1_000)]
+    symbol, mult = unit, 1
+    for suf, m in scale_map:
+        if unit.endswith(suf) and len(unit) > len(suf):
+            symbol, mult = unit[:-len(suf)], m
+            break
+    a = abs(raw_value) * mult
+    sign = "\u2212" if raw_value < 0 else ""
+    if a >= 1e12:
+        out = f"{sign}{symbol}{a/1e12:.{decimals}f}tn"
+    elif a >= 1e9:
+        out = f"{sign}{symbol}{a/1e9:.{decimals}f}bn"
+    else:
+        out = f"{sign}{symbol}{a/1e6:.0f}m"
+    return re.sub(r"(\.\d*[1-9])0+(?!\d)|\.0+(?!\d)", lambda m: m.group(1) or "", out)
+
+
 # The real site does NOT display gdp_level raw for most countries -- every
 # country page except US calls a client-side annualGDP() that sums the
 # trailing 4 quarters, because their gdp_level series is a genuine
@@ -101,7 +178,7 @@ def annualize_gdp_points(points, freq, country_name):
     return out
 
 
-HEADER_HTML = """<script>(function(){
+HEADER_HTML_BASE = """<script>(function(){
   try{
     var saved = localStorage.getItem("eatlas_theme");
     if(saved === "dark" || (!saved && window.matchMedia && window.matchMedia("(prefers-color-scheme: dark)").matches)){
@@ -111,12 +188,162 @@ HEADER_HTML = """<script>(function(){
 })();</script>
 <nav class="top"><div class="wrap">
  <a class="brand" href="../index"><img src="../logo-64.png" alt="" width="26" height="26" style="display:block;border-radius:50%;background:#fff;padding:1px;">The Economic Atlas</a>
+ <button type="button" class="navtoggle" id="navToggle" aria-label="Menu" aria-expanded="false" aria-controls="navLinks">
+ <span></span><span></span><span></span>
+ </button>
  <div class="navlinks" id="navLinks">
- <a href="../compare" style="text-decoration:none;color:inherit;font-weight:600;padding:8px 12px;">Compare</a>
- <a href="../contact" style="text-decoration:none;color:inherit;font-weight:600;padding:8px 12px;">Contact</a>
+ <div class="dropdown">
+ <button type="button" class="dropbtn" id="aboutBtn" aria-haspopup="true" aria-expanded="false">About <span class="caret">&#9662;</span></button>
+ <div class="dropdown-panel" id="aboutPanel">
+ <div class="dcol">
+ <a href="../contact">Contact</a>
+ <a href="../methodology">Methodology</a>
+ </div>
+ </div>
+ </div>
+ <button type="button" class="authbtn" id="authBtn">Log in</button>
  <button type="button" class="theme-toggle" id="themeToggle" aria-label="Switch to dark mode" title="Switch to dark mode">&#127769;</button>
  </div>
 </div></nav>
+<nav class="sub"><div class="wrap">
+ <div class="dropdown">
+ <button type="button" class="dropbtn" id="macroBtn" aria-haspopup="true" aria-expanded="false">Country Breakdowns <span class="caret">&#9662;</span></button>
+ <div class="dropdown-panel" id="macroPanel">
+ <div class="doverview">
+ <a href="../index">Overview</a>
+ </div>
+ <div class="dcol">
+ <p class="dhead">Europe</p>
+ <a href="../austria">Austria</a>
+ <a href="../eurozone">Eurozone</a>
+ <a href="../france">France</a>
+ <a href="../germany">Germany</a>
+ <a href="../ireland">Ireland</a>
+ <a href="../italy">Italy</a>
+ <a href="../netherlands">Netherlands</a>
+ <a href="../poland">Poland</a>
+ <a href="../spain">Spain</a>
+ <a href="../switzerland">Switzerland</a>
+ <a href="../turkey">Turkey</a>
+ <a href="../uk">UK</a>
+ </div>
+ <div class="dcol">
+ <p class="dhead">North America</p>
+ <a href="../canada">Canada</a>
+ <a href="../mexico">Mexico</a>
+ <a href="../us">U.S.</a>
+ </div>
+ <div class="dcol">
+ <p class="dhead">Asia</p>
+ <a href="../india">India</a>
+ <a href="../indonesia">Indonesia</a>
+ <a href="../japan">Japan</a>
+ <a href="../singapore">Singapore</a>
+ <a href="../southkorea">South Korea</a>
+ <a href="../thailand">Thailand</a>
+ </div>
+ <div class="dcol">
+ <p class="dhead">Oceania</p>
+ <a href="../australia">Australia</a>
+ </div>
+ <div class="dcol">
+ <p class="dhead">Middle East</p>
+ <a href="../israel">Israel</a>
+ </div>
+ <div class="dcol">
+ <p class="dhead">South America</p>
+ <a href="../argentina">Argentina</a>
+ <a href="../brazil">Brazil</a>
+ <a href="../chile">Chile</a>
+ <a href="../colombia">Colombia</a>
+ </div>
+ <div class="dcol">
+ <p class="dhead">Africa</p>
+ <a href="../morocco">Morocco</a>
+ <a href="../southafrica">South Africa</a>
+ </div>
+ <div class="dcol">
+ <p class="dhead">Scandinavia</p>
+ <a href="../denmark">Denmark</a>
+ <a href="../norway">Norway</a>
+ <a href="../sweden">Sweden</a>
+ </div>
+ </div>
+ </div>
+ <a class="item" href="../compare">Compare</a>
+ <a class="item" href="../dashboard">My Dashboard</a>
+ <a class="item" href="../chartmaker" id="navChartmakerLink">Chartmaker</a>
+ <a class="item" href="../calendar" id="navCalendarLink">Calendar</a>
+</div></nav>
+<script>
+(function(){
+  // Shared toggle behaviour for any nav dropdown -- originally written
+  // just for Country Breakdowns, now reused for About too rather than
+  // duplicating the same open/close/outside-click/Escape logic twice.
+  function wireDropdown(btnId, panelId){
+    var btn = document.getElementById(btnId);
+    var panel = document.getElementById(panelId);
+    if(!btn || !panel) return;
+    function close(){
+      panel.classList.remove("open"); btn.classList.remove("open");
+      btn.setAttribute("aria-expanded","false");
+    }
+    btn.addEventListener("click", function(e){
+      e.stopPropagation();
+      var isOpen = panel.classList.toggle("open");
+      btn.classList.toggle("open", isOpen);
+      btn.setAttribute("aria-expanded", isOpen ? "true" : "false");
+    });
+    document.addEventListener("click", function(e){
+      if(!panel.contains(e.target) && e.target !== btn) close();
+    });
+    document.addEventListener("keydown", function(e){ if(e.key === "Escape") close(); });
+  }
+  wireDropdown("macroBtn", "macroPanel");
+  wireDropdown("aboutBtn", "aboutPanel");
+  // Mobile hamburger menu -- independent of the country-breakdown
+  // dropdown above (which still works exactly the same way, just
+  // nested inside this menu once it's open on narrow screens).
+  var navToggle = document.getElementById("navToggle");
+  var navLinks = document.getElementById("navLinks");
+  function closeNavMenu(){
+    navLinks.classList.remove("open");
+    navToggle.classList.remove("open");
+    navToggle.setAttribute("aria-expanded", "false");
+  }
+  navToggle.addEventListener("click", function(e){
+    e.stopPropagation();
+    var isOpen = navLinks.classList.toggle("open");
+    navToggle.classList.toggle("open", isOpen);
+    navToggle.setAttribute("aria-expanded", isOpen ? "true" : "false");
+  });
+  document.addEventListener("click", function(e){
+    if(!navLinks.contains(e.target) && e.target !== navToggle) closeNavMenu();
+  });
+  document.addEventListener("keydown", function(e){ if(e.key === "Escape") closeNavMenu(); });
+  var themeBtn = document.getElementById("themeToggle");
+  function updateThemeIcon(){
+    var isDark = document.documentElement.getAttribute("data-theme") === "dark";
+    themeBtn.innerHTML = isDark ? "&#9728;&#65039;" : "&#127769;";
+    themeBtn.setAttribute("aria-label", isDark ? "Switch to light mode" : "Switch to dark mode");
+    themeBtn.setAttribute("title", isDark ? "Switch to light mode" : "Switch to dark mode");
+  }
+  if(themeBtn){
+    updateThemeIcon();
+    themeBtn.addEventListener("click", function(){
+      var isDark = document.documentElement.getAttribute("data-theme") === "dark";
+      if(isDark){
+        document.documentElement.removeAttribute("data-theme");
+        try{ localStorage.setItem("eatlas_theme", "light"); }catch(e){}
+      } else {
+        document.documentElement.setAttribute("data-theme", "dark");
+        try{ localStorage.setItem("eatlas_theme", "dark"); }catch(e){}
+      }
+      updateThemeIcon();
+    });
+  }
+})();
+</script>
 """
 
 FOOTER_HTML = """<footer>
@@ -139,6 +366,12 @@ FOOTER_HTML = """<footer>
 
 def flag_emoji(alpha2):
     return "".join(chr(0x1F1E6 + ord(c) - 65) for c in alpha2.upper())
+
+def header_for(slug):
+    """Marks the current country's own link active in the real nav's
+    country mega-menu, matching how every real country page marks
+    itself, without needing 32 separate copies of the nav markup."""
+    return HEADER_HTML_BASE.replace(f'href="../{slug}"', f'href="../{slug}" class="active"', 1)
 
 def load_json(name):
     path = os.path.join(ROOT, name)
@@ -176,10 +409,12 @@ def fmt_value(v, unit):
 
     for suffix, mult in [("tn", 1_000_000_000_000), ("bn", 1_000_000_000), ("m", 1_000_000), ("k", 1_000)]:
         if abs(absolute) >= mult:
-            return f"{currency}{absolute / mult:,.2f}{suffix}".strip()
+            out = f"{currency}{absolute / mult:,.2f}{suffix}".strip()
+            return re.sub(r"(\.\d*[1-9])0+(?!\d)|\.0+(?!\d)", lambda m: m.group(1) or "", out)
     if currency:
-        return f"{currency}{absolute:,.2f}".strip()
-    return f"{absolute:,.2f}"
+        out = f"{currency}{absolute:,.2f}".strip()
+        return re.sub(r"(\.\d*[1-9])0+(?!\d)|\.0+(?!\d)", lambda m: m.group(1) or "", out)
+    return re.sub(r"(\.\d*[1-9])0+(?!\d)|\.0+(?!\d)", lambda m: m.group(1) or "", f"{absolute:,.2f}")
 
 def sparkline_points_js(points):
     """Return a JS array literal of [period, value] pairs for Chart.js."""
@@ -202,13 +437,14 @@ INDICATOR_TEMPLATE = """<!DOCTYPE html>
 <meta name="twitter:title" content="{og_title}">
 <meta name="twitter:description" content="{meta_desc}">
 <meta name="twitter:image" content="{og_image}">
+<link rel="icon" type="image/png" sizes="32x32" href="../favicon-32.png">
+<link rel="apple-touch-icon" href="../apple-touch-icon.png">
 <link rel="stylesheet" href="../style.css?v=51">
 <style>
   .indicator-wrap{{max-width:760px;margin:0 auto;padding:32px 24px 64px}}
   .indicator-crumb{{font-size:13px;margin-bottom:18px}}
   .indicator-crumb a{{color:var(--blue)}}
   .indicator-hero{{display:flex;align-items:baseline;gap:12px;flex-wrap:wrap;margin-bottom:18px}}
-  .indicator-flag{{font-size:1.8rem;line-height:1}}
   .indicator-hero h1{{font-size:22px;font-weight:700;margin:0}}
   .indicator-links{{display:flex;gap:12px;flex-wrap:wrap;margin-top:24px}}
   .indicator-links a{{display:inline-block;padding:10px 18px;border-radius:8px;border:1px solid var(--hair);text-decoration:none;color:var(--ink);font-weight:600;font-size:14px}}
@@ -232,14 +468,14 @@ INDICATOR_TEMPLATE = """<!DOCTYPE html>
 <main class="indicator-wrap">
   <p class="indicator-crumb"><a href="../{country_slug}">&larr; {country_name} overview</a></p>
   <div class="indicator-hero">
-    <span class="indicator-flag">{flag}</span>
     <h1>{country_name} {metric_title}</h1>
   </div>
 
   <div class="hero" style="margin:0 0 22px;justify-content:flex-start;">
     <div class="stat" style="max-width:320px;">
       <p class="label">Latest</p>
-      <p class="figure">{latest_str}</p>
+      <p class="figure"><span class="led {led}" title="{led_title}" role="img" aria-label="{led_title}"></span>{latest_str}</p>
+      <p class="delta {delta_dir}"><span class="arrow" aria-hidden="true">{delta_arrow}</span> {delta_display} vs prior</p>
       <p class="period">{latest_period} &middot; updated {updated}</p>
     </div>
   </div>
@@ -269,6 +505,7 @@ INDICATOR_TEMPLATE = """<!DOCTYPE html>
 <script>
 (function(){{
   var pts = {chart_points};
+  var unit = {unit_json};
   var cs = getComputedStyle(document.documentElement);
   var INK = cs.getPropertyValue("--ink").trim() || "#171B1E";
   var INK2 = cs.getPropertyValue("--ink2").trim() || "#5A6167";
@@ -276,6 +513,25 @@ INDICATOR_TEMPLATE = """<!DOCTYPE html>
   var PANEL_BG = cs.getPropertyValue("--panel").trim() || "#fff";
   var LINE = "#37659E";
   var FONT = {{family: "'Avenir Next','Nunito Sans',sans-serif", size: 11.5}};
+  function curFmt(raw, decimals){{
+    if(unit.indexOf("%") > -1) return raw.toFixed(1) + "%";
+    var scales = [["bn",1e9],["m",1e6],["k",1e3]], symbol = unit, mult = 1;
+    for(var i=0;i<scales.length;i++){{
+      var suf = scales[i][0];
+      if(unit.slice(-suf.length) === suf && unit.length > suf.length){{ symbol = unit.slice(0,-suf.length); mult = scales[i][1]; break; }}
+    }}
+    var a = Math.abs(raw) * mult, sign = raw < 0 ? "\\u2212" : "";
+    var out;
+    if(a >= 1e12) out = sign + symbol + (a/1e12).toFixed(decimals) + "tn";
+    else if(a >= 1e9) out = sign + symbol + (a/1e9).toFixed(decimals) + "bn";
+    else out = sign + symbol + (a/1e6).toFixed(0) + "m";
+    // Same trim as the site's own czTrimAxisZeros / curFmt: no unnecessary trailing zeros.
+    return out.replace(/(\\.\\d*[1-9])0+(?!\\d)|\\.0+(?!\\d)/, function(m, keep){{ return keep || ""; }});
+  }}
+  function yearOf(label){{
+    var m = /^(\\d{{4}})/.exec(label);
+    return m ? m[1] : label;
+  }}
   var canvas = document.getElementById("indicatorChart");
   new Chart(canvas, {{
     type: "line",
@@ -293,12 +549,15 @@ INDICATOR_TEMPLATE = """<!DOCTYPE html>
         legend: {{display: false}},
         tooltip: {{
           backgroundColor: PANEL_BG, titleColor: INK, bodyColor: INK, borderColor: HAIR, borderWidth: 1,
-          titleFont: {{family: FONT.family, weight: "600"}}, bodyFont: {{family: FONT.family}}, displayColors: false
+          titleFont: {{family: FONT.family, weight: "600"}}, bodyFont: {{family: FONT.family}}, displayColors: false,
+          callbacks: {{ label: function(ctx){{ return curFmt(ctx.parsed.y, 2); }} }}
         }}
       }},
       scales: {{
-        x: {{grid: {{display: false}}, border: {{color: HAIR}}, ticks: {{color: INK2, font: FONT, maxTicksLimit: 7, maxRotation: 0}}}},
-        y: {{grid: {{color: HAIR}}, border: {{display: false}}, ticks: {{color: INK2, font: FONT, maxTicksLimit: 6}}}}
+        x: {{grid: {{display: false}}, border: {{color: HAIR}}, ticks: {{color: INK2, font: FONT, maxTicksLimit: 7, maxRotation: 0,
+             callback: function(v){{ return yearOf(this.getLabelForValue(v)); }} }}}},
+        y: {{grid: {{color: HAIR}}, border: {{display: false}}, ticks: {{color: INK2, font: FONT, maxTicksLimit: 6,
+             callback: function(v){{ return curFmt(v, 1); }} }}}}
       }}
     }}
   }});
@@ -315,6 +574,7 @@ EMBED_TEMPLATE = """<!DOCTYPE html>
 <meta charset="UTF-8">
 <meta name="viewport" content="width=device-width, initial-scale=1.0">
 <title>{country_name} {metric_title} - Live | The Economic Atlas</title>
+<link rel="icon" type="image/png" sizes="32x32" href="../favicon-32.png">
 <meta name="robots" content="noindex">
 <style>
   *{{box-sizing:border-box}}
@@ -379,10 +639,12 @@ if(window.self === window.top){{ document.body.classList.add("standalone"); }}
       }}
       var abs = v * mult;
       var big = [["tn",1e12],["bn",1e9],["m",1e6],["k",1e3]];
+      var out = null;
       for(var j=0;j<big.length;j++){{
-        if(Math.abs(abs) >= big[j][1]) return currency + (abs/big[j][1]).toLocaleString(undefined,{{minimumFractionDigits:2,maximumFractionDigits:2}}) + big[j][0];
+        if(Math.abs(abs) >= big[j][1]){{ out = currency + (abs/big[j][1]).toLocaleString(undefined,{{minimumFractionDigits:2,maximumFractionDigits:2}}) + big[j][0]; break; }}
       }}
-      return currency + abs.toLocaleString(undefined,{{minimumFractionDigits:2,maximumFractionDigits:2}});
+      if(out === null) out = currency + abs.toLocaleString(undefined,{{minimumFractionDigits:2,maximumFractionDigits:2}});
+      return out.replace(/(\\.\\d*[1-9])0+(?!\\d)|\\.0+(?!\\d)/, function(m, keep){{ return keep || ""; }});
     }}
     var vs = fmtValue(v, unit);
     document.getElementById("val").textContent = vs;
@@ -456,7 +718,26 @@ def main():
                 continue
             unit = s.get("unit", "")
             latest_period, latest_val = pts[-1]
+            prev_val = pts[-2][1]
             latest_str = fmt_value(latest_val, unit)
+
+            delta = round(latest_val - prev_val, 2)
+            up_is_good = UP_IS_GOOD.get(metric_key, True)
+            if delta == 0:
+                delta_dir, delta_arrow = "flat", "\u2582"
+            elif (delta > 0) == up_is_good:
+                delta_dir, delta_arrow = "good", "\u25b2"
+            else:
+                delta_dir, delta_arrow = "bad", "\u25bc"
+            delta_str = cur_fmt(delta, unit, 1) if ("%" not in unit) else f"{abs(delta):.1f}pp"
+            delta_sign = "+" if delta > 0 else ("\u2212" if delta < 0 else "")
+            delta_display = f"{delta_sign}{delta_str.lstrip(chr(0x2212))}" if "%" not in unit else f"{delta_sign}{delta_str}"
+
+            led = freshness_led(latest_period, s.get("freq", ""))
+            led_title = "Updated on schedule" if led == "green" else f"Awaiting next release \u00b7 last data {fmt_period_label(latest_period)}"
+
+            first_period_label = fmt_period_label(pts[0][0])
+            latest_period_label = fmt_period_label(latest_period)
 
             meta = country_sources[metric_key]
             description = meta.get("description", "")
@@ -469,7 +750,7 @@ def main():
             indicator_url = canonical
 
             meta_label = re.sub(r"\s*\([^)]*\)", "", metric_title).strip().lower()
-            title_tag = f"{country_name} {metric_title} — Live Data & History | The Economic Atlas"
+            title_tag = f"{country_name} {metric_title} \u00b7 Live Data & History | The Economic Atlas"
             og_title = f"{country_name} {metric_title}: {latest_str}"
             meta_desc = f"{country_name} {meta_label}: {latest_str} as of {latest_period}. {description}".strip()
             if len(meta_desc) > 300:
@@ -499,12 +780,14 @@ def main():
             html_out = INDICATOR_TEMPLATE.format(
                 title_tag=esc(title_tag), meta_desc=esc(meta_desc), canonical=canonical,
                 og_title=esc(og_title), og_image=og_image, jsonld=jsonld,
-                header=HEADER_HTML, footer=FOOTER_HTML,
+                header=header_for(slug), footer=FOOTER_HTML,
                 country_slug=slug, flag=flag, country_name=esc(country_name),
                 metric_title=esc(metric_title), latest_str=esc(latest_str),
-                latest_period=esc(latest_period), first_period=esc(pts[0][0]), updated=esc(updated),
+                latest_period=esc(latest_period_label), first_period=esc(first_period_label), updated=esc(updated),
                 chart_points=chart_points_js, description=esc(description), source=esc(source_text),
                 slug=page_slug, related_links=related_links,
+                led=led, led_title=esc(led_title), delta_dir=delta_dir, delta_arrow=delta_arrow,
+                delta_display=esc(delta_display), unit=esc(unit), unit_json=json.dumps(unit),
             )
             with open(os.path.join(out_indicators, f"{page_slug}.html"), "w", encoding="utf-8") as f:
                 f.write(html_out)
