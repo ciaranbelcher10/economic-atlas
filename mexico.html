@@ -9,6 +9,17 @@
       document.documentElement.setAttribute("data-theme", "dark");
     }
   }catch(e){}
+  // Cached ONCE, here, before anything on this page ever calls
+  // history.pushState() -- the "view as its own page" / "Embed this
+  // chart" links inside the chart modal used to recompute this from
+  // location.pathname every time the modal opened, which silently broke
+  // the second time it ran on the same page load: opening a modal
+  // pushes the URL to /indicators/xxx, and a later click recomputing
+  // the "country slug" from that now-mutated URL produced garbage
+  // (indicators/indicators/xxx, a real 404 reported live). Caching it
+  // once here, before the URL can ever change, removes that whole class
+  // of bug rather than chasing each place it could resurface.
+  window.EATLAS_COUNTRY_SLUG = (location.pathname.split("/").pop() || "index").replace(/\.html$/,"") || "index";
 })();</script>
 <meta name="viewport" content="width=device-width, initial-scale=1">
 <title>Mexico Economy: GDP, Inflation &amp; Unemployment Data | The Economic Atlas</title>
@@ -1956,7 +1967,7 @@ function openChartModal(id, asIndicator){
   if(entry.expl){ exprEl.textContent = entry.expl; exprEl.hidden = false; } else { exprEl.hidden = true; }
   const embedEl = document.getElementById("chartModalEmbed");
   const indicatorSlug = entry.key && INDICATOR_PAGE_SLUGS[entry.key];
-  const countrySlug = (location.pathname.split("/").pop() || "index").replace(/\.html$/,"") || "index";
+  const countrySlug = window.EATLAS_COUNTRY_SLUG;
   if(indicatorSlug){
     const pageHref = "indicators/" + countrySlug + "-" + indicatorSlug;
     const embedHref = "embed/" + countrySlug + "-" + indicatorSlug;
@@ -2050,7 +2061,7 @@ function statTile(el, key, title, series, opts){
     div.addEventListener("keydown",e=>{if(e.key==="Enter"||e.key===" "){e.preventDefault();go();}});
   }
   const _indicatorSlug = INDICATOR_PAGE_SLUGS[key];
-  const _countrySlug = (location.pathname.split("/").pop() || "index").replace(/\.html$/,"") || "index";
+  const _countrySlug = window.EATLAS_COUNTRY_SLUG;
   if(_indicatorSlug){
     div.classList.add("hasPageLink");
   }
