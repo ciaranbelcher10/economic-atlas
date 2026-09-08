@@ -19,7 +19,7 @@ matplotlib.use("Agg")
 import matplotlib.pyplot as plt
 from PIL import Image
 
-from generate_indicator_pages import COUNTRIES, CORE_METRICS, load_json, fmt_value, flag_emoji, ROOT
+from generate_indicator_pages import COUNTRIES, CORE_METRICS, load_json, fmt_value, flag_emoji, ROOT, annualize_gdp_points
 
 NAVY = "#1E4566"
 BLUE = "#4796CE"
@@ -92,6 +92,8 @@ def main():
                 continue
             s = series[metric_key]
             pts = [p for p in s.get("points", []) if p[1] is not None]
+            if metric_key == "gdp_level":
+                pts = annualize_gdp_points(pts, s.get("freq", ""), country_name)
             if len(pts) < 2:
                 continue
             unit = s.get("unit", "")

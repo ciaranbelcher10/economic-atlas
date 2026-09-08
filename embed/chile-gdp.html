@@ -7,15 +7,22 @@
 <meta name="robots" content="noindex">
 <style>
   *{box-sizing:border-box}
-  html,body{margin:0;padding:0;font-family:"Avenir Next","Avenir","Nunito Sans",system-ui,sans-serif;background:#fff;color:#171B1E}
-  .w{padding:14px 16px 10px;border:1px solid #E4E6E1;border-radius:10px;max-width:100%}
-  .w-head{display:flex;align-items:center;justify-content:space-between;margin-bottom:6px}
-  .w-title{font-size:.85rem;font-weight:700;opacity:.75}
-  .w-value{font-size:1.8rem;font-weight:700;margin:2px 0}
-  .w-period{font-size:.72rem;opacity:.55;margin-bottom:8px}
-  .w-badge{display:flex;align-items:center;gap:5px;font-size:.7rem;opacity:.6;text-decoration:none;color:#171B1E;margin-top:8px}
+  html,body{margin:0;padding:0;font-family:"Avenir Next","Avenir","Nunito Sans",system-ui,sans-serif;color:#171B1E;background:transparent}
+  /* Standalone (opened directly, not inside an iframe) gets a centred,
+     bounded presentation so it doesn't look like a broken full-width
+     page. Genuinely embedded (window !== window.top) fills its iframe
+     edge-to-edge instead, since the host page controls sizing there. */
+  body.standalone{background:#F5F6F3;min-height:100vh;display:flex;align-items:flex-start;justify-content:center;padding:40px 20px;}
+  .w{padding:18px 20px 14px;border:1px solid #E4E6E1;border-radius:12px;max-width:100%;background:#fff;box-shadow:0 1px 2px rgba(0,0,0,.04);}
+  body.standalone .w{width:380px;box-shadow:0 2px 12px rgba(0,0,0,.06);}
+  .w-head{display:flex;align-items:center;justify-content:space-between;margin-bottom:8px}
+  .w-title{font-size:.82rem;font-weight:700;opacity:.7;letter-spacing:.01em}
+  .w-value{font-size:1.9rem;font-weight:700;margin:2px 0;color:#171B1E}
+  .w-period{font-size:.72rem;opacity:.55;margin-bottom:10px}
+  .w-chart-outer{width:100%;aspect-ratio:1.618/1;position:relative;}
+  .w-badge{display:flex;align-items:center;gap:5px;font-size:.72rem;opacity:.6;text-decoration:none;color:#171B1E;margin-top:10px}
   .w-badge:hover{opacity:1}
-  #chart svg{display:block}
+  #chart svg{display:block;width:100%;height:100%}
 </style>
 </head>
 <body>
@@ -23,15 +30,31 @@
   <div class="w-head"><span class="w-title">🇨🇱 Chile &middot; GDP</span></div>
   <div class="w-value" id="val">&hellip;</div>
   <div class="w-period" id="per"></div>
-  <div id="chart"></div>
+  <div class="w-chart-outer" id="chart"></div>
   <a class="w-badge" href="https://theeconomicatlas.com/indicators/chile-gdp" target="_blank" rel="noopener">Powered by The Economic Atlas &#8594;</a>
 </div>
+<script>
+if(window.self === window.top){ document.body.classList.add("standalone"); }
+</script>
 <script>
 (function(){
   fetch("../data-cl.json").then(function(r){return r.json();}).then(function(d){
     var s = d.series && d.series["gdp_level"];
     if(!s || !s.points || !s.points.length) return;
-    var pts = s.points.slice(-24);
+    var rawPts = s.points;
+    var isGdp = "gdp_level" === "gdp_level";
+    var gdpNeedsSum = isGdp && true && s.freq !== "years";
+    var fullPts = rawPts;
+    if(gdpNeedsSum){
+      fullPts = [];
+      for(var gi=3; gi<rawPts.length; gi++){
+        var w = rawPts.slice(gi-3, gi+1);
+        if(w.some(function(p){return p[1]==null;})) continue;
+        fullPts.push([rawPts[gi][0], w.reduce(function(sum,p){return sum+p[1];},0)]);
+      }
+    }
+    var pts = fullPts.slice(-24);
+    if(!pts.length) return;
     var last = pts[pts.length-1];
     var unit = s.unit || "";
     var v = last[1];
@@ -56,13 +79,20 @@
     var vals = pts.map(function(p){return p[1];}).filter(function(v){return v!==null;});
     if(vals.length<2) return;
     var lo = Math.min.apply(null, vals), hi = Math.max.apply(null, vals), span=(hi-lo)||1;
-    var W=280,H=64,pad=4,n=pts.length,step=(W-2*pad)/(n-1);
+    var W=340,H=210,pad=6,n=pts.length,step=(W-2*pad)/(n-1);
     var coords = pts.map(function(p,i){
       var x = pad + i*step, y = pad + (H-2*pad)*(1-(p[1]-lo)/span);
-      return x.toFixed(1)+","+y.toFixed(1);
-    }).join(" ");
+      return [x,y];
+    });
+    var lineStr = coords.map(function(c){return c[0].toFixed(1)+","+c[1].toFixed(1);}).join(" ");
+    var areaStr = lineStr + " " + (W-pad).toFixed(1)+","+(H-pad).toFixed(1) + " " + pad.toFixed(1)+","+(H-pad).toFixed(1);
+    var lastC = coords[coords.length-1];
     document.getElementById("chart").innerHTML =
-      '<svg viewBox="0 0 '+W+' '+H+'" width="100%" height="'+H+'"><polyline points="'+coords+'" fill="none" stroke="#4796CE" stroke-width="2"/></svg>';
+      '<svg viewBox="0 0 '+W+' '+H+'" preserveAspectRatio="none">' +
+      '<polygon points="'+areaStr+'" fill="#37659E" fill-opacity="0.08"/>' +
+      '<polyline points="'+lineStr+'" fill="none" stroke="#37659E" stroke-width="2.5" stroke-linejoin="round" stroke-linecap="round"/>' +
+      '<circle cx="'+lastC[0].toFixed(1)+'" cy="'+lastC[1].toFixed(1)+'" r="3.5" fill="#1E4566"/>' +
+      '</svg>';
   }).catch(function(){});
 })();
 </script>

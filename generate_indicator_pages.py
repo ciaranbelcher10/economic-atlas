@@ -75,6 +75,32 @@ CORE_METRICS = {
     "debt_gdp":    ("government-debt", "Government Debt (% of GDP)"),
 }
 
+# The real site does NOT display gdp_level raw for most countries -- every
+# country page except US calls a client-side annualGDP() that sums the
+# trailing 4 quarters, because their gdp_level series is a genuine
+# per-quarter flow, not an annualized rate. US's own gdp_level ("GDP,
+# nominal SAAR") is already published at a seasonally-adjusted ANNUAL
+# rate, so it's used raw there and would be ~4x inflated if summed.
+# Confirmed by inspecting every country page's actual statTile() call for
+# gdp_level (see the "GDP (annual)" vs "GDP (annual rate)" label + whether
+# it feeds through the gdpAnnual variable or s.gdp_level directly).
+GDP_RAW_COUNTRIES = {"US"}
+
+def annualize_gdp_points(points, freq, country_name):
+    """Match the real site's annualGDP(): trailing 4-quarter sum for
+    quarterly series (except US, which is already an annual rate),
+    no-op for annual-frequency series."""
+    if country_name in GDP_RAW_COUNTRIES or freq == "years":
+        return points
+    out = []
+    for i in range(3, len(points)):
+        window = points[i-3:i+1]
+        if any(w[1] is None for w in window):
+            continue
+        out.append([points[i][0], sum(w[1] for w in window)])
+    return out
+
+
 HEADER_HTML = """<script>(function(){
   try{
     var saved = localStorage.getItem("eatlas_theme");
@@ -187,9 +213,15 @@ INDICATOR_TEMPLATE = """<!DOCTYPE html>
   .indicator-links{{display:flex;gap:12px;flex-wrap:wrap;margin-top:24px}}
   .indicator-links a{{display:inline-block;padding:10px 18px;border-radius:8px;border:1px solid var(--hair);text-decoration:none;color:var(--ink);font-weight:600;font-size:14px}}
   .indicator-links a.primary{{background:var(--navy);color:#fff;border-color:var(--navy)}}
-  .related{{margin-top:36px}}
-  .related h2{{font-size:13px;font-weight:600;letter-spacing:.09em;text-transform:uppercase;color:var(--ink2)}}
-  .related a{{display:block;padding:9px 0;border-bottom:1px solid var(--hair);text-decoration:none;color:var(--blue);font-size:14.5px}}
+  .indicator-related{{margin-top:36px}}
+  .indicator-related h2{{font-size:13px;font-weight:600;letter-spacing:.09em;text-transform:uppercase;color:var(--ink2)}}
+  .indicator-related a{{display:block;padding:9px 0;border-bottom:1px solid var(--hair);text-decoration:none;color:var(--blue);font-size:14.5px}}
+  /* Golden ratio (1.618:1) chart box, matching ChartMaker's own
+     .cm-chart-outer proportions and generous padding, rather than the
+     country pages' fixed 250px .chartbox -- this page is meant to be a
+     single polished centerpiece, so it gets the more premium treatment. */
+  .indicator-chart-outer{{position:relative;width:100%;aspect-ratio:1.618/1;border-radius:8px;border:1px solid var(--hair);background:var(--paper);}}
+  .indicator-panel{{padding:28px 30px 24px !important;}}
 </style>
 <script type="application/ld+json">
 {jsonld}
@@ -198,7 +230,7 @@ INDICATOR_TEMPLATE = """<!DOCTYPE html>
 <body>
 {header}
 <main class="indicator-wrap">
-  <p class="indicator-crumb"><a href="../{country_slug}.html">&larr; {country_name} overview</a></p>
+  <p class="indicator-crumb"><a href="../{country_slug}">&larr; {country_name} overview</a></p>
   <div class="indicator-hero">
     <span class="indicator-flag">{flag}</span>
     <h1>{country_name} {metric_title}</h1>
@@ -212,22 +244,22 @@ INDICATOR_TEMPLATE = """<!DOCTYPE html>
     </div>
   </div>
 
-  <div class="panel">
+  <div class="panel indicator-panel">
     <div class="panelhead"><h2>{metric_title}</h2></div>
     <p class="range">{first_period} to {latest_period}</p>
-    <div class="chartbox"><canvas id="indicatorChart" role="img" aria-label="{country_name} {metric_title}, {first_period} to {latest_period}"></canvas></div>
+    <div class="indicator-chart-outer"><canvas id="indicatorChart" role="img" aria-label="{country_name} {metric_title}, {first_period} to {latest_period}"></canvas></div>
     <p class="src">Source: {source}</p>
   </div>
 
   <p style="line-height:1.6;margin:22px 0 0;">{description}</p>
 
   <div class="indicator-links">
-    <a class="primary" href="../{country_slug}.html">View full {country_name} data</a>
-    <a href="../compare.html">Compare with other countries</a>
-    <a href="../embed/{slug}.html">Embed this chart &#8599;</a>
+    <a class="primary" href="../{country_slug}">View full {country_name} data</a>
+    <a href="../compare">Compare with other countries</a>
+    <a href="../embed/{slug}">Embed this chart &#8599;</a>
   </div>
 
-  <div class="related">
+  <div class="indicator-related">
     <h2>Other {country_name} indicators</h2>
     {related_links}
   </div>
@@ -243,6 +275,7 @@ INDICATOR_TEMPLATE = """<!DOCTYPE html>
   var HAIR = cs.getPropertyValue("--hair").trim() || "#E7E9E4";
   var PANEL_BG = cs.getPropertyValue("--panel").trim() || "#fff";
   var LINE = "#37659E";
+  var FONT = {{family: "'Avenir Next','Nunito Sans',sans-serif", size: 11.5}};
   var canvas = document.getElementById("indicatorChart");
   new Chart(canvas, {{
     type: "line",
@@ -258,11 +291,14 @@ INDICATOR_TEMPLATE = """<!DOCTYPE html>
       interaction: {{mode: "index", intersect: false}},
       plugins: {{
         legend: {{display: false}},
-        tooltip: {{backgroundColor: PANEL_BG, titleColor: INK, bodyColor: INK, borderColor: HAIR, borderWidth: 1, displayColors: false}}
+        tooltip: {{
+          backgroundColor: PANEL_BG, titleColor: INK, bodyColor: INK, borderColor: HAIR, borderWidth: 1,
+          titleFont: {{family: FONT.family, weight: "600"}}, bodyFont: {{family: FONT.family}}, displayColors: false
+        }}
       }},
       scales: {{
-        x: {{grid: {{display: false}}, ticks: {{color: INK2, maxTicksLimit: 7, maxRotation: 0}}}},
-        y: {{grid: {{color: HAIR}}, ticks: {{color: INK2, maxTicksLimit: 6}}}}
+        x: {{grid: {{display: false}}, border: {{color: HAIR}}, ticks: {{color: INK2, font: FONT, maxTicksLimit: 7, maxRotation: 0}}}},
+        y: {{grid: {{color: HAIR}}, border: {{display: false}}, ticks: {{color: INK2, font: FONT, maxTicksLimit: 6}}}}
       }}
     }}
   }});
@@ -282,15 +318,22 @@ EMBED_TEMPLATE = """<!DOCTYPE html>
 <meta name="robots" content="noindex">
 <style>
   *{{box-sizing:border-box}}
-  html,body{{margin:0;padding:0;font-family:"Avenir Next","Avenir","Nunito Sans",system-ui,sans-serif;background:#fff;color:#171B1E}}
-  .w{{padding:14px 16px 10px;border:1px solid #E4E6E1;border-radius:10px;max-width:100%}}
-  .w-head{{display:flex;align-items:center;justify-content:space-between;margin-bottom:6px}}
-  .w-title{{font-size:.85rem;font-weight:700;opacity:.75}}
-  .w-value{{font-size:1.8rem;font-weight:700;margin:2px 0}}
-  .w-period{{font-size:.72rem;opacity:.55;margin-bottom:8px}}
-  .w-badge{{display:flex;align-items:center;gap:5px;font-size:.7rem;opacity:.6;text-decoration:none;color:#171B1E;margin-top:8px}}
+  html,body{{margin:0;padding:0;font-family:"Avenir Next","Avenir","Nunito Sans",system-ui,sans-serif;color:#171B1E;background:transparent}}
+  /* Standalone (opened directly, not inside an iframe) gets a centred,
+     bounded presentation so it doesn't look like a broken full-width
+     page. Genuinely embedded (window !== window.top) fills its iframe
+     edge-to-edge instead, since the host page controls sizing there. */
+  body.standalone{{background:#F5F6F3;min-height:100vh;display:flex;align-items:flex-start;justify-content:center;padding:40px 20px;}}
+  .w{{padding:18px 20px 14px;border:1px solid #E4E6E1;border-radius:12px;max-width:100%;background:#fff;box-shadow:0 1px 2px rgba(0,0,0,.04);}}
+  body.standalone .w{{width:380px;box-shadow:0 2px 12px rgba(0,0,0,.06);}}
+  .w-head{{display:flex;align-items:center;justify-content:space-between;margin-bottom:8px}}
+  .w-title{{font-size:.82rem;font-weight:700;opacity:.7;letter-spacing:.01em}}
+  .w-value{{font-size:1.9rem;font-weight:700;margin:2px 0;color:#171B1E}}
+  .w-period{{font-size:.72rem;opacity:.55;margin-bottom:10px}}
+  .w-chart-outer{{width:100%;aspect-ratio:1.618/1;position:relative;}}
+  .w-badge{{display:flex;align-items:center;gap:5px;font-size:.72rem;opacity:.6;text-decoration:none;color:#171B1E;margin-top:10px}}
   .w-badge:hover{{opacity:1}}
-  #chart svg{{display:block}}
+  #chart svg{{display:block;width:100%;height:100%}}
 </style>
 </head>
 <body>
@@ -298,15 +341,31 @@ EMBED_TEMPLATE = """<!DOCTYPE html>
   <div class="w-head"><span class="w-title">{flag} {country_name} &middot; {metric_title}</span></div>
   <div class="w-value" id="val">&hellip;</div>
   <div class="w-period" id="per"></div>
-  <div id="chart"></div>
+  <div class="w-chart-outer" id="chart"></div>
   <a class="w-badge" href="{indicator_url}" target="_blank" rel="noopener">Powered by The Economic Atlas &#8594;</a>
 </div>
+<script>
+if(window.self === window.top){{ document.body.classList.add("standalone"); }}
+</script>
 <script>
 (function(){{
   fetch("{data_url}").then(function(r){{return r.json();}}).then(function(d){{
     var s = d.series && d.series["{metric_key}"];
     if(!s || !s.points || !s.points.length) return;
-    var pts = s.points.slice(-24);
+    var rawPts = s.points;
+    var isGdp = "{metric_key}" === "gdp_level";
+    var gdpNeedsSum = isGdp && {gdp_needs_sum} && s.freq !== "years";
+    var fullPts = rawPts;
+    if(gdpNeedsSum){{
+      fullPts = [];
+      for(var gi=3; gi<rawPts.length; gi++){{
+        var w = rawPts.slice(gi-3, gi+1);
+        if(w.some(function(p){{return p[1]==null;}})) continue;
+        fullPts.push([rawPts[gi][0], w.reduce(function(sum,p){{return sum+p[1];}},0)]);
+      }}
+    }}
+    var pts = fullPts.slice(-24);
+    if(!pts.length) return;
     var last = pts[pts.length-1];
     var unit = s.unit || "";
     var v = last[1];
@@ -331,13 +390,20 @@ EMBED_TEMPLATE = """<!DOCTYPE html>
     var vals = pts.map(function(p){{return p[1];}}).filter(function(v){{return v!==null;}});
     if(vals.length<2) return;
     var lo = Math.min.apply(null, vals), hi = Math.max.apply(null, vals), span=(hi-lo)||1;
-    var W=280,H=64,pad=4,n=pts.length,step=(W-2*pad)/(n-1);
+    var W=340,H=210,pad=6,n=pts.length,step=(W-2*pad)/(n-1);
     var coords = pts.map(function(p,i){{
       var x = pad + i*step, y = pad + (H-2*pad)*(1-(p[1]-lo)/span);
-      return x.toFixed(1)+","+y.toFixed(1);
-    }}).join(" ");
+      return [x,y];
+    }});
+    var lineStr = coords.map(function(c){{return c[0].toFixed(1)+","+c[1].toFixed(1);}}).join(" ");
+    var areaStr = lineStr + " " + (W-pad).toFixed(1)+","+(H-pad).toFixed(1) + " " + pad.toFixed(1)+","+(H-pad).toFixed(1);
+    var lastC = coords[coords.length-1];
     document.getElementById("chart").innerHTML =
-      '<svg viewBox="0 0 '+W+' '+H+'" width="100%" height="'+H+'"><polyline points="'+coords+'" fill="none" stroke="#4796CE" stroke-width="2"/></svg>';
+      '<svg viewBox="0 0 '+W+' '+H+'" preserveAspectRatio="none">' +
+      '<polygon points="'+areaStr+'" fill="#37659E" fill-opacity="0.08"/>' +
+      '<polyline points="'+lineStr+'" fill="none" stroke="#37659E" stroke-width="2.5" stroke-linejoin="round" stroke-linecap="round"/>' +
+      '<circle cx="'+lastC[0].toFixed(1)+'" cy="'+lastC[1].toFixed(1)+'" r="3.5" fill="#1E4566"/>' +
+      '</svg>';
   }}).catch(function(){{}});
 }})();
 </script>
@@ -383,6 +449,8 @@ def main():
 
             s = series[metric_key]
             pts = [p for p in s.get("points", []) if p[1] is not None]
+            if metric_key == "gdp_level":
+                pts = annualize_gdp_points(pts, s.get("freq", ""), country_name)
             if len(pts) < 2:
                 skipped.append((country_name, metric_key, "insufficient points"))
                 continue
@@ -424,9 +492,9 @@ def main():
 
             related = [m for m in available_metrics if m != metric_key]
             related_links = "\n    ".join(
-                f'<a href="{slug}-{CORE_METRICS[m][0]}.html">{country_name} {CORE_METRICS[m][1]}</a>'
+                f'<a href="{slug}-{CORE_METRICS[m][0]}">{country_name} {CORE_METRICS[m][1]}</a>'
                 for m in related
-            ) or f'<a href="../{slug}.html">See all {country_name} data &rarr;</a>'
+            ) or f'<a href="../{slug}">See all {country_name} data &rarr;</a>'
 
             html_out = INDICATOR_TEMPLATE.format(
                 title_tag=esc(title_tag), meta_desc=esc(meta_desc), canonical=canonical,
@@ -444,6 +512,7 @@ def main():
             embed_out = EMBED_TEMPLATE.format(
                 country_name=esc(country_name), metric_title=esc(metric_title), flag=flag,
                 indicator_url=canonical, data_url=data_url, metric_key=metric_key,
+                gdp_needs_sum=("false" if country_name in GDP_RAW_COUNTRIES else "true"),
             )
             with open(os.path.join(out_embed, f"{page_slug}.html"), "w", encoding="utf-8") as f:
                 f.write(embed_out)

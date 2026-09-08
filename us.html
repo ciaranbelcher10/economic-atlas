@@ -102,6 +102,10 @@ nav.cat button.active{background:var(--blue); border-color:var(--blue); color:#f
   background:var(--panel); color:var(--ink2); font-size:15px; line-height:1; cursor:pointer;
   display:flex; align-items:center; justify-content:center;}
 .expandBtn:hover{border-color:var(--blue); color:var(--navy);}
+.panelPageLink{flex:none; width:30px; height:30px; border-radius:8px; border:1px solid var(--hair);
+  background:var(--panel); color:var(--ink2); font-size:15px; line-height:1; cursor:pointer;
+  display:flex; align-items:center; justify-content:center; text-decoration:none;}
+.panelPageLink:hover{border-color:var(--blue); color:var(--navy);}
 .charttools{display:flex; align-items:center; justify-content:space-between; gap:10px;
   margin:8px 0 2px; flex-wrap:wrap;}
 .rangepresets{display:flex; gap:6px;}
@@ -2052,6 +2056,7 @@ function statTile(el, key, title, series, opts){
       <p class="source">${opts.source}</p>`;
   el.appendChild(div);
 }
+const INDICATOR_PAGE_SLUGS = {gdp_level:"gdp", cpi:"inflation-rate", unemployment:"unemployment-rate", debt_gdp:"government-debt"};
 function chartPanel(key, containerId, title, expl, series, kind, fmtY, fmtTip, srcNote, fromYear, refLine, infoKey){
   const container=document.getElementById(containerId);
   const pts = fromYear ? series.points.filter(p=>+p[0].slice(0,4)>=fromYear) : series.points;
@@ -2059,9 +2064,14 @@ function chartPanel(key, containerId, title, expl, series, kind, fmtY, fmtTip, s
   const panel=document.createElement("div");
   panel.className="panel";
   panel.dataset.key = key || infoKey || "";
+  const indicatorSlug = INDICATOR_PAGE_SLUGS[key];
+  const countrySlug = (location.pathname.split("/").pop() || "index").replace(/\.html$/,"") || "index";
+  const pageLinkHtml = indicatorSlug
+    ? `<a class="panelPageLink" href="indicators/${countrySlug}-${indicatorSlug}" aria-label="View ${title} as its own page" title="View as its own page">&#8599;</a>`
+    : "";
   panel.innerHTML=`
       <div class="panelhead"><h2>${title}${infoIconHtml(infoKey || key)}</h2>
-        <button type="button" class="expandBtn" aria-label="Enlarge ${title} chart" title="Enlarge">&#9974;</button></div>
+        ${pageLinkHtml}<button type="button" class="expandBtn" aria-label="Enlarge ${title} chart" title="Enlarge">&#9974;</button></div>
       <p class="expl">${expl}</p>
       <p class="range"${series.next?` title="Next release: ${series.next}" style="cursor:help;"`:""}>${fmtPeriod(pts[0][0])} to ${fmtPeriod(pts[pts.length-1][0])}${series.next?" ·":""}</p>
       <div class="chartbox"><canvas id="${id}" role="img" aria-label="${title}, ${fmtPeriod(pts[0][0])} to ${fmtPeriod(pts[pts.length-1][0])}"></canvas></div>

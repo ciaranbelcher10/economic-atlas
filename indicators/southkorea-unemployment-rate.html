@@ -26,9 +26,15 @@
   .indicator-links{display:flex;gap:12px;flex-wrap:wrap;margin-top:24px}
   .indicator-links a{display:inline-block;padding:10px 18px;border-radius:8px;border:1px solid var(--hair);text-decoration:none;color:var(--ink);font-weight:600;font-size:14px}
   .indicator-links a.primary{background:var(--navy);color:#fff;border-color:var(--navy)}
-  .related{margin-top:36px}
-  .related h2{font-size:13px;font-weight:600;letter-spacing:.09em;text-transform:uppercase;color:var(--ink2)}
-  .related a{display:block;padding:9px 0;border-bottom:1px solid var(--hair);text-decoration:none;color:var(--blue);font-size:14.5px}
+  .indicator-related{margin-top:36px}
+  .indicator-related h2{font-size:13px;font-weight:600;letter-spacing:.09em;text-transform:uppercase;color:var(--ink2)}
+  .indicator-related a{display:block;padding:9px 0;border-bottom:1px solid var(--hair);text-decoration:none;color:var(--blue);font-size:14.5px}
+  /* Golden ratio (1.618:1) chart box, matching ChartMaker's own
+     .cm-chart-outer proportions and generous padding, rather than the
+     country pages' fixed 250px .chartbox -- this page is meant to be a
+     single polished centerpiece, so it gets the more premium treatment. */
+  .indicator-chart-outer{position:relative;width:100%;aspect-ratio:1.618/1;border-radius:8px;border:1px solid var(--hair);background:var(--paper);}
+  .indicator-panel{padding:28px 30px 24px !important;}
 </style>
 <script type="application/ld+json">
 {
@@ -71,7 +77,7 @@
 </div></nav>
 
 <main class="indicator-wrap">
-  <p class="indicator-crumb"><a href="../southkorea.html">&larr; South Korea overview</a></p>
+  <p class="indicator-crumb"><a href="../southkorea">&larr; South Korea overview</a></p>
   <div class="indicator-hero">
     <span class="indicator-flag">🇰🇷</span>
     <h1>South Korea Unemployment Rate</h1>
@@ -85,26 +91,26 @@
     </div>
   </div>
 
-  <div class="panel">
+  <div class="panel indicator-panel">
     <div class="panelhead"><h2>Unemployment Rate</h2></div>
     <p class="range">1990-01 to 2026-07</p>
-    <div class="chartbox"><canvas id="indicatorChart" role="img" aria-label="South Korea Unemployment Rate, 1990-01 to 2026-07"></canvas></div>
+    <div class="indicator-chart-outer"><canvas id="indicatorChart" role="img" aria-label="South Korea Unemployment Rate, 1990-01 to 2026-07"></canvas></div>
     <p class="src">Source: FRED series LRHUTTTTKRM156S · seasonally adjusted, monthly.</p>
   </div>
 
   <p style="line-height:1.6;margin:22px 0 0;">The share of people aged 15 and over who want a job and are actively looking, but can&#x27;t find one.</p>
 
   <div class="indicator-links">
-    <a class="primary" href="../southkorea.html">View full South Korea data</a>
-    <a href="../compare.html">Compare with other countries</a>
-    <a href="../embed/southkorea-unemployment-rate.html">Embed this chart &#8599;</a>
+    <a class="primary" href="../southkorea">View full South Korea data</a>
+    <a href="../compare">Compare with other countries</a>
+    <a href="../embed/southkorea-unemployment-rate">Embed this chart &#8599;</a>
   </div>
 
-  <div class="related">
+  <div class="indicator-related">
     <h2>Other South Korea indicators</h2>
-    <a href="southkorea-gdp.html">South Korea GDP</a>
-    <a href="southkorea-inflation-rate.html">South Korea Inflation Rate (CPI)</a>
-    <a href="southkorea-government-debt.html">South Korea Government Debt (% of GDP)</a>
+    <a href="southkorea-gdp">South Korea GDP</a>
+    <a href="southkorea-inflation-rate">South Korea Inflation Rate (CPI)</a>
+    <a href="southkorea-government-debt">South Korea Government Debt (% of GDP)</a>
   </div>
 </main>
 <footer>
@@ -134,6 +140,7 @@
   var HAIR = cs.getPropertyValue("--hair").trim() || "#E7E9E4";
   var PANEL_BG = cs.getPropertyValue("--panel").trim() || "#fff";
   var LINE = "#37659E";
+  var FONT = {family: "'Avenir Next','Nunito Sans',sans-serif", size: 11.5};
   var canvas = document.getElementById("indicatorChart");
   new Chart(canvas, {
     type: "line",
@@ -149,11 +156,14 @@
       interaction: {mode: "index", intersect: false},
       plugins: {
         legend: {display: false},
-        tooltip: {backgroundColor: PANEL_BG, titleColor: INK, bodyColor: INK, borderColor: HAIR, borderWidth: 1, displayColors: false}
+        tooltip: {
+          backgroundColor: PANEL_BG, titleColor: INK, bodyColor: INK, borderColor: HAIR, borderWidth: 1,
+          titleFont: {family: FONT.family, weight: "600"}, bodyFont: {family: FONT.family}, displayColors: false
+        }
       },
       scales: {
-        x: {grid: {display: false}, ticks: {color: INK2, maxTicksLimit: 7, maxRotation: 0}},
-        y: {grid: {color: HAIR}, ticks: {color: INK2, maxTicksLimit: 6}}
+        x: {grid: {display: false}, border: {color: HAIR}, ticks: {color: INK2, font: FONT, maxTicksLimit: 7, maxRotation: 0}},
+        y: {grid: {color: HAIR}, border: {display: false}, ticks: {color: INK2, font: FONT, maxTicksLimit: 6}}
       }
     }
   });
