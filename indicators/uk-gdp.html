@@ -18,10 +18,14 @@
 <link rel="icon" type="image/png" sizes="32x32" href="../favicon-32.png">
 <link rel="apple-touch-icon" href="../apple-touch-icon.png">
 <link rel="stylesheet" href="../style.css?v=51">
+<link rel="stylesheet" href="../mobile.css?v=10">
 <style>
   .indicator-wrap{max-width:760px;margin:0 auto;padding:32px 24px 64px}
-  .indicator-crumb{font-size:13px;margin-bottom:18px}
-  .indicator-crumb a{color:var(--blue)}
+  .indicator-crumb{margin-bottom:18px}
+  .indicator-backbtn{border:1px solid var(--hair); background:var(--panel); color:var(--ink);
+    font:700 13px "Avenir Next","Avenir","Nunito Sans",sans-serif; padding:7px 14px; border-radius:999px;
+    text-decoration:none; display:inline-flex; align-items:center; gap:6px;}
+  .indicator-backbtn:hover{border-color:var(--blue); color:var(--navy);}
   .indicator-hero{display:flex;align-items:baseline;gap:12px;flex-wrap:wrap;margin-bottom:18px}
   .indicator-hero h1{font-size:22px;font-weight:700;margin:0}
   .indicator-links{display:flex;gap:12px;flex-wrap:wrap;margin-top:24px}
@@ -226,19 +230,326 @@
   }
 })();
 </script>
+<script src="https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2"></script>
+<script>
+// The real, complete auth system extracted verbatim from the country
+// pages (sign in, sign up, forgot/reset password, sign out, session
+// sync) -- not a second, separately-written copy. Only the unrelated
+// download-gating code that happened to share the same enclosing
+// function on the source page is left out, since nothing on this page
+// needs it.
+(function(){
+  var SUPABASE_URL = "https://skluvrxnuibkordzgtmu.supabase.co";
+  var SUPABASE_KEY = "sb_publishable_p6_GqrC8qcNC6KwPE46hkw_qdWQTuyT";
+  var sb = supabase.createClient(SUPABASE_URL, SUPABASE_KEY);
+  // Exposed globally so the Save & Share code in the later <script>
+  // block (a separate IIFE, not sharing this function's local `sb`) can
+  // reach the same client rather than creating a second connection.
+  window.sb = sb;
+  var authBtn = document.getElementById("authBtn");
+  var authModal = document.getElementById("authModal");
+  var authModalBackdrop = document.getElementById("authModalBackdrop");
+  var authModalClose = document.getElementById("authModalClose");
+  var authForm = document.getElementById("authForm");
+  var authEmail = document.getElementById("authEmail");
+  var authPassword = document.getElementById("authPassword");
+  var authSubmitBtn = document.getElementById("authSubmitBtn");
+  var authMsg = document.getElementById("authMsg");
+  var authToggleRow = document.getElementById("authToggleRow");
+  var authModalTitle = document.getElementById("authModalTitle");
+  var authModalSub = document.getElementById("authModalSub");
+  var authFormView = document.getElementById("authFormView");
+  var authSignedInView = document.getElementById("authSignedInView");
+  var authUserEmail = document.getElementById("authUserEmail");
+  var authSignOutBtn = document.getElementById("authSignOutBtn");
+  var authForgotBtn = document.getElementById("authForgotBtn");
+  var authForgotView = document.getElementById("authForgotView");
+  var authForgotForm = document.getElementById("authForgotForm");
+  var authForgotEmail = document.getElementById("authForgotEmail");
+  var authForgotSubmitBtn = document.getElementById("authForgotSubmitBtn");
+  var authForgotMsg = document.getElementById("authForgotMsg");
+  var authBackToLoginBtn = document.getElementById("authBackToLoginBtn");
+  var authResetView = document.getElementById("authResetView");
+  var authResetForm = document.getElementById("authResetForm");
+  var authNewPassword = document.getElementById("authNewPassword");
+  var authResetSubmitBtn = document.getElementById("authResetSubmitBtn");
+  var authResetMsg = document.getElementById("authResetMsg");
+  var authChangePasswordBtn = document.getElementById("authChangePasswordBtn");
+  var mode = "login";
+  function showMsg(el, text, kind){
+    el.textContent = text;
+    el.className = "auth-msg show " + kind;
+  }
+  function clearMsg(el){
+    el.className = "auth-msg";
+    el.textContent = "";
+  }
+  function hideAllViews(){
+    authFormView.hidden = true;
+    authForgotView.hidden = true;
+    authResetView.hidden = true;
+    authSignedInView.hidden = true;
+  }
+  function wireToggleBtn(label, nextMode){
+    var btn = document.createElement("button");
+    btn.type = "button";
+    btn.textContent = label;
+    btn.addEventListener("click", function(){ setMode(nextMode); });
+    return btn;
+  }
+  function setMode(newMode){
+    mode = newMode;
+    clearMsg(authMsg);
+    authForm.reset();
+    if(mode === "login"){
+      authModalTitle.textContent = "Log in";
+      authModalSub.textContent = "Welcome back.";
+      authSubmitBtn.textContent = "Log in";
+      authToggleRow.textContent = "Don't have an account? ";
+      authToggleRow.appendChild(wireToggleBtn("Sign up", "signup"));
+    } else {
+      authModalTitle.textContent = "Sign up";
+      authModalSub.textContent = "Free, for now -- this may change in future.";
+      authSubmitBtn.textContent = "Sign up";
+      authToggleRow.textContent = "Already have an account? ";
+      authToggleRow.appendChild(wireToggleBtn("Log in", "login"));
+    }
+  }
+  function showLoginView(){
+    hideAllViews();
+    authFormView.hidden = false;
+    setMode("login");
+  }
+  function showForgotView(){
+    hideAllViews();
+    authForgotView.hidden = false;
+    clearMsg(authForgotMsg);
+    authForgotForm.reset();
+  }
+  function showResetView(){
+    hideAllViews();
+    authResetView.hidden = false;
+    clearMsg(authResetMsg);
+    authResetForm.reset();
+  }
+  function showSignedInView(session){
+    hideAllViews();
+    authSignedInView.hidden = false;
+    authUserEmail.textContent = session.user.email;
+  }
+  function openAuthModal(){
+    authModal.hidden = false;
+    document.body.style.overflow = "hidden";
+    // Was unconditionally showing the login form, even for an
+    // already-logged-in account -- every "locked, click to unlock"
+    // button (buy credits, upgrade to Pro) calls this, and for someone
+    // already signed in that meant clicking "buy credits" appeared to
+    // demand a login instead of showing the account panel where credits
+    // actually get bought. Check the real session first, same as the
+    // top-right account button's own handler already correctly does.
+    sb.auth.getSession().then(function(res){
+      var session = res.data.session;
+      if(session){
+        showSignedInView(session);
+      } else {
+        showLoginView();
+      }
+    });
+  }
+  function closeAuthModal(){
+    authModal.hidden = true;
+    document.body.style.overflow = "";
+  }
+  function updateAuthUI(session){
+    if(session && session.user){
+      authBtn.textContent = session.user.email;
+      authBtn.classList.add("signed-in");
+    } else {
+      authBtn.textContent = "Log in";
+      authBtn.classList.remove("signed-in");
+    }
+    if(window.EATLAS_DOWNLOAD) window.EATLAS_DOWNLOAD.setAuthState(!!(session && session.user));
+    if(window.EATLAS_PREFS) window.EATLAS_PREFS.setAuthState(!!(session && session.user), session && session.user ? session.user.id : null);
+  }
+  authBtn.addEventListener("click", function(){
+    sb.auth.getSession().then(function(res){
+      var session = res.data.session;
+      authModal.hidden = false;
+      document.body.style.overflow = "hidden";
+      if(session){
+        showSignedInView(session);
+      } else {
+        showLoginView();
+      }
+    });
+  });
+  authModalClose.addEventListener("click", closeAuthModal);
+  authModalBackdrop.addEventListener("click", closeAuthModal);
+  document.addEventListener("keydown", function(e){ if(e.key === "Escape" && !authModal.hidden) closeAuthModal(); });
+  authForm.addEventListener("submit", function(e){
+    e.preventDefault();
+    var email = authEmail.value.trim();
+    var password = authPassword.value;
+    authSubmitBtn.disabled = true;
+    clearMsg(authMsg);
+    if(mode === "signup"){
+      sb.auth.signUp({ email: email, password: password }).then(function(res){
+        authSubmitBtn.disabled = false;
+        if(res.error){
+          showMsg(authMsg, res.error.message, "error");
+        } else if(res.data.user && !res.data.session){
+          showMsg(authMsg, "Check your email to confirm your account before logging in.", "success");
+          authForm.reset();
+        } else {
+          showMsg(authMsg, "Account created.", "success");
+        }
+      });
+    } else {
+      sb.auth.signInWithPassword({ email: email, password: password }).then(function(res){
+        authSubmitBtn.disabled = false;
+        if(res.error){
+          showMsg(authMsg, res.error.message, "error");
+        } else {
+          closeAuthModal();
+        }
+      });
+    }
+  });
+  // --- Forgot password ---
+  authForgotBtn.addEventListener("click", showForgotView);
+  authBackToLoginBtn.addEventListener("click", showLoginView);
+  authForgotForm.addEventListener("submit", function(e){
+    e.preventDefault();
+    var email = authForgotEmail.value.trim();
+    authForgotSubmitBtn.disabled = true;
+    clearMsg(authForgotMsg);
+    sb.auth.resetPasswordForEmail(email).then(function(res){
+      authForgotSubmitBtn.disabled = false;
+      if(res.error){
+        showMsg(authForgotMsg, res.error.message, "error");
+      } else {
+        showMsg(authForgotMsg, "Check your email for a password reset link.", "success");
+        authForgotForm.reset();
+      }
+    });
+  });
+  // --- Set / change password ---
+  // The same form and handler serve two different entry points: someone
+  // who clicked a "forgot password" reset link (Supabase creates a
+  // temporary session just for this) and someone who's already properly
+  // logged in and wants to change their password from the account view.
+  // Either way, updateUser() is exactly the same call.
+  authResetForm.addEventListener("submit", function(e){
+    e.preventDefault();
+    var password = authNewPassword.value;
+    authResetSubmitBtn.disabled = true;
+    clearMsg(authResetMsg);
+    sb.auth.updateUser({ password: password }).then(function(res){
+      authResetSubmitBtn.disabled = false;
+      if(res.error){
+        showMsg(authResetMsg, res.error.message, "error");
+      } else {
+        showMsg(authResetMsg, "Password updated.", "success");
+        authResetForm.reset();
+      }
+    });
+  });
+  authChangePasswordBtn.addEventListener("click", showResetView);
+  authSignOutBtn.addEventListener("click", function(){
+    sb.auth.signOut().then(function(){
+      closeAuthModal();
+    });
+  });
+  sb.auth.onAuthStateChange(function(event, session){
+    updateAuthUI(session);
+    if(event === "PASSWORD_RECOVERY"){
+      // Someone landed here via a password-reset email link -- open
+      // straight into the "set a new password" view rather than
+      // leaving them to notice they're now (temporarily) signed in
+      // and have to hunt for how to actually finish resetting it.
+      authModal.hidden = false;
+      document.body.style.overflow = "hidden";
+      showResetView();
+    }
+  });
+  sb.auth.getSession().then(function(res){
+    updateAuthUI(res.data.session);
+  });
+})();
+</script>
 
+<div class="auth-modal" id="authModal" hidden>
+ <div class="auth-modal-backdrop" id="authModalBackdrop"></div>
+ <div class="auth-modal-content">
+ <button type="button" class="auth-modal-close" id="authModalClose" aria-label="Close">&times;</button>
+ <div id="authFormView">
+ <h2 id="authModalTitle">Log in</h2>
+ <p class="auth-modal-sub" id="authModalSub">Welcome back.</p>
+ <form id="authForm">
+ <div class="auth-field">
+ <label for="authEmail">Email</label>
+ <input type="email" id="authEmail" required autocomplete="email">
+ </div>
+ <div class="auth-field">
+ <label for="authPassword">Password</label>
+ <input type="password" id="authPassword" required autocomplete="current-password" minlength="6">
+ </div>
+ <button type="submit" class="btn auth-submit" id="authSubmitBtn">Log in</button>
+ </form>
+ <p class="auth-toggle" id="authForgotRow"><button type="button" id="authForgotBtn">Forgot password?</button></p>
+ <p class="auth-toggle" id="authToggleRow">Don't have an account? <button type="button" id="authToggleBtn">Sign up</button></p>
+ <p class="auth-msg" id="authMsg"></p>
+ </div>
+ <div id="authForgotView" hidden>
+ <h2>Reset password</h2>
+ <p class="auth-modal-sub">Enter your email and we'll send a reset link.</p>
+ <form id="authForgotForm">
+ <div class="auth-field">
+ <label for="authForgotEmail">Email</label>
+ <input type="email" id="authForgotEmail" required autocomplete="email">
+ </div>
+ <button type="submit" class="btn auth-submit" id="authForgotSubmitBtn">Send reset link</button>
+ </form>
+ <p class="auth-toggle"><button type="button" id="authBackToLoginBtn">Back to log in</button></p>
+ <p class="auth-msg" id="authForgotMsg"></p>
+ </div>
+ <div id="authResetView" hidden>
+ <h2>Set a new password</h2>
+ <p class="auth-modal-sub">Choose a new password for your account.</p>
+ <form id="authResetForm">
+ <div class="auth-field">
+ <label for="authNewPassword">New password</label>
+ <input type="password" id="authNewPassword" required autocomplete="new-password" minlength="6">
+ </div>
+ <button type="submit" class="btn auth-submit" id="authResetSubmitBtn">Set new password</button>
+ </form>
+ <p class="auth-msg" id="authResetMsg"></p>
+ </div>
+ <div id="authSignedInView" hidden class="auth-signedin-box">
+ <h2>Account</h2>
+ <p>Signed in as</p>
+ <p><strong id="authUserEmail"></strong></p>
+ <div id="acctPlanBox" class="acct-plan-box"></div>
+ <button type="button" class="btn ghost" id="authChangePasswordBtn" style="margin-bottom:10px;">Change password</button>
+ <button type="button" class="btn ghost" id="authSignOutBtn">Log out</button>
+ </div>
+ </div>
+</div>
 <main class="indicator-wrap">
-  <p class="indicator-crumb"><a href="../uk">&larr; UK overview</a></p>
+  <p class="indicator-crumb"><a class="indicator-backbtn" href="../uk">&larr; UK overview</a></p>
   <div class="indicator-hero">
     <h1>UK GDP</h1>
   </div>
-
+<div class="metric-toggles" aria-label="Display options" style="margin:0 0 20px;">
+<button type="button" class="mtoggle" id="indToggleReal" aria-pressed="false"><span class="mtoggle-switch" aria-hidden="true"></span>Make it real</button>
+<button type="button" class="mtoggle" id="indToggleDollar" aria-pressed="false"><span class="mtoggle-switch" aria-hidden="true"></span>Dollarise</button>
+</div>
   <div class="hero" style="margin:0 0 22px;justify-content:flex-start;">
     <div class="stat" style="max-width:320px;">
       <p class="label">Latest</p>
-      <p class="figure"><span class="led green" title="Updated on schedule" role="img" aria-label="Updated on schedule"></span>£3.1tn</p>
-      <p class="delta good"><span class="arrow" aria-hidden="true">▲</span> +£30.7bn vs prior</p>
-      <p class="period">Q2 2026 &middot; updated 2026-09-07</p>
+      <p class="figure"><span class="led green" id="indicatorLed" title="Updated on schedule" role="img" aria-label="Updated on schedule"></span><span id="indicatorFigure">£3.1tn</span></p>
+      <p class="delta good" id="indicatorDelta"><span class="arrow" aria-hidden="true">▲</span> +£30.7bn vs prior</p>
+      <p class="period" id="indicatorPeriod">Q2 2026 &middot; updated 2026-09-07</p>
     </div>
   </div>
 
@@ -269,22 +580,11 @@
  figures are the latest published observations and are subject to revision.
  Ideas or corrections: <a href="../contact">get in touch</a>. <a href="../privacy">Privacy</a> &middot; <a href="../terms">Terms</a>.
 </footer>
-<script>
-(function(){
-  var btn = document.getElementById("themeToggle");
-  if(!btn) return;
-  btn.addEventListener("click", function(){
-    var isDark = document.documentElement.getAttribute("data-theme") === "dark";
-    if(isDark){ document.documentElement.removeAttribute("data-theme"); try{localStorage.setItem("eatlas_theme","light");}catch(e){} }
-    else{ document.documentElement.setAttribute("data-theme","dark"); try{localStorage.setItem("eatlas_theme","dark");}catch(e){} }
-  });
-})();
-</script>
 
 <script src="https://cdnjs.cloudflare.com/ajax/libs/Chart.js/4.4.1/chart.umd.min.js"></script>
 <script>
 (function(){
-  var pts = [["1976-Q3", 131206.0], ["1976-Q4", 136995.0], ["1977-Q1", 142583.0], ["1977-Q2", 148504.0], ["1977-Q3", 154291.0], ["1977-Q4", 159775.0], ["1978-Q1", 165875.0], ["1978-Q2", 172535.0], ["1978-Q3", 179402.0], ["1978-Q4", 186141.0], ["1979-Q1", 192460.0], ["1979-Q2", 200521.0], ["1979-Q3", 210083.0], ["1979-Q4", 220966.0], ["1980-Q1", 232594.0], ["1980-Q2", 242323.0], ["1980-Q3", 251572.0], ["1980-Q4", 259956.0], ["1981-Q1", 267830.0], ["1981-Q2", 275547.0], ["1981-Q3", 282976.0], ["1981-Q4", 290550.0], ["1982-Q1", 298186.0], ["1982-Q2", 305884.0], ["1982-Q3", 312978.0], ["1982-Q4", 320013.0], ["1983-Q1", 328278.0], ["1983-Q2", 335593.0], ["1983-Q3", 343834.0], ["1983-Q4", 351900.0], ["1984-Q1", 357864.0], ["1984-Q2", 365046.0], ["1984-Q3", 371306.0], ["1984-Q4", 378608.0], ["1985-Q1", 386407.0], ["1985-Q2", 396212.0], ["1985-Q3", 406549.0], ["1985-Q4", 415455.0], ["1986-Q1", 424801.0], ["1986-Q2", 431701.0], ["1986-Q3", 438564.0], ["1986-Q4", 447561.0], ["1987-Q1", 457005.0], ["1987-Q2", 468717.0], ["1987-Q3", 483923.0], ["1987-Q4", 498040.0], ["1988-Q1", 513277.0], ["1988-Q2", 528278.0], ["1988-Q3", 542046.0], ["1988-Q4", 557277.0], ["1989-Q1", 572718.0], ["1989-Q2", 587441.0], ["1989-Q3", 602103.0], ["1989-Q4", 616595.0], ["1990-Q1", 631097.0], ["1990-Q2", 646616.0], ["1990-Q3", 661361.0], ["1990-Q4", 672977.0], ["1991-Q1", 683131.0], ["1991-Q2", 692234.0], ["1991-Q3", 699434.0], ["1991-Q4", 708072.0], ["1992-Q1", 716351.0], ["1992-Q2", 722457.0], ["1992-Q3", 727778.0], ["1992-Q4", 733221.0], ["1993-Q1", 741414.0], ["1993-Q2", 749375.0], ["1993-Q3", 760417.0], ["1993-Q4", 772390.0], ["1994-Q1", 782644.0], ["1994-Q2", 793576.0], ["1994-Q3", 803373.0], ["1994-Q4", 813527.0], ["1995-Q1", 822442.0], ["1995-Q2", 832581.0], ["1995-Q3", 843999.0], ["1995-Q4", 854921.0], ["1996-Q1", 867839.0], ["1996-Q2", 883439.0], ["1996-Q3", 898876.0], ["1996-Q4", 913609.0], ["1997-Q1", 924649.0], ["1997-Q2", 934795.0], ["1997-Q3", 949315.0], ["1997-Q4", 958539.0], ["1998-Q1", 972370.0], ["1998-Q2", 984354.0], ["1998-Q3", 990493.0], ["1998-Q4", 1002804.0], ["1999-Q1", 1012744.0], ["1999-Q2", 1022346.0], ["1999-Q3", 1033182.0], ["1999-Q4", 1046727.0], ["2000-Q1", 1063163.0], ["2000-Q2", 1079430.0], ["2000-Q3", 1094178.0], ["2000-Q4", 1104759.0], ["2001-Q1", 1114932.0], ["2001-Q2", 1127432.0], ["2001-Q3", 1139689.0], ["2001-Q4", 1150542.0], ["2002-Q1", 1160696.0], ["2002-Q2", 1170094.0], ["2002-Q3", 1180624.0], ["2002-Q4", 1194646.0], ["2003-Q1", 1208344.0], ["2003-Q2", 1224966.0], ["2003-Q3", 1243978.0], ["2003-Q4", 1262502.0], ["2004-Q1", 1279226.0], ["2004-Q2", 1296670.0], ["2004-Q3", 1310313.0], ["2004-Q4", 1327143.0], ["2005-Q1", 1344682.0], ["2005-Q2", 1363217.0], ["2005-Q3", 1384123.0], ["2005-Q4", 1403249.0], ["2006-Q1", 1424005.0], ["2006-Q2", 1442925.0], ["2006-Q3", 1462083.0], ["2006-Q4", 1478080.0], ["2007-Q1", 1494157.0], ["2007-Q2", 1513584.0], ["2007-Q3", 1531896.0], ["2007-Q4", 1551729.0], ["2008-Q1", 1572773.0], ["2008-Q2", 1587511.0], ["2008-Q3", 1598754.0], ["2008-Q4", 1602217.0], ["2009-Q1", 1592276.0], ["2009-Q2", 1578740.0], ["2009-Q3", 1567782.0], ["2009-Q4", 1559405.0], ["2010-Q1", 1567756.0], ["2010-Q2", 1581542.0], ["2010-Q3", 1596540.0], ["2010-Q4", 1615839.0], ["2011-Q1", 1634234.0], ["2011-Q2", 1645337.0], ["2011-Q3", 1657279.0], ["2011-Q4", 1669945.0], ["2012-Q1", 1680077.0], ["2012-Q2", 1692735.0], ["2012-Q3", 1707903.0], ["2012-Q4", 1721708.0], ["2013-Q1", 1735093.0], ["2013-Q2", 1752021.0], ["2013-Q3", 1769459.0], ["2013-Q4", 1789072.0], ["2014-Q1", 1809716.0], ["2014-Q2", 1830757.0], ["2014-Q3", 1854147.0], ["2014-Q4", 1875066.0], ["2015-Q1", 1892400.0], ["2015-Q2", 1907115.0], ["2015-Q3", 1915690.0], ["2015-Q4", 1928016.0], ["2016-Q1", 1942644.0], ["2016-Q2", 1960318.0], ["2016-Q3", 1982001.0], ["2016-Q4", 2004755.0], ["2017-Q1", 2029417.0], ["2017-Q2", 2053977.0], ["2017-Q3", 2074765.0], ["2017-Q4", 2097222.0], ["2018-Q1", 2115079.0], ["2018-Q2", 2134182.0], ["2018-Q3", 2154181.0], ["2018-Q4", 2171559.0], ["2019-Q1", 2190380.0], ["2019-Q2", 2210656.0], ["2019-Q3", 2232947.0], ["2019-Q4", 2252961.0], ["2020-Q1", 2258342.0], ["2020-Q2", 2178574.0], ["2020-Q3", 2151442.0], ["2020-Q4", 2124720.0], ["2021-Q1", 2110471.0], ["2021-Q2", 2205769.0], ["2021-Q3", 2258157.0], ["2021-Q4", 2322652.0], ["2022-Q1", 2400550.0], ["2022-Q2", 2463318.0], ["2022-Q3", 2520844.0], ["2022-Q4", 2580949.0], ["2023-Q1", 2637129.0], ["2023-Q2", 2687454.0], ["2023-Q3", 2730203.0], ["2023-Q4", 2752164.0], ["2024-Q1", 2778010.0], ["2024-Q2", 2806236.0], ["2024-Q3", 2843316.0], ["2024-Q4", 2890254.0], ["2025-Q1", 2932823.0], ["2025-Q2", 2970926.0], ["2025-Q3", 3003696.0], ["2025-Q4", 3033866.0], ["2026-Q1", 3066851.0], ["2026-Q2", 3097533.0]];
+  var nominalPts = [["1976-Q3", 131206.0], ["1976-Q4", 136995.0], ["1977-Q1", 142583.0], ["1977-Q2", 148504.0], ["1977-Q3", 154291.0], ["1977-Q4", 159775.0], ["1978-Q1", 165875.0], ["1978-Q2", 172535.0], ["1978-Q3", 179402.0], ["1978-Q4", 186141.0], ["1979-Q1", 192460.0], ["1979-Q2", 200521.0], ["1979-Q3", 210083.0], ["1979-Q4", 220966.0], ["1980-Q1", 232594.0], ["1980-Q2", 242323.0], ["1980-Q3", 251572.0], ["1980-Q4", 259956.0], ["1981-Q1", 267830.0], ["1981-Q2", 275547.0], ["1981-Q3", 282976.0], ["1981-Q4", 290550.0], ["1982-Q1", 298186.0], ["1982-Q2", 305884.0], ["1982-Q3", 312978.0], ["1982-Q4", 320013.0], ["1983-Q1", 328278.0], ["1983-Q2", 335593.0], ["1983-Q3", 343834.0], ["1983-Q4", 351900.0], ["1984-Q1", 357864.0], ["1984-Q2", 365046.0], ["1984-Q3", 371306.0], ["1984-Q4", 378608.0], ["1985-Q1", 386407.0], ["1985-Q2", 396212.0], ["1985-Q3", 406549.0], ["1985-Q4", 415455.0], ["1986-Q1", 424801.0], ["1986-Q2", 431701.0], ["1986-Q3", 438564.0], ["1986-Q4", 447561.0], ["1987-Q1", 457005.0], ["1987-Q2", 468717.0], ["1987-Q3", 483923.0], ["1987-Q4", 498040.0], ["1988-Q1", 513277.0], ["1988-Q2", 528278.0], ["1988-Q3", 542046.0], ["1988-Q4", 557277.0], ["1989-Q1", 572718.0], ["1989-Q2", 587441.0], ["1989-Q3", 602103.0], ["1989-Q4", 616595.0], ["1990-Q1", 631097.0], ["1990-Q2", 646616.0], ["1990-Q3", 661361.0], ["1990-Q4", 672977.0], ["1991-Q1", 683131.0], ["1991-Q2", 692234.0], ["1991-Q3", 699434.0], ["1991-Q4", 708072.0], ["1992-Q1", 716351.0], ["1992-Q2", 722457.0], ["1992-Q3", 727778.0], ["1992-Q4", 733221.0], ["1993-Q1", 741414.0], ["1993-Q2", 749375.0], ["1993-Q3", 760417.0], ["1993-Q4", 772390.0], ["1994-Q1", 782644.0], ["1994-Q2", 793576.0], ["1994-Q3", 803373.0], ["1994-Q4", 813527.0], ["1995-Q1", 822442.0], ["1995-Q2", 832581.0], ["1995-Q3", 843999.0], ["1995-Q4", 854921.0], ["1996-Q1", 867839.0], ["1996-Q2", 883439.0], ["1996-Q3", 898876.0], ["1996-Q4", 913609.0], ["1997-Q1", 924649.0], ["1997-Q2", 934795.0], ["1997-Q3", 949315.0], ["1997-Q4", 958539.0], ["1998-Q1", 972370.0], ["1998-Q2", 984354.0], ["1998-Q3", 990493.0], ["1998-Q4", 1002804.0], ["1999-Q1", 1012744.0], ["1999-Q2", 1022346.0], ["1999-Q3", 1033182.0], ["1999-Q4", 1046727.0], ["2000-Q1", 1063163.0], ["2000-Q2", 1079430.0], ["2000-Q3", 1094178.0], ["2000-Q4", 1104759.0], ["2001-Q1", 1114932.0], ["2001-Q2", 1127432.0], ["2001-Q3", 1139689.0], ["2001-Q4", 1150542.0], ["2002-Q1", 1160696.0], ["2002-Q2", 1170094.0], ["2002-Q3", 1180624.0], ["2002-Q4", 1194646.0], ["2003-Q1", 1208344.0], ["2003-Q2", 1224966.0], ["2003-Q3", 1243978.0], ["2003-Q4", 1262502.0], ["2004-Q1", 1279226.0], ["2004-Q2", 1296670.0], ["2004-Q3", 1310313.0], ["2004-Q4", 1327143.0], ["2005-Q1", 1344682.0], ["2005-Q2", 1363217.0], ["2005-Q3", 1384123.0], ["2005-Q4", 1403249.0], ["2006-Q1", 1424005.0], ["2006-Q2", 1442925.0], ["2006-Q3", 1462083.0], ["2006-Q4", 1478080.0], ["2007-Q1", 1494157.0], ["2007-Q2", 1513584.0], ["2007-Q3", 1531896.0], ["2007-Q4", 1551729.0], ["2008-Q1", 1572773.0], ["2008-Q2", 1587511.0], ["2008-Q3", 1598754.0], ["2008-Q4", 1602217.0], ["2009-Q1", 1592276.0], ["2009-Q2", 1578740.0], ["2009-Q3", 1567782.0], ["2009-Q4", 1559405.0], ["2010-Q1", 1567756.0], ["2010-Q2", 1581542.0], ["2010-Q3", 1596540.0], ["2010-Q4", 1615839.0], ["2011-Q1", 1634234.0], ["2011-Q2", 1645337.0], ["2011-Q3", 1657279.0], ["2011-Q4", 1669945.0], ["2012-Q1", 1680077.0], ["2012-Q2", 1692735.0], ["2012-Q3", 1707903.0], ["2012-Q4", 1721708.0], ["2013-Q1", 1735093.0], ["2013-Q2", 1752021.0], ["2013-Q3", 1769459.0], ["2013-Q4", 1789072.0], ["2014-Q1", 1809716.0], ["2014-Q2", 1830757.0], ["2014-Q3", 1854147.0], ["2014-Q4", 1875066.0], ["2015-Q1", 1892400.0], ["2015-Q2", 1907115.0], ["2015-Q3", 1915690.0], ["2015-Q4", 1928016.0], ["2016-Q1", 1942644.0], ["2016-Q2", 1960318.0], ["2016-Q3", 1982001.0], ["2016-Q4", 2004755.0], ["2017-Q1", 2029417.0], ["2017-Q2", 2053977.0], ["2017-Q3", 2074765.0], ["2017-Q4", 2097222.0], ["2018-Q1", 2115079.0], ["2018-Q2", 2134182.0], ["2018-Q3", 2154181.0], ["2018-Q4", 2171559.0], ["2019-Q1", 2190380.0], ["2019-Q2", 2210656.0], ["2019-Q3", 2232947.0], ["2019-Q4", 2252961.0], ["2020-Q1", 2258342.0], ["2020-Q2", 2178574.0], ["2020-Q3", 2151442.0], ["2020-Q4", 2124720.0], ["2021-Q1", 2110471.0], ["2021-Q2", 2205769.0], ["2021-Q3", 2258157.0], ["2021-Q4", 2322652.0], ["2022-Q1", 2400550.0], ["2022-Q2", 2463318.0], ["2022-Q3", 2520844.0], ["2022-Q4", 2580949.0], ["2023-Q1", 2637129.0], ["2023-Q2", 2687454.0], ["2023-Q3", 2730203.0], ["2023-Q4", 2752164.0], ["2024-Q1", 2778010.0], ["2024-Q2", 2806236.0], ["2024-Q3", 2843316.0], ["2024-Q4", 2890254.0], ["2025-Q1", 2932823.0], ["2025-Q2", 2970926.0], ["2025-Q3", 3003696.0], ["2025-Q4", 3033866.0], ["2026-Q1", 3066851.0], ["2026-Q2", 3097533.0]];
   var unit = "\u00a3m";
   var cs = getComputedStyle(document.documentElement);
   var INK = cs.getPropertyValue("--ink").trim() || "#171B1E";
@@ -293,12 +593,13 @@
   var PANEL_BG = cs.getPropertyValue("--panel").trim() || "#fff";
   var LINE = "#37659E";
   var FONT = {family: "'Avenir Next','Nunito Sans',sans-serif", size: 11.5};
-  function curFmt(raw, decimals){
-    if(unit.indexOf("%") > -1) return raw.toFixed(1) + "%";
-    var scales = [["bn",1e9],["m",1e6],["k",1e3]], symbol = unit, mult = 1;
+  function curFmt(raw, decimals, unitOverride){
+    var u = unitOverride || unit;
+    if(u.indexOf("%") > -1) return raw.toFixed(1) + "%";
+    var scales = [["bn",1e9],["m",1e6],["k",1e3]], symbol = u, mult = 1;
     for(var i=0;i<scales.length;i++){
       var suf = scales[i][0];
-      if(unit.slice(-suf.length) === suf && unit.length > suf.length){ symbol = unit.slice(0,-suf.length); mult = scales[i][1]; break; }
+      if(u.slice(-suf.length) === suf && u.length > suf.length){ symbol = u.slice(0,-suf.length); mult = scales[i][1]; break; }
     }
     var a = Math.abs(raw) * mult, sign = raw < 0 ? "\u2212" : "";
     var out;
@@ -312,36 +613,140 @@
     var m = /^(\d{4})/.exec(label);
     return m ? m[1] : label;
   }
-  var canvas = document.getElementById("indicatorChart");
-  new Chart(canvas, {
-    type: "line",
-    data: {
-      labels: pts.map(function(p){return p[0];}),
-      datasets: [{
-        data: pts.map(function(p){return p[1];}),
-        borderColor: LINE, borderWidth: 2, pointRadius: 0, pointHitRadius: 8, tension: 0.25
-      }]
-    },
-    options: {
-      responsive: true, maintainAspectRatio: false, animation: false,
-      interaction: {mode: "index", intersect: false},
-      plugins: {
-        legend: {display: false},
-        tooltip: {
-          backgroundColor: PANEL_BG, titleColor: INK, bodyColor: INK, borderColor: HAIR, borderWidth: 1,
-          titleFont: {family: FONT.family, weight: "600"}, bodyFont: {family: FONT.family}, displayColors: false,
-          callbacks: { label: function(ctx){ return curFmt(ctx.parsed.y, 2); } }
-        }
+  var chart = null;
+  function renderChart(pts, unitForChart){
+    var canvas = document.getElementById("indicatorChart");
+    if(chart){ chart.destroy(); chart = null; }
+    chart = new Chart(canvas, {
+      type: "line",
+      data: {
+        labels: pts.map(function(p){return p[0];}),
+        datasets: [{
+          data: pts.map(function(p){return p[1];}),
+          borderColor: LINE, borderWidth: 2, pointRadius: 0, pointHitRadius: 8, tension: 0.25
+        }]
       },
-      scales: {
-        x: {grid: {display: false}, border: {color: HAIR}, ticks: {color: INK2, font: FONT, maxTicksLimit: 7, maxRotation: 0,
-             callback: function(v){ return yearOf(this.getLabelForValue(v)); } }},
-        y: {grid: {color: HAIR}, border: {display: false}, ticks: {color: INK2, font: FONT, maxTicksLimit: 6,
-             callback: function(v){ return curFmt(v, 1); } }}
+      options: {
+        responsive: true, maintainAspectRatio: false, animation: false,
+        interaction: {mode: "index", intersect: false},
+        plugins: {
+          legend: {display: false},
+          tooltip: {
+            backgroundColor: PANEL_BG, titleColor: INK, bodyColor: INK, borderColor: HAIR, borderWidth: 1,
+            titleFont: {family: FONT.family, weight: "600"}, bodyFont: {family: FONT.family}, displayColors: false,
+            callbacks: { label: function(ctx){ return curFmt(ctx.parsed.y, 2, unitForChart); } }
+          }
+        },
+        scales: {
+          x: {grid: {display: false}, border: {color: HAIR}, ticks: {color: INK2, font: FONT, maxTicksLimit: 7, maxRotation: 0,
+               callback: function(v){ return yearOf(this.getLabelForValue(v)); } }},
+          y: {grid: {color: HAIR}, border: {display: false}, ticks: {color: INK2, font: FONT, maxTicksLimit: 6,
+               callback: function(v){ return curFmt(v, 1, unitForChart); } }}
+        }
       }
-    }
-  });
+    });
+  }
+  renderChart(nominalPts, unit);
+  window.EATLAS_INDICATOR_RENDER = {renderChart: renderChart, curFmt: curFmt, nominalPts: nominalPts, unit: unit};
 })();
 </script>
+<script>
+(function(){
+
+  function monthKey(period){
+    var yearMatch = period.match(/^(\d{4})/);
+    if(!yearMatch) return null;
+    var year = parseInt(yearMatch[1], 10);
+    var qMatch = period.match(/^\d{4}-Q([1-4])$/);
+    if(qMatch) return year*12 + (parseInt(qMatch[1],10)-1)*3;
+    var mMatch = period.match(/^\d{4}-(\d{2})$/);
+    if(mMatch) return year*12 + (parseInt(mMatch[1],10)-1);
+    return year*12;
+  }
+  function rateForPeriod(period, history){
+    if(!history || !history.length) return null;
+    var matches;
+    if(/^\d{4}$/.test(period)){
+      matches = history.filter(function(h){ return h[0].indexOf(period+"-")===0; });
+    } else if(/^\d{4}-Q[1-4]$/.test(period)){
+      var parts = period.split("-Q"), y = parts[0], q = parts[1];
+      var startMonth = (parseInt(q,10)-1)*3 + 1;
+      var wanted = [startMonth, startMonth+1, startMonth+2].map(function(m){ return y+"-"+String(m).padStart(2,"0"); });
+      matches = history.filter(function(h){ return wanted.indexOf(h[0])>-1; });
+    } else {
+      matches = history.filter(function(h){ return h[0]===period; });
+    }
+    if(matches.length) return matches.reduce(function(sum,h){ return sum+h[1]; }, 0) / matches.length;
+    var targetKey = monthKey(period);
+    var best = history[0], bestDist = Infinity;
+    for(var i=0;i<history.length;i++){
+      var dist = Math.abs(monthKey(history[i][0]) - targetKey);
+      if(dist < bestDist){ bestDist = dist; best = history[i]; }
+    }
+    return best[1];
+  }
+  function convertPtsToUSD(pts, fx){
+    return pts.map(function(p){
+      var rate = fx.history ? rateForPeriod(p[0], fx.history) : fx.rate;
+      var v = fx.direction==="multiply" ? p[1]*rate : p[1]/rate;
+      return [p[0], v];
+    });
+  }
+
+  var TOGGLE_STATE = {real: false, dollar: false};
+  var NOMINAL_PTS = [["1955-Q4", 19170.0], ["1956-Q1", 19590.0], ["1956-Q2", 20057.0], ["1956-Q3", 20430.0], ["1956-Q4", 20846.0], ["1957-Q1", 21140.0], ["1957-Q2", 21446.0], ["1957-Q3", 21789.0], ["1957-Q4", 22107.0], ["1958-Q1", 22527.0], ["1958-Q2", 22791.0], ["1958-Q3", 23037.0], ["1958-Q4", 23223.0], ["1959-Q1", 23309.0], ["1959-Q2", 23664.0], ["1959-Q3", 23944.0], ["1959-Q4", 24392.0], ["1960-Q1", 24933.0], ["1960-Q2", 25339.0], ["1960-Q3", 25815.0], ["1960-Q4", 26206.0], ["1961-Q1", 26662.0], ["1961-Q2", 27059.0], ["1961-Q3", 27600.0], ["1961-Q4", 27924.0], ["1962-Q1", 28175.0], ["1962-Q2", 28601.0], ["1962-Q3", 28863.0], ["1962-Q4", 29242.0], ["1963-Q1", 29475.0], ["1963-Q2", 29918.0], ["1963-Q3", 30406.0], ["1963-Q4", 31107.0], ["1964-Q1", 31884.0], ["1964-Q2", 32567.0], ["1964-Q3", 33316.0], ["1964-Q4", 34056.0], ["1965-Q1", 34933.0], ["1965-Q2", 35563.0], ["1965-Q3", 36229.0], ["1965-Q4", 36839.0], ["1966-Q1", 37427.0], ["1966-Q2", 38137.0], ["1966-Q3", 38810.0], ["1966-Q4", 39407.0], ["1967-Q1", 39959.0], ["1967-Q2", 40601.0], ["1967-Q3", 41129.0], ["1967-Q4", 41687.0], ["1968-Q1", 42628.0], ["1968-Q2", 43446.0], ["1968-Q3", 44550.0], ["1968-Q4", 45811.0], ["1969-Q1", 46800.0], ["1969-Q2", 47836.0], ["1969-Q3", 48790.0], ["1969-Q4", 49776.0], ["1970-Q1", 50908.0], ["1970-Q2", 52443.0], ["1970-Q3", 54154.0], ["1970-Q4", 56056.0], ["1971-Q1", 57823.0], ["1971-Q2", 59518.0], ["1971-Q3", 61259.0], ["1971-Q4", 62886.0], ["1972-Q1", 64499.0], ["1972-Q2", 66390.0], ["1972-Q3", 68156.0], ["1972-Q4", 70595.0], ["1973-Q1", 74042.0], ["1973-Q2", 76529.0], ["1973-Q3", 79329.0], ["1973-Q4", 81809.0], ["1974-Q1", 82895.0], ["1974-Q2", 85670.0], ["1974-Q3", 89006.0], ["1974-Q4", 92686.0], ["1975-Q1", 98365.0], ["1975-Q2", 103841.0], ["1975-Q3", 109202.0], ["1975-Q4", 115095.0], ["1976-Q1", 120728.0], ["1976-Q2", 125918.0], ["1976-Q3", 131206.0], ["1976-Q4", 136995.0], ["1977-Q1", 142583.0], ["1977-Q2", 148504.0], ["1977-Q3", 154291.0], ["1977-Q4", 159775.0], ["1978-Q1", 165875.0], ["1978-Q2", 172535.0], ["1978-Q3", 179402.0], ["1978-Q4", 186141.0], ["1979-Q1", 192460.0], ["1979-Q2", 200521.0], ["1979-Q3", 210083.0], ["1979-Q4", 220966.0], ["1980-Q1", 232594.0], ["1980-Q2", 242323.0], ["1980-Q3", 251572.0], ["1980-Q4", 259956.0], ["1981-Q1", 267830.0], ["1981-Q2", 275547.0], ["1981-Q3", 282976.0], ["1981-Q4", 290550.0], ["1982-Q1", 298186.0], ["1982-Q2", 305884.0], ["1982-Q3", 312978.0], ["1982-Q4", 320013.0], ["1983-Q1", 328278.0], ["1983-Q2", 335593.0], ["1983-Q3", 343834.0], ["1983-Q4", 351900.0], ["1984-Q1", 357864.0], ["1984-Q2", 365046.0], ["1984-Q3", 371306.0], ["1984-Q4", 378608.0], ["1985-Q1", 386407.0], ["1985-Q2", 396212.0], ["1985-Q3", 406549.0], ["1985-Q4", 415455.0], ["1986-Q1", 424801.0], ["1986-Q2", 431701.0], ["1986-Q3", 438564.0], ["1986-Q4", 447561.0], ["1987-Q1", 457005.0], ["1987-Q2", 468717.0], ["1987-Q3", 483923.0], ["1987-Q4", 498040.0], ["1988-Q1", 513277.0], ["1988-Q2", 528278.0], ["1988-Q3", 542046.0], ["1988-Q4", 557277.0], ["1989-Q1", 572718.0], ["1989-Q2", 587441.0], ["1989-Q3", 602103.0], ["1989-Q4", 616595.0], ["1990-Q1", 631097.0], ["1990-Q2", 646616.0], ["1990-Q3", 661361.0], ["1990-Q4", 672977.0], ["1991-Q1", 683131.0], ["1991-Q2", 692234.0], ["1991-Q3", 699434.0], ["1991-Q4", 708072.0], ["1992-Q1", 716351.0], ["1992-Q2", 722457.0], ["1992-Q3", 727778.0], ["1992-Q4", 733221.0], ["1993-Q1", 741414.0], ["1993-Q2", 749375.0], ["1993-Q3", 760417.0], ["1993-Q4", 772390.0], ["1994-Q1", 782644.0], ["1994-Q2", 793576.0], ["1994-Q3", 803373.0], ["1994-Q4", 813527.0], ["1995-Q1", 822442.0], ["1995-Q2", 832581.0], ["1995-Q3", 843999.0], ["1995-Q4", 854921.0], ["1996-Q1", 867839.0], ["1996-Q2", 883439.0], ["1996-Q3", 898876.0], ["1996-Q4", 913609.0], ["1997-Q1", 924649.0], ["1997-Q2", 934795.0], ["1997-Q3", 949315.0], ["1997-Q4", 958539.0], ["1998-Q1", 972370.0], ["1998-Q2", 984354.0], ["1998-Q3", 990493.0], ["1998-Q4", 1002804.0], ["1999-Q1", 1012744.0], ["1999-Q2", 1022346.0], ["1999-Q3", 1033182.0], ["1999-Q4", 1046727.0], ["2000-Q1", 1063163.0], ["2000-Q2", 1079430.0], ["2000-Q3", 1094178.0], ["2000-Q4", 1104759.0], ["2001-Q1", 1114932.0], ["2001-Q2", 1127432.0], ["2001-Q3", 1139689.0], ["2001-Q4", 1150542.0], ["2002-Q1", 1160696.0], ["2002-Q2", 1170094.0], ["2002-Q3", 1180624.0], ["2002-Q4", 1194646.0], ["2003-Q1", 1208344.0], ["2003-Q2", 1224966.0], ["2003-Q3", 1243978.0], ["2003-Q4", 1262502.0], ["2004-Q1", 1279226.0], ["2004-Q2", 1296670.0], ["2004-Q3", 1310313.0], ["2004-Q4", 1327143.0], ["2005-Q1", 1344682.0], ["2005-Q2", 1363217.0], ["2005-Q3", 1384123.0], ["2005-Q4", 1403249.0], ["2006-Q1", 1424005.0], ["2006-Q2", 1442925.0], ["2006-Q3", 1462083.0], ["2006-Q4", 1478080.0], ["2007-Q1", 1494157.0], ["2007-Q2", 1513584.0], ["2007-Q3", 1531896.0], ["2007-Q4", 1551729.0], ["2008-Q1", 1572773.0], ["2008-Q2", 1587511.0], ["2008-Q3", 1598754.0], ["2008-Q4", 1602217.0], ["2009-Q1", 1592276.0], ["2009-Q2", 1578740.0], ["2009-Q3", 1567782.0], ["2009-Q4", 1559405.0], ["2010-Q1", 1567756.0], ["2010-Q2", 1581542.0], ["2010-Q3", 1596540.0], ["2010-Q4", 1615839.0], ["2011-Q1", 1634234.0], ["2011-Q2", 1645337.0], ["2011-Q3", 1657279.0], ["2011-Q4", 1669945.0], ["2012-Q1", 1680077.0], ["2012-Q2", 1692735.0], ["2012-Q3", 1707903.0], ["2012-Q4", 1721708.0], ["2013-Q1", 1735093.0], ["2013-Q2", 1752021.0], ["2013-Q3", 1769459.0], ["2013-Q4", 1789072.0], ["2014-Q1", 1809716.0], ["2014-Q2", 1830757.0], ["2014-Q3", 1854147.0], ["2014-Q4", 1875066.0], ["2015-Q1", 1892400.0], ["2015-Q2", 1907115.0], ["2015-Q3", 1915690.0], ["2015-Q4", 1928016.0], ["2016-Q1", 1942644.0], ["2016-Q2", 1960318.0], ["2016-Q3", 1982001.0], ["2016-Q4", 2004755.0], ["2017-Q1", 2029417.0], ["2017-Q2", 2053977.0], ["2017-Q3", 2074765.0], ["2017-Q4", 2097222.0], ["2018-Q1", 2115079.0], ["2018-Q2", 2134182.0], ["2018-Q3", 2154181.0], ["2018-Q4", 2171559.0], ["2019-Q1", 2190380.0], ["2019-Q2", 2210656.0], ["2019-Q3", 2232947.0], ["2019-Q4", 2252961.0], ["2020-Q1", 2258342.0], ["2020-Q2", 2178574.0], ["2020-Q3", 2151442.0], ["2020-Q4", 2124720.0], ["2021-Q1", 2110471.0], ["2021-Q2", 2205769.0], ["2021-Q3", 2258157.0], ["2021-Q4", 2322652.0], ["2022-Q1", 2400550.0], ["2022-Q2", 2463318.0], ["2022-Q3", 2520844.0], ["2022-Q4", 2580949.0], ["2023-Q1", 2637129.0], ["2023-Q2", 2687454.0], ["2023-Q3", 2730203.0], ["2023-Q4", 2752164.0], ["2024-Q1", 2778010.0], ["2024-Q2", 2806236.0], ["2024-Q3", 2843316.0], ["2024-Q4", 2890254.0], ["2025-Q1", 2932823.0], ["2025-Q2", 2970926.0], ["2025-Q3", 3003696.0], ["2025-Q4", 3033866.0], ["2026-Q1", 3066851.0], ["2026-Q2", 3097533.0]];
+  var REAL_PTS = [["1955-Q4", 586122.0], ["1956-Q1", 589620.0], ["1956-Q2", 592904.0], ["1956-Q3", 593574.0], ["1956-Q4", 596062.0], ["1957-Q1", 599438.0], ["1957-Q2", 602888.0], ["1957-Q3", 605563.0], ["1957-Q4", 607813.0], ["1958-Q1", 610599.0], ["1958-Q2", 609571.0], ["1958-Q3", 612782.0], ["1958-Q4", 615967.0], ["1959-Q1", 616859.0], ["1959-Q2", 624089.0], ["1959-Q3", 631388.0], ["1959-Q4", 642287.0], ["1960-Q1", 656399.0], ["1960-Q2", 666860.0], ["1960-Q3", 676452.0], ["1960-Q4", 682893.0], ["1961-Q1", 688048.0], ["1961-Q2", 695074.0], ["1961-Q3", 698758.0], ["1961-Q4", 701144.0], ["1962-Q1", 701436.0], ["1962-Q2", 702678.0], ["1962-Q3", 705817.0], ["1962-Q4", 708681.0], ["1963-Q1", 711606.0], ["1963-Q2", 720561.0], ["1963-Q3", 729297.0], ["1963-Q4", 742895.0], ["1964-Q1", 756944.0], ["1964-Q2", 766882.0], ["1964-Q3", 776664.0], ["1964-Q4", 785288.0], ["1965-Q1", 792022.0], ["1965-Q2", 795332.0], ["1965-Q3", 799506.0], ["1965-Q4", 801911.0], ["1966-Q1", 805223.0], ["1966-Q2", 809570.0], ["1966-Q3", 813041.0], ["1966-Q4", 814393.0], ["1967-Q1", 818135.0], ["1967-Q2", 823596.0], ["1967-Q3", 829260.0], ["1967-Q4", 836815.0], ["1968-Q1", 849482.0], ["1968-Q2", 858336.0], ["1968-Q3", 870569.0], ["1968-Q4", 882470.0], ["1969-Q1", 886198.0], ["1969-Q2", 892470.0], ["1969-Q3", 895746.0], ["1969-Q4", 899298.0], ["1970-Q1", 901796.0], ["1970-Q2", 908048.0], ["1970-Q3", 915247.0], ["1970-Q4", 923582.0], ["1971-Q1", 932202.0], ["1971-Q2", 939627.0], ["1971-Q3", 948905.0], ["1971-Q4", 956960.0], ["1972-Q1", 966657.0], ["1972-Q2", 978593.0], ["1972-Q3", 987148.0], ["1972-Q4", 998663.0], ["1973-Q1", 1022138.0], ["1973-Q2", 1039693.0], ["1973-Q3", 1054085.0], ["1973-Q4", 1063550.0], ["1974-Q1", 1053205.0], ["1974-Q2", 1046031.0], ["1974-Q3", 1042896.0], ["1974-Q4", 1036973.0], ["1975-Q1", 1038419.0], ["1975-Q2", 1032007.0], ["1975-Q3", 1023285.0], ["1975-Q4", 1021204.0], ["1976-Q1", 1023356.0], ["1976-Q2", 1029332.0], ["1976-Q3", 1039296.0], ["1976-Q4", 1051973.0], ["1977-Q1", 1060538.0], ["1977-Q2", 1067614.0], ["1977-Q3", 1073199.0], ["1977-Q4", 1077816.0], ["1978-Q1", 1084824.0], ["1978-Q2", 1096838.0], ["1978-Q3", 1110918.0], ["1978-Q4", 1122953.0], ["1979-Q1", 1131569.0], ["1979-Q2", 1149409.0], ["1979-Q3", 1156909.0], ["1979-Q4", 1164860.0], ["1980-Q1", 1170781.0], ["1980-Q2", 1158653.0], ["1980-Q3", 1152758.0], ["1980-Q4", 1140989.0], ["1981-Q1", 1131868.0], ["1981-Q2", 1129310.0], ["1981-Q3", 1130345.0], ["1981-Q4", 1134663.0], ["1982-Q1", 1139681.0], ["1982-Q2", 1146758.0], ["1982-Q3", 1151173.0], ["1982-Q4", 1157191.0], ["1983-Q1", 1168479.0], ["1983-Q2", 1178870.0], ["1983-Q3", 1192103.0], ["1983-Q4", 1205632.0], ["1984-Q1", 1216033.0], ["1984-Q2", 1221302.0], ["1984-Q3", 1225339.0], ["1984-Q4", 1232675.0], ["1985-Q1", 1240464.0], ["1985-Q2", 1258023.0], ["1985-Q3", 1273293.0], ["1985-Q4", 1283200.0], ["1986-Q1", 1293415.0], ["1986-Q2", 1299836.0], ["1986-Q3", 1308410.0], ["1986-Q4", 1323173.0], ["1987-Q1", 1336959.0], ["1987-Q2", 1352882.0], ["1987-Q3", 1375281.0], ["1987-Q4", 1395353.0], ["1988-Q1", 1418866.0], ["1988-Q2", 1439280.0], ["1988-Q3", 1455689.0], ["1988-Q4", 1471002.0], ["1989-Q1", 1482347.0], ["1989-Q2", 1494089.0], ["1989-Q3", 1501888.0], ["1989-Q4", 1506644.0], ["1990-Q1", 1511490.0], ["1990-Q2", 1516536.0], ["1990-Q3", 1516794.0], ["1990-Q4", 1515202.0], ["1991-Q1", 1509804.0], ["1991-Q2", 1501415.0], ["1991-Q3", 1496462.0], ["1991-Q4", 1493903.0], ["1992-Q1", 1493160.0], ["1992-Q2", 1492303.0], ["1992-Q3", 1493962.0], ["1992-Q4", 1498023.0], ["1993-Q1", 1504076.0], ["1993-Q2", 1512370.0], ["1993-Q3", 1522357.0], ["1993-Q4", 1532082.0], ["1994-Q1", 1543738.0], ["1994-Q2", 1557281.0], ["1994-Q3", 1571323.0], ["1994-Q4", 1584459.0], ["1995-Q1", 1595823.0], ["1995-Q2", 1604494.0], ["1995-Q3", 1613723.0], ["1995-Q4", 1622576.0], ["1996-Q1", 1632208.0], ["1996-Q2", 1642274.0], ["1996-Q3", 1651498.0], ["1996-Q4", 1665005.0], ["1997-Q1", 1682401.0], ["1997-Q2", 1703275.0], ["1997-Q3", 1724356.0], ["1997-Q4", 1746257.0], ["1998-Q1", 1764551.0], ["1998-Q2", 1780644.0], ["1998-Q3", 1793549.0], ["1998-Q4", 1802946.0], ["1999-Q1", 1812278.0], ["1999-Q2", 1820696.0], ["1999-Q3", 1836078.0], ["1999-Q4", 1856033.0], ["2000-Q1", 1879201.0], ["2000-Q2", 1904163.0], ["2000-Q3", 1924393.0], ["2000-Q4", 1940007.0], ["2001-Q1", 1953370.0], ["2001-Q2", 1965300.0], ["2001-Q3", 1976621.0], ["2001-Q4", 1986393.0], ["2002-Q1", 1993612.0], ["2002-Q2", 2001443.0], ["2002-Q3", 2009891.0], ["2002-Q4", 2020341.0], ["2003-Q1", 2033578.0], ["2003-Q2", 2048947.0], ["2003-Q3", 2066774.0], ["2003-Q4", 2085366.0], ["2004-Q1", 2101331.0], ["2004-Q2", 2115072.0], ["2004-Q3", 2125306.0], ["2004-Q4", 2133872.0], ["2005-Q1", 2144904.0], ["2005-Q2", 2157891.0], ["2005-Q3", 2173996.0], ["2005-Q4", 2193421.0], ["2006-Q1", 2210707.0], ["2006-Q2", 2224972.0], ["2006-Q3", 2235095.0], ["2006-Q4", 2241453.0], ["2007-Q1", 2251984.0], ["2007-Q2", 2266383.0], ["2007-Q3", 2285313.0], ["2007-Q4", 2307148.0], ["2008-Q1", 2324993.0], ["2008-Q2", 2334340.0], ["2008-Q3", 2328696.0], ["2008-Q4", 2306008.0], ["2009-Q1", 2269769.0], ["2009-Q2", 2235087.0], ["2009-Q3", 2210666.0], ["2009-Q4", 2200222.0], ["2010-Q1", 2205773.0], ["2010-Q2", 2219267.0], ["2010-Q3", 2235386.0], ["2010-Q4", 2249959.0], ["2011-Q1", 2260830.0], ["2011-Q2", 2265078.0], ["2011-Q3", 2267005.0], ["2011-Q4", 2269116.0], ["2012-Q1", 2275659.0], ["2012-Q2", 2282170.0], ["2012-Q3", 2293635.0], ["2012-Q4", 2303794.0], ["2013-Q1", 2310127.0], ["2013-Q2", 2320620.0], ["2013-Q3", 2329645.0], ["2013-Q4", 2343384.0], ["2014-Q1", 2360331.0], ["2014-Q2", 2379036.0], ["2014-Q3", 2398173.0], ["2014-Q4", 2417439.0], ["2015-Q1", 2433819.0], ["2015-Q2", 2447384.0], ["2015-Q3", 2458434.0], ["2015-Q4", 2469182.0], ["2016-Q1", 2481205.0], ["2016-Q2", 2495027.0], ["2016-Q3", 2509241.0], ["2016-Q4", 2523665.0], ["2017-Q1", 2541029.0], ["2017-Q2", 2559276.0], ["2017-Q3", 2579128.0], ["2017-Q4", 2599961.0], ["2018-Q1", 2615239.0], ["2018-Q2", 2626467.0], ["2018-Q3", 2635400.0], ["2018-Q4", 2640295.0], ["2019-Q1", 2648010.0], ["2019-Q2", 2655713.0], ["2019-Q3", 2664998.0], ["2019-Q4", 2673465.0], ["2020-Q1", 2660189.0], ["2020-Q2", 2515670.0], ["2020-Q3", 2456095.0], ["2020-Q4", 2404838.0], ["2021-Q1", 2365323.0], ["2021-Q2", 2498410.0], ["2021-Q3", 2553936.0], ["2021-Q4", 2610286.0], ["2022-Q1", 2680148.0], ["2022-Q2", 2711040.0], ["2022-Q3", 2731571.0], ["2022-Q4", 2744708.0], ["2023-Q1", 2751387.0], ["2023-Q2", 2754543.0], ["2023-Q3", 2755353.0], ["2023-Q4", 2752164.0], ["2024-Q1", 2753578.0], ["2024-Q2", 2758997.0], ["2024-Q3", 2767312.0], ["2024-Q4", 2780853.0], ["2025-Q1", 2793411.0], ["2025-Q2", 2802775.0], ["2025-Q3", 2811423.0], ["2025-Q4", 2817414.0], ["2026-Q1", 2823834.0], ["2026-Q2", 2832105.0]];
+  var FX = {"pair": "GBP/USD", "rate": 1.3555, "as_of": "2026-08-28", "direction": "multiply", "history": [["1971-01", 2.4174], ["1971-02", 2.416], ["1971-03", 2.4168], ["1971-04", 2.4193], ["1971-05", 2.4178], ["1971-06", 2.4196], ["1971-07", 2.4184], ["1971-08", 2.4535], ["1971-09", 2.4847], ["1971-10", 2.4914], ["1971-11", 2.4937], ["1971-12", 2.552], ["1972-01", 2.5937], ["1972-02", 2.6059], ["1972-03", 2.6163], ["1972-04", 2.611], ["1972-05", 2.613], ["1972-06", 2.441], ["1972-07", 2.4498], ["1972-08", 2.4483], ["1972-09", 2.4195], ["1972-10", 2.3405], ["1972-11", 2.3522], ["1972-12", 2.348], ["1973-01", 2.3817], ["1973-02", 2.49], ["1973-03", 2.4755], ["1973-04", 2.489], ["1973-05", 2.5661], ["1973-06", 2.581], ["1973-07", 2.499], ["1973-08", 2.458], ["1973-09", 2.4135], ["1973-10", 2.4385], ["1973-11", 2.343], ["1973-12", 2.3225], ["1974-01", 2.286], ["1974-02", 2.3015], ["1974-03", 2.393], ["1974-04", 2.424], ["1974-05", 2.396], ["1974-06", 2.3905], ["1974-07", 2.387], ["1974-08", 2.3162], ["1974-09", 2.3325], ["1974-10", 2.3355], ["1974-11", 2.3255], ["1974-12", 2.347], ["1975-01", 2.3825], ["1975-02", 2.43], ["1975-03", 2.406], ["1975-04", 2.351], ["1975-05", 2.316], ["1975-06", 2.1935], ["1975-07", 2.154], ["1975-08", 2.11], ["1975-09", 2.043], ["1975-10", 2.078], ["1975-11", 2.02], ["1975-12", 2.0235], ["1976-01", 2.0295], ["1976-02", 2.0252], ["1976-03", 1.9159], ["1976-04", 1.84], ["1976-05", 1.7595], ["1976-06", 1.785], ["1976-07", 1.785], ["1976-08", 1.7775], ["1976-09", 1.66], ["1976-10", 1.588], ["1976-11", 1.651], ["1976-12", 1.701], ["1977-01", 1.715], ["1977-02", 1.713], ["1977-03", 1.72], ["1977-04", 1.7192], ["1977-05", 1.7191], ["1977-06", 1.7197], ["1977-07", 1.7365], ["1977-08", 1.7428], ["1977-09", 1.7476], ["1977-10", 1.8395], ["1977-11", 1.817], ["1977-12", 1.917], ["1978-01", 1.9475], ["1978-02", 1.941], ["1978-03", 1.862], ["1978-04", 1.823], ["1978-05", 1.8335], ["1978-06", 1.861], ["1978-07", 1.931], ["1978-08", 1.943], ["1978-09", 1.975], ["1978-10", 2.076], ["1978-11", 1.944], ["1978-12", 2.0415], ["1979-01", 1.9896], ["1979-02", 2.0234], ["1979-03", 2.0625], ["1979-04", 2.068], ["1979-05", 2.07], ["1979-06", 2.181], ["1979-07", 2.2475], ["1979-08", 2.2527], ["1979-09", 2.203], ["1979-10", 2.0745], ["1979-11", 2.199], ["1979-12", 2.2185], ["1980-01", 2.2667], ["1980-02", 2.273], ["1980-03", 2.16], ["1980-04", 2.2585], ["1980-05", 2.3425], ["1980-06", 2.3555], ["1980-07", 2.3425], ["1980-08", 2.396], ["1980-09", 2.387], ["1980-10", 2.4365], ["1980-11", 2.3575], ["1980-12", 2.389], ["1981-01", 2.3655], ["1981-02", 2.204], ["1981-03", 2.2325], ["1981-04", 2.1395], ["1981-05", 2.07], ["1981-06", 1.93], ["1981-07", 1.84], ["1981-08", 1.845], ["1981-09", 1.803], ["1981-10", 1.862], ["1981-11", 1.955], ["1981-12", 1.915], ["1982-01", 1.879], ["1982-02", 1.82], ["1982-03", 1.781], ["1982-04", 1.7945], ["1982-05", 1.791], ["1982-06", 1.7355], ["1982-07", 1.738], ["1982-08", 1.7205], ["1982-09", 1.6945], ["1982-10", 1.677], ["1982-11", 1.632], ["1982-12", 1.618], ["1983-01", 1.5202], ["1983-02", 1.5115], ["1983-03", 1.4825], ["1983-04", 1.5573], ["1983-05", 1.6005], ["1983-06", 1.533], ["1983-07", 1.52], ["1983-08", 1.494], ["1983-09", 1.4977], ["1983-10", 1.4952], ["1983-11", 1.463], ["1983-12", 1.4515], ["1984-01", 1.4012], ["1984-02", 1.4905], ["1984-03", 1.4375], ["1984-04", 1.398], ["1984-05", 1.3855], ["1984-06", 1.3575], ["1984-07", 1.3073], ["1984-08", 1.3075], ["1984-09", 1.234], ["1984-10", 1.2185], ["1984-11", 1.197], ["1984-12", 1.158], ["1985-01", 1.1305], ["1985-02", 1.079], ["1985-03", 1.236], ["1985-04", 1.241], ["1985-05", 1.286], ["1985-06", 1.3095], ["1985-07", 1.411], ["1985-08", 1.391], ["1985-09", 1.4085], ["1985-10", 1.4405], ["1985-11", 1.489], ["1985-12", 1.445], ["1986-01", 1.412], ["1986-02", 1.446], ["1986-03", 1.4735], ["1986-04", 1.551], ["1986-05", 1.4723], ["1986-06", 1.532], ["1986-07", 1.4915], ["1986-08", 1.488], ["1986-09", 1.4468], ["1986-10", 1.4055], ["1986-11", 1.4335], ["1986-12", 1.4825], ["1987-01", 1.514], ["1987-02", 1.546], ["1987-03", 1.607], ["1987-04", 1.6605], ["1987-05", 1.6295], ["1987-06", 1.6128], ["1987-07", 1.591], ["1987-08", 1.6328], ["1987-09", 1.6248], ["1987-10", 1.7215], ["1987-11", 1.8256], ["1987-12", 1.886], ["1988-01", 1.7691], ["1988-02", 1.7735], ["1988-03", 1.8865], ["1988-04", 1.8785], ["1988-05", 1.8382], ["1988-06", 1.7085], ["1988-07", 1.71], ["1988-08", 1.6825], ["1988-09", 1.691], ["1988-10", 1.769], ["1988-11", 1.8493], ["1988-12", 1.8085], ["1989-01", 1.75], ["1989-02", 1.744], ["1989-03", 1.6852], ["1989-04", 1.689], ["1989-05", 1.5715], ["1989-06", 1.549], ["1989-07", 1.666], ["1989-08", 1.573], ["1989-09", 1.6145], ["1989-10", 1.5775], ["1989-11", 1.5695], ["1989-12", 1.6145], ["1990-01", 1.6794], ["1990-02", 1.6892], ["1990-03", 1.648], ["1990-04", 1.6389], ["1990-05", 1.6765], ["1990-06", 1.745], ["1990-07", 1.86], ["1990-08", 1.892], ["1990-09", 1.8735], ["1990-10", 1.944], ["1990-11", 1.9392], ["1990-12", 1.9285], ["1991-01", 1.965], ["1991-02", 1.91], ["1991-03", 1.7485], ["1991-04", 1.7225], ["1991-05", 1.698], ["1991-06", 1.618], ["1991-07", 1.6845], ["1991-08", 1.68], ["1991-09", 1.752], ["1991-10", 1.7425], ["1991-11", 1.7655], ["1991-12", 1.866], ["1992-01", 1.789], ["1992-02", 1.756], ["1992-03", 1.7363], ["1992-04", 1.775], ["1992-05", 1.829], ["1992-06", 1.9035], ["1992-07", 1.92], ["1992-08", 1.9893], ["1992-09", 1.779], ["1992-10", 1.5625], ["1992-11", 1.5135], ["1992-12", 1.513], ["1993-01", 1.4855], ["1993-02", 1.4215], ["1993-03", 1.509], ["1993-04", 1.5695], ["1993-05", 1.5605], ["1993-06", 1.493], ["1993-07", 1.485], ["1993-08", 1.4868], ["1993-09", 1.496], ["1993-10", 1.4882], ["1993-11", 1.4852], ["1993-12", 1.4775], ["1994-01", 1.5005], ["1994-02", 1.4875], ["1994-03", 1.488], ["1994-04", 1.5118], ["1994-05", 1.512], ["1994-06", 1.5483], ["1994-07", 1.5415], ["1994-08", 1.5362], ["1994-09", 1.577], ["1994-10", 1.635], ["1994-11", 1.567], ["1994-12", 1.5665], ["1995-01", 1.5815], ["1995-02", 1.584], ["1995-03", 1.619], ["1995-04", 1.6091], ["1995-05", 1.5865], ["1995-06", 1.5905], ["1995-07", 1.598], ["1995-08", 1.5515], ["1995-09", 1.5795], ["1995-10", 1.5807], ["1995-11", 1.5302], ["1995-12", 1.5535], ["1996-01", 1.5096], ["1996-02", 1.532], ["1996-03", 1.5262], ["1996-04", 1.505], ["1996-05", 1.5495], ["1996-06", 1.5529], ["1996-07", 1.5556], ["1996-08", 1.5612], ["1996-09", 1.5653], ["1996-10", 1.6278], ["1996-11", 1.682], ["1996-12", 1.7123], ["1997-01", 1.6012], ["1997-02", 1.6287], ["1997-03", 1.6448], ["1997-04", 1.62], ["1997-05", 1.636], ["1997-06", 1.665], ["1997-07", 1.6388], ["1997-08", 1.6203], ["1997-09", 1.6117], ["1997-10", 1.6786], ["1997-11", 1.6885], ["1997-12", 1.6427], ["1998-01", 1.6325], ["1998-02", 1.6453], ["1998-03", 1.6765], ["1998-04", 1.6727], ["1998-05", 1.6308], ["1998-06", 1.6695], ["1998-07", 1.6349], ["1998-08", 1.676], ["1998-09", 1.6995], ["1998-10", 1.6735], ["1998-11", 1.6485], ["1998-12", 1.6628], ["1999-01", 1.6457], ["1999-02", 1.6027], ["1999-03", 1.614], ["1999-04", 1.6085], ["1999-05", 1.602], ["1999-06", 1.5765], ["1999-07", 1.6207], ["1999-08", 1.6086], ["1999-09", 1.6457], ["1999-10", 1.6425], ["1999-11", 1.5935], ["1999-12", 1.615], ["2000-01", 1.6182], ["2000-02", 1.578], ["2000-03", 1.5922], ["2000-04", 1.556], ["2000-05", 1.4968], ["2000-06", 1.513], ["2000-07", 1.4983], ["2000-08", 1.4515], ["2000-09", 1.4787], ["2000-10", 1.4505], ["2000-11", 1.421], ["2000-12", 1.4955], ["2001-01", 1.4613], ["2001-02", 1.4433], ["2001-03", 1.419], ["2001-04", 1.4306], ["2001-05", 1.4175], ["2001-06", 1.4077], ["2001-07", 1.4252], ["2001-08", 1.451], ["2001-09", 1.4691], ["2001-10", 1.4534], ["2001-11", 1.4255], ["2001-12", 1.4543], ["2002-01", 1.412], ["2002-02", 1.4129], ["2002-03", 1.425], ["2002-04", 1.4565], ["2002-05", 1.4625], ["2002-06", 1.5245], ["2002-07", 1.5625], ["2002-08", 1.5476], ["2002-09", 1.57], ["2002-10", 1.563], ["2002-11", 1.5553], ["2002-12", 1.6095], ["2003-01", 1.6448], ["2003-02", 1.5737], ["2003-03", 1.579], ["2003-04", 1.6], ["2003-05", 1.6393], ["2003-06", 1.6529], ["2003-07", 1.609], ["2003-08", 1.5773], ["2003-09", 1.662], ["2003-10", 1.6956], ["2003-11", 1.7219], ["2003-12", 1.7842], ["2004-01", 1.8215], ["2004-02", 1.8575], ["2004-03", 1.84], ["2004-04", 1.7744], ["2004-05", 1.833], ["2004-06", 1.8126], ["2004-07", 1.8183], ["2004-08", 1.8031], ["2004-09", 1.809], ["2004-10", 1.8345], ["2004-11", 1.9073], ["2004-12", 1.916], ["2005-01", 1.885], ["2005-02", 1.9249], ["2005-03", 1.8888], ["2005-04", 1.9122], ["2005-05", 1.8231], ["2005-06", 1.793], ["2005-07", 1.7593], ["2005-08", 1.8012], ["2005-09", 1.7696], ["2005-10", 1.7689], ["2005-11", 1.7321], ["2005-12", 1.7188], ["2006-01", 1.782], ["2006-02", 1.7539], ["2006-03", 1.7393], ["2006-04", 1.822], ["2006-05", 1.8732], ["2006-06", 1.8491], ["2006-07", 1.8685], ["2006-08", 1.9024], ["2006-09", 1.8716], ["2006-10", 1.9084], ["2006-11", 1.9693], ["2006-12", 1.9586], ["2007-01", 1.9611], ["2007-02", 1.9613], ["2007-03", 1.9685], ["2007-04", 2.0], ["2007-05", 1.9797], ["2007-06", 2.0063], ["2007-07", 2.0364], ["2007-08", 2.0165], ["2007-09", 2.0389], ["2007-10", 2.0777], ["2007-11", 2.0567], ["2007-12", 1.9843], ["2008-01", 1.9895], ["2008-02", 1.9864], ["2008-03", 1.9855], ["2008-04", 1.9847], ["2008-05", 1.9793], ["2008-06", 1.9906], ["2008-07", 1.9806], ["2008-08", 1.819], ["2008-09", 1.7804], ["2008-10", 1.6165], ["2008-11", 1.5348], ["2008-12", 1.4619], ["2009-01", 1.4413], ["2009-02", 1.4276], ["2009-03", 1.43], ["2009-04", 1.4799], ["2009-05", 1.616], ["2009-06", 1.6452], ["2009-07", 1.6713], ["2009-08", 1.6314], ["2009-09", 1.6004], ["2009-10", 1.6479], ["2009-11", 1.6409], ["2009-12", 1.6167], ["2010-01", 1.6009], ["2010-02", 1.5239], ["2010-03", 1.5186], ["2010-04", 1.5308], ["2010-05", 1.4492], ["2010-06", 1.4947], ["2010-07", 1.5714], ["2010-08", 1.5358], ["2010-09", 1.5731], ["2010-10", 1.602], ["2010-11", 1.5578], ["2010-12", 1.5392], ["2011-01", 1.6042], ["2011-02", 1.6247], ["2011-03", 1.6048], ["2011-04", 1.6691], ["2011-05", 1.6439], ["2011-06", 1.6067], ["2011-07", 1.6455], ["2011-08", 1.6269], ["2011-09", 1.5624], ["2011-10", 1.6141], ["2011-11", 1.5705], ["2011-12", 1.5537], ["2012-01", 1.5754], ["2012-02", 1.5951], ["2012-03", 1.5985], ["2012-04", 1.6225], ["2012-05", 1.5405], ["2012-06", 1.5686], ["2012-07", 1.5686], ["2012-08", 1.5864], ["2012-09", 1.6132], ["2012-10", 1.6111], ["2012-11", 1.6027], ["2012-12", 1.6262], ["2013-01", 1.5856], ["2013-02", 1.5192], ["2013-03", 1.5193], ["2013-04", 1.5539], ["2013-05", 1.5185], ["2013-06", 1.521], ["2013-07", 1.5177], ["2013-08", 1.5468], ["2013-09", 1.6179], ["2013-10", 1.6068], ["2013-11", 1.6373], ["2013-12", 1.6574], ["2014-01", 1.645], ["2014-02", 1.675], ["2014-03", 1.6675], ["2014-04", 1.6883], ["2014-05", 1.6764], ["2014-06", 1.7105], ["2014-07", 1.6889], ["2014-08", 1.6585], ["2014-09", 1.622], ["2014-10", 1.5999], ["2014-11", 1.5638], ["2014-12", 1.5578], ["2015-01", 1.5026], ["2015-02", 1.5439], ["2015-03", 1.485], ["2015-04", 1.5328], ["2015-05", 1.5286], ["2015-06", 1.5727], ["2015-07", 1.5634], ["2015-08", 1.5363], ["2015-09", 1.5116], ["2015-10", 1.5445], ["2015-11", 1.5044], ["2015-12", 1.4746], ["2016-01", 1.4184], ["2016-02", 1.3926], ["2016-03", 1.4381], ["2016-04", 1.4625], ["2016-05", 1.453], ["2016-06", 1.3242], ["2016-07", 1.327], ["2016-08", 1.3129], ["2016-09", 1.3015], ["2016-10", 1.2212], ["2016-11", 1.2481], ["2016-12", 1.2337], ["2017-01", 1.2585], ["2017-02", 1.2427], ["2017-03", 1.2537], ["2017-04", 1.2938], ["2017-05", 1.2905], ["2017-06", 1.2995], ["2017-07", 1.3196], ["2017-08", 1.2888], ["2017-09", 1.3402], ["2017-10", 1.3281], ["2017-11", 1.3506], ["2017-12", 1.3529], ["2018-01", 1.419], ["2018-02", 1.3794], ["2018-03", 1.4027], ["2018-04", 1.3751], ["2018-05", 1.3289], ["2018-06", 1.3197], ["2018-07", 1.3125], ["2018-08", 1.2964], ["2018-09", 1.3053], ["2018-10", 1.2779], ["2018-11", 1.2772], ["2018-12", 1.2763], ["2019-01", 1.3135], ["2019-02", 1.3274], ["2019-03", 1.3032], ["2019-04", 1.303], ["2019-05", 1.262], ["2019-06", 1.2704], ["2019-07", 1.222], ["2019-08", 1.2166], ["2019-09", 1.2305], ["2019-10", 1.2939], ["2019-11", 1.2939], ["2019-12", 1.3269], ["2020-01", 1.3195], ["2020-02", 1.2778], ["2020-03", 1.2454], ["2020-04", 1.2602], ["2020-05", 1.232], ["2020-06", 1.2369], ["2020-07", 1.3133], ["2020-08", 1.3375], ["2020-09", 1.2921], ["2020-10", 1.2933], ["2020-11", 1.3338], ["2020-12", 1.3662], ["2021-01", 1.3723], ["2021-02", 1.3947], ["2021-03", 1.3795], ["2021-04", 1.3838], ["2021-05", 1.4188], ["2021-06", 1.3806], ["2021-07", 1.3913], ["2021-08", 1.3747], ["2021-09", 1.347], ["2021-10", 1.3686], ["2021-11", 1.3252], ["2021-12", 1.35], ["2022-01", 1.3439], ["2022-02", 1.3419], ["2022-03", 1.3152], ["2022-04", 1.2565], ["2022-05", 1.2624], ["2022-06", 1.2162], ["2022-07", 1.2183], ["2022-08", 1.1647], ["2022-09", 1.1134], ["2022-10", 1.1515], ["2022-11", 1.1962], ["2022-12", 1.2077], ["2023-01", 1.2324], ["2023-02", 1.2093], ["2023-03", 1.2369], ["2023-04", 1.2582], ["2023-05", 1.2396], ["2023-06", 1.2709], ["2023-07", 1.2857], ["2023-08", 1.2667], ["2023-09", 1.2214], ["2023-10", 1.2135], ["2023-11", 1.264], ["2023-12", 1.2743], ["2024-01", 1.2733], ["2024-02", 1.2632], ["2024-03", 1.2637], ["2024-04", 1.2514], ["2024-05", 1.2738], ["2024-06", 1.264], ["2024-07", 1.284], ["2024-08", 1.3132], ["2024-09", 1.3399], ["2024-10", 1.2856], ["2024-11", 1.2699], ["2024-12", 1.2521], ["2025-01", 1.2447], ["2025-02", 1.2591], ["2025-03", 1.2896], ["2025-04", 1.3344], ["2025-05", 1.3468], ["2025-06", 1.3722], ["2025-07", 1.322], ["2025-08", 1.3511], ["2025-09", 1.3443], ["2025-10", 1.3141], ["2025-11", 1.3239], ["2025-12", 1.3447], ["2026-01", 1.3729], ["2026-02", 1.3455], ["2026-03", 1.3184], ["2026-04", 1.358], ["2026-05", 1.3476], ["2026-06", 1.3259], ["2026-07", 1.347], ["2026-08", 1.3555]]};
+  var BASE_UNIT = "\u00a3m";
+  var UP_IS_GOOD = true;
+  function usdUnit(u){
+    for (var i=0, scales=["bn","m","k"]; i<scales.length; i++){
+      var suf = scales[i];
+      if(u.slice(-suf.length)===suf && u.length>suf.length) return "$"+suf;
+    }
+    return "$";
+  }
+  function currentPtsAndUnit(){
+    var pts = TOGGLE_STATE.real && REAL_PTS ? REAL_PTS : NOMINAL_PTS;
+    var unitNow = BASE_UNIT;
+    if(TOGGLE_STATE.dollar && FX){
+      pts = convertPtsToUSD(pts, FX);
+      unitNow = usdUnit(BASE_UNIT);
+    }
+    return {pts: pts, unit: unitNow};
+  }
+  function updateIndicatorDisplay(){
+    var r = currentPtsAndUnit();
+    var pts = r.pts, unitNow = r.unit;
+    var render = window.EATLAS_INDICATOR_RENDER;
+    var latest = pts[pts.length-1], prev = pts[pts.length-2];
+    var latestStr = render.curFmt(latest[1], 2, unitNow);
+    document.getElementById("indicatorFigure").textContent = latestStr;
+    var delta = Math.round((latest[1]-prev[1])*100)/100;
+    var dir = delta===0 ? "flat" : ((delta>0)===UP_IS_GOOD ? "good" : "bad");
+    var arrow = delta===0 ? "\u2582" : (delta>0 ? "\u25b2" : "\u25bc");
+    var deltaStr = render.curFmt(delta, 1, unitNow);
+    if(delta > 0) deltaStr = "+" + deltaStr;
+    var deltaEl = document.getElementById("indicatorDelta");
+    deltaEl.className = "delta " + dir;
+    deltaEl.innerHTML = '<span class="arrow" aria-hidden="true">' + arrow + '</span> ' + deltaStr + ' vs prior';
+    render.renderChart(pts, unitNow);
+  }
+  function wireToggle(id, key){
+    var btn = document.getElementById(id);
+    if(!btn) return;
+    btn.addEventListener("click", function(){
+      TOGGLE_STATE[key] = !TOGGLE_STATE[key];
+      btn.classList.toggle("on", TOGGLE_STATE[key]);
+      btn.setAttribute("aria-pressed", TOGGLE_STATE[key] ? "true" : "false");
+      updateIndicatorDisplay();
+    });
+  }
+  wireToggle("indToggleReal", "real");
+  wireToggle("indToggleDollar", "dollar");
+
+})();
+</script>
+<script src="../mobile.js?v=10"></script>
 </body>
 </html>

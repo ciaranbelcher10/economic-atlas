@@ -163,6 +163,13 @@ def cur_fmt(raw_value, unit, decimals=2):
 # it feeds through the gdpAnnual variable or s.gdp_level directly).
 GDP_RAW_COUNTRIES = {"US"}
 
+# Countries whose gdp_level is already USD-denominated at source (US has
+# no fx_to_usd block at all; Switzerland's only live GDP source, World
+# Bank NY.GDP.MKTP.CD, is USD-native) -- Dollarise would be a silent
+# no-op (or worse, a double-conversion) for these, matching the real
+# site's isAlreadyUSD() guard, so the toggle is simply not shown there.
+GDP_ALREADY_USD = {"US", "Switzerland"}
+
 def annualize_gdp_points(points, freq, country_name):
     """Match the real site's annualGDP(): trailing 4-quarter sum for
     quarterly series (except US, which is already an annual rate),
@@ -176,6 +183,132 @@ def annualize_gdp_points(points, freq, country_name):
             continue
         out.append([points[i][0], sum(w[1] for w in window)])
     return out
+
+# The historical FX-rate-matching, monthKey and convertSeriesToUSD logic
+# below is extracted verbatim from the real site (not reimplemented) --
+# including a previously-fixed bug where using today's flat rate instead
+# of each point's own contemporaneous rate understated old values by
+# double-digit percentages. Embedding it here keeps Dollarise on the
+# indicator pages numerically identical to the real country pages.
+TOGGLE_HELPERS_JS = r"""
+  function monthKey(period){
+    var yearMatch = period.match(/^(\d{4})/);
+    if(!yearMatch) return null;
+    var year = parseInt(yearMatch[1], 10);
+    var qMatch = period.match(/^\d{4}-Q([1-4])$/);
+    if(qMatch) return year*12 + (parseInt(qMatch[1],10)-1)*3;
+    var mMatch = period.match(/^\d{4}-(\d{2})$/);
+    if(mMatch) return year*12 + (parseInt(mMatch[1],10)-1);
+    return year*12;
+  }
+  function rateForPeriod(period, history){
+    if(!history || !history.length) return null;
+    var matches;
+    if(/^\d{4}$/.test(period)){
+      matches = history.filter(function(h){ return h[0].indexOf(period+"-")===0; });
+    } else if(/^\d{4}-Q[1-4]$/.test(period)){
+      var parts = period.split("-Q"), y = parts[0], q = parts[1];
+      var startMonth = (parseInt(q,10)-1)*3 + 1;
+      var wanted = [startMonth, startMonth+1, startMonth+2].map(function(m){ return y+"-"+String(m).padStart(2,"0"); });
+      matches = history.filter(function(h){ return wanted.indexOf(h[0])>-1; });
+    } else {
+      matches = history.filter(function(h){ return h[0]===period; });
+    }
+    if(matches.length) return matches.reduce(function(sum,h){ return sum+h[1]; }, 0) / matches.length;
+    var targetKey = monthKey(period);
+    var best = history[0], bestDist = Infinity;
+    for(var i=0;i<history.length;i++){
+      var dist = Math.abs(monthKey(history[i][0]) - targetKey);
+      if(dist < bestDist){ bestDist = dist; best = history[i]; }
+    }
+    return best[1];
+  }
+  function convertPtsToUSD(pts, fx){
+    return pts.map(function(p){
+      var rate = fx.history ? rateForPeriod(p[0], fx.history) : fx.rate;
+      var v = fx.direction==="multiply" ? p[1]*rate : p[1]/rate;
+      return [p[0], v];
+    });
+  }
+"""
+
+def build_toggle_html_and_js(toggle_data, metric_key, up_is_good, freshness_led_fn, fmt_period_label_fn):
+    """Returns (buttons_html, script_js) for the Dollarise/Make it real
+    toggles -- empty strings if this metric has neither applicable
+    (matching the real site, where these are no-ops for every metric
+    except gdp_level)."""
+    if not toggle_data:
+        return "", ""
+
+    has_real = toggle_data.get("real") is not None
+    has_dollar = toggle_data.get("fx") is not None
+    if not has_real and not has_dollar:
+        return "", ""
+
+    buttons = ['<div class="metric-toggles" aria-label="Display options" style="margin:0 0 20px;">']
+    if has_real:
+        buttons.append('<button type="button" class="mtoggle" id="indToggleReal" aria-pressed="false">'
+                        '<span class="mtoggle-switch" aria-hidden="true"></span>Make it real</button>')
+    if has_dollar:
+        buttons.append('<button type="button" class="mtoggle" id="indToggleDollar" aria-pressed="false">'
+                        '<span class="mtoggle-switch" aria-hidden="true"></span>Dollarise</button>')
+    buttons.append('</div>')
+    buttons_html = "\n".join(buttons)
+
+    js = TOGGLE_HELPERS_JS + """
+  var TOGGLE_STATE = {real: false, dollar: false};
+  var NOMINAL_PTS = """ + json.dumps(toggle_data["nominal"]) + """;
+  var REAL_PTS = """ + json.dumps(toggle_data.get("real")) + """;
+  var FX = """ + json.dumps(toggle_data.get("fx")) + """;
+  var BASE_UNIT = """ + json.dumps(toggle_data["unit"]) + """;
+  var UP_IS_GOOD = """ + ("true" if up_is_good else "false") + """;
+  function usdUnit(u){
+    for (var i=0, scales=["bn","m","k"]; i<scales.length; i++){
+      var suf = scales[i];
+      if(u.slice(-suf.length)===suf && u.length>suf.length) return "$"+suf;
+    }
+    return "$";
+  }
+  function currentPtsAndUnit(){
+    var pts = TOGGLE_STATE.real && REAL_PTS ? REAL_PTS : NOMINAL_PTS;
+    var unitNow = BASE_UNIT;
+    if(TOGGLE_STATE.dollar && FX){
+      pts = convertPtsToUSD(pts, FX);
+      unitNow = usdUnit(BASE_UNIT);
+    }
+    return {pts: pts, unit: unitNow};
+  }
+  function updateIndicatorDisplay(){
+    var r = currentPtsAndUnit();
+    var pts = r.pts, unitNow = r.unit;
+    var render = window.EATLAS_INDICATOR_RENDER;
+    var latest = pts[pts.length-1], prev = pts[pts.length-2];
+    var latestStr = render.curFmt(latest[1], 2, unitNow);
+    document.getElementById("indicatorFigure").textContent = latestStr;
+    var delta = Math.round((latest[1]-prev[1])*100)/100;
+    var dir = delta===0 ? "flat" : ((delta>0)===UP_IS_GOOD ? "good" : "bad");
+    var arrow = delta===0 ? "\\u2582" : (delta>0 ? "\\u25b2" : "\\u25bc");
+    var deltaStr = render.curFmt(delta, 1, unitNow);
+    if(delta > 0) deltaStr = "+" + deltaStr;
+    var deltaEl = document.getElementById("indicatorDelta");
+    deltaEl.className = "delta " + dir;
+    deltaEl.innerHTML = '<span class="arrow" aria-hidden="true">' + arrow + '</span> ' + deltaStr + ' vs prior';
+    render.renderChart(pts, unitNow);
+  }
+  function wireToggle(id, key){
+    var btn = document.getElementById(id);
+    if(!btn) return;
+    btn.addEventListener("click", function(){
+      TOGGLE_STATE[key] = !TOGGLE_STATE[key];
+      btn.classList.toggle("on", TOGGLE_STATE[key]);
+      btn.setAttribute("aria-pressed", TOGGLE_STATE[key] ? "true" : "false");
+      updateIndicatorDisplay();
+    });
+  }
+  wireToggle("indToggleReal", "real");
+  wireToggle("indToggleDollar", "dollar");
+"""
+    return buttons_html, js
 
 
 HEADER_HTML_BASE = """<script>(function(){
@@ -344,6 +477,253 @@ HEADER_HTML_BASE = """<script>(function(){
   }
 })();
 </script>
+<script src="https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2"></script>
+<script>
+// The real, complete auth system extracted verbatim from the country
+// pages (sign in, sign up, forgot/reset password, sign out, session
+// sync) -- not a second, separately-written copy. Only the unrelated
+// download-gating code that happened to share the same enclosing
+// function on the source page is left out, since nothing on this page
+// needs it.
+(function(){
+  var SUPABASE_URL = "https://skluvrxnuibkordzgtmu.supabase.co";
+  var SUPABASE_KEY = "sb_publishable_p6_GqrC8qcNC6KwPE46hkw_qdWQTuyT";
+  var sb = supabase.createClient(SUPABASE_URL, SUPABASE_KEY);
+  // Exposed globally so the Save & Share code in the later <script>
+  // block (a separate IIFE, not sharing this function's local `sb`) can
+  // reach the same client rather than creating a second connection.
+  window.sb = sb;
+  var authBtn = document.getElementById("authBtn");
+  var authModal = document.getElementById("authModal");
+  var authModalBackdrop = document.getElementById("authModalBackdrop");
+  var authModalClose = document.getElementById("authModalClose");
+  var authForm = document.getElementById("authForm");
+  var authEmail = document.getElementById("authEmail");
+  var authPassword = document.getElementById("authPassword");
+  var authSubmitBtn = document.getElementById("authSubmitBtn");
+  var authMsg = document.getElementById("authMsg");
+  var authToggleRow = document.getElementById("authToggleRow");
+  var authModalTitle = document.getElementById("authModalTitle");
+  var authModalSub = document.getElementById("authModalSub");
+  var authFormView = document.getElementById("authFormView");
+  var authSignedInView = document.getElementById("authSignedInView");
+  var authUserEmail = document.getElementById("authUserEmail");
+  var authSignOutBtn = document.getElementById("authSignOutBtn");
+  var authForgotBtn = document.getElementById("authForgotBtn");
+  var authForgotView = document.getElementById("authForgotView");
+  var authForgotForm = document.getElementById("authForgotForm");
+  var authForgotEmail = document.getElementById("authForgotEmail");
+  var authForgotSubmitBtn = document.getElementById("authForgotSubmitBtn");
+  var authForgotMsg = document.getElementById("authForgotMsg");
+  var authBackToLoginBtn = document.getElementById("authBackToLoginBtn");
+  var authResetView = document.getElementById("authResetView");
+  var authResetForm = document.getElementById("authResetForm");
+  var authNewPassword = document.getElementById("authNewPassword");
+  var authResetSubmitBtn = document.getElementById("authResetSubmitBtn");
+  var authResetMsg = document.getElementById("authResetMsg");
+  var authChangePasswordBtn = document.getElementById("authChangePasswordBtn");
+  var mode = "login";
+  function showMsg(el, text, kind){
+    el.textContent = text;
+    el.className = "auth-msg show " + kind;
+  }
+  function clearMsg(el){
+    el.className = "auth-msg";
+    el.textContent = "";
+  }
+  function hideAllViews(){
+    authFormView.hidden = true;
+    authForgotView.hidden = true;
+    authResetView.hidden = true;
+    authSignedInView.hidden = true;
+  }
+  function wireToggleBtn(label, nextMode){
+    var btn = document.createElement("button");
+    btn.type = "button";
+    btn.textContent = label;
+    btn.addEventListener("click", function(){ setMode(nextMode); });
+    return btn;
+  }
+  function setMode(newMode){
+    mode = newMode;
+    clearMsg(authMsg);
+    authForm.reset();
+    if(mode === "login"){
+      authModalTitle.textContent = "Log in";
+      authModalSub.textContent = "Welcome back.";
+      authSubmitBtn.textContent = "Log in";
+      authToggleRow.textContent = "Don't have an account? ";
+      authToggleRow.appendChild(wireToggleBtn("Sign up", "signup"));
+    } else {
+      authModalTitle.textContent = "Sign up";
+      authModalSub.textContent = "Free, for now -- this may change in future.";
+      authSubmitBtn.textContent = "Sign up";
+      authToggleRow.textContent = "Already have an account? ";
+      authToggleRow.appendChild(wireToggleBtn("Log in", "login"));
+    }
+  }
+  function showLoginView(){
+    hideAllViews();
+    authFormView.hidden = false;
+    setMode("login");
+  }
+  function showForgotView(){
+    hideAllViews();
+    authForgotView.hidden = false;
+    clearMsg(authForgotMsg);
+    authForgotForm.reset();
+  }
+  function showResetView(){
+    hideAllViews();
+    authResetView.hidden = false;
+    clearMsg(authResetMsg);
+    authResetForm.reset();
+  }
+  function showSignedInView(session){
+    hideAllViews();
+    authSignedInView.hidden = false;
+    authUserEmail.textContent = session.user.email;
+  }
+  function openAuthModal(){
+    authModal.hidden = false;
+    document.body.style.overflow = "hidden";
+    // Was unconditionally showing the login form, even for an
+    // already-logged-in account -- every "locked, click to unlock"
+    // button (buy credits, upgrade to Pro) calls this, and for someone
+    // already signed in that meant clicking "buy credits" appeared to
+    // demand a login instead of showing the account panel where credits
+    // actually get bought. Check the real session first, same as the
+    // top-right account button's own handler already correctly does.
+    sb.auth.getSession().then(function(res){
+      var session = res.data.session;
+      if(session){
+        showSignedInView(session);
+      } else {
+        showLoginView();
+      }
+    });
+  }
+  function closeAuthModal(){
+    authModal.hidden = true;
+    document.body.style.overflow = "";
+  }
+  function updateAuthUI(session){
+    if(session && session.user){
+      authBtn.textContent = session.user.email;
+      authBtn.classList.add("signed-in");
+    } else {
+      authBtn.textContent = "Log in";
+      authBtn.classList.remove("signed-in");
+    }
+    if(window.EATLAS_DOWNLOAD) window.EATLAS_DOWNLOAD.setAuthState(!!(session && session.user));
+    if(window.EATLAS_PREFS) window.EATLAS_PREFS.setAuthState(!!(session && session.user), session && session.user ? session.user.id : null);
+  }
+  authBtn.addEventListener("click", function(){
+    sb.auth.getSession().then(function(res){
+      var session = res.data.session;
+      authModal.hidden = false;
+      document.body.style.overflow = "hidden";
+      if(session){
+        showSignedInView(session);
+      } else {
+        showLoginView();
+      }
+    });
+  });
+  authModalClose.addEventListener("click", closeAuthModal);
+  authModalBackdrop.addEventListener("click", closeAuthModal);
+  document.addEventListener("keydown", function(e){ if(e.key === "Escape" && !authModal.hidden) closeAuthModal(); });
+  authForm.addEventListener("submit", function(e){
+    e.preventDefault();
+    var email = authEmail.value.trim();
+    var password = authPassword.value;
+    authSubmitBtn.disabled = true;
+    clearMsg(authMsg);
+    if(mode === "signup"){
+      sb.auth.signUp({ email: email, password: password }).then(function(res){
+        authSubmitBtn.disabled = false;
+        if(res.error){
+          showMsg(authMsg, res.error.message, "error");
+        } else if(res.data.user && !res.data.session){
+          showMsg(authMsg, "Check your email to confirm your account before logging in.", "success");
+          authForm.reset();
+        } else {
+          showMsg(authMsg, "Account created.", "success");
+        }
+      });
+    } else {
+      sb.auth.signInWithPassword({ email: email, password: password }).then(function(res){
+        authSubmitBtn.disabled = false;
+        if(res.error){
+          showMsg(authMsg, res.error.message, "error");
+        } else {
+          closeAuthModal();
+        }
+      });
+    }
+  });
+  // --- Forgot password ---
+  authForgotBtn.addEventListener("click", showForgotView);
+  authBackToLoginBtn.addEventListener("click", showLoginView);
+  authForgotForm.addEventListener("submit", function(e){
+    e.preventDefault();
+    var email = authForgotEmail.value.trim();
+    authForgotSubmitBtn.disabled = true;
+    clearMsg(authForgotMsg);
+    sb.auth.resetPasswordForEmail(email).then(function(res){
+      authForgotSubmitBtn.disabled = false;
+      if(res.error){
+        showMsg(authForgotMsg, res.error.message, "error");
+      } else {
+        showMsg(authForgotMsg, "Check your email for a password reset link.", "success");
+        authForgotForm.reset();
+      }
+    });
+  });
+  // --- Set / change password ---
+  // The same form and handler serve two different entry points: someone
+  // who clicked a "forgot password" reset link (Supabase creates a
+  // temporary session just for this) and someone who's already properly
+  // logged in and wants to change their password from the account view.
+  // Either way, updateUser() is exactly the same call.
+  authResetForm.addEventListener("submit", function(e){
+    e.preventDefault();
+    var password = authNewPassword.value;
+    authResetSubmitBtn.disabled = true;
+    clearMsg(authResetMsg);
+    sb.auth.updateUser({ password: password }).then(function(res){
+      authResetSubmitBtn.disabled = false;
+      if(res.error){
+        showMsg(authResetMsg, res.error.message, "error");
+      } else {
+        showMsg(authResetMsg, "Password updated.", "success");
+        authResetForm.reset();
+      }
+    });
+  });
+  authChangePasswordBtn.addEventListener("click", showResetView);
+  authSignOutBtn.addEventListener("click", function(){
+    sb.auth.signOut().then(function(){
+      closeAuthModal();
+    });
+  });
+  sb.auth.onAuthStateChange(function(event, session){
+    updateAuthUI(session);
+    if(event === "PASSWORD_RECOVERY"){
+      // Someone landed here via a password-reset email link -- open
+      // straight into the "set a new password" view rather than
+      // leaving them to notice they're now (temporarily) signed in
+      // and have to hunt for how to actually finish resetting it.
+      authModal.hidden = false;
+      document.body.style.overflow = "hidden";
+      showResetView();
+    }
+  });
+  sb.auth.getSession().then(function(res){
+    updateAuthUI(res.data.session);
+  });
+})();
+</script>
 """
 
 FOOTER_HTML = """<footer>
@@ -351,17 +731,6 @@ FOOTER_HTML = """<footer>
  figures are the latest published observations and are subject to revision.
  Ideas or corrections: <a href="../contact">get in touch</a>. <a href="../privacy">Privacy</a> &middot; <a href="../terms">Terms</a>.
 </footer>
-<script>
-(function(){
-  var btn = document.getElementById("themeToggle");
-  if(!btn) return;
-  btn.addEventListener("click", function(){
-    var isDark = document.documentElement.getAttribute("data-theme") === "dark";
-    if(isDark){ document.documentElement.removeAttribute("data-theme"); try{localStorage.setItem("eatlas_theme","light");}catch(e){} }
-    else{ document.documentElement.setAttribute("data-theme","dark"); try{localStorage.setItem("eatlas_theme","dark");}catch(e){} }
-  });
-})();
-</script>
 """
 
 def flag_emoji(alpha2):
@@ -440,10 +809,14 @@ INDICATOR_TEMPLATE = """<!DOCTYPE html>
 <link rel="icon" type="image/png" sizes="32x32" href="../favicon-32.png">
 <link rel="apple-touch-icon" href="../apple-touch-icon.png">
 <link rel="stylesheet" href="../style.css?v=51">
+<link rel="stylesheet" href="../mobile.css?v=10">
 <style>
   .indicator-wrap{{max-width:760px;margin:0 auto;padding:32px 24px 64px}}
-  .indicator-crumb{{font-size:13px;margin-bottom:18px}}
-  .indicator-crumb a{{color:var(--blue)}}
+  .indicator-crumb{{margin-bottom:18px}}
+  .indicator-backbtn{{border:1px solid var(--hair); background:var(--panel); color:var(--ink);
+    font:700 13px "Avenir Next","Avenir","Nunito Sans",sans-serif; padding:7px 14px; border-radius:999px;
+    text-decoration:none; display:inline-flex; align-items:center; gap:6px;}}
+  .indicator-backbtn:hover{{border-color:var(--blue); color:var(--navy);}}
   .indicator-hero{{display:flex;align-items:baseline;gap:12px;flex-wrap:wrap;margin-bottom:18px}}
   .indicator-hero h1{{font-size:22px;font-weight:700;margin:0}}
   .indicator-links{{display:flex;gap:12px;flex-wrap:wrap;margin-top:24px}}
@@ -465,18 +838,75 @@ INDICATOR_TEMPLATE = """<!DOCTYPE html>
 </head>
 <body>
 {header}
+<div class="auth-modal" id="authModal" hidden>
+ <div class="auth-modal-backdrop" id="authModalBackdrop"></div>
+ <div class="auth-modal-content">
+ <button type="button" class="auth-modal-close" id="authModalClose" aria-label="Close">&times;</button>
+ <div id="authFormView">
+ <h2 id="authModalTitle">Log in</h2>
+ <p class="auth-modal-sub" id="authModalSub">Welcome back.</p>
+ <form id="authForm">
+ <div class="auth-field">
+ <label for="authEmail">Email</label>
+ <input type="email" id="authEmail" required autocomplete="email">
+ </div>
+ <div class="auth-field">
+ <label for="authPassword">Password</label>
+ <input type="password" id="authPassword" required autocomplete="current-password" minlength="6">
+ </div>
+ <button type="submit" class="btn auth-submit" id="authSubmitBtn">Log in</button>
+ </form>
+ <p class="auth-toggle" id="authForgotRow"><button type="button" id="authForgotBtn">Forgot password?</button></p>
+ <p class="auth-toggle" id="authToggleRow">Don't have an account? <button type="button" id="authToggleBtn">Sign up</button></p>
+ <p class="auth-msg" id="authMsg"></p>
+ </div>
+ <div id="authForgotView" hidden>
+ <h2>Reset password</h2>
+ <p class="auth-modal-sub">Enter your email and we'll send a reset link.</p>
+ <form id="authForgotForm">
+ <div class="auth-field">
+ <label for="authForgotEmail">Email</label>
+ <input type="email" id="authForgotEmail" required autocomplete="email">
+ </div>
+ <button type="submit" class="btn auth-submit" id="authForgotSubmitBtn">Send reset link</button>
+ </form>
+ <p class="auth-toggle"><button type="button" id="authBackToLoginBtn">Back to log in</button></p>
+ <p class="auth-msg" id="authForgotMsg"></p>
+ </div>
+ <div id="authResetView" hidden>
+ <h2>Set a new password</h2>
+ <p class="auth-modal-sub">Choose a new password for your account.</p>
+ <form id="authResetForm">
+ <div class="auth-field">
+ <label for="authNewPassword">New password</label>
+ <input type="password" id="authNewPassword" required autocomplete="new-password" minlength="6">
+ </div>
+ <button type="submit" class="btn auth-submit" id="authResetSubmitBtn">Set new password</button>
+ </form>
+ <p class="auth-msg" id="authResetMsg"></p>
+ </div>
+ <div id="authSignedInView" hidden class="auth-signedin-box">
+ <h2>Account</h2>
+ <p>Signed in as</p>
+ <p><strong id="authUserEmail"></strong></p>
+ <div id="acctPlanBox" class="acct-plan-box"></div>
+ <button type="button" class="btn ghost" id="authChangePasswordBtn" style="margin-bottom:10px;">Change password</button>
+ <button type="button" class="btn ghost" id="authSignOutBtn">Log out</button>
+ </div>
+ </div>
+</div>
 <main class="indicator-wrap">
-  <p class="indicator-crumb"><a href="../{country_slug}">&larr; {country_name} overview</a></p>
+  <p class="indicator-crumb"><a class="indicator-backbtn" href="../{country_slug}">&larr; {country_name} overview</a></p>
   <div class="indicator-hero">
     <h1>{country_name} {metric_title}</h1>
   </div>
-
+{toggle_buttons_html}
   <div class="hero" style="margin:0 0 22px;justify-content:flex-start;">
     <div class="stat" style="max-width:320px;">
       <p class="label">Latest</p>
-      <p class="figure"><span class="led {led}" title="{led_title}" role="img" aria-label="{led_title}"></span>{latest_str}</p>
-      <p class="delta {delta_dir}"><span class="arrow" aria-hidden="true">{delta_arrow}</span> {delta_display} vs prior</p>
-      <p class="period">{latest_period} &middot; updated {updated}</p>
+      <p class="figure"><span class="led {led}" id="indicatorLed" title="{led_title}" role="img" aria-label="{led_title}"></span><span id="indicatorFigure">{latest_str}</span></p>
+      <p class="delta {delta_dir}" id="indicatorDelta"><span class="arrow" aria-hidden="true">{delta_arrow}</span> {delta_display} vs prior</p>
+      <p class="period" id="indicatorPeriod">{latest_period} &middot; updated {updated}</p>
     </div>
   </div>
 
@@ -504,7 +934,7 @@ INDICATOR_TEMPLATE = """<!DOCTYPE html>
 <script src="https://cdnjs.cloudflare.com/ajax/libs/Chart.js/4.4.1/chart.umd.min.js"></script>
 <script>
 (function(){{
-  var pts = {chart_points};
+  var nominalPts = {chart_points};
   var unit = {unit_json};
   var cs = getComputedStyle(document.documentElement);
   var INK = cs.getPropertyValue("--ink").trim() || "#171B1E";
@@ -513,12 +943,13 @@ INDICATOR_TEMPLATE = """<!DOCTYPE html>
   var PANEL_BG = cs.getPropertyValue("--panel").trim() || "#fff";
   var LINE = "#37659E";
   var FONT = {{family: "'Avenir Next','Nunito Sans',sans-serif", size: 11.5}};
-  function curFmt(raw, decimals){{
-    if(unit.indexOf("%") > -1) return raw.toFixed(1) + "%";
-    var scales = [["bn",1e9],["m",1e6],["k",1e3]], symbol = unit, mult = 1;
+  function curFmt(raw, decimals, unitOverride){{
+    var u = unitOverride || unit;
+    if(u.indexOf("%") > -1) return raw.toFixed(1) + "%";
+    var scales = [["bn",1e9],["m",1e6],["k",1e3]], symbol = u, mult = 1;
     for(var i=0;i<scales.length;i++){{
       var suf = scales[i][0];
-      if(unit.slice(-suf.length) === suf && unit.length > suf.length){{ symbol = unit.slice(0,-suf.length); mult = scales[i][1]; break; }}
+      if(u.slice(-suf.length) === suf && u.length > suf.length){{ symbol = u.slice(0,-suf.length); mult = scales[i][1]; break; }}
     }}
     var a = Math.abs(raw) * mult, sign = raw < 0 ? "\\u2212" : "";
     var out;
@@ -532,37 +963,45 @@ INDICATOR_TEMPLATE = """<!DOCTYPE html>
     var m = /^(\\d{{4}})/.exec(label);
     return m ? m[1] : label;
   }}
-  var canvas = document.getElementById("indicatorChart");
-  new Chart(canvas, {{
-    type: "line",
-    data: {{
-      labels: pts.map(function(p){{return p[0];}}),
-      datasets: [{{
-        data: pts.map(function(p){{return p[1];}}),
-        borderColor: LINE, borderWidth: 2, pointRadius: 0, pointHitRadius: 8, tension: 0.25
-      }}]
-    }},
-    options: {{
-      responsive: true, maintainAspectRatio: false, animation: false,
-      interaction: {{mode: "index", intersect: false}},
-      plugins: {{
-        legend: {{display: false}},
-        tooltip: {{
-          backgroundColor: PANEL_BG, titleColor: INK, bodyColor: INK, borderColor: HAIR, borderWidth: 1,
-          titleFont: {{family: FONT.family, weight: "600"}}, bodyFont: {{family: FONT.family}}, displayColors: false,
-          callbacks: {{ label: function(ctx){{ return curFmt(ctx.parsed.y, 2); }} }}
-        }}
+  var chart = null;
+  function renderChart(pts, unitForChart){{
+    var canvas = document.getElementById("indicatorChart");
+    if(chart){{ chart.destroy(); chart = null; }}
+    chart = new Chart(canvas, {{
+      type: "line",
+      data: {{
+        labels: pts.map(function(p){{return p[0];}}),
+        datasets: [{{
+          data: pts.map(function(p){{return p[1];}}),
+          borderColor: LINE, borderWidth: 2, pointRadius: 0, pointHitRadius: 8, tension: 0.25
+        }}]
       }},
-      scales: {{
-        x: {{grid: {{display: false}}, border: {{color: HAIR}}, ticks: {{color: INK2, font: FONT, maxTicksLimit: 7, maxRotation: 0,
-             callback: function(v){{ return yearOf(this.getLabelForValue(v)); }} }}}},
-        y: {{grid: {{color: HAIR}}, border: {{display: false}}, ticks: {{color: INK2, font: FONT, maxTicksLimit: 6,
-             callback: function(v){{ return curFmt(v, 1); }} }}}}
+      options: {{
+        responsive: true, maintainAspectRatio: false, animation: false,
+        interaction: {{mode: "index", intersect: false}},
+        plugins: {{
+          legend: {{display: false}},
+          tooltip: {{
+            backgroundColor: PANEL_BG, titleColor: INK, bodyColor: INK, borderColor: HAIR, borderWidth: 1,
+            titleFont: {{family: FONT.family, weight: "600"}}, bodyFont: {{family: FONT.family}}, displayColors: false,
+            callbacks: {{ label: function(ctx){{ return curFmt(ctx.parsed.y, 2, unitForChart); }} }}
+          }}
+        }},
+        scales: {{
+          x: {{grid: {{display: false}}, border: {{color: HAIR}}, ticks: {{color: INK2, font: FONT, maxTicksLimit: 7, maxRotation: 0,
+               callback: function(v){{ return yearOf(this.getLabelForValue(v)); }} }}}},
+          y: {{grid: {{color: HAIR}}, border: {{display: false}}, ticks: {{color: INK2, font: FONT, maxTicksLimit: 6,
+               callback: function(v){{ return curFmt(v, 1, unitForChart); }} }}}}
+        }}
       }}
-    }}
-  }});
+    }});
+  }}
+  renderChart(nominalPts, unit);
+  window.EATLAS_INDICATOR_RENDER = {{renderChart: renderChart, curFmt: curFmt, nominalPts: nominalPts, unit: unit}};
 }})();
 </script>
+{toggle_block}
+<script src="../mobile.js?v=10"></script>
 </body>
 </html>
 """
@@ -717,18 +1156,42 @@ def main():
                 skipped.append((country_name, metric_key, "insufficient points"))
                 continue
             unit = s.get("unit", "")
+
+            # Dollarise / Make it real: only meaningfully apply to gdp_level
+            # (the real site's own buildDisplaySeries() only swaps gdp_real
+            # in for "real terms", and Dollarise only converts currency-
+            # denominated series -- the other 3 core metrics here are all
+            # percentages, which the real toggles don't touch either).
+            toggle_data = None
+            if metric_key == "gdp_level":
+                real_series = series.get("gdp_real")
+                real_pts = None
+                if real_series:
+                    rp = [p for p in real_series.get("points", []) if p[1] is not None]
+                    rp = annualize_gdp_points(rp, real_series.get("freq", ""), country_name)
+                    if len(rp) >= 2:
+                        real_pts = rp
+                fx = data.get("fx_to_usd") if country_name not in GDP_ALREADY_USD else None
+                if real_pts or fx:
+                    toggle_data = {
+                        "nominal": pts, "real": real_pts, "unit": unit,
+                        "fx": fx,
+                    }
+
             latest_period, latest_val = pts[-1]
             prev_val = pts[-2][1]
             latest_str = fmt_value(latest_val, unit)
 
             delta = round(latest_val - prev_val, 2)
             up_is_good = UP_IS_GOOD.get(metric_key, True)
-            if delta == 0:
-                delta_dir, delta_arrow = "flat", "\u2582"
-            elif (delta > 0) == up_is_good:
-                delta_dir, delta_arrow = "good", "\u25b2"
-            else:
-                delta_dir, delta_arrow = "bad", "\u25bc"
+            # Arrow direction and good/bad colour are independent, matching
+            # the real site's statTile() exactly: arrow follows the actual
+            # sign of the change; dir/colour follows whether that direction
+            # is favourable for this metric. Conflating the two (an earlier
+            # version of this script) made "inflation fell" render with an
+            # up-arrow just because falling inflation is good news.
+            delta_dir = "flat" if delta == 0 else ("good" if (delta > 0) == up_is_good else "bad")
+            delta_arrow = "\u2582" if delta == 0 else ("\u25b2" if delta > 0 else "\u25bc")
             delta_str = cur_fmt(delta, unit, 1) if ("%" not in unit) else f"{abs(delta):.1f}pp"
             delta_sign = "+" if delta > 0 else ("\u2212" if delta < 0 else "")
             delta_display = f"{delta_sign}{delta_str.lstrip(chr(0x2212))}" if "%" not in unit else f"{delta_sign}{delta_str}"
@@ -777,6 +1240,11 @@ def main():
                 for m in related
             ) or f'<a href="../{slug}">See all {country_name} data &rarr;</a>'
 
+            toggle_buttons_html, toggle_js = build_toggle_html_and_js(
+                toggle_data, metric_key, up_is_good, freshness_led, fmt_period_label
+            )
+            toggle_block = f"<script>\n(function(){{\n{toggle_js}\n}})();\n</script>" if toggle_js else ""
+
             html_out = INDICATOR_TEMPLATE.format(
                 title_tag=esc(title_tag), meta_desc=esc(meta_desc), canonical=canonical,
                 og_title=esc(og_title), og_image=og_image, jsonld=jsonld,
@@ -788,6 +1256,7 @@ def main():
                 slug=page_slug, related_links=related_links,
                 led=led, led_title=esc(led_title), delta_dir=delta_dir, delta_arrow=delta_arrow,
                 delta_display=esc(delta_display), unit=esc(unit), unit_json=json.dumps(unit),
+                toggle_buttons_html=toggle_buttons_html, toggle_block=toggle_block,
             )
             with open(os.path.join(out_indicators, f"{page_slug}.html"), "w", encoding="utf-8") as f:
                 f.write(html_out)

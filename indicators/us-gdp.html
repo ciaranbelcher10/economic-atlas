@@ -18,10 +18,14 @@
 <link rel="icon" type="image/png" sizes="32x32" href="../favicon-32.png">
 <link rel="apple-touch-icon" href="../apple-touch-icon.png">
 <link rel="stylesheet" href="../style.css?v=51">
+<link rel="stylesheet" href="../mobile.css?v=10">
 <style>
   .indicator-wrap{max-width:760px;margin:0 auto;padding:32px 24px 64px}
-  .indicator-crumb{font-size:13px;margin-bottom:18px}
-  .indicator-crumb a{color:var(--blue)}
+  .indicator-crumb{margin-bottom:18px}
+  .indicator-backbtn{border:1px solid var(--hair); background:var(--panel); color:var(--ink);
+    font:700 13px "Avenir Next","Avenir","Nunito Sans",sans-serif; padding:7px 14px; border-radius:999px;
+    text-decoration:none; display:inline-flex; align-items:center; gap:6px;}
+  .indicator-backbtn:hover{border-color:var(--blue); color:var(--navy);}
   .indicator-hero{display:flex;align-items:baseline;gap:12px;flex-wrap:wrap;margin-bottom:18px}
   .indicator-hero h1{font-size:22px;font-weight:700;margin:0}
   .indicator-links{display:flex;gap:12px;flex-wrap:wrap;margin-top:24px}
@@ -226,19 +230,325 @@
   }
 })();
 </script>
+<script src="https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2"></script>
+<script>
+// The real, complete auth system extracted verbatim from the country
+// pages (sign in, sign up, forgot/reset password, sign out, session
+// sync) -- not a second, separately-written copy. Only the unrelated
+// download-gating code that happened to share the same enclosing
+// function on the source page is left out, since nothing on this page
+// needs it.
+(function(){
+  var SUPABASE_URL = "https://skluvrxnuibkordzgtmu.supabase.co";
+  var SUPABASE_KEY = "sb_publishable_p6_GqrC8qcNC6KwPE46hkw_qdWQTuyT";
+  var sb = supabase.createClient(SUPABASE_URL, SUPABASE_KEY);
+  // Exposed globally so the Save & Share code in the later <script>
+  // block (a separate IIFE, not sharing this function's local `sb`) can
+  // reach the same client rather than creating a second connection.
+  window.sb = sb;
+  var authBtn = document.getElementById("authBtn");
+  var authModal = document.getElementById("authModal");
+  var authModalBackdrop = document.getElementById("authModalBackdrop");
+  var authModalClose = document.getElementById("authModalClose");
+  var authForm = document.getElementById("authForm");
+  var authEmail = document.getElementById("authEmail");
+  var authPassword = document.getElementById("authPassword");
+  var authSubmitBtn = document.getElementById("authSubmitBtn");
+  var authMsg = document.getElementById("authMsg");
+  var authToggleRow = document.getElementById("authToggleRow");
+  var authModalTitle = document.getElementById("authModalTitle");
+  var authModalSub = document.getElementById("authModalSub");
+  var authFormView = document.getElementById("authFormView");
+  var authSignedInView = document.getElementById("authSignedInView");
+  var authUserEmail = document.getElementById("authUserEmail");
+  var authSignOutBtn = document.getElementById("authSignOutBtn");
+  var authForgotBtn = document.getElementById("authForgotBtn");
+  var authForgotView = document.getElementById("authForgotView");
+  var authForgotForm = document.getElementById("authForgotForm");
+  var authForgotEmail = document.getElementById("authForgotEmail");
+  var authForgotSubmitBtn = document.getElementById("authForgotSubmitBtn");
+  var authForgotMsg = document.getElementById("authForgotMsg");
+  var authBackToLoginBtn = document.getElementById("authBackToLoginBtn");
+  var authResetView = document.getElementById("authResetView");
+  var authResetForm = document.getElementById("authResetForm");
+  var authNewPassword = document.getElementById("authNewPassword");
+  var authResetSubmitBtn = document.getElementById("authResetSubmitBtn");
+  var authResetMsg = document.getElementById("authResetMsg");
+  var authChangePasswordBtn = document.getElementById("authChangePasswordBtn");
+  var mode = "login";
+  function showMsg(el, text, kind){
+    el.textContent = text;
+    el.className = "auth-msg show " + kind;
+  }
+  function clearMsg(el){
+    el.className = "auth-msg";
+    el.textContent = "";
+  }
+  function hideAllViews(){
+    authFormView.hidden = true;
+    authForgotView.hidden = true;
+    authResetView.hidden = true;
+    authSignedInView.hidden = true;
+  }
+  function wireToggleBtn(label, nextMode){
+    var btn = document.createElement("button");
+    btn.type = "button";
+    btn.textContent = label;
+    btn.addEventListener("click", function(){ setMode(nextMode); });
+    return btn;
+  }
+  function setMode(newMode){
+    mode = newMode;
+    clearMsg(authMsg);
+    authForm.reset();
+    if(mode === "login"){
+      authModalTitle.textContent = "Log in";
+      authModalSub.textContent = "Welcome back.";
+      authSubmitBtn.textContent = "Log in";
+      authToggleRow.textContent = "Don't have an account? ";
+      authToggleRow.appendChild(wireToggleBtn("Sign up", "signup"));
+    } else {
+      authModalTitle.textContent = "Sign up";
+      authModalSub.textContent = "Free, for now -- this may change in future.";
+      authSubmitBtn.textContent = "Sign up";
+      authToggleRow.textContent = "Already have an account? ";
+      authToggleRow.appendChild(wireToggleBtn("Log in", "login"));
+    }
+  }
+  function showLoginView(){
+    hideAllViews();
+    authFormView.hidden = false;
+    setMode("login");
+  }
+  function showForgotView(){
+    hideAllViews();
+    authForgotView.hidden = false;
+    clearMsg(authForgotMsg);
+    authForgotForm.reset();
+  }
+  function showResetView(){
+    hideAllViews();
+    authResetView.hidden = false;
+    clearMsg(authResetMsg);
+    authResetForm.reset();
+  }
+  function showSignedInView(session){
+    hideAllViews();
+    authSignedInView.hidden = false;
+    authUserEmail.textContent = session.user.email;
+  }
+  function openAuthModal(){
+    authModal.hidden = false;
+    document.body.style.overflow = "hidden";
+    // Was unconditionally showing the login form, even for an
+    // already-logged-in account -- every "locked, click to unlock"
+    // button (buy credits, upgrade to Pro) calls this, and for someone
+    // already signed in that meant clicking "buy credits" appeared to
+    // demand a login instead of showing the account panel where credits
+    // actually get bought. Check the real session first, same as the
+    // top-right account button's own handler already correctly does.
+    sb.auth.getSession().then(function(res){
+      var session = res.data.session;
+      if(session){
+        showSignedInView(session);
+      } else {
+        showLoginView();
+      }
+    });
+  }
+  function closeAuthModal(){
+    authModal.hidden = true;
+    document.body.style.overflow = "";
+  }
+  function updateAuthUI(session){
+    if(session && session.user){
+      authBtn.textContent = session.user.email;
+      authBtn.classList.add("signed-in");
+    } else {
+      authBtn.textContent = "Log in";
+      authBtn.classList.remove("signed-in");
+    }
+    if(window.EATLAS_DOWNLOAD) window.EATLAS_DOWNLOAD.setAuthState(!!(session && session.user));
+    if(window.EATLAS_PREFS) window.EATLAS_PREFS.setAuthState(!!(session && session.user), session && session.user ? session.user.id : null);
+  }
+  authBtn.addEventListener("click", function(){
+    sb.auth.getSession().then(function(res){
+      var session = res.data.session;
+      authModal.hidden = false;
+      document.body.style.overflow = "hidden";
+      if(session){
+        showSignedInView(session);
+      } else {
+        showLoginView();
+      }
+    });
+  });
+  authModalClose.addEventListener("click", closeAuthModal);
+  authModalBackdrop.addEventListener("click", closeAuthModal);
+  document.addEventListener("keydown", function(e){ if(e.key === "Escape" && !authModal.hidden) closeAuthModal(); });
+  authForm.addEventListener("submit", function(e){
+    e.preventDefault();
+    var email = authEmail.value.trim();
+    var password = authPassword.value;
+    authSubmitBtn.disabled = true;
+    clearMsg(authMsg);
+    if(mode === "signup"){
+      sb.auth.signUp({ email: email, password: password }).then(function(res){
+        authSubmitBtn.disabled = false;
+        if(res.error){
+          showMsg(authMsg, res.error.message, "error");
+        } else if(res.data.user && !res.data.session){
+          showMsg(authMsg, "Check your email to confirm your account before logging in.", "success");
+          authForm.reset();
+        } else {
+          showMsg(authMsg, "Account created.", "success");
+        }
+      });
+    } else {
+      sb.auth.signInWithPassword({ email: email, password: password }).then(function(res){
+        authSubmitBtn.disabled = false;
+        if(res.error){
+          showMsg(authMsg, res.error.message, "error");
+        } else {
+          closeAuthModal();
+        }
+      });
+    }
+  });
+  // --- Forgot password ---
+  authForgotBtn.addEventListener("click", showForgotView);
+  authBackToLoginBtn.addEventListener("click", showLoginView);
+  authForgotForm.addEventListener("submit", function(e){
+    e.preventDefault();
+    var email = authForgotEmail.value.trim();
+    authForgotSubmitBtn.disabled = true;
+    clearMsg(authForgotMsg);
+    sb.auth.resetPasswordForEmail(email).then(function(res){
+      authForgotSubmitBtn.disabled = false;
+      if(res.error){
+        showMsg(authForgotMsg, res.error.message, "error");
+      } else {
+        showMsg(authForgotMsg, "Check your email for a password reset link.", "success");
+        authForgotForm.reset();
+      }
+    });
+  });
+  // --- Set / change password ---
+  // The same form and handler serve two different entry points: someone
+  // who clicked a "forgot password" reset link (Supabase creates a
+  // temporary session just for this) and someone who's already properly
+  // logged in and wants to change their password from the account view.
+  // Either way, updateUser() is exactly the same call.
+  authResetForm.addEventListener("submit", function(e){
+    e.preventDefault();
+    var password = authNewPassword.value;
+    authResetSubmitBtn.disabled = true;
+    clearMsg(authResetMsg);
+    sb.auth.updateUser({ password: password }).then(function(res){
+      authResetSubmitBtn.disabled = false;
+      if(res.error){
+        showMsg(authResetMsg, res.error.message, "error");
+      } else {
+        showMsg(authResetMsg, "Password updated.", "success");
+        authResetForm.reset();
+      }
+    });
+  });
+  authChangePasswordBtn.addEventListener("click", showResetView);
+  authSignOutBtn.addEventListener("click", function(){
+    sb.auth.signOut().then(function(){
+      closeAuthModal();
+    });
+  });
+  sb.auth.onAuthStateChange(function(event, session){
+    updateAuthUI(session);
+    if(event === "PASSWORD_RECOVERY"){
+      // Someone landed here via a password-reset email link -- open
+      // straight into the "set a new password" view rather than
+      // leaving them to notice they're now (temporarily) signed in
+      // and have to hunt for how to actually finish resetting it.
+      authModal.hidden = false;
+      document.body.style.overflow = "hidden";
+      showResetView();
+    }
+  });
+  sb.auth.getSession().then(function(res){
+    updateAuthUI(res.data.session);
+  });
+})();
+</script>
 
+<div class="auth-modal" id="authModal" hidden>
+ <div class="auth-modal-backdrop" id="authModalBackdrop"></div>
+ <div class="auth-modal-content">
+ <button type="button" class="auth-modal-close" id="authModalClose" aria-label="Close">&times;</button>
+ <div id="authFormView">
+ <h2 id="authModalTitle">Log in</h2>
+ <p class="auth-modal-sub" id="authModalSub">Welcome back.</p>
+ <form id="authForm">
+ <div class="auth-field">
+ <label for="authEmail">Email</label>
+ <input type="email" id="authEmail" required autocomplete="email">
+ </div>
+ <div class="auth-field">
+ <label for="authPassword">Password</label>
+ <input type="password" id="authPassword" required autocomplete="current-password" minlength="6">
+ </div>
+ <button type="submit" class="btn auth-submit" id="authSubmitBtn">Log in</button>
+ </form>
+ <p class="auth-toggle" id="authForgotRow"><button type="button" id="authForgotBtn">Forgot password?</button></p>
+ <p class="auth-toggle" id="authToggleRow">Don't have an account? <button type="button" id="authToggleBtn">Sign up</button></p>
+ <p class="auth-msg" id="authMsg"></p>
+ </div>
+ <div id="authForgotView" hidden>
+ <h2>Reset password</h2>
+ <p class="auth-modal-sub">Enter your email and we'll send a reset link.</p>
+ <form id="authForgotForm">
+ <div class="auth-field">
+ <label for="authForgotEmail">Email</label>
+ <input type="email" id="authForgotEmail" required autocomplete="email">
+ </div>
+ <button type="submit" class="btn auth-submit" id="authForgotSubmitBtn">Send reset link</button>
+ </form>
+ <p class="auth-toggle"><button type="button" id="authBackToLoginBtn">Back to log in</button></p>
+ <p class="auth-msg" id="authForgotMsg"></p>
+ </div>
+ <div id="authResetView" hidden>
+ <h2>Set a new password</h2>
+ <p class="auth-modal-sub">Choose a new password for your account.</p>
+ <form id="authResetForm">
+ <div class="auth-field">
+ <label for="authNewPassword">New password</label>
+ <input type="password" id="authNewPassword" required autocomplete="new-password" minlength="6">
+ </div>
+ <button type="submit" class="btn auth-submit" id="authResetSubmitBtn">Set new password</button>
+ </form>
+ <p class="auth-msg" id="authResetMsg"></p>
+ </div>
+ <div id="authSignedInView" hidden class="auth-signedin-box">
+ <h2>Account</h2>
+ <p>Signed in as</p>
+ <p><strong id="authUserEmail"></strong></p>
+ <div id="acctPlanBox" class="acct-plan-box"></div>
+ <button type="button" class="btn ghost" id="authChangePasswordBtn" style="margin-bottom:10px;">Change password</button>
+ <button type="button" class="btn ghost" id="authSignOutBtn">Log out</button>
+ </div>
+ </div>
+</div>
 <main class="indicator-wrap">
-  <p class="indicator-crumb"><a href="../us">&larr; US overview</a></p>
+  <p class="indicator-crumb"><a class="indicator-backbtn" href="../us">&larr; US overview</a></p>
   <div class="indicator-hero">
     <h1>US GDP</h1>
   </div>
-
+<div class="metric-toggles" aria-label="Display options" style="margin:0 0 20px;">
+<button type="button" class="mtoggle" id="indToggleReal" aria-pressed="false"><span class="mtoggle-switch" aria-hidden="true"></span>Make it real</button>
+</div>
   <div class="hero" style="margin:0 0 22px;justify-content:flex-start;">
     <div class="stat" style="max-width:320px;">
       <p class="label">Latest</p>
-      <p class="figure"><span class="led green" title="Updated on schedule" role="img" aria-label="Updated on schedule"></span>$32.49tn</p>
-      <p class="delta good"><span class="arrow" aria-hidden="true">▲</span> +$620.3bn vs prior</p>
-      <p class="period">Q2 2026 &middot; updated 2026-09-07</p>
+      <p class="figure"><span class="led green" id="indicatorLed" title="Updated on schedule" role="img" aria-label="Updated on schedule"></span><span id="indicatorFigure">$32.49tn</span></p>
+      <p class="delta good" id="indicatorDelta"><span class="arrow" aria-hidden="true">▲</span> +$620.3bn vs prior</p>
+      <p class="period" id="indicatorPeriod">Q2 2026 &middot; updated 2026-09-07</p>
     </div>
   </div>
 
@@ -269,22 +579,11 @@
  figures are the latest published observations and are subject to revision.
  Ideas or corrections: <a href="../contact">get in touch</a>. <a href="../privacy">Privacy</a> &middot; <a href="../terms">Terms</a>.
 </footer>
-<script>
-(function(){
-  var btn = document.getElementById("themeToggle");
-  if(!btn) return;
-  btn.addEventListener("click", function(){
-    var isDark = document.documentElement.getAttribute("data-theme") === "dark";
-    if(isDark){ document.documentElement.removeAttribute("data-theme"); try{localStorage.setItem("eatlas_theme","light");}catch(e){} }
-    else{ document.documentElement.setAttribute("data-theme","dark"); try{localStorage.setItem("eatlas_theme","dark");}catch(e){} }
-  });
-})();
-</script>
 
 <script src="https://cdnjs.cloudflare.com/ajax/libs/Chart.js/4.4.1/chart.umd.min.js"></script>
 <script>
 (function(){
-  var pts = [["1976-Q3", 1886.558], ["1976-Q4", 1934.273], ["1977-Q1", 1988.648], ["1977-Q2", 2055.909], ["1977-Q3", 2118.473], ["1977-Q4", 2164.27], ["1978-Q1", 2202.76], ["1978-Q2", 2331.633], ["1978-Q3", 2395.053], ["1978-Q4", 2476.949], ["1979-Q1", 2526.61], ["1979-Q2", 2591.247], ["1979-Q3", 2667.565], ["1979-Q4", 2723.883], ["1980-Q1", 2789.842], ["1980-Q2", 2797.352], ["1980-Q3", 2856.483], ["1980-Q4", 2985.557], ["1981-Q1", 3124.206], ["1981-Q2", 3162.532], ["1981-Q3", 3260.609], ["1981-Q4", 3280.818], ["1982-Q1", 3274.302], ["1982-Q2", 3331.972], ["1982-Q3", 3366.322], ["1982-Q4", 3402.561], ["1983-Q1", 3473.413], ["1983-Q2", 3578.848], ["1983-Q3", 3689.179], ["1983-Q4", 3794.706], ["1984-Q1", 3908.054], ["1984-Q2", 4009.601], ["1984-Q3", 4084.25], ["1984-Q4", 4148.551], ["1985-Q1", 4230.168], ["1985-Q2", 4294.887], ["1985-Q3", 4386.773], ["1985-Q4", 4444.094], ["1986-Q1", 4507.894], ["1986-Q2", 4545.34], ["1986-Q3", 4607.669], ["1986-Q4", 4657.627], ["1987-Q1", 4722.156], ["1987-Q2", 4806.16], ["1987-Q3", 4884.555], ["1987-Q4", 5007.994], ["1988-Q1", 5073.372], ["1988-Q2", 5190.036], ["1988-Q3", 5282.835], ["1988-Q4", 5399.509], ["1989-Q1", 5511.253], ["1989-Q2", 5612.463], ["1989-Q3", 5695.365], ["1989-Q4", 5747.237], ["1990-Q1", 5872.701], ["1990-Q2", 5960.028], ["1990-Q3", 6015.116], ["1990-Q4", 6004.733], ["1991-Q1", 6035.178], ["1991-Q2", 6126.862], ["1991-Q3", 6205.937], ["1991-Q4", 6264.54], ["1992-Q1", 6363.102], ["1992-Q2", 6470.763], ["1992-Q3", 6566.641], ["1992-Q4", 6680.803], ["1993-Q1", 6729.459], ["1993-Q2", 6808.939], ["1993-Q3", 6882.098], ["1993-Q4", 7013.738], ["1994-Q1", 7115.652], ["1994-Q2", 7246.931], ["1994-Q3", 7331.075], ["1994-Q4", 7455.288], ["1995-Q1", 7522.289], ["1995-Q2", 7580.997], ["1995-Q3", 7683.125], ["1995-Q4", 7772.586], ["1996-Q1", 7868.468], ["1996-Q2", 8032.84], ["1996-Q3", 8131.408], ["1996-Q4", 8259.771], ["1997-Q1", 8362.655], ["1997-Q2", 8518.825], ["1997-Q3", 8662.823], ["1997-Q4", 8765.907], ["1998-Q1", 8866.48], ["1998-Q2", 8969.699], ["1998-Q3", 9121.097], ["1998-Q4", 9293.991], ["1999-Q1", 9411.682], ["1999-Q2", 9526.21], ["1999-Q3", 9686.626], ["1999-Q4", 9900.169], ["2000-Q1", 10002.179], ["2000-Q2", 10247.72], ["2000-Q3", 10318.165], ["2000-Q4", 10435.744], ["2001-Q1", 10470.231], ["2001-Q2", 10599.0], ["2001-Q3", 10598.02], ["2001-Q4", 10660.465], ["2002-Q1", 10783.5], ["2002-Q2", 10887.46], ["2002-Q3", 10984.04], ["2002-Q4", 11061.433], ["2003-Q1", 11174.129], ["2003-Q2", 11312.766], ["2003-Q3", 11566.669], ["2003-Q4", 11772.234], ["2004-Q1", 11923.447], ["2004-Q2", 12112.815], ["2004-Q3", 12305.307], ["2004-Q4", 12527.214], ["2005-Q1", 12767.286], ["2005-Q2", 12922.656], ["2005-Q3", 13142.642], ["2005-Q4", 13324.204], ["2006-Q1", 13599.16], ["2006-Q2", 13753.424], ["2006-Q3", 13870.188], ["2006-Q4", 14039.56], ["2007-Q1", 14215.651], ["2007-Q2", 14402.082], ["2007-Q3", 14564.117], ["2007-Q4", 14715.058], ["2008-Q1", 14706.538], ["2008-Q2", 14865.701], ["2008-Q3", 14898.999], ["2008-Q4", 14608.209], ["2009-Q1", 14430.902], ["2009-Q2", 14381.236], ["2009-Q3", 14448.882], ["2009-Q4", 14651.249], ["2010-Q1", 14764.61], ["2010-Q2", 14980.193], ["2010-Q3", 15141.607], ["2010-Q4", 15309.474], ["2011-Q1", 15351.448], ["2011-Q2", 15557.539], ["2011-Q3", 15647.68], ["2011-Q4", 15842.259], ["2012-Q1", 16068.805], ["2012-Q2", 16207.115], ["2012-Q3", 16319.541], ["2012-Q4", 16420.419], ["2013-Q1", 16648.189], ["2013-Q2", 16728.687], ["2013-Q3", 16953.838], ["2013-Q4", 17192.019], ["2014-Q1", 17197.738], ["2014-Q2", 17518.508], ["2014-Q3", 17804.228], ["2014-Q4", 17912.079], ["2015-Q1", 18063.529], ["2015-Q2", 18279.784], ["2015-Q3", 18401.626], ["2015-Q4", 18435.137], ["2016-Q1", 18525.933], ["2016-Q2", 18711.702], ["2016-Q3", 18892.639], ["2016-Q4", 19089.379], ["2017-Q1", 19280.084], ["2017-Q2", 19438.643], ["2017-Q3", 19692.595], ["2017-Q4", 20037.088], ["2018-Q1", 20328.553], ["2018-Q2", 20580.912], ["2018-Q3", 20798.73], ["2018-Q4", 20917.867], ["2019-Q1", 21111.6], ["2019-Q2", 21397.938], ["2019-Q3", 21717.171], ["2019-Q4", 21933.217], ["2020-Q1", 21751.238], ["2020-Q2", 19958.291], ["2020-Q3", 21704.437], ["2020-Q4", 22087.16], ["2021-Q1", 22680.693], ["2021-Q2", 23425.91], ["2021-Q3", 23982.379], ["2021-Q4", 24813.6], ["2022-Q1", 25250.347], ["2022-Q2", 25861.292], ["2022-Q3", 26336.304], ["2022-Q4", 26770.514], ["2023-Q1", 27216.445], ["2023-Q2", 27530.055], ["2023-Q3", 28074.846], ["2023-Q4", 28424.722], ["2024-Q1", 28708.161], ["2024-Q2", 29147.044], ["2024-Q3", 29511.664], ["2024-Q4", 29825.182], ["2025-Q1", 30042.113], ["2025-Q2", 30485.729], ["2025-Q3", 31098.027], ["2025-Q4", 31422.526], ["2026-Q1", 31865.721], ["2026-Q2", 32486.066]];
+  var nominalPts = [["1976-Q3", 1886.558], ["1976-Q4", 1934.273], ["1977-Q1", 1988.648], ["1977-Q2", 2055.909], ["1977-Q3", 2118.473], ["1977-Q4", 2164.27], ["1978-Q1", 2202.76], ["1978-Q2", 2331.633], ["1978-Q3", 2395.053], ["1978-Q4", 2476.949], ["1979-Q1", 2526.61], ["1979-Q2", 2591.247], ["1979-Q3", 2667.565], ["1979-Q4", 2723.883], ["1980-Q1", 2789.842], ["1980-Q2", 2797.352], ["1980-Q3", 2856.483], ["1980-Q4", 2985.557], ["1981-Q1", 3124.206], ["1981-Q2", 3162.532], ["1981-Q3", 3260.609], ["1981-Q4", 3280.818], ["1982-Q1", 3274.302], ["1982-Q2", 3331.972], ["1982-Q3", 3366.322], ["1982-Q4", 3402.561], ["1983-Q1", 3473.413], ["1983-Q2", 3578.848], ["1983-Q3", 3689.179], ["1983-Q4", 3794.706], ["1984-Q1", 3908.054], ["1984-Q2", 4009.601], ["1984-Q3", 4084.25], ["1984-Q4", 4148.551], ["1985-Q1", 4230.168], ["1985-Q2", 4294.887], ["1985-Q3", 4386.773], ["1985-Q4", 4444.094], ["1986-Q1", 4507.894], ["1986-Q2", 4545.34], ["1986-Q3", 4607.669], ["1986-Q4", 4657.627], ["1987-Q1", 4722.156], ["1987-Q2", 4806.16], ["1987-Q3", 4884.555], ["1987-Q4", 5007.994], ["1988-Q1", 5073.372], ["1988-Q2", 5190.036], ["1988-Q3", 5282.835], ["1988-Q4", 5399.509], ["1989-Q1", 5511.253], ["1989-Q2", 5612.463], ["1989-Q3", 5695.365], ["1989-Q4", 5747.237], ["1990-Q1", 5872.701], ["1990-Q2", 5960.028], ["1990-Q3", 6015.116], ["1990-Q4", 6004.733], ["1991-Q1", 6035.178], ["1991-Q2", 6126.862], ["1991-Q3", 6205.937], ["1991-Q4", 6264.54], ["1992-Q1", 6363.102], ["1992-Q2", 6470.763], ["1992-Q3", 6566.641], ["1992-Q4", 6680.803], ["1993-Q1", 6729.459], ["1993-Q2", 6808.939], ["1993-Q3", 6882.098], ["1993-Q4", 7013.738], ["1994-Q1", 7115.652], ["1994-Q2", 7246.931], ["1994-Q3", 7331.075], ["1994-Q4", 7455.288], ["1995-Q1", 7522.289], ["1995-Q2", 7580.997], ["1995-Q3", 7683.125], ["1995-Q4", 7772.586], ["1996-Q1", 7868.468], ["1996-Q2", 8032.84], ["1996-Q3", 8131.408], ["1996-Q4", 8259.771], ["1997-Q1", 8362.655], ["1997-Q2", 8518.825], ["1997-Q3", 8662.823], ["1997-Q4", 8765.907], ["1998-Q1", 8866.48], ["1998-Q2", 8969.699], ["1998-Q3", 9121.097], ["1998-Q4", 9293.991], ["1999-Q1", 9411.682], ["1999-Q2", 9526.21], ["1999-Q3", 9686.626], ["1999-Q4", 9900.169], ["2000-Q1", 10002.179], ["2000-Q2", 10247.72], ["2000-Q3", 10318.165], ["2000-Q4", 10435.744], ["2001-Q1", 10470.231], ["2001-Q2", 10599.0], ["2001-Q3", 10598.02], ["2001-Q4", 10660.465], ["2002-Q1", 10783.5], ["2002-Q2", 10887.46], ["2002-Q3", 10984.04], ["2002-Q4", 11061.433], ["2003-Q1", 11174.129], ["2003-Q2", 11312.766], ["2003-Q3", 11566.669], ["2003-Q4", 11772.234], ["2004-Q1", 11923.447], ["2004-Q2", 12112.815], ["2004-Q3", 12305.307], ["2004-Q4", 12527.214], ["2005-Q1", 12767.286], ["2005-Q2", 12922.656], ["2005-Q3", 13142.642], ["2005-Q4", 13324.204], ["2006-Q1", 13599.16], ["2006-Q2", 13753.424], ["2006-Q3", 13870.188], ["2006-Q4", 14039.56], ["2007-Q1", 14215.651], ["2007-Q2", 14402.082], ["2007-Q3", 14564.117], ["2007-Q4", 14715.058], ["2008-Q1", 14706.538], ["2008-Q2", 14865.701], ["2008-Q3", 14898.999], ["2008-Q4", 14608.209], ["2009-Q1", 14430.902], ["2009-Q2", 14381.236], ["2009-Q3", 14448.882], ["2009-Q4", 14651.249], ["2010-Q1", 14764.61], ["2010-Q2", 14980.193], ["2010-Q3", 15141.607], ["2010-Q4", 15309.474], ["2011-Q1", 15351.448], ["2011-Q2", 15557.539], ["2011-Q3", 15647.68], ["2011-Q4", 15842.259], ["2012-Q1", 16068.805], ["2012-Q2", 16207.115], ["2012-Q3", 16319.541], ["2012-Q4", 16420.419], ["2013-Q1", 16648.189], ["2013-Q2", 16728.687], ["2013-Q3", 16953.838], ["2013-Q4", 17192.019], ["2014-Q1", 17197.738], ["2014-Q2", 17518.508], ["2014-Q3", 17804.228], ["2014-Q4", 17912.079], ["2015-Q1", 18063.529], ["2015-Q2", 18279.784], ["2015-Q3", 18401.626], ["2015-Q4", 18435.137], ["2016-Q1", 18525.933], ["2016-Q2", 18711.702], ["2016-Q3", 18892.639], ["2016-Q4", 19089.379], ["2017-Q1", 19280.084], ["2017-Q2", 19438.643], ["2017-Q3", 19692.595], ["2017-Q4", 20037.088], ["2018-Q1", 20328.553], ["2018-Q2", 20580.912], ["2018-Q3", 20798.73], ["2018-Q4", 20917.867], ["2019-Q1", 21111.6], ["2019-Q2", 21397.938], ["2019-Q3", 21717.171], ["2019-Q4", 21933.217], ["2020-Q1", 21751.238], ["2020-Q2", 19958.291], ["2020-Q3", 21704.437], ["2020-Q4", 22087.16], ["2021-Q1", 22680.693], ["2021-Q2", 23425.91], ["2021-Q3", 23982.379], ["2021-Q4", 24813.6], ["2022-Q1", 25250.347], ["2022-Q2", 25861.292], ["2022-Q3", 26336.304], ["2022-Q4", 26770.514], ["2023-Q1", 27216.445], ["2023-Q2", 27530.055], ["2023-Q3", 28074.846], ["2023-Q4", 28424.722], ["2024-Q1", 28708.161], ["2024-Q2", 29147.044], ["2024-Q3", 29511.664], ["2024-Q4", 29825.182], ["2025-Q1", 30042.113], ["2025-Q2", 30485.729], ["2025-Q3", 31098.027], ["2025-Q4", 31422.526], ["2026-Q1", 31865.721], ["2026-Q2", 32486.066]];
   var unit = "$bn";
   var cs = getComputedStyle(document.documentElement);
   var INK = cs.getPropertyValue("--ink").trim() || "#171B1E";
@@ -293,12 +592,13 @@
   var PANEL_BG = cs.getPropertyValue("--panel").trim() || "#fff";
   var LINE = "#37659E";
   var FONT = {family: "'Avenir Next','Nunito Sans',sans-serif", size: 11.5};
-  function curFmt(raw, decimals){
-    if(unit.indexOf("%") > -1) return raw.toFixed(1) + "%";
-    var scales = [["bn",1e9],["m",1e6],["k",1e3]], symbol = unit, mult = 1;
+  function curFmt(raw, decimals, unitOverride){
+    var u = unitOverride || unit;
+    if(u.indexOf("%") > -1) return raw.toFixed(1) + "%";
+    var scales = [["bn",1e9],["m",1e6],["k",1e3]], symbol = u, mult = 1;
     for(var i=0;i<scales.length;i++){
       var suf = scales[i][0];
-      if(unit.slice(-suf.length) === suf && unit.length > suf.length){ symbol = unit.slice(0,-suf.length); mult = scales[i][1]; break; }
+      if(u.slice(-suf.length) === suf && u.length > suf.length){ symbol = u.slice(0,-suf.length); mult = scales[i][1]; break; }
     }
     var a = Math.abs(raw) * mult, sign = raw < 0 ? "\u2212" : "";
     var out;
@@ -312,36 +612,140 @@
     var m = /^(\d{4})/.exec(label);
     return m ? m[1] : label;
   }
-  var canvas = document.getElementById("indicatorChart");
-  new Chart(canvas, {
-    type: "line",
-    data: {
-      labels: pts.map(function(p){return p[0];}),
-      datasets: [{
-        data: pts.map(function(p){return p[1];}),
-        borderColor: LINE, borderWidth: 2, pointRadius: 0, pointHitRadius: 8, tension: 0.25
-      }]
-    },
-    options: {
-      responsive: true, maintainAspectRatio: false, animation: false,
-      interaction: {mode: "index", intersect: false},
-      plugins: {
-        legend: {display: false},
-        tooltip: {
-          backgroundColor: PANEL_BG, titleColor: INK, bodyColor: INK, borderColor: HAIR, borderWidth: 1,
-          titleFont: {family: FONT.family, weight: "600"}, bodyFont: {family: FONT.family}, displayColors: false,
-          callbacks: { label: function(ctx){ return curFmt(ctx.parsed.y, 2); } }
-        }
+  var chart = null;
+  function renderChart(pts, unitForChart){
+    var canvas = document.getElementById("indicatorChart");
+    if(chart){ chart.destroy(); chart = null; }
+    chart = new Chart(canvas, {
+      type: "line",
+      data: {
+        labels: pts.map(function(p){return p[0];}),
+        datasets: [{
+          data: pts.map(function(p){return p[1];}),
+          borderColor: LINE, borderWidth: 2, pointRadius: 0, pointHitRadius: 8, tension: 0.25
+        }]
       },
-      scales: {
-        x: {grid: {display: false}, border: {color: HAIR}, ticks: {color: INK2, font: FONT, maxTicksLimit: 7, maxRotation: 0,
-             callback: function(v){ return yearOf(this.getLabelForValue(v)); } }},
-        y: {grid: {color: HAIR}, border: {display: false}, ticks: {color: INK2, font: FONT, maxTicksLimit: 6,
-             callback: function(v){ return curFmt(v, 1); } }}
+      options: {
+        responsive: true, maintainAspectRatio: false, animation: false,
+        interaction: {mode: "index", intersect: false},
+        plugins: {
+          legend: {display: false},
+          tooltip: {
+            backgroundColor: PANEL_BG, titleColor: INK, bodyColor: INK, borderColor: HAIR, borderWidth: 1,
+            titleFont: {family: FONT.family, weight: "600"}, bodyFont: {family: FONT.family}, displayColors: false,
+            callbacks: { label: function(ctx){ return curFmt(ctx.parsed.y, 2, unitForChart); } }
+          }
+        },
+        scales: {
+          x: {grid: {display: false}, border: {color: HAIR}, ticks: {color: INK2, font: FONT, maxTicksLimit: 7, maxRotation: 0,
+               callback: function(v){ return yearOf(this.getLabelForValue(v)); } }},
+          y: {grid: {color: HAIR}, border: {display: false}, ticks: {color: INK2, font: FONT, maxTicksLimit: 6,
+               callback: function(v){ return curFmt(v, 1, unitForChart); } }}
+        }
       }
-    }
-  });
+    });
+  }
+  renderChart(nominalPts, unit);
+  window.EATLAS_INDICATOR_RENDER = {renderChart: renderChart, curFmt: curFmt, nominalPts: nominalPts, unit: unit};
 })();
 </script>
+<script>
+(function(){
+
+  function monthKey(period){
+    var yearMatch = period.match(/^(\d{4})/);
+    if(!yearMatch) return null;
+    var year = parseInt(yearMatch[1], 10);
+    var qMatch = period.match(/^\d{4}-Q([1-4])$/);
+    if(qMatch) return year*12 + (parseInt(qMatch[1],10)-1)*3;
+    var mMatch = period.match(/^\d{4}-(\d{2})$/);
+    if(mMatch) return year*12 + (parseInt(mMatch[1],10)-1);
+    return year*12;
+  }
+  function rateForPeriod(period, history){
+    if(!history || !history.length) return null;
+    var matches;
+    if(/^\d{4}$/.test(period)){
+      matches = history.filter(function(h){ return h[0].indexOf(period+"-")===0; });
+    } else if(/^\d{4}-Q[1-4]$/.test(period)){
+      var parts = period.split("-Q"), y = parts[0], q = parts[1];
+      var startMonth = (parseInt(q,10)-1)*3 + 1;
+      var wanted = [startMonth, startMonth+1, startMonth+2].map(function(m){ return y+"-"+String(m).padStart(2,"0"); });
+      matches = history.filter(function(h){ return wanted.indexOf(h[0])>-1; });
+    } else {
+      matches = history.filter(function(h){ return h[0]===period; });
+    }
+    if(matches.length) return matches.reduce(function(sum,h){ return sum+h[1]; }, 0) / matches.length;
+    var targetKey = monthKey(period);
+    var best = history[0], bestDist = Infinity;
+    for(var i=0;i<history.length;i++){
+      var dist = Math.abs(monthKey(history[i][0]) - targetKey);
+      if(dist < bestDist){ bestDist = dist; best = history[i]; }
+    }
+    return best[1];
+  }
+  function convertPtsToUSD(pts, fx){
+    return pts.map(function(p){
+      var rate = fx.history ? rateForPeriod(p[0], fx.history) : fx.rate;
+      var v = fx.direction==="multiply" ? p[1]*rate : p[1]/rate;
+      return [p[0], v];
+    });
+  }
+
+  var TOGGLE_STATE = {real: false, dollar: false};
+  var NOMINAL_PTS = [["1970-Q1", 1051.2], ["1970-Q2", 1067.375], ["1970-Q3", 1086.059], ["1970-Q4", 1088.608], ["1971-Q1", 1135.156], ["1971-Q2", 1156.271], ["1971-Q3", 1177.675], ["1971-Q4", 1190.297], ["1972-Q1", 1230.609], ["1972-Q2", 1266.369], ["1972-Q3", 1290.566], ["1972-Q4", 1328.904], ["1973-Q1", 1377.49], ["1973-Q2", 1413.887], ["1973-Q3", 1433.838], ["1973-Q4", 1476.289], ["1974-Q1", 1491.209], ["1974-Q2", 1530.056], ["1974-Q3", 1560.026], ["1974-Q4", 1599.679], ["1975-Q1", 1616.116], ["1975-Q2", 1651.853], ["1975-Q3", 1709.82], ["1975-Q4", 1761.831], ["1976-Q1", 1820.487], ["1976-Q2", 1852.332], ["1976-Q3", 1886.558], ["1976-Q4", 1934.273], ["1977-Q1", 1988.648], ["1977-Q2", 2055.909], ["1977-Q3", 2118.473], ["1977-Q4", 2164.27], ["1978-Q1", 2202.76], ["1978-Q2", 2331.633], ["1978-Q3", 2395.053], ["1978-Q4", 2476.949], ["1979-Q1", 2526.61], ["1979-Q2", 2591.247], ["1979-Q3", 2667.565], ["1979-Q4", 2723.883], ["1980-Q1", 2789.842], ["1980-Q2", 2797.352], ["1980-Q3", 2856.483], ["1980-Q4", 2985.557], ["1981-Q1", 3124.206], ["1981-Q2", 3162.532], ["1981-Q3", 3260.609], ["1981-Q4", 3280.818], ["1982-Q1", 3274.302], ["1982-Q2", 3331.972], ["1982-Q3", 3366.322], ["1982-Q4", 3402.561], ["1983-Q1", 3473.413], ["1983-Q2", 3578.848], ["1983-Q3", 3689.179], ["1983-Q4", 3794.706], ["1984-Q1", 3908.054], ["1984-Q2", 4009.601], ["1984-Q3", 4084.25], ["1984-Q4", 4148.551], ["1985-Q1", 4230.168], ["1985-Q2", 4294.887], ["1985-Q3", 4386.773], ["1985-Q4", 4444.094], ["1986-Q1", 4507.894], ["1986-Q2", 4545.34], ["1986-Q3", 4607.669], ["1986-Q4", 4657.627], ["1987-Q1", 4722.156], ["1987-Q2", 4806.16], ["1987-Q3", 4884.555], ["1987-Q4", 5007.994], ["1988-Q1", 5073.372], ["1988-Q2", 5190.036], ["1988-Q3", 5282.835], ["1988-Q4", 5399.509], ["1989-Q1", 5511.253], ["1989-Q2", 5612.463], ["1989-Q3", 5695.365], ["1989-Q4", 5747.237], ["1990-Q1", 5872.701], ["1990-Q2", 5960.028], ["1990-Q3", 6015.116], ["1990-Q4", 6004.733], ["1991-Q1", 6035.178], ["1991-Q2", 6126.862], ["1991-Q3", 6205.937], ["1991-Q4", 6264.54], ["1992-Q1", 6363.102], ["1992-Q2", 6470.763], ["1992-Q3", 6566.641], ["1992-Q4", 6680.803], ["1993-Q1", 6729.459], ["1993-Q2", 6808.939], ["1993-Q3", 6882.098], ["1993-Q4", 7013.738], ["1994-Q1", 7115.652], ["1994-Q2", 7246.931], ["1994-Q3", 7331.075], ["1994-Q4", 7455.288], ["1995-Q1", 7522.289], ["1995-Q2", 7580.997], ["1995-Q3", 7683.125], ["1995-Q4", 7772.586], ["1996-Q1", 7868.468], ["1996-Q2", 8032.84], ["1996-Q3", 8131.408], ["1996-Q4", 8259.771], ["1997-Q1", 8362.655], ["1997-Q2", 8518.825], ["1997-Q3", 8662.823], ["1997-Q4", 8765.907], ["1998-Q1", 8866.48], ["1998-Q2", 8969.699], ["1998-Q3", 9121.097], ["1998-Q4", 9293.991], ["1999-Q1", 9411.682], ["1999-Q2", 9526.21], ["1999-Q3", 9686.626], ["1999-Q4", 9900.169], ["2000-Q1", 10002.179], ["2000-Q2", 10247.72], ["2000-Q3", 10318.165], ["2000-Q4", 10435.744], ["2001-Q1", 10470.231], ["2001-Q2", 10599.0], ["2001-Q3", 10598.02], ["2001-Q4", 10660.465], ["2002-Q1", 10783.5], ["2002-Q2", 10887.46], ["2002-Q3", 10984.04], ["2002-Q4", 11061.433], ["2003-Q1", 11174.129], ["2003-Q2", 11312.766], ["2003-Q3", 11566.669], ["2003-Q4", 11772.234], ["2004-Q1", 11923.447], ["2004-Q2", 12112.815], ["2004-Q3", 12305.307], ["2004-Q4", 12527.214], ["2005-Q1", 12767.286], ["2005-Q2", 12922.656], ["2005-Q3", 13142.642], ["2005-Q4", 13324.204], ["2006-Q1", 13599.16], ["2006-Q2", 13753.424], ["2006-Q3", 13870.188], ["2006-Q4", 14039.56], ["2007-Q1", 14215.651], ["2007-Q2", 14402.082], ["2007-Q3", 14564.117], ["2007-Q4", 14715.058], ["2008-Q1", 14706.538], ["2008-Q2", 14865.701], ["2008-Q3", 14898.999], ["2008-Q4", 14608.209], ["2009-Q1", 14430.902], ["2009-Q2", 14381.236], ["2009-Q3", 14448.882], ["2009-Q4", 14651.249], ["2010-Q1", 14764.61], ["2010-Q2", 14980.193], ["2010-Q3", 15141.607], ["2010-Q4", 15309.474], ["2011-Q1", 15351.448], ["2011-Q2", 15557.539], ["2011-Q3", 15647.68], ["2011-Q4", 15842.259], ["2012-Q1", 16068.805], ["2012-Q2", 16207.115], ["2012-Q3", 16319.541], ["2012-Q4", 16420.419], ["2013-Q1", 16648.189], ["2013-Q2", 16728.687], ["2013-Q3", 16953.838], ["2013-Q4", 17192.019], ["2014-Q1", 17197.738], ["2014-Q2", 17518.508], ["2014-Q3", 17804.228], ["2014-Q4", 17912.079], ["2015-Q1", 18063.529], ["2015-Q2", 18279.784], ["2015-Q3", 18401.626], ["2015-Q4", 18435.137], ["2016-Q1", 18525.933], ["2016-Q2", 18711.702], ["2016-Q3", 18892.639], ["2016-Q4", 19089.379], ["2017-Q1", 19280.084], ["2017-Q2", 19438.643], ["2017-Q3", 19692.595], ["2017-Q4", 20037.088], ["2018-Q1", 20328.553], ["2018-Q2", 20580.912], ["2018-Q3", 20798.73], ["2018-Q4", 20917.867], ["2019-Q1", 21111.6], ["2019-Q2", 21397.938], ["2019-Q3", 21717.171], ["2019-Q4", 21933.217], ["2020-Q1", 21751.238], ["2020-Q2", 19958.291], ["2020-Q3", 21704.437], ["2020-Q4", 22087.16], ["2021-Q1", 22680.693], ["2021-Q2", 23425.91], ["2021-Q3", 23982.379], ["2021-Q4", 24813.6], ["2022-Q1", 25250.347], ["2022-Q2", 25861.292], ["2022-Q3", 26336.304], ["2022-Q4", 26770.514], ["2023-Q1", 27216.445], ["2023-Q2", 27530.055], ["2023-Q3", 28074.846], ["2023-Q4", 28424.722], ["2024-Q1", 28708.161], ["2024-Q2", 29147.044], ["2024-Q3", 29511.664], ["2024-Q4", 29825.182], ["2025-Q1", 30042.113], ["2025-Q2", 30485.729], ["2025-Q3", 31098.027], ["2025-Q4", 31422.526], ["2026-Q1", 31865.721], ["2026-Q2", 32486.066]];
+  var REAL_PTS = [["1970-Q1", 5300.652], ["1970-Q2", 5308.164], ["1970-Q3", 5357.077], ["1970-Q4", 5299.672], ["1971-Q1", 5443.619], ["1971-Q2", 5473.059], ["1971-Q3", 5518.072], ["1971-Q4", 5531.032], ["1972-Q1", 5632.649], ["1972-Q2", 5760.47], ["1972-Q3", 5814.854], ["1972-Q4", 5912.22], ["1973-Q1", 6058.544], ["1973-Q2", 6124.506], ["1973-Q3", 6092.301], ["1973-Q4", 6150.131], ["1974-Q1", 6097.258], ["1974-Q2", 6111.751], ["1974-Q3", 6053.978], ["1974-Q4", 6030.464], ["1975-Q1", 5957.035], ["1975-Q2", 5999.61], ["1975-Q3", 6102.326], ["1975-Q4", 6184.53], ["1976-Q1", 6323.649], ["1976-Q2", 6370.025], ["1976-Q3", 6404.895], ["1976-Q4", 6451.177], ["1977-Q1", 6527.703], ["1977-Q2", 6654.466], ["1977-Q3", 6774.457], ["1977-Q4", 6774.592], ["1978-Q1", 6796.26], ["1978-Q2", 7058.92], ["1978-Q3", 7129.915], ["1978-Q4", 7225.75], ["1979-Q1", 7238.727], ["1979-Q2", 7246.454], ["1979-Q3", 7300.281], ["1979-Q4", 7318.535], ["1980-Q1", 7341.557], ["1980-Q2", 7190.289], ["1980-Q3", 7181.743], ["1980-Q4", 7315.677], ["1981-Q1", 7459.022], ["1981-Q2", 7403.745], ["1981-Q3", 7492.405], ["1981-Q4", 7410.768], ["1982-Q1", 7295.631], ["1982-Q2", 7328.912], ["1982-Q3", 7300.896], ["1982-Q4", 7303.817], ["1983-Q1", 7400.066], ["1983-Q2", 7568.456], ["1983-Q3", 7719.746], ["1983-Q4", 7880.794], ["1984-Q1", 8034.847], ["1984-Q2", 8173.67], ["1984-Q3", 8252.465], ["1984-Q4", 8320.199], ["1985-Q1", 8400.82], ["1985-Q2", 8474.787], ["1985-Q3", 8604.22], ["1985-Q4", 8668.188], ["1986-Q1", 8749.127], ["1986-Q2", 8788.524], ["1986-Q3", 8872.601], ["1986-Q4", 8920.193], ["1987-Q1", 8986.367], ["1987-Q2", 9083.256], ["1987-Q3", 9162.024], ["1987-Q4", 9319.332], ["1988-Q1", 9367.502], ["1988-Q2", 9490.594], ["1988-Q3", 9546.206], ["1988-Q4", 9673.405], ["1989-Q1", 9771.725], ["1989-Q2", 9846.293], ["1989-Q3", 9919.228], ["1989-Q4", 9938.767], ["1990-Q1", 10047.386], ["1990-Q2", 10083.855], ["1990-Q3", 10090.569], ["1990-Q4", 9998.704], ["1991-Q1", 9951.916], ["1991-Q2", 10029.51], ["1991-Q3", 10080.195], ["1991-Q4", 10115.329], ["1992-Q1", 10236.435], ["1992-Q2", 10347.429], ["1992-Q3", 10449.673], ["1992-Q4", 10558.648], ["1993-Q1", 10576.275], ["1993-Q2", 10637.847], ["1993-Q3", 10688.606], ["1993-Q4", 10833.987], ["1994-Q1", 10939.116], ["1994-Q2", 11087.361], ["1994-Q3", 11152.176], ["1994-Q4", 11279.932], ["1995-Q1", 11319.951], ["1995-Q2", 11353.721], ["1995-Q3", 11450.31], ["1995-Q4", 11528.067], ["1996-Q1", 11614.418], ["1996-Q2", 11808.14], ["1996-Q3", 11914.063], ["1996-Q4", 12037.775], ["1997-Q1", 12115.472], ["1997-Q2", 12317.221], ["1997-Q3", 12471.01], ["1997-Q4", 12577.495], ["1998-Q1", 12703.742], ["1998-Q2", 12821.339], ["1998-Q3", 12982.752], ["1998-Q4", 13191.67], ["1999-Q1", 13315.597], ["1999-Q2", 13426.748], ["1999-Q3", 13604.771], ["1999-Q4", 13827.98], ["2000-Q1", 13878.147], ["2000-Q2", 14130.908], ["2000-Q3", 14145.312], ["2000-Q4", 14229.765], ["2001-Q1", 14183.12], ["2001-Q2", 14271.694], ["2001-Q3", 14214.516], ["2001-Q4", 14253.574], ["2002-Q1", 14372.785], ["2002-Q2", 14460.848], ["2002-Q3", 14519.633], ["2002-Q4", 14537.58], ["2003-Q1", 14614.141], ["2003-Q2", 14743.567], ["2003-Q3", 14988.782], ["2003-Q4", 15162.76], ["2004-Q1", 15248.68], ["2004-Q2", 15366.85], ["2004-Q3", 15512.619], ["2004-Q4", 15670.88], ["2005-Q1", 15844.727], ["2005-Q2", 15922.782], ["2005-Q3", 16047.587], ["2005-Q4", 16136.734], ["2006-Q1", 16353.835], ["2006-Q2", 16396.151], ["2006-Q3", 16420.738], ["2006-Q4", 16561.866], ["2007-Q1", 16611.69], ["2007-Q2", 16713.314], ["2007-Q3", 16809.587], ["2007-Q4", 16915.191], ["2008-Q1", 16843.003], ["2008-Q2", 16943.291], ["2008-Q3", 16854.295], ["2008-Q4", 16485.35], ["2009-Q1", 16298.262], ["2009-Q2", 16269.145], ["2009-Q3", 16326.281], ["2009-Q4", 16502.754], ["2010-Q1", 16582.71], ["2010-Q2", 16743.162], ["2010-Q3", 16872.266], ["2010-Q4", 16960.864], ["2011-Q1", 16920.632], ["2011-Q2", 17035.114], ["2011-Q3", 17031.313], ["2011-Q4", 17222.583], ["2012-Q1", 17367.01], ["2012-Q2", 17444.525], ["2012-Q3", 17469.65], ["2012-Q4", 17489.852], ["2013-Q1", 17662.4], ["2013-Q2", 17709.671], ["2013-Q3", 17860.45], ["2013-Q4", 18016.147], ["2014-Q1", 17953.974], ["2014-Q2", 18185.911], ["2014-Q3", 18406.941], ["2014-Q4", 18500.031], ["2015-Q1", 18666.621], ["2015-Q2", 18782.243], ["2015-Q3", 18857.418], ["2015-Q4", 18892.206], ["2016-Q1", 19001.69], ["2016-Q2", 19062.709], ["2016-Q3", 19197.938], ["2016-Q4", 19304.352], ["2017-Q1", 19398.343], ["2017-Q2", 19506.949], ["2017-Q3", 19660.766], ["2017-Q4", 19882.352], ["2018-Q1", 20044.077], ["2018-Q2", 20150.476], ["2018-Q3", 20276.154], ["2018-Q4", 20304.874], ["2019-Q1", 20431.641], ["2019-Q2", 20602.275], ["2019-Q3", 20843.322], ["2019-Q4", 20985.448], ["2020-Q1", 20709.212], ["2020-Q2", 19077.992], ["2020-Q3", 20558.879], ["2020-Q4", 20791.917], ["2021-Q1", 21082.134], ["2021-Q2", 21440.929], ["2021-Q3", 21617.828], ["2021-Q4", 21988.737], ["2022-Q1", 21932.71], ["2022-Q2", 21967.045], ["2022-Q3", 22125.625], ["2022-Q4", 22278.345], ["2023-Q1", 22439.607], ["2023-Q2", 22580.499], ["2023-Q3", 22840.989], ["2023-Q4", 23033.78], ["2024-Q1", 23082.119], ["2024-Q2", 23286.508], ["2024-Q3", 23478.57], ["2024-Q4", 23586.542], ["2025-Q1", 23548.21], ["2025-Q2", 23770.976], ["2025-Q3", 24026.834], ["2025-Q4", 24055.749], ["2026-Q1", 24180.419], ["2026-Q2", 24269.613]];
+  var FX = null;
+  var BASE_UNIT = "$bn";
+  var UP_IS_GOOD = true;
+  function usdUnit(u){
+    for (var i=0, scales=["bn","m","k"]; i<scales.length; i++){
+      var suf = scales[i];
+      if(u.slice(-suf.length)===suf && u.length>suf.length) return "$"+suf;
+    }
+    return "$";
+  }
+  function currentPtsAndUnit(){
+    var pts = TOGGLE_STATE.real && REAL_PTS ? REAL_PTS : NOMINAL_PTS;
+    var unitNow = BASE_UNIT;
+    if(TOGGLE_STATE.dollar && FX){
+      pts = convertPtsToUSD(pts, FX);
+      unitNow = usdUnit(BASE_UNIT);
+    }
+    return {pts: pts, unit: unitNow};
+  }
+  function updateIndicatorDisplay(){
+    var r = currentPtsAndUnit();
+    var pts = r.pts, unitNow = r.unit;
+    var render = window.EATLAS_INDICATOR_RENDER;
+    var latest = pts[pts.length-1], prev = pts[pts.length-2];
+    var latestStr = render.curFmt(latest[1], 2, unitNow);
+    document.getElementById("indicatorFigure").textContent = latestStr;
+    var delta = Math.round((latest[1]-prev[1])*100)/100;
+    var dir = delta===0 ? "flat" : ((delta>0)===UP_IS_GOOD ? "good" : "bad");
+    var arrow = delta===0 ? "\u2582" : (delta>0 ? "\u25b2" : "\u25bc");
+    var deltaStr = render.curFmt(delta, 1, unitNow);
+    if(delta > 0) deltaStr = "+" + deltaStr;
+    var deltaEl = document.getElementById("indicatorDelta");
+    deltaEl.className = "delta " + dir;
+    deltaEl.innerHTML = '<span class="arrow" aria-hidden="true">' + arrow + '</span> ' + deltaStr + ' vs prior';
+    render.renderChart(pts, unitNow);
+  }
+  function wireToggle(id, key){
+    var btn = document.getElementById(id);
+    if(!btn) return;
+    btn.addEventListener("click", function(){
+      TOGGLE_STATE[key] = !TOGGLE_STATE[key];
+      btn.classList.toggle("on", TOGGLE_STATE[key]);
+      btn.setAttribute("aria-pressed", TOGGLE_STATE[key] ? "true" : "false");
+      updateIndicatorDisplay();
+    });
+  }
+  wireToggle("indToggleReal", "real");
+  wireToggle("indToggleDollar", "dollar");
+
+})();
+</script>
+<script src="../mobile.js?v=10"></script>
 </body>
 </html>

@@ -18,10 +18,14 @@
 <link rel="icon" type="image/png" sizes="32x32" href="../favicon-32.png">
 <link rel="apple-touch-icon" href="../apple-touch-icon.png">
 <link rel="stylesheet" href="../style.css?v=51">
+<link rel="stylesheet" href="../mobile.css?v=10">
 <style>
   .indicator-wrap{max-width:760px;margin:0 auto;padding:32px 24px 64px}
-  .indicator-crumb{font-size:13px;margin-bottom:18px}
-  .indicator-crumb a{color:var(--blue)}
+  .indicator-crumb{margin-bottom:18px}
+  .indicator-backbtn{border:1px solid var(--hair); background:var(--panel); color:var(--ink);
+    font:700 13px "Avenir Next","Avenir","Nunito Sans",sans-serif; padding:7px 14px; border-radius:999px;
+    text-decoration:none; display:inline-flex; align-items:center; gap:6px;}
+  .indicator-backbtn:hover{border-color:var(--blue); color:var(--navy);}
   .indicator-hero{display:flex;align-items:baseline;gap:12px;flex-wrap:wrap;margin-bottom:18px}
   .indicator-hero h1{font-size:22px;font-weight:700;margin:0}
   .indicator-links{display:flex;gap:12px;flex-wrap:wrap;margin-top:24px}
@@ -226,9 +230,313 @@
   }
 })();
 </script>
+<script src="https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2"></script>
+<script>
+// The real, complete auth system extracted verbatim from the country
+// pages (sign in, sign up, forgot/reset password, sign out, session
+// sync) -- not a second, separately-written copy. Only the unrelated
+// download-gating code that happened to share the same enclosing
+// function on the source page is left out, since nothing on this page
+// needs it.
+(function(){
+  var SUPABASE_URL = "https://skluvrxnuibkordzgtmu.supabase.co";
+  var SUPABASE_KEY = "sb_publishable_p6_GqrC8qcNC6KwPE46hkw_qdWQTuyT";
+  var sb = supabase.createClient(SUPABASE_URL, SUPABASE_KEY);
+  // Exposed globally so the Save & Share code in the later <script>
+  // block (a separate IIFE, not sharing this function's local `sb`) can
+  // reach the same client rather than creating a second connection.
+  window.sb = sb;
+  var authBtn = document.getElementById("authBtn");
+  var authModal = document.getElementById("authModal");
+  var authModalBackdrop = document.getElementById("authModalBackdrop");
+  var authModalClose = document.getElementById("authModalClose");
+  var authForm = document.getElementById("authForm");
+  var authEmail = document.getElementById("authEmail");
+  var authPassword = document.getElementById("authPassword");
+  var authSubmitBtn = document.getElementById("authSubmitBtn");
+  var authMsg = document.getElementById("authMsg");
+  var authToggleRow = document.getElementById("authToggleRow");
+  var authModalTitle = document.getElementById("authModalTitle");
+  var authModalSub = document.getElementById("authModalSub");
+  var authFormView = document.getElementById("authFormView");
+  var authSignedInView = document.getElementById("authSignedInView");
+  var authUserEmail = document.getElementById("authUserEmail");
+  var authSignOutBtn = document.getElementById("authSignOutBtn");
+  var authForgotBtn = document.getElementById("authForgotBtn");
+  var authForgotView = document.getElementById("authForgotView");
+  var authForgotForm = document.getElementById("authForgotForm");
+  var authForgotEmail = document.getElementById("authForgotEmail");
+  var authForgotSubmitBtn = document.getElementById("authForgotSubmitBtn");
+  var authForgotMsg = document.getElementById("authForgotMsg");
+  var authBackToLoginBtn = document.getElementById("authBackToLoginBtn");
+  var authResetView = document.getElementById("authResetView");
+  var authResetForm = document.getElementById("authResetForm");
+  var authNewPassword = document.getElementById("authNewPassword");
+  var authResetSubmitBtn = document.getElementById("authResetSubmitBtn");
+  var authResetMsg = document.getElementById("authResetMsg");
+  var authChangePasswordBtn = document.getElementById("authChangePasswordBtn");
+  var mode = "login";
+  function showMsg(el, text, kind){
+    el.textContent = text;
+    el.className = "auth-msg show " + kind;
+  }
+  function clearMsg(el){
+    el.className = "auth-msg";
+    el.textContent = "";
+  }
+  function hideAllViews(){
+    authFormView.hidden = true;
+    authForgotView.hidden = true;
+    authResetView.hidden = true;
+    authSignedInView.hidden = true;
+  }
+  function wireToggleBtn(label, nextMode){
+    var btn = document.createElement("button");
+    btn.type = "button";
+    btn.textContent = label;
+    btn.addEventListener("click", function(){ setMode(nextMode); });
+    return btn;
+  }
+  function setMode(newMode){
+    mode = newMode;
+    clearMsg(authMsg);
+    authForm.reset();
+    if(mode === "login"){
+      authModalTitle.textContent = "Log in";
+      authModalSub.textContent = "Welcome back.";
+      authSubmitBtn.textContent = "Log in";
+      authToggleRow.textContent = "Don't have an account? ";
+      authToggleRow.appendChild(wireToggleBtn("Sign up", "signup"));
+    } else {
+      authModalTitle.textContent = "Sign up";
+      authModalSub.textContent = "Free, for now -- this may change in future.";
+      authSubmitBtn.textContent = "Sign up";
+      authToggleRow.textContent = "Already have an account? ";
+      authToggleRow.appendChild(wireToggleBtn("Log in", "login"));
+    }
+  }
+  function showLoginView(){
+    hideAllViews();
+    authFormView.hidden = false;
+    setMode("login");
+  }
+  function showForgotView(){
+    hideAllViews();
+    authForgotView.hidden = false;
+    clearMsg(authForgotMsg);
+    authForgotForm.reset();
+  }
+  function showResetView(){
+    hideAllViews();
+    authResetView.hidden = false;
+    clearMsg(authResetMsg);
+    authResetForm.reset();
+  }
+  function showSignedInView(session){
+    hideAllViews();
+    authSignedInView.hidden = false;
+    authUserEmail.textContent = session.user.email;
+  }
+  function openAuthModal(){
+    authModal.hidden = false;
+    document.body.style.overflow = "hidden";
+    // Was unconditionally showing the login form, even for an
+    // already-logged-in account -- every "locked, click to unlock"
+    // button (buy credits, upgrade to Pro) calls this, and for someone
+    // already signed in that meant clicking "buy credits" appeared to
+    // demand a login instead of showing the account panel where credits
+    // actually get bought. Check the real session first, same as the
+    // top-right account button's own handler already correctly does.
+    sb.auth.getSession().then(function(res){
+      var session = res.data.session;
+      if(session){
+        showSignedInView(session);
+      } else {
+        showLoginView();
+      }
+    });
+  }
+  function closeAuthModal(){
+    authModal.hidden = true;
+    document.body.style.overflow = "";
+  }
+  function updateAuthUI(session){
+    if(session && session.user){
+      authBtn.textContent = session.user.email;
+      authBtn.classList.add("signed-in");
+    } else {
+      authBtn.textContent = "Log in";
+      authBtn.classList.remove("signed-in");
+    }
+    if(window.EATLAS_DOWNLOAD) window.EATLAS_DOWNLOAD.setAuthState(!!(session && session.user));
+    if(window.EATLAS_PREFS) window.EATLAS_PREFS.setAuthState(!!(session && session.user), session && session.user ? session.user.id : null);
+  }
+  authBtn.addEventListener("click", function(){
+    sb.auth.getSession().then(function(res){
+      var session = res.data.session;
+      authModal.hidden = false;
+      document.body.style.overflow = "hidden";
+      if(session){
+        showSignedInView(session);
+      } else {
+        showLoginView();
+      }
+    });
+  });
+  authModalClose.addEventListener("click", closeAuthModal);
+  authModalBackdrop.addEventListener("click", closeAuthModal);
+  document.addEventListener("keydown", function(e){ if(e.key === "Escape" && !authModal.hidden) closeAuthModal(); });
+  authForm.addEventListener("submit", function(e){
+    e.preventDefault();
+    var email = authEmail.value.trim();
+    var password = authPassword.value;
+    authSubmitBtn.disabled = true;
+    clearMsg(authMsg);
+    if(mode === "signup"){
+      sb.auth.signUp({ email: email, password: password }).then(function(res){
+        authSubmitBtn.disabled = false;
+        if(res.error){
+          showMsg(authMsg, res.error.message, "error");
+        } else if(res.data.user && !res.data.session){
+          showMsg(authMsg, "Check your email to confirm your account before logging in.", "success");
+          authForm.reset();
+        } else {
+          showMsg(authMsg, "Account created.", "success");
+        }
+      });
+    } else {
+      sb.auth.signInWithPassword({ email: email, password: password }).then(function(res){
+        authSubmitBtn.disabled = false;
+        if(res.error){
+          showMsg(authMsg, res.error.message, "error");
+        } else {
+          closeAuthModal();
+        }
+      });
+    }
+  });
+  // --- Forgot password ---
+  authForgotBtn.addEventListener("click", showForgotView);
+  authBackToLoginBtn.addEventListener("click", showLoginView);
+  authForgotForm.addEventListener("submit", function(e){
+    e.preventDefault();
+    var email = authForgotEmail.value.trim();
+    authForgotSubmitBtn.disabled = true;
+    clearMsg(authForgotMsg);
+    sb.auth.resetPasswordForEmail(email).then(function(res){
+      authForgotSubmitBtn.disabled = false;
+      if(res.error){
+        showMsg(authForgotMsg, res.error.message, "error");
+      } else {
+        showMsg(authForgotMsg, "Check your email for a password reset link.", "success");
+        authForgotForm.reset();
+      }
+    });
+  });
+  // --- Set / change password ---
+  // The same form and handler serve two different entry points: someone
+  // who clicked a "forgot password" reset link (Supabase creates a
+  // temporary session just for this) and someone who's already properly
+  // logged in and wants to change their password from the account view.
+  // Either way, updateUser() is exactly the same call.
+  authResetForm.addEventListener("submit", function(e){
+    e.preventDefault();
+    var password = authNewPassword.value;
+    authResetSubmitBtn.disabled = true;
+    clearMsg(authResetMsg);
+    sb.auth.updateUser({ password: password }).then(function(res){
+      authResetSubmitBtn.disabled = false;
+      if(res.error){
+        showMsg(authResetMsg, res.error.message, "error");
+      } else {
+        showMsg(authResetMsg, "Password updated.", "success");
+        authResetForm.reset();
+      }
+    });
+  });
+  authChangePasswordBtn.addEventListener("click", showResetView);
+  authSignOutBtn.addEventListener("click", function(){
+    sb.auth.signOut().then(function(){
+      closeAuthModal();
+    });
+  });
+  sb.auth.onAuthStateChange(function(event, session){
+    updateAuthUI(session);
+    if(event === "PASSWORD_RECOVERY"){
+      // Someone landed here via a password-reset email link -- open
+      // straight into the "set a new password" view rather than
+      // leaving them to notice they're now (temporarily) signed in
+      // and have to hunt for how to actually finish resetting it.
+      authModal.hidden = false;
+      document.body.style.overflow = "hidden";
+      showResetView();
+    }
+  });
+  sb.auth.getSession().then(function(res){
+    updateAuthUI(res.data.session);
+  });
+})();
+</script>
 
+<div class="auth-modal" id="authModal" hidden>
+ <div class="auth-modal-backdrop" id="authModalBackdrop"></div>
+ <div class="auth-modal-content">
+ <button type="button" class="auth-modal-close" id="authModalClose" aria-label="Close">&times;</button>
+ <div id="authFormView">
+ <h2 id="authModalTitle">Log in</h2>
+ <p class="auth-modal-sub" id="authModalSub">Welcome back.</p>
+ <form id="authForm">
+ <div class="auth-field">
+ <label for="authEmail">Email</label>
+ <input type="email" id="authEmail" required autocomplete="email">
+ </div>
+ <div class="auth-field">
+ <label for="authPassword">Password</label>
+ <input type="password" id="authPassword" required autocomplete="current-password" minlength="6">
+ </div>
+ <button type="submit" class="btn auth-submit" id="authSubmitBtn">Log in</button>
+ </form>
+ <p class="auth-toggle" id="authForgotRow"><button type="button" id="authForgotBtn">Forgot password?</button></p>
+ <p class="auth-toggle" id="authToggleRow">Don't have an account? <button type="button" id="authToggleBtn">Sign up</button></p>
+ <p class="auth-msg" id="authMsg"></p>
+ </div>
+ <div id="authForgotView" hidden>
+ <h2>Reset password</h2>
+ <p class="auth-modal-sub">Enter your email and we'll send a reset link.</p>
+ <form id="authForgotForm">
+ <div class="auth-field">
+ <label for="authForgotEmail">Email</label>
+ <input type="email" id="authForgotEmail" required autocomplete="email">
+ </div>
+ <button type="submit" class="btn auth-submit" id="authForgotSubmitBtn">Send reset link</button>
+ </form>
+ <p class="auth-toggle"><button type="button" id="authBackToLoginBtn">Back to log in</button></p>
+ <p class="auth-msg" id="authForgotMsg"></p>
+ </div>
+ <div id="authResetView" hidden>
+ <h2>Set a new password</h2>
+ <p class="auth-modal-sub">Choose a new password for your account.</p>
+ <form id="authResetForm">
+ <div class="auth-field">
+ <label for="authNewPassword">New password</label>
+ <input type="password" id="authNewPassword" required autocomplete="new-password" minlength="6">
+ </div>
+ <button type="submit" class="btn auth-submit" id="authResetSubmitBtn">Set new password</button>
+ </form>
+ <p class="auth-msg" id="authResetMsg"></p>
+ </div>
+ <div id="authSignedInView" hidden class="auth-signedin-box">
+ <h2>Account</h2>
+ <p>Signed in as</p>
+ <p><strong id="authUserEmail"></strong></p>
+ <div id="acctPlanBox" class="acct-plan-box"></div>
+ <button type="button" class="btn ghost" id="authChangePasswordBtn" style="margin-bottom:10px;">Change password</button>
+ <button type="button" class="btn ghost" id="authSignOutBtn">Log out</button>
+ </div>
+ </div>
+</div>
 <main class="indicator-wrap">
-  <p class="indicator-crumb"><a href="../colombia">&larr; Colombia overview</a></p>
+  <p class="indicator-crumb"><a class="indicator-backbtn" href="../colombia">&larr; Colombia overview</a></p>
   <div class="indicator-hero">
     <h1>Colombia Inflation Rate (CPI)</h1>
   </div>
@@ -236,9 +544,9 @@
   <div class="hero" style="margin:0 0 22px;justify-content:flex-start;">
     <div class="stat" style="max-width:320px;">
       <p class="label">Latest</p>
-      <p class="figure"><span class="led green" title="Updated on schedule" role="img" aria-label="Updated on schedule"></span>6.0%</p>
-      <p class="delta good"><span class="arrow" aria-hidden="true">▲</span> −0.1pp vs prior</p>
-      <p class="period">Jul 2026 &middot; updated 2026-09-07</p>
+      <p class="figure"><span class="led green" id="indicatorLed" title="Updated on schedule" role="img" aria-label="Updated on schedule"></span><span id="indicatorFigure">6.0%</span></p>
+      <p class="delta good" id="indicatorDelta"><span class="arrow" aria-hidden="true">▼</span> −0.1pp vs prior</p>
+      <p class="period" id="indicatorPeriod">Jul 2026 &middot; updated 2026-09-07</p>
     </div>
   </div>
 
@@ -269,22 +577,11 @@
  figures are the latest published observations and are subject to revision.
  Ideas or corrections: <a href="../contact">get in touch</a>. <a href="../privacy">Privacy</a> &middot; <a href="../terms">Terms</a>.
 </footer>
-<script>
-(function(){
-  var btn = document.getElementById("themeToggle");
-  if(!btn) return;
-  btn.addEventListener("click", function(){
-    var isDark = document.documentElement.getAttribute("data-theme") === "dark";
-    if(isDark){ document.documentElement.removeAttribute("data-theme"); try{localStorage.setItem("eatlas_theme","light");}catch(e){} }
-    else{ document.documentElement.setAttribute("data-theme","dark"); try{localStorage.setItem("eatlas_theme","dark");}catch(e){} }
-  });
-})();
-</script>
 
 <script src="https://cdnjs.cloudflare.com/ajax/libs/Chart.js/4.4.1/chart.umd.min.js"></script>
 <script>
 (function(){
-  var pts = [["2015-01", 3.815261], ["2015-02", 4.355371], ["2015-03", 4.55449], ["2015-04", 4.636958], ["2015-05", 4.400308], ["2015-06", 4.422205], ["2015-07", 4.458109], ["2015-08", 4.747294], ["2015-09", 5.353647], ["2015-10", 5.897349], ["2015-11", 6.39002], ["2015-12", 6.771054], ["2016-01", 7.459423], ["2016-02", 7.590622], ["2016-03", 7.976525], ["2016-04", 7.933898], ["2016-05", 8.200082], ["2016-06", 8.600918], ["2016-07", 8.960837], ["2016-08", 8.096013], ["2016-09", 7.270965], ["2016-10", 6.48371], ["2016-11", 5.96634], ["2016-12", 5.747127], ["2017-01", 5.47034], ["2017-02", 5.185071], ["2017-03", 4.692643], ["2017-04", 4.661792], ["2017-05", 4.36529], ["2017-06", 3.990044], ["2017-07", 3.399115], ["2017-08", 3.869025], ["2017-09", 3.968971], ["2017-10", 4.046722], ["2017-11", 4.117425], ["2017-12", 4.085457], ["2018-01", 3.672924], ["2018-02", 3.372025], ["2018-03", 3.136882], ["2018-04", 3.129549], ["2018-05", 3.158812], ["2018-06", 3.198665], ["2018-07", 3.120464], ["2018-08", 3.101674], ["2018-09", 3.22347], ["2018-10", 3.331643], ["2018-11", 3.267785], ["2018-12", 3.183291], ["2019-01", 3.154547], ["2019-02", 3.017505], ["2019-03", 3.215506], ["2019-04", 3.251561], ["2019-05", 3.313986], ["2019-06", 3.429982], ["2019-07", 3.787821], ["2019-08", 3.751524], ["2019-09", 3.820726], ["2019-10", 3.861479], ["2019-11", 3.846737], ["2019-12", 3.804302], ["2020-01", 3.622284], ["2020-02", 3.720052], ["2020-03", 3.855482], ["2020-04", 3.505172], ["2020-05", 2.851895], ["2020-06", 2.191811], ["2020-07", 1.969922], ["2020-08", 1.878103], ["2020-09", 1.967422], ["2020-10", 1.748137], ["2020-11", 1.489473], ["2020-12", 1.610449], ["2021-01", 1.597207], ["2021-02", 1.563101], ["2021-03", 1.50655], ["2021-04", 1.947777], ["2021-05", 3.295664], ["2021-06", 3.634762], ["2021-07", 3.970092], ["2021-08", 4.441022], ["2021-09", 4.510173], ["2021-10", 4.583541], ["2021-11", 5.258945], ["2021-12", 5.62267], ["2022-01", 6.944602], ["2022-02", 8.005195], ["2022-03", 8.527874], ["2022-04", 9.2341], ["2022-05", 9.066776], ["2022-06", 9.673833], ["2022-07", 10.20582], ["2022-08", 10.83597], ["2022-09", 11.43989], ["2022-10", 12.22175], ["2022-11", 12.53146], ["2022-12", 13.12247], ["2023-01", 13.25198], ["2023-02", 13.27902], ["2023-03", 13.34433], ["2023-04", 12.82287], ["2023-05", 12.36026], ["2023-06", 12.12962], ["2023-07", 11.78492], ["2023-08", 11.42734], ["2023-09", 10.99432], ["2023-10", 10.47863], ["2023-11", 10.14863], ["2023-12", 9.276055], ["2024-01", 8.346567], ["2024-02", 7.737382], ["2024-03", 7.362685], ["2024-04", 7.163281], ["2024-05", 7.156924], ["2024-06", 7.182466], ["2024-07", 6.860041], ["2024-08", 6.120451], ["2024-09", 5.808777], ["2024-10", 5.406128], ["2024-11", 5.197362], ["2024-12", 5.203063], ["2025-01", 5.22298], ["2025-02", 5.276587], ["2025-03", 5.089996], ["2025-04", 5.162292], ["2025-05", 5.052109], ["2025-06", 4.820067], ["2025-07", 4.900466], ["2025-08", 5.095577], ["2025-09", 5.176739], ["2025-10", 5.512228], ["2025-11", 5.301071], ["2025-12", 5.099884], ["2026-01", 5.353601], ["2026-02", 5.290032], ["2026-03", 5.558911], ["2026-04", 5.681311], ["2026-05", 5.842079], ["2026-06", 6.142751], ["2026-07", 6.026292]];
+  var nominalPts = [["2015-01", 3.815261], ["2015-02", 4.355371], ["2015-03", 4.55449], ["2015-04", 4.636958], ["2015-05", 4.400308], ["2015-06", 4.422205], ["2015-07", 4.458109], ["2015-08", 4.747294], ["2015-09", 5.353647], ["2015-10", 5.897349], ["2015-11", 6.39002], ["2015-12", 6.771054], ["2016-01", 7.459423], ["2016-02", 7.590622], ["2016-03", 7.976525], ["2016-04", 7.933898], ["2016-05", 8.200082], ["2016-06", 8.600918], ["2016-07", 8.960837], ["2016-08", 8.096013], ["2016-09", 7.270965], ["2016-10", 6.48371], ["2016-11", 5.96634], ["2016-12", 5.747127], ["2017-01", 5.47034], ["2017-02", 5.185071], ["2017-03", 4.692643], ["2017-04", 4.661792], ["2017-05", 4.36529], ["2017-06", 3.990044], ["2017-07", 3.399115], ["2017-08", 3.869025], ["2017-09", 3.968971], ["2017-10", 4.046722], ["2017-11", 4.117425], ["2017-12", 4.085457], ["2018-01", 3.672924], ["2018-02", 3.372025], ["2018-03", 3.136882], ["2018-04", 3.129549], ["2018-05", 3.158812], ["2018-06", 3.198665], ["2018-07", 3.120464], ["2018-08", 3.101674], ["2018-09", 3.22347], ["2018-10", 3.331643], ["2018-11", 3.267785], ["2018-12", 3.183291], ["2019-01", 3.154547], ["2019-02", 3.017505], ["2019-03", 3.215506], ["2019-04", 3.251561], ["2019-05", 3.313986], ["2019-06", 3.429982], ["2019-07", 3.787821], ["2019-08", 3.751524], ["2019-09", 3.820726], ["2019-10", 3.861479], ["2019-11", 3.846737], ["2019-12", 3.804302], ["2020-01", 3.622284], ["2020-02", 3.720052], ["2020-03", 3.855482], ["2020-04", 3.505172], ["2020-05", 2.851895], ["2020-06", 2.191811], ["2020-07", 1.969922], ["2020-08", 1.878103], ["2020-09", 1.967422], ["2020-10", 1.748137], ["2020-11", 1.489473], ["2020-12", 1.610449], ["2021-01", 1.597207], ["2021-02", 1.563101], ["2021-03", 1.50655], ["2021-04", 1.947777], ["2021-05", 3.295664], ["2021-06", 3.634762], ["2021-07", 3.970092], ["2021-08", 4.441022], ["2021-09", 4.510173], ["2021-10", 4.583541], ["2021-11", 5.258945], ["2021-12", 5.62267], ["2022-01", 6.944602], ["2022-02", 8.005195], ["2022-03", 8.527874], ["2022-04", 9.2341], ["2022-05", 9.066776], ["2022-06", 9.673833], ["2022-07", 10.20582], ["2022-08", 10.83597], ["2022-09", 11.43989], ["2022-10", 12.22175], ["2022-11", 12.53146], ["2022-12", 13.12247], ["2023-01", 13.25198], ["2023-02", 13.27902], ["2023-03", 13.34433], ["2023-04", 12.82287], ["2023-05", 12.36026], ["2023-06", 12.12962], ["2023-07", 11.78492], ["2023-08", 11.42734], ["2023-09", 10.99432], ["2023-10", 10.47863], ["2023-11", 10.14863], ["2023-12", 9.276055], ["2024-01", 8.346567], ["2024-02", 7.737382], ["2024-03", 7.362685], ["2024-04", 7.163281], ["2024-05", 7.156924], ["2024-06", 7.182466], ["2024-07", 6.860041], ["2024-08", 6.120451], ["2024-09", 5.808777], ["2024-10", 5.406128], ["2024-11", 5.197362], ["2024-12", 5.203063], ["2025-01", 5.22298], ["2025-02", 5.276587], ["2025-03", 5.089996], ["2025-04", 5.162292], ["2025-05", 5.052109], ["2025-06", 4.820067], ["2025-07", 4.900466], ["2025-08", 5.095577], ["2025-09", 5.176739], ["2025-10", 5.512228], ["2025-11", 5.301071], ["2025-12", 5.099884], ["2026-01", 5.353601], ["2026-02", 5.290032], ["2026-03", 5.558911], ["2026-04", 5.681311], ["2026-05", 5.842079], ["2026-06", 6.142751], ["2026-07", 6.026292]];
   var unit = "%";
   var cs = getComputedStyle(document.documentElement);
   var INK = cs.getPropertyValue("--ink").trim() || "#171B1E";
@@ -293,12 +590,13 @@
   var PANEL_BG = cs.getPropertyValue("--panel").trim() || "#fff";
   var LINE = "#37659E";
   var FONT = {family: "'Avenir Next','Nunito Sans',sans-serif", size: 11.5};
-  function curFmt(raw, decimals){
-    if(unit.indexOf("%") > -1) return raw.toFixed(1) + "%";
-    var scales = [["bn",1e9],["m",1e6],["k",1e3]], symbol = unit, mult = 1;
+  function curFmt(raw, decimals, unitOverride){
+    var u = unitOverride || unit;
+    if(u.indexOf("%") > -1) return raw.toFixed(1) + "%";
+    var scales = [["bn",1e9],["m",1e6],["k",1e3]], symbol = u, mult = 1;
     for(var i=0;i<scales.length;i++){
       var suf = scales[i][0];
-      if(unit.slice(-suf.length) === suf && unit.length > suf.length){ symbol = unit.slice(0,-suf.length); mult = scales[i][1]; break; }
+      if(u.slice(-suf.length) === suf && u.length > suf.length){ symbol = u.slice(0,-suf.length); mult = scales[i][1]; break; }
     }
     var a = Math.abs(raw) * mult, sign = raw < 0 ? "\u2212" : "";
     var out;
@@ -312,36 +610,44 @@
     var m = /^(\d{4})/.exec(label);
     return m ? m[1] : label;
   }
-  var canvas = document.getElementById("indicatorChart");
-  new Chart(canvas, {
-    type: "line",
-    data: {
-      labels: pts.map(function(p){return p[0];}),
-      datasets: [{
-        data: pts.map(function(p){return p[1];}),
-        borderColor: LINE, borderWidth: 2, pointRadius: 0, pointHitRadius: 8, tension: 0.25
-      }]
-    },
-    options: {
-      responsive: true, maintainAspectRatio: false, animation: false,
-      interaction: {mode: "index", intersect: false},
-      plugins: {
-        legend: {display: false},
-        tooltip: {
-          backgroundColor: PANEL_BG, titleColor: INK, bodyColor: INK, borderColor: HAIR, borderWidth: 1,
-          titleFont: {family: FONT.family, weight: "600"}, bodyFont: {family: FONT.family}, displayColors: false,
-          callbacks: { label: function(ctx){ return curFmt(ctx.parsed.y, 2); } }
-        }
+  var chart = null;
+  function renderChart(pts, unitForChart){
+    var canvas = document.getElementById("indicatorChart");
+    if(chart){ chart.destroy(); chart = null; }
+    chart = new Chart(canvas, {
+      type: "line",
+      data: {
+        labels: pts.map(function(p){return p[0];}),
+        datasets: [{
+          data: pts.map(function(p){return p[1];}),
+          borderColor: LINE, borderWidth: 2, pointRadius: 0, pointHitRadius: 8, tension: 0.25
+        }]
       },
-      scales: {
-        x: {grid: {display: false}, border: {color: HAIR}, ticks: {color: INK2, font: FONT, maxTicksLimit: 7, maxRotation: 0,
-             callback: function(v){ return yearOf(this.getLabelForValue(v)); } }},
-        y: {grid: {color: HAIR}, border: {display: false}, ticks: {color: INK2, font: FONT, maxTicksLimit: 6,
-             callback: function(v){ return curFmt(v, 1); } }}
+      options: {
+        responsive: true, maintainAspectRatio: false, animation: false,
+        interaction: {mode: "index", intersect: false},
+        plugins: {
+          legend: {display: false},
+          tooltip: {
+            backgroundColor: PANEL_BG, titleColor: INK, bodyColor: INK, borderColor: HAIR, borderWidth: 1,
+            titleFont: {family: FONT.family, weight: "600"}, bodyFont: {family: FONT.family}, displayColors: false,
+            callbacks: { label: function(ctx){ return curFmt(ctx.parsed.y, 2, unitForChart); } }
+          }
+        },
+        scales: {
+          x: {grid: {display: false}, border: {color: HAIR}, ticks: {color: INK2, font: FONT, maxTicksLimit: 7, maxRotation: 0,
+               callback: function(v){ return yearOf(this.getLabelForValue(v)); } }},
+          y: {grid: {color: HAIR}, border: {display: false}, ticks: {color: INK2, font: FONT, maxTicksLimit: 6,
+               callback: function(v){ return curFmt(v, 1, unitForChart); } }}
+        }
       }
-    }
-  });
+    });
+  }
+  renderChart(nominalPts, unit);
+  window.EATLAS_INDICATOR_RENDER = {renderChart: renderChart, curFmt: curFmt, nominalPts: nominalPts, unit: unit};
 })();
 </script>
+
+<script src="../mobile.js?v=10"></script>
 </body>
 </html>
