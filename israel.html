@@ -104,9 +104,10 @@ nav.cat button.active{background:var(--blue); border-color:var(--blue); color:#f
   display:flex; align-items:center; justify-content:center;}
 .expandBtn:hover{border-color:var(--blue); color:var(--navy);}
 .stat.hasPageLink{position:relative;}
-.statPageLink{position:absolute; top:10px; right:10px; width:26px; height:26px; border-radius:7px;
-  border:1px solid var(--hair); background:var(--panel); color:var(--ink2); font-size:13px; line-height:1;
-  display:flex; align-items:center; justify-content:center; text-decoration:none; z-index:2;}
+.stat.hasPageLink .label{padding-right:30px;}
+.statPageLink{position:absolute; top:10px; right:10px; width:24px; height:24px; border-radius:7px;
+  border:1px solid var(--hair); background:var(--panel); color:var(--ink2); font-size:12px; line-height:1;
+  display:flex; align-items:center; justify-content:center; text-decoration:none; z-index:2; flex:none;}
 .statPageLink:hover{border-color:var(--blue); color:var(--navy);}
 .charttools{display:flex; align-items:center; justify-content:space-between; gap:10px;
   margin:8px 0 2px; flex-wrap:wrap;}
@@ -137,6 +138,9 @@ nav.cat button.active{background:var(--blue); border-color:var(--blue); color:#f
 .chart-modal-box{flex:1; min-height:0; position:relative; margin:14px 0;}
 .chart-modal-box canvas{max-height:100%;}
 .chart-modal-src{font-size:12.5px; color:var(--ink2); margin:0;}
+.chart-modal-expl{font-size:14px; color:var(--ink2); margin:2px 0 14px; line-height:1.5;}
+.chart-modal-embed{font-size:12.5px; margin:10px 0 0;}
+.chart-modal-embed a{color:var(--blue); text-decoration:none;}
 /* v4 critical styles inlined (belt and braces vs cached style.css) */
 .hero{display:flex; flex-wrap:wrap; justify-content:center;
   background:transparent; border:none; gap:14px; overflow:visible; margin:30px 0 10px;}
@@ -1948,12 +1952,26 @@ function wireRangePresets(scopeEl, pts, kind, chart){
 /* ------------------------------ enlarge modal ------------------------------ */
 const CHART_REGISTRY = {};
 let modalChart = null;
-function openChartModal(id){
+let indicatorModalState = null;
+function openChartModal(id, asIndicator){
   const entry = CHART_REGISTRY[id];
   if(!entry) return;
   const modal = document.getElementById("chartModal");
   document.getElementById("chartModalTitle").textContent = entry.title;
   document.getElementById("chartModalSrc").textContent = "Source: " + entry.srcNote;
+  const exprEl = document.getElementById("chartModalExpl");
+  if(entry.expl){ exprEl.textContent = entry.expl; exprEl.hidden = false; } else { exprEl.hidden = true; }
+  const embedEl = document.getElementById("chartModalEmbed");
+  const indicatorSlug = entry.key && INDICATOR_PAGE_SLUGS[entry.key];
+  const countrySlug = (location.pathname.split("/").pop() || "index").replace(/\.html$/,"") || "index";
+  if(indicatorSlug){
+    const pageHref = "indicators/" + countrySlug + "-" + indicatorSlug;
+    const embedHref = "embed/" + countrySlug + "-" + indicatorSlug;
+    embedEl.innerHTML = '<a href="' + pageHref + '">View this as its own page</a> &middot; <a href="' + embedHref + '" target="_blank" rel="noopener">Embed this chart &#8599;</a>';
+    embedEl.hidden = false;
+  } else {
+    embedEl.hidden = true;
+  }
   const presetsEl = document.getElementById("chartModalPresets");
   presetsEl.innerHTML = rangePresetsHtml();
   if(modalChart){ modalChart.destroy(); modalChart=null; }
@@ -1967,19 +1985,46 @@ function openChartModal(id){
   if(modalCzBtn && window.EATLAS_CUSTOMIZE) window.EATLAS_CUSTOMIZE.wire(modalCzBtn, entry.pts, entry.title, entry.srcNote, entry.fmtY, "", entry.title, entry.kind, fmtPeriod, entry.key);
   modal.hidden = false;
   document.body.style.overflow = "hidden";
+  if(asIndicator && indicatorSlug){
+    if(!indicatorModalState){
+      indicatorModalState = { originalUrl: location.pathname + location.search };
+      history.pushState({indicatorModal:true}, "", "indicators/" + countrySlug + "-" + indicatorSlug);
+    } else {
+      history.replaceState({indicatorModal:true}, "", "indicators/" + countrySlug + "-" + indicatorSlug);
+    }
+  }
 }
-function closeChartModal(){
+function closeChartModal(fromPopstate){
   document.getElementById("chartModal").hidden = true;
   document.body.style.overflow = "";
   if(modalChart){ modalChart.destroy(); modalChart=null; }
+  if(indicatorModalState){
+    const original = indicatorModalState.originalUrl;
+    indicatorModalState = null;
+    if(!fromPopstate) history.pushState({}, "", original);
+  }
+}
+function handleIndicatorLinkClick(e, link){
+  e.preventDefault();
+  e.stopPropagation();
+  const tile = link.closest(".stat");
+  const key = tile && tile.dataset.key;
+  const anchor = key && window.ANCHORS && window.ANCHORS[key];
+  const canvas = anchor && anchor.panelEl && anchor.panelEl.querySelector("canvas");
+  if(canvas) openChartModal(canvas.id, true);
+  else window.location.href = link.getAttribute("href"); // fallback: real navigation if the panel hasn't rendered yet
+  return false;
 }
 document.addEventListener("DOMContentLoaded", ()=>{
   const closeBtn = document.getElementById("chartModalClose");
   const backdrop = document.getElementById("chartModalBackdrop");
-  if(closeBtn) closeBtn.addEventListener("click", closeChartModal);
-  if(backdrop) backdrop.addEventListener("click", closeChartModal);
+  if(closeBtn) closeBtn.addEventListener("click", ()=>closeChartModal(false));
+  if(backdrop) backdrop.addEventListener("click", ()=>closeChartModal(false));
 });
-document.addEventListener("keydown", e=>{ if(e.key==="Escape") closeChartModal(); });
+window.addEventListener("popstate", function(){
+  if(indicatorModalState) closeChartModal(true);
+});
+document.addEventListener("keydown", e=>{ if(e.key==="Escape") closeChartModal(false); });
 /* -------------------------------- render ---------------------------------- */
 const SEC_OF={"charts-headline":"headline","charts-gdp":"gdp","charts-inflation":"inflation",
   "charts-labour":"labour","charts-trade":"trade","charts-public":"public"};
@@ -2019,7 +2064,7 @@ function statTile(el, key, title, series, opts){
     div.classList.add("hasPageLink");
   }
   const _pageLinkHtml = _indicatorSlug
-    ? `<a class="statPageLink" href="indicators/${_countrySlug}-${_indicatorSlug}" aria-label="View ${title} as its own page" title="View as its own page" onclick="event.stopPropagation()">&#8599;</a>`
+    ? `<a class="statPageLink" href="indicators/${_countrySlug}-${_indicatorSlug}" aria-label="View ${title} as its own page" title="View as its own page" onclick="return handleIndicatorLinkClick(event, this)">&#8599;</a>`
     : "";
   div.innerHTML=`
       ${_pageLinkHtml}
@@ -2060,7 +2105,7 @@ function chartPanel(key, containerId, title, expl, series, kind, fmtY, fmtTip, s
   if(czBtn && window.EATLAS_CUSTOMIZE) window.EATLAS_CUSTOMIZE.wire(czBtn, pts, title, srcNote, fmtY, "", title, kind, fmtPeriod, key);
   const refLineVal = refLine==null ? null : refLine;
   const chart = (kind==="bar"?barChart:lineChart)(document.getElementById(id), pts, fmtY, fmtTip, refLineVal, key);
-  CHART_REGISTRY[id] = {pts, kind, fmtY, fmtTip, refLine:refLineVal, title, srcNote, key};
+  CHART_REGISTRY[id] = {pts, kind, fmtY, fmtTip, refLine:refLineVal, title, srcNote, key, expl};
   // Auto-registers this chart's title/format/source metadata for Save &
   // Share's "Open chart" -- so every chartPanel() chart with a stable key
   // is save/loadable automatically, with nothing to hand-maintain per
@@ -3040,6 +3085,7 @@ document.querySelectorAll(".mtbtn").forEach(function(btn){
  <div class="chart-modal-content">
  <button type="button" class="chart-modal-close" id="chartModalClose" aria-label="Close">&times;</button>
  <h2 id="chartModalTitle"></h2>
+ <p class="chart-modal-expl" id="chartModalExpl" hidden></p>
  <div class="charttools">
  <div class="rangepresets" id="chartModalPresets"></div>
  <button type="button" class="resetzoom" id="chartModalReset">Reset zoom</button>
@@ -3049,6 +3095,7 @@ document.querySelectorAll(".mtbtn").forEach(function(btn){
  <canvas id="chartModalCanvas"></canvas>
  </div>
  <p class="chart-modal-src" id="chartModalSrc"></p>
+ <p class="chart-modal-embed" id="chartModalEmbed" hidden></p>
  </div>
 </div>
 <div class="chart-modal" id="customizeModal" hidden>
