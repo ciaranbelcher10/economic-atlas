@@ -237,7 +237,7 @@
     <div class="stat" style="max-width:320px;">
       <p class="label">Latest</p>
       <p class="figure"><span class="led green" title="Updated on schedule" role="img" aria-label="Updated on schedule"></span>SGD789.53bn</p>
-      <p class="delta good"><span class="arrow" aria-hidden="true">▲</span> +SGD24.0bn vs prior</p>
+      <p class="delta good"><span class="arrow" aria-hidden="true">▲</span> +SGD24bn vs prior</p>
       <p class="period">2025 &middot; updated 2026-09-07</p>
     </div>
   </div>
@@ -301,9 +301,12 @@
       if(unit.slice(-suf.length) === suf && unit.length > suf.length){ symbol = unit.slice(0,-suf.length); mult = scales[i][1]; break; }
     }
     var a = Math.abs(raw) * mult, sign = raw < 0 ? "\u2212" : "";
-    if(a >= 1e12) return sign + symbol + (a/1e12).toFixed(decimals) + "tn";
-    if(a >= 1e9) return sign + symbol + (a/1e9).toFixed(decimals) + "bn";
-    return sign + symbol + (a/1e6).toFixed(0) + "m";
+    var out;
+    if(a >= 1e12) out = sign + symbol + (a/1e12).toFixed(decimals) + "tn";
+    else if(a >= 1e9) out = sign + symbol + (a/1e9).toFixed(decimals) + "bn";
+    else out = sign + symbol + (a/1e6).toFixed(0) + "m";
+    // Same trim as the site's own czTrimAxisZeros / curFmt: no unnecessary trailing zeros.
+    return out.replace(/(\.\d*[1-9])0+(?!\d)|\.0+(?!\d)/, function(m, keep){ return keep || ""; });
   }
   function yearOf(label){
     var m = /^(\d{4})/.exec(label);
