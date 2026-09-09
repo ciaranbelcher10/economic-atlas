@@ -52,6 +52,7 @@
  </div>
  </div>
  <button type="button" class="authbtn" id="authBtn">Log in</button>
+ <button type="button" class="theme-toggle" id="dollariseToggle" aria-label="Dollarise: convert currency series to US dollars" title="Dollarise: convert currency series to US dollars" aria-pressed="false">$</button>
  <button type="button" class="theme-toggle" id="themeToggle" aria-label="Switch to dark mode" title="Switch to dark mode">&#127769;</button>
  </div>
 </div></nav>
@@ -1125,6 +1126,11 @@
 })();
 </script>
 <style>
+/* ---- Dollarise nav toggle: same blue used for the fx-dollar state on
+   country pages' own Dollarise switch, applied here to a theme-toggle-
+   style icon button instead of the .mtoggle switch, since this page has
+   no per-section metric-toggle bar to place it in. ---- */
+#dollariseToggle.on{background:var(--blue); border-color:var(--blue); color:#fff;}
 /* ---- reused base patterns from compare.html (picker, modal, chart-modal) ---- */
 .picker-region{margin-bottom:16px;}
 .picker-region:last-child{margin-bottom:4px;}
@@ -1710,6 +1716,76 @@ var FILES = {
 };
 var ALL_COUNTRIES = Object.keys(FILES);
 var REGISTRY = {};
+var FX_RATES = {};
+// Dollarise infrastructure -- ported verbatim from compare.html, which
+// itself ported the historical-rate-matching approach from the country
+// pages' own Dollarise toggle (see e.g. germany.html). Each point
+// converts at its own contemporaneous rate via rateForPeriod(), not a
+// single current rate applied uniformly across history.
+function monthKey(period){
+  var yearMatch = /^(\d{4})/.exec(period);
+  if(!yearMatch) return null;
+  var year = parseInt(yearMatch[1], 10);
+  var qMatch = /^\d{4}-Q([1-4])$/.exec(period);
+  if(qMatch) return year*12 + (parseInt(qMatch[1],10)-1)*3;
+  var mMatch = /^\d{4}-(\d{2})$/.exec(period);
+  if(mMatch) return year*12 + (parseInt(mMatch[1],10)-1);
+  return year*12; // bare "YYYY" -> January anchor
+}
+function rateForPeriod(period, history){
+  if(!history || !history.length) return null;
+  var matches;
+  if(/^\d{4}$/.test(period)){
+    matches = history.filter(function(pt){ return pt[0].indexOf(period + "-") === 0; });
+  } else if(/^\d{4}-Q[1-4]$/.test(period)){
+    var parts = period.split("-Q");
+    var y = parts[0], q = parts[1];
+    var startMonth = (parseInt(q,10)-1)*3 + 1;
+    var wantedMonths = [startMonth, startMonth+1, startMonth+2].map(function(m){
+      return y + "-" + String(m).padStart(2,"0");
+    });
+    matches = history.filter(function(pt){ return wantedMonths.indexOf(pt[0]) !== -1; });
+  } else {
+    matches = history.filter(function(pt){ return pt[0] === period; });
+  }
+  if(matches.length){
+    var sum = matches.reduce(function(s,pt){ return s+pt[1]; }, 0);
+    return sum / matches.length;
+  }
+  var targetKey = monthKey(period);
+  var best = history[0], bestDist = Infinity;
+  history.forEach(function(pt){
+    var dist = Math.abs(monthKey(pt[0]) - targetKey);
+    if(dist < bestDist){ bestDist = dist; best = pt; }
+  });
+  return best[1];
+}
+function toUSDValue(country, rawValue, period){
+  if(country === "US") return rawValue;
+  var fx = FX_RATES[country];
+  if(!fx || !fx.rate) return null;
+  var rate = (period && fx.history && fx.history.length) ? rateForPeriod(period, fx.history) : fx.rate;
+  if(rate == null) rate = fx.rate;
+  return fx.direction === "multiply" ? rawValue * rate : rawValue / rate;
+}
+// Countries whose own currency happens to use the $ glyph too (AUD, CAD,
+// MXN, ZAR, BRL) -- their gdp_level/gdp_real are genuinely local-currency
+// and need converting like any other country's; other $-prefixed series
+// on these same countries (trade_balance) really is USD-denominated and
+// still needs the normal already-USD protection.
+var DOLLAR_GLYPH_LOCAL_CURRENCY_COUNTRIES = {Australia:1, Canada:1, Mexico:1, "South Africa":1, Brazil:1};
+function isAlreadyUSDUnit(unitStr, country, concept){
+  if((concept === "gdp_level" || concept === "gdp_real") &&
+     country && DOLLAR_GLYPH_LOCAL_CURRENCY_COUNTRIES[country]){
+    return false;
+  }
+  var clean = (unitStr || "").replace(/\s*\([^)]*\)\s*$/, "").trim();
+  return clean.charAt(0) === "$";
+}
+function forceUSDUnit(unitStr){
+  var m = /(?:tn|bn|m)$/.exec(unitStr || "m");
+  return "$" + (m ? m[0] : "m");
+}
 function fetchWithTimeout(url, ms){
   return Promise.race([
     fetch(url, {cache: "no-cache"}),
@@ -1729,6 +1805,7 @@ function loadAllCountryData(){
           var s = series[key];
           if(s && Array.isArray(s.points) && s.points.length) REGISTRY[country][key] = s;
         });
+        if(payload.fx_to_usd) FX_RATES[country] = payload.fx_to_usd;
       })
       .catch(function(err){
         console.warn("Couldn't load data for " + country + ":", err);
@@ -2396,6 +2473,77 @@ var annotSeq = 0;
 var MAX_ANNOTATIONS = 6;
 
 var series = [];
+var TOGGLE_STATE = { dollar: false };
+var userToggledDollar = false; // once the person clicks the button explicitly, stop overriding their choice
+// Normalises both scale (m/bn/tn) AND currency to a common USD-millions
+// basis -- ChartMaker mixes countries that report the same metric in
+// genuinely different native scales (UK/India in millions, US/Japan in
+// billions), so converting currency alone without this would leave
+// series that "look" comparable but differ by up to 1000x. Every
+// currency conversion in this page should go through this, not
+// toUSDValue alone -- same rule compare.html follows. Lives here rather
+// than alongside the other FX utilities above because it depends on
+// scaleOf(), which is itself only defined inside this function's scope.
+function toUSDMillions(country, rawValue, unitStr, concept, period){
+  var normalized = rawValue * (scaleOf(unitStr) / 1e6);
+  if(isAlreadyUSDUnit(unitStr, country, concept)) return normalized;
+  return toUSDValue(country, normalized, period);
+}
+// Recomputes a single series' displayed .unit/.rawPoints from its
+// untouched .origUnit/.origRawPoints, based on the current Dollarise
+// state -- never mutates the original fetched data, same pattern as
+// country pages' buildDisplaySeries()/convertSeriesToUSD().
+function applyDollariseToSeries(s){
+  var isCurrency = CONCEPT_UNIT[s.metric] === "currency";
+  if(!TOGGLE_STATE.dollar || !isCurrency){
+    s.unit = s.origUnit;
+    s.rawPoints = s.origRawPoints;
+    return;
+  }
+  var converted = s.origRawPoints.map(function(p){
+    var usdM = toUSDMillions(s.country, p.y, s.origUnit, s.metric, String(p.x));
+    return usdM == null ? null : { x: p.x, y: usdM };
+  }).filter(function(p){ return p != null; });
+  s.unit = forceUSDUnit("m");
+  s.rawPoints = converted;
+}
+function applyDollariseToAll(){
+  series.forEach(applyDollariseToSeries);
+}
+// "Make that standard when comparing countries": once currency-type
+// series from 2+ different countries are on the chart, Dollarise
+// defaults on automatically (mixing native currencies/scales on one
+// axis is never meaningfully comparable) -- but never overrides an
+// explicit choice the person already made via the button.
+function maybeAutoDollarise(){
+  if(userToggledDollar) return;
+  var currencyCountries = [];
+  series.forEach(function(s){
+    if(CONCEPT_UNIT[s.metric] === "currency" && currencyCountries.indexOf(s.country) === -1){
+      currencyCountries.push(s.country);
+    }
+  });
+  var shouldAuto = currencyCountries.length >= 2;
+  if(shouldAuto !== TOGGLE_STATE.dollar){
+    TOGGLE_STATE.dollar = shouldAuto;
+    updateDollariseButtonUI();
+    applyDollariseToAll();
+  }
+}
+function updateDollariseButtonUI(){
+  var btn = document.getElementById("dollariseToggle");
+  if(!btn) return;
+  btn.classList.toggle("on", TOGGLE_STATE.dollar);
+  btn.setAttribute("aria-pressed", String(TOGGLE_STATE.dollar));
+}
+document.getElementById("dollariseToggle").addEventListener("click", function(){
+  userToggledDollar = true;
+  TOGGLE_STATE.dollar = !TOGGLE_STATE.dollar;
+  updateDollariseButtonUI();
+  applyDollariseToAll();
+  syncAutoYAxisTitle();
+  renderChart();
+});
 var annotations = [];
 var chart = null;
 var exportTheme = "light";
@@ -2633,8 +2781,11 @@ function addSeries(country, metric){
   var pts = s.points.map(function(p){ return {x:p[0], y:p[1]}; });
   series.push({
     id: "s" + (++seriesSeq), country: country, metric: metric, transform: "raw",
-    unit: s.unit, label: s.label, color: "#1E4566", manualColor: false, customLabel: null, rawPoints: pts
+    unit: s.unit, label: s.label, color: "#1E4566", manualColor: false, customLabel: null,
+    rawPoints: pts, origUnit: s.unit, origRawPoints: pts
   });
+  maybeAutoDollarise();
+  applyDollariseToSeries(series[series.length - 1]);
   assignColors();
   syncAutoYAxisTitle();
   resetYTickStepIdx();
@@ -2645,6 +2796,7 @@ function addSeries(country, metric){
 }
 function removeSeries(id){
   series = series.filter(function(s){ return s.id !== id; });
+  maybeAutoDollarise();
   assignColors();
   syncAutoYAxisTitle();
   syncBarLegendTitle();
@@ -4468,9 +4620,14 @@ function loadSavedChart(row){
     var s = getSeries(ss.country, ss.metric);
     if(!s) return;
     var pts = s.points.map(function(p){ return {x:p[0], y:p[1]}; });
-    series.push({ id:"s"+(++seriesSeq), country:ss.country, metric:ss.metric, transform:ss.transform||"raw", unit:s.unit, label:s.label, color: ss.color || COUNTRY_COLOR[ss.country] || "#1E4566", manualColor: !!ss.manualColor, customLabel: ss.customLabel || null, rawPoints:pts });
+    series.push({ id:"s"+(++seriesSeq), country:ss.country, metric:ss.metric, transform:ss.transform||"raw", unit:s.unit, label:s.label, color: ss.color || COUNTRY_COLOR[ss.country] || "#1E4566", manualColor: !!ss.manualColor, customLabel: ss.customLabel || null, rawPoints:pts, origUnit:s.unit, origRawPoints:pts });
     colorIdx++;
   });
+  userToggledDollar = false;
+  TOGGLE_STATE.dollar = false;
+  maybeAutoDollarise();
+  applyDollariseToAll();
+  updateDollariseButtonUI();
   if(row.snapshot){
     var snap = row.snapshot;
     style.chartTitle = snap.chartTitle || ""; document.getElementById("cmChartTitle").value = style.chartTitle;
