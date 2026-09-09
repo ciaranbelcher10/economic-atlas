@@ -161,7 +161,7 @@ def cur_fmt(raw_value, unit, decimals=2):
 # Confirmed by inspecting every country page's actual statTile() call for
 # gdp_level (see the "GDP (annual)" vs "GDP (annual rate)" label + whether
 # it feeds through the gdpAnnual variable or s.gdp_level directly).
-GDP_RAW_COUNTRIES = {"US"}
+GDP_RAW_COUNTRIES = {"US", "Japan"}
 
 # Countries whose gdp_level is already USD-denominated at source (US has
 # no fx_to_usd block at all; Switzerland's only live GDP source, World
