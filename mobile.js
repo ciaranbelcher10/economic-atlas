@@ -1,10 +1,13 @@
 /* ==========================================================================
    The Economic Atlas — mobile.js
-   Loaded on every page after the page's own scripts. Everything here is
-   gated behind an isMobile() check and feature-detects the elements it
-   needs, so this single file is safe to include sitewide: it does nothing
-   on pages/sections it doesn't recognise, and does nothing at all on
+   Loaded on every page after the page's own scripts. Almost everything here
+   is gated behind an isMobile() check and feature-detects the elements it
+   needs, so this file is safe to include sitewide: it does nothing on
+   pages/sections it doesn't recognise, and does nothing at all on
    desktop/tablet widths.
+   The one deliberate exception is the homepage "Latest:" ticker
+   (initHomeTicker) below — it's meant to run on every width, desktop
+   included, despite the file name.
    ========================================================================== */
 (function(){
   "use strict";
@@ -68,7 +71,7 @@
     { file:"data-mx.json",  slug:"mexico",     name:"Mexico",       flag:"\uD83C\uDDF2\uD83C\uDDFD" },
     { file:"data-za.json",  slug:"southafrica",name:"South Africa", flag:"\uD83C\uDDFF\uD83C\uDDE6" }
   ];
-  var TICKER_FRESH_DAYS = 2; // matches the site's own "Latest:" freshness window exactly
+  var TICKER_SHOW_COUNT = 10; // always show the N most recently updated metrics
 
   var METRIC_SHORT_LABELS = {
     gdp_level:"GDP", gdp_real:"Real GDP", gdp_growth:"GDP Growth", productivity:"Productivity",
@@ -112,10 +115,10 @@
   }
 
   function fetchTickerFacts(cb){
-    var freshFacts = [];
+    var allFacts = [];
     var pending = TICKER_COUNTRIES.length;
     var now = Date.now();
-    function done(){ pending--; if(pending === 0) cb(freshFacts); }
+    function done(){ pending--; if(pending === 0) cb(allFacts); }
     TICKER_COUNTRIES.forEach(function(c){
       fetch(c.file, {cache:"no-cache"}).then(function(r){
         if(!r.ok) throw new Error("HTTP "+r.status);
@@ -127,14 +130,14 @@
           var m = meta[key], s = series[key];
           if(!s || !m || !m.first_seen || !s.points || !s.points.length) return;
           var ageDays = (now - new Date(m.first_seen).getTime()) / 86400000;
-          if(ageDays < 0 || ageDays >= TICKER_FRESH_DAYS) return;
+          if(ageDays < 0) return; // ignore clock-skew/future-dated entries only
           var latest = s.points[s.points.length - 1];
           var valueStr = formatTickerValue(latest[1], s.unit);
           if(valueStr == null) return;
           var dt = new Date(m.first_seen);
           var dd = String(dt.getUTCDate()).padStart(2,"0");
           var mm = String(dt.getUTCMonth()+1).padStart(2,"0");
-          freshFacts.push({
+          allFacts.push({
             country:c.name, slug:c.slug, flag:c.flag,
             metricShort:metricShortLabel(key, s.label),
             valueStr:valueStr, dateStr:dd+"/"+mm, firstSeen:m.first_seen
@@ -160,9 +163,19 @@
     marker.style.display = "none";
     subline.insertAdjacentElement("afterend", marker);
 
-    fetchTickerFacts(function(freshFacts){
-      freshFacts.sort(function(a,b){ return new Date(b.firstSeen) - new Date(a.firstSeen); });
-      var combined = freshFacts.slice(0, 14);
+    fetchTickerFacts(function(allFacts){
+      allFacts.sort(function(a,b){ return new Date(b.firstSeen) - new Date(a.firstSeen); });
+      // De-dupe on slug+metric, keeping the most recent occurrence, so the
+      // same series can't appear twice and read as a copy-paste error.
+      var seen = {};
+      var deduped = [];
+      allFacts.forEach(function(f){
+        var k = f.slug + "|" + f.metricShort;
+        if(seen[k]) return;
+        seen[k] = true;
+        deduped.push(f);
+      });
+      var combined = deduped.slice(0, TICKER_SHOW_COUNT);
       if(!combined.length) return;
 
       var itemsHtml = combined.map(tickerFactHtml).join("");
