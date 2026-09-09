@@ -1956,8 +1956,7 @@ function wireRangePresets(scopeEl, pts, kind, chart){
 /* ------------------------------ enlarge modal ------------------------------ */
 const CHART_REGISTRY = {};
 let modalChart = null;
-let indicatorModalState = null;
-function openChartModal(id, asIndicator){
+function openChartModal(id){
   const entry = CHART_REGISTRY[id];
   if(!entry) return;
   const modal = document.getElementById("chartModal");
@@ -1966,16 +1965,7 @@ function openChartModal(id, asIndicator){
   const exprEl = document.getElementById("chartModalExpl");
   if(entry.expl){ exprEl.textContent = entry.expl; exprEl.hidden = false; } else { exprEl.hidden = true; }
   const embedEl = document.getElementById("chartModalEmbed");
-  const indicatorSlug = entry.key && INDICATOR_PAGE_SLUGS[entry.key];
-  const countrySlug = window.EATLAS_COUNTRY_SLUG;
-  if(indicatorSlug){
-    const pageHref = "/indicators/" + countrySlug + "-" + indicatorSlug;
-    const embedHref = "/embed/" + countrySlug + "-" + indicatorSlug;
-    embedEl.innerHTML = '<a href="' + pageHref + '">View this as its own page</a> &middot; <a href="' + embedHref + '" target="_blank" rel="noopener">Embed this chart &#8599;</a>';
-    embedEl.hidden = false;
-  } else {
-    embedEl.hidden = true;
-  }
+  if(embedEl) embedEl.hidden = true;
   const presetsEl = document.getElementById("chartModalPresets");
   presetsEl.innerHTML = rangePresetsHtml();
   if(modalChart){ modalChart.destroy(); modalChart=null; }
@@ -1989,46 +1979,19 @@ function openChartModal(id, asIndicator){
   if(modalCzBtn && window.EATLAS_CUSTOMIZE) window.EATLAS_CUSTOMIZE.wire(modalCzBtn, entry.pts, entry.title, entry.srcNote, entry.fmtY, "", entry.title, entry.kind, fmtPeriod, entry.key);
   modal.hidden = false;
   document.body.style.overflow = "hidden";
-  if(asIndicator && indicatorSlug){
-    if(!indicatorModalState){
-      indicatorModalState = { originalUrl: location.pathname + location.search };
-      history.pushState({indicatorModal:true}, "", "/indicators/" + countrySlug + "-" + indicatorSlug);
-    } else {
-      history.replaceState({indicatorModal:true}, "", "/indicators/" + countrySlug + "-" + indicatorSlug);
-    }
-  }
 }
-function closeChartModal(fromPopstate){
+function closeChartModal(){
   document.getElementById("chartModal").hidden = true;
   document.body.style.overflow = "";
   if(modalChart){ modalChart.destroy(); modalChart=null; }
-  if(indicatorModalState){
-    const original = indicatorModalState.originalUrl;
-    indicatorModalState = null;
-    if(!fromPopstate) history.pushState({}, "", original);
-  }
-}
-function handleIndicatorLinkClick(e, link){
-  e.preventDefault();
-  e.stopPropagation();
-  const tile = link.closest(".stat");
-  const key = tile && tile.dataset.key;
-  const anchor = key && window.ANCHORS && window.ANCHORS[key];
-  const canvas = anchor && anchor.panelEl && anchor.panelEl.querySelector("canvas");
-  if(canvas) openChartModal(canvas.id, true);
-  else window.location.href = link.getAttribute("href"); // fallback: real navigation if the panel hasn't rendered yet
-  return false;
 }
 document.addEventListener("DOMContentLoaded", ()=>{
   const closeBtn = document.getElementById("chartModalClose");
   const backdrop = document.getElementById("chartModalBackdrop");
-  if(closeBtn) closeBtn.addEventListener("click", ()=>closeChartModal(false));
-  if(backdrop) backdrop.addEventListener("click", ()=>closeChartModal(false));
+  if(closeBtn) closeBtn.addEventListener("click", closeChartModal);
+  if(backdrop) backdrop.addEventListener("click", closeChartModal);
 });
-window.addEventListener("popstate", function(){
-  if(indicatorModalState) closeChartModal(true);
-});
-document.addEventListener("keydown", e=>{ if(e.key==="Escape") closeChartModal(false); });
+document.addEventListener("keydown", e=>{ if(e.key==="Escape") closeChartModal(); });
 /* -------------------------------- render ---------------------------------- */
 const SEC_OF={"charts-headline":"headline","charts-gdp":"gdp","charts-inflation":"inflation",
   "charts-labour":"labour","charts-trade":"trade","charts-public":"public"};
@@ -2066,7 +2029,7 @@ function statTile(el, key, title, series, opts){
     div.classList.add("hasPageLink");
   }
   const _pageLinkHtml = _indicatorSlug
-    ? `<a class="statPageLink" href="/indicators/${_countrySlug}-${_indicatorSlug}" aria-label="View ${title} as its own page" title="View as its own page" onclick="return handleIndicatorLinkClick(event, this)">&#8599;</a>`
+    ? `<a class="statPageLink" href="/indicators/${_countrySlug}-${_indicatorSlug}" aria-label="View ${title} as its own page" title="View as its own page" onclick="event.stopPropagation()">&#8599;</a>`
     : "";
   div.innerHTML=`
       ${_pageLinkHtml}
@@ -2119,7 +2082,14 @@ function chartPanel(key, containerId, title, expl, series, kind, fmtY, fmtTip, s
   }
   wireRangePresets(panel, pts, kind, chart);
   panel.querySelector(".resetzoom").addEventListener("click", ()=>{ if(chart.resetZoom) chart.resetZoom(); });
-  panel.querySelector(".expandBtn").addEventListener("click", ()=> openChartModal(id));
+  panel.querySelector(".expandBtn").addEventListener("click", ()=>{
+    const indicatorSlug = key && INDICATOR_PAGE_SLUGS[key];
+    if(indicatorSlug){
+      window.location.href = "/indicators/" + window.EATLAS_COUNTRY_SLUG + "-" + indicatorSlug;
+    } else {
+      openChartModal(id);
+    }
+  });
 }
 const COUNTRY_LABEL="Argentina";
 function renderNewDataBanner(meta){
