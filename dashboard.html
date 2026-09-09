@@ -3353,20 +3353,29 @@ function yearAggregate_raw(points, y){
   matches.forEach(function(p){ sum += p[1]; });
   return sum / matches.length;
 }
-// Countries whose OWN fetch script already stores gdp_level/gdp_real as
-// a pre-summed annual figure (or, for the US and Japan, a seasonally-
-// adjusted ANNUAL RATE per quarter per BEA/Cabinet Office convention) --
-// summing these again would double-count rather than fix anything.
-// Verified against each country's own gdpAnnual handling on its
-// individual page (poland.html, turkey.html, switzerland.html,
-// singapore.html, thailand.html use s.gdp_level directly, not
-// annualGDP(s.gdp_level) -- the previous US/Japan-only list here
-// silently double-summed these five, inflating their GDP by roughly
-// 4x on this page specifically).
-var SAAR_COUNTRIES = {US: true, Japan: true, Turkey: true, Poland: true, Switzerland: true, Singapore: true, Thailand: true};
-function yearAggregateGDP(country, series, y){
-  if(series.freq !== "quarters" || SAAR_COUNTRIES[country]){
-    var yearPoints = series.points.filter(function(p){ return yearOfPeriod(p[0]) === y; });
+// US and Japan report each quarter already at a seasonally-adjusted
+// ANNUAL RATE (BEA / Cabinet Office convention) -- this can't be
+// detected from the data itself (still freq:"quarters", indistinguishable
+// in shape from a genuine per-quarter flow), so it has to be hardcoded
+// domain knowledge, same as every country page treats it.
+var SAAR_COUNTRIES = {US: true, Japan: true};
+// reg is the country's full REGISTRY entry, so a pre-computed
+// "{concept}_annual" key can be preferred when the country's own fetch
+// script already derived one (currently Poland/Turkey for both
+// gdp_level and gdp_real, Switzerland for gdp_real only) -- checked
+// dynamically against the real data rather than a hardcoded country
+// list. An earlier version of this fix hardcoded Poland, Turkey,
+// Switzerland, Singapore and Thailand as "already annual, skip
+// summing", which was WRONG for Poland and Turkey specifically: their
+// gdp_level is a genuine per-quarter flow, and skipping the rollup
+// understated it by roughly 4x on this page. Confirmed via fetch_pl.py
+// and fetch_tr.py's own comments, describing this as a previously
+// tracked issue ("the Poland/Switzerland Bug 5 writeup").
+function yearAggregateGDP(country, concept, reg, series, y){
+  var annualSeries = reg && reg[concept + "_annual"];
+  var effective = annualSeries || series;
+  if(annualSeries || effective.freq !== "quarters" || SAAR_COUNTRIES[country]){
+    var yearPoints = effective.points.filter(function(p){ return yearOfPeriod(p[0]) === y; });
     if(!yearPoints.length) return null;
     return yearPoints[yearPoints.length - 1][1];
   }
@@ -3383,7 +3392,7 @@ function yearAggregate(country, concept, y){
   if(!key) return null;
   var series = REGISTRY[country][key];
   var val = (concept === "gdp_level" || concept === "gdp_real")
-    ? yearAggregateGDP(country, series, y)
+    ? yearAggregateGDP(country, concept, REGISTRY[country], series, y)
     : yearAggregate_raw(series.points, y);
   if(val == null) return null;
   return {value: val, unit: series.unit};

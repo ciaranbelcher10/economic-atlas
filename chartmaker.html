@@ -1840,13 +1840,13 @@ function loadAllCountryData(){
 // real data now. unit comes from the series' own real recorded unit
 // (e.g. "\u00a3m", "$m", "%") rather than a single fixed guess, since that's
 // what's actually correct per country/currency.
-// Ported verbatim from the country pages (see e.g. uk.html) -- gdp_level
-// and gdp_real are stored as raw PER-QUARTER flows for every country
-// except the US (whose own BEA convention already reports each quarter
-// at a seasonally-adjusted ANNUAL rate). Without this rollup, a single
-// quarter's raw flow understates true annual GDP by roughly 4x -- this
-// was invisible in ChartMaker before Dollarise made it obvious (a UK GDP
-// series topping out around $1.1tn instead of the real ~$3.5tn).
+// gdp_level and gdp_real are stored as raw PER-QUARTER flows for most
+// countries -- a single quarter's raw flow understates true annual GDP
+// by roughly 4x if displayed unrolled, which is what was happening here
+// before this fix (a UK GDP series topping out around $1.1tn instead of
+// the real ~$3.5tn). See resolveGDPPoints() below for exactly which
+// countries are genuinely already-annual and don't need the rollup --
+// it's more nuanced than "every country except the US".
 function annualGDP(gdp){
   if(gdp.freq === "years") return gdp;
   var p = gdp.points, out = [];
@@ -1855,16 +1855,36 @@ function annualGDP(gdp){
   }
   return { freq: "quarters", points: out };
 }
-// Countries whose OWN fetch script already stores gdp_level/gdp_real as
-// a pre-summed annual figure (or, for the US, a seasonally-adjusted
-// ANNUAL RATE per quarter per BEA convention) -- calling annualGDP()
-// again on these would double-count rather than fix anything. Verified
-// against each country's own gdpAnnual assignment (see e.g. poland.html,
-// turkey.html, switzerland.html, singapore.html, thailand.html, japan.html,
-// us.html -- all use s.gdp_level directly, not annualGDP(s.gdp_level)).
-// Every other country's raw series is a genuine per-quarter flow and
-// needs the rollup.
-var GDP_RAW_COUNTRIES = {US:1, Japan:1, Turkey:1, Poland:1, Switzerland:1, Singapore:1, Thailand:1};
+// US and Japan report each quarter already at a seasonally-adjusted
+// ANNUAL RATE (BEA / Cabinet Office convention) -- this can't be
+// detected from the data itself (it's still freq:"quarters", genuinely
+// looks identical in shape to a per-quarter flow), so it has to be
+// hardcoded domain knowledge, same as every country page treats it.
+var GDP_SAAR_COUNTRIES = {US:1, Japan:1};
+// Resolves the correctly-annualized points for gdp_level/gdp_real,
+// checked in this order:
+// 1. A pre-computed "{concept}_annual" key, if the country's own fetch
+//    script already derived one (currently Poland/Turkey for both
+//    gdp_level and gdp_real, Switzerland for gdp_real only -- checked
+//    dynamically against the real data rather than a hardcoded country
+//    list, since that list drifts as fetch scripts change and DID drift:
+//    an earlier version of this exact fix hardcoded Poland/Turkey/
+//    Switzerland/Singapore/Thailand as "already annual, skip summing",
+//    which was wrong for Poland and Turkey specifically -- their
+//    gdp_level was a genuine per-quarter flow needing this exact
+//    derived key, not a raw pass-through. Confirmed via fetch_pl.py and
+//    fetch_tr.py's own comments, which describe this as a previously
+//    tracked bug ("the Poland/Switzerland Bug 5 writeup").
+// 2. Genuinely annual-frequency data (freq === "years") -- used as-is.
+// 3. US/Japan's SAAR convention -- used as-is.
+// 4. Otherwise: a genuine per-quarter flow, rolled up via annualGDP().
+function resolveGDPPoints(reg, concept, country, raw){
+  var annualKey = concept + "_annual";
+  if(reg[annualKey]) return reg[annualKey].points;
+  if(raw.freq === "years") return raw.points;
+  if(GDP_SAAR_COUNTRIES[country]) return raw.points;
+  return annualGDP({freq: raw.freq, points: raw.points}).points;
+}
 function getSeries(country, concept){
   var candidates = CONCEPT_KEYS[concept];
   var reg = REGISTRY[country];
@@ -1873,8 +1893,8 @@ function getSeries(country, concept){
     var raw = reg[candidates[i]];
     if(raw){
       var pts = raw.points;
-      if((concept === "gdp_level" || concept === "gdp_real") && !GDP_RAW_COUNTRIES[country]){
-        pts = annualGDP({freq: raw.freq, points: raw.points}).points;
+      if(concept === "gdp_level" || concept === "gdp_real"){
+        pts = resolveGDPPoints(reg, concept, country, raw);
       }
       return { label: CONCEPT_LABEL[concept], unit: raw.unit || CONCEPT_UNIT[concept], freq: raw.freq, points: pts };
     }
