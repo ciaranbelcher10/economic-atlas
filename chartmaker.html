@@ -1840,13 +1840,44 @@ function loadAllCountryData(){
 // real data now. unit comes from the series' own real recorded unit
 // (e.g. "\u00a3m", "$m", "%") rather than a single fixed guess, since that's
 // what's actually correct per country/currency.
+// Ported verbatim from the country pages (see e.g. uk.html) -- gdp_level
+// and gdp_real are stored as raw PER-QUARTER flows for every country
+// except the US (whose own BEA convention already reports each quarter
+// at a seasonally-adjusted ANNUAL rate). Without this rollup, a single
+// quarter's raw flow understates true annual GDP by roughly 4x -- this
+// was invisible in ChartMaker before Dollarise made it obvious (a UK GDP
+// series topping out around $1.1tn instead of the real ~$3.5tn).
+function annualGDP(gdp){
+  if(gdp.freq === "years") return gdp;
+  var p = gdp.points, out = [];
+  for(var i=3;i<p.length;i++){
+    out.push([p[i][0], p[i][1]+p[i-1][1]+p[i-2][1]+p[i-3][1]]);
+  }
+  return { freq: "quarters", points: out };
+}
+// Countries whose OWN fetch script already stores gdp_level/gdp_real as
+// a pre-summed annual figure (or, for the US, a seasonally-adjusted
+// ANNUAL RATE per quarter per BEA convention) -- calling annualGDP()
+// again on these would double-count rather than fix anything. Verified
+// against each country's own gdpAnnual assignment (see e.g. poland.html,
+// turkey.html, switzerland.html, singapore.html, thailand.html, japan.html,
+// us.html -- all use s.gdp_level directly, not annualGDP(s.gdp_level)).
+// Every other country's raw series is a genuine per-quarter flow and
+// needs the rollup.
+var GDP_RAW_COUNTRIES = {US:1, Japan:1, Turkey:1, Poland:1, Switzerland:1, Singapore:1, Thailand:1};
 function getSeries(country, concept){
   var candidates = CONCEPT_KEYS[concept];
   var reg = REGISTRY[country];
   if(!candidates || !reg) return null;
   for(var i=0;i<candidates.length;i++){
     var raw = reg[candidates[i]];
-    if(raw) return { label: CONCEPT_LABEL[concept], unit: raw.unit || CONCEPT_UNIT[concept], freq: raw.freq, points: raw.points };
+    if(raw){
+      var pts = raw.points;
+      if((concept === "gdp_level" || concept === "gdp_real") && !GDP_RAW_COUNTRIES[country]){
+        pts = annualGDP({freq: raw.freq, points: raw.points}).points;
+      }
+      return { label: CONCEPT_LABEL[concept], unit: raw.unit || CONCEPT_UNIT[concept], freq: raw.freq, points: pts };
+    }
   }
   return null;
 }
