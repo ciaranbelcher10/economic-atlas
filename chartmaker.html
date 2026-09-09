@@ -52,7 +52,6 @@
  </div>
  </div>
  <button type="button" class="authbtn" id="authBtn">Log in</button>
- <button type="button" class="theme-toggle" id="dollariseToggle" aria-label="Dollarise: convert currency series to US dollars" title="Dollarise: convert currency series to US dollars" aria-pressed="false">$</button>
  <button type="button" class="theme-toggle" id="themeToggle" aria-label="Switch to dark mode" title="Switch to dark mode">&#127769;</button>
  </div>
 </div></nav>
@@ -1126,11 +1125,11 @@
 })();
 </script>
 <style>
-/* ---- Dollarise nav toggle: same blue used for the fx-dollar state on
-   country pages' own Dollarise switch, applied here to a theme-toggle-
-   style icon button instead of the .mtoggle switch, since this page has
-   no per-section metric-toggle bar to place it in. ---- */
-#dollariseToggle.on{background:var(--blue); border-color:var(--blue); color:#fff;}
+/* ---- Dollarise toggle: reuses the shared .mtoggle switch styling from
+   style.css, plus the same .fx-dollar blue override country pages apply
+   on top of it (see e.g. uk.html) -- both classes together, exactly as
+   the real toggle does, not a new combination invented for this page. ---- */
+button.mtoggle.fx-dollar{background:var(--blue); border-color:var(--blue); color:#fff;}
 /* ---- reused base patterns from compare.html (picker, modal, chart-modal) ---- */
 .picker-region{margin-bottom:16px;}
 .picker-region:last-child{margin-bottom:4px;}
@@ -1338,6 +1337,12 @@
  <button type="button" data-type="bar" style="flex:1;">Bar</button>
  </div>
  <p id="cmChartTypeNote" style="font-size:11px; color:var(--ink2); margin:-8px 0 14px; line-height:1.4; display:none;">Bar shows each metric's latest value in the selected date range, one bar per metric, same as Compare's own Bar view, which is a snapshot rather than a chart over time.</p>
+ <div class="metric-toggles" style="margin:0 0 14px;" aria-label="Display options">
+ <button type="button" class="mtoggle" id="dollariseToggle" aria-label="Dollarise: convert currency series to US dollars" aria-pressed="false">
+ <span class="mtoggle-switch" aria-hidden="true"></span>Dollarise
+ </button>
+ <span class="mtoggle-note" id="dollariseNote"></span>
+ </div>
  <div class="ctl-panel">
  <h3>Metrics</h3>
  <ul class="cm-serieslist" id="cmSeriesList"></ul>
@@ -1773,6 +1778,21 @@ function toUSDValue(country, rawValue, period){
 // and need converting like any other country's; other $-prefixed series
 // on these same countries (trade_balance) really is USD-denominated and
 // still needs the normal already-USD protection.
+// Native currency per country -- used to tell "different countries,
+// same currency" (two Eurozone members: no forced conversion needed,
+// they're already comparable) apart from "different countries,
+// different currencies" (UK vs US: conversion is mandatory, not a
+// preference). Eurozone members and the Eurozone aggregate itself all
+// map to EUR; everyone else gets their own code.
+var COUNTRY_CURRENCY = {
+  UK:"GBP", US:"USD", Eurozone:"EUR", Japan:"JPY", India:"INR", Canada:"CAD",
+  Australia:"AUD", "South Korea":"KRW", Israel:"ILS", Mexico:"MXN", Brazil:"BRL",
+  "South Africa":"ZAR", Morocco:"MAD", Germany:"EUR", France:"EUR", Italy:"EUR",
+  Spain:"EUR", Netherlands:"EUR", Denmark:"DKK", Ireland:"EUR", Norway:"NOK",
+  Chile:"CLP", Colombia:"COP", Turkey:"TRY", Indonesia:"IDR", Poland:"PLN",
+  Switzerland:"CHF", Argentina:"ARS", Sweden:"SEK", Singapore:"SGD",
+  Austria:"EUR", Thailand:"THB"
+};
 var DOLLAR_GLYPH_LOCAL_CURRENCY_COUNTRIES = {Australia:1, Canada:1, Mexico:1, "South Africa":1, Brazil:1};
 function isAlreadyUSDUnit(unitStr, country, concept){
   if((concept === "gdp_level" || concept === "gdp_real") &&
@@ -2474,7 +2494,8 @@ var MAX_ANNOTATIONS = 6;
 
 var series = [];
 var TOGGLE_STATE = { dollar: false };
-var userToggledDollar = false; // once the person clicks the button explicitly, stop overriding their choice
+var userDollarPreference = false; // the person's own choice, used only when NOT forced
+var dollariseForced = false; // true when 2+ genuinely different currencies are on the chart
 // Normalises both scale (m/bn/tn) AND currency to a common USD-millions
 // basis -- ChartMaker mixes countries that report the same metric in
 // genuinely different native scales (UK/India in millions, US/Japan in
@@ -2510,37 +2531,50 @@ function applyDollariseToSeries(s){
 function applyDollariseToAll(){
   series.forEach(applyDollariseToSeries);
 }
-// "Make that standard when comparing countries": once currency-type
-// series from 2+ different countries are on the chart, Dollarise
-// defaults on automatically (mixing native currencies/scales on one
-// axis is never meaningfully comparable) -- but never overrides an
-// explicit choice the person already made via the button.
-function maybeAutoDollarise(){
-  if(userToggledDollar) return;
-  var currencyCountries = [];
+// Decides whether Dollarise is a free choice or a requirement, then
+// applies it. A single country -- or several countries that genuinely
+// share a native currency, e.g. two Eurozone members -- are already on
+// a common footing, so the button stays a normal manual toggle there.
+// Once 2+ currency-type series come from countries with DIFFERENT
+// native currencies (e.g. UK and US), converting to USD stops being a
+// preference and becomes the only way the chart means anything, so it's
+// forced on and the button is disabled rather than shown as an active
+// choice -- same pattern the country pages use for "Already in US
+// dollars" (see uk.html's own toggleDollar disabled state).
+function refreshDollariseState(){
+  var currencies = {};
   series.forEach(function(s){
-    if(CONCEPT_UNIT[s.metric] === "currency" && currencyCountries.indexOf(s.country) === -1){
-      currencyCountries.push(s.country);
+    if(CONCEPT_UNIT[s.metric] === "currency"){
+      currencies[COUNTRY_CURRENCY[s.country] || s.country] = true;
     }
   });
-  var shouldAuto = currencyCountries.length >= 2;
-  if(shouldAuto !== TOGGLE_STATE.dollar){
-    TOGGLE_STATE.dollar = shouldAuto;
-    updateDollariseButtonUI();
-    applyDollariseToAll();
-  }
-}
-function updateDollariseButtonUI(){
+  dollariseForced = Object.keys(currencies).length >= 2;
+  TOGGLE_STATE.dollar = dollariseForced ? true : userDollarPreference;
   var btn = document.getElementById("dollariseToggle");
-  if(!btn) return;
-  btn.classList.toggle("on", TOGGLE_STATE.dollar);
-  btn.setAttribute("aria-pressed", String(TOGGLE_STATE.dollar));
+  var note = document.getElementById("dollariseNote");
+  if(btn){
+    btn.disabled = dollariseForced;
+    if(dollariseForced) btn.setAttribute("aria-disabled", "true");
+    else btn.removeAttribute("aria-disabled");
+    // Forced conversion still happens, but the button itself shows as
+    // OFF/neutral rather than an active toggle -- it isn't a choice the
+    // person is making here, so it shouldn't look like one.
+    var showOn = !dollariseForced && TOGGLE_STATE.dollar;
+    btn.classList.toggle("on", showOn);
+    btn.classList.toggle("fx-dollar", showOn);
+    btn.setAttribute("aria-pressed", String(showOn));
+  }
+  if(note){
+    note.textContent = dollariseForced
+      ? "Converted to US dollars automatically \u2014 comparing different currencies needs a common unit."
+      : "";
+  }
+  applyDollariseToAll();
 }
 document.getElementById("dollariseToggle").addEventListener("click", function(){
-  userToggledDollar = true;
-  TOGGLE_STATE.dollar = !TOGGLE_STATE.dollar;
-  updateDollariseButtonUI();
-  applyDollariseToAll();
+  if(dollariseForced) return; // disabled anyway, but guard in case
+  userDollarPreference = !userDollarPreference;
+  refreshDollariseState();
   syncAutoYAxisTitle();
   renderChart();
 });
@@ -2784,8 +2818,7 @@ function addSeries(country, metric){
     unit: s.unit, label: s.label, color: "#1E4566", manualColor: false, customLabel: null,
     rawPoints: pts, origUnit: s.unit, origRawPoints: pts
   });
-  maybeAutoDollarise();
-  applyDollariseToSeries(series[series.length - 1]);
+  refreshDollariseState();
   assignColors();
   syncAutoYAxisTitle();
   resetYTickStepIdx();
@@ -2796,7 +2829,7 @@ function addSeries(country, metric){
 }
 function removeSeries(id){
   series = series.filter(function(s){ return s.id !== id; });
-  maybeAutoDollarise();
+  refreshDollariseState();
   assignColors();
   syncAutoYAxisTitle();
   syncBarLegendTitle();
@@ -4623,11 +4656,8 @@ function loadSavedChart(row){
     series.push({ id:"s"+(++seriesSeq), country:ss.country, metric:ss.metric, transform:ss.transform||"raw", unit:s.unit, label:s.label, color: ss.color || COUNTRY_COLOR[ss.country] || "#1E4566", manualColor: !!ss.manualColor, customLabel: ss.customLabel || null, rawPoints:pts, origUnit:s.unit, origRawPoints:pts });
     colorIdx++;
   });
-  userToggledDollar = false;
-  TOGGLE_STATE.dollar = false;
-  maybeAutoDollarise();
-  applyDollariseToAll();
-  updateDollariseButtonUI();
+  userDollarPreference = false;
+  refreshDollariseState();
   if(row.snapshot){
     var snap = row.snapshot;
     style.chartTitle = snap.chartTitle || ""; document.getElementById("cmChartTitle").value = style.chartTitle;
