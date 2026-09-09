@@ -2714,7 +2714,17 @@ function yearAggregate_raw(points, year){
 // annualised readings still lands near the right annualised magnitude,
 // but understated every other country by roughly 4x, since a raw
 // quarterly level is only about a quarter of the true annual figure.
-var SAAR_COUNTRIES = {US: true, Japan: true};
+// Countries whose OWN fetch script already stores gdp_level/gdp_real as
+// a pre-summed annual figure (or, for the US and Japan, a seasonally-
+// adjusted ANNUAL RATE per quarter per BEA/Cabinet Office convention) --
+// summing these again would double-count rather than fix anything.
+// Verified against each country's own gdpAnnual handling on its
+// individual page (poland.html, turkey.html, switzerland.html,
+// singapore.html, thailand.html use s.gdp_level directly, not
+// annualGDP(s.gdp_level) -- the previous US/Japan-only list here
+// silently double-summed these five, inflating their GDP by roughly
+// 4x on this page specifically).
+var SAAR_COUNTRIES = {US: true, Japan: true, Turkey: true, Poland: true, Switzerland: true, Singapore: true, Thailand: true};
 function yearAggregateGDP(country, series, year){
   if(series.freq !== "quarters" || SAAR_COUNTRIES[country]){
     var yearPoints = series.points.filter(function(p){ return yearOf(p[0]) === year; });
