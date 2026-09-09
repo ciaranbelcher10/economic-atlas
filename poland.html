@@ -1676,7 +1676,7 @@ document.addEventListener("DOMContentLoaded", function(){
  Data: <a href="https://fred.stlouisfed.org">FRED, Federal Reserve Bank of St. Louis</a> (IMF, OECD),
  the <a href="https://www.oecd.org">OECD</a> and the <a href="https://data.worldbank.org">World Bank</a>. Series codes are shown with each metric;
  figures are the latest published observations and are subject to revision.
- Labour force participation and current account balance aren't currently wired up for Poland, no verified live FRED/OECD source was found for either during this build. The National Bank of Poland's own short-term policy rate is a similar gap, though the 10-year government bond yield (a related market rate) is included below. These are real, disclosed gaps, not an oversight.
+ Labour force participation and current account balance aren't currently included for Poland, as no reliable live FRED/OECD source is currently available for either. The National Bank of Poland's own short-term policy rate is a similar gap, though the 10-year government bond yield (a related market rate) is included below. These are real, disclosed gaps, not an oversight.
  Ideas or corrections: <a href="contact">get in touch</a>. <a href="privacy">Privacy</a> &middot; <a href="terms">Terms</a>.
  <span id="lastUpdated" class="lastupdated"></span>
 </footer>
@@ -2159,7 +2159,7 @@ function render(data){
   const pct=v=>v.toFixed(1)+"%", pp=v=>v.toFixed(1)+"pp";
   /* currency formatting handled dynamically by curFmt() below */
   const idx=v=>v.toFixed(1);
-  const SRC_GDP_LEVEL="World Bank NY.GDP.MKTP.CD \u00b7 current US$, annual (fallback, used only if the live PLN series is unavailable this run)";
+  const SRC_GDP_LEVEL="World Bank NY.GDP.MKTP.CD \u00b7 current US$, annual (fallback, used only if the live PLN series is unavailable)";
   const SRC_GDP_REAL="FRED series NGDPRSAXDCPLQ \u00b7 IMF International Financial Statistics, quarterly, seasonally adjusted";
   const SRC_GDP_NOMINAL="FRED series NGDPSAXDCPLQ \u00b7 IMF International Financial Statistics, trailing 4-quarter sum, seasonally adjusted";
   const SRC_GDP_REAL_ANNUAL="FRED series NGDPRSAXDCPLQ \u00b7 IMF International Financial Statistics, trailing 4-quarter sum, seasonally adjusted";
@@ -2201,7 +2201,7 @@ function render(data){
     "How much consumer prices are rising compared with a year ago.",
     s.cpi,"line",v=>v+"%",pct,"OECD live prices system \u00b7 CPI, all items, YoY");
   if(s.bond_yield_10y) chartPanel("bond_yield_10y","charts-inflation","10-year government bond yield",
-    "The yield on 10-year Polish government bonds, a market gauge of inflation and rate expectations. Not the National Bank of Poland's own policy rate, which isn't currently wired up.",
+    "The yield on 10-year Polish government bonds, a market gauge of inflation and rate expectations. Not the National Bank of Poland's own policy rate.",
     s.bond_yield_10y,"line",v=>v+"%",v=>v.toFixed(2)+"%",SRC_BOND);
   if(s.unemployment) chartPanel("unemployment","charts-labour","Unemployment rate",
     "The share of people 15 and over who want a job but can't find one.",
@@ -2435,7 +2435,7 @@ function hasPreHistoryPoints(series, fx){
 const INFO_CONTENT = {
   gdp_level: {
     description: "The total value of everything Poland produces in a year, at current prices, on a rolling four-quarter basis.",
-    source: "FRED series NGDPSAXDCPLQ \u00b7 IMF International Financial Statistics, trailing 4-quarter sum (falls back to World Bank current US$, annual, only if the live PLN series is unavailable on a given run).",
+    source: "FRED series NGDPSAXDCPLQ \u00b7 IMF International Financial Statistics, trailing 4-quarter sum (falls back to World Bank current US$, annual, only if the live PLN series is unavailable).",
     real: "\u201cMake it real\u201d swaps this to Poland's real (inflation-adjusted) GDP series. This strips out the effect of price changes, so it shows genuine output growth rather than growth that's really just inflation.",
     dollar: "When this series is on its normal live (PLN) path, \u201cDollarise\u201d converts each historical point using that year's own average PLN/USD rate (World Bank PA.NUS.FCRF, annual resolution -- coarser than the monthly/daily matching used on most other countries here, since no live monthly or daily source exists for the zloty). On the rarer occasion this falls back to the World-Bank USD series, it's already in dollars and Dollarise correctly has no further effect."
   },
@@ -2456,7 +2456,7 @@ const INFO_CONTENT = {
     source: "OECD live prices system \u00b7 CPI, all items, year on year."
   },
   bond_yield_10y: {
-    description: "The yield on 10-year Polish government bonds, a market gauge of inflation and interest-rate expectations. This is not the National Bank of Poland's own policy rate, which isn't currently wired up.",
+    description: "The yield on 10-year Polish government bonds, a market gauge of inflation and interest-rate expectations. This is not the National Bank of Poland's own policy rate.",
     source: "FRED series IRLTLT01PLM156N \u00b7 OECD, monthly."
   },
   unemployment: {

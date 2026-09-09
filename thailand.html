@@ -1676,7 +1676,7 @@ document.addEventListener("DOMContentLoaded", function(){
  Data: <a href="https://fred.stlouisfed.org">FRED, Federal Reserve Bank of St. Louis</a> (IMF, OECD),
  the <a href="https://www.oecd.org">OECD</a> and the <a href="https://data.worldbank.org">World Bank</a>. Series codes are shown with each metric;
  figures are the latest published observations and are subject to revision.
- A policy interest rate series, current account balance, general government fiscal deficit, and labour force participation aren't currently wired up for Thailand, no verified live FRED/OECD source was found for any of them during this build. The debt figure shown is CENTRAL government debt specifically (World Bank), not the broader general-government measure used on most other country pages here. Real GDP growth is only available annually here (from the Penn World Table, itself typically 1-2 years behind the current date), not quarterly like most other pages, since no verified live quarterly source was found. These are real, disclosed gaps, not an oversight.
+ A policy interest rate series, current account balance, general government fiscal deficit, and labour force participation aren't currently included for Thailand, as no reliable live FRED/OECD source is currently available for any of them. The debt figure shown is CENTRAL government debt specifically (World Bank), not the broader general-government measure used on most other country pages here. Real GDP growth is only available annually here, not quarterly like most other pages, since no live quarterly source is currently available. These are real, disclosed gaps, not an oversight.
  Ideas or corrections: <a href="contact">get in touch</a>. <a href="privacy">Privacy</a> &middot; <a href="terms">Terms</a>.
  <span id="lastUpdated" class="lastupdated"></span>
 </footer>
@@ -2135,7 +2135,7 @@ function render(data){
   /* currency formatting handled dynamically by curFmt() below */
   const idx=v=>v.toFixed(1);
   const SRC_GDP_LEVEL_THB="World Bank NY.GDP.MKTP.CN.AD \u00b7 GDP, current prices, linked series, local currency units, annual";
-  const SRC_GDP_LEVEL_USD_FALLBACK="World Bank NY.GDP.MKTP.CD \u00b7 current US$, annual (fallback, used only if the THB linked series is unavailable this run)";
+  const SRC_GDP_LEVEL_USD_FALLBACK="World Bank NY.GDP.MKTP.CD \u00b7 current US$, annual (fallback, used only if the THB linked series is unavailable)";
   // gdp_level's actual source varies run-to-run: fetch_th.py prefers the
   // live World Bank THB linked series and only falls back to World Bank
   // USD when that fails this run. The unit string tells us which one
@@ -2144,7 +2144,7 @@ function render(data){
   // or it silently mislabels whichever one is actually showing.
   const gdpLevelIsUsdFallback = /^\$/.test(data.rawGdpLevelUnit || "");
   const SRC_GDP_LEVEL = gdpLevelIsUsdFallback ? SRC_GDP_LEVEL_USD_FALLBACK : SRC_GDP_LEVEL_THB;
-  const SRC_GDP_REAL="World Bank NY.GDP.MKTP.KN \u00b7 GDP, constant prices, local currency units, annual. Switched from Penn World Table's PPP-benchmarked rgdpna, which produced a \"real GDP\" figure ~2.6x nominal when substituted into the level card -- this series is on the same basis (constant Thai baht) as gdp_level.";
+  const SRC_GDP_REAL="World Bank NY.GDP.MKTP.KN \u00b7 GDP, constant prices, local currency units, annual (same basis as gdp_level, constant Thai baht).";
   const SRC_TRADE="OECD \u00b7 merchandise trade, monthly";
   const SRC_FISCAL="FRED series DEBTTLTHA188A \u00b7 World Bank World Development Indicators, CENTRAL government debt (not general government -- no verified general-government series was found for Thailand), % of GDP, annual.";
   const SRC_WB="World Bank \u00b7 % of GDP, annual";
@@ -2172,7 +2172,7 @@ function render(data){
     "Exports minus imports of goods each month. Below zero means Thailand buys more than it sells.",
     s.trade_balance,"bar",v=>curFmt(v,s.trade_balance.unit,0),v=>curFmt(v,s.trade_balance.unit,1),SRC_TRADE,2000,0);
   if(s.debt_gdp) chartPanel("debt_gdp","charts-public","Central government debt, % of GDP",
-    "Central government debt only, not the broader general-government measure used on most other country pages here -- no verified general-government series was found for Thailand during this build.",
+    "Central government debt only, not the broader general-government measure used on most other country pages here (no general-government series is currently available for Thailand).",
     s.debt_gdp,"line",v=>v+"%",pct,SRC_FISCAL);
   const hero=document.getElementById("hero");
   if(gdpAnnual) statTile(hero,"gdp_level","GDP (annual)",gdpAnnual,
@@ -2385,12 +2385,12 @@ function hasPreHistoryPoints(series, fx){
 const INFO_CONTENT = {
   gdp_level: {
     description: "The total value of everything Thailand produces in a year, at current prices.",
-    source: "World Bank NY.GDP.MKTP.CN.AD \u00b7 GDP, current prices, linked series, local currency units, annual (falls back to World Bank NY.GDP.MKTP.CD, current US$, only if the THB linked series is unavailable this run).",
+    source: "World Bank NY.GDP.MKTP.CN.AD \u00b7 GDP, current prices, linked series, local currency units, annual (falls back to World Bank NY.GDP.MKTP.CD, current US$, only if the THB linked series is unavailable).",
     dollar: "When this series is on its normal (THB) path, \u201cDollarise\u201d converts each historical point using that point's OWN contemporaneous THB/USD rate (monthly resolution, from FRED's DEXTHUS series, which starts 1971-01). On the rarer occasion this falls back to the World-Bank USD series, it's already in dollars and Dollarise correctly has no further effect."
   },
   gdp_growth: {
     description: "How much the economy grew or shrank compared with the previous year. Thailand's real GDP growth is only available annually here, not quarterly like most other pages on this site -- a genuine data-availability difference, not an oversight.",
-    source: "World Bank NY.GDP.MKTP.KN \u00b7 GDP, constant prices, local currency units, annual (same basis as gdp_level). Switched from Penn World Table's PPP-benchmarked rgdpna in a prior session, which produced a distorted \u201creal GDP\u201d figure roughly 2.6x nominal when substituted into the level card.",
+    source: "World Bank NY.GDP.MKTP.KN \u00b7 GDP, constant prices, local currency units, annual (same basis as gdp_level).",
     real: "This is already a real (inflation-adjusted) growth rate as published, there is no separate \u201cMake it real\u201d toggle effect for this metric since Thailand has no distinct gdp_real series.",
     dollar: "A growth rate (%) is currency-agnostic, converting the underlying baht to dollars doesn't change the percentage change. \u201cDollarise\u201d has no effect on this figure."
   },
@@ -2418,7 +2418,7 @@ const INFO_CONTENT = {
     dollar: "Each historical point is converted at its own contemporaneous THB/USD rate (monthly resolution from FRED's DEXTHUS, 1971 onward)."
   },
   debt_gdp: {
-    description: "Central government debt only, not the broader general-government measure used on most other country pages here -- no verified general-government series was found for Thailand during this build.",
+    description: "Central government debt only, not the broader general-government measure used on most other country pages here (no general-government series is currently available for Thailand).",
     source: "FRED series DEBTTLTHA188A \u00b7 World Bank World Development Indicators, central government debt, % of GDP, annual.",
     dollar: "Already expressed as a % of GDP, currency-agnostic. \u201cDollarise\u201d has no effect on this figure."
   }

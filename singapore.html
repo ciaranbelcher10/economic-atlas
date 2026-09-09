@@ -1676,7 +1676,7 @@ document.addEventListener("DOMContentLoaded", function(){
  Data: <a href="https://fred.stlouisfed.org">FRED, Federal Reserve Bank of St. Louis</a> (IMF, OECD),
  the <a href="https://www.oecd.org">OECD</a> and the <a href="https://data.worldbank.org">World Bank</a>. Series codes are shown with each metric;
  figures are the latest published observations and are subject to revision.
- A policy interest rate series, general government fiscal deficit, and labour force participation aren't currently wired up for Singapore, no verified live FRED/OECD source was found for any of them during this build. The debt figure shown is CENTRAL government debt specifically (World Bank), not the broader general-government measure used on most other country pages here, flagged explicitly rather than left ambiguous, since Singapore's own fiscal position is also unusual in that most government debt funds domestic capital markets and reserves rather than a deficit. Real GDP growth is only available annually here, not quarterly like most other pages, since no verified live quarterly source was found. These are real, disclosed gaps, not an oversight.
+ A policy interest rate series, general government fiscal deficit, and labour force participation aren't currently included for Singapore, as no reliable live FRED/OECD source is currently available for any of them. The debt figure shown is CENTRAL government debt specifically (World Bank), not the broader general-government measure used on most other country pages here; flagged explicitly rather than left ambiguous, since Singapore's own fiscal position is also unusual in that most government debt funds domestic capital markets and reserves rather than a deficit. Real GDP growth is only available annually here, not quarterly like most other pages, since no live quarterly source is currently available. These are real, disclosed gaps, not an oversight.
  Ideas or corrections: <a href="contact">get in touch</a>. <a href="privacy">Privacy</a> &middot; <a href="terms">Terms</a>.
  <span id="lastUpdated" class="lastupdated"></span>
 </footer>
@@ -2137,7 +2137,7 @@ function render(data){
   /* currency formatting handled dynamically by curFmt() below */
   const idx=v=>v.toFixed(1);
   const SRC_GDP_LEVEL_SGD="World Bank NY.GDP.MKTP.CN.AD \u00b7 GDP, current prices, linked series, local currency units, annual";
-  const SRC_GDP_LEVEL_USD_FALLBACK="World Bank NY.GDP.MKTP.CD \u00b7 current US$, annual (fallback, used only if the SGD linked series is unavailable this run)";
+  const SRC_GDP_LEVEL_USD_FALLBACK="World Bank NY.GDP.MKTP.CD \u00b7 current US$, annual (fallback, used only if the SGD linked series is unavailable)";
   const SRC_GDP_REAL_LEVEL="World Bank NY.GDP.MKTP.KN \u00b7 GDP, constant prices, local currency units, annual";
   // gdp_level's actual source varies run-to-run: fetch_sg.py prefers the
   // live World Bank SGD linked series and only falls back to World Bank
@@ -2182,7 +2182,7 @@ function render(data){
     "Singapore's overall balance with the rest of the world (trade plus investment income) as a share of GDP. As a major financial and trade hub, this runs a persistently large surplus -- that's real, not a data error.",
     s.current_account,"line",v=>v+"%",pct,SRC_WB,undefined,0);
   if(s.debt_gdp) chartPanel("debt_gdp","charts-public","Central government debt, % of GDP",
-    "Central government debt only, not the broader general-government measure used on most other country pages here -- no verified general-government series was found for Singapore during this build. Singapore's debt figures are also unusual because most government debt is issued to develop domestic capital markets and fund the reserves system, not to finance a deficit -- unlike most countries, this is not primarily a sign of fiscal strain.",
+    "Central government debt only, not the broader general-government measure used on most other country pages here (no general-government series is currently available for Singapore). Singapore's debt figures are also unusual because most government debt is issued to develop domestic capital markets and fund the reserves system, not to finance a deficit -- unlike most countries, this is not primarily a sign of fiscal strain.",
     s.debt_gdp,"line",v=>v+"%",pct,SRC_FISCAL);
   const hero=document.getElementById("hero");
   if(gdpAnnual) statTile(hero,"gdp_level","GDP (annual)",gdpAnnual,
@@ -2387,7 +2387,7 @@ function hasPreHistoryPoints(series, fx){
 const INFO_CONTENT = {
   gdp_level: {
     description: "The total value of everything Singapore produces in a year, at current prices.",
-    source: "World Bank NY.GDP.MKTP.CN.AD \u00b7 GDP, current prices, linked series, local currency units, annual (falls back to World Bank NY.GDP.MKTP.CD, current US$, only if the SGD linked series is unavailable this run).",
+    source: "World Bank NY.GDP.MKTP.CN.AD \u00b7 GDP, current prices, linked series, local currency units, annual (falls back to World Bank NY.GDP.MKTP.CD, current US$, only if the SGD linked series is unavailable).",
     dollar: "When this series is on its normal (SGD) path, \u201cDollarise\u201d converts each historical point using that point's OWN contemporaneous SGD/USD rate (monthly resolution, from FRED's DEXSIUS series, which starts 1971-01). On the rarer occasion this falls back to the World-Bank USD series, it's already in dollars and Dollarise correctly has no further effect."
   },
   gdp_growth: {
@@ -2425,7 +2425,7 @@ const INFO_CONTENT = {
     dollar: "Already expressed as a % of GDP, currency-agnostic. \u201cDollarise\u201d has no effect on this figure."
   },
   debt_gdp: {
-    description: "Central government debt only, not the broader general-government measure used on most other country pages here -- no verified general-government series was found for Singapore during this build. Singapore's debt figures are also unusual because most government debt is issued to develop domestic capital markets and fund the reserves system, not to finance a deficit -- unlike most countries, this is not primarily a sign of fiscal strain.",
+    description: "Central government debt only, not the broader general-government measure used on most other country pages here (no general-government series is currently available for Singapore). Singapore's debt figures are also unusual because most government debt is issued to develop domestic capital markets and fund the reserves system, not to finance a deficit -- unlike most countries, this is not primarily a sign of fiscal strain.",
     source: "FRED series DEBTTLSGA188A \u00b7 World Bank World Development Indicators, central government debt, % of GDP, annual.",
     dollar: "Already expressed as a % of GDP, currency-agnostic. \u201cDollarise\u201d has no effect on this figure."
   }
