@@ -3256,8 +3256,23 @@ document.querySelectorAll(".mtbtn").forEach(function(btn){
     }
     return "<text x='" + x.toFixed(1) + "' y='" + y + "' font-size='11' fill='" + fill + "' text-anchor='middle'>" + escapeXML(text) + "</text>";
   }
+  // Was a flat text.length * fontSize * 0.5 guess -- underestimates
+  // width for source citations dense with uppercase FRED/ONS/OECD
+  // series codes and digits. Measures the actual rendered width via an
+  // offscreen canvas using the same font stack as the SVG text
+  // elements, matching the fix applied to Compare/ChartMaker's own
+  // copy of this function, so wrap/truncate decisions match reality
+  // instead of a guess everywhere on the site, not just those two pages.
+  var _measureCanvas = null;
   function estProseWidth(text, fontSize){
-    return String(text).length * fontSize * 0.5;
+    try {
+      if(!_measureCanvas) _measureCanvas = document.createElement("canvas");
+      var ctx = _measureCanvas.getContext("2d");
+      ctx.font = fontSize + "px Helvetica, Arial, sans-serif";
+      return ctx.measureText(String(text)).width;
+    } catch(e){
+      return String(text).length * fontSize * 0.58; // fallback if canvas is unavailable
+    }
   }
   function czTruncSrcFooter(text){
     var madeOnW = estProseWidth("Made on theeconomicatlas.com", 11);
