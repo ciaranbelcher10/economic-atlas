@@ -4756,6 +4756,7 @@ window.EATLAS_COMPARE = {
 (function(){
   "use strict";
   var G = { W:820, H:507, padL:60, padR:24, padT:34 };
+  var BASE_H = 507; // original fixed canvas height, tuned assuming a source note of up to 2 lines -- G.H grows beyond this when a chart's source note needs more (see czmUpdateCanvasHeight)
   var THEMES = {
     light: { bg:"#FFFFFF", ink:"#171B1E", ink2:"#5A6167", grid:"#E4E6E1", annot:"#9AA4A0", annotText:"#6B7470" },
     dark:  { bg:"#12181A", ink:"#EDEFEA", ink2:"#9AA4A0", grid:"#2A3436", annot:"#8A9490", annotText:"#B7BEBA" }
@@ -4790,38 +4791,59 @@ window.EATLAS_COMPARE = {
   // comparison, so the safety margin against collision is unchanged)
   // fixes that without touching estTextWidth's other, correctly-tuned
   // uses elsewhere.
+  // Was a flat text.length * fontSize * 0.5 guess -- badly underestimated
+  // width for source citations (dense with uppercase FRED series codes
+  // and digits, e.g. "LRHUTTTTCLQ156S", which run wider than average
+  // prose characters), which is why long multi-country source notes
+  // wrapped too late and collided with "Made on theeconomicatlas.com"
+  // instead of wrapping in time. Measures the actual rendered width via
+  // an offscreen canvas using the same font stack as the SVG text
+  // elements, so wrap decisions match reality instead of a guess.
+  var _measureCanvas = null;
   function estProseWidth(text, fontSize){
-    return String(text).length * fontSize * 0.5;
+    try {
+      if(!_measureCanvas) _measureCanvas = document.createElement("canvas");
+      var ctx = _measureCanvas.getContext("2d");
+      ctx.font = fontSize + "px Helvetica, Arial, sans-serif";
+      return ctx.measureText(String(text)).width;
+    } catch(e){
+      return String(text).length * fontSize * 0.58; // fallback if canvas is unavailable
+    }
   }
   // Source notes vary a lot in length (some are a few words, some are a
-  // full sentence with methodology caveats) and mid-word truncation reads
-  // as broken, especially on exports people share outside the site. Wrap
-  // onto a second line instead of cutting the sentence off; only the
-  // (rare) case of a note too long for two lines still gets an ellipsis,
-  // on line two. Capped at 2 lines so layout height stays predictable.
+  // full sentence with methodology caveats; a many-country snapshot
+  // chart's note can run to a clause per country and be genuinely long).
+  // Wraps onto as many lines as needed -- canvas height grows to fit
+  // them (see czmUpdateCanvasHeight) rather than capping at a fixed
+  // line count and truncating real source citations off mid-string.
   function czWrapSrcFooter(text){
     var madeOnW = estProseWidth("Made on theeconomicatlas.com", 11);
     var line1MaxW = (G.W - G.padR) - G.padL - madeOnW - 16;
-    var line2MaxW = (G.W - G.padR) - G.padL;
-    if(estProseWidth(text, 11) <= line1MaxW) return [text];
+    var lineMaxW = (G.W - G.padR) - G.padL;
     var words = String(text).split(" ");
-    var line1 = "", i = 0;
-    for(; i < words.length; i++){
-      var candidate = line1 ? line1 + " " + words[i] : words[i];
-      if(estProseWidth(candidate, 11) > line1MaxW) break;
-      line1 = candidate;
+    var lines = [];
+    var current = "";
+    for(var i = 0; i < words.length; i++){
+      var maxW = lines.length === 0 ? line1MaxW : lineMaxW;
+      var candidate = current ? current + " " + words[i] : words[i];
+      if(estProseWidth(candidate, 11) > maxW && current){
+        lines.push(current);
+        current = words[i];
+        // A single word wider than a full line (e.g. a long series
+        // code) gets its own char-truncated line rather than blowing
+        // out the canvas width -- rare, but a real defensive fallback.
+        if(estProseWidth(current, 11) > lineMaxW){
+          var t0 = current;
+          while(t0.length > 1 && estProseWidth(t0 + "\u2026", 11) > lineMaxW){ t0 = t0.slice(0, -1); }
+          lines.push(t0 + "\u2026");
+          current = "";
+        }
+      } else {
+        current = candidate;
+      }
     }
-    if(!line1){ // single word already exceeds the line -- fall back to char-truncation
-      var t0 = text;
-      while(t0.length > 1 && estProseWidth(t0 + "\u2026", 11) > line1MaxW){ t0 = t0.slice(0, -1); }
-      return [t0 + "\u2026"];
-    }
-    var rest = words.slice(i).join(" ");
-    if(!rest) return [line1];
-    if(estProseWidth(rest, 11) <= line2MaxW) return [line1, rest];
-    var t = rest;
-    while(t.length > 1 && estProseWidth(t + "\u2026", 11) > line2MaxW){ t = t.slice(0, -1); }
-    return [line1, t + "\u2026"];
+    if(current) lines.push(current);
+    return lines.length ? lines : [""];
   }
   function czSrcLineCount(text){
     return text ? czWrapSrcFooter(text).length : 1;
@@ -5142,9 +5164,23 @@ window.EATLAS_COMPARE = {
       padB: oSource + oSourceExtra + 12
     };
   }
+  // BASE_H (507) was tuned assuming a source note of up to 2 lines. A
+  // many-country snapshot chart's source note (one clause per country)
+  // can genuinely need far more -- rather than cramming extra lines into
+  // a fixed-height canvas (which either collides with "Made on
+  // theeconomicatlas.com" or overflows the bottom edge), grow the
+  // canvas itself so the plot area keeps its normal size and only the
+  // footer margin expands. Called every render (bl.srcLines reflects
+  // whatever chart is current), so G.H is always sized for THIS chart,
+  // not left over from a previous one.
+  function czmUpdateCanvasHeight(bl){
+    G.H = BASE_H + Math.max(0, bl.srcLines - 2) * 14;
+  }
   function czmGeom(){
     UNIFIED_DATES = buildUnifiedDates();
-    var padB = czmBottomLayout(true, czmState.srcNote).padB;
+    var bl = czmBottomLayout(true, czmState.srcNote);
+    czmUpdateCanvasHeight(bl);
+    var padB = bl.padB;
     var allVals = [];
     SERIES_LIST.forEach(function(s){
       czmFilteredSeries(s).forEach(function(p){ allVals.push(p[1]); });
@@ -5187,7 +5223,9 @@ window.EATLAS_COMPARE = {
   }
   function czmSnapshotGeom(){
     var rows = czmEffectiveSnapshotRows();
-    var padB = czmBottomLayout(false, czmState.srcNote).padB;
+    var bl = czmBottomLayout(false, czmState.srcNote);
+    czmUpdateCanvasHeight(bl);
+    var padB = bl.padB;
     var vals = rows.map(function(r){ return r.value; }).filter(function(v){ return v != null; });
     if(vals.length === 0) vals = [0, 1];
     var useLog = czmState.yScale === "log" && czmLogAvailable(vals, czmState.refLine.enabled, czmState.refLine.value);
@@ -5970,7 +6008,18 @@ window.EATLAS_COMPARE = {
     czmState.annotations.push({ type: "line", date: czmState.from, label: "New event", align: "center", labelX: ax, labelY: gm.padT - 8, fontSize: 11 });
     czRenderAnnotList(); czRenderPreview();
   });
-  function czFilenameBase(){ return czmState.filenameBase + "_" + czmState.from + "_to_" + czmState.to; }
+  function czFilenameBase(){
+    // Snapshot-mode charts (Bar view) are a single point in time, not a
+    // from/to range -- czmState never sets .from/.to for them, which
+    // previously produced a literal "..._undefined_to_undefined" in
+    // every exported snapshot filename. Use the snapshot's actual year
+    // instead; fall back to just the base name if no year is available.
+    if(czmState.mode === "snapshot"){
+      var cts = cardTimeState[czmState.concept];
+      return cts && cts.snapshotYear ? czmState.filenameBase + "_" + cts.snapshotYear : czmState.filenameBase;
+    }
+    return czmState.filenameBase + "_" + czmState.from + "_to_" + czmState.to;
+  }
   function czDownloadBlob(blob, filename){
     var url = URL.createObjectURL(blob);
     var a = document.createElement("a");

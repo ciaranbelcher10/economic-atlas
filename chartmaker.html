@@ -1254,7 +1254,8 @@ button.mtoggle.fx-dollar{background:var(--blue); border-color:var(--blue); color
 .cm-addbtn{width:100%; padding:10px 0; border:1.5px dashed var(--blue); background:none; color:var(--navy);
   font:700 13.5px "Avenir Next","Avenir","Nunito Sans",sans-serif; border-radius:8px; cursor:pointer; margin-top:4px;}
 .cm-addbtn:hover{background:#F0F6FA;}
-.cm-serieslist{list-style:none; margin:0 0 10px; padding:0; display:flex; flex-direction:column; gap:7px;}
+.cm-serieslist{list-style:none; margin:0 0 10px; padding:0; display:flex; flex-direction:column; gap:7px;
+  max-height:440px; overflow-y:auto; padding-right:4px;}
 .cm-seriesitem{display:flex; align-items:center; gap:9px; border:1px solid var(--hair); border-radius:8px; padding:8px 9px; font-size:13px;}
 .cm-lbl{flex:1; min-width:0;}
 .cm-lbl .main{font-weight:700; white-space:nowrap; overflow:hidden; text-overflow:ellipsis; font-size:12.5px;}
@@ -1284,6 +1285,7 @@ button.mtoggle.fx-dollar{background:var(--blue); border-color:var(--blue); color
 .cm-swatch{width:22px; height:22px; border-radius:50%; flex:0 0 auto; border:2px solid rgba(255,255,255,.5); cursor:pointer; padding:0;}
 .cm-swatch.clash{border-color:#D65A3C;}
 .cm-colorrow{display:flex; align-items:center; gap:11px; padding:8px 0; border-bottom:1px solid var(--hair); position:relative;}
+#cmColorsList{max-height:440px; overflow-y:auto; padding-right:4px;}
 .cm-colorrow:last-child{border-bottom:none;}
 .cm-colorrow span{font-size:13px;}
 .cm-annot-card{border:1px solid var(--hair); border-radius:9px; padding:10px 11px; margin-bottom:9px; background:var(--paper);}
@@ -1437,6 +1439,16 @@ button.mtoggle.fx-dollar{background:var(--blue); border-color:var(--blue); color
  <div class="cm-row" id="cmThresholdShadeRow" style="display:none;">
  <span>Colour bars by above/below reference line (overrides country colours)</span>
  <input type="checkbox" id="cmThresholdShadeToggle">
+ </div>
+ <div class="cm-row" id="cmSortModeRow" style="display:none;">
+ <span>Order countries by</span>
+ <select id="cmSortModeSelect" style="padding:5px 8px; border:1px solid var(--hair); border-radius:6px; background:var(--paper); color:var(--ink); font:inherit; font-size:12.5px;">
+ <option value="alphabetical">Alphabetical</option>
+ <option value="value_desc">Value (high to low)</option>
+ <option value="value_asc">Value (low to high)</option>
+ <option value="geo_alpha">Geographic (alphabetical within region)</option>
+ <option value="geo_value">Geographic (value within region)</option>
+ </select>
  </div>
  <div id="cmYStartGroup">
  <div class="cm-row" id="cmYStartRow">
@@ -2491,6 +2503,63 @@ var REGISTRY_KEY_TO_CODE = {
 var CODE_TO_REGISTRY_KEY = {};
 Object.keys(REGISTRY_KEY_TO_CODE).forEach(function(name){ CODE_TO_REGISTRY_KEY[REGISTRY_KEY_TO_CODE[name]] = name; });
 
+// Ported directly from Compare's Customise & Export "Order countries by"
+// (REGION_OF/REGION_ORDER + the sort logic itself) -- same table, same
+// modes, same effect. One real difference from Compare: a Bar-mode row's
+// r.country here holds the BAR LABEL, which can be a compound "Country,
+// Metric" string (when comparing several metrics for one country) or a
+// time-period label (in the single-metric time-series bar mode), not
+// always a bare country name. Geographic/alphabetical sorting needs the
+// real underlying country name for the region lookup, so callers that
+// build sortable rows attach r.countryCode alongside the label; sort
+// keys fall back to r.country when no countryCode is present.
+var REGION_OF = {
+  UK:"Europe", Germany:"Europe", France:"Europe", Italy:"Europe", Spain:"Europe", Netherlands:"Europe",
+  Denmark:"Europe", Ireland:"Europe", Norway:"Europe", Poland:"Europe", Switzerland:"Europe", Sweden:"Europe",
+  Austria:"Europe", Eurozone:"Europe", Turkey:"Europe",
+  US:"North America", Canada:"North America", Mexico:"North America",
+  Brazil:"South America", Chile:"South America", Colombia:"South America", Argentina:"South America",
+  Japan:"Asia", India:"Asia", "South Korea":"Asia", Indonesia:"Asia", Singapore:"Asia", Thailand:"Asia",
+  Australia:"Oceania",
+  Israel:"Middle East",
+  "South Africa":"Africa", Morocco:"Africa"
+};
+var REGION_ORDER = ["Europe", "North America", "South America", "Africa", "Middle East", "Asia", "Oceania"];
+function sortRowsByMode(rows, getVal, mode){
+  mode = mode || "alphabetical";
+  var keyOf = function(r){ return r.countryCode || r.country; };
+  if(mode === "value_desc" || mode === "value_asc"){
+    var dir = mode === "value_desc" ? -1 : 1;
+    return rows.slice().sort(function(a, b){
+      var va = getVal(a), vb = getVal(b);
+      if(va == null && vb == null) return 0;
+      if(va == null) return 1;
+      if(vb == null) return -1;
+      return dir * (va - vb);
+    });
+  }
+  if(mode === "geo_value"){
+    return rows.slice().sort(function(a, b){
+      var ra = REGION_ORDER.indexOf(REGION_OF[keyOf(a)]), rb = REGION_ORDER.indexOf(REGION_OF[keyOf(b)]);
+      if(ra !== rb) return ra - rb;
+      var va = getVal(a), vb = getVal(b);
+      if(va == null && vb == null) return 0;
+      if(va == null) return 1;
+      if(vb == null) return -1;
+      return vb - va;
+    });
+  }
+  if(mode === "geo_alpha"){
+    return rows.slice().sort(function(a, b){
+      var ra = REGION_ORDER.indexOf(REGION_OF[keyOf(a)]), rb = REGION_ORDER.indexOf(REGION_OF[keyOf(b)]);
+      if(ra !== rb) return ra - rb;
+      return keyOf(a).localeCompare(keyOf(b));
+    });
+  }
+  // alphabetical (default)
+  return rows.slice().sort(function(a, b){ return keyOf(a).localeCompare(keyOf(b)); });
+}
+
 // The Standard swatch-popover grid still benefits from a wide, evenly-spread
 // set to manually pick from -- kept as its own list, separate from the
 // per-country defaults above. Previously just reused COUNTRY_COLOR's own
@@ -2640,7 +2709,8 @@ var style = {
   showFill: false, showPoints: false,
   refLine: { enabled:false, value:0 }, centerAroundRef: false, thresholdShadeBars: false,
   logScale: false, xTicks: 8, xLabelAngle: "straight",
-  yStartMode: "auto", yStartValue: 0
+  yStartMode: "auto", yStartValue: 0,
+  sortMode: "alphabetical"
 };
 
 /* ---- element refs ---- */
@@ -3353,6 +3423,7 @@ addAnnotBtn.addEventListener("click", addAnnotation);
    Compare's.
    ============================================================================ */
 var G = { W:820, H:507, padL:60, padR:24, padT:34 };
+var BASE_H = 507; // original fixed canvas height, tuned assuming a source note of up to 2 lines -- G.H grows beyond this when a chart's source note needs more (see czmUpdateCanvasHeight)
 var THEMES = {
   light: { bg:"#FFFFFF", ink:"#171B1E", ink2:"#5A6167", grid:"#E4E6E1", annot:"#9AA4A0", annotText:"#6B7470" },
   dark:  { bg:"#12181A", ink:"#EDEFEA", ink2:"#9AA4A0", grid:"#2A3436", annot:"#8A9490", annotText:"#B7BEBA" }
@@ -3369,32 +3440,56 @@ function estTextWidth(text, fontSize){
   var longest = lines.reduce(function(m, l){ return Math.max(m, l.length); }, 0);
   return longest * fontSize * 0.56;
 }
+// Was a flat text.length * fontSize * 0.5 guess -- badly underestimated
+// width for source citations (dense with uppercase FRED series codes
+// and digits, e.g. "LRHUTTTTCLQ156S", which run wider than average
+// prose characters), which is why long multi-country source notes
+// wrapped too late and collided with "Made on theeconomicatlas.com"
+// instead of wrapping in time. Measures the actual rendered width via
+// an offscreen canvas using the same font stack as the SVG text
+// elements, so wrap decisions match reality instead of a guess.
+var _measureCanvas = null;
 function estProseWidth(text, fontSize){
-  return String(text).length * fontSize * 0.5;
+  try {
+    if(!_measureCanvas) _measureCanvas = document.createElement("canvas");
+    var ctx = _measureCanvas.getContext("2d");
+    ctx.font = fontSize + "px Helvetica, Arial, sans-serif";
+    return ctx.measureText(String(text)).width;
+  } catch(e){
+    return String(text).length * fontSize * 0.58; // fallback if canvas is unavailable
+  }
 }
+// Source notes vary a lot in length (some are a few words, some are a
+// full sentence with methodology caveats; a many-metric bar chart's
+// note can run to a clause per country and be genuinely long). Wraps
+// onto as many lines as needed -- canvas height grows to fit them (see
+// czmUpdateCanvasHeight) rather than capping at a fixed line count and
+// truncating real source citations off mid-string.
 function czWrapSrcFooter(text){
   var madeOnW = estProseWidth("Made on theeconomicatlas.com", 11);
   var line1MaxW = (G.W - G.padR) - G.padL - madeOnW - 16;
-  var line2MaxW = (G.W - G.padR) - G.padL;
-  if(estProseWidth(text, 11) <= line1MaxW) return [text];
+  var lineMaxW = (G.W - G.padR) - G.padL;
   var words = String(text).split(" ");
-  var line1 = "", i = 0;
-  for(; i < words.length; i++){
-    var candidate = line1 ? line1 + " " + words[i] : words[i];
-    if(estProseWidth(candidate, 11) > line1MaxW) break;
-    line1 = candidate;
+  var lines = [];
+  var current = "";
+  for(var i = 0; i < words.length; i++){
+    var maxW = lines.length === 0 ? line1MaxW : lineMaxW;
+    var candidate = current ? current + " " + words[i] : words[i];
+    if(estProseWidth(candidate, 11) > maxW && current){
+      lines.push(current);
+      current = words[i];
+      if(estProseWidth(current, 11) > lineMaxW){
+        var t0 = current;
+        while(t0.length > 1 && estProseWidth(t0 + "\u2026", 11) > lineMaxW){ t0 = t0.slice(0, -1); }
+        lines.push(t0 + "\u2026");
+        current = "";
+      }
+    } else {
+      current = candidate;
+    }
   }
-  if(!line1){
-    var t0 = text;
-    while(t0.length > 1 && estProseWidth(t0 + "\u2026", 11) > line1MaxW){ t0 = t0.slice(0, -1); }
-    return [t0 + "\u2026"];
-  }
-  var rest = words.slice(i).join(" ");
-  if(!rest) return [line1];
-  if(estProseWidth(rest, 11) <= line2MaxW) return [line1, rest];
-  var t = rest;
-  while(t.length > 1 && estProseWidth(t + "\u2026", 11) > line2MaxW){ t = t.slice(0, -1); }
-  return [line1, t + "\u2026"];
+  if(current) lines.push(current);
+  return lines.length ? lines : [""];
 }
 function czSrcLineCount(text){
   return text ? czWrapSrcFooter(text).length : 1;
@@ -3616,9 +3711,22 @@ function czmBottomLayout(hasLegend, srcText){
     padB: oSource + oSourceExtra + 12
   };
 }
+// BASE_H (507) was tuned assuming a source note of up to 2 lines. A
+// many-metric bar chart's source note (one clause per country) can
+// genuinely need far more -- rather than cramming extra lines into a
+// fixed-height canvas (which either collides with "Made on
+// theeconomicatlas.com" or overflows the bottom edge), grow the canvas
+// itself so the plot area keeps its normal size and only the footer
+// margin expands. Called every render, so G.H is always sized for
+// whatever chart is current, not left over from a previous one.
+function czmUpdateCanvasHeight(bl){
+  G.H = BASE_H + Math.max(0, bl.srcLines - 2) * 14;
+}
 function czmGeom(){
   UNIFIED_DATES = buildUnifiedDates();
-  var padB = czmBottomLayout(true, czmState.srcNote).padB;
+  var bl = czmBottomLayout(true, czmState.srcNote);
+  czmUpdateCanvasHeight(bl);
+  var padB = bl.padB;
   var allVals = [];
   SERIES_LIST.forEach(function(s){
     czmFilteredSeries(s).forEach(function(p){ allVals.push(p[1]); });
@@ -3670,7 +3778,9 @@ function czmEffectiveSnapshotRows(){
 }
 function czmSnapshotGeom(){
   var rows = czmEffectiveSnapshotRows();
-  var padB = czmBottomLayout(false, czmState.srcNote).padB;
+  var bl = czmBottomLayout(false, czmState.srcNote);
+  czmUpdateCanvasHeight(bl);
+  var padB = bl.padB;
   var vals = rows.map(function(r){ return r.value; }).filter(function(v){ return v != null; });
   if(vals.length === 0) vals = [0, 1];
   var useLog = czmState.yScale === "log" && czmLogAvailable(vals, czmState.refLine.enabled, czmState.refLine.value);
@@ -4136,7 +4246,7 @@ function buildSnapshotRows(){
   return series.map(function(s){
     var pts = applyTransform(s.rawPoints, s.transform).filter(function(p){ return p.x >= fromV && p.x <= toV; });
     var last = pts.length ? pts[pts.length - 1] : null;
-    return { country: seriesLabel(s), value: last ? last.y : null, color: s.color };
+    return { country: seriesLabel(s), countryCode: s.country, value: last ? last.y : null, color: s.color };
   });
 }
 
@@ -4160,6 +4270,7 @@ function renderChart(){
   var allVals;
   if(chartType === "bar"){
     SNAPSHOT_ROWS = buildSnapshotRows();
+    if(series.length > 1) SNAPSHOT_ROWS = sortRowsByMode(SNAPSHOT_ROWS, function(r){ return r.value; }, style.sortMode);
     syncBarModeVisibility(); syncBarLegendTitle();
     allVals = SNAPSHOT_ROWS.map(function(r){ return r.value; }).filter(function(v){ return v != null; });
   } else {
@@ -4354,6 +4465,7 @@ btnPng.addEventListener("click", function(){
   var svgStr;
   if(chartType === "bar"){
     SNAPSHOT_ROWS = buildSnapshotRows();
+    if(series.length > 1) SNAPSHOT_ROWS = sortRowsByMode(SNAPSHOT_ROWS, function(r){ return r.value; }, style.sortMode);
     svgStr = czmBuildSVGSnapshot(exportTheme, true);
   } else {
     SERIES_LIST = buildSeriesList();
@@ -4416,6 +4528,13 @@ function syncBarModeVisibility(){
   document.getElementById("cmYStartBarNote").style.display = isBar ? "" : "none";
   document.getElementById("cmXTickRow").style.display = "";
   document.getElementById("cmEventsPanel").style.display = isBar ? "none" : "";
+  // Only meaningful when bars represent countries (comparing several
+  // metrics' latest values) -- with a single metric, Bar shows one bar
+  // per time PERIOD instead, and "order countries by" has nothing real
+  // to sort (see the note this same function sets below).
+  var showSort = isBar && series.length > 1;
+  document.getElementById("cmSortModeRow").style.display = showSort ? "" : "none";
+  if(showSort) document.getElementById("cmSortModeSelect").value = style.sortMode;
   var noteEl = document.getElementById("cmChartTypeNote");
   noteEl.style.display = isBar ? "" : "none";
   if(isBar){
@@ -4440,6 +4559,9 @@ document.getElementById("cmCenterRefToggle").addEventListener("change", function
 });
 document.getElementById("cmThresholdShadeToggle").addEventListener("change", function(e){
   style.thresholdShadeBars = e.target.checked; renderChart();
+});
+document.getElementById("cmSortModeSelect").addEventListener("change", function(e){
+  style.sortMode = e.target.value; renderChart();
 });
 
 /* ---- Y-axis start (ChartMaker-only addition) ---- */
@@ -4736,6 +4858,7 @@ function loadSavedChart(row){
     style.xTicks = snap.xTicks || 8;
     style.xLabelAngle = snap.xLabelAngle || "straight";
     document.querySelectorAll("#cmXAngleSeg button").forEach(function(b){ b.classList.toggle("active", b.dataset.angle===style.xLabelAngle); });
+    style.sortMode = snap.sortMode || "alphabetical";
   }
   annotations = (row.annotations || []).map(function(a){ a.id = "a"+(++annotSeq); return a; });
   renderSeriesList(); renderColorsPanel(); renderAnnotList(); populateDateRange();
@@ -4798,7 +4921,8 @@ saveConfirmBtn.addEventListener("click", function(){
         yTitlePos: style.yTitlePos, showFill: style.showFill, showPoints: style.showPoints,
         refLine: style.refLine, centerAroundRef: style.centerAroundRef, thresholdShadeBars: style.thresholdShadeBars, logScale: style.logScale, chartType: chartType,
         yStartMode: style.yStartMode, yStartValue: style.yStartValue,
-        yTickStepIdx: yTickStepIdx, xTicks: style.xTicks, xLabelAngle: style.xLabelAngle
+        yTickStepIdx: yTickStepIdx, xTicks: style.xTicks, xLabelAngle: style.xLabelAngle,
+        sortMode: style.sortMode
       }
     }
   };
