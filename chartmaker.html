@@ -1366,6 +1366,16 @@ button.mtoggle.fx-dollar{background:var(--blue); border-color:var(--blue); color
  </div>
  <button type="button" id="cmPngBtn" disabled>Download PNG</button>
  <button type="button" id="cmCsvBtn" disabled>Download CSV</button>
+ <div id="cmSortModeRow" style="display:none; align-items:center; gap:7px; font-size:13px; color:var(--ink);">
+ <span>Order countries by</span>
+ <select id="cmSortModeSelect" style="padding:8px 10px; border:1px solid var(--hair); border-radius:8px; background:var(--panel); color:var(--ink); font:700 13px 'Avenir Next','Avenir','Nunito Sans',sans-serif; cursor:pointer;">
+ <option value="alphabetical">Alphabetical</option>
+ <option value="value_desc">Value (high to low)</option>
+ <option value="value_asc">Value (low to high)</option>
+ <option value="geo_alpha">Geographic (alphabetical within region)</option>
+ <option value="geo_value">Geographic (value within region)</option>
+ </select>
+ </div>
  </div>
  </div>
 
@@ -1440,16 +1450,6 @@ button.mtoggle.fx-dollar{background:var(--blue); border-color:var(--blue); color
  <span>Colour bars by above/below reference line (overrides country colours)</span>
  <input type="checkbox" id="cmThresholdShadeToggle">
  </div>
- <div class="cm-row" id="cmSortModeRow" style="display:none;">
- <span>Order countries by</span>
- <select id="cmSortModeSelect" style="padding:5px 8px; border:1px solid var(--hair); border-radius:6px; background:var(--paper); color:var(--ink); font:inherit; font-size:12.5px;">
- <option value="alphabetical">Alphabetical</option>
- <option value="value_desc">Value (high to low)</option>
- <option value="value_asc">Value (low to high)</option>
- <option value="geo_alpha">Geographic (alphabetical within region)</option>
- <option value="geo_value">Geographic (value within region)</option>
- </select>
- </div>
  <div id="cmYStartGroup">
  <div class="cm-row" id="cmYStartRow">
  <span>Y-axis starts at</span>
@@ -1468,11 +1468,11 @@ button.mtoggle.fx-dollar{background:var(--blue); border-color:var(--blue); color
  <p id="cmYStartBarNote" style="font-size:11px; color:var(--ink2); margin:2px 0 10px; display:none;">Bars always start at zero, same as Compare's Bar view.</p>
  <div class="cm-row">
  <span>Y-axis labels</span>
- <div style="display:flex; align-items:center; gap:7px;"><button type="button" class="cm-fs-btn" id="cmYTickMinus">&minus;</button><span id="cmYTickVal" style="font-size:13px; min-width:16px; text-align:center;">5</span><button type="button" class="cm-fs-btn" id="cmYTickPlus">+</button></div>
+ <div style="display:flex; align-items:center; gap:7px;"><button type="button" class="cm-fs-btn" id="cmYTickMinus">&minus;</button><span id="cmYTickVal" style="display:none;">5</span><button type="button" class="cm-fs-btn" id="cmYTickPlus">+</button></div>
  </div>
  <div class="cm-row" id="cmXTickRow">
  <span>X-axis labels</span>
- <div style="display:flex; align-items:center; gap:7px;"><button type="button" class="cm-fs-btn" id="cmXTickMinus">&minus;</button><span id="cmXTickVal" style="font-size:13px; min-width:16px; text-align:center;">8</span><button type="button" class="cm-fs-btn" id="cmXTickPlus">+</button></div>
+ <div style="display:flex; align-items:center; gap:7px;"><button type="button" class="cm-fs-btn" id="cmXTickMinus">&minus;</button><span id="cmXTickVal" style="display:none;">8</span><button type="button" class="cm-fs-btn" id="cmXTickPlus">+</button></div>
  </div>
  <div class="cm-row" style="margin-bottom:0;">
  <span>X-axis label angle</span>
@@ -3701,7 +3701,14 @@ function czmBottomLayout(hasLegend, srcText){
     // way a second independent +18 elsewhere on this page once did.
     oAfterLegend = oAfterLabels + 10 + (czmState.legendTitle ? 18 : 0);
   }
-  var oDivider = oAfterLegend;
+  // The divider line sits right below whatever's above it. The real
+  // multi-series legend branch above already bakes a trailing 12px gap
+  // into its own oAfterLegend (after its last row), so oDivider can use
+  // that value directly. Bar mode's period-label stand-in didn't have
+  // an equivalent gap -- it drew its text and the divider at the exact
+  // same y, so the line ran straight through the text instead of
+  // sitting below it. Add the same 12px clearance only for that case.
+  var oDivider = oAfterLegend + (!hasLegend && czmState.legendTitle ? 12 : 0);
   var oSource = oDivider + 18;
   var srcLines = czSrcLineCount(srcText);
   var oSourceExtra = (srcLines - 1) * 14;
@@ -3851,13 +3858,17 @@ function czmBuildSVGSnapshot(theme, forExport){
   // matching the over-time line-mode logic above (czmBuildSVG's
   // xTickIdxs), which only ever draws a tick where it also draws a label.
   //
-  // Previously hardcoded to /12 regardless of the "X-axis labels" +/-
-  // control, which was also hidden entirely in Bar mode with a note
-  // saying there was no count to set -- there was, it just wasn't wired
-  // up. Now uses the same czmState.xTicks the control and Line mode both
-  // already share, so the same setting genuinely applies to both chart
-  // types instead of being Line-only.
-  var labelStep = Math.max(1, Math.ceil(rows.length / czmState.xTicks));
+  // Bar mode is really two different axes wearing the same chart type:
+  // comparing several countries on one metric is a CATEGORICAL axis
+  // (every country is its own category and deserves its own label, no
+  // matter how many there are -- thinning would silently drop whole
+  // countries from the chart), while a single metric shown as a
+  // time-series of bars is a genuine TIME axis, where thinning to the
+  // xTicks count is exactly as legitimate as it is in Line mode. Only
+  // the latter case thins; the former always shows every label, relying
+  // on the X-axis label angle control (Straight/Diagonal/Vertical) to
+  // keep many labels legible rather than silently hiding most of them.
+  var labelStep = series.length > 1 ? 1 : Math.max(1, Math.ceil(rows.length / czmState.xTicks));
   rows.forEach(function(r, i){
     var bx = gm.xForIndex(i);
     if(r.value == null){
@@ -4243,10 +4254,12 @@ function buildSnapshotRows(){
     return pts.map(function(p){ return { country: fmtPeriod(p.x), value: p.y, color: only.color }; });
   }
   lastBarChartThinned = false;
+  var sameMetric = series.every(function(s2){ return s2.metric === series[0].metric; });
   return series.map(function(s){
     var pts = applyTransform(s.rawPoints, s.transform).filter(function(p){ return p.x >= fromV && p.x <= toV; });
     var last = pts.length ? pts[pts.length - 1] : null;
-    return { country: seriesLabel(s), countryCode: s.country, value: last ? last.y : null, color: s.color };
+    var label = s.customLabel || (sameMetric ? s.country : defaultSeriesLabel(s));
+    return { country: label, countryCode: s.country, value: last ? last.y : null, color: s.color };
   });
 }
 
@@ -4526,14 +4539,20 @@ function syncBarModeVisibility(){
   document.getElementById("cmPointsRow").style.display = isBar ? "none" : "";
   document.getElementById("cmYStartGroup").style.display = isBar ? "none" : "";
   document.getElementById("cmYStartBarNote").style.display = isBar ? "" : "none";
-  document.getElementById("cmXTickRow").style.display = "";
+  // Only meaningful when there's an actual count to thin to -- Line
+  // mode and the single-metric time-series-of-bars case both have a
+  // real time axis where the count controls how many labels show, but
+  // multi-country bar mode now always shows every country's label (see
+  // the labelStep comment above czmBuildSVGSnapshot's axis loop), so
+  // the count control would just sit there doing nothing.
+  document.getElementById("cmXTickRow").style.display = (isBar && series.length > 1) ? "none" : "";
   document.getElementById("cmEventsPanel").style.display = isBar ? "none" : "";
-  // Only meaningful when bars represent countries (comparing several
-  // metrics' latest values) -- with a single metric, Bar shows one bar
-  // per time PERIOD instead, and "order countries by" has nothing real
-  // to sort (see the note this same function sets below).
+  // Only meaningful when bars represent countries (comparing one metric
+  // across several countries) -- with a single metric, Bar shows one
+  // bar per time PERIOD instead, and "order countries by" has nothing
+  // real to sort.
   var showSort = isBar && series.length > 1;
-  document.getElementById("cmSortModeRow").style.display = showSort ? "" : "none";
+  document.getElementById("cmSortModeRow").style.display = showSort ? "flex" : "none";
   if(showSort) document.getElementById("cmSortModeSelect").value = style.sortMode;
   var noteEl = document.getElementById("cmChartTypeNote");
   noteEl.style.display = isBar ? "" : "none";
