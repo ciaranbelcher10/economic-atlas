@@ -1831,15 +1831,16 @@ function sampleData(){
        ["2016-01",2.2],["2020-05",1.2],["2022-09",6.6],["2024-06",3.3],["2026-05",3.0]],mCpi)),
     cpi_mom:S("CPI MoM (CPIAUCSL)","%","months",cpiMoM),
     // Sample/fallback only, overwritten by the real fetch (fetch_us.py
-    // -> data-us.json, series PPIACO). Anchor points reasoned from known
-    // PPI history: mid-2008 and 2022 commodity-price spikes, the 2009
-    // and 2015 disinflation troughs, cooling through 2023-24. Most
-    // recent point (Jan 2026, +4.16% YoY) taken directly from FRED's
-    // own published PPIACO reading, not guessed.
-    ppi:S("PPI YoY (PPIACO)","%","months",interp(
-      [["1990-10",6.5],["2000-06",3.9],["2008-07",9.8],["2009-07",-6.8],
-       ["2011-09",6.9],["2015-01",-3.3],["2018-07",3.3],["2020-05",-1.2],
-       ["2022-06",11.3],["2023-06",0.1],["2024-09",1.8],["2026-01",4.16]],mCpi)),
+    // -> data-us.json, series PPIFID). PPIFID (Final Demand, NSA) only
+    // exists from Nov 2009 (base=100), so anchors start there rather
+    // than extending back to 1990 like the old PPIACO-based sample did.
+    // Anchor points computed directly from FRED's own published PPIFID
+    // index levels, not guessed: the 2022 peak and the 2026 energy-shock
+    // reading (May 2026, +5.92% YoY) both match BLS's own headline
+    // "12 months ended" figures for their respective months.
+    ppi:S("PPI YoY, final demand (PPIFID)","%","months",interp(
+      [["2011-08",4.4],["2015-09",-1.1],["2018-07",3.4],["2020-05",-1.1],
+       ["2022-06",11.2],["2023-06",0.3],["2024-09",2.1],["2026-05",5.92]],mCpi)),
     // Sample/fallback only, overwritten by the real fetch (fetch_us.py
     // -> data-us.json, series PCEPI). PCE typically runs a bit below
     // CPI historically (broader basket, substitution-adjusted) --
@@ -2174,8 +2175,8 @@ const INFO_CONTENT = {
     source: "Derived from FRED series CPIAUCSL (BLS)."
   },
   ppi: {
-    description: "How much prices are rising for producers and wholesalers, before goods reach consumers. Often moves ahead of CPI by a month or two, since cost changes take time to reach the shelf.",
-    source: "Calculated from FRED series PPIACO \u00b7 all commodities, not seasonally adjusted (BLS)."
+    description: "How much prices are rising for producers, before goods and services reach consumers -- this is the headline final-demand figure, the one usually quoted in news coverage. Often moves ahead of CPI by a month or two, since cost changes take time to reach the shelf.",
+    source: "FRED series PPIFID \u00b7 final demand, not seasonally adjusted (BLS)."
   },
   pce: {
     description: "The Federal Reserve's own preferred inflation gauge. Broader than CPI (covers more of what people actually spend on) and adjusted for substitution as prices change \u2014 the Fed's 2% target is set against this measure, not CPI.",
@@ -2424,8 +2425,8 @@ function render(data){
     "Inflation excluding volatile food and energy prices, a cleaner read on underlying price pressure.",
     s.core_cpi,"line",v=>v+"%",pct,"Calculated from FRED series CPILFESL · SA (BLS)");
   if(s.ppi) chartPanel("ppi","charts-inflation","PPI inflation, annual rate",
-    "How much prices are rising for producers and wholesalers, before goods reach consumers. Often moves 1-3 months ahead of CPI.",
-    s.ppi,"line",v=>v+"%",pct,"Calculated from FRED series PPIACO · all commodities, NSA (BLS)");
+    "How much prices are rising for producers, before goods and services reach consumers -- the headline final-demand figure. Often moves 1-3 months ahead of CPI.",
+    s.ppi,"line",v=>v+"%",pct,"FRED series PPIFID · final demand, NSA (BLS)");
   if(s.pce) chartPanel("pce","charts-inflation","PCE inflation, annual rate",
     "The Federal Reserve's own preferred inflation gauge \u2014 broader than CPI and adjusted for how spending shifts as prices change. The Fed's 2% target is a PCE target, not a CPI target.",
     s.pce,"line",v=>v+"%",pct,"Calculated from FRED series PCEPI · SA (BEA)");
@@ -2497,7 +2498,7 @@ function render(data){
   if(s.cpi_mom) statTile(tinf,null,"CPI (MoM)",s.cpi_mom,
     {fmt:pct,fmtD:pp,upIsGood:false,source:"FRED · CPIAUCSL",infoKey:"cpi_mom"});
   if(s.ppi) statTile(tinf,"ppi","PPI (YoY)",s.ppi,
-    {fmt:pct,fmtD:pp,upIsGood:false,source:"FRED · PPIACO"});
+    {fmt:pct,fmtD:pp,upIsGood:false,source:"FRED · PPIFID"});
   if(s.pce) statTile(tinf,"pce","PCE (YoY)",s.pce,
     {fmt:pct,fmtD:pp,upIsGood:false,source:"FRED · PCEPI"});
   if(s.fed_funds) statTile(tinf,"fed_funds","Fed funds rate",s.fed_funds,

@@ -105,11 +105,12 @@
       var sym = symMatch[1];
       var scaleSuffix = unit.replace(/^[\u00a3$\u20ac\u00a5]/, "").trim();
       var scaleMultiplier = {m:1e6, bn:1e9, tn:1e12}[scaleSuffix] || 1;
-      var absValue = value * scaleMultiplier;
-      if(absValue >= 1e12) return sym + (absValue/1e12).toFixed(2) + "tn";
-      if(absValue >= 1e9) return sym + (absValue/1e9).toFixed(2) + "bn";
-      if(absValue >= 1e6) return sym + (absValue/1e6).toFixed(1) + "m";
-      return sym + absValue.toFixed(0);
+      var sign = value < 0 ? "\u2212" : "";
+      var absValue = Math.abs(value) * scaleMultiplier;
+      if(absValue >= 1e12) return sign + sym + (absValue/1e12).toFixed(2) + "tn";
+      if(absValue >= 1e9) return sign + sym + (absValue/1e9).toFixed(2) + "bn";
+      if(absValue >= 1e6) return sign + sym + (absValue/1e6).toFixed(1) + "m";
+      return sign + sym + absValue.toFixed(0);
     }
     return value.toFixed(2) + (unit ? " " + unit : "");
   }

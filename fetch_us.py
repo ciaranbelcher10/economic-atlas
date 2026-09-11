@@ -26,7 +26,7 @@ FRED_SERIES = {
     "cpi": ("CPIAUCSL", "m", "CPI, all items, YoY", "%", "yoy"),
     "cpi_mom": ("CPIAUCSL", "m", "CPI, all items, MoM", "%", "mom"),
     "core_cpi": ("CPILFESL", "m", "Core CPI (ex food & energy), YoY", "%", "yoy"),
-    "ppi": ("PPIACO", "m", "PPI, all commodities, YoY", "%", "yoy"),
+    "ppi": ("PPIFID", "m", "PPI, final demand, YoY", "%", "yoy"),
     "pce": ("PCEPI", "m", "PCE price index (Fed's preferred gauge), YoY", "%", "yoy"),
     "fed_funds": ("FEDFUNDS", "m", "Effective federal funds rate", "%", None),
     "debt_gdp": ("GFDEGDQ188S", "q", "Federal debt, % of GDP", "%", None),
