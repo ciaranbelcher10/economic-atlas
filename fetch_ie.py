@@ -79,6 +79,7 @@ import requests
 # key: (fred_id, freq 'm'|'q'|'a', label, unit, transform None|'yoy'|'mom'|'qoq', scale)
 # - participation_rate (LRAC64TTIEQ156S) / employment_rate (LREM64TTIEQ156S): OECD infra-annual labour-statistics FRED family, quarterly, ages 15-64. Same pattern confirmed live for Germany (pilot); inferred-by-pattern for Ireland -- not individually confirmed, check the first Actions log.
 FRED_SERIES = {
+    "ecb_rate": ("ECBDFR", "d", "ECB deposit facility rate", "%", None, 1.0),
     "gdp_level": ("CPMNACNSAB1GQIE", "q", "GDP, current prices (Eurostat)", "\u20acm", None, 1.0),
     "gdp_real": ("CLVMNACNSAB1GQIE", "q", "Real GDP, chained 2010 prices (Eurostat)", "\u20acm", None, 1.0),
     "unemployment": ("LRHUTTTTIEM156S", "m", "Unemployment rate, 15+, OECD-harmonized", "%", None, 1.0),

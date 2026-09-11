@@ -82,6 +82,7 @@ import requests
 
 # key: (fred_id, freq 'm'|'q'|'a', label, unit, transform None|'yoy'|'mom'|'qoq', scale)
 FRED_SERIES = {
+    "ecb_rate": ("ECBDFR", "d", "ECB deposit facility rate", "%", None, 1.0),
     "gdp_level": ("CPMNACSCAB1GQAT", "q", "Nominal GDP, current prices, SA (Eurostat)", "\u20acm", None, 1.0),
     "gdp_real": ("CLVMNACSCAB1GQAT", "q", "Real GDP, chain-linked volumes, SA (Eurostat)", "\u20acm", None, 1.0),
     "unemployment": ("LRHUTTTTATM156S", "m", "Unemployment rate, 15+, SA (OECD harmonized)", "%", None, 1.0),

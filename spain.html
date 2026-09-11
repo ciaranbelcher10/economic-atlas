@@ -1701,7 +1701,7 @@ const MAKO={deep:"#2E1E3B", indigo:"#413D7B", blue:"#37659E",
 const LINE=MAKO.blue, BAR_UP=MAKO.sea, BAR_DOWN=MAKO.indigo;
 const MONTHS=["Jan","Feb","Mar","Apr","May","Jun","Jul","Aug","Sep","Oct","Nov","Dec"];
 const NAMES={gdp_level:"GDP",gdp_real:"Real GDP",gdp_growth:"GDP growth",
-  cpi:"CPI inflation",bond_yield_10y:"10-year bond yield",debt_gdp:"Government debt",deficit:"Gov. deficit",
+  cpi:"CPI inflation",bond_yield_10y:"10-year bond yield",ecb_rate:"ECB deposit rate",debt_gdp:"Government debt",deficit:"Gov. deficit",
   current_account:"Current account",trade_balance:"Trade balance",
   business_confidence:"Business confidence",fdi:"FDI",unemployment:"Unemployment",
   participation_rate:"Labour force participation",employment_rate:"Employment rate"};
@@ -1814,6 +1814,10 @@ function sampleData(){
       [["2001-Q1",5.3],["2004-Q1",4.3],["2008-Q3",4.5],["2012-Q3",6.7],["2014-Q1",3.3],
        ["2016-Q1",1.6],["2018-Q4",1.5],["2020-Q2",0.6],["2022-Q4",3.2],["2023-Q4",3.5],
        ["2025-Q2",3.2],["2026-Q1",3.2]],qAll)),
+    ecb_rate:S("ECB deposit rate","%","months",interp(
+      [["1999-01",2.0],["2000-10",3.75],["2003-06",1.0],["2008-07",3.25],["2009-05",0.25],
+       ["2012-07",0.0],["2014-06",-0.1],["2016-03",-0.4],["2019-09",-0.5],["2022-06",-0.5],
+       ["2022-09",0.75],["2023-09",4.0],["2024-06",3.75],["2025-06",2.0],["2026-06",2.0]],mR)),
     unemployment:S("Unemployment, 15+, SA (illustrative)","%","months",interp(
       [["1996-01",22.0],["2000-01",13.9],["2007-07",8.0],["2013-02",26.3],["2019-12",13.7],
        ["2020-05",14.5],["2022-06",12.4],["2024-12",11.0],["2026-04",10.3]],mR)),
@@ -2174,6 +2178,9 @@ function render(data){
   if(s.bond_yield_10y) chartPanel("bond_yield_10y","charts-inflation","10-year government bond yield",
     "The yield on 10-year Spanish government bonds, a market gauge of inflation and rate expectations. Not the ECB's policy rate.",
     s.bond_yield_10y,"line",v=>v+"%",v=>v.toFixed(2)+"%",SRC_BOND);
+  if(s.ecb_rate) chartPanel("ecb_rate","charts-inflation","ECB deposit facility rate",
+    "The European Central Bank's key interest rate, the anchor for borrowing costs across the euro area, including Spain.",
+    s.ecb_rate,"line",v=>v+"%",v=>v.toFixed(2)+"%","FRED series ECBDFR \u00b7 end-of-month value (ECB)");
   if(s.unemployment) chartPanel("unemployment","charts-labour","Unemployment rate",
     "The share of people 15 and over who want a job but can't find one.",
     s.unemployment,"line",v=>v+"%",pct,SRC_UNEMP);
@@ -2230,6 +2237,8 @@ function render(data){
     {fmt:pct,fmtD:pp,upIsGood:false,source:"FRED · HICP, all items, YoY"});
   if(s.bond_yield_10y) statTile(tinf,"bond_yield_10y","10Y bond yield",s.bond_yield_10y,
     {fmt:v=>v.toFixed(2)+"%",fmtD:v=>v.toFixed(2)+"pp",upIsGood:false,source:SRC_BOND});
+  if(s.ecb_rate) statTile(tinf,"ecb_rate","ECB deposit rate",s.ecb_rate,
+    {fmt:v=>v.toFixed(2)+"%",fmtD:v=>v.toFixed(2)+"pp",upIsGood:false,source:"FRED \u00b7 ECBDFR"});
   const tl=document.getElementById("tiles-labour");
   if(s.unemployment) statTile(tl,"unemployment","Unemployment",s.unemployment,
     {fmt:pct,fmtD:pp,upIsGood:false,source:SRC_UNEMP});
@@ -2436,6 +2445,10 @@ const INFO_CONTENT = {
   bond_yield_10y: {
     description: "The yield on 10-year Spanish government bonds, a market gauge of inflation and interest-rate expectations, and a closely watched signal of sovereign credit risk within the euro area. This is not the ECB's own policy rate.",
     source: "FRED series IRLTLT01ESQ156N \u00b7 quarterly average."
+  },
+  ecb_rate: {
+    description: "The European Central Bank's key interest rate -- the anchor for borrowing costs across the euro area, including Spain. This is the deposit facility rate specifically, one of the ECB's three main policy rates.",
+    source: "FRED series ECBDFR \u00b7 end-of-month value."
   },
   unemployment: {
     description: "The share of people aged 15 and over who want a job and are actively looking, but can't find one.",

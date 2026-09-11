@@ -1699,7 +1699,7 @@ const MAKO={deep:"#2E1E3B", indigo:"#413D7B", blue:"#37659E",
 const LINE=MAKO.blue, BAR_UP=MAKO.sea, BAR_DOWN=MAKO.indigo;
 const MONTHS=["Jan","Feb","Mar","Apr","May","Jun","Jul","Aug","Sep","Oct","Nov","Dec"];
 const NAMES={gdp_level:"GDP",gdp_real:"Real GDP",gdp_growth:"GDP growth",
-  cpi:"CPI inflation",bond_yield_10y:"10-year bond yield",debt_gdp:"Government debt",deficit:"Gov. deficit",
+  cpi:"CPI inflation",bond_yield_10y:"10-year bond yield",ecb_rate:"ECB deposit rate",debt_gdp:"Government debt",deficit:"Gov. deficit",
   current_account:"Current account",trade_balance:"Trade balance",
   business_confidence:"Business confidence",fdi:"FDI",unemployment:"Unemployment",
   participation_rate:"Labour force participation",employment_rate:"Employment rate"};
@@ -1822,6 +1822,10 @@ function sampleData(){
       [["2001-01",5.1],["2004-01",4.3],["2008-09",4.3],["2012-06",2.4],["2016-01",0.7],
        ["2018-10",0.6],["2020-05",-0.2],["2022-10",3.2],["2023-11",3.4],["2025-06",3.0],
        ["2026-02",3.07]],mR)),
+    ecb_rate:S("ECB deposit rate","%","months",interp(
+      [["1999-01",2.0],["2000-10",3.75],["2003-06",1.0],["2008-07",3.25],["2009-05",0.25],
+       ["2012-07",0.0],["2014-06",-0.1],["2016-03",-0.4],["2019-09",-0.5],["2022-06",-0.5],
+       ["2022-09",0.75],["2023-09",4.0],["2024-06",3.75],["2025-06",2.0],["2026-06",2.0]],mR)),
     unemployment:S("Unemployment, 15+, SA (illustrative)","%","months",interp(
       [["1996-01",4.5],["2005-01",5.5],["2008-10",4.0],["2013-01",4.9],["2019-12",4.6],
        ["2020-05",5.9],["2022-06",4.6],["2024-12",5.2],["2025-06",5.5],["2026-01",5.7]],mR)),
@@ -2184,6 +2188,9 @@ function render(data){
   if(s.bond_yield_10y) chartPanel("bond_yield_10y","charts-inflation","10-year government bond yield",
     "The yield on 10-year Austrian government bonds, a market gauge of inflation and rate expectations. Not the ECB's policy rate.",
     s.bond_yield_10y,"line",v=>v+"%",v=>v.toFixed(2)+"%",SRC_BOND);
+  if(s.ecb_rate) chartPanel("ecb_rate","charts-inflation","ECB deposit facility rate",
+    "The European Central Bank's key interest rate, the anchor for borrowing costs across the euro area, including Austria.",
+    s.ecb_rate,"line",v=>v+"%",v=>v.toFixed(2)+"%","FRED series ECBDFR \u00b7 end-of-month value (ECB)");
   if(s.unemployment) chartPanel("unemployment","charts-labour","Unemployment rate",
     "The share of people 15 and over who want a job but can't find one.",
     s.unemployment,"line",v=>v+"%",pct,SRC_UNEMP);
@@ -2240,6 +2247,8 @@ function render(data){
     {fmt:pct,fmtD:pp,upIsGood:false,source:"FRED · HICP, all items, YoY"});
   if(s.bond_yield_10y) statTile(tinf,"bond_yield_10y","10Y bond yield",s.bond_yield_10y,
     {fmt:v=>v.toFixed(2)+"%",fmtD:v=>v.toFixed(2)+"pp",upIsGood:false,source:SRC_BOND});
+  if(s.ecb_rate) statTile(tinf,"ecb_rate","ECB deposit rate",s.ecb_rate,
+    {fmt:v=>v.toFixed(2)+"%",fmtD:v=>v.toFixed(2)+"pp",upIsGood:false,source:"FRED \u00b7 ECBDFR"});
   const tl=document.getElementById("tiles-labour");
   if(s.unemployment) statTile(tl,"unemployment","Unemployment",s.unemployment,
     {fmt:pct,fmtD:pp,upIsGood:false,source:SRC_UNEMP});
@@ -2443,6 +2452,10 @@ const INFO_CONTENT = {
   bond_yield_10y: {
     description: "The yield on 10-year Austrian government bonds, a market gauge of inflation and interest-rate expectations. This is not the ECB's own policy rate.",
     source: "FRED series IRLTLT01ATM156N \u00b7 OECD, monthly."
+  },
+  ecb_rate: {
+    description: "The European Central Bank's key interest rate -- the anchor for borrowing costs across the euro area, including Austria. This is the deposit facility rate specifically, one of the ECB's three main policy rates.",
+    source: "FRED series ECBDFR \u00b7 end-of-month value."
   },
   unemployment: {
     description: "The share of people aged 15 and over who want a job and are actively looking, but can't find one.",

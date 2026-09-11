@@ -78,6 +78,7 @@ from datetime import datetime, timezone
 import requests
 
 FRED_SERIES = {
+    "ecb_rate": ("ECBDFR", "d", "ECB deposit facility rate", "%", None, 1.0),
     "trade_balance": ("XTNTVA01DEM667S", "m", "Trade balance, goods, $", "$m", None, 1e-6),
     "gdp_level": ("NGDPSAXDCDEQ", "q", "GDP nominal, SA", "\u20acm", None, 1.0),
     "gdp_real": ("NGDPRNSAXDCDEQ", "q", "Real GDP, NSA", "\u20acm", None, 1.0),
