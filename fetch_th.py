@@ -83,6 +83,7 @@ genuine test):
 from __future__ import annotations
 
 import json
+import time
 import os
 import sys
 from datetime import datetime, timezone
@@ -208,6 +209,17 @@ def fetch_oecd_bci() -> list | None:
     return None
 
 OECD_PRICES_BASE = "https://sdmx.oecd.org/public/rest/data/OECD.SDD.TPS,DSD_PRICES@DF_PRICES_ALL,1.0"
+# OECD is progressively migrating countries from the COICOP 1999 CPI
+# classification (above) to COICOP 2018. Once a country's national
+# statistics office migrates, new observations stop landing in the old
+# dataflow: it keeps returning 200 OK with the last pre-migration data
+# forever, so nothing here ever "fails" until it crosses max_age_days
+# and the World Bank annual fallback quietly takes over. That is what
+# stalled CPI for MX/CL/ZA/MA. This COICOP 2018 tier is the same fix
+# already live in fetch_ch/dk/ie/no/pl/se/tr.py, where it is CONFIRMED
+# WORKING in production: all seven of those countries now carry fresh
+# monthly CPI, having previously stalled the same way.
+OECD_PRICES_BASE_COICOP2018 = "https://sdmx.oecd.org/public/rest/data/OECD.SDD.TPS,DSD_PRICES_COICOP2018@DF_PRICES_C2018_ALL,1.0"
 
 
 def fetch_oecd_cpi(areas: tuple, freq: str) -> list | None:
@@ -260,15 +272,41 @@ def fetch_oecd_cpi(areas: tuple, freq: str) -> list | None:
             ("PA", "GY", False, "", ""),
             ("IX", "_Z", True, "", ""),
         )
-        for unit_measure, trans_code, needs_yoy, meth, adj in attempts:
-            tag = f"{area}.{meth or '*'}.{unit_measure}.{trans_code}"
-            url = (f"{OECD_PRICES_BASE}/{area}.{freq}.{meth}.CPI."
+        # Try COICOP 2018 first (fresher, for countries that have
+        # migrated), then fall back to the legacy COICOP 1999 dataflow
+        # (still the only source for countries that haven't migrated
+        # yet). A country not yet on COICOP 2018 just falls through with
+        # 0 usable rows from those attempts and picks up its existing
+        # COICOP 1999 result exactly as before.
+        bases = ((OECD_PRICES_BASE_COICOP2018, "C2018"), (OECD_PRICES_BASE, "C1999"))
+        combos = [(base_url, base_tag, um, tc, ny, me, ad)
+                  for base_url, base_tag in bases
+                  for um, tc, ny, me, ad in attempts]
+        # Doubling the attempts doubles this function's request volume,
+        # which can tip OECD into rate-limiting the whole run. A small
+        # delay between requests plus bailing out after repeated 429s
+        # cuts this country's request count fast once the host is
+        # already throttling, rather than burning all 8 combos.
+        consecutive_429s = 0
+        for base_url, base_tag, unit_measure, trans_code, needs_yoy, meth, adj in combos:
+            if consecutive_429s >= 2:
+                print(f"  [oecd-cpi] {area} bailing out after {consecutive_429s} "
+                      f"consecutive 429s, host is rate-limiting this run")
+                break
+            time.sleep(0.4)
+            tag = f"{base_tag}.{area}.{meth or '*'}.{unit_measure}.{trans_code}"
+            url = (f"{base_url}/{area}.{freq}.{meth}.CPI."
                    f"{unit_measure}._T.{adj}.{trans_code}"
                    f"?format=csvfile&startPeriod=2015")
             try:
                 r = requests.get(url, timeout=60,
                                  headers={"User-Agent": "economic-atlas/0.1"})
                 print(f"  [oecd-cpi] {tag} status={r.status_code}")
+                if r.status_code == 429:
+                    consecutive_429s += 1
+                    time.sleep(2.0)
+                else:
+                    consecutive_429s = 0
                 r.raise_for_status()
             except Exception as exc:
                 print(f"  [oecd-cpi] {tag} request failed: {exc}")
