@@ -412,8 +412,9 @@ def main() -> int:
                 raise ValueError("no usable response")
             scaled_gdp = [[p, round(v / 1e6, 1)] for p, v in raw_gdp]
             out["series"]["gdp_level"] = {
-                "label": "GDP, current prices (World Bank, NY.GDP.MKTP.CD -- USD, "
-                         "fallback: NGDPSAXDCIDQ unavailable this run)",
+                "label": "GDP, current prices, US$ (World Bank, NY.GDP.MKTP.CD, "
+                         "annual; shown when the quarterly national-currency "
+                         "series is unavailable)",
                 "unit": "$m", "freq": "years", "points": scaled_gdp,
             }
             print(f"  ok  gdp_level (WB USD fallback) {len(scaled_gdp):>5} observations "

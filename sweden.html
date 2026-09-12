@@ -682,7 +682,7 @@ button.mtoggle.fx-both{background:#2FA463; border-color:#2FA463; color:#fff;}
       authToggleRow.appendChild(wireToggleBtn("Sign up", "signup"));
     } else {
       authModalTitle.textContent = "Sign up";
-      authModalSub.textContent = "Free, for now -- this may change in future.";
+      authModalSub.textContent = "Free, for now, this may change in future.";
       authSubmitBtn.textContent = "Sign up";
       authToggleRow.textContent = "Already have an account? ";
       authToggleRow.appendChild(wireToggleBtn("Log in", "login"));
@@ -1629,7 +1629,7 @@ document.addEventListener("DOMContentLoaded", function(){
  <div class="hero mini" id="tiles-trade"></div>
  <p class="lightskey compact" aria-label="Key to freshness lights"><span><span class="led green" aria-hidden="true"></span>&nbsp;updated on schedule</span><span><span class="led orange" aria-hidden="true"></span>&nbsp;awaiting next release</span></p>
  <div class="grid" id="charts-trade"></div>
- <p class="secnote">The chart above shows the combined trade balance (exports minus imports). Exports and imports as individual time series aren't yet wired to a verified live source for Sweden -- a known gap, not shown here rather than estimated.</p>
+ <p class="secnote">The chart above shows the combined trade balance (exports minus imports). Exports and imports as individual time series aren't yet wired to a verified live source for Sweden, a known gap, not shown here rather than estimated.</p>
  <div class="tpm-head"><h3>Sweden goods trade: top partners</h3></div>
  <p class="tpm-scopenote"><strong>Goods trade only.</strong> Services aren't covered by this data source and aren't shown here, so relationships that lean heavily on services may be understated.</p>
  <div class="tpm-banner" id="tpmBanner"><span class="dot2" aria-hidden="true"></span>
@@ -1740,6 +1740,11 @@ function periodEnd(p){
   return new Date(+p.slice(0,4), 11, 31);
 }
 const STALE_DAYS={months:75, quarters:150, years:660};
+/* How far past STALE_DAYS a series must fall before the freshness tooltip
+   stops saying "Awaiting next release" and admits the source series has
+   stalled. Annual series need a tighter multiple: at 3x, an annual figure
+   almost 5.5 years old still claimed to be awaiting its next release. */
+const STALE_MULT={months:3, quarters:3, years:1.25};
 function freshness(series){
   const last=series.points[series.points.length-1][0];
   const age=(Date.now()-periodEnd(last).getTime())/86400000;
@@ -2015,7 +2020,7 @@ function statTile(el, key, title, series, opts){
   const _lastP=series.points[series.points.length-1][0];
   const _ageDays=(Date.now()-periodEnd(_lastP).getTime())/86400000;
   let ledTitle=led==="green"?"Updated on schedule":
-    (_ageDays>3*(STALE_DAYS[series.freq]||90)
+    (_ageDays>(STALE_MULT[series.freq]||3)*(STALE_DAYS[series.freq]||90)
       ?"Source series stale: last data "+fmtPeriod(_lastP)
       :"Awaiting next release");
   if(series.next) ledTitle+=" · next release "+series.next;
@@ -2426,9 +2431,9 @@ const INFO_CONTENT = {
     dollar: "When this series is on its normal Eurostat (SEK) path, \u201cDollarise\u201d converts each historical point using that point's OWN contemporaneous SEK/USD rate (monthly resolution, from FRED's DEXSDUS series, which starts 1971-01). On the rarer occasion this falls back to the World-Bank USD series, it's already in dollars and Dollarise correctly has no further effect."
   },
   gdp_real: {
-    description: "GDP adjusted for inflation, shown in chained-volume terms -- the same production, valued at constant prices, so changes reflect real output growth rather than price changes.",
+    description: "GDP adjusted for inflation, shown in chained-volume terms, the same production, valued at constant prices, so changes reflect real output growth rather than price changes.",
     source: "FRED series CLVMNACSCAB1GQSE \u00b7 Eurostat, trailing 4-quarter sum, seasonally adjusted.",
-    real: "This IS the \u201cMake it real\u201d series -- toggling it off shows GDP at current (nominal) prices instead.",
+    real: "This IS the \u201cMake it real\u201d series, toggling it off shows GDP at current (nominal) prices instead.",
     dollar: "Each historical point converted at its own contemporaneous SEK/USD rate where available (1971 onward), falling back to the earliest available rate for anything before that."
   },
   gdp_growth: {
@@ -3113,7 +3118,7 @@ document.querySelectorAll(".mtbtn").forEach(function(btn){
  <h3 style="font-size:12px; text-transform:uppercase; letter-spacing:.05em; margin:0 0 8px; color:var(--ink2);">Chart style</h3>
  <div class="field" style="margin-bottom:8px;">
  <label style="display:block; font-size:11.5px; font-weight:600; color:var(--ink2); margin-bottom:3px;" for="czChartTitleInput">Chart title (optional, shown at the top)</label>
- <input type="text" id="czChartTitleInput" maxlength="80" placeholder="e.g. ECB deposit facility rate" style="width:100%; padding:5px 8px; border:1px solid var(--hair); border-radius:6px; background:var(--paper); color:var(--ink); font:inherit; font-size:12.5px;">
+ <input type="text" id="czChartTitleInput" maxlength="80" placeholder="e.g. Unemployment rate" style="width:100%; padding:5px 8px; border:1px solid var(--hair); border-radius:6px; background:var(--paper); color:var(--ink); font:inherit; font-size:12.5px;">
  </div>
  <div class="field" style="margin-bottom:6px;">
  <label style="display:block; font-size:11.5px; font-weight:600; color:var(--ink2); margin-bottom:3px;" for="czYAxisTitleInput">Y-axis title</label>
@@ -3960,7 +3965,7 @@ document.querySelectorAll(".mtbtn").forEach(function(btn){
     var logLabel = document.getElementById("czLogScaleLabel");
     logToggle.disabled = !logAvailable;
     if(!logAvailable && czState.yScale === "log"){ czState.yScale = "linear"; logToggle.checked = false; }
-    logLabel.textContent = logAvailable ? "Log scale" : "Log scale (unavailable -- data includes zero or negative values)";
+    logLabel.textContent = logAvailable ? "Log scale" : "Log scale (unavailable, data includes zero or negative values)";
     logLabel.style.color = logAvailable ? "" : "var(--ink2)";
     // The Y-axis tick +/- control walks a list of round LINEAR step
     // sizes -- meaningless once the axis is logarithmic, where ticks

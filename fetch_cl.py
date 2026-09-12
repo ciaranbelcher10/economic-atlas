@@ -158,19 +158,32 @@ def fred_period(date: str, freq: str) -> str:
     return f"{y}-{m:02d}"  # monthly, and daily reduced to months
 
 
-def _is_future_period(period: str) -> bool:
-    """True if `period` (a fred_period-format string: 'YYYY', 'YYYY-Qn', or
-    'YYYY-MM') refers to a year beyond the current calendar year. Some IMF
-    REO/WEO-derived FRED mirrors (e.g. the annual GGXWDGGDP/GGXCNLGDP
-    series) bundle several years of forward projections into the same
-    series as real observations, with no flag distinguishing actual from
-    forecast. We only want actual/estimated-to-date figures on the site,
-    so any point dated beyond the current year is dropped at fetch time."""
+def _is_future_period(period: str, freq: str = "m") -> bool:
+    """True if `period` covers time that has not finished yet, so the value
+    cannot be a real observation.
+
+    Some IMF REO/WEO-derived FRED mirrors (e.g. the annual *PPPT /
+    GGXWDGGDP / GGXCNLGDP series) bundle several years of forward
+    projections into the same series as real observations, with no flag
+    distinguishing actual from forecast. Anything dated beyond the current
+    year is always a projection.
+
+    For ANNUAL series the current year is a projection too: the year has
+    not finished, so the IMF's figure for it is a forecast, not an outturn.
+    Publishing it would put a forecast on the site with a green
+    "updated on schedule" freshness light, which contradicts the site's
+    data-only promise. Monthly and quarterly series are trimmed only
+    beyond the current year, since a completed month or quarter inside the
+    current year is a genuine observation.
+    """
     try:
         year = int(period[:4])
     except (ValueError, TypeError):
         return False
-    return year > datetime.now(timezone.utc).year
+    this_year = datetime.now(timezone.utc).year
+    if freq == "a":
+        return year >= this_year
+    return year > this_year
 
 
 def fetch_fred(sid: str, freq: str, key: str) -> list:
@@ -190,7 +203,7 @@ def fetch_fred(sid: str, freq: str, key: str) -> list:
     for p, v in points:          # daily series reduce to last value per month
         dedup[p] = v
     points = sorted([[p, v] for p, v in dedup.items()], key=lambda x: x[0])
-    points = [p for p in points if not _is_future_period(p[0])]
+    points = [p for p in points if not _is_future_period(p[0], freq)]
     return points
 
 
@@ -399,6 +412,40 @@ def fetch_cpi_with_fallback() -> tuple[list | None, str]:
     return None, ""
 
 
+
+def _fx_rate_for_period(fx_hist, period, fallback):
+    """Exchange rate in effect during `period`, not today's spot rate.
+
+    The OECD "667S" merchandise-trade series are USD-denominated, and are
+    converted to the page's own currency below. Converting every historical
+    point at the LATEST spot rate silently rewrites history: a 1990 trade
+    balance would be expressed at this month's exchange rate. The site's
+    Dollarise feature exists precisely to avoid that, so the pipeline must
+    not reintroduce it. Each point is converted at the rate for its own
+    period instead, falling back to the nearest earlier rate, and only to
+    `fallback` when no history is available at all.
+
+    `fx_hist` is the ascending [[YYYY-MM, rate], ...] list returned by
+    fetch_fred for the daily DEX* series (reduced to one point per month).
+    """
+    if not fx_hist:
+        return fallback
+    if len(period) == 7 and period[4] == "-":
+        key = period
+    elif "Q" in period:
+        y, q = period.split("-Q")
+        key = f"{y}-{int(q) * 3:02d}"
+    else:
+        key = f"{period[:4]}-12"
+    best = None
+    for p, v in fx_hist:
+        if p <= key:
+            best = v
+        else:
+            break
+    return best if best is not None else fx_hist[0][1]
+
+
 def main() -> int:
     out = {
         "updated": datetime.now(timezone.utc).strftime("%Y-%m-%dT%H:%M:%SZ"),
@@ -588,12 +635,13 @@ def main() -> int:
             print(f"  ok  fx_to_usd        1 observation ({fx_period}, {fx_rate}), "
                   f"history {fx_pts[0][0]} to {fx_period} ({len(fx_pts)} points, annual)")
 
-            to_local = lambda v: v * fx_rate
+            to_local = lambda v, per: v * _fx_rate_for_period(fx_pts, per, fx_rate)
             for tk in ("trade_balance", "exports", "imports"):
                 if tk in out["series"]:
                     ser = out["series"][tk]
                     if ser["unit"].strip().startswith("$"):
-                        ser["points"] = [[p, round(to_local(v), 1)] for p, v in ser["points"]]
+                        ser["points"] = [[p, round(to_local(v, p), 1)]
+                                              for p, v in ser["points"]]
                         # NOTE (fixed later session): this block was copy-pasted from a
                         # Scandinavian country's fetch script and unit was labeled "kr"
                         # (krona/krone) -- wrong currency entirely for Chile. The VALUES

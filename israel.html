@@ -683,7 +683,7 @@ button.mtoggle.fx-both{background:#2FA463; border-color:#2FA463; color:#fff;}
       authToggleRow.appendChild(wireToggleBtn("Sign up", "signup"));
     } else {
       authModalTitle.textContent = "Sign up";
-      authModalSub.textContent = "Free, for now -- this may change in future.";
+      authModalSub.textContent = "Free, for now, this may change in future.";
       authSubmitBtn.textContent = "Sign up";
       authToggleRow.textContent = "Already have an account? ";
       authToggleRow.appendChild(wireToggleBtn("Log in", "login"));
@@ -1622,7 +1622,7 @@ document.addEventListener("DOMContentLoaded", function(){
  <div class="hero mini" id="tiles-trade"></div>
  <p class="lightskey compact" aria-label="Key to freshness lights"><span><span class="led green" aria-hidden="true"></span>&nbsp;updated on schedule</span><span><span class="led orange" aria-hidden="true"></span>&nbsp;awaiting next release</span></p>
  <div class="grid" id="charts-trade"></div>
- <p class="secnote">The chart above shows the combined trade balance (exports minus imports). Exports and imports as individual time series aren't yet wired to a verified live source for Israel -- a known gap, not shown here rather than estimated.</p>
+ <p class="secnote">The chart above shows the combined trade balance (exports minus imports). Exports and imports as individual time series aren't yet wired to a verified live source for Israel, a known gap, not shown here rather than estimated.</p>
  <div class="tpm-head"><h3>Israel goods trade: top partners</h3></div>
  <p class="tpm-scopenote"><strong>Goods trade only.</strong> Services aren't covered by this data source and aren't shown here, so relationships that lean heavily on services may be understated.</p>
  <div class="tpm-banner" id="tpmBanner"><span class="dot2" aria-hidden="true"></span>
@@ -1735,13 +1735,18 @@ function periodEnd(p){
   return new Date(+p.slice(0,4), 11, 31);
 }
 const STALE_DAYS={months:75, quarters:150, years:660};
+/* How far past STALE_DAYS a series must fall before the freshness tooltip
+   stops saying "Awaiting next release" and admits the source series has
+   stalled. Annual series need a tighter multiple: at 3x, an annual figure
+   almost 5.5 years old still claimed to be awaiting its next release. */
+const STALE_MULT={months:3, quarters:3, years:1.25};
 function freshness(series){
   const last=series.points[series.points.length-1][0];
   const age=(Date.now()-periodEnd(last).getTime())/86400000;
   const thresh=STALE_DAYS[series.freq]||90;
   if(age<=thresh) return "green";
   /* Some source series (e.g. World Bank annual debt stats for a handful of
-     countries) simply haven't been republished in years -- that's a source
+     countries) simply haven't been republished in years, that's a source
      limitation, not a fetch failure. Flag these distinctly from a series
      that's merely a bit behind its usual release schedule. */
   return age>5*thresh ? "red" : "orange";
@@ -2014,8 +2019,8 @@ function statTile(el, key, title, series, opts){
   const _ageDays=(Date.now()-periodEnd(_lastP).getTime())/86400000;
   let ledTitle=led==="green"?"Updated on schedule":
     led==="red"
-      ?"Source hasn't republished this series in years -- last data "+fmtPeriod(_lastP)+" (shown as published, not estimated)"
-      :(_ageDays>3*(STALE_DAYS[series.freq]||90)
+      ?"Source hasn't republished this series in years, last data "+fmtPeriod(_lastP)+" (shown as published, not estimated)"
+      :(_ageDays>(STALE_MULT[series.freq]||3)*(STALE_DAYS[series.freq]||90)
         ?"Source series stale: last data "+fmtPeriod(_lastP)
         :"Awaiting next release");
   if(series.next) ledTitle+=" · next release "+series.next;
@@ -2426,16 +2431,16 @@ const INFO_CONTENT = {
     description: "The total value of everything Israel produces in a year, at current prices.",
     source: "World Bank NY.GDP.MKTP.CN \u00b7 current local-currency units (ILS), annual.",
     real: "\u201cMake it real\u201d swaps this to Israel's real (constant-price, inflation-adjusted) GDP series, World Bank NY.GDP.MKTP.KN. This strips out the effect of price changes, so it shows genuine output growth rather than growth that's really just inflation.",
-    dollar: "\u201cDollarise\u201d converts each historical point using that year's own average ILS/USD rate (World Bank PA.NUS.FCRF, annual resolution -- coarser than the monthly/daily matching used on most other countries here, since no live monthly or daily source has ever existed for the shekel)."
+    dollar: "\u201cDollarise\u201d converts each historical point using that year's own average ILS/USD rate (World Bank PA.NUS.FCRF, annual resolution, coarser than the monthly/daily matching used on most other countries here, since no live monthly or daily source has ever existed for the shekel)."
   },
   gdp_real: {
-    description: "GDP adjusted for inflation, in constant local-currency terms -- the same production, valued at constant prices, so changes reflect real output growth rather than price changes.",
+    description: "GDP adjusted for inflation, in constant local-currency terms, the same production, valued at constant prices, so changes reflect real output growth rather than price changes.",
     source: "World Bank NY.GDP.MKTP.KN \u00b7 constant local-currency units (ILS), annual.",
-    real: "This IS the \u201cMake it real\u201d series -- toggling it off shows GDP at current (nominal) prices instead.",
+    real: "This IS the \u201cMake it real\u201d series, toggling it off shows GDP at current (nominal) prices instead.",
     dollar: "Each historical point converted at its own year's average ILS/USD rate (World Bank PA.NUS.FCRF, annual resolution)."
   },
   gdp_growth: {
-    description: "How much bigger or smaller the economy is than a year ago, adjusted for inflation. Derived from gdp_real, since Israel's GDP data here is annual only -- no separate quarter-on-quarter figure is available.",
+    description: "How much bigger or smaller the economy is than a year ago, adjusted for inflation. Derived from gdp_real, since Israel's GDP data here is annual only, no separate quarter-on-quarter figure is available.",
     source: "Derived from World Bank NY.GDP.MKTP.KN (see gdp_real entry).",
     real: "This is already a real (inflation-adjusted) growth rate as published, \u201cMake it real\u201d has no additional effect on it.",
     dollar: "A growth rate (%) is currency-agnostic, converting the underlying shekels to dollars doesn't change the percentage change. \u201cDollarise\u201d has no effect on this figure."
@@ -3118,7 +3123,7 @@ document.querySelectorAll(".mtbtn").forEach(function(btn){
  <h3 style="font-size:12px; text-transform:uppercase; letter-spacing:.05em; margin:0 0 8px; color:var(--ink2);">Chart style</h3>
  <div class="field" style="margin-bottom:8px;">
  <label style="display:block; font-size:11.5px; font-weight:600; color:var(--ink2); margin-bottom:3px;" for="czChartTitleInput">Chart title (optional, shown at the top)</label>
- <input type="text" id="czChartTitleInput" maxlength="80" placeholder="e.g. ECB deposit facility rate" style="width:100%; padding:5px 8px; border:1px solid var(--hair); border-radius:6px; background:var(--paper); color:var(--ink); font:inherit; font-size:12.5px;">
+ <input type="text" id="czChartTitleInput" maxlength="80" placeholder="e.g. CPI inflation, annual rate" style="width:100%; padding:5px 8px; border:1px solid var(--hair); border-radius:6px; background:var(--paper); color:var(--ink); font:inherit; font-size:12.5px;">
  </div>
  <div class="field" style="margin-bottom:6px;">
  <label style="display:block; font-size:11.5px; font-weight:600; color:var(--ink2); margin-bottom:3px;" for="czYAxisTitleInput">Y-axis title</label>
@@ -3965,7 +3970,7 @@ document.querySelectorAll(".mtbtn").forEach(function(btn){
     var logLabel = document.getElementById("czLogScaleLabel");
     logToggle.disabled = !logAvailable;
     if(!logAvailable && czState.yScale === "log"){ czState.yScale = "linear"; logToggle.checked = false; }
-    logLabel.textContent = logAvailable ? "Log scale" : "Log scale (unavailable -- data includes zero or negative values)";
+    logLabel.textContent = logAvailable ? "Log scale" : "Log scale (unavailable, data includes zero or negative values)";
     logLabel.style.color = logAvailable ? "" : "var(--ink2)";
     // The Y-axis tick +/- control walks a list of round LINEAR step
     // sizes -- meaningless once the axis is logarithmic, where ticks

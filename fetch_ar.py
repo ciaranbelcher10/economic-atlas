@@ -95,10 +95,14 @@ import requests
 # key: (fred_id, freq 'm'|'q'|'a', label, unit, transform None|'yoy'|'mom'|'qoq', scale)
 FRED_SERIES = {
     "gdp_real": ("NGDPRNSAXDCARQ", "q", "Real GDP, current national prices, NSA (IMF IFS)", "ARSm", None, 1.0),
-    "gdp_level": ("NGDPSAXDCARQ", "q", "Nominal GDP, current prices, SA (IMF IFS) -- note: SA, "
-                  "while gdp_real above is NSA, since no matching-adjustment nominal series was "
-                  "confirmed live; both are genuinely ARS-denominated so this doesn't reintroduce "
-                  "the currency-mismatch issue this was added to fix", "ARSm", None, 1.0),
+    # NOTE (internal, deliberately not in the label): this nominal series is
+    # seasonally adjusted while gdp_real above is NSA, because no
+    # matching-adjustment nominal series was confirmed live. Both are
+    # genuinely ARS-denominated, so this does not reintroduce the
+    # currency-mismatch issue the pairing was added to fix.
+    "gdp_level": ("NGDPSAXDCARQ", "q",
+                  "Nominal GDP, current prices, seasonally adjusted (IMF IFS)",
+                  "ARSm", None, 1.0),
     "debt_gdp": ("GGGDTAARA188N", "a", "General government gross debt, % of GDP (IMF WEO)", "%", None, 1.0),
     "deficit": ("GGNLBAARA188N", "a", "General government net lending/borrowing, % of GDP (IMF WEO)", "%", None, 1.0),
     "trade_balance": ("ARGXTNTVA01CXMLSAM", "m", "Trade balance, goods, USD exchange-rate-converted, SA (OECD)", "$m", None, 1e-6),
@@ -527,8 +531,9 @@ def main() -> int:
                 raise ValueError("no usable response")
             scaled_gdp = [[p, round(v / 1e6, 1)] for p, v in raw_gdp]
             out["series"]["gdp_level"] = {
-                "label": "GDP, current prices (World Bank, NY.GDP.MKTP.CD -- USD, "
-                         "fallback: NGDPSAXDCARQ unavailable this run)",
+                "label": "GDP, current prices, US$ (World Bank, NY.GDP.MKTP.CD, "
+                         "annual; shown when the quarterly national-currency "
+                         "series is unavailable)",
                 "unit": "$m", "freq": "years", "points": scaled_gdp,
             }
             print(f"  ok  gdp_level (WB USD fallback) {len(scaled_gdp):>5} observations "

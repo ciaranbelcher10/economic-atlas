@@ -604,7 +604,7 @@ button.mtoggle.fx-both{background:#2FA463; border-color:#2FA463; color:#fff;}
       authToggleRow.appendChild(wireToggleBtn("Sign up", "signup"));
     } else {
       authModalTitle.textContent = "Sign up";
-      authModalSub.textContent = "Free, for now -- this may change in future.";
+      authModalSub.textContent = "Free, for now, this may change in future.";
       authSubmitBtn.textContent = "Sign up";
       authToggleRow.textContent = "Already have an account? ";
       authToggleRow.appendChild(wireToggleBtn("Log in", "login"));
@@ -1614,6 +1614,11 @@ function periodEnd(p){
   return new Date(+p.slice(0,4), 11, 31);
 }
 const STALE_DAYS={months:75, quarters:150, years:660};
+/* How far past STALE_DAYS a series must fall before the freshness tooltip
+   stops saying "Awaiting next release" and admits the source series has
+   stalled. Annual series need a tighter multiple: at 3x, an annual figure
+   almost 5.5 years old still claimed to be awaiting its next release. */
+const STALE_MULT={months:3, quarters:3, years:1.25};
 function freshness(series){
   const last=series.points[series.points.length-1][0];
   const age=(Date.now()-periodEnd(last).getTime())/86400000;
@@ -1887,7 +1892,7 @@ function statTile(el, key, title, series, opts){
   const _lastP=series.points[series.points.length-1][0];
   const _ageDays=(Date.now()-periodEnd(_lastP).getTime())/86400000;
   let ledTitle=led==="green"?"Updated on schedule":
-    (_ageDays>3*(STALE_DAYS[series.freq]||90)
+    (_ageDays>(STALE_MULT[series.freq]||3)*(STALE_DAYS[series.freq]||90)
       ?"Source series stale: last data "+fmtPeriod(_lastP)
       :"Awaiting next release");
   if(series.next) ledTitle+=" · next release "+series.next;
@@ -2291,9 +2296,9 @@ const INFO_CONTENT = {
     dollar: "\u201cDollarise\u201d converts each historical point using that point's OWN contemporaneous EUR/USD rate (monthly resolution, from FRED's DEXUSEU series, which starts 1999-01, the euro's launch). This series starts in 1995, so points before 1999 have no genuine historical euro rate available and fall back to the earliest rate DEXUSEU provides (1999-01), disclosed in the page's toggle note. This is a considered approximation for those years, not a precise historical conversion."
   },
   gdp_real: {
-    description: "GDP adjusted for inflation, chained-volume terms -- the same production, valued at constant prices, so changes reflect real output growth rather than price changes.",
+    description: "GDP adjusted for inflation, chained-volume terms, the same production, valued at constant prices, so changes reflect real output growth rather than price changes.",
     source: "FRED series CLVMEURSCAB1GQEA19 \u00b7 Eurostat, EA19 aggregate, quarterly.",
-    real: "This IS the \u201cMake it real\u201d series -- toggling it off shows GDP at current (nominal) prices instead.",
+    real: "This IS the \u201cMake it real\u201d series, toggling it off shows GDP at current (nominal) prices instead.",
     dollar: "Same historical-rate matching as GDP (current prices): each point converted at its own contemporaneous EUR/USD rate where available (1999 onward), falling back to the earliest available rate (1999-01) for anything before that."
   },
   gdp_growth: {
@@ -2307,11 +2312,11 @@ const INFO_CONTENT = {
     source: "Calculated from FRED series CP0000EZ19M086NEST \u00b7 HICP, all items, EA19 aggregate."
   },
   cpi_mom: {
-    description: "How much consumer prices rose or fell compared with just the previous month -- more volatile than the annual rate, useful for spotting turning points earlier.",
+    description: "How much consumer prices rose or fell compared with just the previous month, more volatile than the annual rate, useful for spotting turning points earlier.",
     source: "Derived from FRED series CP0000EZ19M086NEST (Eurostat)."
   },
   ecb_rate: {
-    description: "The European Central Bank's key interest rate -- the anchor for borrowing costs across the euro area. This is the deposit facility rate specifically, one of the ECB's three main policy rates.",
+    description: "The European Central Bank's key interest rate, the anchor for borrowing costs across the euro area. This is the deposit facility rate specifically, one of the ECB's three main policy rates.",
     source: "FRED series ECBDFR \u00b7 end-of-month value."
   },
   unemployment: {
@@ -2330,17 +2335,17 @@ const INFO_CONTENT = {
   },
   trade_balance: {
     description: "Exports minus imports of goods each month, extra-euro-area (i.e. trade with the rest of the world, not between euro members). Below zero means the euro area buys more from abroad than it sells.",
-    source: "Prefers a live Eurostat ext_st feed (extra-euro-area goods trade) -- falls back to an OECD-mirrored series that was discontinued in April 2023 only if the live feed is unavailable.",
+    source: "Prefers a live Eurostat ext_st feed (extra-euro-area goods trade), falls back to an OECD-mirrored series that was discontinued in April 2023 only if the live feed is unavailable.",
     dollar: "Each historical point is converted at its own contemporaneous EUR/USD rate (monthly resolution from FRED's DEXUSEU, 1999 onward), with the same pre-1999 earliest-rate fallback as GDP, see the GDP entry for detail."
   },
   exports: {
     description: "The value of goods the euro area sells to the rest of the world each month, extra-euro-area.",
-    source: "Prefers a live Eurostat ext_st feed -- falls back to FRED series XTEXVA01EZM667S (OECD, discontinued April 2023) only if the live feed is unavailable.",
+    source: "Prefers a live Eurostat ext_st feed, falls back to FRED series XTEXVA01EZM667S (OECD, discontinued April 2023) only if the live feed is unavailable.",
     dollar: "Each historical point is converted at its own contemporaneous EUR/USD rate (monthly resolution from FRED's DEXUSEU, 1999 onward)."
   },
   imports: {
     description: "The value of goods the euro area buys from the rest of the world each month, extra-euro-area.",
-    source: "Prefers a live Eurostat ext_st feed -- falls back to FRED series XTIMVA01EZM667S (OECD, discontinued April 2023) only if the live feed is unavailable.",
+    source: "Prefers a live Eurostat ext_st feed, falls back to FRED series XTIMVA01EZM667S (OECD, discontinued April 2023) only if the live feed is unavailable.",
     dollar: "Each historical point is converted at its own contemporaneous EUR/USD rate (monthly resolution from FRED's DEXUSEU, 1999 onward)."
   },
   current_account: {
@@ -3483,7 +3488,7 @@ fetch("data-ez.json",{cache: "no-cache"})
     var logLabel = document.getElementById("czLogScaleLabel");
     logToggle.disabled = !logAvailable;
     if(!logAvailable && czState.yScale === "log"){ czState.yScale = "linear"; logToggle.checked = false; }
-    logLabel.textContent = logAvailable ? "Log scale" : "Log scale (unavailable -- data includes zero or negative values)";
+    logLabel.textContent = logAvailable ? "Log scale" : "Log scale (unavailable, data includes zero or negative values)";
     logLabel.style.color = logAvailable ? "" : "var(--ink2)";
     // The Y-axis tick +/- control walks a list of round LINEAR step
     // sizes -- meaningless once the axis is logarithmic, where ticks

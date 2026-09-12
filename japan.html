@@ -682,7 +682,7 @@ button.mtoggle.fx-both{background:#2FA463; border-color:#2FA463; color:#fff;}
       authToggleRow.appendChild(wireToggleBtn("Sign up", "signup"));
     } else {
       authModalTitle.textContent = "Sign up";
-      authModalSub.textContent = "Free, for now -- this may change in future.";
+      authModalSub.textContent = "Free, for now, this may change in future.";
       authSubmitBtn.textContent = "Sign up";
       authToggleRow.textContent = "Already have an account? ";
       authToggleRow.appendChild(wireToggleBtn("Log in", "login"));
@@ -1735,6 +1735,11 @@ function periodEnd(p){
   return new Date(+p.slice(0,4), 11, 31);
 }
 const STALE_DAYS={months:75, quarters:150, years:660};
+/* How far past STALE_DAYS a series must fall before the freshness tooltip
+   stops saying "Awaiting next release" and admits the source series has
+   stalled. Annual series need a tighter multiple: at 3x, an annual figure
+   almost 5.5 years old still claimed to be awaiting its next release. */
+const STALE_MULT={months:3, quarters:3, years:1.25};
 function freshness(series){
   const last=series.points[series.points.length-1][0];
   const age=(Date.now()-periodEnd(last).getTime())/86400000;
@@ -2008,7 +2013,7 @@ function statTile(el, key, title, series, opts){
   const _lastP=series.points[series.points.length-1][0];
   const _ageDays=(Date.now()-periodEnd(_lastP).getTime())/86400000;
   let ledTitle=led==="green"?"Updated on schedule":
-    (_ageDays>3*(STALE_DAYS[series.freq]||90)
+    (_ageDays>(STALE_MULT[series.freq]||3)*(STALE_DAYS[series.freq]||90)
       ?"Source series stale: last data "+fmtPeriod(_lastP)
       :"Awaiting next release");
   if(series.next) ledTitle+=" · next release "+series.next;
@@ -2418,11 +2423,11 @@ const INFO_CONTENT = {
     source: "Statistics Bureau of Japan (e-Stat) \u00b7 all items, year on year."
   },
   cpi_mom: {
-    description: "How much consumer prices rose or fell compared with just the previous month -- more volatile than the annual rate, useful for spotting turning points earlier.",
+    description: "How much consumer prices rose or fell compared with just the previous month, more volatile than the annual rate, useful for spotting turning points earlier.",
     source: "FRED \u00b7 OECD, derived from the same underlying CPI series."
   },
   boj_rate: {
-    description: "The overnight interbank rate -- the closest market measure of the Bank of Japan's policy stance.",
+    description: "The overnight interbank rate, the closest market measure of the Bank of Japan's policy stance.",
     source: "FRED series IRSTCI01JPM156N \u00b7 monthly average (OECD)."
   },
   unemployment: {
@@ -2460,13 +2465,13 @@ const INFO_CONTENT = {
     dollar: "Already expressed as a % of GDP, currency-agnostic. \u201cDollarise\u201d has no effect on this figure."
   },
   debt_gdp: {
-    description: "Everything the Japanese government owes, compared with the size of the economy -- the highest ratio of any major economy.",
-    source: "FRED series GGGDTAJPA188N \u00b7 general government, annual (IMF).",
+    description: "Everything the Japanese government owes, compared with the size of the economy, the highest ratio of any major economy.",
+    source: "FRED series GGGDTAJPA188N \u00b7 general government, annual (IMF). This IMF mirror updates on the source's own irregular schedule rather than annually; the year shown under the figure is its latest observation, and the freshness light beside it turns amber once the source has stopped republishing.",
     dollar: "Already expressed as a % of GDP, currency-agnostic. \u201cDollarise\u201d has no effect on this figure."
   },
   deficit: {
     description: "The yearly gap between government spending and revenue. Negative means a deficit.",
-    source: "FRED series GGNLBAJPA188N \u00b7 net lending/borrowing, annual (IMF).",
+    source: "FRED series GGNLBAJPA188N \u00b7 net lending/borrowing, annual (IMF). This IMF mirror updates on the source's own irregular schedule rather than annually; the year shown under the figure is its latest observation, and the freshness light beside it turns amber once the source has stopped republishing.",
     dollar: "Already expressed as a % of GDP, currency-agnostic. \u201cDollarise\u201d has no effect on this figure."
   }
 };
@@ -3097,7 +3102,7 @@ document.querySelectorAll(".mtbtn").forEach(function(btn){
  <h3 style="font-size:12px; text-transform:uppercase; letter-spacing:.05em; margin:0 0 8px; color:var(--ink2);">Chart style</h3>
  <div class="field" style="margin-bottom:8px;">
  <label style="display:block; font-size:11.5px; font-weight:600; color:var(--ink2); margin-bottom:3px;" for="czChartTitleInput">Chart title (optional, shown at the top)</label>
- <input type="text" id="czChartTitleInput" maxlength="80" placeholder="e.g. ECB deposit facility rate" style="width:100%; padding:5px 8px; border:1px solid var(--hair); border-radius:6px; background:var(--paper); color:var(--ink); font:inherit; font-size:12.5px;">
+ <input type="text" id="czChartTitleInput" maxlength="80" placeholder="e.g. Bank of Japan policy rate" style="width:100%; padding:5px 8px; border:1px solid var(--hair); border-radius:6px; background:var(--paper); color:var(--ink); font:inherit; font-size:12.5px;">
  </div>
  <div class="field" style="margin-bottom:6px;">
  <label style="display:block; font-size:11.5px; font-weight:600; color:var(--ink2); margin-bottom:3px;" for="czYAxisTitleInput">Y-axis title</label>
@@ -3944,7 +3949,7 @@ document.querySelectorAll(".mtbtn").forEach(function(btn){
     var logLabel = document.getElementById("czLogScaleLabel");
     logToggle.disabled = !logAvailable;
     if(!logAvailable && czState.yScale === "log"){ czState.yScale = "linear"; logToggle.checked = false; }
-    logLabel.textContent = logAvailable ? "Log scale" : "Log scale (unavailable -- data includes zero or negative values)";
+    logLabel.textContent = logAvailable ? "Log scale" : "Log scale (unavailable, data includes zero or negative values)";
     logLabel.style.color = logAvailable ? "" : "var(--ink2)";
     // The Y-axis tick +/- control walks a list of round LINEAR step
     // sizes -- meaningless once the axis is logarithmic, where ticks

@@ -682,7 +682,7 @@ button.mtoggle.fx-both{background:#2FA463; border-color:#2FA463; color:#fff;}
       authToggleRow.appendChild(wireToggleBtn("Sign up", "signup"));
     } else {
       authModalTitle.textContent = "Sign up";
-      authModalSub.textContent = "Free, for now -- this may change in future.";
+      authModalSub.textContent = "Free, for now, this may change in future.";
       authSubmitBtn.textContent = "Sign up";
       authToggleRow.textContent = "Already have an account? ";
       authToggleRow.appendChild(wireToggleBtn("Log in", "login"));
@@ -1730,6 +1730,11 @@ function periodEnd(p){
   return new Date(+p.slice(0,4), 11, 31);
 }
 const STALE_DAYS={months:75, quarters:150, years:660};
+/* How far past STALE_DAYS a series must fall before the freshness tooltip
+   stops saying "Awaiting next release" and admits the source series has
+   stalled. Annual series need a tighter multiple: at 3x, an annual figure
+   almost 5.5 years old still claimed to be awaiting its next release. */
+const STALE_MULT={months:3, quarters:3, years:1.25};
 function freshness(series){
   const last=series.points[series.points.length-1][0];
   const age=(Date.now()-periodEnd(last).getTime())/86400000;
@@ -2007,7 +2012,7 @@ function statTile(el, key, title, series, opts){
   const _lastP=series.points[series.points.length-1][0];
   const _ageDays=(Date.now()-periodEnd(_lastP).getTime())/86400000;
   let ledTitle=led==="green"?"Updated on schedule":
-    (_ageDays>3*(STALE_DAYS[series.freq]||90)
+    (_ageDays>(STALE_MULT[series.freq]||3)*(STALE_DAYS[series.freq]||90)
       ?"Source series stale: last data "+fmtPeriod(_lastP)
       :"Awaiting next release");
   if(series.next) ledTitle+=" · next release "+series.next;
@@ -2146,7 +2151,7 @@ function render(data){
   const idx=v=>v.toFixed(1);
   const SRC_GDP_LEVEL="World Bank NY.GDP.MKTP.CD \u00b7 current US$, annual";
   const SRC_GDP_REAL="FRED series CLVMNACSAB1GQCH \u00b7 Eurostat (Statistical Office of the European Communities), quarterly, seasonally adjusted. Switzerland is not an EU member but this series is Eurostat-sourced via a bilateral data-sharing arrangement, unlike the IMF IFS series used for most other non-EU pages on this site.";
-  const SRC_GDP_REAL_ANNUAL="FRED series CLVMNACSAB1GQCH \u00b7 Eurostat, quarterly, seasonally adjusted -- shown here as a trailing 4-quarter sum to give a genuinely annual figure, since the underlying series is a single quarter's real GDP, not annualized.";
+  const SRC_GDP_REAL_ANNUAL="FRED series CLVMNACSAB1GQCH \u00b7 Eurostat, quarterly, seasonally adjusted, shown here as a trailing 4-quarter sum to give a genuinely annual figure, since the underlying series is a single quarter's real GDP, not annualized.";
   // GDP level citation swaps between the two sources above depending on
   // "Make it real" -- gdp_level itself gets swapped for gdp_real in
   // buildDisplaySeries() when the toggle is on, but every citation for it
@@ -2155,10 +2160,10 @@ function render(data){
   // source disagreed once toggled. This makes the citation track reality.
   const SRC_GDP_LEVEL_CURRENT = TOGGLE_STATE.real ? SRC_GDP_REAL_ANNUAL : SRC_GDP_LEVEL;
   const SRC_TRADE="OECD \u00b7 merchandise trade, monthly";
-  const SRC_FISCAL="FRED series DEBTTLCHA188A \u00b7 World Bank World Development Indicators, CENTRAL government debt (not general government -- no verified general-government series was found for Switzerland), % of GDP, annual.";
+  const SRC_FISCAL="FRED series DEBTTLCHA188A \u00b7 World Bank World Development Indicators, CENTRAL government debt (not general government, no verified general-government series was found for Switzerland), % of GDP, annual.";
   const SRC_WB="World Bank \u00b7 % of GDP, annual";
   const SRC_BCI="OECD \u00b7 BCICP, amplitude-adjusted, long-term average = 100";
-  const SRC_UNEMP="FRED series LRUNTTTTCHQ156S \u00b7 OECD, seasonally adjusted, quarterly. Note: the LRHUTTTT-prefixed series used on most other pages here is explicitly marked discontinued for Switzerland -- this is the OECD's replacement series.";
+  const SRC_UNEMP="FRED series LRUNTTTTCHQ156S \u00b7 OECD, seasonally adjusted, quarterly. Note: the LRHUTTTT-prefixed series used on most other pages here is explicitly marked discontinued for Switzerland, this is the OECD's replacement series.";
   const SRC_BOND="FRED series IRLTLT01CHM156N \u00b7 OECD, monthly";
   if(s.business_confidence) chartPanel("business_confidence","charts-headline","Business confidence",
     "How optimistic firms are about the months ahead. 100 is the long-run average; above it, firms expect better times.",
@@ -2179,7 +2184,7 @@ function render(data){
     "How much consumer prices are rising compared with a year ago.",
     s.cpi,"line",v=>v+"%",pct,"OECD live prices system \u00b7 CPI, all items, YoY");
   if(s.bond_yield_10y) chartPanel("bond_yield_10y","charts-inflation","10-year government bond yield",
-    "The yield on 10-year Swiss government bonds, a market gauge of inflation and rate expectations. Not the Swiss National Bank's own policy rate. Switzerland's yields have been unusually low, at times negative, for most of the last decade -- that's real, not a data error.",
+    "The yield on 10-year Swiss government bonds, a market gauge of inflation and rate expectations. Not the Swiss National Bank's own policy rate. Switzerland's yields have been unusually low, at times negative, for most of the last decade, that's real, not a data error.",
     s.bond_yield_10y,"line",v=>v+"%",v=>v.toFixed(2)+"%",SRC_BOND);
   if(s.unemployment) chartPanel("unemployment","charts-labour","Unemployment rate",
     "The share of people 15 and over who want a job but can't find one.",
@@ -2403,14 +2408,14 @@ function hasPreHistoryPoints(series, fx){
 const INFO_CONTENT = {
   gdp_level: {
     description: "The total value of everything Switzerland produces in a year, at current prices.",
-    source: "World Bank NY.GDP.MKTP.CD \u00b7 current US$, annual -- this is the only live source for Switzerland's nominal GDP, so it's shown in its native currency (USD) rather than converted.",
-    real: "\u201cMake it real\u201d swaps this to Switzerland's real GDP series, which is both inflation-adjusted AND genuinely CHF-denominated (Eurostat CLVMNACSAB1GQCH) -- unlike most other countries on this site, toggling \u201cMake it real\u201d here also changes which currency the figure is natively in.",
+    source: "World Bank NY.GDP.MKTP.CD \u00b7 current US$, annual, this is the only live source for Switzerland's nominal GDP, so it's shown in its native currency (USD) rather than converted.",
+    real: "\u201cMake it real\u201d swaps this to Switzerland's real GDP series, which is both inflation-adjusted AND genuinely CHF-denominated (Eurostat CLVMNACSAB1GQCH), unlike most other countries on this site, toggling \u201cMake it real\u201d here also changes which currency the figure is natively in.",
     dollar: "This series is already in US dollars, \u201cDollarise\u201d has no effect on it. Toggle \u201cMake it real\u201d first if you want to see the genuinely CHF-denominated real GDP series, which Dollarise CAN meaningfully convert."
   },
   gdp_real: {
-    description: "Real GDP (inflation-adjusted), genuinely denominated in Swiss francs -- unlike gdp_level (nominal) on this page, which is natively USD.",
+    description: "Real GDP (inflation-adjusted), genuinely denominated in Swiss francs, unlike gdp_level (nominal) on this page, which is natively USD.",
     source: "FRED series CLVMNACSAB1GQCH \u00b7 Eurostat, quarterly, seasonally adjusted. Switzerland is not an EU member but this series is Eurostat-sourced via a bilateral data-sharing arrangement, unlike the IMF IFS series used for most other non-EU pages on this site.",
-    real: "This IS the \u201cMake it real\u201d series -- toggling it off shows GDP at current (nominal) prices instead, natively in US dollars rather than CHF.",
+    real: "This IS the \u201cMake it real\u201d series, toggling it off shows GDP at current (nominal) prices instead, natively in US dollars rather than CHF.",
     dollar: "\u201cDollarise\u201d converts each historical point using that point's OWN contemporaneous CHF/USD rate (monthly resolution, from FRED's DEXSZUS series, which starts 1971-01, the earliest daily Federal Reserve H.10 data available). This series runs back to 1960, so points before 1971 have no genuine historical rate available and fall back to the earliest rate DEXSZUS provides (1971-01), disclosed in the page's toggle note. This is a considered approximation for those years, not a precise historical conversion."
   },
   gdp_growth: {
@@ -2424,12 +2429,12 @@ const INFO_CONTENT = {
     source: "OECD live prices system \u00b7 CPI, all items, year on year."
   },
   bond_yield_10y: {
-    description: "The yield on 10-year Swiss government bonds, a market gauge of inflation and interest-rate expectations. This is not the Swiss National Bank's own policy rate. Switzerland's yields have been unusually low, at times negative, for most of the last decade -- that's real, not a data error.",
+    description: "The yield on 10-year Swiss government bonds, a market gauge of inflation and interest-rate expectations. This is not the Swiss National Bank's own policy rate. Switzerland's yields have been unusually low, at times negative, for most of the last decade, that's real, not a data error.",
     source: "FRED series IRLTLT01CHM156N \u00b7 OECD, monthly."
   },
   unemployment: {
     description: "The share of people aged 15 and over who want a job and are actively looking, but can't find one.",
-    source: "FRED series LRUNTTTTCHQ156S \u00b7 OECD, seasonally adjusted, quarterly. Note: the LRHUTTTT-prefixed series used on most other pages here is explicitly marked discontinued for Switzerland -- this is the OECD's replacement series."
+    source: "FRED series LRUNTTTTCHQ156S \u00b7 OECD, seasonally adjusted, quarterly. Note: the LRHUTTTT-prefixed series used on most other pages here is explicitly marked discontinued for Switzerland, this is the OECD's replacement series."
   },
   business_confidence: {
     description: "How optimistic firms are about the months ahead. 100 is the long-run average; readings above it mean firms expect better-than-average conditions.",
@@ -2447,7 +2452,7 @@ const INFO_CONTENT = {
     dollar: "Each historical point is converted at its own contemporaneous CHF/USD rate (monthly resolution from FRED's DEXSZUS, 1971 onward), with the same pre-1971 earliest-rate fallback as real GDP, see the gdp_real entry for detail."
   },
   debt_gdp: {
-    description: "Everything the federal government owes, compared with the size of the economy. Shown here as CENTRAL government debt, not general government -- no verified general-government series was found for Switzerland, so this understates the full picture (cantons and municipalities also borrow).",
+    description: "Everything the federal government owes, compared with the size of the economy. Shown here as CENTRAL government debt, not general government, no verified general-government series was found for Switzerland, so this understates the full picture (cantons and municipalities also borrow).",
     source: "FRED series DEBTTLCHA188A \u00b7 World Bank World Development Indicators, central government debt, % of GDP, annual.",
     dollar: "Already expressed as a % of GDP, currency-agnostic. \u201cDollarise\u201d has no effect on this figure."
   }
@@ -3086,7 +3091,7 @@ document.querySelectorAll(".mtbtn").forEach(function(btn){
  <h3 style="font-size:12px; text-transform:uppercase; letter-spacing:.05em; margin:0 0 8px; color:var(--ink2);">Chart style</h3>
  <div class="field" style="margin-bottom:8px;">
  <label style="display:block; font-size:11.5px; font-weight:600; color:var(--ink2); margin-bottom:3px;" for="czChartTitleInput">Chart title (optional, shown at the top)</label>
- <input type="text" id="czChartTitleInput" maxlength="80" placeholder="e.g. ECB deposit facility rate" style="width:100%; padding:5px 8px; border:1px solid var(--hair); border-radius:6px; background:var(--paper); color:var(--ink); font:inherit; font-size:12.5px;">
+ <input type="text" id="czChartTitleInput" maxlength="80" placeholder="e.g. CPI inflation, annual rate" style="width:100%; padding:5px 8px; border:1px solid var(--hair); border-radius:6px; background:var(--paper); color:var(--ink); font:inherit; font-size:12.5px;">
  </div>
  <div class="field" style="margin-bottom:6px;">
  <label style="display:block; font-size:11.5px; font-weight:600; color:var(--ink2); margin-bottom:3px;" for="czYAxisTitleInput">Y-axis title</label>
@@ -3933,7 +3938,7 @@ document.querySelectorAll(".mtbtn").forEach(function(btn){
     var logLabel = document.getElementById("czLogScaleLabel");
     logToggle.disabled = !logAvailable;
     if(!logAvailable && czState.yScale === "log"){ czState.yScale = "linear"; logToggle.checked = false; }
-    logLabel.textContent = logAvailable ? "Log scale" : "Log scale (unavailable -- data includes zero or negative values)";
+    logLabel.textContent = logAvailable ? "Log scale" : "Log scale (unavailable, data includes zero or negative values)";
     logLabel.style.color = logAvailable ? "" : "var(--ink2)";
     // The Y-axis tick +/- control walks a list of round LINEAR step
     // sizes -- meaningless once the axis is logarithmic, where ticks

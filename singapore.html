@@ -682,7 +682,7 @@ button.mtoggle.fx-both{background:#2FA463; border-color:#2FA463; color:#fff;}
       authToggleRow.appendChild(wireToggleBtn("Sign up", "signup"));
     } else {
       authModalTitle.textContent = "Sign up";
-      authModalSub.textContent = "Free, for now -- this may change in future.";
+      authModalSub.textContent = "Free, for now, this may change in future.";
       authSubmitBtn.textContent = "Sign up";
       authToggleRow.textContent = "Already have an account? ";
       authToggleRow.appendChild(wireToggleBtn("Log in", "login"));
@@ -1730,6 +1730,11 @@ function periodEnd(p){
   return new Date(+p.slice(0,4), 11, 31);
 }
 const STALE_DAYS={months:75, quarters:150, years:660};
+/* How far past STALE_DAYS a series must fall before the freshness tooltip
+   stops saying "Awaiting next release" and admits the source series has
+   stalled. Annual series need a tighter multiple: at 3x, an annual figure
+   almost 5.5 years old still claimed to be awaiting its next release. */
+const STALE_MULT={months:3, quarters:3, years:1.25};
 function freshness(series){
   const last=series.points[series.points.length-1][0];
   const age=(Date.now()-periodEnd(last).getTime())/86400000;
@@ -1999,7 +2004,7 @@ function statTile(el, key, title, series, opts){
   const _lastP=series.points[series.points.length-1][0];
   const _ageDays=(Date.now()-periodEnd(_lastP).getTime())/86400000;
   let ledTitle=led==="green"?"Updated on schedule":
-    (_ageDays>3*(STALE_DAYS[series.freq]||90)
+    (_ageDays>(STALE_MULT[series.freq]||3)*(STALE_DAYS[series.freq]||90)
       ?"Source series stale: last data "+fmtPeriod(_lastP)
       :"Awaiting next release");
   if(series.next) ledTitle+=" · next release "+series.next;
@@ -2153,7 +2158,7 @@ function render(data){
   // toggle-swap and was already correct before this fix.
   const SRC_GDP_REAL="FRED series SGPNGDPRPCPPPT \u00b7 IMF Asia and Pacific Regional Economic Outlook, annual, % change.";
   const SRC_TRADE="OECD \u00b7 merchandise trade, monthly";
-  const SRC_FISCAL="FRED series DEBTTLSGA188A \u00b7 World Bank World Development Indicators, CENTRAL government debt (not general government -- no verified general-government series was found for Singapore), % of GDP, annual.";
+  const SRC_FISCAL="FRED series DEBTTLSGA188A \u00b7 World Bank World Development Indicators, CENTRAL government debt (not general government, no verified general-government series was found for Singapore), % of GDP, annual.";
   const SRC_WB="World Bank \u00b7 % of GDP, annual";
   const SRC_BCI="OECD \u00b7 BCICP, amplitude-adjusted, long-term average = 100";
   const SRC_UNEMP="World Bank SL.UEM.TOTL.ZS \u00b7 modeled ILO estimate, % of total labour force, annual";
@@ -2167,22 +2172,22 @@ function render(data){
     "The total value of everything Singapore produces in a year, at current prices.",
     gdpAnnual,"line",v=>curFmt(v,s.gdp_level.unit,2),v=>curFmt(v,s.gdp_level.unit,2),SRC_GDP_LEVEL,1996);
   if(s.gdp_growth) chartPanel("gdp_growth","charts-gdp","Real GDP growth, annual",
-    "How much the economy grew or shrank compared with the previous year. Singapore's real GDP growth is only available annually from a verified live source, not quarterly like most other pages on this site -- a genuine data-availability difference, not an oversight.",
+    "How much the economy grew or shrank compared with the previous year. Singapore's real GDP growth is only available annually from a verified live source, not quarterly like most other pages on this site, a genuine data-availability difference, not an oversight.",
     s.gdp_growth,"bar",v=>v+"%",pct,SRC_GDP_REAL,1999,0);
   if(s.cpi) chartPanel("cpi","charts-inflation","CPI inflation, annual rate",
     "How much consumer prices are rising compared with a year ago.",
     s.cpi,"line",v=>v+"%",pct,"OECD live prices system \u00b7 CPI, all items, YoY");
   if(s.unemployment) chartPanel("unemployment","charts-labour","Unemployment rate",
-    "The share of people 15 and over who want a job but can't find one. Singapore's rate is genuinely very low by international standards -- that's real, not a data error.",
+    "The share of people 15 and over who want a job but can't find one. Singapore's rate is genuinely very low by international standards, that's real, not a data error.",
     s.unemployment,"line",v=>v+"%",pct,SRC_UNEMP);
   if(s.trade_balance) chartPanel("trade_balance","charts-trade","Trade balance, goods",
     "Exports minus imports of goods each month. Below zero means Singapore buys more than it sells.",
     s.trade_balance,"bar",v=>curFmt(v,s.trade_balance.unit,0),v=>curFmt(v,s.trade_balance.unit,1),SRC_TRADE,2000,0);
   if(s.current_account) chartPanel("current_account","charts-trade","Current account",
-    "Singapore's overall balance with the rest of the world (trade plus investment income) as a share of GDP. As a major financial and trade hub, this runs a persistently large surplus -- that's real, not a data error.",
+    "Singapore's overall balance with the rest of the world (trade plus investment income) as a share of GDP. As a major financial and trade hub, this runs a persistently large surplus, that's real, not a data error.",
     s.current_account,"line",v=>v+"%",pct,SRC_WB,undefined,0);
   if(s.debt_gdp) chartPanel("debt_gdp","charts-public","Central government debt, % of GDP",
-    "Central government debt only, not the broader general-government measure used on most other country pages here (no general-government series is currently available for Singapore). Singapore's debt figures are also unusual because most government debt is issued to develop domestic capital markets and fund the reserves system, not to finance a deficit -- unlike most countries, this is not primarily a sign of fiscal strain.",
+    "Central government debt only, not the broader general-government measure used on most other country pages here (no general-government series is currently available for Singapore). Singapore's debt figures are also unusual because most government debt is issued to develop domestic capital markets and fund the reserves system, not to finance a deficit, unlike most countries, this is not primarily a sign of fiscal strain.",
     s.debt_gdp,"line",v=>v+"%",pct,SRC_FISCAL);
   const hero=document.getElementById("hero");
   if(gdpAnnual) statTile(hero,"gdp_level","GDP (annual)",gdpAnnual,
@@ -2391,7 +2396,7 @@ const INFO_CONTENT = {
     dollar: "When this series is on its normal (SGD) path, \u201cDollarise\u201d converts each historical point using that point's OWN contemporaneous SGD/USD rate (monthly resolution, from FRED's DEXSIUS series, which starts 1971-01). On the rarer occasion this falls back to the World-Bank USD series, it's already in dollars and Dollarise correctly has no further effect."
   },
   gdp_growth: {
-    description: "How much the economy grew or shrank compared with the previous year, in real (inflation-adjusted) terms. Singapore's real GDP growth is only available annually from a verified live source, not quarterly like most other pages on this site -- a genuine data-availability difference, not an oversight.",
+    description: "How much the economy grew or shrank compared with the previous year, in real (inflation-adjusted) terms. Singapore's real GDP growth is only available annually from a verified live source, not quarterly like most other pages on this site, a genuine data-availability difference, not an oversight.",
     source: "FRED series SGPNGDPRPCPPPT \u00b7 IMF Asia and Pacific Regional Economic Outlook, annual, % change. Other Singapore series in the same IMF outlook family (domestic demand, export volumes, government debt) are not shown here, as they are last updated with 2019-vintage projections rather than live data.",
     real: "This is already a real (inflation-adjusted) growth rate as published, there is no separate \u201cMake it real\u201d toggle effect for this metric since Singapore has no distinct gdp_real series.",
     dollar: "A growth rate (%) is currency-agnostic, converting the underlying Singapore dollars to US dollars doesn't change the percentage change. \u201cDollarise\u201d has no effect on this figure."
@@ -2401,7 +2406,7 @@ const INFO_CONTENT = {
     source: "OECD live prices system \u00b7 CPI, all items, year on year."
   },
   unemployment: {
-    description: "The share of people aged 15 and over who want a job and are actively looking, but can't find one. Singapore's rate is genuinely very low by international standards -- that's real, not a data error.",
+    description: "The share of people aged 15 and over who want a job and are actively looking, but can't find one. Singapore's rate is genuinely very low by international standards, that's real, not a data error.",
     source: "World Bank SL.UEM.TOTL.ZS \u00b7 modeled ILO estimate, % of total labour force, annual."
   },
   business_confidence: {
@@ -2420,12 +2425,12 @@ const INFO_CONTENT = {
     dollar: "Each historical point is converted at its own contemporaneous SGD/USD rate (monthly resolution from FRED's DEXSIUS, 1971 onward)."
   },
   current_account: {
-    description: "Singapore's overall balance with the rest of the world, trade in goods and services plus net investment income, as a share of GDP. As a major financial and trade hub, this runs a persistently large surplus -- that's real, not a data error.",
+    description: "Singapore's overall balance with the rest of the world, trade in goods and services plus net investment income, as a share of GDP. As a major financial and trade hub, this runs a persistently large surplus, that's real, not a data error.",
     source: "World Bank \u00b7 % of GDP, annual.",
     dollar: "Already expressed as a % of GDP, currency-agnostic. \u201cDollarise\u201d has no effect on this figure."
   },
   debt_gdp: {
-    description: "Central government debt only, not the broader general-government measure used on most other country pages here (no general-government series is currently available for Singapore). Singapore's debt figures are also unusual because most government debt is issued to develop domestic capital markets and fund the reserves system, not to finance a deficit -- unlike most countries, this is not primarily a sign of fiscal strain.",
+    description: "Central government debt only, not the broader general-government measure used on most other country pages here (no general-government series is currently available for Singapore). Singapore's debt figures are also unusual because most government debt is issued to develop domestic capital markets and fund the reserves system, not to finance a deficit, unlike most countries, this is not primarily a sign of fiscal strain.",
     source: "FRED series DEBTTLSGA188A \u00b7 World Bank World Development Indicators, central government debt, % of GDP, annual.",
     dollar: "Already expressed as a % of GDP, currency-agnostic. \u201cDollarise\u201d has no effect on this figure."
   }
@@ -3063,7 +3068,7 @@ document.querySelectorAll(".mtbtn").forEach(function(btn){
  <h3 style="font-size:12px; text-transform:uppercase; letter-spacing:.05em; margin:0 0 8px; color:var(--ink2);">Chart style</h3>
  <div class="field" style="margin-bottom:8px;">
  <label style="display:block; font-size:11.5px; font-weight:600; color:var(--ink2); margin-bottom:3px;" for="czChartTitleInput">Chart title (optional, shown at the top)</label>
- <input type="text" id="czChartTitleInput" maxlength="80" placeholder="e.g. ECB deposit facility rate" style="width:100%; padding:5px 8px; border:1px solid var(--hair); border-radius:6px; background:var(--paper); color:var(--ink); font:inherit; font-size:12.5px;">
+ <input type="text" id="czChartTitleInput" maxlength="80" placeholder="e.g. CPI inflation, annual rate" style="width:100%; padding:5px 8px; border:1px solid var(--hair); border-radius:6px; background:var(--paper); color:var(--ink); font:inherit; font-size:12.5px;">
  </div>
  <div class="field" style="margin-bottom:6px;">
  <label style="display:block; font-size:11.5px; font-weight:600; color:var(--ink2); margin-bottom:3px;" for="czYAxisTitleInput">Y-axis title</label>
@@ -3910,7 +3915,7 @@ document.querySelectorAll(".mtbtn").forEach(function(btn){
     var logLabel = document.getElementById("czLogScaleLabel");
     logToggle.disabled = !logAvailable;
     if(!logAvailable && czState.yScale === "log"){ czState.yScale = "linear"; logToggle.checked = false; }
-    logLabel.textContent = logAvailable ? "Log scale" : "Log scale (unavailable -- data includes zero or negative values)";
+    logLabel.textContent = logAvailable ? "Log scale" : "Log scale (unavailable, data includes zero or negative values)";
     logLabel.style.color = logAvailable ? "" : "var(--ink2)";
     // The Y-axis tick +/- control walks a list of round LINEAR step
     // sizes -- meaningless once the axis is logarithmic, where ticks

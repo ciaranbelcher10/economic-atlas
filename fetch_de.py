@@ -300,6 +300,40 @@ def fetch_eurostat_trade_pair() -> tuple[list | None, list | None]:
     return exports, imports
 
 
+
+def _fx_rate_for_period(fx_hist, period, fallback):
+    """Exchange rate in effect during `period`, not today's spot rate.
+
+    The OECD "667S" merchandise-trade series are USD-denominated, and are
+    converted to the page's own currency below. Converting every historical
+    point at the LATEST spot rate silently rewrites history: a 1990 trade
+    balance would be expressed at this month's exchange rate. The site's
+    Dollarise feature exists precisely to avoid that, so the pipeline must
+    not reintroduce it. Each point is converted at the rate for its own
+    period instead, falling back to the nearest earlier rate, and only to
+    `fallback` when no history is available at all.
+
+    `fx_hist` is the ascending [[YYYY-MM, rate], ...] list returned by
+    fetch_fred for the daily DEX* series (reduced to one point per month).
+    """
+    if not fx_hist:
+        return fallback
+    if len(period) == 7 and period[4] == "-":
+        key = period
+    elif "Q" in period:
+        y, q = period.split("-Q")
+        key = f"{y}-{int(q) * 3:02d}"
+    else:
+        key = f"{period[:4]}-12"
+    best = None
+    for p, v in fx_hist:
+        if p <= key:
+            best = v
+        else:
+            break
+    return best if best is not None else fx_hist[0][1]
+
+
 def main() -> int:
     out = {
         "updated": datetime.now(timezone.utc).strftime("%Y-%m-%dT%H:%M:%SZ"),
@@ -469,7 +503,8 @@ def main() -> int:
                 if "trade_balance" in out["series"]:
                     ser = out["series"]["trade_balance"]
                     if ser["unit"].strip().startswith("$"):
-                        ser["points"] = [[p, round(v / fx_rate, 1)] for p, v in ser["points"]]
+                        ser["points"] = [[p, round(v / _fx_rate_for_period(fx_pts, p, fx_rate), 1)]
+                                          for p, v in ser["points"]]
                         ser["unit"] = "\u20acm"
                         ser["label"] = ser["label"].replace(
                             "Trade balance, goods, $", "Trade balance, goods, total")

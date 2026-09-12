@@ -109,19 +109,32 @@ def fred_period(date: str, freq: str) -> str:
     return f"{y}-{m:02d}"
 
 
-def _is_future_period(period: str) -> bool:
-    """True if `period` (a fred_period-format string: 'YYYY', 'YYYY-Qn', or
-    'YYYY-MM') refers to a year beyond the current calendar year. Some IMF
-    REO/WEO-derived FRED mirrors bundle several years of forward projections
-    into the same series as real observations, with no flag distinguishing
-    actual from forecast. We only want actual/estimated-to-date figures on
-    the site, so any point dated beyond the current year is dropped at
-    fetch time."""
+def _is_future_period(period: str, freq: str = "m") -> bool:
+    """True if `period` covers time that has not finished yet, so the value
+    cannot be a real observation.
+
+    Some IMF REO/WEO-derived FRED mirrors (e.g. the annual *PPPT /
+    GGXWDGGDP / GGXCNLGDP series) bundle several years of forward
+    projections into the same series as real observations, with no flag
+    distinguishing actual from forecast. Anything dated beyond the current
+    year is always a projection.
+
+    For ANNUAL series the current year is a projection too: the year has
+    not finished, so the IMF's figure for it is a forecast, not an outturn.
+    Publishing it would put a forecast on the site with a green
+    "updated on schedule" freshness light, which contradicts the site's
+    data-only promise. Monthly and quarterly series are trimmed only
+    beyond the current year, since a completed month or quarter inside the
+    current year is a genuine observation.
+    """
     try:
         year = int(period[:4])
     except (ValueError, TypeError):
         return False
-    return year > datetime.now(timezone.utc).year
+    this_year = datetime.now(timezone.utc).year
+    if freq == "a":
+        return year >= this_year
+    return year > this_year
 
 
 def fetch_fred(sid: str, freq: str, key: str) -> list:
@@ -141,7 +154,7 @@ def fetch_fred(sid: str, freq: str, key: str) -> list:
     for p, v in points:
         dedup[p] = v
     points = sorted([[p, v] for p, v in dedup.items()], key=lambda x: x[0])
-    points = [p for p in points if not _is_future_period(p[0])]
+    points = [p for p in points if not _is_future_period(p[0], freq)]
     return points
 
 
@@ -471,8 +484,9 @@ def main() -> int:
                 raise ValueError("no usable response")
             scaled_gdp = [[p, round(v / 1e6, 1)] for p, v in raw_gdp]
             out["series"]["gdp_level"] = {
-                "label": "GDP, current prices (World Bank, NY.GDP.MKTP.CD -- USD, "
-                         "fallback: THB linked series unavailable this run)",
+                "label": "GDP, current prices, US$ (World Bank, NY.GDP.MKTP.CD, "
+                         "annual; shown when the quarterly national-currency "
+                         "series is unavailable)",
                 "unit": "$m", "freq": "years", "points": scaled_gdp,
             }
             print(f"  ok  gdp_level (USD fallback) {len(scaled_gdp):>5} observations "

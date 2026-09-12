@@ -682,7 +682,7 @@ button.mtoggle.fx-both{background:#2FA463; border-color:#2FA463; color:#fff;}
       authToggleRow.appendChild(wireToggleBtn("Sign up", "signup"));
     } else {
       authModalTitle.textContent = "Sign up";
-      authModalSub.textContent = "Free, for now -- this may change in future.";
+      authModalSub.textContent = "Free, for now, this may change in future.";
       authSubmitBtn.textContent = "Sign up";
       authToggleRow.textContent = "Already have an account? ";
       authToggleRow.appendChild(wireToggleBtn("Log in", "login"));
@@ -1730,6 +1730,11 @@ function periodEnd(p){
   return new Date(+p.slice(0,4), 11, 31);
 }
 const STALE_DAYS={months:75, quarters:150, years:660};
+/* How far past STALE_DAYS a series must fall before the freshness tooltip
+   stops saying "Awaiting next release" and admits the source series has
+   stalled. Annual series need a tighter multiple: at 3x, an annual figure
+   almost 5.5 years old still claimed to be awaiting its next release. */
+const STALE_MULT={months:3, quarters:3, years:1.25};
 function freshness(series){
   const last=series.points[series.points.length-1][0];
   const age=(Date.now()-periodEnd(last).getTime())/86400000;
@@ -1997,7 +2002,7 @@ function statTile(el, key, title, series, opts){
   const _lastP=series.points[series.points.length-1][0];
   const _ageDays=(Date.now()-periodEnd(_lastP).getTime())/86400000;
   let ledTitle=led==="green"?"Updated on schedule":
-    (_ageDays>3*(STALE_DAYS[series.freq]||90)
+    (_ageDays>(STALE_MULT[series.freq]||3)*(STALE_DAYS[series.freq]||90)
       ?"Source series stale: last data "+fmtPeriod(_lastP)
       :"Awaiting next release");
   if(series.next) ledTitle+=" · next release "+series.next;
@@ -2146,7 +2151,7 @@ function render(data){
   const SRC_GDP_LEVEL = gdpLevelIsUsdFallback ? SRC_GDP_LEVEL_USD_FALLBACK : SRC_GDP_LEVEL_THB;
   const SRC_GDP_REAL="World Bank NY.GDP.MKTP.KN \u00b7 GDP, constant prices, local currency units, annual (same basis as gdp_level, constant Thai baht).";
   const SRC_TRADE="OECD \u00b7 merchandise trade, monthly";
-  const SRC_FISCAL="FRED series DEBTTLTHA188A \u00b7 World Bank World Development Indicators, CENTRAL government debt (not general government -- no verified general-government series was found for Thailand), % of GDP, annual.";
+  const SRC_FISCAL="FRED series DEBTTLTHA188A \u00b7 World Bank World Development Indicators, CENTRAL government debt (not general government, no verified general-government series was found for Thailand), % of GDP, annual.";
   const SRC_WB="World Bank \u00b7 % of GDP, annual";
   const SRC_BCI="OECD \u00b7 BCICP, amplitude-adjusted, long-term average = 100";
   const SRC_UNEMP="World Bank SL.UEM.TOTL.ZS \u00b7 modeled ILO estimate, % of total labour force, annual";
@@ -2160,13 +2165,13 @@ function render(data){
     "The total value of everything Thailand produces in a year, at current prices.",
     gdpAnnual,"line",v=>curFmt(v,s.gdp_level.unit,2),v=>curFmt(v,s.gdp_level.unit,2),SRC_GDP_LEVEL,1996);
   if(s.gdp_growth) chartPanel("gdp_growth","charts-gdp","Real GDP growth, annual",
-    "How much the economy grew or shrank compared with the previous year. Thailand's real GDP growth is only available annually here (Penn World Table), not quarterly like most other pages on this site -- a genuine data-availability difference, not an oversight.",
+    "How much the economy grew or shrank compared with the previous year. Thailand's real GDP growth is only available annually here (Penn World Table), not quarterly like most other pages on this site, a genuine data-availability difference, not an oversight.",
     s.gdp_growth,"bar",v=>v+"%",pct,SRC_GDP_REAL,1999,0);
   if(s.cpi) chartPanel("cpi","charts-inflation","CPI inflation, annual rate",
     "How much consumer prices are rising compared with a year ago.",
     s.cpi,"line",v=>v+"%",pct,"OECD live prices system \u00b7 CPI, all items, YoY");
   if(s.unemployment) chartPanel("unemployment","charts-labour","Unemployment rate",
-    "The share of people 15 and over who want a job but can't find one. Thailand's rate is genuinely one of the lowest in the world -- consistently under 1% in recent years -- that's real, not a data error.",
+    "The share of people 15 and over who want a job but can't find one. Thailand's rate is genuinely one of the lowest in the world, consistently under 1% in recent years, that's real, not a data error.",
     s.unemployment,"line",v=>v+"%",pct,SRC_UNEMP);
   if(s.trade_balance) chartPanel("trade_balance","charts-trade","Trade balance, goods",
     "Exports minus imports of goods each month. Below zero means Thailand buys more than it sells.",
@@ -2389,7 +2394,7 @@ const INFO_CONTENT = {
     dollar: "When this series is on its normal (THB) path, \u201cDollarise\u201d converts each historical point using that point's OWN contemporaneous THB/USD rate (monthly resolution, from FRED's DEXTHUS series, which starts 1971-01). On the rarer occasion this falls back to the World-Bank USD series, it's already in dollars and Dollarise correctly has no further effect."
   },
   gdp_growth: {
-    description: "How much the economy grew or shrank compared with the previous year. Thailand's real GDP growth is only available annually here, not quarterly like most other pages on this site -- a genuine data-availability difference, not an oversight.",
+    description: "How much the economy grew or shrank compared with the previous year. Thailand's real GDP growth is only available annually here, not quarterly like most other pages on this site, a genuine data-availability difference, not an oversight.",
     source: "World Bank NY.GDP.MKTP.KN \u00b7 GDP, constant prices, local currency units, annual (same basis as gdp_level).",
     real: "This is already a real (inflation-adjusted) growth rate as published, there is no separate \u201cMake it real\u201d toggle effect for this metric since Thailand has no distinct gdp_real series.",
     dollar: "A growth rate (%) is currency-agnostic, converting the underlying baht to dollars doesn't change the percentage change. \u201cDollarise\u201d has no effect on this figure."
@@ -2399,7 +2404,7 @@ const INFO_CONTENT = {
     source: "OECD live prices system \u00b7 CPI, all items, year on year."
   },
   unemployment: {
-    description: "The share of people aged 15 and over who want a job and are actively looking, but can't find one. Thailand's rate is genuinely one of the lowest in the world -- consistently under 1% in recent years -- that's real, not a data error.",
+    description: "The share of people aged 15 and over who want a job and are actively looking, but can't find one. Thailand's rate is genuinely one of the lowest in the world, consistently under 1% in recent years, that's real, not a data error.",
     source: "World Bank SL.UEM.TOTL.ZS \u00b7 modeled ILO estimate, % of total labour force, annual."
   },
   business_confidence: {
@@ -3058,7 +3063,7 @@ document.querySelectorAll(".mtbtn").forEach(function(btn){
  <h3 style="font-size:12px; text-transform:uppercase; letter-spacing:.05em; margin:0 0 8px; color:var(--ink2);">Chart style</h3>
  <div class="field" style="margin-bottom:8px;">
  <label style="display:block; font-size:11.5px; font-weight:600; color:var(--ink2); margin-bottom:3px;" for="czChartTitleInput">Chart title (optional, shown at the top)</label>
- <input type="text" id="czChartTitleInput" maxlength="80" placeholder="e.g. ECB deposit facility rate" style="width:100%; padding:5px 8px; border:1px solid var(--hair); border-radius:6px; background:var(--paper); color:var(--ink); font:inherit; font-size:12.5px;">
+ <input type="text" id="czChartTitleInput" maxlength="80" placeholder="e.g. CPI inflation, annual rate" style="width:100%; padding:5px 8px; border:1px solid var(--hair); border-radius:6px; background:var(--paper); color:var(--ink); font:inherit; font-size:12.5px;">
  </div>
  <div class="field" style="margin-bottom:6px;">
  <label style="display:block; font-size:11.5px; font-weight:600; color:var(--ink2); margin-bottom:3px;" for="czYAxisTitleInput">Y-axis title</label>
@@ -3905,7 +3910,7 @@ document.querySelectorAll(".mtbtn").forEach(function(btn){
     var logLabel = document.getElementById("czLogScaleLabel");
     logToggle.disabled = !logAvailable;
     if(!logAvailable && czState.yScale === "log"){ czState.yScale = "linear"; logToggle.checked = false; }
-    logLabel.textContent = logAvailable ? "Log scale" : "Log scale (unavailable -- data includes zero or negative values)";
+    logLabel.textContent = logAvailable ? "Log scale" : "Log scale (unavailable, data includes zero or negative values)";
     logLabel.style.color = logAvailable ? "" : "var(--ink2)";
     // The Y-axis tick +/- control walks a list of round LINEAR step
     // sizes -- meaningless once the axis is logarithmic, where ticks
