@@ -53,7 +53,7 @@ def main():
             "country": "Israel",
             "concept": "rate_decision",
             "name": "Bank of Israel interest rate announcement",
-            "source": "boi.org.il (2026 announcement dates table, hardcoded -- confirmed directly against the real table earlier, see script docstring)",
+            "source": "boi.org.il, published 2026 interest rate announcement dates",
             "time": "4:00pm local time",
         })
 

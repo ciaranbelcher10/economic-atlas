@@ -17,9 +17,10 @@ site's own /logo.png.
 
 Output: /og/{country-slug}-{metric-slug}.png
 
-These are static, baked at generation time -- correct for the data
-available at the moment this script runs. Run alongside
-generate_indicator_pages.py after the hourly data refresh.
+These are static, baked at generation time and correct for the data
+available at the moment this script runs. Runs in update-data.yml
+immediately after the fetch step, alongside generate_indicator_pages.py,
+so the cards never drift away from the published figures.
 """
 import json, os
 from PIL import Image, ImageDraw, ImageFont
@@ -119,7 +120,10 @@ def make_card(country_name, metric_title, latest_str, latest_period_label, out_p
 
     # --- Footer ---
     f_foot = font("regular", 18 * SCALE)
-    draw.text((cx, 470 * SCALE), f"as of {latest_period_label}  \u00b7  live, hourly-refreshed data", font=f_foot, fill=INK2, anchor="mm")
+    # The footer describes the FIGURE, not the pipeline. A PNG is a snapshot the
+    # moment it is written, and social platforms cache it for days after that, so
+    # it must not claim to be live. The "as of" period is the honest statement.
+    draw.text((cx, 470 * SCALE), f"as of {latest_period_label}  \u00b7  theeconomicatlas.com", font=f_foot, fill=INK2, anchor="mm")
 
     img = img.resize((W, H), Image.LANCZOS)
     img.save(out_path)

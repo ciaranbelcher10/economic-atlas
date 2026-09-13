@@ -1715,7 +1715,6 @@ function renderDayDetail(){
       html += "<div class='cal-event' data-idx='" + idx + "'>" +
         "<span class='sw' style='background:" + eventColor(ev) + "'></span>" +
         "<div class='meta'><div class='name'>" + ev.country + " - " + (SHORT_LABEL[ev.concept] || ev.name) + "</div></div>" +
-        "<button type='button' class='bell' title='Notify me (not wired up yet)' disabled>&#128276;</button>" +
       "</div>";
     });
   }
@@ -1737,8 +1736,8 @@ function openEventDetail(ev){
       "<div><strong>Time</strong>" + (ev.time || "Not fixed") + "</div>" +
     "</div>" +
     "<p class='cal-detail-desc'>" + ev.sub + "</p>" +
-    "<p class='cal-detail-src'>Source: " + ev.src + "</p>" +
-    "<button type='button' class='cal-detail-bell' disabled>Notify me before this release (not wired up yet)</button>";
+    (ev.src ? "<p class='cal-detail-src'>Source: " + ev.src + "</p>" : "") +
+    "";
   var m = document.getElementById("calEventModal");
   if(m) m.hidden = false;
 }
@@ -1763,7 +1762,7 @@ function renderLegend(){
       return "<span><span class='sw' style='background:" + METRIC_COLOR[m] + "'></span>" + (SHORT_LABEL[m] || m) + "</span>";
     });
   }
-  parts.push("<span>Click a tile for the full explainer. Bell icon = get notified (not wired up)</span>");
+  parts.push("<span>Click a tile for the full explainer.</span>");
   el.innerHTML = parts.join("");
 }
 
@@ -2010,7 +2009,7 @@ function mergeLiveEvent(ev){
     country: ev.country,
     concept: normalisedConcept,
     name: ev.name,
-    sub: "From the live daily fetch (fetch_calendar_" + ev.country.toLowerCase().slice(0,2) + ".py and related scripts). Not hand verified the way September's data was.",
+    sub: "Scheduled release date, taken from the publishing agency's own calendar.",
     rate: isRate,
     src: ev.source
   });
@@ -2028,7 +2027,7 @@ function applyDefensiveCapAndMerge(events){
     var group = groups[key];
     if(group.length > MAX_EVENTS_PER_CONCEPT_PER_MONTH){
       console.warn("Calendar: dropped " + group.length + " '" + key +
-        "' events -- implausible count for one month, likely a fetch bug " +
+        "' events, an implausible count for one month, likely a fetch bug " +
         "(see the comment above loadLiveCalendarData). Not rendered.");
       return;
     }

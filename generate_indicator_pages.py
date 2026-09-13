@@ -332,11 +332,12 @@ def build_toggle_html_and_js(toggle_data, metric_key, up_is_good, freshness_led_
 # to the baked snapshot if the fetch fails, so the page is never empty.
 # ---------------------------------------------------------------------------
 def build_live_refresh_js(data_url, metric_key, freq, unit, is_gdp, gdp_raw,
-                          up_is_good, has_toggle):
+                          up_is_good, has_toggle, latest_period_label):
     return """<script>
 (function(){
   var DATA_URL = %s, METRIC = %s, FREQ = %s, UNIT = %s;
   var IS_GDP = %s, GDP_RAW = %s, UP_IS_GOOD = %s, HAS_TOGGLE = %s;
+  var PERIOD_LABEL = %s;
   var STALE_DAYS = {months: 75, quarters: 150, years: 660};
   var MONTHS = ["Jan","Feb","Mar","Apr","May","Jun","Jul","Aug","Sep","Oct","Nov","Dec"];
 
@@ -434,12 +435,25 @@ def build_live_refresh_js(data_url, metric_key, freq, unit, is_gdp, gdp_raw,
       ledEl.setAttribute("title", title);
       ledEl.setAttribute("aria-label", title);
     }
-  }).catch(function(){ /* keep the built-in snapshot */ });
+  }).catch(function(){
+    // The live file could not be read. The figure below is the stored one
+    // from when this page was last built, so the freshness light must stop
+    // claiming to know the current state rather than keep its built-in colour.
+    var ledEl = document.getElementById("indicatorLed");
+    if(ledEl){
+      ledEl.className = "led";
+      ledEl.setAttribute("title", "Showing the last stored figure");
+      ledEl.setAttribute("aria-label", "Showing the last stored figure");
+    }
+    var periodEl = document.getElementById("indicatorPeriod");
+    if(periodEl) periodEl.textContent = PERIOD_LABEL + " \\u00b7 last stored figure";
+  });
 })();
 </script>""" % (
         json.dumps(data_url), json.dumps(metric_key), json.dumps(freq), json.dumps(unit),
         "true" if is_gdp else "false", "true" if gdp_raw else "false",
         "true" if up_is_good else "false", "true" if has_toggle else "false",
+        json.dumps(latest_period_label),
     )
 
 
@@ -745,7 +759,7 @@ HEADER_HTML_BASE = """<script>(function(){
       authToggleRow.appendChild(wireToggleBtn("Sign up", "signup"));
     } else {
       authModalTitle.textContent = "Sign up";
-      authModalSub.textContent = "Free, for now -- this may change in future.";
+      authModalSub.textContent = "Free, for now, this may change in future.";
       authSubmitBtn.textContent = "Sign up";
       authToggleRow.textContent = "Already have an account? ";
       authToggleRow.appendChild(wireToggleBtn("Log in", "login"));
@@ -1386,6 +1400,7 @@ def main():
                 gdp_raw=(country_name in GDP_RAW_COUNTRIES),
                 up_is_good=up_is_good,
                 has_toggle=bool(toggle_js),
+                latest_period_label=latest_period_label,
             )
 
             html_out = INDICATOR_TEMPLATE.format(

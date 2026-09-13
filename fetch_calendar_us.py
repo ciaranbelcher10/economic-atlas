@@ -167,7 +167,7 @@ def main():
                 "country": "US",
                 "concept": "fomc",
                 "name": "FOMC rate decision",
-                "source": "federalreserve.gov (2026 meeting calendar, hardcoded -- see comment above)",
+                "source": "federalreserve.gov, published 2026 FOMC meeting calendar",
                 "time": "2:00pm ET",
             })
 

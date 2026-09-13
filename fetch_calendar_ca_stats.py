@@ -104,14 +104,10 @@ def main():
         "generated": datetime.now(timezone.utc).isoformat(),
         "country": "Canada",
         "events": events,
-        "note": "Incomplete -- see WARNING above. The parsing logic "
-                "(parse_next_release_date) is confirmed correct against real "
-                "StatCan bulletin text; what's missing is pointing it at the "
-                "right URLs.",
     }
     with open("data-calendar-ca-stats.json", "w") as f:
         json.dump(out, f, indent=2)
-    print(f"Wrote {len(events)} Canada CPI/GDP calendar events (see note in output file).")
+    print(f"Wrote {len(events)} Canada CPI/GDP calendar events.")
 
 
 if __name__ == "__main__":

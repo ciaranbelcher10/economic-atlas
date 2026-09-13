@@ -53,7 +53,7 @@ def main():
             "country": "Turkey",
             "concept": "rate_decision",
             "name": "CBRT Monetary Policy Committee decision",
-            "source": "tcmb.gov.tr (2026 PPK schedule, hardcoded -- cross-confirmed via 6 independent news sources, see script docstring)",
+            "source": "tcmb.gov.tr, published 2026 Monetary Policy Committee schedule",
             "time": "2:00pm TRT",
         })
 

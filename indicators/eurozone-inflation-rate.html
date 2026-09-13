@@ -366,7 +366,7 @@
       authToggleRow.appendChild(wireToggleBtn("Sign up", "signup"));
     } else {
       authModalTitle.textContent = "Sign up";
-      authModalSub.textContent = "Free, for now -- this may change in future.";
+      authModalSub.textContent = "Free, for now, this may change in future.";
       authSubmitBtn.textContent = "Sign up";
       authToggleRow.textContent = "Already have an account? ";
       authToggleRow.appendChild(wireToggleBtn("Log in", "login"));
@@ -546,7 +546,7 @@
       <p class="label">Latest</p>
       <p class="figure"><span class="led green" id="indicatorLed" title="Updated on schedule" role="img" aria-label="Updated on schedule"></span><span id="indicatorFigure">2.9%</span></p>
       <p class="delta bad" id="indicatorDelta"><span class="arrow" aria-hidden="true">▲</span> +0.2pp vs prior</p>
-      <p class="period" id="indicatorPeriod">Jul 2026 &middot; updated 2026-09-12</p>
+      <p class="period" id="indicatorPeriod">Jul 2026 &middot; updated 2026-09-13</p>
     </div>
   </div>
 
@@ -652,6 +652,7 @@
 (function(){
   var DATA_URL = "../data-ez.json", METRIC = "cpi", FREQ = "months", UNIT = "%";
   var IS_GDP = false, GDP_RAW = false, UP_IS_GOOD = false, HAS_TOGGLE = false;
+  var PERIOD_LABEL = "Jul 2026";
   var STALE_DAYS = {months: 75, quarters: 150, years: 660};
   var MONTHS = ["Jan","Feb","Mar","Apr","May","Jun","Jul","Aug","Sep","Oct","Nov","Dec"];
 
@@ -749,7 +750,19 @@
       ledEl.setAttribute("title", title);
       ledEl.setAttribute("aria-label", title);
     }
-  }).catch(function(){ /* keep the built-in snapshot */ });
+  }).catch(function(){
+    // The live file could not be read. The figure below is the stored one
+    // from when this page was last built, so the freshness light must stop
+    // claiming to know the current state rather than keep its built-in colour.
+    var ledEl = document.getElementById("indicatorLed");
+    if(ledEl){
+      ledEl.className = "led";
+      ledEl.setAttribute("title", "Showing the last stored figure");
+      ledEl.setAttribute("aria-label", "Showing the last stored figure");
+    }
+    var periodEl = document.getElementById("indicatorPeriod");
+    if(periodEl) periodEl.textContent = PERIOD_LABEL + " \u00b7 last stored figure";
+  });
 })();
 </script>
 <script src="../mobile.js?v=12"></script>

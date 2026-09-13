@@ -164,8 +164,8 @@ def main() -> int:
         "updated": datetime.now(timezone.utc).strftime("%Y-%m-%dT%H:%M:%SZ"),
         "year": result.get("sheet"),
         "source": "ONS, General government annual expenditure: ESA Table 11 (COFOG)",
-        "frequency_note": "Annual, with a real lag behind the publication date -- not comparable "
-                           "in freshness to the site's monthly/quarterly series.",
+        "frequency_note": "Annual data, published with a lag. Not directly comparable in "
+                           "freshness to the site's monthly and quarterly series.",
         **result,
     }
     with open("data-uk-spending-cofog.json", "w") as f:
