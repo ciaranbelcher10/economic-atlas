@@ -312,7 +312,7 @@ button.mtoggle.fx-both{background:#2FA463; border-color:#2FA463; color:#fff;}
   ]
 }
 </script>
-<link rel="stylesheet" href="mobile.css?v=11">
+<link rel="stylesheet" href="mobile.css?v=12">
 </head>
 <body>
 <nav class="top"><div class="wrap">
@@ -1624,7 +1624,7 @@ document.addEventListener("DOMContentLoaded", function(){
  <div class="tpm-head"><h3>Spain goods trade: top partners</h3></div>
  <p class="tpm-scopenote"><strong>Goods trade only.</strong> Services aren't covered by this data source and aren't shown here, so relationships that lean heavily on services may be understated.</p>
  <div class="tpm-banner" id="tpmBanner"><span class="dot2" aria-hidden="true"></span>
- <span id="tpmBannerText">Illustrative data: approximate 2025 goods-trade shares, not a live feed. Real bilateral figures pending a UN Comtrade API key.</span></div>
+ <span id="tpmBannerText">Illustrative data: approximate 2025 goods-trade shares, shown as a placeholder. Live bilateral figures are not published for this country yet.</span></div>
  <nav class="viztoggle">
  <button type="button" class="vtbtn" data-view="geo">Geographic</button>
  <button type="button" class="vtbtn active" data-view="radial">Radial</button>
@@ -2146,7 +2146,7 @@ function render(data){
   // page load from data-es.json), which is what "new data each time"
   // means in practice for a static-data key like this.
   window.EATLAS_SERIES = s;
-  if(data.sample){const sb=document.getElementById("sampleBadge");sb.textContent="Sample data: run fetch_es.py for live figures";sb.classList.add("show");}
+  if(data.sample){const sb=document.getElementById("sampleBadge");sb.textContent="Illustrative figures: the live data feed did not load, so this page is showing placeholder shapes, not published statistics. Refresh in a moment.";sb.classList.add("show");}
   const gdpAnnual = s.gdp_level ? annualGDP(s.gdp_level) : null;   /* FIX (7.6.3): this series is the literal quarterly level (IMF IFS), NOT a seasonally-adjusted-annual-rate like UK/US -- must roll up 4 quarters, was previously used raw and inflated headline GDP ~4x */
   const gdpYoY = s.gdp_real ? yoyGDP(s.gdp_real) : null;
   const pct=v=>v.toFixed(1)+"%", pp=v=>v.toFixed(1)+"pp";
@@ -2478,7 +2478,7 @@ const INFO_CONTENT = {
   },
   trade_balance: {
     description: "Exports minus imports of goods each month. Below zero means Spain buys more from abroad than it sells.",
-    source: "Eurostat \u00b7 goods trade, total, monthly.",
+    source: "FRED series XTNTVA01ESM667S \u00b7 OECD merchandise trade, monthly, converted to euros at each period's own rate.",
     dollar: "Each historical point is converted at its own contemporaneous EUR/USD rate (monthly resolution from FRED's DEXUSEU, 1999 onward), with the same pre-1999 earliest-rate fallback as GDP, see the GDP entry for detail."
   },
   current_account: {
@@ -2647,7 +2647,7 @@ function rerender(){
         notes.push(`figures before ${fx.history[0][0]} use the earliest available rate (no genuine historical rate exists further back)`);
       }
     } else {
-      notes.push(`All currency figures converted at ${fx.pair} = ${fx.rate} (as of ${fx.as_of}) -- historical rate matching not yet available for this series`);
+      notes.push(`All currency figures converted at ${fx.pair} = ${fx.rate} (as of ${fx.as_of}), a single rate applied across the series because no historical rate history is available for it`);
     }
   } else if(TOGGLE_STATE.dollar){
     notes.push("Exchange rate not available yet: showing original currency");
@@ -4531,6 +4531,6 @@ document.querySelectorAll(".mtbtn").forEach(function(btn){
   }
 })();
 </script>
-<script src="mobile.js?v=11" defer></script>
+<script src="mobile.js?v=12" defer></script>
 </body>
 </html>

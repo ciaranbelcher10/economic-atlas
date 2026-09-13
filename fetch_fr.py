@@ -340,17 +340,26 @@ def main() -> int:
                 failures.append(name)
                 print(f"FAIL  {name:<16} {exc}")
 
-        if "gdp_level" in out["series"]:
+        # gdp_growth is derived from the REAL (constant-price) GDP series,
+        # not the nominal level. Deriving it from the nominal level gave a
+        # growth rate that still had the GDP deflator in it, while every
+        # label on the site called it real.
+        if "gdp_real" in out["series"]:
             try:
-                gpts = out["series"]["gdp_level"]["points"]
+                gpts = out["series"]["gdp_real"]["points"]
                 growth = gdp_growth_from_level(gpts)
                 if growth:
                     out["series"]["gdp_growth"] = {
-                        "label": "Nominal GDP growth, QoQ (derived)", "unit": "%",
+                        "label": "Real GDP growth, QoQ, SA (derived from NGDPRSAXDCFRQ)", "unit": "%",
                         "freq": "quarters", "points": growth}
-                    print(f"  ok  gdp_growth       {len(growth):>5} observations (derived)")
+                    print(f"  ok  gdp_growth       {len(growth):>5} observations (derived from real GDP)")
             except Exception as exc:
                 print(f"FAIL  gdp_growth       {exc}")
+        else:
+            # No real GDP this run: publish nothing rather than a nominal
+            # rate under a real label. The carry-forward step below keeps
+            # the previous run's real series in place.
+            print("SKIP  gdp_growth       no real GDP series this run, not deriving from nominal")
 
     extras = [
         ("business_confidence", lambda: fetch_oecd_bci(),

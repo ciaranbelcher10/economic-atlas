@@ -668,7 +668,7 @@
       var anchor = monthLabelEl && monthLabelEl.closest(".cal-controls") ? monthLabelEl.closest(".cal-controls") : weeksEl;
       anchor.insertAdjacentElement("afterend", nextUp);
     }
-    nextUp.innerHTML = '<b>Next up:</b> ' + nextPillText + ' \u2014 ' + dateStr;
+    nextUp.innerHTML = '<b>Next up:</b> ' + nextPillText + ' \u00b7 ' + dateStr;
   }
   function watchCalendarNextUp(){
     var weeksEl = document.getElementById("calWeeks");
@@ -721,7 +721,7 @@
           html += '</div>';
         });
         if(more){
-          html += '<div class="cal-agenda-more">'+more.textContent+' — full list on desktop/tablet</div>';
+          html += '<div class="cal-agenda-more">'+more.textContent+', full list on desktop/tablet</div>';
         }
         html += '</div>';
       });
@@ -765,7 +765,7 @@
   function fixStaleCalendarCopy(){
     var el = document.querySelector(".cal-email-explainer-status");
     if(el && /admin preview/i.test(el.textContent)){
-      el.textContent = "This is a newer feature and still being refined — turn it on any time from the Countries panel above.";
+      el.textContent = "Not switched on for this view yet. You can turn it on any time from the Countries panel above.";
     }
   }
 
@@ -798,7 +798,7 @@
     gate.innerHTML =
       '<span class="ic" aria-hidden="true">\uD83D\uDCC8</span>' +
       '<h3>Chartmaker needs a bigger screen</h3>' +
-      '<p>Building and styling a custom chart — picking metrics, colours, axis titles and exporting as PNG or CSV — needs more room than a phone can comfortably give it. Open this page on a tablet or desktop and it\u2019ll be exactly as you left it.</p>' +
+      '<p>Building and styling a custom chart, picking metrics, colours, axis titles and exporting as PNG or CSV, needs more room than a phone can comfortably give it. Open this page on a tablet or desktop and it\u2019ll be exactly as you left it.</p>' +
       '<span class="save-hint">Tip: bookmark this page now, then come back to it once you\u2019re on a bigger screen.</span>';
     layout.insertAdjacentElement("beforebegin", gate);
   }

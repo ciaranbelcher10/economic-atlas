@@ -237,6 +237,16 @@ def fetch_oecd_cpi(areas: tuple, freq: str) -> list | None:
                 continue
         return groups
 
+    # Candidate selection runs across EVERY dataflow/variant combo below,
+    # rather than returning on the first combo that answers. Returning early
+    # meant a newly migrated dataflow answering with a handful of recent
+    # points beat the legacy dataflow holding a decade of history, and the
+    # short series silently replaced the long one on the live page.
+    # A series is only accepted on length grounds if nothing with a usable
+    # amount of history is available at all.
+    MIN_USABLE_POINTS = 24
+    viable = []
+
     for area in areas:
         attempts = (
             ("PA", "GY", False, "N", "N"),
@@ -309,13 +319,23 @@ def fetch_oecd_cpi(areas: tuple, freq: str) -> list | None:
                         continue
                     print(f"  [oecd-cpi] {tag} {gkey} SUCCESS: {len(out)} "
                           f"points, {out[0][0]} to {out[-1][0]}")
-                    return out
+                    viable.append((last_period, out))
+                    continue
                 print(f"  [oecd-cpi] {tag} all series variants stale or "
                       f"unusable -- trying next combo")
                 continue
             except Exception as exc:
                 print(f"  [oecd-cpi] {tag} parsing failed: {exc}")
                 continue
+    if viable:
+        long_enough = [c for c in viable if len(c[1]) >= MIN_USABLE_POINTS]
+        pool = long_enough or viable
+        pool.sort(key=lambda c: (c[0], len(c[1])), reverse=True)
+        chosen = pool[0][1]
+        print(f"  [oecd-cpi] CHOSEN: {len(chosen)} points, "
+              f"{chosen[0][0]} to {chosen[-1][0]} "
+              f"(best of {len(viable)} viable candidate(s))")
+        return chosen
     return None
 
 # ---- World Bank (Brazil) -- free API, no key ----
@@ -385,17 +405,26 @@ def main() -> int:
                 failures.append(name)
                 print(f"FAIL  {name:<16} {exc}")
 
-        if "gdp_level" in out["series"]:
+        # gdp_growth is derived from the REAL (constant-price) GDP series,
+        # not the nominal level. Deriving it from the nominal level gave a
+        # growth rate that still had the GDP deflator in it, while every
+        # label on the site called it real.
+        if "gdp_real" in out["series"]:
             try:
-                gpts = out["series"]["gdp_level"]["points"]
+                gpts = out["series"]["gdp_real"]["points"]
                 growth = gdp_growth_from_level(gpts)
                 if growth:
                     out["series"]["gdp_growth"] = {
-                        "label": "Nominal GDP growth, QoQ, NSA (derived)", "unit": "%",
+                        "label": "Real GDP growth, QoQ, SA (derived from NGDPRSAXDCBRQ)", "unit": "%",
                         "freq": "quarters", "points": growth}
-                    print(f"  ok  gdp_growth       {len(growth):>5} observations (derived)")
+                    print(f"  ok  gdp_growth       {len(growth):>5} observations (derived from real GDP)")
             except Exception as exc:
                 print(f"FAIL  gdp_growth       {exc}")
+        else:
+            # No real GDP this run: publish nothing rather than a nominal
+            # rate under a real label. The carry-forward step below keeps
+            # the previous run's real series in place.
+            print("SKIP  gdp_growth       no real GDP series this run, not deriving from nominal")
 
     extras = [
         ("business_confidence", lambda: fetch_oecd_bci(),

@@ -13,7 +13,9 @@ line, so this deliberately does NOT fire on every metric that's a few
 days into its normal update window -- only on genuine breakage: a fetch
 that's silently failing, falling back, or stopped finding new data.
 
-Also flags series that have DISAPPEARED entirely since the previous
+Also flags series that have been TRUNCATED (still present, but holding
+much less history than last run) and series that have DISAPPEARED entirely
+since the previous
 commit -- a distinct failure mode from staleness. A rate-limited fetch
 with no carry-over fallback doesn't leave stale data behind for the
 staleness check to eventually catch; the key is just gone from the JSON
@@ -120,8 +122,9 @@ def check_series(country, key, series):
     }
 
 
-def previous_series_keys(base_dir, filename):
-    """Series keys present in this file as of the immediately preceding
+def previous_series_points(base_dir, filename):
+    """Series keys, and how many points each held, in this file as of the
+    immediately preceding
     commit (before the "Refresh data" commit this run just made). Returns
     None (not an empty set) if that can't be determined -- an empty repo,
     a shallow checkout with no HEAD~1, git not on PATH, etc. -- so the
@@ -135,7 +138,8 @@ def previous_series_keys(base_dir, filename):
         if result.returncode != 0:
             return None
         payload = json.loads(result.stdout)
-        return set((payload.get("series") or {}).keys())
+        return {k: len((v or {}).get("points") or [])
+                for k, v in (payload.get("series") or {}).items()}
     except Exception:
         return None
 
@@ -144,20 +148,57 @@ def check_disappeared_series(base_dir, country, filename, current_series):
     """Returns a list of alert dicts, one per series key that was present
     last commit and is completely absent now -- distinct from staleness:
     there's no data left at all for check_series() to even evaluate."""
-    prev_keys = previous_series_keys(base_dir, filename)
-    if prev_keys is None:
+    prev = previous_series_points(base_dir, filename)
+    if prev is None:
         return []
-    vanished = prev_keys - set(current_series.keys())
+    vanished = set(prev.keys()) - set(current_series.keys())
     return [
         {"country": country, "key": k, "file": filename}
         for k in sorted(vanished)
     ]
 
 
+# A series can lose most of its history without disappearing: a provider
+# migrates a dataflow, a fallback engages, and a decade of points is
+# replaced by a handful of recent ones. Nothing above catches that, because
+# the series is still present and its newest point is still fresh. This does.
+TRUNCATION_RATIO = 0.75      # kept fraction below which we alert
+TRUNCATION_MIN_LOSS = 5      # ignore tiny drops from ordinary revisions
+
+
+def check_truncated_series(base_dir, country, filename, current_series):
+    """Returns a list of alert dicts, one per series that still exists but
+    holds materially fewer points than it did last commit."""
+    prev = previous_series_points(base_dir, filename)
+    if prev is None:
+        return []
+    out = []
+    for key, series in current_series.items():
+        was = prev.get(key)
+        if not was:
+            continue
+        now = len((series or {}).get("points") or [])
+        if now >= was * TRUNCATION_RATIO or was - now < TRUNCATION_MIN_LOSS:
+            continue
+        points = (series or {}).get("points") or []
+        out.append({
+            "country": country,
+            "key": key,
+            "file": filename,
+            "label": (series or {}).get("label", key),
+            "points_before": was,
+            "points_now": now,
+            "lost": was - now,
+            "now_covers": "{} to {}".format(points[0][0], points[-1][0]) if points else "",
+        })
+    return sorted(out, key=lambda a: -a["lost"])
+
+
 def run(base_dir="."):
     alerts = []
     missing_files = []
     disappeared = []
+    truncated = []
     for country, filename in DATA_FILES.items():
         path = os.path.join(base_dir, filename)
         if not os.path.exists(path):
@@ -175,6 +216,7 @@ def run(base_dir="."):
             if alert:
                 alerts.append(alert)
         disappeared.extend(check_disappeared_series(base_dir, country, filename, current_series))
+        truncated.extend(check_truncated_series(base_dir, country, filename, current_series))
 
     alerts.sort(key=lambda a: -a["age_days"])
     result = {
@@ -182,15 +224,24 @@ def run(base_dir="."):
         "alerts": alerts,
         "missing_or_unreadable_files": missing_files,
         "disappeared_series": disappeared,
+        "truncated_series": truncated,
     }
 
     with open(os.path.join(base_dir, "freshness_alerts.json"), "w") as f:
         json.dump(result, f, indent=2)
 
     summary_lines = []
-    if alerts or missing_files or disappeared:
+    if alerts or missing_files or disappeared or truncated:
         summary_lines.append("### \U0001F534 Data freshness check: {} issue(s) found\n".format(
-            len(alerts) + len(missing_files) + len(disappeared)))
+            len(alerts) + len(missing_files) + len(disappeared) + len(truncated)))
+        if truncated:
+            summary_lines.append("### Series that lost most of their history this run")
+            summary_lines.append("| Country | Series | Points before | Points now | Now covers |")
+            summary_lines.append("|---|---|---|---|---|")
+            for t in truncated:
+                summary_lines.append("| {} | {} | {} | {} | {} |".format(
+                    t["country"], t["label"], t["points_before"], t["points_now"], t["now_covers"]))
+            summary_lines.append("")
         if disappeared:
             summary_lines.append("### Series present last run, completely gone this run")
             summary_lines.append("| Country | Series | File |")

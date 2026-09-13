@@ -312,7 +312,7 @@ button.mtoggle.fx-both{background:#2FA463; border-color:#2FA463; color:#fff;}
   ]
 }
 </script>
-<link rel="stylesheet" href="mobile.css?v=11">
+<link rel="stylesheet" href="mobile.css?v=12">
 </head>
 <body>
 <nav class="top"><div class="wrap">
@@ -1624,7 +1624,7 @@ document.addEventListener("DOMContentLoaded", function(){
  <div class="tpm-head"><h3>Singapore goods trade: top partners</h3></div>
  <p class="tpm-scopenote"><strong>Goods trade only.</strong> Services aren't covered by this data source and aren't shown here, so relationships that lean heavily on services may be understated.</p>
  <div class="tpm-banner" id="tpmBanner"><span class="dot2" aria-hidden="true"></span>
- <span id="tpmBannerText">Illustrative data: approximate 2025 goods-trade shares, not a live feed. Real bilateral figures pending a UN Comtrade API key.</span></div>
+ <span id="tpmBannerText">Illustrative data: approximate 2025 goods-trade shares, shown as a placeholder. Live bilateral figures are not published for this country yet.</span></div>
  <nav class="viztoggle">
  <button type="button" class="vtbtn" data-view="geo">Geographic</button>
  <button type="button" class="vtbtn active" data-view="radial">Radial</button>
@@ -2135,7 +2135,7 @@ function render(data){
   // page load from data-sg.json), which is what "new data each time"
   // means in practice for a static-data key like this.
   window.EATLAS_SERIES = s;
-  if(data.sample){const sb=document.getElementById("sampleBadge");sb.textContent="Sample data: run fetch_sg.py for live figures";sb.classList.add("show");}
+  if(data.sample){const sb=document.getElementById("sampleBadge");sb.textContent="Illustrative figures: the live data feed did not load, so this page is showing placeholder shapes, not published statistics. Refresh in a moment.";sb.classList.add("show");}
   const gdpAnnual = s.gdp_level ? s.gdp_level : null;   /* NOTE: gdp_level is now normally the live World Bank SGD linked series, falling back to World Bank USD only if that fetch fails this run (see SRC_GDP_LEVEL_CURRENT below for how the citation tracks this). Already annual -- no quarterly-to-annual rollup needed, unlike the IMF IFS quarterly series used on some other pages. */
   const gdpYoY = s.gdp_real ? yoyGDP(s.gdp_real) : null;
   const pct=v=>v.toFixed(1)+"%", pp=v=>v.toFixed(1)+"pp";
@@ -2403,7 +2403,7 @@ const INFO_CONTENT = {
   },
   cpi: {
     description: "How much consumer prices are rising compared with a year ago.",
-    source: "OECD live prices system \u00b7 CPI, all items, year on year."
+    source: "FRED series SGPPCPIPCPPPT \u00b7 IMF Asia and Pacific Regional Economic Outlook, annual. Annual only, not the monthly series most other country pages here use."
   },
   unemployment: {
     description: "The share of people aged 15 and over who want a job and are actively looking, but can't find one. Singapore's rate is genuinely very low by international standards, that's real, not a data error.",
@@ -2426,7 +2426,7 @@ const INFO_CONTENT = {
   },
   current_account: {
     description: "Singapore's overall balance with the rest of the world, trade in goods and services plus net investment income, as a share of GDP. As a major financial and trade hub, this runs a persistently large surplus, that's real, not a data error.",
-    source: "World Bank \u00b7 % of GDP, annual.",
+    source: "FRED series SGPBCAGDPBP6PT \u00b7 IMF Asia and Pacific Regional Economic Outlook, % of GDP, annual.",
     dollar: "Already expressed as a % of GDP, currency-agnostic. \u201cDollarise\u201d has no effect on this figure."
   },
   debt_gdp: {
@@ -2585,7 +2585,7 @@ function rerender(){
         notes.push(`figures before ${fx.history[0][0]} use the earliest available rate (no genuine historical rate exists further back)`);
       }
     } else {
-      notes.push(`All currency figures converted at ${fx.pair} = ${fx.rate} (as of ${fx.as_of}) -- historical rate matching not yet available for this series`);
+      notes.push(`All currency figures converted at ${fx.pair} = ${fx.rate} (as of ${fx.as_of}), a single rate applied across the series because no historical rate history is available for it`);
     }
   } else if(TOGGLE_STATE.dollar){
     notes.push("Exchange rate not available yet: showing original currency");
@@ -4476,6 +4476,6 @@ document.querySelectorAll(".mtbtn").forEach(function(btn){
   }
 })();
 </script>
-<script src="mobile.js?v=11" defer></script>
+<script src="mobile.js?v=12" defer></script>
 </body>
 </html>

@@ -307,8 +307,140 @@ def build_toggle_html_and_js(toggle_data, metric_key, up_is_good, freshness_led_
   }
   wireToggle("indToggleReal", "real");
   wireToggle("indToggleDollar", "dollar");
+  window.EATLAS_INDICATOR_TOGGLE = {
+    update: updateIndicatorDisplay,
+    setData: function(nominal, real, fx){
+      if(nominal && nominal.length) NOMINAL_PTS = nominal;
+      if(real && real.length) REAL_PTS = real;
+      if(fx) FX = fx;
+    }
+  };
 """
     return buttons_html, js
+
+
+
+# ---------------------------------------------------------------------------
+# Live refresh.
+#
+# These pages used to be pure snapshots: the figure, the delta, the chart,
+# the period line and the freshness LED were all baked at generation time and
+# never moved again. Because generate_indicator_pages.py is not part of the
+# hourly data workflow, that meant a page could sit on a months-old figure
+# while still showing a green "Updated on schedule" light. The /embed/ pages
+# already read data-XX.json at runtime; these now do the same, and fall back
+# to the baked snapshot if the fetch fails, so the page is never empty.
+# ---------------------------------------------------------------------------
+def build_live_refresh_js(data_url, metric_key, freq, unit, is_gdp, gdp_raw,
+                          up_is_good, has_toggle):
+    return """<script>
+(function(){
+  var DATA_URL = %s, METRIC = %s, FREQ = %s, UNIT = %s;
+  var IS_GDP = %s, GDP_RAW = %s, UP_IS_GOOD = %s, HAS_TOGGLE = %s;
+  var STALE_DAYS = {months: 75, quarters: 150, years: 660};
+  var MONTHS = ["Jan","Feb","Mar","Apr","May","Jun","Jul","Aug","Sep","Oct","Nov","Dec"];
+
+  function periodEnd(period){
+    var m = /^(\\d{4})-Q([1-4])$/.exec(period);
+    if(m) return new Date(Date.UTC(+m[1], (+m[2])*3, 0));
+    m = /^(\\d{4})-(\\d{2})$/.exec(period);
+    if(m) return new Date(Date.UTC(+m[1], +m[2], 0));
+    m = /^(\\d{4})-(\\d{2})-(\\d{2})$/.exec(period);
+    if(m) return new Date(Date.UTC(+m[1], +m[2]-1, +m[3]));
+    m = /^(\\d{4})$/.exec(period);
+    if(m) return new Date(Date.UTC(+m[1], 12, 0));
+    return null;
+  }
+  function fmtPeriod(period){
+    var m = /^(\\d{4})-Q([1-4])$/.exec(period);
+    if(m) return "Q" + m[2] + " " + m[1];
+    m = /^(\\d{4})-(\\d{2})$/.exec(period);
+    if(m) return MONTHS[(+m[2])-1] + " " + m[1];
+    return period;
+  }
+  // Same trailing 4-quarter sum the country pages use in annualGDP().
+  function annualiseGDP(points, freq){
+    if(GDP_RAW || freq === "years") return points;
+    var out = [];
+    for(var i=3; i<points.length; i++){
+      var a=points[i-3][1], b=points[i-2][1], c=points[i-1][1], d=points[i][1];
+      if(a==null||b==null||c==null||d==null) continue;
+      out.push([points[i][0], a+b+c+d]);
+    }
+    return out;
+  }
+  function clean(series){
+    if(!series || !series.points) return null;
+    var pts = series.points.filter(function(p){ return p && p[1] != null; });
+    if(IS_GDP) pts = annualiseGDP(pts, (series.freq || FREQ));
+    return pts.length >= 2 ? pts : null;
+  }
+
+  fetch(DATA_URL, {cache: "no-cache"}).then(function(r){
+    if(!r.ok) throw new Error("bad response");
+    return r.json();
+  }).then(function(d){
+    var render = window.EATLAS_INDICATOR_RENDER;
+    if(!render || !d || !d.series) return;
+    var live = d.series[METRIC];
+    var pts = clean(live);
+    if(!pts) return;
+    // Take the frequency from the live series, not the one baked at build
+    // time: if a source switches between monthly and annual the staleness
+    // threshold has to follow it, or the light lies about what it is showing.
+    var freqNow = (live && live.freq) || FREQ;
+
+    var realPts = IS_GDP ? clean(d.series["gdp_real"]) : null;
+    if(HAS_TOGGLE && window.EATLAS_INDICATOR_TOGGLE){
+      window.EATLAS_INDICATOR_TOGGLE.setData(pts, realPts, d.fx_to_usd || null);
+      window.EATLAS_INDICATOR_TOGGLE.update();
+    } else {
+      var latest = pts[pts.length-1], prev = pts[pts.length-2];
+      var figEl = document.getElementById("indicatorFigure");
+      if(figEl) figEl.textContent = render.curFmt(latest[1], 2, UNIT);
+      var delta = Math.round((latest[1]-prev[1])*100)/100;
+      var deltaEl = document.getElementById("indicatorDelta");
+      if(deltaEl){
+        var dir = delta===0 ? "flat" : ((delta>0)===UP_IS_GOOD ? "good" : "bad");
+        var arrow = delta===0 ? "\\u2582" : (delta>0 ? "\\u25b2" : "\\u25bc");
+        var txt = UNIT.indexOf("%%")>=0 ? Math.abs(delta).toFixed(1)+"pp"
+                                       : render.curFmt(Math.abs(delta), 1, UNIT);
+        var sign = delta>0 ? "+" : (delta<0 ? "\\u2212" : "");
+        deltaEl.className = "delta " + dir;
+        deltaEl.innerHTML = '<span class="arrow" aria-hidden="true">' + arrow + '</span> '
+                          + sign + txt + ' vs prior';
+      }
+      render.renderChart(pts, UNIT);
+    }
+
+    var last = pts[pts.length-1][0];
+    var periodEl = document.getElementById("indicatorPeriod");
+    if(periodEl){
+      var stamp = (d.updated || "").slice(0,10);
+      periodEl.textContent = fmtPeriod(last) + (stamp ? " \\u00b7 updated " + stamp : "");
+    }
+    var rangeEl = document.getElementById("indicatorRange");
+    if(rangeEl) rangeEl.textContent = fmtPeriod(pts[0][0]) + " to " + fmtPeriod(last);
+
+    // Recompute the freshness light from the data that is actually on screen.
+    var ledEl = document.getElementById("indicatorLed");
+    var end = periodEnd(last);
+    if(ledEl && end){
+      var age = Math.round((Date.now() - end.getTime()) / 86400000);
+      var green = age <= (STALE_DAYS[freqNow] || 90);
+      var title = green ? "Updated on schedule"
+                        : "Awaiting next release \\u00b7 last data " + fmtPeriod(last);
+      ledEl.className = "led " + (green ? "green" : "orange");
+      ledEl.setAttribute("title", title);
+      ledEl.setAttribute("aria-label", title);
+    }
+  }).catch(function(){ /* keep the built-in snapshot */ });
+})();
+</script>""" % (
+        json.dumps(data_url), json.dumps(metric_key), json.dumps(freq), json.dumps(unit),
+        "true" if is_gdp else "false", "true" if gdp_raw else "false",
+        "true" if up_is_good else "false", "true" if has_toggle else "false",
+    )
 
 
 HEADER_HTML_BASE = """<script>(function(){
@@ -912,7 +1044,7 @@ INDICATOR_TEMPLATE = """<!DOCTYPE html>
 
   <div class="panel indicator-panel">
     <div class="panelhead"><h2>{metric_title}</h2></div>
-    <p class="range">{first_period} to {latest_period}</p>
+    <p class="range" id="indicatorRange">{first_period} to {latest_period}</p>
     <div class="indicator-chart-outer"><canvas id="indicatorChart" role="img" aria-label="{country_name} {metric_title}, {first_period} to {latest_period}"></canvas></div>
     <p class="src">Source: {source}</p>
   </div>
@@ -1001,7 +1133,8 @@ INDICATOR_TEMPLATE = """<!DOCTYPE html>
 }})();
 </script>
 {toggle_block}
-<script src="../mobile.js?v=10"></script>
+{live_refresh_block}
+<script src="../mobile.js?v=12"></script>
 </body>
 </html>
 """
@@ -1244,6 +1377,16 @@ def main():
                 toggle_data, metric_key, up_is_good, freshness_led, fmt_period_label
             )
             toggle_block = f"<script>\n(function(){{\n{toggle_js}\n}})();\n</script>" if toggle_js else ""
+            live_refresh_block = build_live_refresh_js(
+                data_url=f"../{data_file}",
+                metric_key=metric_key,
+                freq=s.get("freq", ""),
+                unit=unit,
+                is_gdp=(metric_key == "gdp_level"),
+                gdp_raw=(country_name in GDP_RAW_COUNTRIES),
+                up_is_good=up_is_good,
+                has_toggle=bool(toggle_js),
+            )
 
             html_out = INDICATOR_TEMPLATE.format(
                 title_tag=esc(title_tag), meta_desc=esc(meta_desc), canonical=canonical,
@@ -1257,6 +1400,7 @@ def main():
                 led=led, led_title=esc(led_title), delta_dir=delta_dir, delta_arrow=delta_arrow,
                 delta_display=esc(delta_display), unit=esc(unit), unit_json=json.dumps(unit),
                 toggle_buttons_html=toggle_buttons_html, toggle_block=toggle_block,
+                live_refresh_block=live_refresh_block,
             )
             with open(os.path.join(out_indicators, f"{page_slug}.html"), "w", encoding="utf-8") as f:
                 f.write(html_out)

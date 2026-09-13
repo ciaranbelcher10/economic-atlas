@@ -16,11 +16,16 @@ VERIFICATION NOTES:
 
 - gdp_level (NGDPSAXDCDEQ): checked directly, live SA nominal through
   Q1 2026.
-- gdp_real (NGDPRNSAXDCDEQ): checked directly, but NOTE this is NSA (not
-  seasonally adjusted), not the SA version every other country's real
-  GDP series has been. No SA real GDP series was found for Germany in
-  the same search that found this NSA one -- used as-is rather than
-  guess at an unconfirmed "NGDPRSAXDCDEQ".
+- gdp_real (CLVMNACSCAB1GQDE): Eurostat chain-linked volume, seasonally
+  adjusted, millions of chained 2010 euros. Confirmed live on FRED
+  (Q1 2026 = 769,540.5, series updated 2026-06-05). This replaces
+  NGDPRNSAXDCDEQ, which was NOT seasonally adjusted and so could not
+  support a quarter-on-quarter growth rate. CLVMNACSCAB1GQDE is the
+  same Eurostat-QNA naming family already used for the Netherlands
+  (CLVMNACSCAB1GQNL) and is the real counterpart of Germany's nominal
+  gdp_level. Magnitudes are directly comparable to the old NSA series
+  (768,893 NSA vs 769,540.5 SA for Q1 2026), so the unit stays euro
+  millions and nothing downstream needs rescaling.
 - unemployment (LRHUTTTTDEM156S): checked directly, live monthly through
   May 2026, standard naming convention, no substitution needed (unlike
   Mexico/South Africa which both needed quarterly substitutes).
@@ -81,7 +86,7 @@ FRED_SERIES = {
     "ecb_rate": ("ECBDFR", "d", "ECB deposit facility rate", "%", None, 1.0),
     "trade_balance": ("XTNTVA01DEM667S", "m", "Trade balance, goods, $", "$m", None, 1e-6),
     "gdp_level": ("NGDPSAXDCDEQ", "q", "GDP nominal, SA", "\u20acm", None, 1.0),
-    "gdp_real": ("NGDPRNSAXDCDEQ", "q", "Real GDP, NSA", "\u20acm", None, 1.0),
+    "gdp_real": ("CLVMNACSCAB1GQDE", "q", "Real GDP, chain-linked volume, SA", "\u20acm", None, 1.0),
     "unemployment": ("LRHUTTTTDEM156S", "m", "Unemployment rate, 15+, SA", "%", None, 1.0),
     "participation_rate": ("LRAC64TTDEQ156S", "q", "Labour force participation rate, 15-64, SA", "%", None, 1.0),
     "employment_rate": ("LREM64TTDEQ156S", "q", "Employment rate, 15-64, SA", "%", None, 1.0),
@@ -363,17 +368,26 @@ def main() -> int:
                 failures.append(name)
                 print(f"FAIL  {name:<16} {exc}")
 
-        if "gdp_level" in out["series"]:
+        # gdp_growth is derived from the REAL (constant-price, seasonally
+        # adjusted) GDP series, not the nominal level. Deriving it from the
+        # nominal level gave a growth rate that still had the GDP deflator
+        # in it, while every label on the site called it real.
+        if "gdp_real" in out["series"]:
             try:
-                gpts = out["series"]["gdp_level"]["points"]
+                gpts = out["series"]["gdp_real"]["points"]
                 growth = gdp_growth_from_level(gpts)
                 if growth:
                     out["series"]["gdp_growth"] = {
-                        "label": "Nominal GDP growth, QoQ (derived)", "unit": "%",
+                        "label": "Real GDP growth, QoQ, SA (derived from CLVMNACSCAB1GQDE)", "unit": "%",
                         "freq": "quarters", "points": growth}
-                    print(f"  ok  gdp_growth       {len(growth):>5} observations (derived)")
+                    print(f"  ok  gdp_growth       {len(growth):>5} observations (derived from real GDP)")
             except Exception as exc:
                 print(f"FAIL  gdp_growth       {exc}")
+        else:
+            # No real GDP this run: publish nothing rather than a nominal
+            # rate under a real label. The carry-forward step below keeps
+            # the previous run's real series in place.
+            print("SKIP  gdp_growth       no real GDP series this run, not deriving from nominal")
 
     extras = [
         ("business_confidence", lambda: fetch_oecd_bci(),

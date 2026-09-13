@@ -256,6 +256,16 @@ def fetch_oecd_cpi(areas: tuple, freq: str) -> list | None:
                 continue
         return groups
 
+    # Candidate selection runs across EVERY dataflow/variant combo below,
+    # rather than returning on the first combo that answers. Returning early
+    # meant a newly migrated dataflow answering with a handful of recent
+    # points beat the legacy dataflow holding a decade of history, and the
+    # short series silently replaced the long one on the live page.
+    # A series is only accepted on length grounds if nothing with a usable
+    # amount of history is available at all.
+    MIN_USABLE_POINTS = 24
+    viable = []
+
     for area in areas:
         attempts = (
             ("PA", "GY", False, "N", "N"),
@@ -320,11 +330,21 @@ def fetch_oecd_cpi(areas: tuple, freq: str) -> list | None:
                     if not out:
                         continue
                     print(f"  [oecd-cpi] {tag} {gkey} SUCCESS: {len(out)} points, {out[0][0]} to {out[-1][0]}")
-                    return out
+                    viable.append((last_period, out))
+                    continue
                 continue
             except Exception as exc:
                 print(f"  [oecd-cpi] {tag} parsing failed: {exc}")
                 continue
+    if viable:
+        long_enough = [c for c in viable if len(c[1]) >= MIN_USABLE_POINTS]
+        pool = long_enough or viable
+        pool.sort(key=lambda c: (c[0], len(c[1])), reverse=True)
+        chosen = pool[0][1]
+        print(f"  [oecd-cpi] CHOSEN: {len(chosen)} points, "
+              f"{chosen[0][0]} to {chosen[-1][0]} "
+              f"(best of {len(viable)} viable candidate(s))")
+        return chosen
     return None
 
 # ---- World Bank (Argentina) — free API, no key ----
