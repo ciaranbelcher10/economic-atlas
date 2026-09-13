@@ -17,7 +17,7 @@ jobs:
       - uses: actions/setup-python@v5
         with:
           python-version: "3.12"
-      - run: pip install requests openpyxl xlrd
+      - run: pip install requests openpyxl xlrd Pillow
       - name: Init pipeline log
         run: echo "" > pipeline_log.txt
       - name: Run fetch_data.py
@@ -277,6 +277,20 @@ jobs:
           git add data-uk-spending-cofog.json 2>/dev/null || true
           git add data-uk-age-breakdown.json 2>/dev/null || true
           git diff --cached --quiet || git commit -m "Refresh data"
+          git push
+      - name: Regenerate indicator pages and OG cards
+        continue-on-error: true
+        run: |
+          echo ">>> REGENERATING indicator pages and OG cards" >> pipeline_log.txt
+          python generate_indicator_pages.py 2>&1 | tee -a pipeline_log.txt
+          python generate_og_images.py 2>&1 | tee -a pipeline_log.txt
+          # sitemap-fragment.xml is a build aid, not a served file
+          rm -f indicators/sitemap-fragment.xml
+          # keep the indicator lastmod dates honest now the pages have moved
+          TODAY=$(date -u +%Y-%m-%d)
+          sed -i -E "s#(<loc>https://theeconomicatlas\.com/indicators/[a-z0-9-]+</loc><lastmod>)[0-9]{4}-[0-9]{2}-[0-9]{2}#\1${TODAY}#g" sitemap.xml
+          git add indicators/ embed/ og/ sitemap.xml
+          git diff --cached --quiet || git commit -m "Regenerate indicator pages and OG cards"
           git push
       - name: Check data freshness
         run: python check_data_freshness.py
