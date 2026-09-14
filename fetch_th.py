@@ -209,7 +209,7 @@ OECD_BASE = "https://sdmx.oecd.org/public/rest/data/OECD.SDD.STES,DSD_STES@DF_CL
 OECD_QUERIES = [
     f"{OECD_BASE}/THA.M.BCICP...AA...H?format=csvfile&startPeriod=1990",
     f"{OECD_BASE}/THA.M.BCICP......?format=csvfile&startPeriod=1990",
-    f"{OECD_BASE}/all?format=csvfile&startPeriod=2000",
+    f"{OECD_BASE}/all?format=csvfile&startPeriod=1990",
 ]
 
 

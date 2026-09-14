@@ -34,7 +34,9 @@ import series_guard
 # Add an entry ONLY when intentionally swapping source, and say why, e.g.
 #     ALLOW_SHRINK = {"ppi": "PPIACO -> PPIFID, final demand is the BLS headline"}
 # Remove it once the new series has landed.
-ALLOW_SHRINK = {}
+ALLOW_SHRINK = {
+    "cpi_mom": "one point fewer by design: Nov 2025 has no computable month on month value because BLS published no Oct 2025 CPI",
+}
 
 UA = {"User-Agent": "economic-atlas/0.2"}
 
@@ -279,7 +281,7 @@ def fetch_oecd_bci(ref_area: str) -> tuple[str, list] | None:
     queries = [
         f"{OECD_BASE}/{ref_area}.M.BCICP...AA...H?format=csvfile&startPeriod=1990",
         f"{OECD_BASE}/{ref_area}.M.BCICP......?format=csvfile&startPeriod=1990",
-        f"{OECD_BASE}/all?format=csvfile&startPeriod=2000",
+        f"{OECD_BASE}/all?format=csvfile&startPeriod=1990",
     ]
     for url in queries:
         try:

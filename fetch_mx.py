@@ -180,7 +180,7 @@ MX_AREAS = ("MEX",)
 OECD_QUERIES = [
     f"{OECD_BASE}/MEX.M.BCICP...AA...H?format=csvfile&startPeriod=1990",
     f"{OECD_BASE}/MEX.M.BCICP......?format=csvfile&startPeriod=1990",
-    f"{OECD_BASE}/all?format=csvfile&startPeriod=2000",
+    f"{OECD_BASE}/all?format=csvfile&startPeriod=1990",
 ]
 
 

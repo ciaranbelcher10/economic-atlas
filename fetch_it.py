@@ -191,7 +191,7 @@ IT_AREAS = ("ITA",)
 OECD_QUERIES = [
     f"{OECD_BASE}/ITA.M.BCICP...AA...H?format=csvfile&startPeriod=1990",
     f"{OECD_BASE}/ITA.M.BCICP......?format=csvfile&startPeriod=1990",
-    f"{OECD_BASE}/all?format=csvfile&startPeriod=2000",
+    f"{OECD_BASE}/all?format=csvfile&startPeriod=1990",
 ]
 
 

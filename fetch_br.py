@@ -203,7 +203,7 @@ BR_AREAS = ("BRA",)
 OECD_QUERIES = [
     f"{OECD_BASE}/BRA.M.BCICP...AA...H?format=csvfile&startPeriod=1990",
     f"{OECD_BASE}/BRA.M.BCICP......?format=csvfile&startPeriod=1990",
-    f"{OECD_BASE}/all?format=csvfile&startPeriod=2000",
+    f"{OECD_BASE}/all?format=csvfile&startPeriod=1990",
 ]
 
 

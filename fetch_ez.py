@@ -127,7 +127,7 @@ EZ_AREAS = ("EA20", "EA19", "XEA")
 OECD_QUERIES = [
     f"{OECD_BASE}/EA20.M.BCICP...AA...H?format=csvfile&startPeriod=1990",
     f"{OECD_BASE}/EA19.M.BCICP...AA...H?format=csvfile&startPeriod=1990",
-    f"{OECD_BASE}/all?format=csvfile&startPeriod=2000",
+    f"{OECD_BASE}/all?format=csvfile&startPeriod=1990",
 ]
 
 
