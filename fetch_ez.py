@@ -398,7 +398,7 @@ def main() -> int:
     es_exp, es_imp = fetch_eurostat_trade_pair()
     if es_exp and es_imp:
         out["series"]["exports"] = {
-            "label": "Exports of goods, extra-euro-area (Eurostat teiet110)",
+            "label": "Exports of goods, extra-euro-area (Eurostat teiet010)",
             "unit": "\u20acm", "freq": "months", "points": es_exp}
         out["series"]["imports"] = {
             "label": "Imports of goods, extra-euro-area (Eurostat teiet110)",
@@ -419,7 +419,7 @@ def main() -> int:
             # $-to-local FX conversion below; with the OECD fallback they are
             # $m and will be converted as before.
             out["series"]["trade_balance"] = {
-                "label": "Trade balance, goods (exports minus imports)",
+                "label": "Trade balance, goods, extra-euro-area (derived from Eurostat teiet010 and teiet110)",
                 "unit": out["series"]["exports"]["unit"],
                 "freq": "months", "points": tb}
             print(f"  ok  {'trade_balance':<16} {len(tb):>5} observations (derived)")
