@@ -39,9 +39,19 @@ if(window.self === window.top){ document.body.classList.add("standalone"); }
 </script>
 <script>
 (function(){
+  // Both failure branches below used to be silent: a missing data file hit an
+  // empty catch, and a missing series hit a bare return. Either way the widget
+  // sat on its placeholder ellipsis forever on whatever third-party page had
+  // embedded it, which reads as a broken widget rather than a data outage.
+  function unavailable(){
+    var v = document.getElementById("val");
+    if(v) v.textContent = "Data unavailable";
+    var p = document.getElementById("per");
+    if(p) p.textContent = "";
+  }
   fetch("../data-sg.json").then(function(r){return r.json();}).then(function(d){
     var s = d.series && d.series["unemployment"];
-    if(!s || !s.points || !s.points.length) return;
+    if(!s || !s.points || !s.points.length){ unavailable(); return; }
     var rawPts = s.points;
     var isGdp = "unemployment" === "gdp_level";
     var gdpNeedsSum = isGdp && true && s.freq !== "years";
@@ -96,7 +106,7 @@ if(window.self === window.top){ document.body.classList.add("standalone"); }
       '<polyline points="'+lineStr+'" fill="none" stroke="#37659E" stroke-width="2.5" stroke-linejoin="round" stroke-linecap="round"/>' +
       '<circle cx="'+lastC[0].toFixed(1)+'" cy="'+lastC[1].toFixed(1)+'" r="3.5" fill="#1E4566"/>' +
       '</svg>';
-  }).catch(function(){});
+  }).catch(function(){ unavailable(); });
 })();
 </script>
 </body>
