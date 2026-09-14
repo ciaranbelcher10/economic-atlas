@@ -82,6 +82,7 @@ still the genuine test):
 
 from __future__ import annotations
 
+import re
 import json
 import time
 import os
@@ -89,6 +90,18 @@ import sys
 from datetime import datetime, timezone
 
 import requests
+import series_guard
+
+# Series this script is deliberately allowed to replace with a shorter or
+# lower-frequency one. Without an entry here, series_guard keeps the previous
+# series whenever the incoming one has less history, coarser frequency, or an
+# older last period, which is what stops a rate-limited partial response from
+# overwriting good data.
+#
+# Add an entry ONLY when intentionally swapping source, and say why, e.g.
+#     ALLOW_SHRINK = {"ppi": "PPIACO -> PPIFID, final demand is the BLS headline"}
+# Remove it once the new series has landed.
+ALLOW_SHRINK = {}
 
 # key: (fred_id, freq 'm'|'q'|'a', label, unit, transform None|'yoy'|'mom'|'qoq', scale)
 FRED_SERIES = {
@@ -136,9 +149,37 @@ def fetch_fred(sid: str, freq: str, key: str) -> list:
     return sorted([[p, v] for p, v in dedup.items()], key=lambda x: x[0])
 
 
+def _period_back_n(per, n: int):
+    """The period label n periods earlier, in the period's own unit."""
+    s = str(per)
+    if re.fullmatch(r"\d{4}-\d{2}", s):
+        t = int(s[:4]) * 12 + (int(s[5:]) - 1) - n
+        return "{}-{:02d}".format(t // 12, t % 12 + 1)
+    if re.fullmatch(r"\d{4}-Q[1-4]", s):
+        t = int(s[:4]) * 4 + (int(s[6]) - 1) - n
+        return "{}-Q{}".format(t // 4, t % 4 + 1)
+    if re.fullmatch(r"\d{4}", s):
+        return str(int(s) - n)
+    return None
+
+
 def yoy_from_level(points: list, lag: int) -> list:
-    return [[points[i][0], round((points[i][1] / points[i - lag][1] - 1) * 100, 2)]
-            for i in range(lag, len(points)) if points[i - lag][1]]
+    """Rate of change matched BY PERIOD rather than by list position.
+
+    Indexing back a fixed number of list slots shifts every comparison after
+    a hole in the source series by the size of that hole. A gap now yields
+    no point for the affected periods, which is correct: the rate is not
+    computable there.
+    """
+    by_period = {p[0]: p[1] for p in points}
+    out = []
+    for per, val in points:
+        prev = _period_back_n(per, lag)
+        base = by_period.get(prev) if prev else None
+        if not base:
+            continue
+        out.append([per, round((val / base - 1) * 100, 2)])
+    return out
 
 
 # ---- OECD business confidence (Indonesia) — free SDMX API, no key ----
@@ -222,8 +263,17 @@ def fetch_oecd_cpi(areas: tuple, freq: str) -> list | None:
             return 0.0
 
     def to_yoy(pts):
-        return [[pts[i][0], round((pts[i][1] / pts[i - lag][1] - 1) * 100, 2)]
-                for i in range(lag, len(pts)) if pts[i - lag][1]] or None
+        # Matched by period, not by list position. A hole in the source
+        # series would otherwise shift every later comparison by the size
+        # of the hole, silently.
+        by_period = {p[0]: p[1] for p in pts}
+        out = []
+        for per, val in pts:
+            prev = _period_back_n(per, lag)
+            base = by_period.get(prev) if prev else None
+            if base:
+                out.append([per, round((val / base - 1) * 100, 2)])
+        return out or None
 
     def parse_groups(text: str, area: str, tag: str) -> dict:
         reader = list(csv.DictReader(io.StringIO(text)))
@@ -279,6 +329,21 @@ def fetch_oecd_cpi(areas: tuple, freq: str) -> list | None:
         # already throttling, rather than burning all 8 combos.
         consecutive_429s = 0
         for base_url, base_tag, unit_measure, trans_code, needs_yoy, meth, adj in combos:
+            if any(len(c[1]) >= MIN_USABLE_POINTS for c in viable):
+                # A candidate with enough history and a fresh enough last
+                # period is already in hand. The remaining variants cannot
+                # improve on it, and every extra request feeds the 429
+                # cascade that starves the countries running later in the
+                # same job. This is NOT the early return removed earlier:
+                # that one let a handful of recent points beat a decade of
+                # history by answering first. This stops only on a
+                # candidate that has already cleared the length bar, and
+                # the attempt order puts the direct year-on-year variant
+                # ahead of the index-derived one, so the longer series is
+                # tried first by construction.
+                print(f"  [oecd-cpi] {area} stopping early, already hold "
+                      f"{max(len(c[1]) for c in viable)} usable points")
+                break
             if consecutive_429s >= 2:
                 print(f"  [oecd-cpi] {area} bailing out after {consecutive_429s} "
                       f"consecutive 429s, host is rate-limiting this run")
@@ -494,13 +559,8 @@ def main() -> int:
     except Exception:
         _prev_for_merge = {}
     _prev_series = _prev_for_merge.get("series", {})
-    carried_over = []
-    for k, v in _prev_series.items():
-        if k not in out["series"]:
-            out["series"][k] = v
-            carried_over.append(k)
-    if carried_over:
-        print(f"CARRIED OVER from previous run (failed this run, kept prior data rather than deleting it): {', '.join(carried_over)}")
+    _guard_verdicts = series_guard.apply_guard(
+        out["series"], _prev_series, allow_shrink=ALLOW_SHRINK)
     if not out.get("fx_to_usd") and _prev_for_merge.get("fx_to_usd"):
         out["fx_to_usd"] = _prev_for_merge["fx_to_usd"]
         print("CARRIED OVER fx_to_usd from previous run")

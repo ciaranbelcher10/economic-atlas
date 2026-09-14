@@ -29,6 +29,18 @@ import sys
 from datetime import datetime, timezone
 
 import requests
+import series_guard
+
+# Series this script is deliberately allowed to replace with a shorter or
+# lower-frequency one. Without an entry here, series_guard keeps the previous
+# series whenever the incoming one has less history, coarser frequency, or an
+# older last period, which is what stops a rate-limited partial response from
+# overwriting good data.
+#
+# Add an entry ONLY when intentionally swapping source, and say why, e.g.
+#     ALLOW_SHRINK = {"ppi": "PPIACO -> PPIFID, final demand is the BLS headline"}
+# Remove it once the new series has landed.
+ALLOW_SHRINK = {}
 
 # key: (fred_id, freq 'm'|'q', label, unit, transform None|'yoy'|'mom', scale)
 # scale multiplies the raw FRED value before any transform. Use this to correct
@@ -52,6 +64,20 @@ FRED_SERIES = {
 FRED_URL = ("https://api.stlouisfed.org/fred/series/observations"
             "?series_id={sid}&api_key={key}&file_type=json"
             "&observation_start=1970-01-01")
+
+
+def _period_back_n(per, n: int):
+    """The period label n periods earlier, in the period's own unit."""
+    s = str(per)
+    if re.fullmatch(r"\d{4}-\d{2}", s):
+        t = int(s[:4]) * 12 + (int(s[5:]) - 1) - n
+        return "{}-{:02d}".format(t // 12, t % 12 + 1)
+    if re.fullmatch(r"\d{4}-Q[1-4]", s):
+        t = int(s[:4]) * 4 + (int(s[6]) - 1) - n
+        return "{}-Q{}".format(t // 4, t % 4 + 1)
+    if re.fullmatch(r"\d{4}", s):
+        return str(int(s) - n)
+    return None
 
 
 def fred_period(date: str, freq: str) -> str:
@@ -82,12 +108,47 @@ def fetch_fred(sid: str, freq: str, key: str) -> list:
     return sorted([[p, v] for p, v in dedup.items()], key=lambda x: x[0])
 
 
+def _period_back(per, months: int):
+    """The period label `months` earlier. Handles YYYY-MM, YYYY-Qn and YYYY."""
+    s = str(per)
+    if re.fullmatch(r"\d{4}-\d{2}", s):
+        t = int(s[:4]) * 12 + (int(s[5:]) - 1) - months
+        return "{}-{:02d}".format(t // 12, t % 12 + 1)
+    if re.fullmatch(r"\d{4}-Q[1-4]", s):
+        steps = max(1, months // 3)
+        t = int(s[:4]) * 4 + (int(s[6]) - 1) - steps
+        return "{}-Q{}".format(t // 4, t % 4 + 1)
+    if re.fullmatch(r"\d{4}", s):
+        return str(int(s) - max(1, months // 12))
+    return None
+
+
 def transform(points: list, kind: str | None) -> list:
+    """Rate of change matched BY PERIOD rather than by list position.
+
+    This used to index backwards a fixed number of list slots
+    (points[i - 12]), which compares the wrong periods whenever the source
+    series has a hole in it. BLS published no October 2025 CPI during the
+    shutdown, so every US CPI point from November 2025 onward was compared
+    against the month before the one it should have been: August 2026 read
+    3.71 where BLS published 3.4.
+
+    Looking the counterpart up by period label means a gap yields no point
+    rather than a wrong one, which is correct: the rate genuinely is not
+    computable for that period.
+    """
     if kind not in ("yoy", "mom", "qoq"):
         return points
-    lag = 12 if kind == "yoy" else 1
-    return [[points[i][0], round((points[i][1] / points[i - lag][1] - 1) * 100, 2)]
-            for i in range(lag, len(points)) if points[i - lag][1]]
+    back = 12 if kind == "yoy" else 1
+    by_period = {p[0]: p[1] for p in points}
+    out = []
+    for per, val in points:
+        prev = _period_back(per, back)
+        base = by_period.get(prev) if prev else None
+        if not base:
+            continue
+        out.append([per, round((val / base - 1) * 100, 2)])
+    return out
 
 
 # ---- OECD business confidence (USA) — free SDMX API, no key ----
@@ -305,8 +366,17 @@ def fetch_oecd_cpi(areas: tuple, freq: str) -> list | None:
             return 0.0  # unparseable period -> don't reject on age alone
 
     def to_yoy(pts):
-        return [[pts[i][0], round((pts[i][1] / pts[i - lag][1] - 1) * 100, 2)]
-                for i in range(lag, len(pts)) if pts[i - lag][1]] or None
+        # Matched by period, not by list position. A hole in the source
+        # series would otherwise shift every later comparison by the size
+        # of the hole, silently.
+        by_period = {p[0]: p[1] for p in pts}
+        out = []
+        for per, val in pts:
+            prev = _period_back_n(per, lag)
+            base = by_period.get(prev) if prev else None
+            if base:
+                out.append([per, round((val / base - 1) * 100, 2)])
+        return out or None
 
     def parse_groups(text: str, area: str, tag: str) -> dict:
         # Group rows by (METHODOLOGY, ADJUSTMENT) so a wildcard query that
@@ -378,6 +448,21 @@ def fetch_oecd_cpi(areas: tuple, freq: str) -> list | None:
         # already throttling, rather than burning all 8 combos.
         consecutive_429s = 0
         for base_url, base_tag, unit_measure, trans_code, needs_yoy, meth, adj in combos:
+            if any(len(c[1]) >= MIN_USABLE_POINTS for c in viable):
+                # A candidate with enough history and a fresh enough last
+                # period is already in hand. The remaining variants cannot
+                # improve on it, and every extra request feeds the 429
+                # cascade that starves the countries running later in the
+                # same job. This is NOT the early return removed earlier:
+                # that one let a handful of recent points beat a decade of
+                # history by answering first. This stops only on a
+                # candidate that has already cleared the length bar, and
+                # the attempt order puts the direct year-on-year variant
+                # ahead of the index-derived one, so the longer series is
+                # tried first by construction.
+                print(f"  [oecd-cpi] {area} stopping early, already hold "
+                      f"{max(len(c[1]) for c in viable)} usable points")
+                break
             if consecutive_429s >= 2:
                 print(f"  [oecd-cpi] {area} bailing out after {consecutive_429s} "
                       f"consecutive 429s, host is rate-limiting this run")
@@ -549,13 +634,8 @@ def main() -> int:
     # separate prev_full read further below (for new_points_meta
     # tracking) is untouched by this -- redundant but harmless.
     _prev_series_early = _prev_full_early.get("series", {})
-    _carried_over_early = []
-    for k, v in _prev_series_early.items():
-        if k not in out["series"]:
-            out["series"][k] = v
-            _carried_over_early.append(k)
-    if _carried_over_early:
-        print(f"CARRIED OVER from previous run (failed this run, kept prior data rather than deleting it): {', '.join(_carried_over_early)}")
+    _guard_verdicts = series_guard.apply_guard(
+        out["series"], _prev_series_early, allow_shrink=ALLOW_SHRINK)
     if not out.get("fx_to_usd") and _prev_full_early.get("fx_to_usd"):
         out["fx_to_usd"] = _prev_full_early["fx_to_usd"]
         print("CARRIED OVER fx_to_usd from previous run")

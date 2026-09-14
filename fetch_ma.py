@@ -41,6 +41,7 @@ built so far. Desk research (not a live run) found:
 
 from __future__ import annotations
 
+import re
 import json
 import time
 import os
@@ -48,6 +49,18 @@ import sys
 from datetime import datetime, timezone
 
 import requests
+import series_guard
+
+# Series this script is deliberately allowed to replace with a shorter or
+# lower-frequency one. Without an entry here, series_guard keeps the previous
+# series whenever the incoming one has less history, coarser frequency, or an
+# older last period, which is what stops a rate-limited partial response from
+# overwriting good data.
+#
+# Add an entry ONLY when intentionally swapping source, and say why, e.g.
+#     ALLOW_SHRINK = {"ppi": "PPIACO -> PPIFID, final demand is the BLS headline"}
+# Remove it once the new series has landed.
+ALLOW_SHRINK = {}
 
 # key: (fred_id, freq 'm'|'q'|'a', label, unit, transform None|'yoy'|'mom'|'qoq', scale)
 # debt_gdp, deficit and trade_balance were removed from here after being
@@ -63,6 +76,20 @@ FRED_SERIES = {}
 FRED_URL = ("https://api.stlouisfed.org/fred/series/observations"
             "?series_id={sid}&api_key={key}&file_type=json"
             "&observation_start=1970-01-01")
+
+
+def _period_back_n(per, n: int):
+    """The period label n periods earlier, in the period's own unit."""
+    s = str(per)
+    if re.fullmatch(r"\d{4}-\d{2}", s):
+        t = int(s[:4]) * 12 + (int(s[5:]) - 1) - n
+        return "{}-{:02d}".format(t // 12, t % 12 + 1)
+    if re.fullmatch(r"\d{4}-Q[1-4]", s):
+        t = int(s[:4]) * 4 + (int(s[6]) - 1) - n
+        return "{}-Q{}".format(t // 4, t % 4 + 1)
+    if re.fullmatch(r"\d{4}", s):
+        return str(int(s) - n)
+    return None
 
 
 def fred_period(date: str, freq: str) -> str:
@@ -123,12 +150,47 @@ def fetch_fred(sid: str, freq: str, key: str) -> list:
     return points
 
 
+def _period_back(per, months: int):
+    """The period label `months` earlier. Handles YYYY-MM, YYYY-Qn and YYYY."""
+    s = str(per)
+    if re.fullmatch(r"\d{4}-\d{2}", s):
+        t = int(s[:4]) * 12 + (int(s[5:]) - 1) - months
+        return "{}-{:02d}".format(t // 12, t % 12 + 1)
+    if re.fullmatch(r"\d{4}-Q[1-4]", s):
+        steps = max(1, months // 3)
+        t = int(s[:4]) * 4 + (int(s[6]) - 1) - steps
+        return "{}-Q{}".format(t // 4, t % 4 + 1)
+    if re.fullmatch(r"\d{4}", s):
+        return str(int(s) - max(1, months // 12))
+    return None
+
+
 def transform(points: list, kind: str | None) -> list:
+    """Rate of change matched BY PERIOD rather than by list position.
+
+    This used to index backwards a fixed number of list slots
+    (points[i - 12]), which compares the wrong periods whenever the source
+    series has a hole in it. BLS published no October 2025 CPI during the
+    shutdown, so every US CPI point from November 2025 onward was compared
+    against the month before the one it should have been: August 2026 read
+    3.71 where BLS published 3.4.
+
+    Looking the counterpart up by period label means a gap yields no point
+    rather than a wrong one, which is correct: the rate genuinely is not
+    computable for that period.
+    """
     if kind not in ("yoy", "mom", "qoq"):
         return points
-    lag = 12 if kind == "yoy" else 1
-    return [[points[i][0], round((points[i][1] / points[i - lag][1] - 1) * 100, 2)]
-            for i in range(lag, len(points)) if points[i - lag][1]]
+    back = 12 if kind == "yoy" else 1
+    by_period = {p[0]: p[1] for p in points}
+    out = []
+    for per, val in points:
+        prev = _period_back(per, back)
+        base = by_period.get(prev) if prev else None
+        if not base:
+            continue
+        out.append([per, round((val / base - 1) * 100, 2)])
+    return out
 
 
 # ---- OECD business confidence (Morocco) -- free SDMX API, no key ----
@@ -213,8 +275,17 @@ def fetch_oecd_cpi(areas: tuple, freq: str) -> list | None:
             return 0.0
 
     def to_yoy(pts):
-        return [[pts[i][0], round((pts[i][1] / pts[i - lag][1] - 1) * 100, 2)]
-                for i in range(lag, len(pts)) if pts[i - lag][1]] or None
+        # Matched by period, not by list position. A hole in the source
+        # series would otherwise shift every later comparison by the size
+        # of the hole, silently.
+        by_period = {p[0]: p[1] for p in pts}
+        out = []
+        for per, val in pts:
+            prev = _period_back_n(per, lag)
+            base = by_period.get(prev) if prev else None
+            if base:
+                out.append([per, round((val / base - 1) * 100, 2)])
+        return out or None
 
     def parse_groups(text: str, area: str, tag: str) -> dict:
         reader = list(csv.DictReader(io.StringIO(text)))
@@ -274,6 +345,21 @@ def fetch_oecd_cpi(areas: tuple, freq: str) -> list | None:
         # already throttling, rather than burning all 8 combos.
         consecutive_429s = 0
         for base_url, base_tag, unit_measure, trans_code, needs_yoy, meth, adj in combos:
+            if any(len(c[1]) >= MIN_USABLE_POINTS for c in viable):
+                # A candidate with enough history and a fresh enough last
+                # period is already in hand. The remaining variants cannot
+                # improve on it, and every extra request feeds the 429
+                # cascade that starves the countries running later in the
+                # same job. This is NOT the early return removed earlier:
+                # that one let a handful of recent points beat a decade of
+                # history by answering first. This stops only on a
+                # candidate that has already cleared the length bar, and
+                # the attempt order puts the direct year-on-year variant
+                # ahead of the index-derived one, so the longer series is
+                # tried first by construction.
+                print(f"  [oecd-cpi] {area} stopping early, already hold "
+                      f"{max(len(c[1]) for c in viable)} usable points")
+                break
             if consecutive_429s >= 2:
                 print(f"  [oecd-cpi] {area} bailing out after {consecutive_429s} "
                       f"consecutive 429s, host is rate-limiting this run")
@@ -367,13 +453,135 @@ def fetch_worldbank(code: str) -> list | None:
     return points or None
 
 
+IMF_CPI_URLS = (
+    # Legacy Data Services endpoints. CPI is the dedicated consumer price
+    # dataset; IFS carries the same indicator and is tried as a second
+    # route in case the CPI dataflow is retired. Dimension order for both
+    # is FREQ.REF_AREA.INDICATOR, and PCPI_IX is the all-items index.
+    "https://dataservices.imf.org/REST/SDMX_JSON.svc/CompactData/CPI/"
+    "M.{area}.PCPI_IX?startPeriod=2010",
+    "https://dataservices.imf.org/REST/SDMX_JSON.svc/CompactData/IFS/"
+    "M.{area}.PCPI_IX?startPeriod=2010",
+)
+
+# A monthly CPI more than this far past its last period is a dead mirror,
+# not a slow publisher. Rejecting here rather than relying on series_guard
+# keeps the reason visible in the pipeline log.
+IMF_MAX_AGE_DAYS = 400
+
+
+def _imf_age_days(period: str) -> float:
+    try:
+        y, m = str(period).replace("M", "-").split("-")[:2]
+        dt = datetime(int(y), int(m), 1, tzinfo=timezone.utc)
+        return (datetime.now(timezone.utc) - dt).total_seconds() / 86400
+    except Exception:
+        return 1e9
+
+
+def fetch_imf_cpi(area: str) -> list | None:
+    """Monthly all-items CPI index from IMF, returned as a YoY rate.
+
+    PCPI_IX is an index, so the year on year rate is derived here the same
+    way the OECD index variants are handled above. Returns None on any
+    failure, which leaves the caller's next fallback to take over.
+    """
+    for template in IMF_CPI_URLS:
+        url = template.format(area=area)
+        tag = url.split("/CompactData/")[-1].split("?")[0]
+        try:
+            r = requests.get(url, timeout=60,
+                             headers={"User-Agent": "economic-atlas/0.1"})
+            print(f"  [imf-cpi] {tag} status={r.status_code}")
+            r.raise_for_status()
+            payload = r.json()
+        except Exception as exc:
+            print(f"  [imf-cpi] {tag} request failed: {exc}")
+            continue
+
+        try:
+            series = payload["CompactData"]["DataSet"]["Series"]
+        except (KeyError, TypeError):
+            print(f"  [imf-cpi] {tag} no Series in response")
+            continue
+        if isinstance(series, list):
+            series = series[0] if series else None
+        if not isinstance(series, dict):
+            print(f"  [imf-cpi] {tag} unexpected Series shape")
+            continue
+
+        obs = series.get("Obs")
+        if isinstance(obs, dict):
+            obs = [obs]
+        if not isinstance(obs, list) or not obs:
+            print(f"  [imf-cpi] {tag} no observations")
+            continue
+
+        index = []
+        for o in obs:
+            try:
+                period = str(o["@TIME_PERIOD"]).replace("M", "-")
+                value = float(o["@OBS_VALUE"])
+            except (KeyError, TypeError, ValueError):
+                continue
+            if len(period.split("-")) < 2:
+                continue
+            index.append([period, value])
+        index.sort(key=lambda p: p[0])
+        if len(index) < 24:
+            print(f"  [imf-cpi] {tag} only {len(index)} usable index points")
+            continue
+
+        age = _imf_age_days(index[-1][0])
+        if age > IMF_MAX_AGE_DAYS:
+            print(f"  [imf-cpi] {tag} REJECTED stale: {len(index)} points "
+                  f"ending {index[-1][0]} ({age:.0f} days old, "
+                  f"limit {IMF_MAX_AGE_DAYS})")
+            continue
+
+        by_period = {q[0]: q[1] for q in index}
+        yoy = []
+        for per, val in index:
+            prev = _period_back_n(per, 12)
+            base = by_period.get(prev) if prev else None
+            if base:
+                yoy.append([per, round((val / base - 1) * 100, 2)])
+        if not yoy:
+            print(f"  [imf-cpi] {tag} YoY transform produced nothing")
+            continue
+        print(f"  [imf-cpi] {tag} SUCCESS: {len(yoy)} points, "
+              f"{yoy[0][0]} to {yoy[-1][0]}")
+        return yoy
+    return None
+
+
 def fetch_cpi_with_fallback() -> tuple[list | None, str]:
-    """Try OECD live CPI first; if that fails, fall back to World Bank's
-    annual CPI indicator rather than showing nothing at all."""
-    pts = fetch_oecd_cpi(("MAR",), "M")
+    """Try OECD live CPI first, then IMF monthly, then World Bank annual.
+
+    Morocco is not published in either OECD prices dataflow: both
+    DSD_PRICES_COICOP2018 and DSD_PRICES return 404 for MAR on every
+    variant (verified directly against the endpoint on 2026-09-13, and
+    visible as 404s in the pipeline log). The OECD attempt is kept in
+    case that changes, but it is not expected to succeed today, which is
+    why the IMF tier sits between it and the annual World Bank series.
+    """
+    # OECD does not publish Morocco in either prices dataflow. Every key
+    # variant returns 404 on DSD_PRICES_COICOP2018 and on DSD_PRICES,
+    # verified directly against the endpoint on 2026-09-13 and visible as
+    # 404s in the pipeline log. The call is skipped rather than made,
+    # because the 8 requests it costs are spent before twelve countries
+    # that run later in the same job reach OECD at all, and they are the
+    # ones currently losing their CPI to 429s.
+    # To restore if OECD ever adds Morocco, uncomment the next line.
+    # pts = fetch_oecd_cpi(("MAR",), "M")
+    pts = None
     if pts:
         return pts, "OECD live prices system"
-    print("  [cpi] OECD attempt exhausted, falling back to World Bank annual CPI")
+    print("  [cpi] OECD attempt exhausted, trying IMF monthly CPI")
+    pts = fetch_imf_cpi("MA")
+    if pts:
+        return pts, "IMF, monthly"
+    print("  [cpi] IMF attempt exhausted, falling back to World Bank annual CPI")
     pts = fetch_worldbank("FP.CPI.TOTL.ZG")
     if pts:
         return pts, "World Bank, annual"
@@ -410,8 +618,14 @@ def main() -> int:
                 print(f"FAIL  {name:<16} {exc}")
 
     extras = [
-        ("business_confidence", lambda: fetch_oecd_bci(),
-         "Business confidence indicator, LT avg = 100 (OECD BCICP)", "index", "months"),
+        # business_confidence is not fetched for Morocco. OECD does not
+        # publish it: the BCI endpoint returns 404 for MAR, and the series
+        # has never been present in any of the 689 recorded revisions of
+        # data-ma.json. The 3 requests it cost were spent before twelve
+        # later countries reached OECD. To restore, re-add the tuple:
+        #   ("business_confidence", lambda: fetch_oecd_bci(),
+        #    "Business confidence indicator, LT avg = 100 (OECD BCICP)",
+        #    "index", "months"),
         ("fdi", lambda: fetch_worldbank("BX.KLT.DINV.WD.GD.ZS"),
          "FDI net inflows, % of GDP (World Bank)", "%", "years"),
         ("current_account", lambda: fetch_worldbank("BN.CAB.XOKA.GD.ZS"),
@@ -497,13 +711,8 @@ def main() -> int:
     # already used elsewhere) so a run where every series fails still
     # gets rescued by carried-over data rather than giving up entirely.
     _prev_series = prev_full.get("series", {})
-    carried_over = []
-    for k, v in _prev_series.items():
-        if k not in out["series"]:
-            out["series"][k] = v
-            carried_over.append(k)
-    if carried_over:
-        print(f"CARRIED OVER from previous run (failed this run, kept prior data rather than deleting it): {', '.join(carried_over)}")
+    _guard_verdicts = series_guard.apply_guard(
+        out["series"], _prev_series, allow_shrink=ALLOW_SHRINK)
     if not out.get("fx_to_usd") and prev_full.get("fx_to_usd"):
         out["fx_to_usd"] = prev_full["fx_to_usd"]
         print("CARRIED OVER fx_to_usd from previous run")

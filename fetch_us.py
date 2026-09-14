@@ -7,12 +7,25 @@ In GitHub Actions the key comes from the FRED_API_KEY repository secret.
 
 from __future__ import annotations
 
+import re
 import json
 import os
 import sys
 from datetime import datetime, timezone
 
 import requests
+import series_guard
+
+# Series this script is deliberately allowed to replace with a shorter or
+# lower-frequency one. Without an entry here, series_guard keeps the previous
+# series whenever the incoming one has less history, coarser frequency, or an
+# older last period, which is what stops a rate-limited partial response from
+# overwriting good data.
+#
+# Add an entry ONLY when intentionally swapping source, and say why, e.g.
+#     ALLOW_SHRINK = {"ppi": "PPIACO -> PPIFID, final demand is the BLS headline"}
+# Remove it once the new series has landed.
+ALLOW_SHRINK = {}
 
 # key: (fred_id, freq 'm'|'q', label, unit, transform None|'yoy'|'mom')
 FRED_SERIES = {
@@ -63,12 +76,47 @@ def fetch_fred(sid: str, freq: str, key: str) -> list:
     return points
 
 
+def _period_back(per, months: int):
+    """The period label `months` earlier. Handles YYYY-MM, YYYY-Qn and YYYY."""
+    s = str(per)
+    if re.fullmatch(r"\d{4}-\d{2}", s):
+        t = int(s[:4]) * 12 + (int(s[5:]) - 1) - months
+        return "%d-%02d" % (t // 12, t % 12 + 1)
+    if re.fullmatch(r"\d{4}-Q[1-4]", s):
+        steps = max(1, months // 3)
+        t = int(s[:4]) * 4 + (int(s[6]) - 1) - steps
+        return "%d-Q%d" % (t // 4, t % 4 + 1)
+    if re.fullmatch(r"\d{4}", s):
+        return str(int(s) - max(1, months // 12))
+    return None
+
+
 def transform(points: list, kind: str | None) -> list:
+    """Year on year or month on month rate, matched BY PERIOD, not by position.
+
+    This used to index backwards a fixed number of list slots
+    (points[i - 12]), which compares the wrong months whenever the source
+    series has a hole in it. BLS published no October 2025 CPI during the
+    shutdown, so every US CPI point from November 2025 onward was compared
+    against the month before the one it should have been. August 2026 read
+    3.71% where BLS published 3.4%.
+
+    Looking the counterpart up by period label means a gap yields no point
+    rather than a wrong one, which is correct: the rate genuinely is not
+    computable for that month.
+    """
     if kind not in ("yoy", "mom"):
         return points
-    lag = 12 if kind == "yoy" else 1
-    return [[points[i][0], round((points[i][1] / points[i - lag][1] - 1) * 100, 2)]
-            for i in range(lag, len(points)) if points[i - lag][1]]
+    back = 12 if kind == "yoy" else 1
+    by_period = {p[0]: p[1] for p in points}
+    out = []
+    for per, val in points:
+        prev = _period_back(per, back)
+        base = by_period.get(prev) if prev else None
+        if not base:
+            continue
+        out.append([per, round((val / base - 1) * 100, 2)])
+    return out
 
 
 # ---- OECD business confidence (USA) — free SDMX API, no key ----
@@ -217,13 +265,8 @@ def main() -> int:
     # already used elsewhere) so a run where every series fails still
     # gets rescued by carried-over data rather than giving up entirely.
     _prev_series = prev_full.get("series", {})
-    carried_over = []
-    for k, v in _prev_series.items():
-        if k not in out["series"]:
-            out["series"][k] = v
-            carried_over.append(k)
-    if carried_over:
-        print(f"CARRIED OVER from previous run (failed this run, kept prior data rather than deleting it): {', '.join(carried_over)}")
+    _guard_verdicts = series_guard.apply_guard(
+        out["series"], _prev_series, allow_shrink=ALLOW_SHRINK)
     if not out.get("fx_to_usd") and prev_full.get("fx_to_usd"):
         out["fx_to_usd"] = prev_full["fx_to_usd"]
         print("CARRIED OVER fx_to_usd from previous run")

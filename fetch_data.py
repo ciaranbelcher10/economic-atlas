@@ -16,12 +16,25 @@ from __future__ import annotations
 
 import csv
 import io
+import re
 import json
 import os
 import sys
 from datetime import datetime, timezone
 
 import requests
+import series_guard
+
+# Series this script is deliberately allowed to replace with a shorter or
+# lower-frequency one. Without an entry here, series_guard keeps the previous
+# series whenever the incoming one has less history, coarser frequency, or an
+# older last period, which is what stops a rate-limited partial response from
+# overwriting good data.
+#
+# Add an entry ONLY when intentionally swapping source, and say why, e.g.
+#     ALLOW_SHRINK = {"ppi": "PPIACO -> PPIFID, final demand is the BLS headline"}
+# Remove it once the new series has landed.
+ALLOW_SHRINK = {}
 
 UA = {"User-Agent": "economic-atlas/0.2"}
 
@@ -225,13 +238,34 @@ def fetch_fx_history(series_id: str, api_key: str) -> list:
     return sorted(monthly.items(), key=lambda kv: kv[0])
 
 
+def _period_back_n(per, n: int):
+    """The period label n periods earlier, in the period's own unit."""
+    s = str(per)
+    if re.fullmatch(r"\d{4}-\d{2}", s):
+        t = int(s[:4]) * 12 + (int(s[5:]) - 1) - n
+        return "{}-{:02d}".format(t // 12, t % 12 + 1)
+    if re.fullmatch(r"\d{4}-Q[1-4]", s):
+        t = int(s[:4]) * 4 + (int(s[6]) - 1) - n
+        return "{}-Q{}".format(t // 4, t % 4 + 1)
+    if re.fullmatch(r"\d{4}", s):
+        return str(int(s) - n)
+    return None
+
+
 def pct_change(points: list, lag: int) -> list:
+    """Rate of change matched BY PERIOD rather than by list position.
+
+    BLS published no October 2025 CPI during the shutdown. Indexing back a
+    fixed number of list slots meant every later point was compared against
+    the wrong month. A gap now yields no point rather than a wrong one.
+    """
+    by_period = {p[0]: p[1] for p in points}
     out = []
-    for i in range(lag, len(points)):
-        prev = points[i - lag][1]
+    for per, val in points:
+        prev_per = _period_back_n(per, lag)
+        prev = by_period.get(prev_per) if prev_per else None
         if prev:
-            out.append([points[i][0],
-                        round((points[i][1] / prev - 1) * 100, 2)])
+            out.append([per, round((val / prev - 1) * 100, 2)])
     return out
 
 
@@ -374,13 +408,8 @@ def finalise(out: dict, previous: dict, path: str, failures: list) -> bool:
     # this replaces them, now placed after carry-over so a run where
     # everything fails still gets rescued rather than giving up).
     _prev_series = prev_full.get("series", {})
-    carried_over = []
-    for k, v in _prev_series.items():
-        if k not in out["series"]:
-            out["series"][k] = v
-            carried_over.append(k)
-    if carried_over:
-        print(f"CARRIED OVER from previous run (failed this run, kept prior data rather than deleting it): {', '.join(carried_over)}")
+    _guard_verdicts = series_guard.apply_guard(
+        out["series"], _prev_series, allow_shrink=ALLOW_SHRINK)
     if not out.get("fx_to_usd") and prev_full.get("fx_to_usd"):
         out["fx_to_usd"] = prev_full["fx_to_usd"]
         print("CARRIED OVER fx_to_usd from previous run")
