@@ -440,6 +440,16 @@
   }
   function watchTradePartnerLists(){
     $all(".tpm-ranklist").forEach(function(list){
+      // Only the country pages' genuine trade-partner list, which carries
+      // id="tpmRankList" on all 31 of them. compare.html reuses the whole
+      // .tpm-* class family for its own metric ranking panel and creates
+      // those lists with a class and no id, so matching on .tpm-ranklist
+      // alone put a "Biggest partner: US $32.49tn2026" line above every
+      // metric on Compare: the #1 row of a country ranking, read as though
+      // it were a trade partner, with the value and its period span
+      // concatenated by textContent. dashboard.html and chartmaker.html
+      // use none of these classes and were never affected.
+      if(list.id !== "tpmRankList") return;
       if(list._mobPartnerWatched) return;
       list._mobPartnerWatched = true;
       renderTradePartnerBanner(list);

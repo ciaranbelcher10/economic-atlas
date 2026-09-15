@@ -439,33 +439,194 @@ def fetch_worldbank(code: str) -> list | None:
 INDEC_IPC_URL = "https://www.indec.gob.ar/ftp/cuadros/economia/serie_ipc_divisiones.csv"
 
 
+def _indec_norm(text) -> str:
+    """Lowercase, strip accents and punctuation, so header and label matching
+    survives INDEC writing "Descripcion", "Descripción" or "DESCRIPCION"."""
+    import unicodedata
+    t = unicodedata.normalize("NFKD", str(text or ""))
+    t = "".join(c for c in t if not unicodedata.combining(c))
+    return re.sub(r"[^a-z0-9]", "", t.lower())
+
+
+def _indec_period(raw) -> str | None:
+    """INDEC has used several period shapes across editions of this file.
+    Accepts YYYY-MM, YYYY-MM-DD, YYYYMM, MM/YYYY and DD/MM/YYYY; returns the
+    site's canonical YYYY-MM, or None if it is not a month at all."""
+    t = str(raw or "").strip()
+    m = re.match(r"^(\d{4})[-/](\d{1,2})(?:[-/]\d{1,2})?$", t)
+    if m:
+        y, mo = int(m.group(1)), int(m.group(2))
+    else:
+        m = re.match(r"^(\d{1,2})[-/](\d{4})$", t)
+        if m:
+            y, mo = int(m.group(2)), int(m.group(1))
+        else:
+            m = re.match(r"^(\d{1,2})[-/](\d{1,2})[-/](\d{4})$", t)
+            if m:
+                y, mo = int(m.group(3)), int(m.group(2))
+            else:
+                m = re.match(r"^(\d{4})(\d{2})$", t)
+                if not m:
+                    return None
+                y, mo = int(m.group(1)), int(m.group(2))
+    if not (1 <= mo <= 12) or not (1900 <= y <= 2100):
+        return None
+    return f"{y}-{mo:02d}"
+
+
+# Region labels that mean the national aggregate rather than one of INDEC's
+# six regional indices (GBA, Pampeana, Noreste, Noroeste, Cuyo, Patagonia).
+_INDEC_NATIONAL = ("totalnacional", "nacional", "total", "paistotal", "argentina")
+
+
+def _indec_parse_long(rows) -> list | None:
+    """Parse INDEC's long (tidy) layout: one row per division per month per
+    region, with the header
+
+        Codigo;Descripcion;Clasificador;Periodo;Indice_IPC;v_m_IPC;v_i_a_IPC;Region
+
+    Returns YoY points computed from the index level, or None.
+
+    The year-on-year column (v_i_a_IPC) is deliberately NOT used: its scale
+    is ambiguous from the file alone (0.021 and 2.1 both appear in INDEC
+    products for the same 2.1% figure) and getting that wrong by a factor of
+    100 is exactly the class of silent error this site exists to avoid. The
+    index level has no such ambiguity, so YoY is derived from it the same way
+    every other series on the site is.
+    """
+    header = [_indec_norm(h) for h in rows[0]]
+
+    def col(*names):
+        for want in names:
+            for i, h in enumerate(header):
+                if h == want:
+                    return i
+        for want in names:
+            for i, h in enumerate(header):
+                if want in h:
+                    return i
+        return None
+
+    c_desc = col("descripcion")
+    c_per = col("periodo", "fecha")
+    c_idx = col("indiceipc", "indice")
+    c_reg = col("region")
+    if c_desc is None or c_per is None or c_idx is None:
+        return None
+
+    regions = {}
+    for row in rows[1:]:
+        if len(row) <= max(c_desc, c_per, c_idx):
+            continue
+        if _indec_norm(row[c_desc]) != "nivelgeneral":
+            continue
+        period = _indec_period(row[c_per])
+        if not period:
+            continue
+        try:
+            val = float(str(row[c_idx]).strip().replace(".", "").replace(",", ".")
+                        if str(row[c_idx]).count(",") == 1
+                        else str(row[c_idx]).strip().replace(",", "."))
+        except ValueError:
+            continue
+        reg = _indec_norm(row[c_reg]) if c_reg is not None and len(row) > c_reg else ""
+        regions.setdefault(reg, {})[period] = val
+
+    if not regions:
+        print("  [indec-ipc] long layout: no 'Nivel general' rows found")
+        return None
+
+    chosen = None
+    for want in _INDEC_NATIONAL:
+        if want in regions:
+            chosen = want
+            break
+    if chosen is None and len(regions) == 1:
+        chosen = next(iter(regions))
+        print(f"  [indec-ipc] long layout: single region {chosen!r}, using it")
+    if chosen is None:
+        print("  [indec-ipc] long layout: no national region among "
+              + repr(sorted(regions)) + " -- refusing to guess")
+        return None
+
+    by_period = regions[chosen]
+    print(f"  [indec-ipc] long layout: region={chosen!r}, "
+          f"{len(by_period)} 'Nivel general' index points")
+    yoy = []
+    for per in sorted(by_period):
+        prev = _period_back_n(per, 12)
+        base = by_period.get(prev) if prev else None
+        if base:
+            yoy.append([per, round((by_period[per] / base - 1) * 100, 2)])
+    return yoy or None
+
+
+def _indec_parse_wide(rows) -> list | None:
+    """Parse the older wide layout: a date column plus one column per
+    division, with 'Nivel general' as a column heading."""
+    header = [_indec_norm(h) for h in rows[0]]
+    general_col = None
+    for i, h in enumerate(header):
+        if "nivelgeneral" in h or h == "general":
+            general_col = i
+            break
+    if general_col is None:
+        return None
+    points = []
+    for row in rows[1:]:
+        if len(row) <= general_col:
+            continue
+        period = _indec_period(row[0])
+        if not period:
+            continue
+        try:
+            points.append([period, float(str(row[general_col]).strip().replace(",", "."))])
+        except ValueError:
+            continue
+    if len(points) < 24:
+        print(f"  [indec-ipc] wide layout: only {len(points)} usable rows -- rejecting")
+        return None
+    points.sort(key=lambda p: p[0])
+    by_period = {q[0]: q[1] for q in points}
+    yoy = []
+    for per, val in points:
+        prev = _period_back_n(per, 12)
+        base = by_period.get(prev) if prev else None
+        if base:
+            yoy.append([per, round((val / base - 1) * 100, 2)])
+    return yoy or None
+
+
 def fetch_indec_cpi_yoy() -> list | None:
     """Argentina's own national statistics office (INDEC) publishes this CSV
-    directly and keeps it current with each monthly IPC release (confirmed
-    via INDEC's own press releases through Apr 2026 as of this build) --
-    genuinely live, unlike every FRED/OECD mirror and the datos.gob.ar open
-    data API we checked (that catalog is frozen since mid-2025, orphaned by
-    a 2023-24 ministry restructuring).
+    directly and keeps it current with each monthly IPC release.
 
-    IMPORTANT: the exact column layout of this CSV was NOT verified before
-    this build -- the sandbox used to build this site can't reach
-    indec.gob.ar (network egress is allowlisted to a small set of
-    dev-tooling domains only) and web-based inspection tools couldn't read
-    the raw bytes either. So instead of guessing a column position, this
-    parses defensively: it decodes with a couple of likely encodings, tries
-    comma then semicolon as the delimiter (INDEC has used both across
-    different files), and finds the "Nivel general" column by matching its
-    header text rather than assuming a fixed index. If any of that doesn't
-    hold on the real file, this returns None and cpi simply stays a
-    disclosed gap rather than silently feeding wrong numbers -- check the
-    Actions log on the first real run to see exactly what it found.
+    INDEC changed the layout of this file. It used to be wide (a date column
+    plus one column per division, with "Nivel general" as a column heading)
+    and is now long (one row per division per month per region). The
+    2026-09-15 pipeline log caught the switch:
+
+        [indec-ipc] could not locate a 'Nivel general' column with either
+        delimiter; raw header row: 'Codigo;Descripcion;Clasificador;Periodo;
+        Indice_IPC;v_m_IPC;v_i_a_IPC;Region'
+
+    Both layouts are handled here, long first, so a revert on INDEC's side
+    does not break this again.
+
+    The sandbox this was written in cannot reach indec.gob.ar, so the long
+    parser is built against that header line rather than against the file's
+    body. It is written to refuse rather than guess: an unrecognised region
+    set, an unparseable period or a missing index column all return None,
+    which leaves Argentine CPI as a disclosed gap on a carried-over series
+    rather than a confidently wrong number. Check the [indec-ipc] lines in
+    the Actions log on the first real run to see which layout it took, which
+    region it selected and how many points it built.
     """
     r = requests.get(INDEC_IPC_URL, timeout=60,
                      headers={"User-Agent": "economic-atlas/0.1"})
     r.raise_for_status()
     import csv
     import io
-    import re
 
     raw = r.content
     text = None
@@ -486,48 +647,21 @@ def fetch_indec_cpi_yoy() -> list | None:
             continue
         if not rows or len(rows[0]) < 2:
             continue
-        header = [h.strip().lower() for h in rows[0]]
-        date_col = 0
-        general_col = None
-        for i, h in enumerate(header):
-            norm = re.sub(r"[^a-z0-9]", "", h)
-            if "nivelgeneral" in norm or norm == "general":
-                general_col = i
-                break
-        if general_col is None:
-            continue
-        points = []
-        for row in rows[1:]:
-            if len(row) <= max(date_col, general_col):
-                continue
-            date_raw = row[date_col].strip()
-            val_raw = row[general_col].strip().replace(",", ".")
-            m = re.match(r"(\d{4})-(\d{1,2})", date_raw)
-            if not m:
-                continue
-            period = f"{m.group(1)}-{int(m.group(2)):02d}"
+        for layout, parser in (("long", _indec_parse_long),
+                               ("wide", _indec_parse_wide)):
             try:
-                points.append([period, float(val_raw)])
-            except ValueError:
+                yoy = parser(rows)
+            except Exception as exc:
+                print(f"  [indec-ipc] delimiter={delim!r} {layout} parser raised {exc}")
                 continue
-        if len(points) >= 24:
-            points.sort(key=lambda p: p[0])
-            by_period = {q[0]: q[1] for q in points}
-            yoy = []
-            for per, val in points:
-                prev = _period_back_n(per, 12)
-                base = by_period.get(prev) if prev else None
-                if base:
-                    yoy.append([per, round((val / base - 1) * 100, 2)])
             if yoy:
-                print(f"  [indec-ipc] delimiter={delim!r} SUCCESS: {len(yoy)} points, "
-                      f"{yoy[0][0]} to {yoy[-1][0]}")
+                print(f"  [indec-ipc] delimiter={delim!r} {layout} SUCCESS: "
+                      f"{len(yoy)} points, {yoy[0][0]} to {yoy[-1][0]}")
                 return yoy
-        print(f"  [indec-ipc] delimiter={delim!r} found header but only "
-              f"{len(points)} usable rows -- rejecting")
-    print("  [indec-ipc] could not locate a 'Nivel general' column with "
-          "either delimiter; raw header row: " + repr(text.splitlines()[0][:200]
-          if text.splitlines() else "(empty)"))
+
+    first = text.splitlines()[0][:200] if text.splitlines() else "(empty)"
+    print("  [indec-ipc] neither the long nor the wide layout parsed with "
+          "either delimiter; raw header row: " + repr(first))
     return None
 
 

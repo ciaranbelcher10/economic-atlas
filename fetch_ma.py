@@ -692,7 +692,15 @@ def main() -> int:
             raise ValueError("no usable response from OECD or World Bank")
         out["series"]["cpi"] = {
             "label": f"CPI, all items, YoY ({cpi_source})", "unit": "%",
-            "freq": "months" if cpi_source.startswith("OECD") else "years",
+            # fetch_cpi_with_fallback() returns one of three sources: the
+            # OECD live prices system and the IMF are both monthly, only the
+            # World Bank tier is annual. Testing for OECD alone stamped the
+            # IMF's monthly points as "years", and series_guard then compared
+            # them against the World Bank annual series as if both were
+            # annual, read the 1960 -> 2011-01 start move as a downgrade and
+            # kept the annual series. The IMF fetch had been working since
+            # v1.5.34; the label was what threw its 186 points away.
+            "freq": "years" if cpi_source.startswith("World Bank") else "months",
             "points": cpi_points}
         print(f"  ok  cpi              {len(cpi_points):>5} observations "
               f"({cpi_points[0][0]} to {cpi_points[-1][0]}, via {cpi_source})")
