@@ -20,233 +20,68 @@ jobs:
       - run: pip install requests openpyxl xlrd Pillow
       - name: Init pipeline log
         run: echo "" > pipeline_log.txt
-      - name: Run fetch_data.py
+      # Country fetchers, in a rotated order.
+      #
+      # These used to be 32 separate hardcoded steps, always in the same
+      # sequence. The OECD SDMX host rate-limits the runner partway through,
+      # so whichever countries sat at the end of the list absorbed every 429.
+      # In the 2026-09-15 18:53 run that was Argentina, Sweden, Singapore,
+      # Austria and Thailand: 6 CPI and 5 business-confidence series fell back
+      # to carried-over data, and the same five lose out every hour because
+      # the order never changes.
+      #
+      # Rotating by hour-of-day does not create more OECD budget. It spreads
+      # the shortfall across all 30 countries instead of concentrating it on
+      # the same five forever, so any single country is short roughly one run
+      # in six rather than every run.
+      #
+      # fetch_data.py and fetch_us.py stay pinned at the front and in that
+      # order: fetch_data.py writes data.json and data-us.json, and
+      # fetch_us.py overwrites data-us.json immediately after, which is a
+      # known and deliberately retained arrangement. Rotating them would
+      # change which script's US output survives.
+      - name: Run country fetchers (rotated by hour)
         continue-on-error: true
-        run: |
-          echo ">>> RUNNING fetch_data.py" >> pipeline_log.txt
-          python fetch_data.py 2>&1 | tee -a pipeline_log.txt
-        env:
-          FRED_API_KEY: ${{ secrets.FRED_API_KEY }}
-      - name: Run fetch_us.py
-        continue-on-error: true
-        run: |
-          echo ">>> RUNNING fetch_us.py" >> pipeline_log.txt
-          python fetch_us.py 2>&1 | tee -a pipeline_log.txt
-        env:
-          FRED_API_KEY: ${{ secrets.FRED_API_KEY }}
-      - name: Run fetch_ez.py
-        continue-on-error: true
-        run: |
-          echo ">>> RUNNING fetch_ez.py" >> pipeline_log.txt
-          python fetch_ez.py 2>&1 | tee -a pipeline_log.txt
-        env:
-          FRED_API_KEY: ${{ secrets.FRED_API_KEY }}
-      - name: Run fetch_jp.py
-        continue-on-error: true
-        run: |
-          echo ">>> RUNNING fetch_jp.py" >> pipeline_log.txt
-          python fetch_jp.py 2>&1 | tee -a pipeline_log.txt
         env:
           FRED_API_KEY: ${{ secrets.FRED_API_KEY }}
           ESTAT_APP_ID: ${{ secrets.ESTAT_APP_ID }}
-      - name: Run fetch_in.py
-        continue-on-error: true
-        run: |
-          echo ">>> RUNNING fetch_in.py" >> pipeline_log.txt
-          python fetch_in.py 2>&1 | tee -a pipeline_log.txt
-        env:
-          FRED_API_KEY: ${{ secrets.FRED_API_KEY }}
           MOSPI_USERNAME: ${{ secrets.MOSPI_USERNAME }}
           MOSPI_PASSWORD: ${{ secrets.MOSPI_PASSWORD }}
-      - name: Run fetch_ca.py
-        continue-on-error: true
         run: |
-          echo ">>> RUNNING fetch_ca.py" >> pipeline_log.txt
-          python fetch_ca.py 2>&1 | tee -a pipeline_log.txt
-        env:
-          FRED_API_KEY: ${{ secrets.FRED_API_KEY }}
-      - name: Run fetch_au.py
-        continue-on-error: true
-        run: |
-          echo ">>> RUNNING fetch_au.py" >> pipeline_log.txt
-          python fetch_au.py 2>&1 | tee -a pipeline_log.txt
-        env:
-          FRED_API_KEY: ${{ secrets.FRED_API_KEY }}
-      - name: Run fetch_kr.py
-        continue-on-error: true
-        run: |
-          echo ">>> RUNNING fetch_kr.py" >> pipeline_log.txt
-          python fetch_kr.py 2>&1 | tee -a pipeline_log.txt
-        env:
-          FRED_API_KEY: ${{ secrets.FRED_API_KEY }}
-      - name: Run fetch_il.py
-        continue-on-error: true
-        run: |
-          echo ">>> RUNNING fetch_il.py" >> pipeline_log.txt
-          python fetch_il.py 2>&1 | tee -a pipeline_log.txt
-        env:
-          FRED_API_KEY: ${{ secrets.FRED_API_KEY }}
-      - name: Run fetch_mx.py
-        continue-on-error: true
-        run: |
-          echo ">>> RUNNING fetch_mx.py" >> pipeline_log.txt
-          python fetch_mx.py 2>&1 | tee -a pipeline_log.txt
-        env:
-          FRED_API_KEY: ${{ secrets.FRED_API_KEY }}
-      - name: Run fetch_br.py
-        continue-on-error: true
-        run: |
-          echo ">>> RUNNING fetch_br.py" >> pipeline_log.txt
-          python fetch_br.py 2>&1 | tee -a pipeline_log.txt
-        env:
-          FRED_API_KEY: ${{ secrets.FRED_API_KEY }}
-      - name: Run fetch_za.py
-        continue-on-error: true
-        run: |
-          echo ">>> RUNNING fetch_za.py" >> pipeline_log.txt
-          python fetch_za.py 2>&1 | tee -a pipeline_log.txt
-        env:
-          FRED_API_KEY: ${{ secrets.FRED_API_KEY }}
-      - name: Run fetch_ma.py
-        continue-on-error: true
-        run: |
-          echo ">>> RUNNING fetch_ma.py" >> pipeline_log.txt
-          python fetch_ma.py 2>&1 | tee -a pipeline_log.txt
-        env:
-          FRED_API_KEY: ${{ secrets.FRED_API_KEY }}
-      - name: Run fetch_de.py
-        continue-on-error: true
-        run: |
-          echo ">>> RUNNING fetch_de.py" >> pipeline_log.txt
-          python fetch_de.py 2>&1 | tee -a pipeline_log.txt
-        env:
-          FRED_API_KEY: ${{ secrets.FRED_API_KEY }}
-      - name: Run fetch_fr.py
-        continue-on-error: true
-        run: |
-          echo ">>> RUNNING fetch_fr.py" >> pipeline_log.txt
-          python fetch_fr.py 2>&1 | tee -a pipeline_log.txt
-        env:
-          FRED_API_KEY: ${{ secrets.FRED_API_KEY }}
-      - name: Run fetch_it.py
-        continue-on-error: true
-        run: |
-          echo ">>> RUNNING fetch_it.py" >> pipeline_log.txt
-          python fetch_it.py 2>&1 | tee -a pipeline_log.txt
-        env:
-          FRED_API_KEY: ${{ secrets.FRED_API_KEY }}
-      - name: Run fetch_es.py
-        continue-on-error: true
-        run: |
-          echo ">>> RUNNING fetch_es.py" >> pipeline_log.txt
-          python fetch_es.py 2>&1 | tee -a pipeline_log.txt
-        env:
-          FRED_API_KEY: ${{ secrets.FRED_API_KEY }}
-      - name: Run fetch_nl.py
-        continue-on-error: true
-        run: |
-          echo ">>> RUNNING fetch_nl.py" >> pipeline_log.txt
-          python fetch_nl.py 2>&1 | tee -a pipeline_log.txt
-        env:
-          FRED_API_KEY: ${{ secrets.FRED_API_KEY }}
-      - name: Run fetch_dk.py
-        continue-on-error: true
-        run: |
-          echo ">>> RUNNING fetch_dk.py" >> pipeline_log.txt
-          python fetch_dk.py 2>&1 | tee -a pipeline_log.txt
-        env:
-          FRED_API_KEY: ${{ secrets.FRED_API_KEY }}
-      - name: Run fetch_ie.py
-        continue-on-error: true
-        run: |
-          echo ">>> RUNNING fetch_ie.py" >> pipeline_log.txt
-          python fetch_ie.py 2>&1 | tee -a pipeline_log.txt
-        env:
-          FRED_API_KEY: ${{ secrets.FRED_API_KEY }}
-      - name: Run fetch_no.py
-        continue-on-error: true
-        run: |
-          echo ">>> RUNNING fetch_no.py" >> pipeline_log.txt
-          python fetch_no.py 2>&1 | tee -a pipeline_log.txt
-        env:
-          FRED_API_KEY: ${{ secrets.FRED_API_KEY }}
-      - name: Run fetch_cl.py
-        continue-on-error: true
-        run: |
-          echo ">>> RUNNING fetch_cl.py" >> pipeline_log.txt
-          python fetch_cl.py 2>&1 | tee -a pipeline_log.txt
-        env:
-          FRED_API_KEY: ${{ secrets.FRED_API_KEY }}
-      - name: Run fetch_co.py
-        continue-on-error: true
-        run: |
-          echo ">>> RUNNING fetch_co.py" >> pipeline_log.txt
-          python fetch_co.py 2>&1 | tee -a pipeline_log.txt
-        env:
-          FRED_API_KEY: ${{ secrets.FRED_API_KEY }}
-      - name: Run fetch_tr.py
-        continue-on-error: true
-        run: |
-          echo ">>> RUNNING fetch_tr.py" >> pipeline_log.txt
-          python fetch_tr.py 2>&1 | tee -a pipeline_log.txt
-        env:
-          FRED_API_KEY: ${{ secrets.FRED_API_KEY }}
-      - name: Run fetch_id.py
-        continue-on-error: true
-        run: |
-          echo ">>> RUNNING fetch_id.py" >> pipeline_log.txt
-          python fetch_id.py 2>&1 | tee -a pipeline_log.txt
-        env:
-          FRED_API_KEY: ${{ secrets.FRED_API_KEY }}
-      - name: Run fetch_pl.py
-        continue-on-error: true
-        run: |
-          echo ">>> RUNNING fetch_pl.py" >> pipeline_log.txt
-          python fetch_pl.py 2>&1 | tee -a pipeline_log.txt
-        env:
-          FRED_API_KEY: ${{ secrets.FRED_API_KEY }}
-      - name: Run fetch_ch.py
-        continue-on-error: true
-        run: |
-          echo ">>> RUNNING fetch_ch.py" >> pipeline_log.txt
-          python fetch_ch.py 2>&1 | tee -a pipeline_log.txt
-        env:
-          FRED_API_KEY: ${{ secrets.FRED_API_KEY }}
-      - name: Run fetch_ar.py
-        continue-on-error: true
-        run: |
-          echo ">>> RUNNING fetch_ar.py" >> pipeline_log.txt
-          python fetch_ar.py 2>&1 | tee -a pipeline_log.txt
-        env:
-          FRED_API_KEY: ${{ secrets.FRED_API_KEY }}
-      - name: Run fetch_se.py
-        continue-on-error: true
-        run: |
-          echo ">>> RUNNING fetch_se.py" >> pipeline_log.txt
-          python fetch_se.py 2>&1 | tee -a pipeline_log.txt
-        env:
-          FRED_API_KEY: ${{ secrets.FRED_API_KEY }}
-      - name: Run fetch_sg.py
-        continue-on-error: true
-        run: |
-          echo ">>> RUNNING fetch_sg.py" >> pipeline_log.txt
-          python fetch_sg.py 2>&1 | tee -a pipeline_log.txt
-        env:
-          FRED_API_KEY: ${{ secrets.FRED_API_KEY }}
-      - name: Run fetch_at.py
-        continue-on-error: true
-        run: |
-          echo ">>> RUNNING fetch_at.py" >> pipeline_log.txt
-          python fetch_at.py 2>&1 | tee -a pipeline_log.txt
-        env:
-          FRED_API_KEY: ${{ secrets.FRED_API_KEY }}
-      - name: Run fetch_th.py
-        continue-on-error: true
-        run: |
-          echo ">>> RUNNING fetch_th.py" >> pipeline_log.txt
-          python fetch_th.py 2>&1 | tee -a pipeline_log.txt
-        env:
-          FRED_API_KEY: ${{ secrets.FRED_API_KEY }}
+          PINNED="fetch_data.py fetch_us.py"
+          ROTATING="fetch_ez.py fetch_jp.py fetch_in.py fetch_ca.py fetch_au.py \
+                    fetch_kr.py fetch_il.py fetch_mx.py fetch_br.py fetch_za.py \
+                    fetch_ma.py fetch_de.py fetch_fr.py fetch_it.py fetch_es.py \
+                    fetch_nl.py fetch_dk.py fetch_ie.py fetch_no.py fetch_cl.py \
+                    fetch_co.py fetch_tr.py fetch_id.py fetch_pl.py fetch_ch.py \
+                    fetch_ar.py fetch_se.py fetch_sg.py fetch_at.py fetch_th.py"
+
+          set -- $ROTATING
+          TOTAL=$#
+          HOUR=$(date -u +%H)
+          HOUR=${HOUR#0}
+          HOUR=${HOUR:-0}
+          OFFSET=$(( HOUR % TOTAL ))
+          ORDERED=""
+          i=0
+          while [ $i -lt $TOTAL ]; do
+            POS=$(( (OFFSET + i) % TOTAL + 1 ))
+            # Braces are load-bearing: eval echo \$$POS builds "$10" for
+            # position 10, which bash reads as ${1} followed by a literal
+            # 0, producing names like "fetch_in.py0". ${10} is correct.
+            ORDERED="$ORDERED $(eval echo "\${$POS}")"
+            i=$(( i + 1 ))
+          done
+
+          echo ">>> rotation offset $OFFSET of $TOTAL (UTC hour $HOUR)" \
+            >> pipeline_log.txt
+          echo ">>> order:$PINNED$ORDERED" >> pipeline_log.txt
+
+          for SCRIPT in $PINNED $ORDERED; do
+            echo ">>> RUNNING $SCRIPT" >> pipeline_log.txt
+            python "$SCRIPT" 2>&1 | tee -a pipeline_log.txt || \
+              echo ">>> $SCRIPT exited non-zero, continuing" >> pipeline_log.txt
+          done
       - name: Run fetch_boe_mpc.py
         continue-on-error: true
         run: |
