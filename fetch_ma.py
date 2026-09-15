@@ -454,14 +454,23 @@ def fetch_worldbank(code: str) -> list | None:
 
 
 IMF_CPI_URLS = (
-    # Legacy Data Services endpoints. CPI is the dedicated consumer price
-    # dataset; IFS carries the same indicator and is tried as a second
-    # route in case the CPI dataflow is retired. Dimension order for both
-    # is FREQ.REF_AREA.INDICATOR, and PCPI_IX is the all-items index.
-    "https://dataservices.imf.org/REST/SDMX_JSON.svc/CompactData/CPI/"
-    "M.{area}.PCPI_IX?startPeriod=2010",
-    "https://dataservices.imf.org/REST/SDMX_JSON.svc/CompactData/IFS/"
-    "M.{area}.PCPI_IX?startPeriod=2010",
+    # IMF retired the legacy Data Services host on 5 November 2025. The
+    # pipeline log for 2026-09-14 shows dataservices.imf.org failing DNS
+    # resolution outright, not returning 404, so that route is gone rather
+    # than merely changed.
+    #
+    # Current portal is data.imf.org, served by an SDMX 3.0 REST API at
+    # api.imf.org. URL shape:
+    #   /external/sdmx/3.0/data/dataflow/{agency}/{dataflow}/{version}/{key}
+    # Key is COUNTRY.INDICATOR.COVERAGE.MEASURE.FREQ, so MAR.CPI._T.IX.M is
+    # Morocco, consumer prices, all items, index, monthly. Asking for CSV
+    # gives COUNTRY, TIME_PERIOD, OBS_VALUE with periods as 2026-M07.
+    #
+    # Note IFS itself was split across thematic dataflows with no official
+    # crosswalk, so the old PCPI_IX code does not resolve anywhere. CPI is
+    # its own dataflow now and is the right one for this.
+    "https://api.imf.org/external/sdmx/3.0/data/dataflow/IMF.STA/CPI/~/"
+    "{area}.CPI._T.IX.M?c[TIME_PERIOD]=ge:2010-M01",
 )
 
 # A monthly CPI more than this far past its last period is a dead mirror,
@@ -480,56 +489,55 @@ def _imf_age_days(period: str) -> float:
 
 
 def fetch_imf_cpi(area: str) -> list | None:
-    """Monthly all-items CPI index from IMF, returned as a YoY rate.
+    """Monthly all-items CPI index from the IMF data portal, as a YoY rate.
 
-    PCPI_IX is an index, so the year on year rate is derived here the same
-    way the OECD index variants are handled above. Returns None on any
-    failure, which leaves the caller's next fallback to take over.
+    Returns None on any failure, which leaves the caller's next fallback to
+    take over. That matters: this endpoint has not been reachable from the
+    build environment to confirm Morocco is present in the dataflow, so a
+    silent, harmless failure is the designed outcome if it is not.
     """
+    import csv
+    import io
     for template in IMF_CPI_URLS:
         url = template.format(area=area)
-        tag = url.split("/CompactData/")[-1].split("?")[0]
+        tag = "CPI/" + area
         try:
             r = requests.get(url, timeout=60,
-                             headers={"User-Agent": "economic-atlas/0.1"})
+                             headers={"Accept": "text/csv",
+                                      "User-Agent": "economic-atlas/0.1"})
             print(f"  [imf-cpi] {tag} status={r.status_code}")
             r.raise_for_status()
-            payload = r.json()
+            text = r.text
         except Exception as exc:
             print(f"  [imf-cpi] {tag} request failed: {exc}")
             continue
 
         try:
-            series = payload["CompactData"]["DataSet"]["Series"]
-        except (KeyError, TypeError):
-            print(f"  [imf-cpi] {tag} no Series in response")
+            rows = list(csv.DictReader(io.StringIO(text)))
+        except Exception as exc:
+            print(f"  [imf-cpi] {tag} CSV parse failed: {exc}")
             continue
-        if isinstance(series, list):
-            series = series[0] if series else None
-        if not isinstance(series, dict):
-            print(f"  [imf-cpi] {tag} unexpected Series shape")
-            continue
-
-        obs = series.get("Obs")
-        if isinstance(obs, dict):
-            obs = [obs]
-        if not isinstance(obs, list) or not obs:
-            print(f"  [imf-cpi] {tag} no observations")
+        if not rows:
+            print(f"  [imf-cpi] {tag} no rows returned")
             continue
 
         index = []
-        for o in obs:
+        for row in rows:
+            per = (row.get("TIME_PERIOD") or "").strip()
+            val = (row.get("OBS_VALUE") or "").strip()
+            if not per or not val:
+                continue
+            per = per.replace("-M", "-")          # 2026-M07 -> 2026-07
+            if not re.fullmatch(r"\d{4}-\d{2}", per):
+                continue
             try:
-                period = str(o["@TIME_PERIOD"]).replace("M", "-")
-                value = float(o["@OBS_VALUE"])
-            except (KeyError, TypeError, ValueError):
+                index.append([per, float(val)])
+            except ValueError:
                 continue
-            if len(period.split("-")) < 2:
-                continue
-            index.append([period, value])
         index.sort(key=lambda p: p[0])
         if len(index) < 24:
-            print(f"  [imf-cpi] {tag} only {len(index)} usable index points")
+            print(f"  [imf-cpi] {tag} only {len(index)} usable index points "
+                  f"from {len(rows)} rows")
             continue
 
         age = _imf_age_days(index[-1][0])
@@ -539,7 +547,7 @@ def fetch_imf_cpi(area: str) -> list | None:
                   f"limit {IMF_MAX_AGE_DAYS})")
             continue
 
-        by_period = {q[0]: q[1] for q in index}
+        by_period = {p[0]: p[1] for p in index}
         yoy = []
         for per, val in index:
             prev = _period_back_n(per, 12)
@@ -553,7 +561,6 @@ def fetch_imf_cpi(area: str) -> list | None:
               f"{yoy[0][0]} to {yoy[-1][0]}")
         return yoy
     return None
-
 
 def fetch_cpi_with_fallback() -> tuple[list | None, str]:
     """Try OECD live CPI first, then IMF monthly, then World Bank annual.
