@@ -104,10 +104,22 @@ if __name__ == "__main__":
         for metric, info in metrics.items():
             if not isinstance(info, dict):
                 continue
-            cited = ids_in(info.get("source", ""))
+            citation = info.get("source", "")
+            cited = ids_in(citation)
             used = script_ids_for(script, metric)
             if not used:
                 counts["NO-ID"] += 1
+                continue
+            # ID_RE needs six characters, so short FRED codes (GDP, GDPC1,
+            # PCEPI) are invisible to it and a correct citation reads as
+            # UNCITED. Widening the regex instead would match "GDP" and "CPI"
+            # in ordinary prose across every citation on the site, so accept
+            # the narrow case: the used id written immediately after the word
+            # "series", which is the house citation shape.
+            if not cited and any(
+                    re.search(r"\bseries " + re.escape(u) + r"\b", citation)
+                    for u in used):
+                counts["MATCH"] += 1
                 continue
             if not cited:
                 counts["UNCITED"] += 1

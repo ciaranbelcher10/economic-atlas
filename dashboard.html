@@ -3160,6 +3160,18 @@ function rateForPeriod(period, history){
   return best[1];
 }
 function categoryOf(key){ return CATEGORY_OF[key] || "Other"; }
+// REGISTRY is built from the keys a country's data file actually serves, so
+// it also contains internal series a country page never renders as its own
+// metric: the trailing-four-quarter sums the page substitutes into gdp_level
+// and gdp_real (poland.html does this), and the US gdp_nominal left in
+// data-us.json by fetch_data.py, which is the same 226 points as gdp_level.
+// Offering them in the picker gives a duplicate chart under "GDP & growth"
+// and a handful of currency metrics under "Other" whose info panel has no
+// series code, which methodology.html promises every metric will have.
+// They stay in REGISTRY because resolveRealKey() reads them; they are only
+// hidden from the picker.
+var PICKER_HIDDEN = {gdp_nominal: 1, gdp_level_annual: 1, gdp_real_annual: 1};
+function isPickable(key){ return !PICKER_HIDDEN[key]; }
 // Real per-country, per-metric source citations (agency + series code),
 // extracted from each country page's own INFO_CONTENT so Dashboard never
 // has to duplicate or drift from what that country's own page says.
@@ -4563,6 +4575,7 @@ function refreshPickerGrid(){
     modeToggle.style.opacity = "0.4";
     ALL_COUNTRIES.forEach(function(country){
       Object.keys(REGISTRY[country] || {}).forEach(function(key){
+        if(!isPickable(key)) return;
         var s = REGISTRY[country][key];
         var haystack = (country + " " + categoryOf(key) + " " + s.label).toLowerCase();
         if(haystack.indexOf(searchTerm) !== -1) items.push({id: tileId(country, key), country: country, key: key});
@@ -4584,6 +4597,7 @@ function refreshPickerGrid(){
     // on every single card.
     var country = sel.value;
     Object.keys(REGISTRY[country] || {}).forEach(function(key){
+      if(!isPickable(key)) return;
       items.push({id: tileId(country, key), country: country, key: key});
     });
     renderPickerItems(items, pgrid, function(it){ return categoryOf(it.key); }, CATEGORY_ORDER, false);
@@ -4594,6 +4608,7 @@ function refreshPickerGrid(){
     var cat = sel.value;
     ALL_COUNTRIES.forEach(function(country){
       Object.keys(REGISTRY[country] || {}).forEach(function(key){
+        if(!isPickable(key)) return;
         if(categoryOf(key) !== cat) return;
         items.push({id: tileId(country, key), country: country, key: key});
       });
