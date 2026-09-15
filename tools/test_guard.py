@@ -1,12 +1,28 @@
 #!/usr/bin/env python3
 """Behavioural tests for series_guard, plus a replay over real git history."""
 import json, sys, collections
+import os as _os
+
+
+def _find_repo(start):
+    d = start
+    while True:
+        if (_os.path.exists(_os.path.join(d, "compare.html"))
+                and _os.path.exists(_os.path.join(d, "data-metric-sources.json"))):
+            return d
+        parent = _os.path.dirname(d)
+        if parent == d:
+            raise SystemExit(
+                "could not locate the economic-atlas clone from "
+                + start + "; set ATLAS_REPO to the clone root")
+        d = parent
+
+
+REPO = _os.environ.get("ATLAS_REPO") or _find_repo(
+    _os.path.dirname(_os.path.abspath(__file__)))
+
 sys.path.insert(0, REPO)
 from series_guard import merge_series, apply_guard
-
-import os as _os
-REPO = _os.environ.get("ATLAS_REPO") or _os.path.dirname(
-    _os.path.dirname(_os.path.abspath(__file__)))
 
 
 def mk(n, first, last, freq, label="X"):
@@ -78,7 +94,15 @@ results.append(ok)
 
 # ---- historical replay ----
 print("\n== replay over recorded history ==")
-hist = json.load(open(_os.path.join(_os.path.dirname(_os.path.abspath(__file__)), "history_shapes.json")))
+_hist_path = _os.path.join(
+    _os.path.dirname(_os.path.abspath(__file__)), "history_shapes.json")
+if not _os.path.exists(_hist_path):
+    print("  SKIPPED: history_shapes.json not present. Generate it with")
+    print("           python3 tools/history_walk.py walk")
+    print(f"\n  {sum(results)}/{len(results)} unit branches pass, "
+          "replay skipped")
+    raise SystemExit(0 if all(results) else 1)
+hist = json.load(open(_hist_path))
 counts = collections.Counter()
 blocked = []
 for f, entries in hist.items():

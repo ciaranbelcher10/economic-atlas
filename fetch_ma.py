@@ -585,7 +585,7 @@ def fetch_cpi_with_fallback() -> tuple[list | None, str]:
     if pts:
         return pts, "OECD live prices system"
     print("  [cpi] OECD attempt exhausted, trying IMF monthly CPI")
-    pts = fetch_imf_cpi("MA")
+    pts = fetch_imf_cpi("MAR")
     if pts:
         return pts, "IMF, monthly"
     print("  [cpi] IMF attempt exhausted, falling back to World Bank annual CPI")

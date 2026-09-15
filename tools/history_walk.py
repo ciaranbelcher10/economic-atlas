@@ -1,7 +1,8 @@
 #!/usr/bin/env python3
 """
 Walk the full git history of every data-XX.json and record each series' shape
-at every commit that touched the file. Output: scratch/history_shapes.json
+at every commit that touched the file. Output: history_shapes.json,
+written next to this script (so tools/history_shapes.json).
 
   { "data-tr.json": [ {commit, date, series:{metric:{n,first,last,freq,label}}} ... ] }
 
@@ -15,7 +16,23 @@ Then `report` flags:
 import json, subprocess, sys, os, collections
 
 import os as _os
-REPO = _os.environ.get("ATLAS_REPO") or _os.path.dirname(
+
+
+def _find_repo(start):
+    d = start
+    while True:
+        if (_os.path.exists(_os.path.join(d, "compare.html"))
+                and _os.path.exists(_os.path.join(d, "data-metric-sources.json"))):
+            return d
+        parent = _os.path.dirname(d)
+        if parent == d:
+            raise SystemExit(
+                "could not locate the economic-atlas clone from "
+                + start + "; set ATLAS_REPO to the clone root")
+        d = parent
+
+
+REPO = _os.environ.get("ATLAS_REPO") or _find_repo(
     _os.path.dirname(_os.path.abspath(__file__)))
 SCRATCH = _os.path.dirname(_os.path.abspath(__file__))
 OUT = os.path.join(SCRATCH, "history_shapes.json")

@@ -12,7 +12,24 @@
 const fs = require("fs");
 const path = require("path");
 
-const REPO = process.env.ATLAS_REPO || path.resolve(__dirname, "..");
+function findRepo(start) {
+  let d = start;
+  while (true) {
+    if (fs.existsSync(path.join(d, "compare.html")) &&
+        fs.existsSync(path.join(d, "data-metric-sources.json"))) {
+      return d;
+    }
+    const parent = path.dirname(d);
+    if (parent === d) {
+      throw new Error(
+        "could not locate the economic-atlas clone from " + start +
+        "; set ATLAS_REPO to the clone root");
+    }
+    d = parent;
+  }
+}
+
+const REPO = process.env.ATLAS_REPO || findRepo(__dirname);
 const PAGES = fs.readdirSync(REPO)
   .filter(f => f.endsWith(".html"))
   .filter(f => fs.readFileSync(path.join(REPO, f), "utf8").includes("function sampleData"));
@@ -84,4 +101,9 @@ console.log(`  failed:                        ${pagesFail}`);
 console.log(`  series asserted non-empty:     ${seriesTotal}`);
 console.log(`  points asserted finite:        ${pointsTotal}`);
 for (const [p, m] of failures) console.log(`    FAIL ${p}: ${m}`);
+if (PAGES.length === 0) {
+  console.log("    FAIL no pages with a sampleData block were found; "
+              + "REPO resolved to " + REPO);
+  process.exit(1);
+}
 process.exit(pagesFail === 0 ? 0 : 1);

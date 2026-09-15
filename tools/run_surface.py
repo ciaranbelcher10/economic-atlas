@@ -10,7 +10,23 @@ Writes the extracted source to scratch/_extracted.js and prints it.
 import re, sys, os
 
 import os as _os
-REPO = _os.environ.get("ATLAS_REPO") or _os.path.dirname(
+
+
+def _find_repo(start):
+    d = start
+    while True:
+        if (_os.path.exists(_os.path.join(d, "compare.html"))
+                and _os.path.exists(_os.path.join(d, "data-metric-sources.json"))):
+            return d
+        parent = _os.path.dirname(d)
+        if parent == d:
+            raise SystemExit(
+                "could not locate the economic-atlas clone from "
+                + start + "; set ATLAS_REPO to the clone root")
+        d = parent
+
+
+REPO = _os.environ.get("ATLAS_REPO") or _find_repo(
     _os.path.dirname(_os.path.abspath(__file__)))
 
 
