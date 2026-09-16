@@ -24,6 +24,40 @@ Requires `python3` and `node`. No third-party packages.
 
 ---
 
+## `auth_harness.js` — auth failure branches, executed
+
+```
+node tools/auth_harness.js uk.html    # one page, full table
+node tools/auth_harness.js --all      # root, indicators/ and embed/, summary
+```
+
+Runs the page's real auth `<script>` under a stubbed DOM and a scripted
+Supabase client, then drives sign up, log in, forgot password, set password
+and log out through seven outcomes each: success, an API error, offline, an
+outage (5xx), a rejected promise, a request that never answers, and a success
+that arrives after the timeout. It reports whether the button was left
+disabled, whether a promise rejection went unhandled, and what message a
+visitor would see.
+
+Expected: `harness errors 0, button left disabled 0, unhandled rejections 0,
+raw library text shown 0` over 169 pages and 5,915 scenarios. The
+`indicators/` pages are generated, so until the pipeline has regenerated them
+from `generate_indicator_pages.py` they still report the old behaviour (640
+unhandled rejections, 128 pages times 5 calls).
+
+**What it found:** the live library (supabase-js 2.116.0) does not reject on a
+network failure; it resolves with `AuthRetryableFetchError`. The earlier
+diagnosis ("the promise rejects, so the button stays disabled") described the
+code correctly but not what the library does. The live defects were the raw
+library text shown to visitors ("Failed to fetch", "HTTP 503"), a request that
+never answers leaving the button disabled, log out failing silently, and the
+128 indicator pages carrying the same code the root-page count never included.
+
+A `ReferenceError` for a function the page defines in a different script block
+is listed separately and not counted, because the harness loads only the auth
+block. Before relying on that exemption, check the call cannot run before the
+defining block has executed.
+
 ## `history_walk.py` — series shape over git history
 
 **Needs a full clone, not `--depth 1`.** On a shallow clone it reports one

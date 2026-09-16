@@ -696,10 +696,11 @@ HEADER_HTML_BASE = """<script>(function(){
  <div id="acctPlanBox" class="acct-plan-box"></div>
  <button type="button" class="btn ghost" id="authChangePasswordBtn" style="margin-bottom:10px;">Change password</button>
  <button type="button" class="btn ghost" id="authSignOutBtn">Log out</button>
+ <p class="auth-msg" id="authSignOutMsg"></p>
  </div>
  </div>
 </div>
-<script src="https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2"></script>
+<script src="https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2.116.0"></script>
 <script>
 // The real, complete auth system extracted verbatim from the country
 // pages (sign in, sign up, forgot/reset password, sign out, session
@@ -731,6 +732,7 @@ HEADER_HTML_BASE = """<script>(function(){
   var authSignedInView = document.getElementById("authSignedInView");
   var authUserEmail = document.getElementById("authUserEmail");
   var authSignOutBtn = document.getElementById("authSignOutBtn");
+  var authSignOutMsg = document.getElementById("authSignOutMsg");
   var authForgotBtn = document.getElementById("authForgotBtn");
   var authForgotView = document.getElementById("authForgotView");
   var authForgotForm = document.getElementById("authForgotForm");
@@ -748,6 +750,42 @@ HEADER_HTML_BASE = """<script>(function(){
   function showMsg(el, text, kind){
     el.textContent = text;
     el.className = "auth-msg show " + kind;
+  }
+  // Every auth call runs through authCall so the button always comes back,
+  // whether the request succeeds, returns an error, rejects, or never
+  // answers. Connection problems get one plain message instead of the
+  // library's own wording.
+  var AUTH_NETWORK_MSG = "We couldn't reach the server. Check your connection and try again.";
+  var AUTH_TIMEOUT_MS = 15000;
+  function isConnectionError(err){
+    return !!err && (err.name === "AuthRetryableFetchError" || err.status === 0 || err.status >= 500);
+  }
+  function authCall(btn, msgEl, run, onResult){
+    var settled = false, timedOut = false;
+    btn.disabled = true;
+    clearMsg(msgEl);
+    function finish(){ settled = true; clearTimeout(timer); btn.disabled = false; }
+    var timer = setTimeout(function(){
+      if(settled) return;
+      timedOut = true;
+      btn.disabled = false;
+      showMsg(msgEl, AUTH_NETWORK_MSG, "error");
+    }, AUTH_TIMEOUT_MS);
+    var p;
+    try { p = Promise.resolve(run()); } catch(err) { p = Promise.reject(err); }
+    p.then(function(res){
+      if(settled) return;
+      res = res || {};
+      if(timedOut && res.error) { finish(); return; }
+      finish();
+      if(res.error && isConnectionError(res.error)){ showMsg(msgEl, AUTH_NETWORK_MSG, "error"); return; }
+      if(timedOut) clearMsg(msgEl);
+      onResult(res);
+    }, function(){
+      if(settled) return;
+      finish();
+      showMsg(msgEl, AUTH_NETWORK_MSG, "error");
+    });
   }
   function clearMsg(el){
     el.className = "auth-msg";
@@ -859,11 +897,8 @@ HEADER_HTML_BASE = """<script>(function(){
     e.preventDefault();
     var email = authEmail.value.trim();
     var password = authPassword.value;
-    authSubmitBtn.disabled = true;
-    clearMsg(authMsg);
     if(mode === "signup"){
-      sb.auth.signUp({ email: email, password: password }).then(function(res){
-        authSubmitBtn.disabled = false;
+      authCall(authSubmitBtn, authMsg, function(){ return sb.auth.signUp({ email: email, password: password }); }, function(res){
         if(res.error){
           showMsg(authMsg, res.error.message, "error");
         } else if(res.data.user && !res.data.session){
@@ -874,8 +909,7 @@ HEADER_HTML_BASE = """<script>(function(){
         }
       });
     } else {
-      sb.auth.signInWithPassword({ email: email, password: password }).then(function(res){
-        authSubmitBtn.disabled = false;
+      authCall(authSubmitBtn, authMsg, function(){ return sb.auth.signInWithPassword({ email: email, password: password }); }, function(res){
         if(res.error){
           showMsg(authMsg, res.error.message, "error");
         } else {
@@ -890,10 +924,7 @@ HEADER_HTML_BASE = """<script>(function(){
   authForgotForm.addEventListener("submit", function(e){
     e.preventDefault();
     var email = authForgotEmail.value.trim();
-    authForgotSubmitBtn.disabled = true;
-    clearMsg(authForgotMsg);
-    sb.auth.resetPasswordForEmail(email).then(function(res){
-      authForgotSubmitBtn.disabled = false;
+    authCall(authForgotSubmitBtn, authForgotMsg, function(){ return sb.auth.resetPasswordForEmail(email); }, function(res){
       if(res.error){
         showMsg(authForgotMsg, res.error.message, "error");
       } else {
@@ -911,10 +942,7 @@ HEADER_HTML_BASE = """<script>(function(){
   authResetForm.addEventListener("submit", function(e){
     e.preventDefault();
     var password = authNewPassword.value;
-    authResetSubmitBtn.disabled = true;
-    clearMsg(authResetMsg);
-    sb.auth.updateUser({ password: password }).then(function(res){
-      authResetSubmitBtn.disabled = false;
+    authCall(authResetSubmitBtn, authResetMsg, function(){ return sb.auth.updateUser({ password: password }); }, function(res){
       if(res.error){
         showMsg(authResetMsg, res.error.message, "error");
       } else {
@@ -925,8 +953,12 @@ HEADER_HTML_BASE = """<script>(function(){
   });
   authChangePasswordBtn.addEventListener("click", showResetView);
   authSignOutBtn.addEventListener("click", function(){
-    sb.auth.signOut().then(function(){
-      closeAuthModal();
+    authCall(authSignOutBtn, authSignOutMsg, function(){ return sb.auth.signOut(); }, function(res){
+      if(res.error){
+        showMsg(authSignOutMsg, res.error.message, "error");
+      } else {
+        closeAuthModal();
+      }
     });
   });
   sb.auth.onAuthStateChange(function(event, session){
