@@ -64,6 +64,81 @@ def ids_in(text):
     return {t for t in ID_RE.findall(text or "") if t.upper() not in STOPWORDS}
 
 
+# Some scripts serve more than one country from separate tables in one file.
+# Resolving by a whole-file regex then returns the wrong country's ids: every
+# UK metric resolved against US_FRED, so UK cpi "used" CPIAUCSL. That is worse
+# than no answer, because it invites inserting a US code into a UK citation,
+# which is exactly how GDPC1 ended up in the UK gdp_real citation. Each entry
+# maps a country to the table that actually holds its ids.
+MULTI_COUNTRY = {
+    "fetch_data.py": {"UK": "UK_SERIES", "US": "US_FRED"},
+}
+
+
+def _table_block(src, name):
+    """Source text of a top-level `NAME = {...}` table."""
+    m = re.search(r"^%s\s*=\s*\{" % re.escape(name), src, re.M)
+    if not m:
+        return ""
+    i = src.index("{", m.start())
+    depth = 0
+    for j in range(i, len(src)):
+        if src[j] == "{":
+            depth += 1
+        elif src[j] == "}":
+            depth -= 1
+            if depth == 0:
+                return src[i:j + 1]
+    return ""
+
+
+# ONS identifies a series by the four-character code in its page URI
+# (/timeseries/ybha/pn2) and repeats it in the label. Neither is uppercase in
+# the URI, so ID_RE cannot see it.
+ONS_URI_RE = re.compile(r"/timeseries/([a-z0-9]{4})/")
+
+
+# Table entries are `"metric": ("ID", freq, label, unit)` or, for the ONS
+# table, `"metric": ([uri, ...], label, unit)`. The leading quoted token is the
+# identifier, and taking it positionally catches short codes (GDP, GDPC1) that
+# ID_RE's six-character minimum cannot see.
+FIRST_ID_RE = re.compile(r'"[a-z_0-9]+":\s*\(\s*"([A-Za-z0-9._]+)"')
+
+
+def _ids_from_entry(entry):
+    ids = set(m.group(1).upper() for m in ONS_URI_RE.finditer(entry))
+    ids |= set(m.group(1).upper() for m in FIRST_ID_RE.finditer(entry))
+    ids |= ids_in(entry)
+    return ids
+
+
+def scoped_ids_for(script, metric, country):
+    """Ids for this metric from this country's own table, for shared scripts."""
+    table = MULTI_COUNTRY.get(script, {}).get(country)
+    if not table:
+        return None
+    path = os.path.join(REPO, script)
+    if not os.path.exists(path):
+        return set()
+    blk = _table_block(open(path, encoding="utf-8").read(), table)
+    m = re.search(r'"%s":\s*\((.{0,400}?)\),\n' % re.escape(metric), blk, re.S)
+    return _ids_from_entry(m.group(1)) if m else set()
+
+
+def foreign_ids_for(script, country):
+    """Ids belonging to the OTHER countries shared with this script."""
+    tables = MULTI_COUNTRY.get(script, {})
+    if not tables or country not in tables:
+        return set()
+    src = open(os.path.join(REPO, script), encoding="utf-8").read()
+    mine = _ids_from_entry(_table_block(src, tables[country]))
+    theirs = set()
+    for other, tbl in tables.items():
+        if other != country:
+            theirs |= _ids_from_entry(_table_block(src, tbl))
+    return theirs - mine
+
+
 def script_ids_for(script, metric):
     """Every identifier the script associates with this metric."""
     path = os.path.join(REPO, script)
@@ -106,7 +181,23 @@ if __name__ == "__main__":
                 continue
             citation = info.get("source", "")
             cited = ids_in(citation)
-            used = script_ids_for(script, metric)
+            scoped = scoped_ids_for(script, metric, country)
+            used = scoped if scoped is not None else script_ids_for(script, metric)
+            # An id from a country that shares this script is always wrong here,
+            # whether or not the right id is present too.
+            # ID_RE needs six characters, so short codes (GDP, GDPC1) are
+            # invisible to it. The foreign table is a closed, known list, so
+            # match it literally instead. Drop anything that reads as ordinary
+            # prose ("% of GDP") or the check fires on every citation.
+            foreign = {f for f in foreign_ids_for(script, country)
+                       if len(f) >= 4 and f.upper() not in STOPWORDS}
+            stray = {f for f in foreign
+                     if re.search(r"\b" + re.escape(f) + r"\b", citation)}
+            if stray:
+                counts["CROSS-TABLE"] += 1
+                rows.append(("CROSS-TABLE", country, metric,
+                             ",".join(sorted(stray)), ",".join(sorted(used))))
+                continue
             if not used:
                 counts["NO-ID"] += 1
                 continue
@@ -131,8 +222,13 @@ if __name__ == "__main__":
                 counts["MISMATCH"] += 1
                 rows.append(("MISMATCH", country, metric,
                              ",".join(sorted(cited)), ",".join(sorted(used))))
-    for k in ("MATCH", "MISMATCH", "UNCITED", "NO-ID", "NO-SCRIPT"):
-        print(f"  {k:10} {counts[k]}")
+    for k in ("MATCH", "MISMATCH", "CROSS-TABLE", "UNCITED", "NO-ID", "NO-SCRIPT"):
+        print(f"  {k:12} {counts[k]}")
+    total = sum(counts.values())
+    compared = counts["MATCH"] + counts["MISMATCH"] + counts["CROSS-TABLE"]
+    print(f"\n  compared     {compared} of {total} citations "
+          f"({100 * compared // total if total else 0}%); the rest name no "
+          f"resolvable id and are NOT evidence of a correct citation")
     print()
     for r in sorted(rows):
         print(f"{r[0]:9} {r[1]:14}{r[2]:20} cited={r[3][:44]:46} used={r[4][:44]}")

@@ -58,6 +58,15 @@ results.append(case("normal: 139 -> 140, one new month",
      mk(140, "2015-01", "2026-08", "months"), mk(139, "2015-01", "2026-07", "months"), "new"))
 results.append(case("Thailand recovery: 36 -> 66 annual",
      mk(66, "1960", "2025", "years"), mk(36, "1990", "2025", "years"), "new"))
+# unrecognised frequency on exactly one side. Before this branch existed every
+# rank comparison keyed off (r_new, r_prev) and a 0 on either side skipped all
+# of them, so an unlimited shrink was accepted as "no downgrade".
+results.append(case("incoming freq unrecognised, big shrink -> keep",
+     mk(7, "2026-01", "2026-07", "weekly"), mk(139, "2015-01", "2026-07", "months"), "kept"))
+results.append(case("previous freq missing, big shrink -> keep",
+     mk(7, "2026-01", "2026-07", "months"), mk(139, "2015-01", "2026-07", None), "kept"))
+results.append(case("incoming freq unrecognised but longer -> accept",
+     mk(300, "1990-01", "2026-07", "weekly"), mk(139, "2015-01", "2026-07", "months"), "new"))
 # stale exemption
 results.append(case("EZ trade: 400 ending 2023-04 -> 12 ending 2026-05",
      mk(12, "2025-06", "2026-05", "months"), mk(400, "1990-01", "2023-04", "months"), "new-stale"))

@@ -175,7 +175,21 @@ def merge_series(key, new, prev, allow_shrink=None):
     end_new, end_prev = _period_end(last_new), _period_end(last_prev)
 
     worse = []
-    if r_new and r_prev and r_new < r_prev:
+    if bool(r_new) != bool(r_prev):
+        # Exactly one side carries a frequency this module recognises. Every
+        # comparison below keys off the rank pair, so without this branch none
+        # of them run and an unlimited shrink is accepted as "no downgrade".
+        # Treat the unknown side conservatively: apply the same-frequency
+        # coverage checks, and say plainly which label was not understood.
+        unknown = freq_new if not r_new else freq_prev
+        if _period_end(first_new) and _period_end(first_prev) \
+           and _period_end(first_new) > _period_end(first_prev):
+            worse.append(f"start {first_prev} -> {first_new}")
+        if n_new < n_prev:
+            worse.append(f"points {n_prev} -> {n_new}")
+        if worse:
+            worse.append(f"unrecognised frequency {unknown!r}")
+    elif r_new and r_prev and r_new < r_prev:
         worse.append(f"frequency {freq_prev} -> {freq_new}")
     elif r_new == r_prev:
         if _period_end(first_new) and _period_end(first_prev) \

@@ -64,10 +64,19 @@ was described as a different population than it measured. Fourteen citations
 named a Eurostat dataset that does not exist. Sweden's government finance
 citations had been copied from Norway's and never updated.
 
-Expected clean result: `MISMATCH 0`. `UNCITED` counts citations naming no
-identifier at all, which is a smaller issue and partly a false positive for
-the UK, because `fetch_data.py` serves both the UK and the US and the resolver
-cannot tell which table a UK metric belongs to.
+Expected clean result: `MISMATCH 0`, `CROSS-TABLE 0`, `UNCITED 0`, with
+`compared 340 of 414 (82%)`. The remaining 74 are `NO-ID`: citations naming no
+identifier the resolver can pin to a script. **`NO-ID` is not evidence of a
+correct citation**, which is why the coverage line is printed.
+
+`CROSS-TABLE` catches a citation quoting an identifier that belongs to another
+country sharing the same fetch script. That is not hypothetical either: the UK
+`gdp_real` citation read `ONS series ABMI (PN2) GDPC1`, with a US FRED code
+spliced into it, and shipped that way. The UK used to report as 12 `UNCITED`
+rows whose `used=` column named US series (`CPIAUCSL`, `UNRATE`), because
+`fetch_data.py` serves both countries and the resolver matched whichever table
+the regex hit first. It now resolves each country against its own table and
+reads ONS codes out of the page URIs, so all 22 UK citations compare properly.
 
 ## `run_surface.py` — extract and exercise a page module
 
@@ -113,12 +122,43 @@ Runs each country page's `sampleData()` under a stubbed DOM and asserts every
 series is non-empty and every point numeric and finite. `node --check` is
 blind to runtime errors like a deleted variable initialisation; this is not.
 
-Expected: **32 of 32 clean, 431 series, 72,576 points.** Exit code 1 on any
-failure. Run it before every package.
+Expected: **32 of 32 clean, 431 series, 72,576 points, 0 nulls**, plus
+`fixture series also served 404`, `fixture-only 27`, `SERVED BUT NOT ASSERTED
+HERE 10`. Exit code 1 on any failure. Run it before every package.
+
+Read those last three lines every time. `sampleData()` is the offline fixture,
+not the data the page serves, so a clean pass does not mean the served data is
+sound. Ten served series are absent from the fixture and therefore asserted by
+nothing here: `gdp_growth_yoy` (Chile, Colombia), `gdp_level_annual` and
+`gdp_real_annual` (Poland, Turkey), `gdp_real` (Singapore, Thailand),
+`gdp_real_annual` (Switzerland) and `gdp_nominal` (US). Nulls are counted
+separately rather than folded into "points asserted finite", because a null
+passes the check without ever being asserted.
 
 The page blocks are `"use strict"`, so function declarations do not leak to
 `globalThis` and `sampleData` has to be captured from inside the eval scope.
 It returns `{updated, sample, series:{...}}`, not a bare series map.
+
+## `html_gate.py` — structural gate over every published page
+
+```
+python3 tools/html_gate.py
+```
+
+Tag balance, inline JS syntax and `ld+json` validity across root,
+`indicators/` and `embed/`.
+
+Expected: **299 pages, 1,235 inline blocks, 194 ld+json blocks, 0 failures**,
+with 636 external scripts reported as not checked.
+
+**Why it exists.** This gate used to be run by hand against the root pages
+only and reported "43 pages, 307 JS blocks, 66 ld+json, 0 failures". Every
+number was true and every one covered a seventh of the site. The generated
+directories are where the OG card defect lived and where 33 pages were found
+emitting invalid schema.org `temporalCoverage`, so a gate that skips them is
+worse than no gate: it produces a clean number over ground nobody examined.
+Every count it prints is "examined", not just "failed", so under-coverage
+shows up in the output instead of hiding behind a pass.
 
 ## `test_guard.py` — behavioural tests for `series_guard.py`
 
@@ -126,7 +166,7 @@ It returns `{updated, sample, series:{...}}`, not a bare series map.
 python3 tools/test_guard.py
 ```
 
-Sixteen branches covering what the shrinkage guard must block, what it must
+Nineteen branches covering what the shrinkage guard must block, what it must
 allow, the stale exemption, the `ALLOW_SHRINK` override, grafting, and the
 failure paths. If `tools/history_shapes.json` exists from `history_walk.py`,
 it also replays the guard against every recorded shape transition.
@@ -156,7 +196,7 @@ that was never defined, which would have failed 21 country pipelines at
 runtime. It was caught only by *importing* each module:
 
 ```
-for f in fetch_*.py; do
+for f in *.py; do
   python3 -c "
 import importlib.util
 sp=importlib.util.spec_from_file_location('m','$f'); m=importlib.util.module_from_spec(sp)
@@ -166,7 +206,13 @@ except SystemExit: pass
 done
 ```
 
-Expected: 70 pass, 0 failures. Make this part of every gate run.
+Expected: 77 pass, 0 failures. Make this part of every gate run.
+
+Glob `*.py`, not `fetch_*.py`. The narrower glob skipped seven root scripts,
+`series_guard.py` and `generate_indicator_pages.py` among them, which is to
+say it skipped the module every fetch script depends on. Note also that the
+loop swallows `SystemExit`, so a script exiting at import would read as clean,
+and that importing runs top-level code only, never `main()`.
 
 The cause was a "symbol already present" check that matched the symbol inside
 the replacement text it had just inserted. That same mistake happened three

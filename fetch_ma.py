@@ -672,9 +672,9 @@ def main() -> int:
             wb_pts = fetch_worldbank("GC.DOD.TOTL.GD.ZS")
             if wb_pts:
                 out["series"]["debt_gdp"] = {
-                    "label": "Central government debt, total, % of GDP (World Bank, annual "
-                             "-- STALE: this WDI series stopped being published for Morocco "
-                             "after 2011, kept only as a last-resort fallback)",
+                    "label": "Central government debt, total, % of GDP (World Bank, "
+                             "annual). The World Bank last published this series for "
+                             "Morocco in 2011.",
                     "unit": "%", "freq": "years", "points": wb_pts,
                 }
                 print(f"  ok  debt_gdp (WB stale fallback) {len(wb_pts):>5} observations "

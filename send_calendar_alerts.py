@@ -239,7 +239,7 @@ def build_email_html(matches: list[dict]) -> str:
                     <tr>
                       <td style="font-size:15px;color:#1A1A1A;font-family:{SITE_FONT};">
                         {country_html}
-                        &nbsp;&mdash;&nbsp;{name}
+                        &nbsp;&#183;&nbsp;{name}
                       </td>
                       <td align="right" style="font-size:13px;color:#6B6B6B;font-family:{SITE_FONT};white-space:nowrap;padding-left:12px;">
                         {time_str}
