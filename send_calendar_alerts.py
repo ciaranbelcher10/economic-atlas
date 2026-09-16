@@ -307,10 +307,17 @@ def build_email_html(matches: list[dict]) -> str:
 </html>"""
 
 
-def send_alert_email(to_email: str, text_body: str, html_body: str):
+def send_alert_email(to_email: str, text_body: str, html_body: str) -> bool:
+    """Send one alert. Returns True only if Resend accepted it.
+
+    This used to return None on every path, and main() counted a send
+    whether it worked or not, so the closing summary could report
+    "Sent: 12" on a run where all twelve failed or where RESEND_API_KEY
+    was unset and none was attempted. The per-email failures went to
+    stderr, but the summary line is the one a maintainer reads."""
     if not RESEND_API_KEY:
         print("RESEND_API_KEY not set -- skipping email.", file=sys.stderr)
-        return
+        return False
     payload = json.dumps({
         "from": f"The Economic Atlas Calendar <{ALERT_FROM}>",
         "to": [to_email],
@@ -331,12 +338,14 @@ def send_alert_email(to_email: str, text_body: str, html_body: str):
     try:
         with urllib.request.urlopen(req, timeout=15) as resp:
             print(f"Alert sent to {to_email}, Resend status {resp.status}")
+            return True
     except urllib.error.HTTPError as exc:
         detail = exc.read().decode("utf-8", errors="replace")
         print(f"Failed to send to {to_email}: HTTP {exc.code} {exc.reason} -- {detail}",
               file=sys.stderr)
     except Exception as exc:
         print(f"Failed to send to {to_email}: {exc}", file=sys.stderr)
+    return False
 
 
 def main():
@@ -349,7 +358,7 @@ def main():
     subscribers = fetch_alert_subscribers()
     print(f"Found {len(subscribers)} profiles with calendar_email_alerts enabled.")
 
-    sent, skipped_no_prefs, skipped_no_matches = 0, 0, 0
+    sent, failed, skipped_no_prefs, skipped_no_matches = 0, 0, 0, 0
     for profile in subscribers:
         email = profile.get("email")
         preferences = profile.get("preferences") or {}
@@ -364,10 +373,13 @@ def main():
             continue
         text_body = build_email_text(matches)
         html_body = build_email_html(matches)
-        send_alert_email(email, text_body, html_body)
-        sent += 1
+        if send_alert_email(email, text_body, html_body):
+            sent += 1
+        else:
+            failed += 1
 
-    print(f"Done. Sent: {sent}, skipped (no preferences set): {skipped_no_prefs}, "
+    print(f"Done. Sent: {sent}, failed: {failed}, "
+          f"skipped (no preferences set): {skipped_no_prefs}, "
           f"skipped (no matches in next {ALERT_WINDOW_DAYS} days): {skipped_no_matches}.")
 
 

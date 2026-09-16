@@ -87,6 +87,25 @@ STALE_DAYS = {"months": 75, "quarters": 150, "years": 660}
 
 MONTH_NAMES = ["Jan","Feb","Mar","Apr","May","Jun","Jul","Aug","Sep","Oct","Nov","Dec"]
 
+
+def iso_period(label: str) -> str:
+    """A period label in the ISO 8601 form schema.org's temporalCoverage
+    expects.
+
+    The site's own labels use a quarter designator ("1993-Q4") that ISO 8601
+    has no notion of, so 33 of the 128 generated indicator pages were
+    publishing temporalCoverage values like "1993-Q4/2026-Q1". A consumer
+    that validates the property drops it; one that does not may read it
+    wrongly. Quarters become their first month, which is the representation
+    ISO 8601 does have. Annual ("1980") and monthly ("1983-01") labels are
+    already valid and pass through untouched.
+    """
+    m = re.fullmatch(r"(\d{4})-Q([1-4])", str(label or "").strip())
+    if m:
+        return "{}-{:02d}".format(m.group(1), (int(m.group(2)) - 1) * 3 + 1)
+    return str(label or "").strip()
+
+
 def fmt_period_label(period):
     """Python port of the real site's fmtPeriod(): '2026-Q2' -> 'Q2 2026',
     '2026-05' -> 'May 2026', '2026' stays '2026'."""
@@ -1385,7 +1404,7 @@ def main():
                 "name": f"{country_name} {metric_title}",
                 "description": description,
                 "url": canonical,
-                "temporalCoverage": f"{pts[0][0]}/{pts[-1][0]}",
+                "temporalCoverage": f"{iso_period(pts[0][0])}/{iso_period(pts[-1][0])}",
                 "creator": {"@type": "Organization", "name": "The Economic Atlas", "url": SITE_URL},
                 "distribution": {"@type": "DataDownload", "encodingFormat": "JSON", "contentUrl": f"{SITE_URL}/{data_file}"},
                 "variableMeasured": metric_title,
