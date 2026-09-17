@@ -1647,9 +1647,7 @@ document.addEventListener("DOMContentLoaded", function(){
  <div class="hero mini" id="tiles-inflation"></div>
  <p class="lightskey compact" aria-label="Key to freshness lights"><span><span class="led green" aria-hidden="true"></span>&nbsp;updated on schedule</span><span><span class="led orange" aria-hidden="true"></span>&nbsp;awaiting next release</span></p>
  <div class="grid" id="charts-inflation"></div>
- <p class="secnote">CPI is sourced from OECD's own live prices system, wired in directly rather than
- risking a dead FRED "MEI" mirror the way several other countries' CPI originally was; see the
- README for details.</p>
+ <p class="secnote">Inflation here is the EU-harmonised index of consumer prices (HICP), published by Eurostat. It is built to be comparable across EU countries, so it can differ from the national CPI quoted domestically.</p>
 </section>
 <section class="sec" id="sec-labour" hidden>
  <div class="hero mini" id="tiles-labour"></div>
@@ -2222,8 +2220,8 @@ function render(data){
     "How much bigger or smaller the economy is than a year ago, adjusted for inflation.",
     gdpYoY,"line",v=>v+"%",pct,SRC_GDP_GROWTH,1999,0,"gdp_growth");
   if(s.cpi) chartPanel("cpi","charts-inflation","CPI inflation, annual rate",
-    "How much consumer prices are rising compared with a year ago. Danmarks Nationalbank targets 2%.",
-    s.cpi,"line",v=>v+"%",pct,"OECD live prices system \u00b7 CPI, all items, YoY");
+    "How much consumer prices are rising compared with a year ago. Denmark has no inflation target of its own: Danmarks Nationalbank keeps the krone fixed against the euro.",
+    s.cpi,"line",v=>v+"%",pct,"FRED series CP0000DKM086NEST \u00b7 HICP, all items, YoY");
   if(s.bond_yield_10y) chartPanel("bond_yield_10y","charts-inflation","10-year government bond yield",
     "The yield on 10-year Danish government bonds, a market gauge of inflation and rate expectations. Not Danmarks Nationalbank's policy rate.",
     s.bond_yield_10y,"line",v=>v+"%",v=>v.toFixed(2)+"%",SRC_BOND);
@@ -2254,7 +2252,7 @@ function render(data){
   if(s.gdp_growth) statTile(hero,"gdp_growth","GDP growth (QoQ)",s.gdp_growth,
     {fmt:pct,fmtD:pp,upIsGood:true,source:SRC_GDP_GROWTH});
   if(s.cpi) statTile(hero,"cpi","CPI inflation",s.cpi,
-    {fmt:pct,fmtD:pp,upIsGood:false,source:"OECD live prices system"});
+    {fmt:pct,fmtD:pp,upIsGood:false,source:"FRED · HICP, all items, YoY"});
   if(s.bond_yield_10y) statTile(hero,"bond_yield_10y","10Y bond yield",s.bond_yield_10y,
     {fmt:v=>v.toFixed(2)+"%",fmtD:v=>v.toFixed(2)+"pp",upIsGood:false,source:SRC_BOND});
   if(s.unemployment) statTile(hero,"unemployment","Unemployment",s.unemployment,
@@ -2280,7 +2278,7 @@ function render(data){
     {fmt:pct,fmtD:pp,upIsGood:true,source:SRC_GDP_GROWTH,infoKey:"gdp_growth"});
   const tinf=document.getElementById("tiles-inflation");
   if(s.cpi) statTile(tinf,"cpi","CPI (YoY)",s.cpi,
-    {fmt:pct,fmtD:pp,upIsGood:false,source:"OECD live prices system"});
+    {fmt:pct,fmtD:pp,upIsGood:false,source:"FRED · HICP, all items, YoY"});
   if(s.bond_yield_10y) statTile(tinf,"bond_yield_10y","10Y bond yield",s.bond_yield_10y,
     {fmt:v=>v.toFixed(2)+"%",fmtD:v=>v.toFixed(2)+"pp",upIsGood:false,source:SRC_BOND});
   const tl=document.getElementById("tiles-labour");
@@ -2481,8 +2479,8 @@ const INFO_CONTENT = {
     dollar: "A growth rate (%) is currency-agnostic, converting the underlying kroner to dollars doesn't change the percentage change. \u201cDollarise\u201d has no effect on this figure."
   },
   cpi: {
-    description: "How much consumer prices are rising compared with a year ago. Danmarks Nationalbank targets 2% inflation.",
-    source: "OECD live prices system \u00b7 CPI, all items, year on year."
+    description: "How much consumer prices are rising compared with a year ago. Denmark has no inflation target of its own: Danmarks Nationalbank keeps the krone fixed against the euro.",
+    source: "FRED series CP0000DKM086NEST \u00b7 Eurostat HICP, all items, year on year. This is the EU-harmonised index (HICP), not Statistics Denmark's own national CPI, so it will not always match the figure quoted domestically."
   },
   bond_yield_10y: {
     description: "The yield on 10-year Danish government bonds, a market gauge of inflation and interest-rate expectations. This is not Danmarks Nationalbank's own policy rate.",
@@ -2507,27 +2505,27 @@ const INFO_CONTENT = {
   },
   fdi: {
     description: "Money invested into Danish businesses from abroad each year (foreign direct investment), as a share of GDP.",
-    source: "World Bank \u00b7 % of GDP, annual.",
+    source: "World Bank BX.KLT.DINV.WD.GD.ZS \u00b7 % of GDP, annual.",
     dollar: "Already expressed as a % of GDP, currency-agnostic. \u201cDollarise\u201d has no effect on this figure."
   },
   trade_balance: {
     description: "Exports minus imports of goods each quarter. Below zero means Denmark buys more from abroad than it sells.",
-    source: "FRED series XTNTVA01DKQ667S \u00b7 OECD, USD exchange-rate-converted, seasonally adjusted, quarterly, converted here to DKK at the live DKK/USD rate at fetch time.",
+    source: "OECD XTNTVA01DKQ667S \u00b7 merchandise trade, quarterly.",
     dollar: "Each historical point is converted at its own contemporaneous DKK/USD rate (monthly resolution from FRED's DEXDNUS, 1971 onward), with the same pre-1971 earliest-rate fallback as GDP, see the GDP entry for detail."
   },
   current_account: {
     description: "Denmark's overall balance with the rest of the world, trade in goods and services plus net investment income, as a share of GDP.",
-    source: "World Bank \u00b7 % of GDP, annual.",
+    source: "World Bank BN.CAB.XOKA.GD.ZS \u00b7 % of GDP, annual.",
     dollar: "Already expressed as a % of GDP, currency-agnostic. \u201cDollarise\u201d has no effect on this figure."
   },
   debt_gdp: {
     description: "Everything national and local government owes combined, compared with the size of the economy.",
-    source: "Eurostat \u00b7 general government, % of GDP, annual.",
+    source: "Eurostat gov_10dd_edpt1 \u00b7 general government, % of GDP, annual.",
     dollar: "Already expressed as a % of GDP, currency-agnostic. \u201cDollarise\u201d has no effect on this figure."
   },
   deficit: {
     description: "The yearly gap between government spending and revenue across all levels of government, as a share of GDP. Negative means a deficit.",
-    source: "Eurostat \u00b7 general government, % of GDP, annual.",
+    source: "Eurostat gov_10dd_edpt1 \u00b7 general government, % of GDP, annual.",
     dollar: "Already expressed as a % of GDP, currency-agnostic. \u201cDollarise\u201d has no effect on this figure."
   }
 };

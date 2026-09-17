@@ -1647,10 +1647,7 @@ document.addEventListener("DOMContentLoaded", function(){
  <div class="hero mini" id="tiles-inflation"></div>
  <p class="lightskey compact" aria-label="Key to freshness lights"><span><span class="led green" aria-hidden="true"></span>&nbsp;updated on schedule</span><span><span class="led orange" aria-hidden="true"></span>&nbsp;awaiting next release</span></p>
  <div class="grid" id="charts-inflation"></div>
- <p class="secnote">CPI is sourced live from the OECD's consumer price system, the same
- feed used for Japan, Canada, Australia and South Korea, after the FRED mirror of India's
- CPI stopped updating in March 2025. The fetch refuses to publish stale data: if the CPI
- tile is missing, the last verified observation was too old to show as current.</p>
+ <p class="secnote">CPI is the national consumer price index, taken from the OECD's prices database. If the latest observation is too old to show as current, the CPI tile is left out rather than shown.</p>
 </section>
 <section class="sec" id="sec-labour" hidden>
  <div class="hero mini" id="tiles-labour"></div>
@@ -2450,19 +2447,19 @@ function hasPreHistoryPoints(series, fx){
 const INFO_CONTENT = {
   gdp_level: {
     description: "The total value of everything India produces in a year, at current prices, on a rolling four-quarter basis.",
-    source: "FRED (IMF International Financial Statistics), quarterly.",
+    source: "FRED series NGDPNSAXDCINQ (IMF International Financial Statistics), quarterly.",
     real: "\u201cMake it real\u201d swaps this to India's real (inflation-adjusted) GDP series. This strips out the effect of price changes, so it shows genuine output growth rather than growth that's really just inflation.",
     dollar: "\u201cDollarise\u201d converts each historical point using that point's OWN contemporaneous INR/USD rate (monthly resolution, from FRED's DEXINUS series, which starts 1971-01, the earliest daily Federal Reserve H.10 data available). This series starts in 2004, well after DEXINUS's own start, so the pre-1971 fallback caveat shouldn't apply in practice."
   },
   gdp_real: {
     description: "GDP adjusted for inflation, the same production, valued at constant prices, so changes reflect real output growth rather than price changes.",
-    source: "IMF International Financial Statistics, via FRED, quarterly.",
+    source: "IMF International Financial Statistics series NGDPRNSAXDCINQ, via FRED, quarterly.",
     real: "This IS the \u201cMake it real\u201d series, toggling it off shows GDP at current (nominal) prices instead.",
     dollar: "Same historical-rate matching as GDP (current prices): each point converted at its own contemporaneous INR/USD rate where available (1971 onward)."
   },
   gdp_growth: {
     description: "How much bigger or smaller the economy is than a year ago, adjusted for inflation. India's source series isn't seasonally adjusted, so a quarter-on-quarter rate isn't shown here, only year-on-year, which is less sensitive to seasonal noise.",
-    source: "FRED (IMF International Financial Statistics), quarterly, year-on-year.",
+    source: "FRED series NGDPRNSAXDCINQ (IMF International Financial Statistics), quarterly, year-on-year.",
     real: "This is already a real (inflation-adjusted) growth rate as published, \u201cMake it real\u201d has no additional effect on it.",
     dollar: "A growth rate (%) is currency-agnostic, converting the underlying rupees to dollars doesn't change the percentage change. \u201cDollarise\u201d has no effect on this figure."
   },
@@ -2485,7 +2482,7 @@ const INFO_CONTENT = {
   },
   fdi: {
     description: "Money invested into Indian businesses from abroad each year (foreign direct investment), as a share of GDP.",
-    source: "World Bank \u00b7 % of GDP, annual.",
+    source: "World Bank BX.KLT.DINV.WD.GD.ZS \u00b7 % of GDP, annual.",
     dollar: "Already expressed as a % of GDP, currency-agnostic. \u201cDollarise\u201d has no effect on this figure."
   },
   trade_balance: {
@@ -2500,17 +2497,17 @@ const INFO_CONTENT = {
   },
   current_account: {
     description: "India's overall balance with the rest of the world, trade in goods and services plus net investment income, as a share of GDP.",
-    source: "World Bank \u00b7 % of GDP, annual.",
+    source: "World Bank BN.CAB.XOKA.GD.ZS \u00b7 % of GDP, annual.",
     dollar: "Already expressed as a % of GDP, currency-agnostic. \u201cDollarise\u201d has no effect on this figure."
   },
   debt_gdp: {
     description: "Everything central and state governments owe combined, compared with the size of the economy.",
-    source: "FRED (IMF World Economic Outlook), annual. The IMF publishes this as an outturn only up to the year shown; its figures for later years are projections, held in a separate series that this site does not publish. So the year under the figure is the most recent actual available, not a sign the feed has broken.",
+    source: "FRED series GGGDTAINA188N (IMF World Economic Outlook), annual. The IMF publishes this as an outturn only up to the year shown; its figures for later years are projections, held in a separate series that this site does not publish. So the year under the figure is the most recent actual available, not a sign the feed has broken.",
     dollar: "Already expressed as a % of GDP, currency-agnostic. \u201cDollarise\u201d has no effect on this figure."
   },
   deficit: {
     description: "The yearly gap between central government spending and revenue. Negative means a deficit.",
-    source: "FRED (IMF World Economic Outlook), annual. The IMF publishes this as an outturn only up to the year shown; its figures for later years are projections, held in a separate series that this site does not publish. So the year under the figure is the most recent actual available, not a sign the feed has broken.",
+    source: "FRED series GGNLBAINA188N (IMF World Economic Outlook), annual. The IMF publishes this as an outturn only up to the year shown; its figures for later years are projections, held in a separate series that this site does not publish. So the year under the figure is the most recent actual available, not a sign the feed has broken.",
     dollar: "Already expressed as a % of GDP, currency-agnostic. \u201cDollarise\u201d has no effect on this figure."
   }
 };

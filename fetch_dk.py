@@ -105,6 +105,7 @@ from datetime import datetime, timezone
 
 import requests
 import series_guard
+import inflation_sources
 
 # Series this script is deliberately allowed to replace with a shorter or
 # lower-frequency one. Without an entry here, series_guard keeps the previous
@@ -657,8 +658,6 @@ def main() -> int:
         ("business_confidence", lambda: fetch_oecd_bci(),
 
          "Business confidence indicator, LT avg = 100 (OECD BCICP)", "index", "months"),
-        ("cpi", lambda: fetch_oecd_cpi(("DNK",), "M"),
-         "CPI, all items, YoY (OECD live prices system)", "%", "months"),
         ("fdi", lambda: fetch_worldbank("BX.KLT.DINV.WD.GD.ZS"),
          "FDI net inflows, % of GDP (World Bank)", "%", "years"),
         ("current_account", lambda: fetch_worldbank("BN.CAB.XOKA.GD.ZS"),
@@ -680,6 +679,20 @@ def main() -> int:
         except Exception as exc:
             failures.append(name)
             print(f"FAIL  {name:<16} {exc}")
+
+    # Inflation. cpi is always Eurostat HICP for this EU member and is never
+    # replaced by another measure under the same key; the national CPI is
+    # served separately as cpi_national. See inflation_sources.py.
+    _hicp = inflation_sources.fetch_hicp(fetch_fred, "CP0000DKM086NEST", key)
+    if _hicp:
+        out["series"]["cpi"] = _hicp
+    else:
+        failures.append("cpi")
+    _cpi_national = inflation_sources.fetch_national_cpi("DNK")
+    if _cpi_national:
+        out["series"]["cpi_national"] = _cpi_national
+    else:
+        failures.append("cpi_national")
 
     # gdp_level: CPMNACSCAB1GQDK above (via FRED_SERIES) is now the
     # primary source, genuinely denominated in DKK, quarterly, matching

@@ -163,6 +163,7 @@ US_FRED = {
     "imports": ("BOPTIMP", "months",
                 "Imports of goods and services, SA", "$m"),
     "cpi_index": ("CPIAUCSL", "months", "CPI, all urban consumers, SA", "index"),
+    "cpi_index_nsa": ("CPIAUCNS", "months", "CPI, all urban consumers, NSA", "index"),
 }
 
 FRED_BASE = "https://api.stlouisfed.org/fred/series/observations"
@@ -585,18 +586,22 @@ def build_us() -> bool:
                 print(f"FAIL  {key:<16} {exc}")
 
         # Derive CPI rates from the index, then drop the raw index
+        # 12-month rate from the unadjusted index (as BLS publishes it), monthly
+        # change from the adjusted index (as BLS publishes it). Kept identical to
+        # fetch_us.py, which writes the same file after this script.
         idx = out["series"].pop("cpi_index", None)
-        if idx:
-            yoy = pct_change(idx["points"], 12)
-            mom = pct_change(idx["points"], 1)
+        idx_nsa = out["series"].pop("cpi_index_nsa", None)
+        if idx or idx_nsa:
+            yoy = pct_change(idx_nsa["points"], 12) if idx_nsa else []
+            mom = pct_change(idx["points"], 1) if idx else []
             if yoy:
                 out["series"]["cpi"] = {
-                    "label": "CPI, all items, year on year (from CPIAUCSL)",
+                    "label": "CPI, all items, YoY, not seasonally adjusted (CPIAUCNS)",
                     "unit": "%", "freq": "months", "points": yoy}
                 ok_line("cpi", yoy, "months")
             if mom:
                 out["series"]["cpi_mom"] = {
-                    "label": "CPI, all items, month on month (from CPIAUCSL)",
+                    "label": "CPI, all items, MoM, seasonally adjusted (CPIAUCSL)",
                     "unit": "%", "freq": "months", "points": mom}
                 ok_line("cpi_mom", mom, "months")
 

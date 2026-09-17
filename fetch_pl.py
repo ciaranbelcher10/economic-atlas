@@ -82,6 +82,7 @@ from datetime import datetime, timezone
 
 import requests
 import series_guard
+import inflation_sources
 
 # Series this script is deliberately allowed to replace with a shorter or
 # lower-frequency one. Without an entry here, series_guard keeps the previous
@@ -660,8 +661,6 @@ def main() -> int:
     extras = [
         ("business_confidence", lambda: fetch_oecd_bci(),
          "Business confidence indicator, LT avg = 100 (OECD BCICP)", "index", "months"),
-        ("cpi", lambda: fetch_oecd_cpi(("POL",), "M"),
-         "CPI, all items, YoY (OECD live prices system)", "%", "months"),
         ("fdi", lambda: fetch_worldbank("BX.KLT.DINV.WD.GD.ZS"),
          "FDI net inflows, % of GDP (World Bank)", "%", "years"),
     ]
@@ -678,39 +677,20 @@ def main() -> int:
             failures.append(name)
             print(f"FAIL  {name:<16} {exc}")
 
-    # The OECD live prices system returns a usable Poland CPI response, but a
-    # very short one: 7 monthly points starting 2026-01, against 139 to 140
-    # points from 2015-01 for the fourteen other countries on this identical
-    # code path. Because a response exists, the MIN_USABLE_POINTS preference
-    # inside fetch_oecd_cpi has nothing longer to prefer and falls through to
-    # the short candidate. Poland's actual peer group is the EU HICP family
-    # already wired for Austria, Germany, Spain, France, Italy, the
-    # Netherlands and Sweden, all of which carry 355 points from 1997.
-    # CP0000PLM086NEST is Eurostat's HICP all-items index for Poland,
-    # verified live against FRED directly: Jan 1996 to Jul 2026, last updated
-    # 2026-08-19, next release 2026-09-17. It is an index level, so it needs
-    # the same YoY transform used for the Swedish series.
-    # The guard differs from Sweden's deliberately: Sweden's fires only when
-    # cpi is absent, which would never trigger here because the OECD path does
-    # return something. It has to fire on "absent OR too short" instead.
-    _cpi_now = out["series"].get("cpi")
-    if key and (not _cpi_now or len(_cpi_now.get("points", [])) < 24):
-        try:
-            raw_hicp = fetch_fred("CP0000PLM086NEST", "m", key)
-            yoy_hicp = yoy_from_level(raw_hicp, 12)
-            if len(yoy_hicp) > len(_cpi_now.get("points", []) if _cpi_now else []):
-                out["series"]["cpi"] = {
-                    "label": "HICP, all items, YoY (Eurostat, CP0000PLM086NEST)",
-                    "unit": "%", "freq": "months", "points": yoy_hicp,
-                }
-                print(f"  ok  cpi (HICP fallback) {len(yoy_hicp):>5} observations "
-                      f"({yoy_hicp[0][0]} to {yoy_hicp[-1][0]}, months)")
-                if "cpi" in failures:
-                    failures.remove("cpi")
-            else:
-                print("  [cpi] HICP fallback returned nothing longer, keeping OECD result")
-        except Exception as exc:
-            print(f"FAIL  cpi (HICP fallback) {exc}")
+    # Inflation. cpi is always Eurostat HICP for this EU member and is never
+    # replaced by another measure under the same key; the national CPI is
+    # served separately as cpi_national. See inflation_sources.py.
+    _hicp = inflation_sources.fetch_hicp(fetch_fred, "CP0000PLM086NEST", key)
+    if _hicp:
+        out["series"]["cpi"] = _hicp
+    else:
+        failures.append("cpi")
+    _cpi_national = inflation_sources.fetch_national_cpi("POL")
+    if _cpi_national:
+        out["series"]["cpi_national"] = _cpi_national
+    else:
+        failures.append("cpi_national")
+
 
     if "gdp_level" not in out["series"]:
         # NGDPSAXDCPLQ above (via FRED_SERIES) is now the primary source,

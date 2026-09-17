@@ -761,7 +761,20 @@ def main() -> int:
             failures.append(name)
             print(f"FAIL  {name:<16} {exc}")
 
-    if "cpi" not in out["series"]:
+    # The OECD fallback fills a gap only when no stored cpi exists. If a
+    # stored INDEC series exists, the guard below carries it forward instead.
+    # Otherwise one INDEC outage would swap in the OECD copy (it starts
+    # earlier, so the guard accepts it), and every later INDEC success would
+    # be rejected as a downgrade while the OECD copy, fetched only when INDEC
+    # fails, was never refreshed again.
+    try:
+        with open("data-ar.json") as f:
+            _stored_has_cpi = bool((json.load(f).get("series") or {}).get("cpi"))
+    except Exception:
+        _stored_has_cpi = False
+    if "cpi" not in out["series"] and _stored_has_cpi:
+        print("  [cpi] INDEC unavailable this run; stored INDEC series will be carried forward")
+    if "cpi" not in out["series"] and not _stored_has_cpi:
         # INDEC's CSV parse didn't produce anything usable (see the
         # [indec-ipc] log lines above for why). Fall back to OECD's live
         # prices system as a second attempt before giving up and leaving

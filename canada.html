@@ -1647,8 +1647,7 @@ document.addEventListener("DOMContentLoaded", function(){
  <div class="hero mini" id="tiles-inflation"></div>
  <p class="lightskey compact" aria-label="Key to freshness lights"><span><span class="led green" aria-hidden="true"></span>&nbsp;updated on schedule</span><span><span class="led orange" aria-hidden="true"></span>&nbsp;awaiting next release</span></p>
  <div class="grid" id="charts-inflation"></div>
- <p class="secnote">CPI is sourced from OECD's own live prices system, not the dead FRED mirror
- (CPALCY01CAM661N/CPALTT01CAM659N) that stopped updating in March 2025; see the README for details.</p>
+ <p class="secnote">CPI is the national consumer price index, taken from the OECD's prices database.</p>
 </section>
 <section class="sec" id="sec-labour" hidden>
  <div class="hero mini" id="tiles-labour"></div>
@@ -2428,19 +2427,19 @@ function hasPreHistoryPoints(series, fx){
 const INFO_CONTENT = {
   gdp_level: {
     description: "The total value of everything Canada produces in a year, at current prices, on a rolling four-quarter basis.",
-    source: "FRED series (IMF International Financial Statistics), quarterly.",
+    source: "FRED series NGDPSAXDCCAQ (IMF International Financial Statistics), quarterly.",
     real: "\u201cMake it real\u201d swaps this to Canada's real (inflation-adjusted) GDP series. This strips out the effect of price changes, so it shows genuine output growth rather than growth that's really just inflation.",
     dollar: "\u201cDollarise\u201d converts each historical point using that point's OWN contemporaneous CAD/USD rate (monthly resolution, from FRED's DEXCAUS series, which starts 1971-01, the earliest daily Federal Reserve H.10 data available). This GDP series runs back to 1970, so points before 1971 have no genuine historical rate available and fall back to the earliest rate DEXCAUS provides (1971-01), disclosed in the page's toggle note. This is a considered approximation for those years, not a precise historical conversion."
   },
   gdp_real: {
     description: "GDP adjusted for inflation, the same production, valued at constant prices, so changes reflect real output growth rather than price changes.",
-    source: "IMF International Financial Statistics, via FRED, quarterly.",
+    source: "IMF International Financial Statistics series NGDPRSAXDCCAQ, via FRED, quarterly.",
     real: "This IS the \u201cMake it real\u201d series, toggling it off shows GDP at current (nominal) prices instead.",
     dollar: "Same historical-rate matching as GDP (current prices): each point converted at its own contemporaneous CAD/USD rate where available (1971 onward), falling back to the earliest available rate (1971-01) for anything before that."
   },
   gdp_growth: {
     description: "How much the economy grew or shrank compared with the previous three months, in real (inflation-adjusted) terms.",
-    source: "FRED (IMF International Financial Statistics), quarter-on-quarter.",
+    source: "FRED series NGDPRSAXDCCAQ (IMF International Financial Statistics), quarter-on-quarter.",
     real: "This is already a real (inflation-adjusted) growth rate as published, \u201cMake it real\u201d has no additional effect on it.",
     dollar: "A growth rate (%) is currency-agnostic, converting the underlying Canadian dollars to US dollars doesn't change the percentage change. \u201cDollarise\u201d has no effect on this figure."
   },
@@ -2463,7 +2462,7 @@ const INFO_CONTENT = {
   },
   fdi: {
     description: "Money invested into Canadian businesses from abroad each year (foreign direct investment), as a share of GDP.",
-    source: "World Bank \u00b7 % of GDP, annual.",
+    source: "World Bank BX.KLT.DINV.WD.GD.ZS \u00b7 % of GDP, annual.",
     dollar: "Already expressed as a % of GDP, currency-agnostic. \u201cDollarise\u201d has no effect on this figure."
   },
   trade_balance: {
@@ -2473,17 +2472,17 @@ const INFO_CONTENT = {
   },
   current_account: {
     description: "Canada's overall balance with the rest of the world, trade in goods and services plus net investment income, as a share of GDP.",
-    source: "World Bank \u00b7 % of GDP, annual.",
+    source: "World Bank BN.CAB.XOKA.GD.ZS \u00b7 % of GDP, annual.",
     dollar: "Already expressed as a % of GDP, currency-agnostic. \u201cDollarise\u201d has no effect on this figure."
   },
   debt_gdp: {
     description: "Everything federal, provincial and local governments owe combined, compared with the size of the economy.",
-    source: "FRED (IMF World Economic Outlook), annual.",
+    source: "FRED series GGGDTACAA188N (IMF World Economic Outlook), annual.",
     dollar: "Already expressed as a % of GDP, currency-agnostic. \u201cDollarise\u201d has no effect on this figure."
   },
   deficit: {
     description: "The yearly gap between government spending and revenue across all levels of government, as a share of GDP. Negative means a deficit.",
-    source: "FRED (IMF World Economic Outlook), annual.",
+    source: "FRED series GGNLBACAA188N (IMF World Economic Outlook), annual.",
     dollar: "Already expressed as a % of GDP, currency-agnostic. \u201cDollarise\u201d has no effect on this figure."
   }
 };

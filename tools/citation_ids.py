@@ -157,6 +157,12 @@ def script_ids_for(script, metric):
     # metric assigned a label carrying an id, e.g. out["series"]["cpi"] = {... "label": "... (Eurostat, CP0000PLM086NEST)"}
     for m in re.finditer(r'\["series"\]\["%s"\]\s*=\s*\{(.{0,400}?)\}' % re.escape(metric), s, re.S):
         ids |= ids_in(m.group(1))
+    # EU members' cpi goes through inflation_sources.fetch_hicp with the
+    # literal FRED id passed in by the country script.
+    if metric == "cpi":
+        m = re.search(r'fetch_hicp\(\s*fetch_fred,\s*"(CP0000[A-Z0-9]+M086NEST)"', s)
+        if m:
+            ids.add(m.group(1))
     if metric in ("debt_gdp", "deficit"):
         ds = re.findall(r"(gov_10[a-z0-9_]+)", s)
         if ds:

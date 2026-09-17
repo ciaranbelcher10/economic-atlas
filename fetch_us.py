@@ -38,9 +38,11 @@ FRED_SERIES = {
     "unemployment": ("UNRATE", "m", "Unemployment rate, SA", "%", None),
     "employment": ("EMRATIO", "m", "Employment-population ratio, SA", "%", None),
     "participation": ("CIVPART", "m", "Labor force participation rate, SA", "%", None),
-    "cpi": ("CPIAUCSL", "m", "CPI, all items, YoY", "%", "yoy"),
-    "cpi_mom": ("CPIAUCSL", "m", "CPI, all items, MoM", "%", "mom"),
-    "core_cpi": ("CPILFESL", "m", "Core CPI (ex food & energy), YoY", "%", "yoy"),
+    # 12-month rates use the unadjusted indexes, which is how BLS publishes
+    # them; the monthly change uses the adjusted index, as BLS does.
+    "cpi": ("CPIAUCNS", "m", "CPI, all items, YoY, not seasonally adjusted", "%", "yoy"),
+    "cpi_mom": ("CPIAUCSL", "m", "CPI, all items, MoM, seasonally adjusted", "%", "mom"),
+    "core_cpi": ("CPILFENS", "m", "Core CPI (ex food & energy), YoY, not seasonally adjusted", "%", "yoy"),
     "ppi": ("PPIFID", "m", "PPI, final demand, YoY", "%", "yoy"),
     "pce": ("PCEPI", "m", "PCE price index (Fed's preferred gauge), YoY", "%", "yoy"),
     "fed_funds": ("FEDFUNDS", "m", "Effective federal funds rate", "%", None),

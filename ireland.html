@@ -1639,9 +1639,7 @@ document.addEventListener("DOMContentLoaded", function(){
  <div class="hero mini" id="tiles-inflation"></div>
  <p class="lightskey compact" aria-label="Key to freshness lights"><span><span class="led green" aria-hidden="true"></span>&nbsp;updated on schedule</span><span><span class="led orange" aria-hidden="true"></span>&nbsp;awaiting next release</span></p>
  <div class="grid" id="charts-inflation"></div>
- <p class="secnote">CPI is sourced from OECD's own live prices system, wired in directly rather than
- risking a dead FRED "MEI" mirror the way several other countries' CPI originally was; see the
- README for details.</p>
+ <p class="secnote">Inflation here is the EU-harmonised index of consumer prices (HICP), published by Eurostat. It is built to be comparable across EU countries, so it can differ from the national CPI quoted domestically.</p>
 </section>
 <section class="sec" id="sec-labour" hidden>
  <div class="hero mini" id="tiles-labour"></div>
@@ -2221,7 +2219,7 @@ function render(data){
     gdpYoY,"line",v=>v+"%",pct,SRC_GDP,1999,0,"gdp_growth");
   if(s.cpi) chartPanel("cpi","charts-inflation","CPI inflation, annual rate",
     "How much consumer prices are rising compared with a year ago. The European Central Bank targets 2% for the euro area as a whole.",
-    s.cpi,"line",v=>v+"%",pct,"OECD \u00b7 CPI, all items, harmonized, year on year");
+    s.cpi,"line",v=>v+"%",pct,"FRED series CP0000IEM086NEST \u00b7 HICP, all items, YoY");
   if(s.bond_yield_10y) chartPanel("bond_yield_10y","charts-inflation","10-year government bond yield",
     "The yield on 10-year Irish government bonds, a market gauge of inflation and rate expectations. Not the ECB's policy rate.",
     s.bond_yield_10y,"line",v=>v+"%",v=>v.toFixed(2)+"%",SRC_BOND);
@@ -2255,7 +2253,7 @@ function render(data){
   if(s.gdp_growth) statTile(hero,"gdp_growth","GDP growth (QoQ)",s.gdp_growth,
     {fmt:pct,fmtD:pp,upIsGood:true,source:SRC_GDP});
   if(s.cpi) statTile(hero,"cpi","CPI inflation",s.cpi,
-    {fmt:pct,fmtD:pp,upIsGood:false,source:"OECD · CPI, all items, harmonized, YoY"});
+    {fmt:pct,fmtD:pp,upIsGood:false,source:"FRED · HICP, all items, YoY"});
   if(s.bond_yield_10y) statTile(hero,"bond_yield_10y","10Y bond yield",s.bond_yield_10y,
     {fmt:v=>v.toFixed(2)+"%",fmtD:v=>v.toFixed(2)+"pp",upIsGood:false,source:SRC_BOND});
   if(s.unemployment) statTile(hero,"unemployment","Unemployment",s.unemployment,
@@ -2281,7 +2279,7 @@ function render(data){
     {fmt:pct,fmtD:pp,upIsGood:true,source:SRC_GDP,infoKey:"gdp_growth"});
   const tinf=document.getElementById("tiles-inflation");
   if(s.cpi) statTile(tinf,"cpi","CPI (YoY)",s.cpi,
-    {fmt:pct,fmtD:pp,upIsGood:false,source:"OECD · CPI, all items, harmonized, YoY"});
+    {fmt:pct,fmtD:pp,upIsGood:false,source:"FRED · HICP, all items, YoY"});
   if(s.bond_yield_10y) statTile(tinf,"bond_yield_10y","10Y bond yield",s.bond_yield_10y,
     {fmt:v=>v.toFixed(2)+"%",fmtD:v=>v.toFixed(2)+"pp",upIsGood:false,source:SRC_BOND});
   if(s.ecb_rate) statTile(tinf,"ecb_rate","ECB deposit rate",s.ecb_rate,
@@ -2483,7 +2481,7 @@ const INFO_CONTENT = {
   },
   cpi: {
     description: "How much consumer prices are rising compared with a year ago. The European Central Bank targets 2% inflation for the euro area as a whole.",
-    source: "OECD \u00b7 CPI, all items, harmonized, year on year."
+    source: "FRED series CP0000IEM086NEST \u00b7 Eurostat HICP, all items, year on year. This is the EU-harmonised index (HICP), not the Central Statistics Office's own national CPI, so it will not always match the figure quoted domestically."
   },
   bond_yield_10y: {
     description: "The yield on 10-year Irish government bonds, a market gauge of inflation and interest-rate expectations. This is not the ECB's own policy rate.",
@@ -2512,7 +2510,7 @@ const INFO_CONTENT = {
   },
   fdi: {
     description: "Money invested into Irish businesses from abroad each year (foreign direct investment), as a share of GDP.",
-    source: "World Bank \u00b7 % of GDP, annual.",
+    source: "World Bank BX.KLT.DINV.WD.GD.ZS \u00b7 % of GDP, annual.",
     dollar: "Already expressed as a % of GDP, currency-agnostic. \u201cDollarise\u201d has no effect on this figure."
   },
   trade_balance: {
@@ -2522,17 +2520,17 @@ const INFO_CONTENT = {
   },
   current_account: {
     description: "Ireland's overall balance with the rest of the world, trade in goods and services plus net investment income, as a share of GDP.",
-    source: "World Bank \u00b7 % of GDP, annual.",
+    source: "World Bank BN.CAB.XOKA.GD.ZS \u00b7 % of GDP, annual.",
     dollar: "Already expressed as a % of GDP, currency-agnostic. \u201cDollarise\u201d has no effect on this figure."
   },
   debt_gdp: {
     description: "Everything national and local government owes combined, compared with the size of the economy.",
-    source: "Eurostat \u00b7 general government, % of GDP, annual.",
+    source: "Eurostat gov_10dd_edpt1 \u00b7 general government, % of GDP, annual.",
     dollar: "Already expressed as a % of GDP, currency-agnostic. \u201cDollarise\u201d has no effect on this figure."
   },
   deficit: {
     description: "The yearly gap between government spending and revenue across all levels of government, as a share of GDP. Negative means a deficit.",
-    source: "Eurostat \u00b7 general government, % of GDP, annual.",
+    source: "Eurostat gov_10dd_edpt1 \u00b7 general government, % of GDP, annual.",
     dollar: "Already expressed as a % of GDP, currency-agnostic. \u201cDollarise\u201d has no effect on this figure."
   }
 };

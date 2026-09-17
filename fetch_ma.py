@@ -50,6 +50,7 @@ from datetime import datetime, timezone
 
 import requests
 import series_guard
+import projection_guard
 
 # Series this script is deliberately allowed to replace with a shorter or
 # lower-frequency one. Without an entry here, series_guard keeps the previous
@@ -147,6 +148,8 @@ def fetch_fred(sid: str, freq: str, key: str) -> list:
         dedup[p] = v
     points = sorted([[p, v] for p, v in dedup.items()], key=lambda x: x[0])
     points = [p for p in points if not _is_future_period(p[0], freq)]
+    if freq == "a":
+        points = projection_guard.trim(points, sid, key)
     return points
 
 
@@ -644,7 +647,7 @@ def main() -> int:
         ("gdp_real", lambda: [[p, round(v / 1e6, 1)] for p, v in (fetch_worldbank("NY.GDP.MKTP.KN") or [])],
          "GDP, constant prices, MAD (World Bank, NY.GDP.MKTP.KN, annual)", "MADm", "years"),
         ("debt_gdp", lambda: fetch_fred("MARGGDGDPGDPPT", "a", key) if key else None,
-         "Total government debt, general government, % of GDP (IMF MENA REO)", "%", "years"),
+         "Total government debt, general government, % of GDP (IMF MENA REO, MARGGDGDPGDPPT)", "%", "years"),
         ("deficit", lambda: fetch_worldbank("GC.NLD.TOTL.GD.ZS"),
          "Net lending/net borrowing, % of GDP (World Bank, annual)", "%", "years"),
     ]
@@ -726,6 +729,7 @@ def main() -> int:
     # already used elsewhere) so a run where every series fails still
     # gets rescued by carried-over data rather than giving up entirely.
     _prev_series = prev_full.get("series", {})
+    projection_guard.trim_previous(_prev_series)
     _guard_verdicts = series_guard.apply_guard(
         out["series"], _prev_series, allow_shrink=ALLOW_SHRINK)
     if not out.get("fx_to_usd") and prev_full.get("fx_to_usd"):

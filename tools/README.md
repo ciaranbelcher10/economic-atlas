@@ -58,6 +58,54 @@ is listed separately and not counted, because the harness loads only the auth
 block. Before relying on that exemption, check the call cannot run before the
 defining block has executed.
 
+## `citation_provider.py` — does each citation name the right publisher?
+
+```
+python3 tools/citation_provider.py          # mismatches and a summary
+python3 tools/citation_provider.py --all    # every (country, metric) row
+```
+
+`citation_ids.py` compares identifiers, but 72 citations carry none, and a
+citation can quote no id and still name the wrong publisher or the wrong
+measure. This reads the provider family (HICP, OECD, IMF, World Bank,
+Eurostat, INDEC, ONS, BLS and so on) from the served series label, Compare's
+`SOURCE_MAP` and `data-metric-sources.json`, taking the first family each
+text names, and flags rows where two surfaces disagree.
+
+Expected once the pipeline has run with package 2A: `MISMATCH 0`. Before that
+run it reports 2 (Denmark and Ireland `cpi`), because their data files still
+hold the OECD national series while every citation already names HICP.
+`UNCLASSIFIED` counts surfaces naming no recognised family; it is not
+evidence of a correct citation. The page surface covers each country page's
+chart, tile and info-panel source strings (a source read from the series label
+at runtime is skipped). `INFO PANEL` checks that every page info panel carries
+the popover file's text verbatim; expected `405 equal, 0 drifted`. When a
+citation changes, change `data-metric-sources.json` and the page info panel
+together.
+
+First run found 18 live mismatches: 8 inflation rows (Argentina cited OECD for
+INDEC data; Sweden and Poland cited OECD for HICP; Morocco, Singapore and
+Thailand cited OECD for IMF data; Ireland claimed "harmonized" for a national
+series), Eurozone debt, deficit and unemployment, five member trade balances,
+Poland's trade balance, Germany's real GDP and growth, and Singapore's current
+account. Compare's export footer now reads the popover file first, so the two
+copies cannot drift apart silently again.
+
+## `test_projection_guard.py` and `test_inflation_sources.py`
+
+```
+python3 tools/test_projection_guard.py      # 20/20
+python3 tools/test_inflation_sources.py     # 18/18
+```
+
+Behavioural tests for the two shared modules. The first proves an IMF outlook
+vintage cannot serve its own year as data, and that the shrinkage guard
+accepts the corrected, shorter series rather than keeping the projection. The
+second proves `cpi` is never filled by a measure other than HICP for the EU
+members that use it, that `cpi_national` accepts only the national
+methodology, and that stale or short national series are refused (a new key
+has no stored version for the shrinkage guard to compare against).
+
 ## `history_walk.py` — series shape over git history
 
 **Needs a full clone, not `--depth 1`.** On a shallow clone it reports one

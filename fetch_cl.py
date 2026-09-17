@@ -88,6 +88,7 @@ from datetime import datetime, timezone
 
 import requests
 import series_guard
+import projection_guard
 
 # Series this script is deliberately allowed to replace with a shorter or
 # lower-frequency one. Without an entry here, series_guard keeps the previous
@@ -232,6 +233,8 @@ def fetch_fred(sid: str, freq: str, key: str) -> list:
         dedup[p] = v
     points = sorted([[p, v] for p, v in dedup.items()], key=lambda x: x[0])
     points = [p for p in points if not _is_future_period(p[0], freq)]
+    if freq == "a":
+        points = projection_guard.trim(points, sid, key)
     return points
 
 
@@ -708,6 +711,7 @@ def main() -> int:
     except Exception:
         _prev_for_merge = {}
     _prev_series = _prev_for_merge.get("series", {})
+    projection_guard.trim_previous(_prev_series)
     _guard_verdicts = series_guard.apply_guard(
         out["series"], _prev_series, allow_shrink=ALLOW_SHRINK)
     if not out.get("fx_to_usd") and _prev_for_merge.get("fx_to_usd"):

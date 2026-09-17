@@ -1639,9 +1639,8 @@ document.addEventListener("DOMContentLoaded", function(){
  <div class="hero mini" id="tiles-inflation"></div>
  <p class="lightskey compact" aria-label="Key to freshness lights"><span><span class="led green" aria-hidden="true"></span>&nbsp;updated on schedule</span><span><span class="led orange" aria-hidden="true"></span>&nbsp;awaiting next release</span></p>
  <div class="grid" id="charts-inflation"></div>
- <p class="secnote">CPI is sourced from OECD's own live prices system, wired in directly rather than
- risking a dead FRED "MEI" mirror the way several other countries' CPI originally was; see the
- README for details.</p>
+ <p class="secnote">CPI comes directly from INDEC, Argentina's national statistics office. OECD's
+ prices database is used only if no INDEC series has ever been available.</p>
 </section>
 <section class="sec" id="sec-labour" hidden>
  <div class="hero mini" id="tiles-labour"></div>
@@ -2215,7 +2214,7 @@ function render(data){
     gdpYoY,"line",v=>v+"%",pct,SRC_GDP_REAL,1999,0,"gdp_growth");
   if(s.cpi) chartPanel("cpi","charts-inflation","CPI inflation, annual rate",
     "How much consumer prices are rising compared with a year ago. Argentina's inflation has been exceptionally volatile in recent years, so large swings here reflect real conditions, not a data error, though note the separate, well-documented caveat about official INDEC figures from 2007-2015 in the footer below.",
-    s.cpi,"line",v=>v+"%",pct,"OECD live prices system \u00b7 CPI, all items, YoY");
+    s.cpi,"line",v=>v+"%",pct,"INDEC \u00b7 CPI (IPC), national, all items, YoY");
   if(s.unemployment) chartPanel("unemployment","charts-labour","Unemployment rate",
     "The share of people 15 and over who want a job but can't find one.",
     s.unemployment,"line",v=>v+"%",pct,SRC_UNEMP);
@@ -2234,7 +2233,7 @@ function render(data){
   if(s.gdp_growth) statTile(hero,"gdp_growth","GDP growth (QoQ)",s.gdp_growth,
     {fmt:pct,fmtD:pp,upIsGood:true,source:SRC_GDP_REAL});
   if(s.cpi) statTile(hero,"cpi","CPI inflation",s.cpi,
-    {fmt:pct,fmtD:pp,upIsGood:false,source:"OECD live prices system"});
+    {fmt:pct,fmtD:pp,upIsGood:false,source:"INDEC \u00b7 CPI (IPC), national"});
   if(s.unemployment) statTile(hero,"unemployment","Unemployment",s.unemployment,
     {fmt:pct,fmtD:pp,upIsGood:false,source:SRC_UNEMP});
   if(s.deficit) statTile(hero,"deficit","Gov. balance (annual)",s.deficit,
@@ -2256,7 +2255,7 @@ function render(data){
     {fmt:pct,fmtD:pp,upIsGood:true,source:SRC_GDP_REAL,infoKey:"gdp_growth"});
   const tinf=document.getElementById("tiles-inflation");
   if(s.cpi) statTile(tinf,"cpi","CPI (YoY)",s.cpi,
-    {fmt:pct,fmtD:pp,upIsGood:false,source:"OECD live prices system"});
+    {fmt:pct,fmtD:pp,upIsGood:false,source:"INDEC \u00b7 CPI (IPC), national"});
   const tl=document.getElementById("tiles-labour");
   if(s.unemployment) statTile(tl,"unemployment","Unemployment",s.unemployment,
     {fmt:pct,fmtD:pp,upIsGood:false,source:SRC_UNEMP});
@@ -2440,13 +2439,13 @@ function hasPreHistoryPoints(series, fx){
 const INFO_CONTENT = {
   gdp_level: {
     description: "The total value of everything Argentina produces in a year, at current prices, on a rolling four-quarter basis.",
-    source: "FRED series NGDPSAXDCARQ \u00b7 IMF International Financial Statistics, trailing 4-quarter sum, seasonally adjusted (falls back to World Bank current US$, annual, only if the live ARS series is unavailable). Note: this nominal series is seasonally adjusted while the real GDP series on this page is not, so the two are not on a like-for-like basis; compare their growth rates rather than reading a deflator off the gap between them.",
+    source: "FRED series NGDPSAXDCARQ \u00b7 IMF International Financial Statistics, trailing 4-quarter sum, seasonally adjusted (falls back to World Bank current US$, annual, only if the live ARS series is unavailable on a given run). Note: this nominal series is seasonally adjusted while the real GDP series on this page is not, so the two are not on a like-for-like basis; compare their growth rates rather than reading a deflator off the gap between them.",
     real: "\u201cMake it real\u201d swaps this to Argentina's real (constant-price) GDP series. After decades of very high inflation, this figure is genuinely tiny in current-ARS terms compared with nominal GDP, that's expected for this series, not a data error.",
     dollar: "When this series is on its normal live (ARS) path, \u201cDollarise\u201d converts each historical point using that year's own average ARS/USD rate (World Bank PA.NUS.FCRF, annual resolution). On the rarer occasion this falls back to the World-Bank USD series, it's already in dollars and Dollarise correctly has no further effect. Note: combining \u201cMake it real\u201d with \u201cDollarise\u201d on this page specifically is flagged with an on-page warning, converting a constant-price (inflation-stripped, old-base-year) real GDP figure through today's or any single year's nominal exchange rate does not produce an economically meaningful number for a currency with Argentina's inflation history. Each toggle is more reliable used on its own."
   },
   gdp_real: {
     description: "GDP adjusted for inflation, at constant prices from an old base year. After decades of very high inflation, this figure is genuinely tiny in current-ARS terms compared with nominal GDP, that's expected for this series, not a data error.",
-    source: "FRED series NGDPRNSAXDCARQ \u00b7 IMF International Financial Statistics, quarterly, NOT seasonally adjusted (no seasonally-adjusted version was confirmed available for Argentina, unlike most other pages here, large regular swings between quarters partly reflect seasonal patterns, not just the underlying trend).",
+    source: "FRED series NGDPRNSAXDCARQ \u00b7 IMF International Financial Statistics, quarterly, not seasonally adjusted. Large regular swings between quarters partly reflect seasonal patterns, not just the underlying trend.",
     real: "This IS the \u201cMake it real\u201d series, toggling it off shows GDP at current (nominal) prices instead.",
     dollar: "See the gdp_level entry for the important caveat about combining this with \u201cDollarise.\u201d"
   },
@@ -2458,7 +2457,7 @@ const INFO_CONTENT = {
   },
   cpi: {
     description: "How much consumer prices are rising compared with a year ago. Argentina's inflation has been exceptionally volatile in recent years, so large swings here reflect real conditions, not a data error, though note the separate, well-documented caveat about official INDEC figures from 2007-2015.",
-    source: "OECD live prices system \u00b7 CPI, all items, year on year."
+    source: "INDEC \u00b7 consumer price index (IPC), national, all items (Nivel general), year on year."
   },
   unemployment: {
     description: "The share of people aged 15 and over who want a job and are actively looking, but can't find one.",
@@ -2471,12 +2470,12 @@ const INFO_CONTENT = {
   },
   fdi: {
     description: "Money invested into Argentine businesses from abroad each year (foreign direct investment), as a share of GDP.",
-    source: "World Bank \u00b7 % of GDP, annual.",
+    source: "World Bank BX.KLT.DINV.WD.GD.ZS \u00b7 % of GDP, annual.",
     dollar: "Already expressed as a % of GDP, currency-agnostic. \u201cDollarise\u201d has no effect on this figure."
   },
   trade_balance: {
     description: "Exports minus imports of goods each month. Below zero means Argentina buys more from abroad than it sells.",
-    source: "FRED series ARGXTNTVA01CXMLSAM \u00b7 OECD, USD exchange-rate-converted, seasonally adjusted, monthly.",
+    source: "OECD ARGXTNTVA01CXMLSAM \u00b7 merchandise trade, monthly.",
     dollar: "Already expressed in US dollars (the underlying OECD series is USD exchange-rate-converted, not Argentine peso). \u201cDollarise\u201d has no further effect on this figure."
   },
   debt_gdp: {

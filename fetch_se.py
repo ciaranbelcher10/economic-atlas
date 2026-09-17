@@ -89,6 +89,7 @@ from datetime import datetime, timezone
 
 import requests
 import series_guard
+import inflation_sources
 
 # Series this script is deliberately allowed to replace with a shorter or
 # lower-frequency one. Without an entry here, series_guard keeps the previous
@@ -570,8 +571,6 @@ def main() -> int:
     extras = [
         ("business_confidence", lambda: fetch_oecd_bci(),
          "Business confidence indicator, LT avg = 100 (OECD BCICP)", "index", "months"),
-        ("cpi", lambda: fetch_oecd_cpi(("SWE",), "M"),
-         "CPI, all items, YoY (OECD live prices system)", "%", "months"),
         ("fdi", lambda: fetch_worldbank("BX.KLT.DINV.WD.GD.ZS"),
          "FDI net inflows, % of GDP (World Bank)", "%", "years"),
         ("current_account", lambda: fetch_worldbank("BN.CAB.XOKA.GD.ZS"),
@@ -594,34 +593,20 @@ def main() -> int:
             failures.append(name)
             print(f"FAIL  {name:<16} {exc}")
 
-    if "cpi" not in out["series"] and key:
-        # OECD's live prices system has no confirmed reliability record for
-        # Sweden specifically (unlike Denmark/Norway, which use the same
-        # OECD-only query and have been observed to succeed). CP0000SEM086NEST
-        # is Eurostat's HICP all-items index for Sweden, individually verified
-        # live via web_search (updated through Dec 2025 as of this build) --
-        # same family/pattern already used successfully for Germany and
-        # Austria's cpi series. It's an index level, so needs a YoY transform.
-        try:
-            raw = fetch_fred("CP0000SEM086NEST", "m", key)
-            by_period = {q[0]: q[1] for q in raw}
-            yoy = []
-            for per, val in raw:
-                prev = _period_back_n(per, 12)
-                base = by_period.get(prev) if prev else None
-                if base:
-                    yoy.append([per, round((val / base - 1) * 100, 2)])
-            if yoy:
-                out["series"]["cpi"] = {
-                    "label": "HICP, all items, YoY (Eurostat, CP0000SEM086NEST)",
-                    "unit": "%", "freq": "months", "points": yoy,
-                }
-                print(f"  ok  cpi (HICP fallback) {len(yoy):>5} observations "
-                      f"({yoy[0][0]} to {yoy[-1][0]}, months)")
-                if "cpi" in failures:
-                    failures.remove("cpi")
-        except Exception as exc:
-            print(f"FAIL  cpi (HICP fallback) {exc}")
+    # Inflation. cpi is always Eurostat HICP for this EU member and is never
+    # replaced by another measure under the same key; the national CPI is
+    # served separately as cpi_national. See inflation_sources.py.
+    _hicp = inflation_sources.fetch_hicp(fetch_fred, "CP0000SEM086NEST", key)
+    if _hicp:
+        out["series"]["cpi"] = _hicp
+    else:
+        failures.append("cpi")
+    _cpi_national = inflation_sources.fetch_national_cpi("SWE")
+    if _cpi_national:
+        out["series"]["cpi_national"] = _cpi_national
+    else:
+        failures.append("cpi_national")
+
 
     # gdp_level: NGDPSAXDCSE-style live Eurostat SEK series (CPMNACSCAB1GQSE,
     # added to FRED_SERIES above) is now the primary source, genuinely
