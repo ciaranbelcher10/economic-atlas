@@ -230,6 +230,7 @@ html[data-theme="dark"]{ --map-nodata: #C4CAC0; }
 .rank-table td.num{text-align:right; font-variant-numeric:tabular-nums;}
 .rank-table td.num .cellperiod{display:block; font-size:10.5px; font-weight:400;
   color:var(--ink2); font-variant-numeric:tabular-nums; margin-top:1px;}
+.rank-table td.num .measuretag{display:block; font-size:10px; font-weight:400; color:var(--ink2); margin-top:1px;}
 .rank-table td.col-hi, .rank-table td.col-lo{font-weight:700; position:relative;}
 .rank-table td.col-hi::after, .rank-table td.col-lo::after{
   content:""; position:absolute; left:6px; right:6px; bottom:3px; height:2px; border-radius:2px;}
@@ -1621,7 +1622,7 @@ footer.cmp-foot{margin-top:36px; font-size:12.5px; color:var(--ink2); border-top
  </div>
  </div>
  <footer class="cmp-foot">
- Figures: ONS, FRED, Eurostat, e-Stat/Bank of Japan, MoSPI, Bank of Korea and OECD, the same sources already cited on each country&#39;s own page. Every figure on this page is anchored to a specific calendar year, in <strong>Point in time</strong> mode, that's whichever year the slider is set to; in <strong>Change over time</strong> mode, it's the change between the two years the slider spans. Where a metric is published more often than annually, the year's figure is the average of that year's real observations, not a single point-in-time reading. GDP growth over a change window shows total real growth across that period, compounded from each country's own real GDP level. A slower annual-only metric like FDI, current account or the government deficit can show "n/a" for a given year if its own latest published figure hasn't caught up yet, that's a real, honest gap in the underlying data's timing, not a missing figure or a bug. Currency-denominated figures (GDP, government debt, trade) are converted to US dollars so every country is shown in the same unit in Point in time mode, each point at its own period's exchange rate rather than today's; a Change over time window is shown as a % instead, which doesn't need converting since the ratio is the same in any currency. Morocco has no live exchange-rate source for the dirham, so its currency figures show "n/a" rather than a converted guess. Historical lines (Line view) are converted the same way, each point at its own period's rate. Where a series starts before its currency's exchange-rate history does, the earliest available rate is used for those first points, so the oldest years are an approximation. The Eurozone doesn't appear on any card's map, since it isn&#39;t a single country UN Comtrade or world-atlas can plot; it still appears in every chart and table above. <a href="privacy">Privacy</a> &middot; <a href="terms">Terms</a> <span id="tourReplayWrap">&middot; <button type="button" id="tourReplayLink">Take the tour</button></span>
+ Figures come from national statistics offices and central banks (including ONS, the Bank of England, e-Stat, INDEC and MoSPI), from BLS and BEA via FRED, and from Eurostat, the OECD, the IMF, the World Bank and the BIS: the same sources cited on each country&#39;s own page. Every figure on this page is for one calendar year: in <strong>Point in time</strong> mode, the year the slider is set to; in <strong>Change over time</strong> mode, the change between the two years the slider spans. A year is used only once it has ended and its data is complete for that country: its first and last months or quarters, or its annual figure, must be published. The latest year you can choose is therefore the most recent full calendar year; each country&#39;s own page carries the newer monthly and quarterly readings, and trend lines here (Line view) stop at the end of that year too. How a year becomes one figure depends on the metric. Rates and indices are the average of the year&#39;s readings. Trade flows and debt interest are the year&#39;s total. Government debt is the value at the end of the year. GDP is the sum of the year&#39;s four quarters, or their average where a country publishes each quarter at an annual rate (the US and Japan). If a reading is missing inside an otherwise complete year, an averaged figure uses the readings available and says so beside the value; a total needs every period. GDP growth is a year&#39;s real GDP against the year before; over a change window it is the total real growth across that period. A country shows &quot;n/a&quot; when its figure for that year is not complete yet, or when its series is not in the card&#39;s unit (for example a deficit published in pounds on a card measured as a share of GDP); hover the bar or table cell for the reason. Each value is tagged with its measure and frequency where these differ between countries, for example HICP against a national CPI, or quarterly and annual data, and hovering shows how the figure was built. Currency figures (GDP, government debt, trade) are converted to US dollars at the exchange rate for their own year, the average of that year&#39;s monthly rates where they exist, rather than today&#39;s; a Change over time window for them shows the dollar difference between the two years. Trend lines are converted the same way, each point at its own period&#39;s rate. Where a series starts before its currency&#39;s exchange-rate history does, the earliest available rate is used for those first points, so the oldest years are an approximation. The Eurozone doesn't appear on any card's map, since it isn&#39;t a single country UN Comtrade or world-atlas can plot; it still appears in every chart and table above. <a href="privacy">Privacy</a> &middot; <a href="terms">Terms</a> <span id="tourReplayWrap">&middot; <button type="button" id="tourReplayLink">Take the tour</button></span>
  </footer>
  </div>
 </div>
@@ -1772,6 +1773,7 @@ var REGION_ORDER = ["Europe", "North America", "South America", "Africa", "Middl
 var CONCEPT_KEYS = {
   gdp_level: ["gdp_level"], gdp_real: ["gdp_real"], gdp_growth: null,
   cpi: ["cpi"], core_cpi: ["core_cpi"], cpi_mom: ["cpi_mom"], cpih: ["cpih"], ppi: ["ppi"], pce: ["pce"],
+  cpi_hicp: ["cpi"], cpi_national: ["cpi_national", "cpi"],
   unemployment: ["unemployment"], employment: ["employment"], inactivity: ["inactivity"],
   participation: ["participation"], unemployment_1624: ["unemployment_1624"],
   debt_gdp: ["debt_gdp"], deficit: ["deficit"], net_debt: ["net_debt"], debt_interest: ["debt_interest"],
@@ -1784,6 +1786,7 @@ var CONCEPT_KEYS = {
 var CONCEPT_LABEL = {
   gdp_level: "GDP level", gdp_real: "Real GDP level", gdp_growth: "GDP growth (annual, real)",
   cpi: "Inflation (CPI)", core_cpi: "Core inflation", cpi_mom: "Inflation (month on month)", cpih: "Inflation (CPIH)",
+  cpi_hicp: "Inflation (HICP)", cpi_national: "Inflation (national CPI)",
   ppi: "Producer prices (PPI)", pce: "PCE inflation",
   unemployment: "Unemployment rate", employment: "Employment rate", inactivity: "Economic inactivity",
   participation: "Labour force participation", unemployment_1624: "Youth unemployment (16-24)",
@@ -1795,7 +1798,7 @@ var CONCEPT_LABEL = {
   bond_yield_10y: "10-year bond yield", policy_rate: "Policy rate"
 };
 var CONCEPT_UNIT = {
-  gdp_level:"currency", gdp_real:"currency", gdp_growth:"%", cpi:"%", core_cpi:"%", cpi_mom:"%", cpih:"%",
+  gdp_level:"currency", gdp_real:"currency", gdp_growth:"%", cpi:"%", core_cpi:"%", cpi_mom:"%", cpih:"%", cpi_hicp:"%", cpi_national:"%",
   unemployment:"%", employment:"%", inactivity:"%", participation:"%", unemployment_1624:"%",
   debt_gdp:"%", deficit:"%", net_debt:"currency", debt_interest:"currency",
   current_account:"%", fdi:"%", trade_balance:"currency", exports:"currency", imports:"currency",
@@ -1805,7 +1808,7 @@ var CONCEPT_CATEGORY = {
   gdp_level:"GDP & growth", gdp_real:"GDP & growth", gdp_growth:"GDP & growth", productivity:"GDP & growth",
   unemployment:"Labour market", employment:"Labour market", inactivity:"Labour market",
   participation:"Labour market", unemployment_1624:"Labour market",
-  cpi:"Prices", core_cpi:"Prices", cpi_mom:"Prices", cpih:"Prices", ppi:"Prices", pce:"Prices",
+  cpi:"Prices", core_cpi:"Prices", cpi_mom:"Prices", cpih:"Prices", ppi:"Prices", pce:"Prices", cpi_hicp:"Prices", cpi_national:"Prices",
   debt_gdp:"Public finances", net_debt:"Public finances", deficit:"Public finances", debt_interest:"Public finances",
   current_account:"Public finances",
   trade_balance:"Trade", exports:"Trade", imports:"Trade",
@@ -1821,6 +1824,8 @@ var CONCEPT_EXPLAINER = {
   core_cpi: "Inflation excluding volatile food and energy prices.",
   cpi_mom: "How much prices moved compared with the previous month.",
   cpih: "Like CPI, but also includes owner-occupiers' housing costs.",
+  cpi_hicp: "Consumer price inflation measured on the EU-harmonised method (HICP), built so countries can be compared like for like. Shown for EU members and the euro area, and for the UK, whose CPI is produced on the same method.",
+  cpi_national: "Consumer price inflation as each country's own statistics office defines it. National definitions differ, for example in how housing costs are treated, so compare with care.",
   ppi: "How much prices are rising for producers and wholesalers, before goods reach consumers. Often moves ahead of CPI by a month or two.",
   pce: "The Federal Reserve's own preferred inflation gauge, broader than CPI and adjusted for substitution as prices change.",
   unemployment: "The share of people who want a job but can't find one.",
@@ -2409,7 +2414,8 @@ var SOURCE_ALT_KEYS = {
 // two independent copies had drifted apart and exported footers named the
 // wrong publisher for several countries.
 function getSourceNote(country, concept){
-  var keys = [concept].concat(SOURCE_ALT_KEYS[concept] || []);
+  var resolved = concept === "gdp_growth" ? null : resolveKey(country, concept);
+  var keys = (resolved ? [resolved] : []).concat([concept], SOURCE_ALT_KEYS[concept] || []);
   var i;
   var live = METRIC_SOURCES && METRIC_SOURCES[country];
   if(live){
@@ -2575,9 +2581,16 @@ function loadMetricSources(){
       METRIC_SOURCES = {};
     });
 }
-function metricSourceNote(country, key){
-  var entry = METRIC_SOURCES[country] && METRIC_SOURCES[country][key];
-  return (entry && entry.source) || null; // null = "not tracked for this country" vs a fabricated fallback
+// Cites the series this card actually resolved for the country (the
+// policy rate card resolves to boe_rate, fed_funds and so on; the
+// national CPI card to cpi_national where one is served). null means
+// "not tracked for this country" rather than a fabricated fallback.
+function metricSourceNote(country, concept){
+  var entries = METRIC_SOURCES[country];
+  if(!entries) return null;
+  var key = concept === "gdp_growth" ? "gdp_growth" : resolveKey(country, concept);
+  var entry = key && entries[key];
+  return (entry && entry.source) || null;
 }
 /* ---- card info popover: what this metric is, and each selected     */
 /* country's actual source (not one generic sentence for all 32) ---- */
@@ -2678,33 +2691,57 @@ function yearOf(period){
   var m = /^(\d{4})/.exec(period);
   return m ? +m[1] : null;
 }
+// The latest year any card can show: the most recent year that has ended
+// and is complete for at least one country and metric.
 function computeCurrentYear(){
-  var maxYear = 0;
-  ALL_COUNTRIES.forEach(function(c){
-    var reg = REGISTRY[c] || {};
-    Object.keys(reg).forEach(function(k){
-      var pts = reg[k].points;
-      if(pts.length){
-        var y = yearOf(pts[pts.length-1][0]);
-        if(y && y > maxYear) maxYear = y;
+  var cap = lastEndedYear();
+  var best = 0;
+  Object.keys(CONCEPT_UNIT).forEach(function(concept){
+    ALL_COUNTRIES.forEach(function(c){
+      for(var y = cap; y > best && y >= cap - 2; y--){
+        var ok = concept === "gdp_growth" ? growthBetween(c, y - 1, y) != null : yearAggregate(c, concept, y) != null;
+        if(ok){ best = y; break; }
       }
     });
   });
-  return maxYear || new Date().getFullYear();
+  return best || cap;
 }
 // Resolves which raw series key a country actually uses for a canonical
 // concept. Only policy_rate ever needs more than one candidate.
+// A series only answers a card if it is in the card's unit: a deficit
+// published in pounds is not a "% of GDP" figure, and showing it on that
+// card printed values such as 12396.33%.
+function unitCompatible(concept, series){
+  var want = CONCEPT_UNIT[concept];
+  var u = (series && series.unit) || "";
+  if(want === "%") return u === "%";
+  if(want === "index") return u === "index";
+  if(want === "currency") return u !== "" && u !== "%" && u !== "index";
+  return true;
+}
+function isHicpLabel(label){ return /HICP|\(D7G7\)/.test(label || ""); }
+// Which series may answer a measure-specific inflation card.
+var CONCEPT_KEY_ACCEPT = {
+  cpi_hicp: function(key, s){ return isHicpLabel(s.label); },
+  cpi_national: function(key, s){ return key === "cpi_national" || !isHicpLabel(s.label); }
+};
+// Resolves which raw series key a country actually uses for a canonical
+// concept. Only policy_rate and cpi_national have more than one candidate.
 function resolveKey(country, concept){
   var candidates = CONCEPT_KEYS[concept];
   if(!candidates) return null;
   var reg = REGISTRY[country] || {};
+  var accept = CONCEPT_KEY_ACCEPT[concept];
   for(var i=0; i<candidates.length; i++){
-    if(reg[candidates[i]]) return candidates[i];
+    var s = reg[candidates[i]];
+    if(!s || !unitCompatible(concept, s)) continue;
+    if(accept && !accept(candidates[i], s)) continue;
+    return candidates[i];
   }
   return null;
 }
 function hasConcept(country, concept){
-  if(concept === "gdp_growth") return !!(REGISTRY[country] && REGISTRY[country].gdp_real);
+  if(concept === "gdp_growth") return !!realGDPSeries(country);
   return resolveKey(country, concept) !== null;
 }
 /* ------------------------- freshness lights -------------------------- */
@@ -2739,88 +2776,176 @@ function countryFreshness(country, concept){
   if(!series) return null;
   return {led: freshness(series), title: freshnessTitle(series)};
 }
-function yearAggregate_raw(points, year){
-  var matches = points.filter(function(p){ return yearOf(p[0]) === year; });
-  if(!matches.length) return null;
-  var sum = 0;
-  matches.forEach(function(p){ sum += p[1]; });
-  return sum / matches.length;
+/* ---------------------- complete years only (governance) ---------------------- */
+// Every figure on this page is for one calendar year, and a year is used
+// only once it has ended and its data is complete for that country and
+// metric: the year's first and last periods (January and December, Q1 and
+// Q4, or the annual figure) must be published. A gap inside an otherwise
+// complete year (the US did not publish October 2025 CPI) is allowed for
+// averaged metrics and disclosed beside the value; totals need every
+// period. How a year's observations become one figure depends on what
+// the metric is:
+//   mean    rates and indices: the average of the year's readings
+//   sum     currency flows (trade, interest): the year's total
+//   end     debt: the value at the end of the year
+//   gdp     GDP: see annualGDP
+//   growth  real GDP growth: this year's real GDP against last year's
+var PERIODS_PER_YEAR = {months: 12, quarters: 4, years: 1};
+var CONCEPT_AGG = {
+  trade_balance: "sum", exports: "sum", imports: "sum", debt_interest: "sum",
+  debt_gdp: "end", net_debt: "end",
+  gdp_level: "gdp", gdp_real: "gdp", gdp_growth: "growth"
+};
+function aggKind(concept){ return CONCEPT_AGG[concept] || "mean"; }
+var MONTH_ABBR = ["Jan","Feb","Mar","Apr","May","Jun","Jul","Aug","Sep","Oct","Nov","Dec"];
+function periodText(p){
+  var m = /^(\d{4})-(\d{2})$/.exec(p);
+  if(m) return MONTH_ABBR[+m[2] - 1] + " " + m[1];
+  var q = /^(\d{4})-Q(\d)$/.exec(p);
+  if(q) return q[1] + " Q" + q[2];
+  return p;
 }
-// FIX: GDP level/real were being averaged across a year's quarters,
-// same as every other metric on this page -- correct for a rate (CPI,
-// unemployment), wrong for a quarterly GDP level. Most countries'
-// national statistics offices publish GDP as a genuine per-quarter
-// level, which their own individual page on this site has always
-// summed across 4 quarters to get the annual total (see e.g. uk.html's
-// own annualGDP()). The US and Japan are the confirmed exception: BEA
-// and Japan's Cabinet Office both publish GDP as a seasonally-adjusted
-// ANNUAL RATE already for each quarter (each reading already represents
-// "this quarter's pace over a full year"), which is why those two
-// pages use the raw value directly with no rollup at all. Averaging
-// everyone the same way (the previous behaviour here) happened to look
-// roughly right for the US/Japan, since averaging several already-
-// annualised readings still lands near the right annualised magnitude,
-// but understated every other country by roughly 4x, since a raw
-// quarterly level is only about a quarter of the true annual figure.
-// US and Japan report each quarter already at a seasonally-adjusted
-// ANNUAL RATE (BEA / Cabinet Office convention) -- this can't be
-// detected from the data itself (still freq:"quarters", indistinguishable
-// in shape from a genuine per-quarter flow), so it has to be hardcoded
-// domain knowledge, same as every country page treats it.
+function expectedPeriods(freq, year){
+  var out = [], i;
+  if(freq === "months"){ for(i = 1; i <= 12; i++) out.push(year + "-" + (i < 10 ? "0" : "") + i); return out; }
+  if(freq === "quarters"){ for(i = 1; i <= 4; i++) out.push(year + "-Q" + i); return out; }
+  if(freq === "years") return [String(year)];
+  return null;
+}
+// The year can only be complete after it has ended.
+function lastEndedYear(){ return new Date().getFullYear() - 1; }
+function yearWindow(series, year){
+  if(year > lastEndedYear()) return null;
+  var expected = expectedPeriods(series.freq, year);
+  if(!expected) return null;
+  var have = {};
+  series.points.forEach(function(p){ if(yearOf(p[0]) === year && p[1] != null && isFinite(p[1])) have[p[0]] = p[1]; });
+  var present = expected.filter(function(e){ return e in have; });
+  return {
+    freq: series.freq,
+    points: present.map(function(e){ return [e, have[e]]; }),
+    expected: expected,
+    missing: expected.filter(function(e){ return !(e in have); }),
+    ends: (expected[0] in have) && (expected[expected.length - 1] in have)
+  };
+}
+// GDP for one calendar year. Quarterly GDP from the US and Japan is
+// published at a seasonally adjusted annual rate (each quarter already
+// scaled up to a full year), so the year is the average of its four
+// quarters, which is how BEA and the Cabinet Office state annual GDP.
+// Taking the fourth quarter alone overstated US GDP for 2025 by about
+// $660bn. Everywhere else a quarter is that quarter's own output, so the
+// year is the sum of its four quarters. Annual series are used as
+// published.
 var SAAR_COUNTRIES = {US: true, Japan: true};
-// reg is the country's full REGISTRY entry, so a pre-computed
-// "{concept}_annual" key can be preferred when the country's own fetch
-// script already derived one (currently Poland/Turkey for both
-// gdp_level and gdp_real, Switzerland for gdp_real only) -- checked
-// dynamically against the real data rather than a hardcoded country
-// list. An earlier version of this fix hardcoded Poland, Turkey,
-// Switzerland, Singapore and Thailand as "already annual, skip
-// summing", which was WRONG for Poland and Turkey specifically: their
-// gdp_level is a genuine per-quarter flow, and skipping the rollup
-// understated it by roughly 4x on this page. Confirmed via fetch_pl.py
-// and fetch_tr.py's own comments, describing this as a previously
-// tracked issue ("the Poland/Switzerland Bug 5 writeup").
-function yearAggregateGDP(country, concept, reg, series, year){
-  var annualSeries = reg && reg[concept + "_annual"];
-  var effective = annualSeries || series;
-  if(annualSeries || effective.freq !== "quarters" || SAAR_COUNTRIES[country]){
-    var yearPoints = effective.points.filter(function(p){ return yearOf(p[0]) === year; });
-    if(!yearPoints.length) return null;
-    // Already annual, already an annualised rate each quarter, or
-    // already a pre-computed rolling-annual figure -- use the latest
-    // available reading within the year directly.
-    return yearPoints[yearPoints.length - 1][1];
-  }
-  // Genuine raw quarterly levels: a trailing 4-quarter sum ending at
-  // the latest quarter at or before the end of the target year -- not
-  // a strict "only quarters literally inside this calendar year" sum,
-  // which would badly understate the current, not-yet-complete year
-  // (e.g. only Q1 published so far would sum to just Q1's own level,
-  // roughly a quarter of the true annual figure). For a complete past
-  // year this gives the identical calendar-year-aligned answer anyway.
-  var eligible = series.points.filter(function(p){ return yearOf(p[0]) <= year; });
-  if(eligible.length < 4) return null;
-  var last4 = eligible.slice(-4);
-  if(yearOf(last4[last4.length - 1][0]) !== year) return null;
-  var sum = 0;
-  last4.forEach(function(p){ sum += p[1]; });
-  return sum;
+function annualGDP(country, series, year){
+  var w = yearWindow(series, year);
+  if(!w || w.missing.length) return null;
+  var vals = w.points.map(function(p){ return p[1]; });
+  if(series.freq === "years") return {value: vals[0], window: w, method: "annual figure"};
+  if(series.freq !== "quarters") return null;
+  var sum = vals.reduce(function(a, b){ return a + b; }, 0);
+  if(SAAR_COUNTRIES[country]) return {value: sum / vals.length, window: w, method: "average of the four quarterly annual-rate figures"};
+  return {value: sum, window: w, method: "sum of the four quarters"};
 }
-// The core fix: every figure shown anywhere on this page is anchored to
-// an explicit calendar year, computed from whatever real observations
-// exist within that year for that country and concept -- not
-// "whatever the closest available release happens to be." Two
-// countries and two different metrics at the same horizon always carry
-// the exact same reference year.
+function annualValue(country, concept, series, year){
+  var kind = aggKind(concept);
+  if(kind === "gdp") return annualGDP(country, series, year);
+  var w = yearWindow(series, year);
+  if(!w || !w.ends) return null;
+  var vals = w.points.map(function(p){ return p[1]; });
+  var sum = vals.reduce(function(a, b){ return a + b; }, 0);
+  if(kind === "end") return {value: vals[vals.length - 1], window: w, method: "end of year"};
+  if(kind === "sum"){
+    if(w.missing.length) return null;
+    return {value: sum, window: w, method: "total"};
+  }
+  return {value: sum / vals.length, window: w, method: "average"};
+}
+function realGDPSeries(country){
+  var s = REGISTRY[country] && REGISTRY[country].gdp_real;
+  return (s && unitCompatible("gdp_real", s)) ? s : null;
+}
+function growthBetween(country, startYear, endYear){
+  var real = realGDPSeries(country);
+  if(!real) return null;
+  var a = annualGDP(country, real, endYear), b = annualGDP(country, real, startYear);
+  if(!a || !b || !b.value) return null;
+  return Math.round((a.value / b.value - 1) * 1000) / 10;
+}
 function yearAggregate(country, concept, year){
   var key = resolveKey(country, concept);
   if(!key) return null;
   var series = REGISTRY[country][key];
-  var val = (concept === "gdp_level" || concept === "gdp_real")
-    ? yearAggregateGDP(country, concept, REGISTRY[country], series, year)
-    : yearAggregate_raw(series.points, year);
-  if(val == null) return null;
-  return {value: val, unit: series.unit};
+  var r = annualValue(country, concept, series, year);
+  if(!r) return null;
+  return {value: r.value, unit: series.unit, window: r.window, method: r.method};
+}
+// How a shown figure was built, in plain words, for tooltips and the table.
+function yearCoverageNote(country, concept, year){
+  if(concept === "gdp_growth"){
+    var real = realGDPSeries(country);
+    if(!real) return null;
+    var cur = annualGDP(country, real, year);
+    return cur ? "Real GDP in " + year + " against " + (year - 1) + ", each year's GDP being the " + cur.method + "." : null;
+  }
+  var key = resolveKey(country, concept);
+  if(!key) return null;
+  var series = REGISTRY[country][key];
+  var r = annualValue(country, concept, series, year);
+  if(!r) return null;
+  var w = r.window, n = w.points.length, total = w.expected.length;
+  var unitWord = w.freq === "months" ? "monthly" : w.freq === "quarters" ? "quarterly" : "annual";
+  if(w.freq === "years") return year + " annual figure, as published.";
+  var gap = w.missing.length ? " " + w.missing.map(periodText).join(", ") + (w.missing.length > 1 ? " have" : " has") + " no reading in the source data." : "";
+  if(r.method === "average") return "Average of " + n + (n < total ? " of " + total : "") + " " + unitWord + " readings, " + periodText(w.expected[0]) + " to " + periodText(w.expected[total - 1]) + "." + gap;
+  if(r.method === "total") return "Total of the " + total + " " + unitWord + " figures for " + year + ".";
+  if(r.method === "end of year") return "Value at " + periodText(w.points[n - 1][0]) + ", the end of the year.";
+  return year + " GDP, the " + r.method + ".";
+}
+// Why a selected country has no figure on a card.
+function noDataReason(country, concept, year){
+  var reg = REGISTRY[country] || {};
+  if(concept !== "gdp_growth"){
+    var candidates = CONCEPT_KEYS[concept] || [];
+    var any = candidates.filter(function(k){ return reg[k]; });
+    if(!any.length) return "Not published for " + country + " on this site.";
+    if(!resolveKey(country, concept)){
+      var s0 = reg[any[0]];
+      if(!unitCompatible(concept, s0)) return country + "'s series is published in " + s0.unit + ", not in this card's unit.";
+      if(concept === "cpi_national") return "No national CPI is served for " + country + " on this site, only the HICP.";
+      if(concept === "cpi_hicp") return "No HICP is served for " + country + " on this site, see Inflation (national CPI).";
+      return "Not published for " + country + " on this site.";
+    }
+  }
+  if(year > lastEndedYear()) return year + " has not ended yet.";
+  var key = concept === "gdp_growth" ? "gdp_real" : resolveKey(country, concept);
+  var series = key && reg[key];
+  if(!series) return "Not published for " + country + " on this site.";
+  var last = series.points[series.points.length - 1][0];
+  if(yearOf(last) < year) return "No " + year + " figure yet, latest published is " + periodText(last) + ".";
+  var first = series.points[0][0];
+  if(yearOf(first) === year) return "The series starts in " + periodText(first) + ", so " + year + " is not complete.";
+  return year + " is not complete for this series.";
+}
+// A short tag naming the measure and frequency behind a value, so two
+// figures on one card that are not built the same way are visibly so.
+function measureTag(country, concept){
+  var key = concept === "gdp_growth" ? "gdp_real" : resolveKey(country, concept);
+  var s = key && REGISTRY[country] && REGISTRY[country][key];
+  if(!s) return null;
+  var parts = [];
+  var label = s.label || "";
+  if(concept === "cpi" || concept === "cpi_hicp" || concept === "cpi_national"){
+    if(/HICP/.test(label)) parts.push(/EZ19/.test(label) ? "HICP, fixed 19-country euro area" : "HICP");
+    else if(/\(D7G7\)/.test(label)) parts.push("CPI, HICP method");
+    else if(/CPIAUCNS/.test(label)) parts.push("CPI-U");
+    else parts.push("national CPI");
+  }
+  var saar = (concept === "gdp_level" || concept === "gdp_real" || concept === "gdp_growth") && SAAR_COUNTRIES[country];
+  if(s.freq === "quarters") parts.push(saar ? "quarterly, at annual rates" : "quarterly data");
+  if(s.freq === "years") parts.push("annual data");
+  return parts.length ? parts.join(", ") : null;
 }
 function getDisplayValue(country, concept){
   var st = ensureCardTimeState(concept);
@@ -2841,12 +2966,8 @@ function effectiveMapYear(concept){
 // just the current one.
 function getSnapshotValue(country, concept, year){
   if(concept === "gdp_growth"){
-    var real = REGISTRY[country] && REGISTRY[country].gdp_real;
-    if(!real) return null;
-    var level = yearAggregate_raw(real.points, year);
-    var prevLevel = yearAggregate_raw(real.points, year - 1);
-    if(level == null || prevLevel == null || !prevLevel) return null;
-    var g = Math.round((level / prevLevel - 1) * 1000) / 10;
+    var g = growthBetween(country, year - 1, year);
+    if(g == null) return null;
     return {value: g, isDelta:false, isCumulative:false, year: year, unit:"%"};
   }
   if(CONCEPT_UNIT[concept] === "currency"){
@@ -2873,12 +2994,8 @@ function getSnapshotValue(country, concept, year){
 // not informative.
 function getChangeValue(country, concept, startYear, endYear){
   if(concept === "gdp_growth"){
-    var real = REGISTRY[country] && REGISTRY[country].gdp_real;
-    if(!real) return null;
-    var endLevel = yearAggregate_raw(real.points, endYear);
-    var startLevel = yearAggregate_raw(real.points, startYear);
-    if(endLevel == null || startLevel == null || !startLevel) return null;
-    var cum = Math.round((endLevel / startLevel - 1) * 1000) / 10;
+    var cum = growthBetween(country, startYear, endYear);
+    if(cum == null) return null;
     return {value: cum, isDelta:true, isCumulative:true, year: startYear, endYear: endYear, unit:"%"};
   }
   if(CONCEPT_UNIT[concept] === "currency"){
@@ -3565,17 +3682,18 @@ function buildBarChart(canvas, concept){
   // mode/year variable -- each card now has its own independent time
   // state, so "which mode, which year" has to come from the value
   // actually resolved for THIS card, not a page-wide variable.
-  var yearInProgress = !isDelta && firstReal.year >= new Date().getFullYear();
-  var horizonNote = isCumulative ? "Cumulative % change from " + firstReal.year + " to " + firstReal.endYear + "."
-    : isDelta ? "Change from " + firstReal.year + " to " + firstReal.endYear + "."
-    : yearInProgress ? "Latest available reading for " + firstReal.year + " so far, the year isn't complete yet."
-    : "Figure for " + firstReal.year + ", averaged across the year's real observations where more than one exists.";
+  var horizonNote = isCumulative ? "Cumulative % change from " + firstReal.year + " to " + firstReal.endYear + ", using complete years only."
+    : isDelta ? "Change from " + firstReal.year + " to " + firstReal.endYear + ", using complete years only."
+    : "Figures for " + firstReal.year + ", a complete year for every country shown. Hover a bar for how each figure was built.";
   var titleSuffix = isCumulative ? " (cumulative change)" : isDelta ? " (change)" : "";
   var chart = new Chart(canvas, {
     type: "bar",
     plugins: [noDataPlugin],
     data: {
-      labels: rows.map(function(r){ return r.country; }),
+      labels: rows.map(function(r){
+        var tag = r.dv ? measureTag(r.country, concept) : null;
+        return tag ? [r.country, tag] : r.country;
+      }),
       datasets: [{
         data: rows.map(function(r){ return r.dv ? r.dv.value : null; }),
         backgroundColor: rows.map(function(r){ return getCountryColor(r.country); }),
@@ -3593,8 +3711,15 @@ function buildBarChart(canvas, concept){
           callbacks: {
             label: function(ctx){
               var r = rows[ctx.dataIndex];
-              if(!r.dv) return "No data for " + r.country;
+              if(!r.dv) return "No figure: " + noDataReason(r.country, concept, effectiveMapYear(concept));
               return displayString(r.dv) + " (" + periodLabelFor(r.dv) + ")";
+            },
+            afterLabel: function(ctx){
+              var r = rows[ctx.dataIndex];
+              if(!r.dv || r.dv.isDelta) return "";
+              var tag = measureTag(r.country, concept);
+              var note = yearCoverageNote(r.country, concept, r.dv.year);
+              return [tag, note].filter(Boolean);
             }
           }
         }
@@ -4125,6 +4250,9 @@ function renderCharts(){
   });
 }
 /* -------------------------------- table ---------------------------------- */
+function escapeAttr(t){
+  return String(t).replace(/&/g, "&amp;").replace(/"/g, "&quot;").replace(/</g, "&lt;").replace(/>/g, "&gt;");
+}
 var sortKey = null, sortDir = 1;
 function renderTable(){
   var table = document.getElementById("rankTable");
@@ -4180,8 +4308,12 @@ function renderTable(){
       // that's the whole point of this rewrite: no more each-country-
       // and-metric-picks-its-own-closest-release inconsistency.
       var periodLabel = dv ? periodLabelFor(dv) : "";
-      cells += "<td class=\"num" + extremeCls + "\">" + (v == null ? "n/a" : displayString(dv))
-        + (periodLabel ? "<span class=\"cellperiod\">" + periodLabel + "</span>" : "") + "</td>";
+      var tag = dv ? measureTag(r.country, m) : null;
+      var how = (dv && !dv.isDelta) ? yearCoverageNote(r.country, m, dv.year) : null;
+      var tip = v == null ? noDataReason(r.country, m, effectiveMapYear(m)) : how;
+      cells += "<td class=\"num" + extremeCls + "\"" + (tip ? " title=\"" + escapeAttr(tip) + "\"" : "") + ">" + (v == null ? "n/a" : displayString(dv))
+        + (periodLabel ? "<span class=\"cellperiod\">" + periodLabel + "</span>" : "")
+        + (tag ? "<span class=\"measuretag\">" + escapeAttr(tag) + "</span>" : "") + "</td>";
     });
     return "<tr>" + cells + "</tr>";
   }).join("");
@@ -4227,15 +4359,21 @@ function computeTimeSliderMinYear(){
 function historyPoints(country, concept){
   if(concept === "gdp_growth"){
     var reg = REGISTRY[country];
-    return (reg && reg.gdp_growth) ? reg.gdp_growth.points : null;
+    return (reg && reg.gdp_growth) ? clipToShownYears(reg.gdp_growth.points) : null;
   }
   if(concept === "gdp_level" || concept === "gdp_real"){
     var key = resolveKey(country, concept);
     if(!key) return null;
-    return annualizedGDPHistory(country, REGISTRY[country][key]);
+    return clipToShownYears(annualizedGDPHistory(country, REGISTRY[country][key]));
   }
   var key = resolveKey(country, concept);
-  return key ? REGISTRY[country][key].points : null;
+  return key ? clipToShownYears(REGISTRY[country][key].points) : null;
+}
+// Compare shows complete years only, so trend lines stop at the end of the
+// latest year the cards can show; country pages carry the newer readings.
+function clipToShownYears(points){
+  if(!points || CURRENT_YEAR == null) return points;
+  return points.filter(function(p){ return yearOf(p[0]) <= CURRENT_YEAR; });
 }
 // Applies the same SAAR-vs-trailing-4-quarter-sum logic used for the
 // Bar/Ranking view to the full historical trend too -- without this,
@@ -4364,24 +4502,9 @@ loadAll().then(function(){
 // still computed as a genuine year-over-year rate from real GDP levels,
 // same logic as getDisplayValue, just anchored to an arbitrary
 // slider-chosen year instead of "now minus a fixed horizon."
+// The map shows exactly what the bars and table show for that year.
 function getMapValueForYear(country, concept, year){
-  if(concept === "gdp_growth"){
-    var real = REGISTRY[country] && REGISTRY[country].gdp_real;
-    if(!real) return null;
-    var level = yearAggregate_raw(real.points, year);
-    var prevLevel = yearAggregate_raw(real.points, year - 1);
-    if(level == null || prevLevel == null || !prevLevel) return null;
-    var g = Math.round((level / prevLevel - 1) * 1000) / 10;
-    return {value: g, isDelta: false, isCumulative: false, year: year, unit: "%"};
-  }
-  var agg = yearAggregate(country, concept, year);
-  if(!agg) return null;
-  if(CONCEPT_UNIT[concept] === "currency"){
-    var usdVal = toUSDMillions(country, agg.value, agg.unit, concept, String(year));
-    if(usdVal == null) return null;
-    return {value: Math.round(usdVal*100)/100, isDelta: false, isCumulative: false, year: year, unit: "currency", rawUnit: "$m"};
-  }
-  return {value: Math.round(agg.value*100)/100, isDelta: false, isCumulative: false, year: year, unit: CONCEPT_UNIT[concept], rawUnit: agg.unit};
+  return getSnapshotValue(country, concept, year);
 }
 // FIX: the slider used to go back to the single earliest year found
 // across ANY country's ANY series (e.g. 1948 from the UK), regardless

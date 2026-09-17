@@ -81,9 +81,10 @@ def trim(points: list, sid: str, key: str, fetch=_fetch_last_updated) -> list:
     CUTOFFS[sid] = cutoff
     kept = [p for p in points if str(p[0])[:4].isdigit() and int(str(p[0])[:4]) <= cutoff]
     dropped = len(points) - len(kept)
-    if dropped:
-        print(f"  [projection-guard] {sid}: vintage {stamp or 'unknown'}, "
-              f"kept years to {cutoff}, dropped {dropped} projection year(s)")
+    # Always logged, so a kept year can be checked against its vintage in
+    # the Actions log without reading the FRED page.
+    print(f"  [projection-guard] {sid}: vintage {stamp or 'unknown'}, "
+          f"kept years to {cutoff}, dropped {dropped} projection year(s)")
     return kept
 
 

@@ -106,6 +106,39 @@ members that use it, that `cpi_national` accepts only the national
 methodology, and that stale or short national series are refused (a new key
 has no stored version for the shrinkage guard to compare against).
 
+## `compare_values.js` and `test_compare_rules.js` — Compare, executed
+
+```
+node tools/compare_values.js 2025                     every card, every country
+node tools/compare_values.js 2025 cpi trade_balance   chosen cards only
+node tools/compare_values.js --json 2025 > out.json   for before/after diffs
+node tools/test_compare_rules.js                      29/29
+```
+
+`compare_values.js` runs compare.html's own script under a stubbed DOM, with
+`fetch` serving the repo's data files, and prints the figure each card shows,
+its measure tag and the note saying how it was built. Point `ATLAS_REPO` at an
+older checkout to get the before side of a comparison; the extra columns are
+blank on a page that predates them.
+
+`test_compare_rules.js` swaps synthetic series into the page's registry to
+prove the complete-year rules (averages, totals, year-end values, GDP, units,
+measure filters), then checks invariants over every real country, card and
+year: no series in the wrong unit, nothing for a year that has not ended, no
+trend line past the latest year, and a how-it-was-built note on every value.
+It needs the functions package 2B added, so it will not run against an older
+compare.html.
+
+**What it found:** Compare took the fourth quarter as a year's GDP for the US
+and Japan, whose quarters are published at annual rates (US 2025 shown as
+$31.42tn against $30.76tn); averaged monthly and quarterly trade figures on
+one card, so quarterly publishers looked three times smaller than they were
+relative to monthly ones; printed the UK and US deficits, published in
+currency, as "12396.33%" and "-138928.57%" on the % of GDP card; showed 2026
+as a selectable year with averages of however many months had been published;
+and showed "not tracked" for every country in the policy rate card's source
+popover.
+
 ## `history_walk.py` — series shape over git history
 
 **Needs a full clone, not `--depth 1`.** On a shallow clone it reports one
