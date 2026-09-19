@@ -2310,7 +2310,61 @@ function statTile(el, key, title, series, opts){
   el.appendChild(div);
 }
 const INDICATOR_PAGE_SLUGS = {gdp_level:"gdp", cpi:"inflation-rate", unemployment:"unemployment-rate", debt_gdp:"government-debt"};
-function chartPanel(key, containerId, title, expl, series, kind, fmtY, fmtTip, srcNote, fromYear, refLine, infoKey){
+// bases: optional [{id,label,series,srcNote,expl}] for a metric the country
+// publishes on more than one basis (year on year, month on month, quarter on
+// quarter). The list is built from what is actually served, so a country that
+// has only one basis gets no selector and a country that gains one later gets
+// it with no page edit. The first entry is the default shown.
+// Swaps a chart between the bases a country actually publishes. Every
+// dependent piece is refreshed together -- the drawn points, the range line,
+// the source note, the accessible label, the download and the registry entry
+// -- because a chart showing one basis while its source note names another is
+// worse than offering no choice at all. The range presets close over the old
+// points array, so they are rebound rather than left pointing at the previous
+// basis.
+// Keeps only the bases this country actually serves, so the selector never
+// offers something the source cannot support and never appears at all when
+// there is only one basis. Order is preserved: the first survivor is default.
+function basesFor(list){
+  return list.filter(b => b.series && b.series.points && b.series.points.length);
+}
+function wireBasisSelect(panel, bases, ctx){
+  const tools = panel.querySelector(".charttools");
+  const wrap = document.createElement("div");
+  wrap.className = "basisselect";
+  const selId = "basis-" + ctx.id;
+  wrap.innerHTML = '<label class="basislabel" for="' + selId + '">Show</label>' +
+    '<select id="' + selId + '" class="basisdd">' +
+    bases.map((b, i) => '<option value="' + i + '">' + b.label + '</option>').join("") +
+    '</select>';
+  tools.insertBefore(wrap, tools.firstChild);
+  const sel = wrap.querySelector("select");
+  sel.addEventListener("change", () => {
+    const b = bases[+sel.value];
+    if(!b || !b.series || !b.series.points || !b.series.points.length) return;
+    const pts = ctx.fromYear
+      ? b.series.points.filter(p => +p[0].slice(0,4) >= ctx.fromYear)
+      : b.series.points;
+    if(!pts.length) return;
+    const entry = CHART_REGISTRY[ctx.id];
+    const chart = entry && entry.chartObj;
+    if(chart) updateChartData(chart, pts, ctx.kind);
+    const span = fmtPeriod(pts[0][0]) + " to " + fmtPeriod(pts[pts.length-1][0]);
+    const rangeEl = panel.querySelector(".range");
+    if(rangeEl) rangeEl.textContent = span + (b.series.next ? " \u00b7" : "");
+    const srcEl = panel.querySelector(".src");
+    if(srcEl && b.srcNote) srcEl.textContent = "Source: " + b.srcNote;
+    const explEl = panel.querySelector(".expl");
+    if(explEl && b.expl) explEl.textContent = b.expl;
+    const canvas = document.getElementById(ctx.id);
+    if(canvas) canvas.setAttribute("aria-label", ctx.title + ", " + b.label + ", " + span);
+    const dlBtn = panel.querySelector(".dl-btn");
+    if(dlBtn && window.EATLAS_DOWNLOAD) window.EATLAS_DOWNLOAD.wire(dlBtn, pts, ctx.title + " (" + b.label + ")");
+    if(entry){ entry.pts = pts; entry.basis = b.label; }
+    if(chart) wireRangePresets(panel, pts, ctx.kind, chart);
+  });
+}
+function chartPanel(key, containerId, title, expl, series, kind, fmtY, fmtTip, srcNote, fromYear, refLine, infoKey, bases){
   const container=document.getElementById(containerId);
   const pts = fromYear ? series.points.filter(p=>+p[0].slice(0,4)>=fromYear) : series.points;
   const id = "ch-"+(panelId++);
@@ -2337,7 +2391,7 @@ function chartPanel(key, containerId, title, expl, series, kind, fmtY, fmtTip, s
   if(czBtn && window.EATLAS_CUSTOMIZE) window.EATLAS_CUSTOMIZE.wire(czBtn, pts, title, srcNote, fmtY, "", title, kind, fmtPeriod, key);
   const refLineVal = refLine==null ? null : refLine;
   const chart = (kind==="bar"?barChart:lineChart)(document.getElementById(id), pts, fmtY, fmtTip, refLineVal, key);
-  CHART_REGISTRY[id] = {pts, kind, fmtY, fmtTip, refLine:refLineVal, title, srcNote, key, expl};
+  CHART_REGISTRY[id] = {pts, kind, fmtY, fmtTip, refLine:refLineVal, title, srcNote, key, expl, chartObj:chart};
   // Auto-registers this chart's title/format/source metadata for Save &
   // Share's "Open chart" -- so every chartPanel() chart with a stable key
   // is save/loadable automatically, with nothing to hand-maintain per
@@ -2348,6 +2402,7 @@ function chartPanel(key, containerId, title, expl, series, kind, fmtY, fmtTip, s
     window.EATLAS_CHART_META[key] = { title: title, srcNote: srcNote, fmtY: fmtY, kind: kind };
   }
   wireRangePresets(panel, pts, kind, chart);
+  if(bases && bases.length > 1) wireBasisSelect(panel, bases, {key, id, kind, fmtY, fmtTip, title, fromYear});
   panel.querySelector(".resetzoom").addEventListener("click", ()=>{ if(chart.resetZoom) chart.resetZoom(); });
   panel.querySelector(".expandBtn").addEventListener("click", ()=> openChartModal(id));
 }
@@ -2442,12 +2497,28 @@ function render(data){
   if(s.productivity) chartPanel("productivity","charts-gdp","Productivity",
     "How much the UK produces for each hour worked. Higher means the economy works more efficiently.",
     s.productivity,"line",v=>v,idx,"ONS series LZVB (PRDY) · output per hour worked, index 2023 = 100, SA");
-  if(s.cpi) chartPanel("cpi","charts-inflation","CPI inflation, annual rate",
-    "How much consumer prices are rising compared with a year ago. The target is 2%.",
-    s.cpi,"line",v=>v+"%",pct,"ONS series D7G7 (MM23) · all items");
-  if(s.cpih) chartPanel("cpih","charts-inflation","CPIH inflation, annual rate",
-    "Like CPI, but also includes homeowners' housing costs, the ONS's preferred measure.",
-    s.cpih,"line",v=>v+"%",pct,"ONS series L55O (MM23) · all items");
+  if(s.cpi) chartPanel("cpi","charts-inflation","CPI inflation",
+    "How much consumer prices are rising compared with the same month a year earlier. The target is 2%.",
+    s.cpi,"line",v=>v+"%",pct,"ONS series D7G7 (MM23) · all items",undefined,undefined,undefined,
+    basesFor([
+      {id:"yoy", label:"Year on year", series:s.cpi,
+       srcNote:"ONS series D7G7 (MM23) · all items",
+       expl:"How much consumer prices are rising compared with the same month a year earlier. The target is 2%."},
+      {id:"mom", label:"Month on month", series:s.cpi_mom,
+       srcNote:"ONS series D7OE (MM23) · all items",
+       expl:"How much consumer prices moved compared with the month before. Not the annual rate divided by twelve: it reacts to one-off price changes the annual rate smooths out."}
+    ]));
+  if(s.cpih) chartPanel("cpih","charts-inflation","CPIH inflation",
+    "CPIH, the ONS's most comprehensive measure, compared with the same month a year earlier. Unlike CPI it includes owner-occupiers' housing costs and council tax.",
+    s.cpih,"line",v=>v+"%",pct,"ONS series L55O (MM23) · all items",undefined,undefined,undefined,
+    basesFor([
+      {id:"yoy", label:"Year on year", series:s.cpih,
+       srcNote:"ONS series L55O (MM23) · all items",
+       expl:"CPIH, the ONS's most comprehensive measure, compared with the same month a year earlier. Unlike CPI it includes owner-occupiers' housing costs and council tax."},
+      {id:"mom", label:"Month on month", series:s.cpih_mom,
+       srcNote:"ONS series L59C (MM23) · all items",
+       expl:"How much consumer prices moved on CPIH compared with the month before."}
+    ]));
   if(s.boe_rate) chartPanel("boe_rate","charts-inflation","Bank Rate",
     "The Bank of England's base interest rate, the anchor for mortgage, loan and savings rates.",
     s.boe_rate,"line",v=>v+"%",v=>v.toFixed(2)+"%","Bank of England · IUDBEDR, official Bank Rate");
@@ -2526,6 +2597,12 @@ function render(data){
     {fmt:pct,fmtD:pp,upIsGood:false,source:"ONS · D7G7"});
   if(s.cpi_mom) statTile(tinf,null,"CPI (MoM)",s.cpi_mom,
     {fmt:pct,fmtD:pp,upIsGood:false,source:"ONS · D7OE",infoKey:"cpi_mom"});
+  // CPIH had a chart but no tile, and its monthly rate had neither. Every
+  // metric this country serves gets both.
+  if(s.cpih) statTile(tinf,"cpih","CPIH (YoY)",s.cpih,
+    {fmt:pct,fmtD:pp,upIsGood:false,source:"ONS · L55O"});
+  if(s.cpih_mom) statTile(tinf,null,"CPIH (MoM)",s.cpih_mom,
+    {fmt:pct,fmtD:pp,upIsGood:false,source:"ONS · L59C",infoKey:"cpih_mom"});
   if(s.boe_rate) statTile(tinf,"boe_rate","Bank Rate",s.boe_rate,
     {fmt:v=>v.toFixed(2)+"%",fmtD:v=>v.toFixed(2)+"pp",upIsGood:false,source:"BoE · IUDBEDR"});
   const tl=document.getElementById("tiles-labour");
@@ -2603,6 +2680,10 @@ const INFO_CONTENT = {
   cpih: {
     description: "Like CPI, but also includes owner-occupiers' housing costs (Council Tax and mortgage-interest-equivalent costs). This is the ONS's preferred headline measure.",
     source: "ONS series L55O (MM23) \u00b7 all items."
+  },
+  cpih_mom: {
+    description: "How much consumer prices changed in the month on CPIH, the ONS's most comprehensive measure, which unlike CPI includes owner occupiers' housing costs.",
+    source: "ONS series L59C (MM23) \u00b7 CPIH, all items, change on the previous month."
   },
   cpi_mom: {
     description: "How much consumer prices rose or fell compared with just the previous month, more volatile than the annual rate, useful for spotting turning points earlier.",

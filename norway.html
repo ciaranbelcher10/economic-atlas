@@ -2084,7 +2084,103 @@ function statTile(el, key, title, series, opts){
   el.appendChild(div);
 }
 const INDICATOR_PAGE_SLUGS = {gdp_level:"gdp", cpi:"inflation-rate", unemployment:"unemployment-rate", debt_gdp:"government-debt"};
-function chartPanel(key, containerId, title, expl, series, kind, fmtY, fmtTip, srcNote, fromYear, refLine, infoKey){
+// Keeps only the bases this country actually serves, so the selector never
+// offers something the source cannot support and never appears at all when
+// there is only one basis. Order is preserved: the first survivor is default.
+function basesFor(list){
+  return list.filter(b => b.series && b.series.points && b.series.points.length);
+}
+function wireBasisSelect(panel, bases, ctx){
+  const tools = panel.querySelector(".charttools");
+  const wrap = document.createElement("div");
+  wrap.className = "basisselect";
+  const selId = "basis-" + ctx.id;
+  wrap.innerHTML = '<label class="basislabel" for="' + selId + '">Show</label>' +
+    '<select id="' + selId + '" class="basisdd">' +
+    bases.map((b, i) => '<option value="' + i + '">' + b.label + '</option>').join("") +
+    '</select>';
+  tools.insertBefore(wrap, tools.firstChild);
+  const sel = wrap.querySelector("select");
+  sel.addEventListener("change", () => {
+    const b = bases[+sel.value];
+    if(!b || !b.series || !b.series.points || !b.series.points.length) return;
+    const pts = ctx.fromYear
+      ? b.series.points.filter(p => +p[0].slice(0,4) >= ctx.fromYear)
+      : b.series.points;
+    if(!pts.length) return;
+    const entry = CHART_REGISTRY[ctx.id];
+    const chart = entry && entry.chartObj;
+    if(chart) updateChartData(chart, pts, ctx.kind);
+    const span = fmtPeriod(pts[0][0]) + " to " + fmtPeriod(pts[pts.length-1][0]);
+    const rangeEl = panel.querySelector(".range");
+    if(rangeEl) rangeEl.textContent = span + (b.series.next ? " \u00b7" : "");
+    const srcEl = panel.querySelector(".src");
+    if(srcEl && b.srcNote) srcEl.textContent = "Source: " + b.srcNote;
+    const explEl = panel.querySelector(".expl");
+    if(explEl && b.expl) explEl.textContent = b.expl;
+    const canvas = document.getElementById(ctx.id);
+    if(canvas) canvas.setAttribute("aria-label", ctx.title + ", " + b.label + ", " + span);
+    const dlBtn = panel.querySelector(".dl-btn");
+    if(dlBtn && window.EATLAS_DOWNLOAD) window.EATLAS_DOWNLOAD.wire(dlBtn, pts, ctx.title + " (" + b.label + ")");
+    if(entry){ entry.pts = pts; entry.basis = b.label; }
+    if(chart) wireRangePresets(panel, pts, ctx.kind, chart);
+  });
+}
+// bases: optional [{id,label,series,srcNote,expl}] for a metric the country
+// publishes on more than one basis (year on year, month on month, quarter on
+// quarter). The list is built from what is actually served, so a country that
+// has only one basis gets no selector and a country that gains one later gets
+// it with no page edit. The first entry is the default shown.
+// Swaps a chart between the bases a country actually publishes. Every
+// dependent piece is refreshed together -- the drawn points, the range line,
+// the source note, the accessible label, the download and the registry entry
+// -- because a chart showing one basis while its source note names another is
+// worse than offering no choice at all. The range presets close over the old
+// points array, so they are rebound rather than left pointing at the previous
+// basis.
+// Keeps only the bases this country actually serves, so the selector never
+// offers something the source cannot support and never appears at all when
+// there is only one basis. Order is preserved: the first survivor is default.
+function basesFor(list){
+  return list.filter(b => b.series && b.series.points && b.series.points.length);
+}
+function wireBasisSelect(panel, bases, ctx){
+  const tools = panel.querySelector(".charttools");
+  const wrap = document.createElement("div");
+  wrap.className = "basisselect";
+  const selId = "basis-" + ctx.id;
+  wrap.innerHTML = '<label class="basislabel" for="' + selId + '">Show</label>' +
+    '<select id="' + selId + '" class="basisdd">' +
+    bases.map((b, i) => '<option value="' + i + '">' + b.label + '</option>').join("") +
+    '</select>';
+  tools.insertBefore(wrap, tools.firstChild);
+  const sel = wrap.querySelector("select");
+  sel.addEventListener("change", () => {
+    const b = bases[+sel.value];
+    if(!b || !b.series || !b.series.points || !b.series.points.length) return;
+    const pts = ctx.fromYear
+      ? b.series.points.filter(p => +p[0].slice(0,4) >= ctx.fromYear)
+      : b.series.points;
+    if(!pts.length) return;
+    const entry = CHART_REGISTRY[ctx.id];
+    const chart = entry && entry.chartObj;
+    if(chart) updateChartData(chart, pts, ctx.kind);
+    const span = fmtPeriod(pts[0][0]) + " to " + fmtPeriod(pts[pts.length-1][0]);
+    const rangeEl = panel.querySelector(".range");
+    if(rangeEl) rangeEl.textContent = span + (b.series.next ? " \u00b7" : "");
+    const srcEl = panel.querySelector(".src");
+    if(srcEl && b.srcNote) srcEl.textContent = "Source: " + b.srcNote;
+    const explEl = panel.querySelector(".expl");
+    if(explEl && b.expl) explEl.textContent = b.expl;
+    const canvas = document.getElementById(ctx.id);
+    if(canvas) canvas.setAttribute("aria-label", ctx.title + ", " + b.label + ", " + span);
+    const dlBtn = panel.querySelector(".dl-btn");
+    if(dlBtn && window.EATLAS_DOWNLOAD) window.EATLAS_DOWNLOAD.wire(dlBtn, pts, ctx.title + " (" + b.label + ")");
+    if(entry){ entry.pts = pts; entry.basis = b.label; }
+    if(chart) wireRangePresets(panel, pts, ctx.kind, chart);
+  });
+}
+function chartPanel(key, containerId, title, expl, series, kind, fmtY, fmtTip, srcNote, fromYear, refLine, infoKey, bases){
   const container=document.getElementById(containerId);
   const pts = fromYear ? series.points.filter(p=>+p[0].slice(0,4)>=fromYear) : series.points;
   const id = "ch-"+(panelId++);
@@ -2111,7 +2207,7 @@ function chartPanel(key, containerId, title, expl, series, kind, fmtY, fmtTip, s
   if(czBtn && window.EATLAS_CUSTOMIZE) window.EATLAS_CUSTOMIZE.wire(czBtn, pts, title, srcNote, fmtY, "", title, kind, fmtPeriod, key);
   const refLineVal = refLine==null ? null : refLine;
   const chart = (kind==="bar"?barChart:lineChart)(document.getElementById(id), pts, fmtY, fmtTip, refLineVal, key);
-  CHART_REGISTRY[id] = {pts, kind, fmtY, fmtTip, refLine:refLineVal, title, srcNote, key, expl};
+  CHART_REGISTRY[id] = {pts, kind, fmtY, fmtTip, refLine:refLineVal, title, srcNote, key, expl, chartObj:chart};
   // Auto-registers this chart's title/format/source metadata for Save &
   // Share's "Open chart" -- so every chartPanel() chart with a stable key
   // is save/loadable automatically, with nothing to hand-maintain per
@@ -2122,6 +2218,7 @@ function chartPanel(key, containerId, title, expl, series, kind, fmtY, fmtTip, s
     window.EATLAS_CHART_META[key] = { title: title, srcNote: srcNote, fmtY: fmtY, kind: kind };
   }
   wireRangePresets(panel, pts, kind, chart);
+  if(bases && bases.length > 1) wireBasisSelect(panel, bases, {key, id, kind, fmtY, fmtTip, title, fromYear});
   panel.querySelector(".resetzoom").addEventListener("click", ()=>{ if(chart.resetZoom) chart.resetZoom(); });
   panel.querySelector(".expandBtn").addEventListener("click", ()=> openChartModal(id));
 }
