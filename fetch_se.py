@@ -601,6 +601,11 @@ def main() -> int:
         out["series"]["cpi"] = _hicp
     else:
         failures.append("cpi")
+    _hicp_mom = inflation_sources.fetch_hicp_mom(fetch_fred, "CP0000SEM086NEST", key)
+    if _hicp_mom:
+        out["series"]["cpi_mom"] = _hicp_mom
+    else:
+        failures.append("cpi_mom")
     _cpi_national = inflation_sources.fetch_national_cpi("SWE")
     if _cpi_national:
         out["series"]["cpi_national"] = _cpi_national

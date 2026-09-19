@@ -27,6 +27,7 @@ import series_guard
 # Remove it once the new series has landed.
 ALLOW_SHRINK = {
     "cpi_mom": "one point fewer by design: Nov 2025 has no computable month on month value because BLS published no Oct 2025 CPI",
+    "cpi_mom_sa": "one point fewer by design: Nov 2025 has no computable month on month value because BLS published no Oct 2025 CPI",
 }
 
 # key: (fred_id, freq 'm'|'q', label, unit, transform None|'yoy'|'mom')
@@ -39,9 +40,14 @@ FRED_SERIES = {
     "employment": ("EMRATIO", "m", "Employment-population ratio, SA", "%", None),
     "participation": ("CIVPART", "m", "Labor force participation rate, SA", "%", None),
     # 12-month rates use the unadjusted indexes, which is how BLS publishes
-    # them; the monthly change uses the adjusted index, as BLS does.
+    # them. The monthly change is served unadjusted as well, so a US month on
+    # month rate is built the same way as every other country's on this site
+    # (no other source in use publishes a seasonally adjusted monthly index).
+    # BLS's own headline monthly print is the adjusted one, so it is kept
+    # alongside under its own key and labelled, rather than dropped.
     "cpi": ("CPIAUCNS", "m", "CPI, all items, YoY, not seasonally adjusted", "%", "yoy"),
-    "cpi_mom": ("CPIAUCSL", "m", "CPI, all items, MoM, seasonally adjusted", "%", "mom"),
+    "cpi_mom": ("CPIAUCNS", "m", "CPI, all items, MoM, not seasonally adjusted", "%", "mom"),
+    "cpi_mom_sa": ("CPIAUCSL", "m", "CPI, all items, MoM, seasonally adjusted", "%", "mom"),
     "core_cpi": ("CPILFENS", "m", "Core CPI (ex food & energy), YoY, not seasonally adjusted", "%", "yoy"),
     "ppi": ("PPIFID", "m", "PPI, final demand, YoY", "%", "yoy"),
     "pce": ("PCEPI", "m", "PCE price index (Fed's preferred gauge), YoY", "%", "yoy"),

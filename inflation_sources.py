@@ -39,8 +39,8 @@ OECD_BASES = (
 NATIONAL_MAX_AGE_DAYS = 100   # a monthly series more than about three releases behind is not current
 MIN_POINTS = 24
 
-__all__ = ["hicp_label", "hicp_yoy", "fetch_hicp", "national_label", "fetch_national_cpi",
-           "NATIONAL_MAX_AGE_DAYS"]
+__all__ = ["hicp_label", "hicp_yoy", "hicp_mom", "fetch_hicp", "fetch_hicp_mom",
+           "national_label", "fetch_national_cpi", "NATIONAL_MAX_AGE_DAYS"]
 
 
 def _back_12(period: str) -> str | None:
@@ -79,6 +79,25 @@ def hicp_yoy(levels: list) -> list:
     return out
 
 
+def _back_1(period: str) -> str | None:
+    try:
+        y, m = int(period[:4]), int(period[5:7])
+    except (ValueError, IndexError):
+        return None
+    return f"{y - 1:04d}-12" if m == 1 else f"{y:04d}-{m - 1:02d}"
+
+
+def hicp_mom(levels: list) -> list:
+    """1-month rates from an index, matched by period so a gap never shifts the comparison."""
+    by = {p[0]: p[1] for p in levels}
+    out = []
+    for per, val in levels:
+        base = by.get(_back_1(per))
+        if base:
+            out.append([per, round((val / base - 1) * 100, 2)])
+    return out
+
+
 def fetch_hicp(fetch_fred, sid: str, key: str) -> dict | None:
     """The cpi series for an EU member, or None. Never substitutes another measure.
 
@@ -99,6 +118,31 @@ def fetch_hicp(fetch_fred, sid: str, key: str) -> dict | None:
         return None
     print(f"  ok  cpi              {len(pts):>5} observations ({pts[0][0]} to {pts[-1][0]}, months, HICP {sid})")
     return {"label": hicp_label(sid), "unit": "%", "freq": "months", "points": pts}
+
+
+def fetch_hicp_mom(fetch_fred, sid: str, key: str) -> dict | None:
+    """The cpi_mom series for an EU member, or None. Same guarantees as fetch_hicp.
+
+    A month-on-month rate cannot be derived from a 12-month rate, so it is
+    computed here from the same all-items index that fetch_hicp uses. A
+    brand-new key has no stored version for the shrinkage guard to compare
+    against, so a short or failed fetch leaves the key out entirely rather
+    than serving a truncated series.
+    """
+    if not key:
+        return None
+    if not re.fullmatch(r"CP0000[A-Z0-9]{2,4}M086NEST", sid or ""):
+        raise ValueError(f"not an all-items HICP id: {sid!r}")
+    try:
+        pts = hicp_mom(fetch_fred(sid, "m", key))
+    except Exception as exc:
+        print(f"FAIL  cpi_mom          HICP {sid}: {exc}; the key is left out this run")
+        return None
+    if len(pts) < MIN_POINTS:
+        print(f"FAIL  cpi_mom          HICP {sid}: only {len(pts)} points; the key is left out this run")
+        return None
+    print(f"  ok  cpi_mom          {len(pts):>5} observations ({pts[0][0]} to {pts[-1][0]}, months, HICP {sid})")
+    return {"label": f"HICP, all items, MoM (Eurostat, {sid})", "unit": "%", "freq": "months", "points": pts}
 
 
 def _parse_national(text: str, area: str) -> list:

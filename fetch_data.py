@@ -36,6 +36,7 @@ import series_guard
 # Remove it once the new series has landed.
 ALLOW_SHRINK = {
     "cpi_mom": "one point fewer by design: Nov 2025 has no computable month on month value because BLS published no Oct 2025 CPI",
+    "cpi_mom_sa": "one point fewer by design: Nov 2025 has no computable month on month value because BLS published no Oct 2025 CPI",
 }
 
 UA = {"User-Agent": "economic-atlas/0.2"}
@@ -64,6 +65,12 @@ UK_SERIES = {
              "CPIH annual rate, all items (L55O)", "%"),
     "cpi_mom": (["/economy/inflationandpriceindices/timeseries/d7oe/mm23"],
                 "CPI monthly rate, all items (D7OE)", "%"),
+    # CPIH on both bases, so the UK's most comprehensive measure is offered
+    # month on month as well as year on year. ONS publishes the monthly rate
+    # directly (L59C), so neither CPIH nor CPI needs its index (D7BT/L522)
+    # fetched to derive one.
+    "cpih_mom": (["/economy/inflationandpriceindices/timeseries/l59c/mm23"],
+                 "CPIH monthly rate, all items (L59C)", "%"),
     "debt_gdp": (["/economy/governmentpublicsectorandtaxes/publicsectorfinance/timeseries/hf6x/pusf"],
                  "Public sector net debt ex banks, % of GDP (HF6X)", "%"),
     "net_debt": (["/economy/governmentpublicsectorandtaxes/publicsectorfinance/timeseries/hf6w/pusf"],
@@ -585,15 +592,19 @@ def build_us() -> bool:
                 failures.append(key)
                 print(f"FAIL  {key:<16} {exc}")
 
-        # Derive CPI rates from the index, then drop the raw index
-        # 12-month rate from the unadjusted index (as BLS publishes it), monthly
-        # change from the adjusted index (as BLS publishes it). Kept identical to
-        # fetch_us.py, which writes the same file after this script.
+        # Derive CPI rates from the index, then drop the raw index.
+        # 12-month rate and the headline monthly change both come from the
+        # unadjusted index, so a US month on month rate is built the same way
+        # as every other country's on this site. BLS's own headline monthly
+        # print is seasonally adjusted, so that version is kept alongside
+        # under cpi_mom_sa and labelled. Kept identical to fetch_us.py, which
+        # writes the same file after this script.
         idx = out["series"].pop("cpi_index", None)
         idx_nsa = out["series"].pop("cpi_index_nsa", None)
         if idx or idx_nsa:
             yoy = pct_change(idx_nsa["points"], 12) if idx_nsa else []
-            mom = pct_change(idx["points"], 1) if idx else []
+            mom = pct_change(idx_nsa["points"], 1) if idx_nsa else []
+            mom_sa = pct_change(idx["points"], 1) if idx else []
             if yoy:
                 out["series"]["cpi"] = {
                     "label": "CPI, all items, YoY, not seasonally adjusted (CPIAUCNS)",
@@ -601,9 +612,14 @@ def build_us() -> bool:
                 ok_line("cpi", yoy, "months")
             if mom:
                 out["series"]["cpi_mom"] = {
-                    "label": "CPI, all items, MoM, seasonally adjusted (CPIAUCSL)",
+                    "label": "CPI, all items, MoM, not seasonally adjusted (CPIAUCNS)",
                     "unit": "%", "freq": "months", "points": mom}
                 ok_line("cpi_mom", mom, "months")
+            if mom_sa:
+                out["series"]["cpi_mom_sa"] = {
+                    "label": "CPI, all items, MoM, seasonally adjusted (CPIAUCSL)",
+                    "unit": "%", "freq": "months", "points": mom_sa}
+                ok_line("cpi_mom_sa", mom_sa, "months")
 
     extras = [
         ("business_confidence", lambda: fetch_oecd_bci("USA"),

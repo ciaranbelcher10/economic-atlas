@@ -105,6 +105,7 @@ FRED_SERIES = {
     "employment_rate": ("LREM64TTDEQ156S", "q", "Employment rate, 15-64, SA", "%", None, 1.0),
     "bond_yield_10y": ("IRLTLT01DEM156N", "m", "10-year government bond yield", "%", None, 1.0),
     "cpi": ("CP0000DEM086NEST", "m", "HICP, all items, YoY", "%", "yoy", 1.0),
+    "cpi_mom": ("CP0000DEM086NEST", "m", "HICP, all items, MoM", "%", "mom", 1.0),
 }
 
 FRED_URL = ("https://api.stlouisfed.org/fred/series/observations"

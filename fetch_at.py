@@ -103,6 +103,7 @@ FRED_SERIES = {
     "employment_rate": ("LREM64TTATQ156S", "q", "Employment rate, 15-64, SA", "%", None, 1.0),
     "bond_yield_10y": ("IRLTLT01ATM156N", "m", "10-year government bond yield", "%", None, 1.0),
     "cpi": ("CP0000ATM086NEST", "m", "HICP, all items, YoY", "%", "yoy", 1.0),
+    "cpi_mom": ("CP0000ATM086NEST", "m", "HICP, all items, MoM", "%", "mom", 1.0),
 }
 # trade_balance (XTNTVA01ATM667S) deliberately removed from the primary
 # FRED loop above -- confirmed dead (Aug 2026 data-quality sweep): every
