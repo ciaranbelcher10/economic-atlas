@@ -224,6 +224,13 @@ button.mtoggle.fx-both{background:#2FA463; border-color:#2FA463; color:#fff;}
 .charttools{display:flex; align-items:center; justify-content:space-between; gap:10px;
   margin:8px 0 2px; flex-wrap:wrap;}
 .rangepresets{display:flex; gap:6px;}
+.basisselect{display:flex; align-items:center; gap:6px;}
+.basislabel{font:600 11.5px "Avenir Next","Avenir","Nunito Sans",sans-serif; color:var(--ink2);}
+.basisselect button{border:1px solid var(--hair); background:var(--panel); color:var(--ink2);
+  font:600 11.5px "Avenir Next","Avenir","Nunito Sans",sans-serif; padding:4px 10px;
+  border-radius:999px; cursor:pointer;}
+.basisselect button:hover{border-color:var(--blue); color:var(--navy);}
+.basisselect button.active{background:var(--blue); border-color:var(--blue); color:#fff;}
 .rangepresets button{border:1px solid var(--hair); background:var(--panel); color:var(--ink2);
   font:600 11.5px "Avenir Next","Avenir","Nunito Sans",sans-serif; padding:4px 10px;
   border-radius:999px; cursor:pointer;}
@@ -2332,15 +2339,19 @@ function wireBasisSelect(panel, bases, ctx){
   const tools = panel.querySelector(".charttools");
   const wrap = document.createElement("div");
   wrap.className = "basisselect";
-  const selId = "basis-" + ctx.id;
-  wrap.innerHTML = '<label class="basislabel" for="' + selId + '">Show</label>' +
-    '<select id="' + selId + '" class="basisdd">' +
-    bases.map((b, i) => '<option value="' + i + '">' + b.label + '</option>').join("") +
-    '</select>';
+  wrap.setAttribute("role", "group");
+  wrap.setAttribute("aria-label", "Choose basis for " + ctx.title);
+  wrap.innerHTML = '<span class="basislabel">Show</span>' +
+    bases.map((b, i) => '<button type="button" data-basis="' + i + '"' +
+      (i === 0 ? ' class="active" aria-pressed="true"' : ' aria-pressed="false"') +
+      '>' + b.label + '</button>').join("");
   tools.insertBefore(wrap, tools.firstChild);
-  const sel = wrap.querySelector("select");
-  sel.addEventListener("change", () => {
-    const b = bases[+sel.value];
+  const btns = [...wrap.querySelectorAll("button[data-basis]")];
+  btns.forEach(btn => btn.addEventListener("click", () => {
+    btns.forEach(o => { o.classList.remove("active"); o.setAttribute("aria-pressed", "false"); });
+    btn.classList.add("active");
+    btn.setAttribute("aria-pressed", "true");
+    const b = bases[+btn.dataset.basis];
     if(!b || !b.series || !b.series.points || !b.series.points.length) return;
     const pts = ctx.fromYear
       ? b.series.points.filter(p => +p[0].slice(0,4) >= ctx.fromYear)
@@ -2362,7 +2373,7 @@ function wireBasisSelect(panel, bases, ctx){
     if(dlBtn && window.EATLAS_DOWNLOAD) window.EATLAS_DOWNLOAD.wire(dlBtn, pts, ctx.title + " (" + b.label + ")");
     if(entry){ entry.pts = pts; entry.basis = b.label; }
     if(chart) wireRangePresets(panel, pts, ctx.kind, chart);
-  });
+  }));
 }
 function chartPanel(key, containerId, title, expl, series, kind, fmtY, fmtTip, srcNote, fromYear, refLine, infoKey, bases){
   const container=document.getElementById(containerId);

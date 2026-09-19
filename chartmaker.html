@@ -1286,6 +1286,12 @@ button.mtoggle.fx-dollar{background:var(--blue); border-color:var(--blue); color
 .cm-addbtn{width:100%; padding:10px 0; border:1.5px dashed var(--blue); background:none; color:var(--navy);
   font:700 13.5px "Avenir Next","Avenir","Nunito Sans",sans-serif; border-radius:8px; cursor:pointer; margin-top:4px;}
 .cm-addbtn:hover{background:#F0F6FA;}
+.cm-measurenotice{border:1px solid var(--hair); border-left:3px solid var(--blue);
+  background:var(--panel); border-radius:8px; padding:9px 11px; margin:0 0 10px;
+  font:500 12.5px "Avenir Next","Avenir","Nunito Sans",sans-serif; color:var(--ink);}
+.cm-measurenotice button{border:none; background:none; color:var(--blue); cursor:pointer;
+  font:700 12.5px "Avenir Next","Avenir","Nunito Sans",sans-serif; padding:0; margin-left:6px;
+  text-decoration:underline;}
 .cm-serieslist{list-style:none; margin:0 0 10px; padding:0; display:flex; flex-direction:column; gap:7px;
   max-height:440px; overflow-y:auto; padding-right:4px;}
 .cm-seriesitem{display:flex; align-items:center; gap:9px; border:1px solid var(--hair); border-radius:8px; padding:8px 9px; font-size:13px;}
@@ -1379,6 +1385,7 @@ button.mtoggle.fx-dollar{background:var(--blue); border-color:var(--blue); color
  </div>
  <div class="ctl-panel">
  <h3>Metrics</h3>
+ <div id="cmMeasureNotice" hidden></div>
  <ul class="cm-serieslist" id="cmSeriesList"></ul>
  <button type="button" class="cm-addbtn" id="cmAddBtn">+ Add metric</button>
  <div class="cm-status" id="cmStatus">No metrics added yet.</div>
@@ -1717,9 +1724,21 @@ var CATEGORY_ORDER = ["GDP & growth", "Labour market", "Prices", "Public finance
 // the served series' own label, exactly as compare.html's measureTag() does.
 // The basis (year on year / month on month) is already in CONCEPT_LABEL and
 // is true for every country, so only the measure is resolved here.
+// getSeries() returns the display label from CONCEPT_LABEL, not the label the
+// data file served, so the measure has to be read from the registry directly.
+// Reading it from getSeries() silently classified every country as "national
+// CPI", since a display label names no series identifier.
+function servedLabel(country, concept){
+  var candidates = CONCEPT_KEYS[concept], reg = REGISTRY[country];
+  if(!candidates || !reg) return "";
+  for(var i = 0; i < candidates.length; i++){
+    var raw = reg[candidates[i]];
+    if(raw && raw.label) return raw.label;
+  }
+  return "";
+}
 function measureName(country, concept){
-  var s = getSeries(country, concept);
-  var label = (s && s.label) || "";
+  var label = servedLabel(country, concept);
   if(!label) return null;
   if(/HICP/.test(label)) return /EZ19/.test(label) ? "HICP, euro area" : "HICP";
   if(/\(D7G7\)|\(D7OE\)/.test(label)) return "CPI, HICP method";
@@ -1730,6 +1749,62 @@ function measureName(country, concept){
 // CONCEPT_LABEL with the country's actual measure folded in, so two cards
 // for the same country can never read identically once a country carries
 // both a national CPI and an HICP.
+// ---- inflation family -------------------------------------------------
+// A country can publish several inflation measures (CPI, CPIH, the EU's
+// HICP, a national-methodology index), each on the bases its source can
+// support. Rather than one picker entry per key -- which would give a
+// country like Norway two cards both reading "Inflation" -- the picker
+// shows a single "Inflation" entry and the measure and basis are chosen on
+// the series itself. The family is built from what is actually served, so
+// nothing is ever offered that the source cannot support.
+var INFLATION_KEYS = ["cpi", "cpi_mom", "cpi_mom_sa", "cpih", "cpih_mom",
+                      "cpi_hicp", "cpi_hicp_mom", "cpi_national", "cpi_national_mom"];
+// measure id -> {label, yoy key, bases}. Order is the order offered; the
+// first measure a country has becomes its default, matching the country
+// pages and Compare (EU members default to HICP, everyone else to their
+// own headline measure).
+var INFLATION_MEASURES = [
+  {id: "cpi",          label: "Headline CPI",  yoy: "cpi",
+   bases: [{id: "yoy", label: "Year on year", key: "cpi"},
+           {id: "mom", label: "Month on month", key: "cpi_mom"},
+           {id: "mom_sa", label: "Month on month (seasonally adjusted)", key: "cpi_mom_sa"}]},
+  {id: "cpih",         label: "CPIH",          yoy: "cpih",
+   bases: [{id: "yoy", label: "Year on year", key: "cpih"},
+           {id: "mom", label: "Month on month", key: "cpih_mom"}]},
+  {id: "cpi_hicp",     label: "HICP",          yoy: "cpi_hicp",
+   bases: [{id: "yoy", label: "Year on year", key: "cpi_hicp"},
+           {id: "mom", label: "Month on month", key: "cpi_hicp_mom"}]},
+  {id: "cpi_national", label: "National CPI",  yoy: "cpi_national",
+   bases: [{id: "yoy", label: "Year on year", key: "cpi_national"},
+           {id: "mom", label: "Month on month", key: "cpi_national_mom"}]}
+];
+function isInflationKey(metric){ return INFLATION_KEYS.indexOf(metric) !== -1; }
+// The measures this country actually serves, each with only its available bases.
+function inflationFamily(country){
+  var out = [];
+  INFLATION_MEASURES.forEach(function(m){
+    var bases = m.bases.filter(function(b){ return !!getSeries(country, b.key); });
+    if(bases.length) out.push({id: m.id, label: m.label, bases: bases});
+  });
+  return out;
+}
+function measureOfKey(country, metric){
+  var fam = inflationFamily(country), found = null;
+  fam.forEach(function(m){
+    m.bases.forEach(function(b){ if(b.key === metric) found = m; });
+  });
+  return found;
+}
+function basisOfKey(country, metric){
+  var m = measureOfKey(country, metric), found = null;
+  if(m) m.bases.forEach(function(b){ if(b.key === metric) found = b; });
+  return found;
+}
+// The key a country's "Inflation" entry adds by default.
+function defaultInflationKey(country){
+  var fam = inflationFamily(country);
+  return fam.length ? fam[0].bases[0].key : null;
+}
 function conceptLabelFor(country, concept){
   var base = CONCEPT_LABEL[concept] || concept;
   if(concept !== "cpi" && concept !== "cpi_mom" && concept !== "core_cpi") return base;
@@ -1989,7 +2064,7 @@ function hasCountryData(country){
 var SOURCE_MAP = {
   "Argentina": {
     business_confidence: "OECD · Business Confidence Indicator (BCICP), amplitude-adjusted, long-term average = 100.",
-    cpi: "OECD live prices system · CPI, all items, year on year.",
+    cpi: "INDEC · consumer price index (IPC), national, all items (Nivel general), year on year.",
     debt_gdp: "FRED series GGGDTAARA188N · IMF World Economic Outlook, general government, % of GDP, annual.",
     deficit: "FRED series GGNLBAARA188N · IMF World Economic Outlook, general government, % of GDP, annual.",
     fdi: "World Bank · % of GDP, annual.",
@@ -2095,7 +2170,7 @@ var SOURCE_MAP = {
   "Denmark": {
     bond_yield_10y: "FRED series IRLTLT01DKM156N · OECD, monthly.",
     business_confidence: "OECD · Business Confidence Indicator (BCICP), amplitude-adjusted, long-term average = 100.",
-    cpi: "OECD live prices system · CPI, all items, year on year.",
+    cpi: "FRED series CP0000DKM086NEST · Eurostat HICP, all items, year on year. This is the EU-harmonised index (HICP), not Statistics Denmark's own national CPI, so it will not always match the figure quoted domestically.",
     current_account: "World Bank · % of GDP, annual.",
     debt_gdp: "Eurostat · general government, % of GDP, annual.",
     deficit: "Eurostat · general government, % of GDP, annual.",
@@ -2113,8 +2188,8 @@ var SOURCE_MAP = {
     cpi: "Calculated from FRED series CP0000EZ19M086NEST · HICP, all items, EA19 aggregate.",
     cpi_mom: "Derived from FRED series CP0000EZ19M086NEST (Eurostat).",
     current_account: "World Bank · % of GDP, annual, euro-area aggregate.",
-    debt_gdp: "FRED series GGGDTAEZA188N · IMF, general government, annual.",
-    deficit: "FRED series GGNLBAEZA188N · IMF, net lending/borrowing, annual.",
+    debt_gdp: "Eurostat gov_10dd_edpt1 · EDP notification table, general government, % of GDP, annual.",
+    deficit: "Eurostat gov_10dd_edpt1 · EDP notification table, general government, % of GDP, annual.",
     ecb_rate: "FRED series ECBDFR · end-of-month value.",
     exports: "Prefers a live Eurostat ext_st feed, falls back to FRED series XTEXVA01EZM667S (OECD, discontinued April 2023) only if the live feed is unavailable on a given run.",
     fdi: "World Bank · FDI net inflows, % of GDP, annual, euro-area aggregate.",
@@ -2123,7 +2198,7 @@ var SOURCE_MAP = {
     gdp_real: "FRED series CLVMEURSCAB1GQEA19 · Eurostat, EA19 aggregate, quarterly.",
     imports: "Prefers a live Eurostat ext_st feed, falls back to FRED series XTIMVA01EZM667S (OECD, discontinued April 2023) only if the live feed is unavailable on a given run.",
     trade_balance: "Prefers a live Eurostat ext_st feed (extra-euro-area goods trade), falls back to an OECD-mirrored series that was confirmed discontinued in April 2023 only if the live feed is unavailable on a given run.",
-    unemployment: "FRED series LRHUTTTTEZM156S · OECD, seasonally adjusted.",
+    unemployment: "Eurostat une_rt_m · harmonised unemployment rate, euro area, seasonally adjusted, monthly.",
   },
   "France": {
     bond_yield_10y: "FRED series IRLTLT01FRM156N · monthly average.",
@@ -2139,7 +2214,7 @@ var SOURCE_MAP = {
     gdp_level: "FRED series NGDPSAXDCFRQ · IMF International Financial Statistics, quarterly.",
     gdp_real: "IMF International Financial Statistics, via FRED, quarterly.",
     participation_rate: "FRED series LRAC64TTFRQ156S · OECD, ages 15-64, seasonally adjusted, quarterly.",
-    trade_balance: "Eurostat · goods trade, total, monthly.",
+    trade_balance: "FRED series XTNTVA01FRM667S · OECD merchandise trade, monthly, converted to euros at each period's own rate.",
     unemployment: "FRED series LRHUTTTTFRM156S · seasonally adjusted, monthly.",
   },
   "Germany": {
@@ -2152,11 +2227,11 @@ var SOURCE_MAP = {
     ecb_rate: "FRED series ECBDFR · end-of-month value.",
     employment_rate: "FRED series LREM64TTDEQ156S · OECD, ages 15-64, seasonally adjusted, quarterly.",
     fdi: "World Bank · % of GDP, annual.",
-    gdp_growth: "FRED series NGDPSAXDCDEQ · IMF International Financial Statistics, quarterly, quarter-on-quarter.",
+    gdp_growth: "FRED series CLVMNACSCAB1GQDE · quarter-on-quarter growth derived from the real (chain-linked volume, seasonally adjusted) GDP level, not the nominal one.",
     gdp_level: "FRED series NGDPSAXDCDEQ · IMF International Financial Statistics, quarterly.",
-    gdp_real: "IMF International Financial Statistics, via FRED, quarterly.",
+    gdp_real: "FRED series CLVMNACSCAB1GQDE · Eurostat national accounts, chain-linked volume, millions of chained 2010 euros, seasonally adjusted, quarterly.",
     participation_rate: "FRED series LRAC64TTDEQ156S · OECD, ages 15-64, seasonally adjusted, quarterly.",
-    trade_balance: "Eurostat · goods trade, total, monthly.",
+    trade_balance: "FRED series XTNTVA01DEM667S · OECD merchandise trade, monthly, converted to euros at each period's own rate.",
     unemployment: "FRED series LRHUTTTTDEM156S · seasonally adjusted, monthly.",
   },
   "India": {
@@ -2189,7 +2264,7 @@ var SOURCE_MAP = {
   "Ireland": {
     bond_yield_10y: "FRED series IRLTLT01IEM156N · OECD, monthly.",
     business_confidence: "OECD · Business Confidence Indicator (BCICP), amplitude-adjusted, long-term average = 100.",
-    cpi: "OECD · CPI, all items, harmonized, year on year.",
+    cpi: "FRED series CP0000IEM086NEST · Eurostat HICP, all items, year on year. This is the EU-harmonised index (HICP), not the Central Statistics Office's own national CPI, so it will not always match the figure quoted domestically.",
     current_account: "World Bank · % of GDP, annual.",
     debt_gdp: "Eurostat · general government, % of GDP, annual.",
     deficit: "Eurostat · general government, % of GDP, annual.",
@@ -2233,7 +2308,7 @@ var SOURCE_MAP = {
     gdp_level: "FRED series NGDPSAXDCITQ · IMF International Financial Statistics, quarterly.",
     gdp_real: "IMF International Financial Statistics, via FRED, quarterly.",
     participation_rate: "FRED series LRAC64TTITQ156S · OECD, ages 15-64, seasonally adjusted, quarterly.",
-    trade_balance: "Eurostat · goods trade, total, monthly.",
+    trade_balance: "FRED series XTNTVA01ITM667S · OECD merchandise trade, monthly, converted to euros at each period's own rate.",
     unemployment: "FRED series LRHUTTTTITM156S · seasonally adjusted, monthly.",
   },
   "Japan": {
@@ -2270,7 +2345,7 @@ var SOURCE_MAP = {
   },
   "Morocco": {
     business_confidence: "OECD · Business Confidence Indicator (BCICP), amplitude-adjusted, long-term average = 100.",
-    cpi: "OECD live prices system · CPI, all items, year on year.",
+    cpi: "IMF MAR.CPI._T.IX.M · CPI, all items, year on year, derived from the IMF monthly consumer price index. Where the IMF series is unavailable, this falls back to World Bank annual CPI (FP.CPI.TOTL.ZG); the period shown under the figure tells you which is live, a year on its own means the annual fallback.",
     current_account: "World Bank · % of GDP, annual.",
     debt_gdp: "FRED (IMF Middle East and Central Asia Regional Economic Outlook), annual.",
     deficit: "World Bank · % of GDP, annual.",
@@ -2295,7 +2370,7 @@ var SOURCE_MAP = {
     gdp_level: "FRED series CPMNACSCAB1GQNL · Eurostat quarterly national accounts.",
     gdp_real: "Eurostat quarterly national accounts, via FRED.",
     participation_rate: "FRED series LRAC64TTNLQ156S · OECD, ages 15-64, seasonally adjusted, quarterly.",
-    trade_balance: "Eurostat · goods trade, total, monthly.",
+    trade_balance: "FRED series XTNTVA01NLM667S · OECD merchandise trade, monthly, converted to euros at each period's own rate.",
     unemployment: "FRED series LRHUTTTTNLM156N · seasonally adjusted, monthly.",
   },
   "Norway": {
@@ -2317,20 +2392,20 @@ var SOURCE_MAP = {
   "Poland": {
     bond_yield_10y: "FRED series IRLTLT01PLM156N · OECD, monthly.",
     business_confidence: "OECD · Business Confidence Indicator (BCICP), amplitude-adjusted, long-term average = 100.",
-    cpi: "OECD live prices system · CPI, all items, year on year.",
+    cpi: "FRED series CP0000PLM086NEST · Eurostat HICP, all items, year on year. This is the EU-harmonised index (HICP), not Statistics Poland's own national CPI, so it will not always match the figure quoted domestically.",
     debt_gdp: "FRED series GGGDTAPLA188N · IMF World Economic Outlook, general government, % of GDP, annual.",
     deficit: "FRED series GGNLBAPLA188N · IMF World Economic Outlook, general government, % of GDP, annual.",
     fdi: "World Bank · % of GDP, annual.",
     gdp_growth: "FRED series NGDPRSAXDCPLQ · IMF International Financial Statistics, quarterly.",
     gdp_level: "FRED series NGDPSAXDCPLQ · IMF International Financial Statistics, trailing 4-quarter sum (falls back to World Bank current US$, annual, only if the live PLN series is unavailable).",
     gdp_real: "FRED series NGDPRSAXDCPLQ · IMF International Financial Statistics, quarterly, seasonally adjusted.",
-    trade_balance: "OECD · merchandise trade, monthly.",
+    trade_balance: "Eurostat · goods trade, total, monthly (world partner, derived as exports minus imports).",
     unemployment: "FRED series LRHUTTTTPLM156S · OECD harmonized, seasonally adjusted, monthly.",
   },
   "Singapore": {
     business_confidence: "OECD · Business Confidence Indicator (BCICP), amplitude-adjusted, long-term average = 100.",
-    cpi: "OECD live prices system · CPI, all items, year on year.",
-    current_account: "World Bank · % of GDP, annual.",
+    cpi: "FRED series SGPPCPIPCPPPT · IMF Asia and Pacific Regional Economic Outlook, annual. Annual only, not the monthly series most other country pages here use.",
+    current_account: "FRED series SGPBCAGDPBP6PT · IMF Asia and Pacific Regional Economic Outlook, % of GDP, annual.",
     debt_gdp: "FRED series DEBTTLSGA188A · World Bank World Development Indicators, central government debt, % of GDP, annual.",
     fdi: "World Bank · % of GDP, annual.",
     gdp_growth: "FRED series SGPNGDPRPCPPPT · IMF Asia and Pacific Regional Economic Outlook, annual, % change.",
@@ -2382,13 +2457,13 @@ var SOURCE_MAP = {
     gdp_level: "Eurostat namq_10_gdp · quarterly, EUR-denominated (falls back to World Bank current US$, annual, only if Eurostat is unavailable).",
     gdp_real: "Eurostat namq_10_gdp · quarterly, chain-linked volume, EUR-denominated (same World-Bank USD fallback as GDP current prices).",
     participation_rate: "FRED series LRAC64TTESQ156S · OECD, ages 15-64, seasonally adjusted, quarterly.",
-    trade_balance: "Eurostat · goods trade, total, monthly.",
+    trade_balance: "FRED series XTNTVA01ESM667S · OECD merchandise trade, monthly, converted to euros at each period's own rate.",
     unemployment: "FRED series LRHUTTTTESM156S · seasonally adjusted, monthly.",
   },
   "Sweden": {
     bond_yield_10y: "FRED series IRLTLT01SEM156N · OECD, monthly.",
     business_confidence: "OECD · Business Confidence Indicator (BCICP), amplitude-adjusted, long-term average = 100.",
-    cpi: "OECD live prices system · CPI, all items, year on year.",
+    cpi: "FRED series CP0000SEM086NEST · Eurostat HICP, all items, year on year. This is the EU-harmonised index (HICP), not Statistics Sweden's own national CPI, so it will not always match the figure quoted domestically.",
     current_account: "World Bank · % of GDP, annual.",
     debt_gdp: "Eurostat gov_10q_ggdebt/gov_10q_ggnfa · general government, % of GDP, quarterly.",
     deficit: "Eurostat gov_10q_ggdebt/gov_10q_ggnfa · general government, % of GDP, quarterly.",
@@ -2413,7 +2488,7 @@ var SOURCE_MAP = {
   },
   "Thailand": {
     business_confidence: "OECD · Business Confidence Indicator (BCICP), amplitude-adjusted, long-term average = 100.",
-    cpi: "OECD live prices system · CPI, all items, year on year.",
+    cpi: "FRED series THAPCPIPCPPPT · IMF Asia and Pacific Regional Economic Outlook, annual. Annual only, not the monthly series most other country pages here use.",
     debt_gdp: "FRED series DEBTTLTHA188A · World Bank World Development Indicators, central government debt, % of GDP, annual.",
     fdi: "World Bank · % of GDP, annual.",
     gdp_growth: "World Bank NY.GDP.MKTP.KN · GDP, constant prices, local currency units, annual (same basis as gdp_level).",
@@ -2935,6 +3010,15 @@ function renderMetricGrid(){
   metricGridEl.innerHTML = "";
   CATEGORY_ORDER.forEach(function(cat){
     var keys = Object.keys(CONCEPT_LABEL).filter(function(k){ return CONCEPT_CATEGORY[k] === cat && !!getSeries(pendingCountry, k); });
+    // The inflation measures collapse into one "Inflation" entry: the
+    // measure and basis are chosen on the series once added, so a country
+    // with several measures does not produce several near-identical cards.
+    // core_cpi, ppi and pce are separate concepts, not bases, and stay.
+    var famKey = defaultInflationKey(pendingCountry);
+    if(keys.some(isInflationKey)){
+      keys = keys.filter(function(k){ return !isInflationKey(k); });
+      if(famKey) keys.unshift(famKey);
+    }
     if(!keys.length) return;
     var heading = document.createElement("div");
     heading.className = "pickercat"; heading.textContent = cat;
@@ -2943,7 +3027,20 @@ function renderMetricGrid(){
       var already = series.some(function(s){ return s.country === pendingCountry && s.metric === k; });
       var item = document.createElement("div");
       item.className = "pickeritem" + (already ? " added" : "");
-      item.innerHTML = "<div style='font-weight:700;'>" + conceptLabelFor(pendingCountry, k) + "</div><div class='e'>" + (already ? "Already on the chart" : CONCEPT_EXPLAINER[k]) + "</div>";
+      var isFam = isInflationKey(k);
+      var famTitle = "Inflation";
+      var fam = isFam ? inflationFamily(pendingCountry) : null;
+      if(isFam && fam.length){
+        // Say up front what the country actually has, so the single entry
+        // does not hide the choice it contains.
+        var names = fam.map(function(m){ return m.label; }).join(", ");
+        var nBases = fam[0].bases.length;
+        famTitle = "Inflation";
+        var famExpl = "Consumer price inflation. Measure" + (fam.length > 1 ? "s" : "") +
+          " available: " + names + ". Choose the measure and basis (year on year, month on month) once it is on the chart.";
+      }
+      item.innerHTML = "<div style='font-weight:700;'>" + (isFam ? famTitle : conceptLabelFor(pendingCountry, k)) +
+        "</div><div class='e'>" + (already ? "Already on the chart" : (isFam ? famExpl : CONCEPT_EXPLAINER[k])) + "</div>";
       if(!already){
         item.addEventListener("click", function(){
           addSeries(pendingCountry, k);
@@ -3014,6 +3111,7 @@ function addSeries(country, metric){
   renderColorsPanel();
   populateDateRange();
   renderChart();
+  reconcileInflationMeasures();
 }
 function removeSeries(id){
   series = series.filter(function(s){ return s.id !== id; });
@@ -3052,6 +3150,96 @@ function assignColors(){
 }
 // applyMakoToAll() removed -- superseded by the palette picker modal
 // below, which covers Mako plus Standard and Custom in one place.
+// Repoints an existing series at a different key of the same concept,
+// keeping its colour, its custom title and its position on the chart. The
+// raw points, unit and label all have to move together: a series showing one
+// basis while its unit or label names another is the defect this whole
+// package exists to prevent.
+// The flag stays while the mismatch does, rather than vanishing like a
+// toast: the user needs to be able to see, at any point, that the chart is
+// not showing the measure they originally picked.
+function showMeasureSwitchNotice(moved){
+  var el = document.getElementById("cmMeasureNotice");
+  if(!el) return;
+  var names = moved.map(function(m){ return m.series.country; }).join(", ");
+  var to = moved[0].to;
+  el.className = "cm-measurenotice";
+  el.innerHTML = "";
+  var txt = document.createElement("span");
+  txt.textContent = "Switched " + names + " to " + to +
+    " so the countries on this chart are measured the same way.";
+  var undo = document.createElement("button");
+  undo.type = "button";
+  undo.textContent = "Keep my original choice";
+  undo.addEventListener("click", function(){
+    moved.forEach(function(m){
+      var fam = inflationFamily(m.series.country).filter(function(x){ return x.label === m.from; })[0];
+      if(fam) switchSeriesMetric(m.series, fam.bases[0].key, true);
+    });
+    hideMeasureSwitchNotice();
+  });
+  el.appendChild(txt); el.appendChild(undo);
+  el.hidden = false;
+}
+function hideMeasureSwitchNotice(){
+  var el = document.getElementById("cmMeasureNotice");
+  if(el){ el.hidden = true; el.innerHTML = ""; }
+}
+function switchSeriesMetric(s, metric, userChose){
+  var src = getSeries(s.country, metric);
+  if(!src) return false;
+  var pts = src.points.map(function(p){ return {x: p[0], y: p[1]}; });
+  s.metric = metric;
+  s.unit = src.unit; s.origUnit = src.unit; s.label = src.label;
+  s.rawPoints = pts; s.origRawPoints = pts;
+  if(userChose) s.measureLocked = true;   // an explicit pick is not overridden
+  refreshDollariseState();
+  syncAutoYAxisTitle();
+  resetYTickStepIdx();
+  renderSeriesList();
+  renderColorsPanel();
+  populateDateRange();
+  renderChart();
+  return true;
+}
+// Two countries' inflation is only comparable on a shared measure: a UK CPI
+// line beside an Irish national CPI is two methodologies on one chart. When
+// a newly added country forces that, the existing series move to the common
+// measure, and the user is told what changed and offered it back.
+function commonMeasureId(countries){
+  var sets = countries.map(function(c){
+    return inflationFamily(c).map(function(m){ return m.id; });
+  });
+  if(!sets.length) return null;
+  var shared = sets[0].filter(function(id){
+    return sets.every(function(set){ return set.indexOf(id) !== -1; });
+  });
+  // Prefer HICP where everyone has it: it is the measure built for
+  // cross-country comparison in the first place.
+  if(shared.indexOf("cpi_hicp") !== -1) return "cpi_hicp";
+  return shared.length ? shared[0] : null;
+}
+function reconcileInflationMeasures(){
+  var infl = series.filter(function(s){ return isInflationKey(s.metric); });
+  if(infl.length < 2) return;
+  var countries = infl.map(function(s){ return s.country; });
+  var target = commonMeasureId(countries);
+  if(!target) return;
+  var moved = [];
+  infl.forEach(function(s){
+    var cur = measureOfKey(s.country, s.metric);
+    if(!cur || cur.id === target || s.measureLocked) return;
+    var m = inflationFamily(s.country).filter(function(x){ return x.id === target; })[0];
+    if(!m) return;
+    var curB = basisOfKey(s.country, s.metric);
+    var keep = curB && m.bases.filter(function(b){ return b.id === curB.id; })[0];
+    var was = cur.label;
+    if(switchSeriesMetric(s, (keep || m.bases[0]).key, false)){
+      moved.push({series: s, from: was, to: m.label});
+    }
+  });
+  if(moved.length) showMeasureSwitchNotice(moved);
+}
 function renderSeriesList(){
   seriesListEl.innerHTML = "";
   series.forEach(function(s){
@@ -3087,7 +3275,49 @@ function renderSeriesList(){
       tSel.appendChild(o);
     });
     tSel.addEventListener("change", function(){ s.transform = tSel.value; renderChart(); });
-    lbl.appendChild(editWrap); lbl.appendChild(tSel);
+    lbl.appendChild(editWrap);
+    // Inflation series carry a measure and a basis chooser. Only what the
+    // country serves is offered, so a selector never promises a series the
+    // source cannot support.
+    if(isInflationKey(s.metric)){
+      var fam = inflationFamily(s.country);
+      var curM = measureOfKey(s.country, s.metric);
+      var curB = basisOfKey(s.country, s.metric);
+      if(fam.length > 1){
+        var mSel = document.createElement("select");
+        mSel.title = "Which inflation measure to show";
+        fam.forEach(function(m){
+          var o = document.createElement("option"); o.value = m.id; o.textContent = m.label;
+          if(curM && m.id === curM.id) o.selected = true;
+          mSel.appendChild(o);
+        });
+        mSel.addEventListener("change", function(){
+          var m = fam.filter(function(x){ return x.id === mSel.value; })[0];
+          if(!m) return;
+          // Keep the basis if the new measure supports it, else fall back
+          // to its first -- never silently show a different basis under the
+          // same label.
+          var keep = curB && m.bases.filter(function(b){ return b.id === curB.id; })[0];
+          switchSeriesMetric(s, (keep || m.bases[0]).key, true);
+        });
+        lbl.appendChild(mSel);
+      }
+      if(curM && curM.bases.length > 1){
+        var bSel = document.createElement("select");
+        bSel.title = "Year on year or month on month";
+        curM.bases.forEach(function(b){
+          var o = document.createElement("option"); o.value = b.id; o.textContent = b.label;
+          if(curB && b.id === curB.id) o.selected = true;
+          bSel.appendChild(o);
+        });
+        bSel.addEventListener("change", function(){
+          var b = curM.bases.filter(function(x){ return x.id === bSel.value; })[0];
+          if(b) switchSeriesMetric(s, b.key, true);
+        });
+        lbl.appendChild(bSel);
+      }
+    }
+    lbl.appendChild(tSel);
     var rm = document.createElement("button"); rm.className = "cm-rm"; rm.type = "button"; rm.innerHTML = "&times;"; rm.title = "Remove";
     rm.addEventListener("click", function(){ removeSeries(s.id); });
     li.appendChild(lbl); li.appendChild(rm);

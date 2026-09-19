@@ -75,22 +75,28 @@ async function run(page) {
 
   const reg = win.__charts || {};
   for (const panel of panels) {
-    const sel = panel.querySelector("select.basisdd");
-    if (!sel) continue;
+    const group = panel.querySelector(".basisselect");
+    if (!group) continue;
+    const btns = [...group.querySelectorAll("button[data-basis]")];
     selectors++;
     const key = panel.dataset.key || "(unkeyed)";
     const canvas = panel.querySelector("canvas");
     const id = canvas && canvas.id;
     const entry = reg[id];
     if (!entry) { fail(page, `${key}: no chart object created for ${id}`); continue; }
-    if (sel.options.length < 2) fail(page, `${key}: selector rendered with only ${sel.options.length} option`);
+    if (btns.length < 2) fail(page, `${key}: selector rendered with only ${btns.length} option`);
+    const initiallyActive = btns.filter(b => b.classList.contains("active"));
+    if (initiallyActive.length !== 1) fail(page, `${key}: ${initiallyActive.length} buttons active on load, expected exactly 1`);
 
     const seen = new Map();
     const before = Object.keys(reg).length;
-    for (const opt of [...sel.options]) {
-      sel.value = opt.value;
-      sel.dispatchEvent(new win.Event("change"));
+    for (const btn of btns) {
+      const opt = { text: btn.textContent };
+      btn.dispatchEvent(new win.Event("click"));
       await new Promise(r => setTimeout(r, 20));
+      const active = btns.filter(b => b.classList.contains("active"));
+      if (active.length !== 1 || active[0] !== btn) fail(page, `${key}/${opt.text}: active state did not follow the click`);
+      if (btn.getAttribute("aria-pressed") !== "true") fail(page, `${key}/${opt.text}: aria-pressed not set`);
       views++;
       const pts = reg[id] && reg[id].__pts();
       if (!pts || !pts.length) { fail(page, `${key}/${opt.text}: drew no points`); continue; }
@@ -105,16 +111,16 @@ async function run(page) {
       if (!aria.includes(opt.text)) fail(page, `${key}/${opt.text}: aria-label does not name the basis`);
 
       // presets must act on the basis now shown, not the one before it
-      const btn = panel.querySelector("button[data-range]:not([data-range=max])");
-      if (btn) {
+      const rbtn = panel.querySelector("button[data-range]:not([data-range=max])");
+      if (rbtn) {
         const full = reg[id].__pts().length;
-        btn.dispatchEvent(new win.Event("click"));
+        rbtn.dispatchEvent(new win.Event("click"));
         await new Promise(r => setTimeout(r, 20));
         if (reg[id].__pts().length > full) fail(page, `${key}/${opt.text}: preset drew more points than the basis holds`);
       }
     }
     if (Object.keys(reg).length !== before) fail(page, `${key}: chart objects leaked (${before} -> ${Object.keys(reg).length})`);
-    ok(`${key}: ${sel.options.length} bases`);
+    ok(`${key}: ${btns.length} bases`);
   }
   dom.window.close();
 }

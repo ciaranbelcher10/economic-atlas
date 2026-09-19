@@ -10,6 +10,8 @@ reads the provider family from three places and compares them:
 
   served   the `label` of the series in the country's data file
   compare  compare.html's per-country source table
+  chartmkr chartmaker.html's per-country source table
+  dashbrd  dashboard.html's per-country source table
   popover  data-metric-sources.json
   page     the country page's own chart, tile and info-panel source strings
            (a source read from the series label at runtime is skipped, since
@@ -90,6 +92,19 @@ def main():
     show_all = "--all" in sys.argv
     src = open(os.path.join(REPO, "compare.html"), encoding="utf-8").read()
     files, table = compare_table(src)
+    # chartmaker.html and dashboard.html carry their own copies of the same
+    # per-country source strings. They were unchecked until now, which is how
+    # a stale CPIAUCSL citation survived a clean run of this tool after the
+    # series moved to CPIAUCNS. A copy nobody checks is a copy that drifts.
+    shared = {"compare": table}
+    for name, fn in (("chartmkr", "chartmaker.html"), ("dashbrd", "dashboard.html")):
+        path = os.path.join(REPO, fn)
+        if not os.path.exists(path):
+            continue
+        try:
+            shared[name] = compare_table(open(path, encoding="utf-8").read())[1]
+        except ValueError:
+            print(f"  WARNING  {fn}: no source table found where one was expected")
     pops = json.load(open(os.path.join(REPO, "data-metric-sources.json"), encoding="utf-8"))
     rows, mism, uncls, checked = [], 0, 0, 0
     for c, f in sorted(files.items()):
@@ -100,8 +115,9 @@ def main():
             if not isinstance(s, dict) or "label" not in s:
                 continue
             fam = {"served": family(s.get("label"), k),
-                   "compare": family(table.get(c, {}).get(k), k),
                    "popover": family((pops.get(c, {}).get(k) or {}).get("source"), k)}
+            for sname, stable in shared.items():
+                fam[sname] = family(stable.get(c, {}).get(k), k)
             for i, t in enumerate(psrc.get(k, [])):
                 fam[f"page{i + 1}"] = family(t, k)
             known = {n: v for n, v in fam.items() if v and v != "?"}
@@ -113,7 +129,8 @@ def main():
             mism += bad
             if bad or show_all:
                 extra = "  ".join(f"{n}={v}" for n, v in fam.items() if n.startswith("page"))
-                rows.append(f"{'MISMATCH' if bad else 'ok      '}  {c:13} {k:22} served={fam['served']}  compare={fam['compare']}  popover={fam['popover']}  {extra}")
+                surfaces = "  ".join(f"{n}={fam[n]}" for n in ("served", "popover") + tuple(shared))
+                rows.append(f"{'MISMATCH' if bad else 'ok      '}  {c:13} {k:22} {surfaces}  {extra}")
     # Each country page's info panel is meant to carry the popover file's
     # text verbatim. Any difference is drift, whoever is right.
     info_rx = re.compile(r'\n  ([a-z_0-9]+): \{\n    description: "(?:[^"\\]|\\.)*",\n    source: "((?:[^"\\]|\\.)*)"')
@@ -131,12 +148,37 @@ def main():
             else:
                 drift += 1
                 rows.append(f"DRIFT     {c:13} {k:22} page info panel differs from data-metric-sources.json")
+    # Every infoKey a page references must have a panel behind it, and every
+    # panel should be reachable. A tile pointing at a missing panel renders an
+    # empty popover; a panel nothing points at is dead weight that drifts
+    # unnoticed. Neither was checked before, which is how the cpih_mom tile
+    # shipped pointing at a panel that did not yet exist.
+    orphan_ref = orphan_panel = 0
+    for c in sorted(files):
+        pf = os.path.join(REPO, page_file(c))
+        if not os.path.exists(pf):
+            continue
+        html = open(pf, encoding="utf-8").read()
+        referenced = set(re.findall(r'infoKey:\s*"([a-z_0-9]+)"', html))
+        referenced |= set(re.findall(r'chartPanel\("([a-z_0-9]+)"', html))
+        defined = set(m.group(1) for m in info_rx.finditer(html))
+        for k in sorted(referenced - defined):
+            # a chart panel key without its own panel falls back to the
+            # metric description, so only an explicit infoKey is an error
+            if re.search(r'infoKey:\s*"' + re.escape(k) + r'"', html):
+                orphan_ref += 1
+                rows.append(f"NO PANEL  {c:13} {k:22} infoKey references a panel this page does not define")
+        for k in sorted(defined - referenced):
+            orphan_panel += 1
+            rows.append(f"UNUSED    {c:13} {k:22} info panel defined but nothing references it")
+
     print("\n".join(rows))
     print(f"\n  compared {checked} (country, metric) rows with two or more classifiable surfaces")
     print(f"  MISMATCH      {mism}")
     print(f"  INFO PANEL    {equal} equal to the popover file, {drift} drifted")
+    print(f"  INFO KEYS     {orphan_ref} referencing a missing panel, {orphan_panel} panels referenced by nothing")
     print(f"  UNCLASSIFIED  {uncls}  (a surface naming no known provider family; not evidence of a correct citation)")
-    return 1 if (mism or drift) else 0
+    return 1 if (mism or drift or orphan_ref) else 0
 
 if __name__ == "__main__":
     sys.exit(main())

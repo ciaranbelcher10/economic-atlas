@@ -105,6 +105,26 @@ def classify(attrs):
     return "inline"
 
 
+# A function defined twice in one page is not a syntax error and runs fine --
+# JavaScript simply keeps the later definition -- so neither tag balance nor
+# the syntax check can see it. That is how a shared helper shipped twice on 31
+# country pages: correct behaviour, ~50 lines of dead duplicate, every gate
+# green. A page has no legitimate reason to declare the same top-level
+# function name twice.
+FUNC_RE = re.compile(r"^function\s+([A-Za-z_$][\w$]*)\s*\(", re.M)
+
+
+def duplicate_functions(html):
+    """[(name, count)] for top-level functions declared more than once in a page."""
+    seen = {}
+    for m in SCRIPT_RE.finditer(html):
+        if classify(m.group(1)) != "inline":
+            continue
+        for f in FUNC_RE.finditer(m.group(2)):
+            seen[f.group(1)] = seen.get(f.group(1), 0) + 1
+    return sorted((n, c) for n, c in seen.items() if c > 1)
+
+
 def main():
     files = pages()
     counts = dict(pages=0, inline=0, external=0, ldjson=0, other=0)
@@ -117,6 +137,8 @@ def main():
         bad = tag_balance(html)
         if bad:
             failures.append((rel, "tag balance: " + bad))
+        for name, n in duplicate_functions(html):
+            failures.append((rel, f"duplicate function: {name} declared {n} times"))
         for i, m in enumerate(SCRIPT_RE.finditer(html)):
             kind = classify(m.group(1))
             counts[kind] += 1
@@ -162,6 +184,8 @@ def main():
     print(f"  ld+json parse failures  "
           f"{len([f for f in failures if 'ld+json' in f[1]])}")
     print(f"  inline JS syntax errors {len(js_failures)}")
+    print(f"  duplicate functions     "
+          f"{len([f for f in failures if 'duplicate function' in f[1]])}")
     for rel, msg in failures:
         print(f"    FAIL {rel}: {msg}")
     for label, msg in js_failures:

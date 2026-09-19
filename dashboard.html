@@ -160,6 +160,13 @@ button.mtoggle.fx-both{background:#2FA463; border-color:#2FA463; color:#fff;}
 .tile .chartbox{height:220px; margin-top:14px; position:relative; display:none;}
 .tile .charttools{display:none; align-items:center; justify-content:space-between; gap:10px; margin:10px 0 2px;}
 .tile.expanded .charttools{display:flex;}
+.basisselect{display:flex; align-items:center; gap:6px; flex-wrap:wrap;}
+.basislabel{font:600 11.5px "Avenir Next","Avenir","Nunito Sans",sans-serif; color:var(--ink2);}
+.basisselect button{border:1px solid var(--hair); background:var(--paper); color:var(--ink2);
+  font:600 11.5px "Avenir Next","Avenir","Nunito Sans",sans-serif; padding:4px 10px;
+  border-radius:999px; cursor:pointer;}
+.basisselect button:hover{border-color:var(--blue); color:var(--navy);}
+.basisselect button.active{background:var(--blue); border-color:var(--blue); color:#fff;}
 .rangepresets{display:flex; gap:6px;}
 .rangepresets button{border:1px solid var(--hair); background:var(--paper); color:var(--ink2);
   font:600 11px "Avenir Next","Avenir","Nunito Sans",sans-serif; padding:4px 9px;
@@ -3764,6 +3771,120 @@ function dedupePinned(arr){
     return true;
   });
 }
+// Renders the measure and basis pills for an inflation tile, or nothing at
+// all when the country serves only one of each -- a control that offers a
+// single option is noise.
+function inflationPickerHtml(m){
+  if(!isInflationKey(m.key)) return "";
+  var dk = m.dataKey || m.key;
+  var fam = inflationFamily(m.country);
+  var cur = measureOfKey(m.country, dk), curB = basisOfKey(m.country, dk);
+  var bits = [];
+  if(fam.length > 1){
+    bits.push(fam.map(function(x){
+      return "<button type=\"button\" data-measure=\"" + x.id + "\" class=\"" +
+        (cur && x.id === cur.id ? "active" : "") + "\">" + escapeHtmlDash(x.label) + "</button>";
+    }).join(""));
+  }
+  if(cur && cur.bases.length > 1){
+    bits.push(cur.bases.map(function(b){
+      return "<button type=\"button\" data-basis=\"" + b.key + "\" class=\"" +
+        (curB && b.id === curB.id ? "active" : "") + "\">" + escapeHtmlDash(b.label) + "</button>";
+    }).join(""));
+  }
+  if(!bits.length) return "";
+  return "<div class=\"basisselect\" role=\"group\" aria-label=\"Inflation measure and basis\">" +
+    "<span class=\"basislabel\">Show</span>" + bits.join("") + "</div>";
+}
+// Records the choice against the tile and rebuilds. The choice is stored, so
+// it survives renderDash() and the next visit rather than resetting to the
+// default every time the dashboard redraws.
+function wireInflationPicker(tile, m){
+  if(!isInflationKey(m.key)) return;
+  var group = tile.querySelector(".basisselect");
+  if(!group) return;
+  group.addEventListener("click", function(e){
+    var btn = e.target.closest && e.target.closest("button");
+    if(!btn || !group.contains(btn)) return;
+    e.stopPropagation();
+    var next = null;
+    if(btn.dataset.basis){
+      next = btn.dataset.basis;
+    } else if(btn.dataset.measure){
+      var fam = inflationFamily(m.country).filter(function(x){ return x.id === btn.dataset.measure; })[0];
+      if(!fam) return;
+      // keep the basis where the new measure supports it
+      var curB = basisOfKey(m.country, m.dataKey || m.key);
+      var keep = curB && fam.bases.filter(function(b){ return b.id === curB.id; })[0];
+      next = (keep || fam.bases[0]).key;
+    }
+    if(!next || !(REGISTRY[m.country] && REGISTRY[m.country][next])) return;
+    if(next === m.key) delete tileMeasure[m.id]; else tileMeasure[m.id] = next;
+    saveTileMeasure();
+    renderDash();
+  });
+}
+// ---- inflation measure and basis, per tile ---------------------------
+// A country can publish several inflation measures, each on the bases its
+// source supports. The tile keeps its identity ("UK::cpi") so pinning,
+// ordering and the pinned list are untouched; the chosen variant is stored
+// beside it and resolved when the tile is built, the same way "Make it
+// real" already swaps the underlying series without changing the key.
+var TILE_MEASURE_KEY = "eatlas_tile_measure_v1";
+var tileMeasure = {};
+try { tileMeasure = JSON.parse(localStorage.getItem(TILE_MEASURE_KEY) || "{}") || {}; }
+catch(e){ tileMeasure = {}; }
+function saveTileMeasure(){
+  try { localStorage.setItem(TILE_MEASURE_KEY, JSON.stringify(tileMeasure)); } catch(e){}
+}
+var INFLATION_KEYS = ["cpi", "cpi_mom", "cpi_mom_sa", "cpih", "cpih_mom",
+                      "cpi_hicp", "cpi_hicp_mom", "cpi_national", "cpi_national_mom"];
+var INFLATION_MEASURES = [
+  {id: "cpi", label: "Headline CPI",
+   bases: [{id: "yoy", label: "Year on year", key: "cpi"},
+           {id: "mom", label: "Month on month", key: "cpi_mom"},
+           {id: "mom_sa", label: "Month on month (SA)", key: "cpi_mom_sa"}]},
+  {id: "cpih", label: "CPIH",
+   bases: [{id: "yoy", label: "Year on year", key: "cpih"},
+           {id: "mom", label: "Month on month", key: "cpih_mom"}]},
+  {id: "cpi_hicp", label: "HICP",
+   bases: [{id: "yoy", label: "Year on year", key: "cpi_hicp"},
+           {id: "mom", label: "Month on month", key: "cpi_hicp_mom"}]},
+  {id: "cpi_national", label: "National CPI",
+   bases: [{id: "yoy", label: "Year on year", key: "cpi_national"},
+           {id: "mom", label: "Month on month", key: "cpi_national_mom"}]}
+];
+function isInflationKey(key){ return INFLATION_KEYS.indexOf(key) !== -1; }
+function inflationFamily(country){
+  var reg = REGISTRY[country] || {}, out = [];
+  INFLATION_MEASURES.forEach(function(m){
+    var bases = m.bases.filter(function(b){ return !!reg[b.key]; });
+    if(bases.length) out.push({id: m.id, label: m.label, bases: bases});
+  });
+  return out;
+}
+function measureOfKey(country, key){
+  var found = null;
+  inflationFamily(country).forEach(function(m){
+    m.bases.forEach(function(b){ if(b.key === key) found = m; });
+  });
+  return found;
+}
+function basisOfKey(country, key){
+  var m = measureOfKey(country, key), found = null;
+  if(m) m.bases.forEach(function(b){ if(b.key === key) found = b; });
+  return found;
+}
+// The variant this tile should actually show: the stored choice when it is
+// still served, otherwise the tile's own key. A stored choice is never
+// trusted blindly -- a series can stop being served between sessions, and a
+// tile silently showing nothing is worse than falling back.
+function resolveInflationKey(id, country, key){
+  if(!isInflationKey(key)) return key;
+  var chosen = tileMeasure[id];
+  if(chosen && REGISTRY[country] && REGISTRY[country][chosen] && isInflationKey(chosen)) return chosen;
+  return key;
+}
 function tileFromId(id){
   var parts = id.split("::");
   var country = parts[0], key = parts.slice(1).join("::");
@@ -3780,7 +3901,7 @@ function tileFromId(id){
     if(REGISTRY[country].gdp_real_annual) realKey = "gdp_real_annual";
     else if(REGISTRY[country].gdp_real) realKey = "gdp_real";
   }
-  var effectiveKey = realKey || key;
+  var effectiveKey = realKey || resolveInflationKey(id, country, key);
   var s = REGISTRY[country] && REGISTRY[country][effectiveKey];
   if(!s) return null;
   // effectivePoints() already knows to prefer a "<concept>_annual"
@@ -3801,7 +3922,11 @@ function tileFromId(id){
   var pts = effectivePoints(country, conceptKey, s);
   var last = pts.length ? pts[pts.length - 1] : null;
   if(!last) return null;
-  return {id: id, country: country, key: key, series: s, value: last[1], period: last[0]};
+  // dataKey is the series actually driving this tile; key stays the tile's
+  // identity. Citations, downloads and the chart must all follow dataKey, or
+  // a tile ends up showing one basis and citing another.
+  return {id: id, country: country, key: key, dataKey: effectiveKey,
+          series: s, value: last[1], period: last[0]};
 }
 // Ported exactly from the country pages, so a value reads identically
 // here as it does there -- same tn/bn/m auto-tiering by magnitude, same
@@ -4085,8 +4210,9 @@ function expandTile(tile, id, m){
   tile.querySelector(".chartbtn").innerHTML = "&#128200; Hide chart";
   if(!tileCharts[id]){
     var canvas = tile.querySelector("canvas");
-    var pts = toDisplayPoints(effectivePoints(m.country, m.key, m.series), m.series.unit, m.country, m.key);
-    var chartUnit = toDisplayUnit(0, m.series.unit, m.country, m.key, m.period).unit;
+    var dk = m.dataKey || m.key;
+    var pts = toDisplayPoints(effectivePoints(m.country, dk, m.series), m.series.unit, m.country, dk);
+    var chartUnit = toDisplayUnit(0, m.series.unit, m.country, dk, m.period).unit;
     var kind = BAR_KEYS[m.key] ? "bar" : "line";
     var refLine = REF_LINE_FOR[m.key] == null ? null : REF_LINE_FOR[m.key];
     var fmt = function(v){ return fmtVal(v, chartUnit, m.key, m.country); };
@@ -4100,7 +4226,7 @@ function expandTile(tile, id, m){
       pts: pts, kind: kind, fmtY: fmt, fmtTip: fmt, refLine: refLine, key: m.key,
       title: m.series.label + (dollarise && chartUnit !== m.series.unit ? " (USD)" : ""),
       country: m.country,
-      srcNote: metricSourceNote(m.country, m.key, m.series.label)
+      srcNote: metricSourceNote(m.country, dk, m.series.label)
     };
   }
 }
@@ -4389,7 +4515,7 @@ function renderDash(){
       + "<button type=\"button\" class=\"collapsebtn\" aria-label=\"Hide chart\" title=\"Hide chart\">&#8722;</button>"
       + "<button type=\"button\" class=\"draghandle\" aria-label=\"Drag to reorder\" title=\"Drag to reorder\">&#10495;</button>"
       + "<p class=\"country\">" + m.country + "</p>"
-      + "<div class=\"tile-label-row\" style=\"display:flex; align-items:center; gap:2px;\"><p class=\"label\" style=\"margin:0;\">" + m.series.label + (actuallyConverted ? " (USD)" : "") + "</p>" + infoIconHtml(m.country, m.key) + "</div>"
+      + "<div class=\"tile-label-row\" style=\"display:flex; align-items:center; gap:2px;\"><p class=\"label\" style=\"margin:0;\">" + m.series.label + (actuallyConverted ? " (USD)" : "") + "</p>" + infoIconHtml(m.country, m.dataKey || m.key) + "</div>"
       + "<p class=\"value\"><span class=\"led " + led + "\" title=\"" + ledTitle + "\" role=\"img\" aria-label=\"" + ledTitle + "\"></span>" + fmtVal(disp.value, disp.unit, m.key, m.country) + "</p>"
       + "<p class=\"period\">" + fmtPeriod(m.period) + "</p>"
       + "<div class=\"chartactions\">"
@@ -4398,20 +4524,22 @@ function renderDash(){
       + "</div>"
       + "<div class=\"chartbox\"><canvas></canvas></div>"
       + "<div class=\"charttools\">"
+      + inflationPickerHtml(m)
       + "<div class=\"rangepresets\">" + rangePresetsHtml() + "</div>"
       + "<button type=\"button\" class=\"resetzoom\">Reset zoom</button>"
       + "</div>"
       + "<div class=\"lockedactions\"><a class=\"lockedbtn dl-btn\" href=\"contact\" data-tip=\"Create a free account to unlock this feature.\"><span class=\"lockicon\">&#128274;</span> Download data</a><a class=\"lockedbtn cz-btn\" href=\"contact\" data-tip=\"Coming soon. Contact us to express interest.\"><span class=\"lockicon\">&#128274;</span> Customise &amp; export</a></div>"
-      + "<p class=\"chartsrc\">" + escapeHtmlDash(metricSourceNote(m.country, m.key, m.series.label)) + "</p>"
+      + "<p class=\"chartsrc\">" + escapeHtmlDash(metricSourceNote(m.country, m.dataKey || m.key, m.series.label)) + "</p>"
       + "<p class=\"chartsrc\" style=\"margin-top:2px;\">" + m.series.points.length + " observations, " + fmtPeriod(m.period) + " is the latest.</p>";
+    wireInflationPicker(tile, m);
     var dlBtn = tile.querySelector(".dl-btn");
-    if(dlBtn && window.EATLAS_DOWNLOAD) window.EATLAS_DOWNLOAD.wire(dlBtn, effectivePoints(m.country, m.key, m.series), m.country + " " + m.series.label);
+    if(dlBtn && window.EATLAS_DOWNLOAD) window.EATLAS_DOWNLOAD.wire(dlBtn, effectivePoints(m.country, m.dataKey || m.key, m.series), m.country + " " + m.series.label);
     var czBtn = tile.querySelector(".cz-btn");
     if(czBtn && window.EATLAS_CUSTOMIZE){
       var czKind = BAR_KEYS[m.key] ? "bar" : "line";
-      var czSrcNote = metricSourceNote(m.country, m.key, m.series.label);
+      var czSrcNote = metricSourceNote(m.country, m.dataKey || m.key, m.series.label);
       var czFmtY = function(v){ return fmtVal(v, m.series.unit, m.key, m.country); };
-      window.EATLAS_CUSTOMIZE.wire(czBtn, effectivePoints(m.country, m.key, m.series), m.country + " " + m.series.label, czSrcNote, czFmtY, "", m.country + "_" + m.key, czKind, fmtPeriod, m.key, m.country);
+      window.EATLAS_CUSTOMIZE.wire(czBtn, effectivePoints(m.country, m.dataKey || m.key, m.series), m.country + " " + m.series.label, czSrcNote, czFmtY, "", m.country + "_" + (m.dataKey || m.key), czKind, fmtPeriod, m.dataKey || m.key, m.country);
     }
     tile.querySelector(".remove").addEventListener("click", function(e){
       e.stopPropagation();
@@ -4812,8 +4940,9 @@ loadAll().then(function(){
       var m = entry.m;
       var canvas = document.createElement("canvas");
       canvas.width = CHART_W; canvas.height = CHART_H;
-      var pts = toDisplayPoints(effectivePoints(m.country, m.key, m.series), m.series.unit, m.country, m.key);
-      var chartUnit = toDisplayUnit(0, m.series.unit, m.country, m.key, m.period).unit;
+      var xdk = m.dataKey || m.key;
+      var pts = toDisplayPoints(effectivePoints(m.country, xdk, m.series), m.series.unit, m.country, xdk);
+      var chartUnit = toDisplayUnit(0, m.series.unit, m.country, xdk, m.period).unit;
       var kind = BAR_KEYS[m.key] ? "bar" : "line";
       var refLine = REF_LINE_FOR[m.key] == null ? null : REF_LINE_FOR[m.key];
       var fmt = function(v){ return fmtVal(v, chartUnit, m.key, m.country); };
