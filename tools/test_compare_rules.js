@@ -32,9 +32,26 @@ const {load} = require('./compare_values.js');
   withSeries('UK', {cpi: {label: 'x', unit: '%', freq: 'months', points: months(Y, [`${Y}-01`])}}, () => {
     check('missing January means no figure', val('UK', 'cpi', Y), null);
   });
-  withSeries('UK', {cpi: {label: 'x', unit: '%', freq: 'months', points: months(Y + 1)}}, () => {
-    check('a year that has not ended is never shown', val('UK', 'cpi', Y + 1), null);
-    check('and the reason says so', A.noDataReason('UK', 'cpi', Y + 1), `${Y + 1} has not ended yet.`);
+  // The unfinished year: a rate shows its average so far and says so; a flow
+  // shows nothing, because a partial total is not a year.
+  withSeries('UK', {cpi: {label: 'x', unit: '%', freq: 'months', points: months(Y + 1).slice(0, 8)}}, () => {
+    const v = val('UK', 'cpi', Y + 1);
+    check('a rate shows its average so far in the unfinished year', v != null, true);
+    check('and the average covers only the readings so far',
+          v, Math.round(months(Y + 1).slice(0, 8).reduce((a, p) => a + p[1], 0) / 8 * 100) / 100);
+    check('and it is labelled as partial',
+          /so far/.test(A.yearCoverageNote('UK', 'cpi', Y + 1) || ''), true);
+  });
+  withSeries('UK', {trade_balance: {label: 'x', unit: '£m', freq: 'months', points: months(Y + 1).slice(0, 8)}}, () => {
+    check('a flow shows nothing in the unfinished year', val('UK', 'trade_balance', Y + 1), null);
+    check('and the reason explains it is a partial total',
+          /partial total/.test(A.noDataReason('UK', 'trade_balance', Y + 1) || ''), true);
+  });
+  withSeries('UK', {debt_gdp: {label: 'x', unit: '%', freq: 'months', points: months(Y + 1).slice(0, 8)}}, () => {
+    check('a stock shows its latest reading in the unfinished year',
+          val('UK', 'debt_gdp', Y + 1), months(Y + 1)[7][1]);
+    check('and names the period it refers to',
+          /latest reading/.test(A.yearCoverageNote('UK', 'debt_gdp', Y + 1) || ''), true);
   });
 
   // flows are totals and need every period
@@ -91,10 +108,16 @@ const {load} = require('./compare_values.js');
   });
 
   // invariants over the real data
-  check('latest selectable year has ended', A.CURRENT_YEAR <= Y, true);
+  // The current, unfinished year is now selectable, but only because rate
+  // and stock metrics have real readings in it. It may never exceed the
+  // actual current year, and flows must show nothing there.
+  const THIS_YEAR = new Date().getFullYear();
+  check('latest selectable year is never in the future', A.CURRENT_YEAR <= THIS_YEAR, true);
+  check('latest selectable year is this year or last', A.CURRENT_YEAR >= Y, true);
   check('map shows exactly the bar value', JSON.stringify(A.getMapValueForYear('US', 'gdp_level', A.CURRENT_YEAR)) === JSON.stringify(A.getSnapshotValue('US', 'gdp_level', A.CURRENT_YEAR)), true);
   check('policy rate card cites a real source', !!A.metricSourceNote('UK', 'policy_rate'), true);
   let unitBreaches = 0, unexplained = 0, beyond = 0, shown = 0;
+  let partialShown = 0, flowInPartial = 0, partialUnlabelled = 0;
   for(const concept of Object.keys(A.CONCEPT_UNIT)){
     for(const country of A.ALL_COUNTRIES){
       const pts = A.historyPoints(country, concept) || [];
@@ -103,21 +126,32 @@ const {load} = require('./compare_values.js');
         const key = A.resolveKey(country, concept);
         if(key && !A.unitCompatible(concept, R[country][key])) unitBreaches++;
       }
-      for(let y = 2000; y <= Y + 1; y++){
+      for(let y = 2000; y <= THIS_YEAR + 1; y++){
         const v = A.getSnapshotValue(country, concept, y);
         if(!v) continue;
         shown++;
-        if(y > Y) beyond++;
+        // Nothing may be shown beyond the current year, ever. Within the
+        // current year, only rate and stock metrics may show anything:
+        // a flow figure for a part-year is a partial total.
+        if(y > THIS_YEAR) beyond++;
+        if(y === THIS_YEAR && y > Y){
+          partialShown++;
+          if(!A.partialYearAllowed(concept)) flowInPartial++;
+          const note = A.yearCoverageNote(country, concept, y) || '';
+          if(!/so far|latest reading/.test(note)) partialUnlabelled++;
+        }
         if(!A.yearCoverageNote(country, concept, y)) unexplained++;
       }
     }
   }
   check('no card resolves a series in the wrong unit', unitBreaches, 0);
-  check('no value is shown for a year that has not ended, and no trend line runs past the latest year', beyond, 0);
+  check('nothing is shown beyond the current year, and no trend line runs past it', beyond, 0);
+  check('no flow metric shows a figure for the unfinished year', flowInPartial, 0);
+  check('every unfinished-year figure says it is partial', partialUnlabelled, 0);
   check('every value shown has a note saying how it was built', unexplained, 0);
 
   const bad = results.filter(r => !r.ok);
   bad.forEach(r => console.log(`FAIL ${r.name}: got ${JSON.stringify(r.got)}, want ${JSON.stringify(r.want)}`));
-  console.log(`${results.length - bad.length}/${results.length} compare rule branches pass (${shown} real values checked for the invariants)`);
+  console.log(`${results.length - bad.length}/${results.length} compare rule branches pass (${shown} real values checked, ${partialShown} of them in the unfinished year)`);
   process.exit(bad.length ? 1 : 0);
 })().catch(e => { console.error(e); process.exit(1); });

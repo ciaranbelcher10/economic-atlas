@@ -1622,7 +1622,7 @@ footer.cmp-foot{margin-top:36px; font-size:12.5px; color:var(--ink2); border-top
  </div>
  </div>
  <footer class="cmp-foot">
- Figures come from national statistics offices and central banks (including ONS, the Bank of England, e-Stat, INDEC and MoSPI), from BLS and BEA via FRED, and from Eurostat, the OECD, the IMF, the World Bank and the BIS: the same sources cited on each country&#39;s own page. Every figure on this page is for one calendar year: in <strong>Point in time</strong> mode, the year the slider is set to; in <strong>Change over time</strong> mode, the change between the two years the slider spans. A year is used only once it has ended and its data is complete for that country: its first and last months or quarters, or its annual figure, must be published. The latest year you can choose is therefore the most recent full calendar year; each country&#39;s own page carries the newer monthly and quarterly readings, and trend lines here (Line view) stop at the end of that year too. How a year becomes one figure depends on the metric. Rates and indices are the average of the year&#39;s readings. Trade flows and debt interest are the year&#39;s total. Government debt is the value at the end of the year. GDP is the sum of the year&#39;s four quarters, or their average where a country publishes each quarter at an annual rate (the US and Japan). If a reading is missing inside an otherwise complete year, an averaged figure uses the readings available and says so beside the value; a total needs every period. GDP growth is a year&#39;s real GDP against the year before; over a change window it is the total real growth across that period. A country shows &quot;n/a&quot; when its figure for that year is not complete yet, or when its series is not in the card&#39;s unit (for example a deficit published in pounds on a card measured as a share of GDP); hover the bar or table cell for the reason. Each value is tagged with its measure and frequency where these differ between countries, for example HICP against a national CPI, or quarterly and annual data, and hovering shows how the figure was built. Currency figures (GDP, government debt, trade) are converted to US dollars at the exchange rate for their own year, the average of that year&#39;s monthly rates where they exist, rather than today&#39;s; a Change over time window for them shows the dollar difference between the two years. Trend lines are converted the same way, each point at its own period&#39;s rate. Where a series starts before its currency&#39;s exchange-rate history does, the earliest available rate is used for those first points, so the oldest years are an approximation. The Eurozone doesn't appear on any card's map, since it isn&#39;t a single country UN Comtrade or world-atlas can plot; it still appears in every chart and table above. <a href="privacy">Privacy</a> &middot; <a href="terms">Terms</a> <span id="tourReplayWrap">&middot; <button type="button" id="tourReplayLink">Take the tour</button></span>
+ Figures come from national statistics offices and central banks (including ONS, the Bank of England, e-Stat, INDEC and MoSPI), from BLS and BEA via FRED, and from Eurostat, the OECD, the IMF, the World Bank and the BIS: the same sources cited on each country&#39;s own page. Every figure on this page is for one calendar year: in <strong>Point in time</strong> mode, the year the slider is set to; in <strong>Change over time</strong> mode, the change between the two years the slider spans. A completed year is used only once its data is complete for that country: its first and last months or quarters, or its annual figure, must be published. The current year, which has not ended, is shown for rates and for stocks but never for flows: an inflation or unemployment figure for it is the average of the readings so far and is labelled as such, a debt figure is the latest reading with the period it refers to, and trade, GDP and other flows show nothing, because a part-year total is not comparable with the complete years beside it. Each country&#39;s own page carries the newest monthly and quarterly readings. How a year becomes one figure depends on the metric. Rates and indices are the average of the year&#39;s readings. Trade flows and debt interest are the year&#39;s total. Government debt is the value at the end of the year. GDP is the sum of the year&#39;s four quarters, or their average where a country publishes each quarter at an annual rate (the US and Japan). If a reading is missing inside an otherwise complete year, an averaged figure uses the readings available and says so beside the value; a total needs every period. GDP growth is a year&#39;s real GDP against the year before; over a change window it is the total real growth across that period. A country shows &quot;n/a&quot; when its figure for that year is not complete yet, or when its series is not in the card&#39;s unit (for example a deficit published in pounds on a card measured as a share of GDP); hover the bar or table cell for the reason. Each value is tagged with its measure and frequency where these differ between countries, for example HICP against a national CPI, or quarterly and annual data, and hovering shows how the figure was built. Currency figures (GDP, government debt, trade) are converted to US dollars at the exchange rate for their own year, the average of that year&#39;s monthly rates where they exist, rather than today&#39;s; a Change over time window for them shows the dollar difference between the two years. Trend lines are converted the same way, each point at its own period&#39;s rate. Where a series starts before its currency&#39;s exchange-rate history does, the earliest available rate is used for those first points, so the oldest years are an approximation. The Eurozone doesn't appear on any card's map, since it isn&#39;t a single country UN Comtrade or world-atlas can plot; it still appears in every chart and table above. <a href="privacy">Privacy</a> &middot; <a href="terms">Terms</a> <span id="tourReplayWrap">&middot; <button type="button" id="tourReplayLink">Take the tour</button></span>
  </footer>
  </div>
 </div>
@@ -1785,9 +1785,9 @@ var CONCEPT_KEYS = {
 };
 var CONCEPT_LABEL = {
   gdp_level: "GDP level", gdp_real: "Real GDP level", gdp_growth: "GDP growth (annual, real)",
-  cpi: "Inflation (year on year)", core_cpi: "Core inflation (year on year)",
+  cpi: "Inflation", core_cpi: "Core inflation",
   cpi_mom: "Inflation (month on month)", cpih: "Inflation (CPIH, year on year)",
-  cpi_hicp: "Inflation (HICP, year on year)", cpi_national: "Inflation (national CPI, year on year)",
+  cpi_hicp: "Inflation (HICP)", cpi_national: "Inflation (national CPI)",
   ppi: "Producer prices (PPI, year on year)", pce: "PCE inflation (year on year)",
   unemployment: "Unemployment rate", employment: "Employment rate", inactivity: "Economic inactivity",
   participation: "Labour force participation", unemployment_1624: "Youth unemployment (16-24)",
@@ -2695,11 +2695,23 @@ function yearOf(period){
 // The latest year any card can show: the most recent year that has ended
 // and is complete for at least one country and metric.
 function computeCurrentYear(){
+  // The current, unfinished year counts only if a rate or stock metric
+  // actually has readings in it. Flows can never extend the cap, or the
+  // slider would offer a year in which every flow card reads n/a.
   var cap = lastEndedYear();
+  var partialBest = 0;
+  Object.keys(CONCEPT_UNIT).forEach(function(concept){
+    if(!partialYearAllowed(concept)) return;
+    ALL_COUNTRIES.forEach(function(c){
+      if(partialBest) return;
+      if(yearAggregate(c, concept, currentYear()) != null) partialBest = currentYear();
+    });
+  });
+  if(partialBest) cap = partialBest;
   var best = 0;
   Object.keys(CONCEPT_UNIT).forEach(function(concept){
     ALL_COUNTRIES.forEach(function(c){
-      for(var y = cap; y > best && y >= cap - 2; y--){
+      for(var y = cap; y > best && y >= cap - 3; y--){
         var ok = concept === "gdp_growth" ? growthBetween(c, y - 1, y) != null : yearAggregate(c, concept, y) != null;
         if(ok){ best = y; break; }
       }
@@ -2815,19 +2827,45 @@ function expectedPeriods(freq, year){
 }
 // The year can only be complete after it has ended.
 function lastEndedYear(){ return new Date().getFullYear() - 1; }
-function yearWindow(series, year){
-  if(year > lastEndedYear()) return null;
+function currentYear(){ return new Date().getFullYear(); }
+// The current, unfinished year is allowed for rate and stock metrics only.
+//
+// A flow (trade, GDP, deficit, debt interest) accumulates over the year, so
+// a figure for an unfinished year is a partial sum: roughly three quarters
+// of the real number, sitting in a row of complete years and inviting a
+// comparison that is simply false. No caveat undoes that, so flows stay
+// held back until their year ends.
+//
+// A rate (inflation, unemployment) has a real reading now, and its complete
+// years are averages, so the unfinished year is shown as the average of the
+// readings so far and labelled as such -- comparing a year to a part-year is
+// honest; comparing a year to a single month silently is not.
+//
+// A stock (debt as a share of GDP) is a level at a point in time rather than
+// something accumulated, so averaging it makes no sense: the latest reading
+// is shown, with the period it refers to.
+function partialYearAllowed(concept){
+  var kind = aggKind(concept);
+  return kind === "mean" || kind === "end";
+}
+function yearWindow(series, year, allowPartial){
+  if(year > lastEndedYear() && !(allowPartial && year === currentYear())) return null;
   var expected = expectedPeriods(series.freq, year);
   if(!expected) return null;
   var have = {};
   series.points.forEach(function(p){ if(yearOf(p[0]) === year && p[1] != null && isFinite(p[1])) have[p[0]] = p[1]; });
   var present = expected.filter(function(e){ return e in have; });
+  var partial = year === currentYear() && year > lastEndedYear();
   return {
     freq: series.freq,
     points: present.map(function(e){ return [e, have[e]]; }),
     expected: expected,
     missing: expected.filter(function(e){ return !(e in have); }),
-    ends: (expected[0] in have) && (expected[expected.length - 1] in have)
+    // An unfinished year has no final period by definition, so requiring one
+    // would reject every partial year. It still needs a start, so a series
+    // that begins mid-year is not passed off as the year so far.
+    ends: partial ? (expected[0] in have) : ((expected[0] in have) && (expected[expected.length - 1] in have)),
+    partial: partial
   };
 }
 // GDP for one calendar year. Quarterly GDP from the US and Japan is
@@ -2852,16 +2890,24 @@ function annualGDP(country, series, year){
 function annualValue(country, concept, series, year){
   var kind = aggKind(concept);
   if(kind === "gdp") return annualGDP(country, series, year);
-  var w = yearWindow(series, year);
-  if(!w || !w.ends) return null;
+  var w = yearWindow(series, year, partialYearAllowed(concept));
+  if(!w || !w.ends || !w.points.length) return null;
   var vals = w.points.map(function(p){ return p[1]; });
   var sum = vals.reduce(function(a, b){ return a + b; }, 0);
-  if(kind === "end") return {value: vals[vals.length - 1], window: w, method: "end of year"};
+  var last = w.points[w.points.length - 1];
+  if(kind === "end"){
+    return {value: vals[vals.length - 1], window: w,
+            method: w.partial ? "latest reading, " + periodText(last[0]) : "end of year"};
+  }
   if(kind === "sum"){
-    if(w.missing.length) return null;
+    // A partial sum is not a year, and never shown as one.
+    if(w.partial || w.missing.length) return null;
     return {value: sum, window: w, method: "total"};
   }
-  return {value: sum / vals.length, window: w, method: "average"};
+  return {value: sum / vals.length, window: w,
+          method: w.partial
+            ? "average so far, " + periodText(w.points[0][0]) + " to " + periodText(last[0])
+            : "average"};
 }
 function realGDPSeries(country){
   var s = REGISTRY[country] && REGISTRY[country].gdp_real;
@@ -2919,7 +2965,10 @@ function noDataReason(country, concept, year){
       return "Not published for " + country + " on this site.";
     }
   }
-  if(year > lastEndedYear()) return year + " has not ended yet.";
+  if(year > lastEndedYear() && !partialYearAllowed(concept)){
+    return year + " has not ended yet, and this is a flow: a figure for a part-year "
+      + "would be a partial total, not comparable with the complete years beside it.";
+  }
   var key = concept === "gdp_growth" ? "gdp_real" : resolveKey(country, concept);
   var series = key && reg[key];
   if(!series) return "Not published for " + country + " on this site.";

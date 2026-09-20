@@ -42,7 +42,7 @@ async function load(){
   const REQUIRED = ['loadAll','getSnapshotValue','getChangeValue','yearAggregate','resolveKey','hasConcept','displayString',
     'metricSourceNote','historyPoints','getMapValueForYear'];
   const OPTIONAL = ['getSourceNote','noDataReason','annualValue','yearWindow','lastEndedYear','computeCurrentYear',
-    'unitCompatible','yearCoverageNote','measureTag'];
+    'unitCompatible','yearCoverageNote','measureTag','partialYearAllowed'];
   const exportsSrc = '\n;globalThis.__atlas = {'
     + REQUIRED.map(n => n + ': ' + n).join(', ') + ', '
     + OPTIONAL.map(n => n + ': (typeof ' + n + ' === "function" ? ' + n + ' : null)').join(', ') + ', '
