@@ -60,6 +60,7 @@ of these as "expected to work, confirm in the first Actions log"):
 from __future__ import annotations
 
 import re
+import oecd_prices
 import json
 import time
 import os
@@ -484,6 +485,12 @@ def main() -> int:
          "Business confidence indicator, LT avg = 100 (OECD BCICP)", "index", "months"),
         ("cpi", lambda: fetch_oecd_cpi(("ISR",), "M"),
          "CPI, all items, YoY (OECD live prices system)", "%", "months"),
+        # A month-on-month rate cannot come from a 12-month rate, so this
+        # fetches the price index itself. It never touches "cpi" above:
+        # if the index is unavailable this country simply keeps year on
+        # year only, and says so on its page.
+        ("cpi_mom", lambda: oecd_prices.mom_points(("ISR",), "M", label="ISR"),
+         "CPI, all items, MoM (OECD live prices system)", "%", "months"),
         ("gdp_level", lambda: [[p, round(v / 1e6, 1)] for p, v in (fetch_worldbank("NY.GDP.MKTP.CN") or [])],
          "GDP, current prices, ILS (World Bank, NY.GDP.MKTP.CN, annual)", "\u20aam", "years"),
         ("gdp_real", lambda: [[p, round(v / 1e6, 1)] for p, v in (fetch_worldbank("NY.GDP.MKTP.KN") or [])],

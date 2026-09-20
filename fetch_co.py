@@ -69,6 +69,7 @@ calls; the next real Actions run is still the genuine test):
 from __future__ import annotations
 
 import re
+import oecd_prices
 import json
 import time
 import os
@@ -600,6 +601,12 @@ def main() -> int:
          "Business confidence indicator, LT avg = 100 (OECD BCICP)", "index", "months"),
         ("cpi", lambda: fetch_oecd_cpi(("COL",), "M"),
          "CPI, all items, YoY (OECD live prices system)", "%", "months"),
+        # A month-on-month rate cannot come from a 12-month rate, so this
+        # fetches the price index itself. It never touches "cpi" above:
+        # if the index is unavailable this country simply keeps year on
+        # year only, and says so on its page.
+        ("cpi_mom", lambda: oecd_prices.mom_points(("COL",), "M", label="COL"),
+         "CPI, all items, MoM (OECD live prices system)", "%", "months"),
         ("fdi", lambda: fetch_worldbank("BX.KLT.DINV.WD.GD.ZS"),
          "FDI net inflows, % of GDP (World Bank)", "%", "years"),
         ("current_account", lambda: fetch_worldbank("BN.CAB.XOKA.GD.ZS"),

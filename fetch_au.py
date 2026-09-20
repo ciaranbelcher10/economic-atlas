@@ -44,6 +44,7 @@ VERIFICATION NOTES (checked against each series' own FRED page before wiring in)
 from __future__ import annotations
 
 import re
+import oecd_prices
 import json
 import time
 import os
@@ -480,6 +481,12 @@ def main() -> int:
          "Business confidence indicator, LT avg = 100 (OECD BCICP)", "index", "months"),
         ("cpi", lambda: fetch_oecd_cpi(("AUS",), "Q"),
          "CPI, all items, YoY, quarterly (OECD live prices system)", "%", "quarters"),
+        # A month-on-month rate cannot come from a 12-month rate, so this
+        # fetches the price index itself. It never touches "cpi" above:
+        # if the index is unavailable this country simply keeps year on
+        # year only, and says so on its page.
+        ("cpi_qoq", lambda: oecd_prices.mom_points(("AUS",), "Q", label="AUS"),
+         "CPI, all items, QoQ (OECD live prices system)", "%", "quarters"),
         ("fdi", lambda: fetch_worldbank("BX.KLT.DINV.WD.GD.ZS"),
          "FDI net inflows, % of GDP (World Bank)", "%", "years"),
         ("current_account", lambda: fetch_worldbank("BN.CAB.XOKA.GD.ZS"),

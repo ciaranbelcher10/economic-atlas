@@ -38,6 +38,7 @@ same discipline as every other country):
 from __future__ import annotations
 
 import re
+import oecd_prices
 import json
 import time
 import os
@@ -525,6 +526,21 @@ def main() -> int:
     except Exception as exc:
         failures.append("cpi")
         print(f"FAIL  cpi              {exc}")
+
+    # The month-on-month rate needs the price index itself: it cannot be
+    # derived from the 12-month rate above. Fetched separately and guarded
+    # separately, so a failure here leaves "cpi" untouched and this country
+    # simply keeps year on year only.
+    try:
+        _mom = oecd_prices.mom_points(("MEX",), "M", label="MEX")
+        if _mom:
+            out["series"]["cpi_mom"] = {
+                "label": "CPI, all items, MoM (OECD live prices system)",
+                "unit": "%", "freq": "months", "points": _mom}
+            print(f"  ok  cpi_mom          {len(_mom):>5} observations "
+                  f"({_mom[0][0]} to {_mom[-1][0]}, OECD live prices system)")
+    except Exception as exc:
+        print(f"FAIL  cpi_mom          {exc}; the key is left out this run")
 
     try:
         with open("data-mx.json") as f:
