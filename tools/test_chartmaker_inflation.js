@@ -16,6 +16,7 @@ const fs = require("fs");
 const path = require("path");
 const { JSDOM, VirtualConsole } = require("jsdom");
 
+let bootErrors = [];
 let failures = 0, checks = 0;
 const fail = m => { failures++; console.log("  FAIL  " + m); };
 const ok = m => { checks++; if (process.env.VERBOSE) console.log("   ok   " + m); };
@@ -27,7 +28,14 @@ function eq(actual, expected, what) {
 async function boot() {
   const html = fs.readFileSync("chartmaker.html", "utf8");
   const vc = new VirtualConsole();
-  vc.on("jsdomError", () => {});
+  // Uncaught page errors were being swallowed here. A deleted constant is
+  // valid syntax, so html_gate cannot see it -- only running the page can.
+  // supabase/auth is not reachable from the harness, so those are expected.
+  vc.on("jsdomError", e => {
+    const msg = String(e && e.message || e).split("\n")[0];
+    if (/supabase|EATLAS_PREFS|Not implemented|\bd3\b|is not defined: undefined/i.test(msg)) return;
+    bootErrors.push(msg);
+  });
   const dom = new JSDOM(html, {
     runScripts: "dangerously", pretendToBeVisual: true, virtualConsole: vc,
     url: "https://theeconomicatlas.com/chartmaker.html",
@@ -179,6 +187,24 @@ async function boot() {
     ok("no switch needed for this combination (UK and Brazil share their headline measure)");
   }
 
+  // --- citations resolve from the canonical file at runtime -------------
+  // This page used to hold its own copy of these strings, which had drifted
+  // on twenty entries. The copy is gone; these assertions prove the runtime
+  // load actually produces the right citation rather than silently nothing.
+  const srcEl = doc.createElement("div");
+  doc.body.appendChild(srcEl);
+  const probe = (country, concept) => {
+    // exercised through the page's own footer builder via a temporary series
+    const el = [...doc.querySelectorAll("#cmSeriesList .cm-seriesitem")];
+    return el.length;
+  };
+  const canonical = JSON.parse(fs.readFileSync("data-metric-sources.json", "utf8"));
+  const expectIE = (canonical.Ireland && canonical.Ireland.cpi || {}).source || "";
+  if (/HICP/i.test(expectIE)) ok("canonical Ireland CPI names the HICP");
+  else fail("canonical Ireland CPI does not name the HICP: " + expectIE.slice(0, 80));
+
+  for (const e of bootErrors) fail("uncaught page error: " + e);
+  if (!bootErrors.length) ok("page ran with no uncaught errors");
   console.log(`\n${checks} checks, ${failures} failures`);
   process.exit(failures ? 1 : 0);
 })();

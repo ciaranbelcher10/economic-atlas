@@ -17,6 +17,7 @@ const path = require("path");
 const { JSDOM, VirtualConsole } = require("jsdom");
 
 const PAGES = process.argv.slice(2).length ? process.argv.slice(2) : ["uk.html"];
+let bootErrors = [];
 let failures = 0, checks = 0, selectors = 0, views = 0;
 
 function fail(page, msg) { failures++; console.log(`  FAIL  ${page}: ${msg}`); }
@@ -25,7 +26,14 @@ function ok(msg) { checks++; if (process.env.VERBOSE) console.log(`   ok   ${msg
 async function run(page) {
   const html = fs.readFileSync(page, "utf8");
   const vc = new VirtualConsole();
-  vc.on("jsdomError", () => {});
+  // Uncaught page errors were being swallowed here. A deleted constant is
+  // valid syntax, so html_gate cannot see it -- only running the page can.
+  // supabase/auth is not reachable from the harness, so those are expected.
+  vc.on("jsdomError", e => {
+    const msg = String(e && e.message || e).split("\n")[0];
+    if (/supabase|EATLAS_PREFS|Not implemented|\bd3\b|is not defined: undefined/i.test(msg)) return;
+    bootErrors.push(msg);
+  });
   const dom = new JSDOM(html, {
     runScripts: "dangerously", pretendToBeVisual: true, virtualConsole: vc,
     url: "https://theeconomicatlas.com/" + page,
@@ -129,6 +137,8 @@ async function run(page) {
   for (const p of PAGES) {
     try { await run(p); } catch (e) { fail(p, "threw: " + e.message); }
   }
+  for (const e of bootErrors) fail("uncaught page error: " + e);
+  if (!bootErrors.length) ok("pages ran with no uncaught errors");
   console.log(`\n${PAGES.length} page(s), ${selectors} selectors, ${views} views, ${checks} checks, ${failures} failures`);
   process.exit(failures ? 1 : 0);
 })();

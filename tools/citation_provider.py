@@ -104,7 +104,12 @@ def main():
         try:
             shared[name] = compare_table(open(path, encoding="utf-8").read())[1]
         except ValueError:
-            print(f"  WARNING  {fn}: no source table found where one was expected")
+            # A page with no inline table reads data-metric-sources.json at
+            # runtime instead, so it has nothing of its own to drift. That is
+            # the preferred shape, not a problem -- dashboard.html has always
+            # worked this way, and chartmaker.html was moved to it after its
+            # own copy was found to have drifted on twenty entries.
+            print(f"  note     {fn} holds no citation copy; it reads the canonical file at runtime")
     pops = json.load(open(os.path.join(REPO, "data-metric-sources.json"), encoding="utf-8"))
     rows, mism, uncls, checked = [], 0, 0, 0
     for c, f in sorted(files.items()):
