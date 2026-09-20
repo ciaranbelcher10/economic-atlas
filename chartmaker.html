@@ -2430,7 +2430,40 @@ var addAnnotBtn = document.getElementById("cmAddAnnotBtn");
 
 /* ---- helpers ---- */
 function transformLabel(mode){
-  return {raw:"Raw values", yoy:"YoY % change", index100:"Indexed to 100", ma3:"3-period moving avg", ma12:"12-period moving avg"}[mode] || mode;
+  return {raw:"Raw values", yoy:"YoY % change", yoy_pp:"YoY change (pp)",
+          index100:"Indexed to 100", ma3:"3-period moving avg",
+          ma12:"12-period moving avg"}[mode] || mode;
+}
+// A transform changes what the number IS, so it changes the unit too.
+// Formatting a transformed value with the series' recorded unit is how UK
+// GDP at 4.3% year on year came to be drawn as "£4m", and US GDP at 3.2%
+// as "$3.20bn".
+//   raw / ma3 / ma12   unchanged: a moving average of pounds is pounds
+//   yoy                a per-cent change, whatever the input was
+//   yoy_pp             a percentage-POINT change: the only honest year-on-year
+//                      view of a series that is already a rate
+//   index100           an index, not the original unit
+function transformUnit(unit, mode){
+  if(mode === "yoy") return "%";
+  if(mode === "yoy_pp") return "pp";
+  if(mode === "index100") return "index";
+  return unit;
+}
+// A series that is already a rate (unit "%") must not be offered a per-cent
+// change: UK CPI going 3.8 -> 3.1 is a fall of 0.7 percentage points, not
+// of 18.4 per cent. A "% change of a %" is a number with no meaning, so
+// rates are offered the percentage-point change instead.
+function isRateUnit(unit){ return unit === "%"; }
+function transformsFor(unit){
+  return isRateUnit(unit)
+    ? ["raw", "yoy_pp", "ma3", "ma12"]
+    : ["raw", "yoy", "index100", "ma3", "ma12"];
+}
+// The units actually drawn, after each series' transform.
+function effectiveUnits(){
+  var units = {};
+  series.forEach(function(s){ units[transformUnit(s.unit, s.transform)] = true; });
+  return Object.keys(units);
 }
 function allPeriods(){
   var set = {};
@@ -2477,6 +2510,19 @@ function applyTransform(points, mode){
       }
     });
     return out;
+  }
+  if(mode === "yoy_pp"){
+    // A plain difference, matched by period like yoy above, so a gap drops
+    // one point rather than silently shifting the comparison.
+    var outPP = [];
+    points.forEach(function(cur){
+      var priorPeriodPP = yearAgoPeriod(cur.x);
+      if(priorPeriodPP){
+        var priorPP = points.find(function(p){ return p.x === priorPeriodPP; });
+        if(priorPP && priorPP.y != null){ outPP.push({x:cur.x, y: cur.y - priorPP.y}); }
+      }
+    });
+    return outPP;
   }
   if(mode === "ma3" || mode === "ma12"){
     var w = mode === "ma3" ? 3 : 12;
@@ -2801,12 +2847,25 @@ function renderSeriesList(){
     pencil.innerHTML = "<path d='M12 20h9'/><path d='M16.5 3.5a2.12 2.12 0 0 1 3 3L7 19l-4 1 1-4Z'/>";
     editWrap.appendChild(main); editWrap.appendChild(pencil);
     var tSel = document.createElement("select");
-    ["raw","yoy","index100","ma3","ma12"].forEach(function(t){
+    // Only the transforms that make sense for this series' unit. A stored
+    // choice that is no longer offered (a saved chart from before rates
+    // lost "YoY % change") falls back to raw rather than drawing a
+    // meaningless number.
+    var allowed = transformsFor(s.unit);
+    if(allowed.indexOf(s.transform) === -1) s.transform = "raw";
+    allowed.forEach(function(t){
       var o = document.createElement("option"); o.value = t; o.textContent = transformLabel(t);
       if(t === s.transform) o.selected = true;
       tSel.appendChild(o);
     });
-    tSel.addEventListener("change", function(){ s.transform = tSel.value; renderChart(); });
+    tSel.addEventListener("change", function(){
+      s.transform = tSel.value;
+      // The transform changes the unit drawn, so the axis title and the
+      // value formatter have to be rebuilt with it -- otherwise a chart
+      // switched to a year-on-year view keeps a currency axis label.
+      syncAutoYAxisTitle();
+      renderChart();
+    });
     lbl.appendChild(editWrap);
     // Inflation series carry a measure and a basis chooser. Only what the
     // country serves is offered, so a selector never promises a series the
@@ -3056,11 +3115,12 @@ toPeriodSel.addEventListener("change", function(){ syncBarLegendTitle(); renderC
 /* ---- chart style control wiring ---- */
 document.getElementById("cmChartTitle").addEventListener("input", function(e){ style.chartTitle = e.target.value; renderChart(); });
 var yAxisTitleTouched = false;
-var UNIT_AXIS_LABEL = { "%": "%", index: "Index", currency: "Value" };
+var UNIT_AXIS_LABEL = { "%": "%", pp: "Percentage points", index: "Index", currency: "Value" };
 function syncAutoYAxisTitle(){
   if(yAxisTitleTouched || !series.length) return;
-  var units = {}; series.forEach(function(s){ units[s.unit] = true; });
-  var unitKeys = Object.keys(units);
+  // The units actually drawn, not the recorded ones: a chart of GDP shown
+  // year on year is labelled "%", not "£m".
+  var unitKeys = effectiveUnits();
   var text = unitKeys.length === 1 ? (UNIT_AXIS_LABEL[unitKeys[0]] || "") : "";
   style.yAxisTitle = text;
   document.getElementById("cmYAxisTitle").value = text;
@@ -3949,8 +4009,8 @@ function curFmt(rawValue, unitStr, decimals){
 function buildFmtY(){
   var concepts = {}; series.forEach(function(s){ concepts[s.metric] = true; });
   var conceptKeys = Object.keys(concepts);
-  var units = {}; series.forEach(function(s){ units[s.unit] = true; });
-  var unitKeys = Object.keys(units);
+  // Formatted by what is drawn, after each series' transform.
+  var unitKeys = effectiveUnits();
   // Common case: every series on the chart shares the same real
   // recorded unit (comparing one metric across countries, or several
   // metrics that happen to share a unit) -- format it properly rather
@@ -3960,6 +4020,11 @@ function buildFmtY(){
     if(unit === "%"){
       var decimals = (conceptKeys.length === 1 && (conceptKeys[0] === "policy_rate" || conceptKeys[0] === "bond_yield_10y")) ? 2 : 1;
       return function(v){ return (+v.toFixed(decimals)) + "%"; };
+    }
+    if(unit === "pp"){
+      // A percentage-point change, signed: "+0.7pp" reads unambiguously
+      // where "0.7%" would be mistaken for a per-cent change.
+      return function(v){ var n = +v.toFixed(1); return (n > 0 ? "+" : "") + n + "pp"; };
     }
     if(unit === "index"){
       return function(v){ return (+v.toFixed(1)).toString(); };

@@ -147,27 +147,30 @@ async function boot() {
   }
 
   // --- a country with no monthly series offers no monthly basis ----------
-  // close the metric modal left open by the previous pick before reopening
+  // A country that still serves one basis only. Brazil had one until the
+  // OECD index landed, so this deliberately uses Japan, whose cpi_mom is
+  // not served. If Japan ever gains one, this assertion should be moved
+  // rather than deleted -- the rule it checks still matters.
   const mclose = $("#cmMetricClose") || $("#cmMetricModal .modal-close");
   if (mclose) mclose.dispatchEvent(new win.Event("click", { bubbles: true }));
   await new Promise(r => setTimeout(r, 60));
-  if (openPickerFor("Brazil")) {
+  if (openPickerFor("Japan")) {
     await new Promise(r => setTimeout(r, 120));
-    const br = inflationCards();
-    if (!br.length) fail("Brazil picker shows no Inflation entry (modal hidden=" +
+    const jp = inflationCards();
+    if (!jp.length) fail("Japan picker shows no Inflation entry (modal hidden=" +
       $("#cmMetricModal").hidden + ", cards seen: " +
       cards().map(c => c.querySelector("div") && c.querySelector("div").textContent.trim()).join(" | ").slice(0, 200) + ")");
-    if (br.length) { br[0].dispatchEvent(new win.Event("click", { bubbles: true })); await new Promise(r => setTimeout(r, 150)); }
+    if (jp.length) { jp[0].dispatchEvent(new win.Event("click", { bubbles: true })); await new Promise(r => setTimeout(r, 150)); }
   }
   // the series title is an <input> value, not text content
   const rowTitle = r => { const i = r.querySelector(".main-edit"); return i ? i.value : r.textContent; };
-  const brRow = seriesRows().filter(r => /Brazil/.test(rowTitle(r)))[0];
-  if (!brRow) fail("Brazil inflation series was not added");
+  const jpRow = seriesRows().filter(r => /Japan/.test(rowTitle(r)))[0];
+  if (!jpRow) fail("Japan inflation series was not added");
   else {
-    const brSels = selectsIn(brRow);
-    const basisSel = brSels.filter(x => [...x.options].some(o => /Year on year/.test(o.textContent)))[0];
-    if (basisSel) fail("Brazil offers a basis selector despite serving only one basis");
-    else ok("Brazil offers no basis selector, as it serves only year on year");
+    const jpSels = selectsIn(jpRow);
+    const basisSel = jpSels.filter(x => [...x.options].some(o => /Year on year/.test(o.textContent)))[0];
+    if (basisSel) fail("Japan offers a basis selector despite serving only one basis");
+    else ok("Japan offers no basis selector, as it serves only year on year");
   }
 
   // --- reconciliation flags an automatic switch --------------------------
@@ -202,6 +205,53 @@ async function boot() {
   const expectIE = (canonical.Ireland && canonical.Ireland.cpi || {}).source || "";
   if (/HICP/i.test(expectIE)) ok("canonical Ireland CPI names the HICP");
   else fail("canonical Ireland CPI does not name the HICP: " + expectIE.slice(0, 80));
+
+  // --- 2C.4: transformed values are formatted by what they ARE ---------
+  // UK GDP shown year on year was drawn as "£4m" because the formatter
+  // keyed off the series' recorded unit and ignored the transform.
+  const rows2 = seriesRows();
+  const gdpRow = rows2.filter(r => /GDP/i.test(rowTitle(r)))[0];
+  if (!gdpRow) {
+    // add one so the assertion has something to work with
+    if (openPickerFor("UK")) {
+      await new Promise(r => setTimeout(r, 80));
+      const gdpCard = cards().filter(el => {
+        const t = el.querySelector("div");
+        return t && /^GDP/i.test(t.textContent.trim());
+      })[0];
+      if (gdpCard) { gdpCard.dispatchEvent(new win.Event("click", { bubbles: true })); await new Promise(r => setTimeout(r, 140)); }
+    }
+  }
+  const gdp = seriesRows().filter(r => /GDP/i.test(rowTitle(r)))[0];
+  if (!gdp) fail("could not add a GDP series to test the transform units");
+  else {
+    const tsel = selectsIn(gdp).filter(x => [...x.options].some(o => /Raw values/.test(o.textContent)))[0];
+    if (!tsel) fail("GDP series has no transform selector");
+    else {
+      const opts = [...tsel.options].map(o => o.textContent.trim());
+      if (opts.includes("YoY % change")) ok("a level series still offers a per-cent change");
+      else fail("a level series lost its per-cent change: " + opts.join(" | "));
+      pick(tsel, "YoY % change");
+      await new Promise(r => setTimeout(r, 120));
+      const axis = doc.getElementById("cmYAxisTitle");
+      if (axis && /%/.test(axis.value)) ok("axis title follows the transform, not the raw unit");
+      else fail("axis title still shows the raw unit: " + (axis ? axis.value : "none"));
+    }
+  }
+
+  // --- 2C.4: a rate is never offered a per-cent change -------------------
+  const infl = seriesRows().filter(r => /Inflation/i.test(rowTitle(r)))[0];
+  if (!infl) fail("no inflation series to check the rate rule");
+  else {
+    const tsel2 = selectsIn(infl).filter(x => [...x.options].some(o => /Raw values/.test(o.textContent)))[0];
+    const opts2 = tsel2 ? [...tsel2.options].map(o => o.textContent.trim()) : [];
+    if (opts2.includes("YoY % change")) fail("a rate is still offered a per-cent change (a % change of a %)");
+    else ok("a rate is not offered a per-cent change");
+    if (opts2.includes("YoY change (pp)")) ok("a rate is offered a percentage-point change instead");
+    else fail("a rate has no percentage-point option: " + opts2.join(" | "));
+    if (opts2.includes("Indexed to 100")) fail("a rate is offered an index, which it cannot meaningfully have");
+    else ok("a rate is not offered an index");
+  }
 
   for (const e of bootErrors) fail("uncaught page error: " + e);
   if (!bootErrors.length) ok("page ran with no uncaught errors");

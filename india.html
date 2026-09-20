@@ -1802,13 +1802,28 @@ function annualGDP(gdp){
   return {label:"GDP, rolling four quarters", unit:"\u20acm", freq:"quarters", points:out};
 }
 function yoyGDP(gdpReal){
-  /* FIX (9.15.1): for annual series, one prior observation is one year ago,
-     not four -- offsetting by 4 was comparing against 4 years prior. */
-  const lag = gdpReal.freq === "years" ? 1 : 4;
-  const p=gdpReal.points, out=[];
-  for(let i=lag;i<p.length;i++)
-    out.push([p[i][0], +((p[i][1]/p[i-lag][1]-1)*100).toFixed(1)]);
-  return {label:"Real GDP growth, year on year", unit:"%", freq:gdpReal.freq, points:out};
+  // Matched by PERIOD, not by list position. A positional lag assumes the
+  // series has no holes: one missing quarter and every later point is
+  // compared against the wrong year, silently and plausibly. Annual series
+  // compare with the year before, quarterly with the same quarter a year
+  // earlier, monthly with the same month.
+  const p = gdpReal.points, by = {}, out = [];
+  p.forEach(function(x){ by[x[0]] = x[1]; });
+  const yearAgo = function(period){
+    const q = /^(\d{4})-Q(\d)$/.exec(period);
+    if(q) return (+q[1] - 1) + "-Q" + q[2];
+    const m = /^(\d{4})-(\d{2})$/.exec(period);
+    if(m) return (+m[1] - 1) + "-" + m[2];
+    const y = /^(\d{4})$/.exec(period);
+    if(y) return String(+y[1] - 1);
+    return null;
+  };
+  p.forEach(function(x){
+    const prior = yearAgo(x[0]);
+    const base = prior === null ? null : by[prior];
+    if(base) out.push([x[0], +((x[1] / base - 1) * 100).toFixed(1)]);
+  });
+  return {label:"Real GDP growth, year on year", unit:"%", freq: gdpReal.freq || "quarters", points:out};
 }
 /* --------------- fallback sample data (until fetch_data.py) -------------- */
 function interp(keys, periods){
