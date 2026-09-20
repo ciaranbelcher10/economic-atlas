@@ -2269,7 +2269,15 @@ function render(data){
     gdpYoY,"line",v=>v+"%",pct,"Calculated from FRED series JPNRGDPEXP (Cabinet Office of Japan)",1998,0,"gdp_growth");
   if(s.cpi) chartPanel("cpi","charts-inflation","CPI inflation, annual rate",
     "How much consumer prices are rising compared with a year ago. The Bank of Japan targets 2%.",
-    s.cpi,"line",v=>v+"%",pct,"Statistics Bureau of Japan (e-Stat) \u00b7 all items, YoY");
+    s.cpi,"line",v=>v+"%",pct,"Statistics Bureau of Japan (e-Stat) \u00b7 all items, YoY",undefined,undefined,undefined,
+    basesFor([
+      {id:"yoy", label:"Year on year", series:s.cpi, srcNote:"Statistics Bureau of Japan (e-Stat) \u00b7 all items, YoY", expl:"How much consumer prices are rising compared with a year ago. The Bank of Japan targets 2%."},
+      // basesFor drops any entry whose series is not served, so these
+      // stay dormant until the source provides them and then appear
+      // with no further page edit.
+      {id:"mom", label:"Month on month", series:s.cpi_mom, srcNote:"Statistics Bureau of Japan (e-Stat) \u00b7 all items, YoY", expl:"How much consumer prices moved compared with the month before. Not the annual rate divided by twelve: it reacts to one-off price changes the annual rate smooths out."},
+      {id:"qoq", label:"Quarter on quarter", series:s.cpi_qoq, srcNote:"Statistics Bureau of Japan (e-Stat) \u00b7 all items, YoY", expl:"How much consumer prices moved compared with the quarter before. This country publishes its CPI quarterly, so a quarter on quarter change is the shortest basis its source supports."}
+    ]));
   if(s.boj_rate) chartPanel("boj_rate","charts-inflation","Call money rate",
     "The overnight interbank rate, the closest market measure of the Bank of Japan's policy stance.",
     s.boj_rate,"line",v=>v+"%",v=>v.toFixed(2)+"%","FRED series IRSTCI01JPM156N \u00b7 monthly average (OECD)");
@@ -2325,8 +2333,6 @@ function render(data){
   const tinf=document.getElementById("tiles-inflation");
   if(s.cpi) statTile(tinf,"cpi","CPI (YoY)",s.cpi,
     {fmt:pct,fmtD:pp,upIsGood:false,source:"Statistics Bureau of Japan (e-Stat) \u00b7 YoY"});
-  if(s.cpi_mom) statTile(tinf,null,"CPI (MoM)",s.cpi_mom,
-    {fmt:pct,fmtD:pp,upIsGood:false,source:"FRED \u00b7 OECD",infoKey:"cpi_mom"});
   if(s.boj_rate) statTile(tinf,"boj_rate","Call money rate",s.boj_rate,
     {fmt:v=>v.toFixed(2)+"%",fmtD:v=>v.toFixed(2)+"pp",upIsGood:false,source:"FRED \u00b7 IRSTCI01JPM156N"});
   const tl=document.getElementById("tiles-labour");

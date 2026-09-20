@@ -2353,6 +2353,11 @@ function render(data){
   const tinf=document.getElementById("tiles-inflation");
   if(s.cpi) statTile(tinf,"cpi","CPI (YoY)",s.cpi,
     {fmt:pct,fmtD:pp,upIsGood:false,source:"FRED · HICP, all items, YoY"});
+  // Every basis this country serves gets a tile as well as a chart.
+  // Guarded on the series, so a country with only a year-on-year
+  // rate shows only that.
+  if(s.cpi_mom) statTile(tinf,null,"CPI (MoM)",s.cpi_mom,
+    {fmt:pct,fmtD:pp,upIsGood:false,source:"FRED · HICP, all items, YoY",infoKey:"cpi_mom"});
   if(s.bond_yield_10y) statTile(tinf,"bond_yield_10y","10Y bond yield",s.bond_yield_10y,
     {fmt:v=>v.toFixed(2)+"%",fmtD:v=>v.toFixed(2)+"pp",upIsGood:false,source:SRC_BOND});
   const tl=document.getElementById("tiles-labour");
@@ -2551,6 +2556,10 @@ const INFO_CONTENT = {
     source: "Derived from Eurostat CLVMNACSCAB1GQDK, via FRED, quarter-on-quarter.",
     real: "This is already a real (inflation-adjusted) growth rate as published, \u201cMake it real\u201d has no additional effect on it.",
     dollar: "A growth rate (%) is currency-agnostic, converting the underlying kroner to dollars doesn't change the percentage change. \u201cDollarise\u201d has no effect on this figure."
+  },
+  cpi_mom: {
+    description: "How much consumer prices changed in the month, on the EU's harmonised measure. A monthly change is not the annual rate divided by twelve: it is the change on the month before, so it moves with one-off price changes that the annual rate smooths out.",
+    source: "Derived from FRED series CP0000DKM086NEST (Eurostat) · HICP, all items, change on the previous month."
   },
   cpi: {
     description: "How much consumer prices are rising compared with a year ago. Denmark has no inflation target of its own: Danmarks Nationalbank keeps the krone fixed against the euro.",

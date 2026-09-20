@@ -2281,7 +2281,15 @@ function render(data){
     gdpYoY,"line",v=>v+"%",pct,SRC_GDP_REAL,1999,0,"gdp_growth");
   if(s.cpi) chartPanel("cpi","charts-inflation","CPI inflation, annual rate",
     "How much consumer prices are rising compared with a year ago.",
-    s.cpi,"line",v=>v+"%",pct,"OECD live prices system \u00b7 CPI, all items, YoY");
+    s.cpi,"line",v=>v+"%",pct,"OECD live prices system \u00b7 CPI, all items, YoY",undefined,undefined,undefined,
+    basesFor([
+      {id:"yoy", label:"Year on year", series:s.cpi, srcNote:"OECD live prices system \u00b7 CPI, all items, YoY", expl:"How much consumer prices are rising compared with a year ago."},
+      // basesFor drops any entry whose series is not served, so these
+      // stay dormant until the source provides them and then appear
+      // with no further page edit.
+      {id:"mom", label:"Month on month", series:s.cpi_mom, srcNote:"OECD live prices system \u00b7 CPI, all items, YoY", expl:"How much consumer prices moved compared with the month before. Not the annual rate divided by twelve: it reacts to one-off price changes the annual rate smooths out."},
+      {id:"qoq", label:"Quarter on quarter", series:s.cpi_qoq, srcNote:"OECD live prices system \u00b7 CPI, all items, YoY", expl:"How much consumer prices moved compared with the quarter before. This country publishes its CPI quarterly, so a quarter on quarter change is the shortest basis its source supports."}
+    ]));
   if(s.bond_yield_10y) chartPanel("bond_yield_10y","charts-inflation","10-year government bond yield",
     "The yield on 10-year Swiss government bonds, a market gauge of inflation and rate expectations. Not the Swiss National Bank's own policy rate. Switzerland's yields have been unusually low, at times negative, for most of the last decade, that's real, not a data error.",
     s.bond_yield_10y,"line",v=>v+"%",v=>v.toFixed(2)+"%",SRC_BOND);
@@ -2321,6 +2329,11 @@ function render(data){
   const tinf=document.getElementById("tiles-inflation");
   if(s.cpi) statTile(tinf,"cpi","CPI (YoY)",s.cpi,
     {fmt:pct,fmtD:pp,upIsGood:false,source:"OECD live prices system"});
+  // Every basis this country serves gets a tile as well as a chart.
+  // Guarded on the series, so a country with only a year-on-year
+  // rate shows only that.
+  if(s.cpi_mom) statTile(tinf,null,"CPI (MoM)",s.cpi_mom,
+    {fmt:pct,fmtD:pp,upIsGood:false,source:"OECD live prices system",infoKey:"cpi_mom"});
   if(s.bond_yield_10y) statTile(tinf,"bond_yield_10y","10Y bond yield",s.bond_yield_10y,
     {fmt:v=>v.toFixed(2)+"%",fmtD:v=>v.toFixed(2)+"pp",upIsGood:false,source:SRC_BOND});
   const tl=document.getElementById("tiles-labour");
@@ -2522,6 +2535,10 @@ const INFO_CONTENT = {
     source: "FRED series CLVMNACSAB1GQCH \u00b7 Eurostat, quarterly, quarter-on-quarter.",
     real: "This is already a real (inflation-adjusted) growth rate as published, \u201cMake it real\u201d has no additional effect on it.",
     dollar: "A growth rate (%) is currency-agnostic, converting the underlying francs to dollars doesn't change the percentage change. \u201cDollarise\u201d has no effect on this figure."
+  },
+  cpi_mom: {
+    description: "How much consumer prices changed in the month. A monthly change is not the annual rate divided by twelve: it is the change on the month before, so it moves with one-off price changes that the annual rate smooths out.",
+    source: "OECD live prices system · CPI, all items, price index, change on the previous month."
   },
   cpi: {
     description: "How much consumer prices are rising compared with a year ago.",

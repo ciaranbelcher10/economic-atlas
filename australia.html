@@ -2270,7 +2270,15 @@ function render(data){
     gdpYoY,"line",v=>v+"%",pct,SRC_GDP,1999,0,"gdp_growth");
   if(s.cpi) chartPanel("cpi","charts-inflation","CPI inflation, annual rate",
     "How much consumer prices are rising compared with a year ago. The RBA targets 2\u20133%. Quarterly, matching the ABS's own primary official CPI release.",
-    s.cpi,"line",v=>v+"%",pct,"OECD live prices system \u00b7 CPI, all items, YoY, quarterly");
+    s.cpi,"line",v=>v+"%",pct,"OECD live prices system \u00b7 CPI, all items, YoY, quarterly",undefined,undefined,undefined,
+    basesFor([
+      {id:"yoy", label:"Year on year", series:s.cpi, srcNote:"OECD live prices system \u00b7 CPI, all items, YoY, quarterly", expl:"How much consumer prices are rising compared with a year ago. The RBA targets 2\u20133%. Quarterly, matching the ABS's own primary official CPI release."},
+      // basesFor drops any entry whose series is not served, so these
+      // stay dormant until the source provides them and then appear
+      // with no further page edit.
+      {id:"mom", label:"Month on month", series:s.cpi_mom, srcNote:"OECD live prices system \u00b7 CPI, all items, YoY, quarterly", expl:"How much consumer prices moved compared with the month before. Not the annual rate divided by twelve: it reacts to one-off price changes the annual rate smooths out."},
+      {id:"qoq", label:"Quarter on quarter", series:s.cpi_qoq, srcNote:"OECD live prices system \u00b7 CPI, all items, YoY, quarterly", expl:"How much consumer prices moved compared with the quarter before. This country publishes its CPI quarterly, so a quarter on quarter change is the shortest basis its source supports."}
+    ]));
   if(s.bond_yield_10y) chartPanel("bond_yield_10y","charts-inflation","10-year government bond yield",
     "The yield on 10-year Australian government bonds, a market gauge of inflation and rate expectations. Not the RBA's cash rate.",
     s.bond_yield_10y,"line",v=>v+"%",v=>v.toFixed(2)+"%",SRC_BOND);
@@ -2322,6 +2330,11 @@ function render(data){
   const tinf=document.getElementById("tiles-inflation");
   if(s.cpi) statTile(tinf,"cpi","CPI (YoY)",s.cpi,
     {fmt:pct,fmtD:pp,upIsGood:false,source:"OECD live prices system"});
+  // Every basis this country serves gets a tile as well as a chart.
+  // Guarded on the series, so a country with only a year-on-year
+  // rate shows only that.
+  if(s.cpi_qoq) statTile(tinf,null,"CPI (QoQ)",s.cpi_qoq,
+    {fmt:pct,fmtD:pp,upIsGood:false,source:"OECD live prices system",infoKey:"cpi_qoq"});
   if(s.bond_yield_10y) statTile(tinf,"bond_yield_10y","10Y bond yield",s.bond_yield_10y,
     {fmt:v=>v.toFixed(2)+"%",fmtD:v=>v.toFixed(2)+"pp",upIsGood:false,source:SRC_BOND});
   const tl=document.getElementById("tiles-labour");
@@ -2517,6 +2530,10 @@ const INFO_CONTENT = {
     source: "IMF International Financial Statistics series NGDPRSAXDCAUQ, via FRED, quarter-on-quarter.",
     real: "This is already a real (inflation-adjusted) growth rate as published, \u201cMake it real\u201d has no additional effect on it.",
     dollar: "A growth rate (%) is currency-agnostic, converting the underlying Australian dollars to US dollars doesn't change the percentage change. \u201cDollarise\u201d has no effect on this figure."
+  },
+  cpi_qoq: {
+    description: "How much consumer prices changed in the quarter. Australia's CPI is published quarterly, so a quarter on quarter change is the shortest basis its source supports; no monthly rate is synthesised from it.",
+    source: "OECD live prices system · CPI, all items, price index, change on the previous quarter."
   },
   cpi: {
     description: "How much consumer prices are rising compared with a year ago. The Reserve Bank of Australia targets 2-3% inflation. Quarterly, matching the ABS's own primary official CPI release (the ABS also publishes an experimental monthly figure, which this doesn't use).",
