@@ -78,6 +78,18 @@ _FREQ_RANK = {
 _STALE_DAYS = {1: 1000, 2: 550, 3: 400}
 _STALE_DEFAULT = 550
 
+# A more up-to-date series from a different source replaces a longer one
+# only if it covers at least this many years. See merge_series.
+MIN_SPAN_YEARS_FOR_CURRENCY = 10
+
+
+def _span_years(first, last):
+    """Years between the start of a series and the end of its last period."""
+    a, b = _period_end(first), _period_end(last)
+    if not (a and b):
+        return 0.0
+    return (b - a).days / 365.25
+
 
 def _rank(freq):
     if not freq:
@@ -159,6 +171,8 @@ def merge_series(key, new, prev, allow_shrink=None):
       "kept"       previous kept, incoming rejected as a downgrade
       "new-stale"  incoming accepted because previous was dead
       "new-allowed" incoming accepted via allow_shrink
+      "new-current" a different source, more up to date, with >= 10 years:
+                    accepted despite shorter history
     """
     allow_shrink = allow_shrink or {}
     ns, ps = _shape(new), _shape(prev)
@@ -187,16 +201,42 @@ def merge_series(key, new, prev, allow_shrink=None):
             worse.append(f"start {first_prev} -> {first_new}")
         if n_new < n_prev:
             worse.append(f"points {n_prev} -> {n_new}")
+        if end_new and end_prev and end_new < end_prev:
+            worse.append(f"last period {last_prev} -> {last_new}")
         if worse:
             worse.append(f"unrecognised frequency {unknown!r}")
     elif r_new and r_prev and r_new < r_prev:
         worse.append(f"frequency {freq_prev} -> {freq_new}")
     elif r_new == r_prev:
+        ends_earlier = bool(end_new and end_prev and end_new < end_prev)
+        ends_later = bool(end_new and end_prev and end_new > end_prev)
+        if ends_earlier:
+            # The check that was missing. Only history was compared, so a
+            # backup series reaching back further but ending seven months
+            # earlier passed as "no downgrade": Austria's trade balance fell
+            # from Eurostat (to July 2026) to an OECD backup ending December
+            # 2025. A series that is less up to date is worse, however long.
+            worse.append(f"last period {last_prev} -> {last_new}")
+        history_loss = []
         if _period_end(first_new) and _period_end(first_prev) \
            and _period_end(first_new) > _period_end(first_prev):
-            worse.append(f"start {first_prev} -> {first_new}")
+            history_loss.append(f"start {first_prev} -> {first_new}")
         if n_new < n_prev:
-            worse.append(f"points {n_prev} -> {n_new}")
+            history_loss.append(f"points {n_prev} -> {n_new}")
+        if history_loss and not ends_earlier and ends_later and label_new != label_prev \
+           and _span_years(first_new, last_new) >= MIN_SPAN_YEARS_FOR_CURRENCY:
+            # A different source that is more up to date, with at least ten
+            # years of history: being current wins over having longer history.
+            # A stale latest figure misleads silently; a chart that starts
+            # later is visible. The ten-year floor stops a source returning
+            # only its last few months from wiping decades of history for a
+            # one-month gain. Same-source cases never reach here -- they
+            # graft instead, keeping the long history and adding the new
+            # months -- and two sources are never stitched into one series.
+            return new, "new-current", (
+                f"more current ({last_prev} -> {last_new}), shorter history accepted: "
+                + "; ".join(history_loss))
+        worse.extend(history_loss)
     elif r_new and r_prev and r_new > r_prev:
         if end_new and end_prev and end_new < end_prev:
             worse.append(f"finer frequency but last period {last_prev} -> {last_new}")
@@ -259,7 +299,7 @@ def apply_guard(out_series, prev_series, allow_shrink=None, log=print):
 
     if log:
         for k, (verdict, detail) in sorted(verdicts.items()):
-            if verdict in ("kept", "grafted", "new-stale", "new-allowed"):
+            if verdict in ("kept", "grafted", "new-stale", "new-allowed", "new-current"):
                 log(f"  [guard] {k}: {verdict.upper()} ({detail})")
         carried = [k for k, (v, _) in verdicts.items() if v == "carried-over"]
         if carried:
@@ -294,7 +334,7 @@ def _source_confirmed(verdict, incoming, prev):
                                      such as annual data standing in for
                                      monthly, confirms nothing.
     """
-    if verdict in ("new", "new-allowed", "new-stale", "grafted"):
+    if verdict in ("new", "new-allowed", "new-stale", "new-current", "grafted"):
         return True
     if verdict != "kept":
         return False

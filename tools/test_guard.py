@@ -89,6 +89,25 @@ results.append(case("incoming empty, previous good",
      {"freq": "months", "label": "X", "points": []}, mk(139, "2015-01", "2026-07", "months"), "kept"))
 results.append(case("no previous at all", mk(10, "2026-01", "2026-08", "months"), None, "new"))
 
+# ends earlier / currency with a ten-year floor. Austria's trade balance was
+# replaced by an OECD backup reaching back to 1970 but ending in December
+# 2025, pushing out Eurostat data to July 2026: only history was compared, so
+# a series seven months behind passed as "no downgrade".
+results.append(case("Austria: current Eurostat -> older OECD backup (ends earlier) -> keep",
+     mk(672, "1970-01", "2025-12", "months", "OECD backup"),
+     mk(139, "2015-01", "2026-07", "months", "Eurostat"), "kept"))
+results.append(case("Austria recovery: OECD backup -> current Eurostat, 11y -> new-current",
+     mk(139, "2015-01", "2026-07", "months", "Eurostat"),
+     mk(672, "1970-01", "2025-12", "months", "OECD backup"), "new-current"))
+results.append(case("more current but only 5 years of another source -> keep (floor)",
+     mk(60, "2021-08", "2026-07", "months", "Eurostat"),
+     mk(672, "1970-01", "2025-12", "months", "OECD backup"), "kept"))
+results.append(case("same source, more history, but ends earlier -> keep",
+     mk(700, "1965-01", "2025-12", "months"), mk(139, "2015-01", "2026-07", "months"), "kept"))
+results.append(case("unrecognised freq, ends earlier -> keep",
+     mk(700, "1965-01", "2025-12", "weekly"), mk(139, "2015-01", "2026-07", "months"), "kept"))
+results.append(case("same source, less history, newer -> still grafts (history kept)",
+     mk(12, "2025-08", "2026-07", "months"), mk(139, "2015-01", "2026-06", "months"), "grafted"))
 print(f"\n  {sum(results)}/{len(results)} unit branches pass")
 
 # ---- absence carry-over still works ----
