@@ -160,6 +160,9 @@ US_FRED = {
     "participation": ("CIVPART", "months",
                       "Labor force participation rate, SA", "%"),
     "fed_funds": ("FEDFUNDS", "months", "Effective federal funds rate", "%"),
+    # Target range bounds, daily, reduced to month-end below; see fetch_us.py.
+    "fed_funds_upper": ("DFEDTARU", "months", "Federal funds target range, upper bound (DFEDTARU)", "%"),
+    "fed_funds_lower": ("DFEDTARL", "months", "Federal funds target range, lower bound (DFEDTARL)", "%"),
     "debt_gdp": ("GFDEGDQ188S", "quarters",
                  "Federal debt, total public debt as % of GDP", "%"),
     "deficit": ("MTSDS133FMS", "months",
@@ -200,6 +203,22 @@ def fetch_fred(series_id: str, freq: str, api_key: str) -> list:
             continue
     points.sort(key=lambda p: p[0])
     return points
+
+
+def month_end(points: list) -> list:
+    """Collapse a daily series to one point per period: the last day's value.
+
+    The federal funds target range is published daily, and both FRED
+    fetchers here label each observation by its month, so a daily series
+    arrives as about thirty points sharing one label. FRED returns dates in
+    ascending order and the sort that follows is stable, so the last point
+    kept for each label is the latest day in it -- the target in force at
+    the end of that month, which is the figure a monthly chart should show.
+    """
+    last = {}
+    for per, val in points:
+        last[per] = val
+    return [[per, last[per]] for per in sorted(last)]
 
 
 def fetch_latest_fx(series_id: str, api_key: str) -> tuple[str, float] | None:
@@ -585,6 +604,8 @@ def build_us() -> bool:
         for key, (fred_id, freq, label, unit) in US_FRED.items():
             try:
                 points = fetch_fred(fred_id, freq, api_key)
+                if key in ("fed_funds_upper", "fed_funds_lower"):
+                    points = month_end(points)
                 if not points:
                     raise ValueError("no observations in response")
                 out["series"][key] = {"label": label, "unit": unit,

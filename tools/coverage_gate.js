@@ -46,6 +46,11 @@ const TOGGLE_TARGETS = {
   gdp_level_annual: ["gdp_level"],
 };
 
+// A series shown inside another's tile rather than on its own. The Fed funds
+// target range tile reads "lower-upper%": the lower bound is on screen, but
+// under the upper bound's key.
+const COMPANIONS = { fed_funds_lower: "fed_funds_upper" };
+
 // Inflation bases: the rule this gate enforces.
 const BASIS_KEYS = new Set(["cpi_mom", "cpi_qoq", "cpih_mom"]);
 const BASIS_LABEL = { cpi_mom: /Month on month/, cpih_mom: /Month on month/, cpi_qoq: /Quarter on quarter/ };
@@ -130,6 +135,9 @@ function countryPages() {
       .map(([k]) => k));
     const chartReach = new Set([...charts, ...viaBasis, ...viaToggle]);
     const reach = new Set([...tiles, ...chartReach]);
+    for (const [k, host] of Object.entries(COMPANIONS)) {
+      if (reach.has(host)) { reach.add(k); tiles.add(k); chartReach.add(k); }
+    }
 
     const lines = [];
     for (const k of served) {

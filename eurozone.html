@@ -1562,36 +1562,36 @@ document.addEventListener("DOMContentLoaded", function(){
 <section class="sec" id="sec-headline">
  <div class="hero" id="hero" aria-label="Headline figures"></div>
  <p class="lightskey" aria-label="Key to freshness lights">
- <span><span class="led green" aria-hidden="true"></span>&nbsp;updated on schedule</span>
- <span><span class="led orange" aria-hidden="true"></span>&nbsp;awaiting next release</span>
+ <span><span class="led green" aria-hidden="true"></span>&nbsp;matches latest release</span>
+ <span><span class="led orange" aria-hidden="true"></span>&nbsp;not refreshed recently</span>
  </p>
  <div class="grid" id="charts-headline"></div>
 </section>
 <section class="sec" id="sec-gdp" hidden>
  <div class="hero mini" id="tiles-gdp"></div>
- <p class="lightskey compact" aria-label="Key to freshness lights"><span><span class="led green" aria-hidden="true"></span>&nbsp;updated on schedule</span><span><span class="led orange" aria-hidden="true"></span>&nbsp;awaiting next release</span></p>
+ <p class="lightskey compact" aria-label="Key to freshness lights"><span><span class="led green" aria-hidden="true"></span>&nbsp;matches latest release</span><span><span class="led orange" aria-hidden="true"></span>&nbsp;not refreshed recently</span></p>
  <div class="grid" id="charts-gdp"></div>
 </section>
 <section class="sec" id="sec-inflation" hidden>
  <div class="hero mini" id="tiles-inflation"></div>
- <p class="lightskey compact" aria-label="Key to freshness lights"><span><span class="led green" aria-hidden="true"></span>&nbsp;updated on schedule</span><span><span class="led orange" aria-hidden="true"></span>&nbsp;awaiting next release</span></p>
+ <p class="lightskey compact" aria-label="Key to freshness lights"><span><span class="led green" aria-hidden="true"></span>&nbsp;matches latest release</span><span><span class="led orange" aria-hidden="true"></span>&nbsp;not refreshed recently</span></p>
  <div class="grid" id="charts-inflation"></div>
 </section>
 <section class="sec" id="sec-labour" hidden>
  <div class="hero mini" id="tiles-labour"></div>
- <p class="lightskey compact" aria-label="Key to freshness lights"><span><span class="led green" aria-hidden="true"></span>&nbsp;updated on schedule</span><span><span class="led orange" aria-hidden="true"></span>&nbsp;awaiting next release</span></p>
+ <p class="lightskey compact" aria-label="Key to freshness lights"><span><span class="led green" aria-hidden="true"></span>&nbsp;matches latest release</span><span><span class="led orange" aria-hidden="true"></span>&nbsp;not refreshed recently</span></p>
  <div class="grid" id="charts-labour"></div>
  <p class="secnote">On the roadmap: employment and participation rates, and breakdowns by age and country.</p>
 </section>
 <section class="sec" id="sec-trade" hidden>
  <div class="hero mini" id="tiles-trade"></div>
- <p class="lightskey compact" aria-label="Key to freshness lights"><span><span class="led green" aria-hidden="true"></span>&nbsp;updated on schedule</span><span><span class="led orange" aria-hidden="true"></span>&nbsp;awaiting next release</span></p>
+ <p class="lightskey compact" aria-label="Key to freshness lights"><span><span class="led green" aria-hidden="true"></span>&nbsp;matches latest release</span><span><span class="led orange" aria-hidden="true"></span>&nbsp;not refreshed recently</span></p>
  <div class="grid" id="charts-trade"></div>
  <p class="secnote">On the roadmap: euro-denominated trade from Eurostat, and a map of largest trade partners.</p>
 </section>
 <section class="sec" id="sec-public" hidden>
  <div class="hero mini" id="tiles-public"></div>
- <p class="lightskey compact" aria-label="Key to freshness lights"><span><span class="led green" aria-hidden="true"></span>&nbsp;updated on schedule</span><span><span class="led orange" aria-hidden="true"></span>&nbsp;awaiting next release</span></p>
+ <p class="lightskey compact" aria-label="Key to freshness lights"><span><span class="led green" aria-hidden="true"></span>&nbsp;matches latest release</span><span><span class="led orange" aria-hidden="true"></span>&nbsp;not refreshed recently</span></p>
  <div class="grid" id="charts-public"></div>
  <p class="secnote">On the roadmap: total debt stock, debt interest as a share of government spending (UK Debt Management Office), and a breakdown of where public money goes.</p>
 </section>
@@ -1658,7 +1658,21 @@ const STALE_DAYS={months:75, quarters:150, years:660};
    stalled. Annual series need a tighter multiple: at 3x, an annual figure
    almost 5.5 years old still claimed to be awaiting its next release. */
 const STALE_MULT={months:3, quarters:3, years:1.25};
+/* A series stamped confirmed_at has been checked against its source and
+   matched its latest release; the light reports that, not the age of the
+   data. An annual figure for 2023 is green if 2023 is still the latest the
+   source has published, and any series goes amber if we have not been able
+   to confirm it for two days, whatever its age. Series fetched before the
+   stamp existed fall back to the age rule below until their next fetch. */
+const CONFIRM_HOURS=48;
+function confirmedHoursAgo(series){
+  if(!series.confirmed_at) return null;
+  const t=Date.parse(series.confirmed_at);
+  return isNaN(t) ? null : (Date.now()-t)/3600000;
+}
 function freshness(series){
+  const _h=confirmedHoursAgo(series);
+  if(_h!==null) return _h<=CONFIRM_HOURS ? "green" : "orange";
   const last=series.points[series.points.length-1][0];
   const age=(Date.now()-periodEnd(last).getTime())/86400000;
   return age<=(STALE_DAYS[series.freq]||90) ? "green" : "orange";
@@ -1673,7 +1687,7 @@ function annualGDP(gdp){
   const p=gdp.points, out=[];
   for(let i=3;i<p.length;i++)
     out.push([p[i][0], p[i][1]+p[i-1][1]+p[i-2][1]+p[i-3][1]]);
-  return {label:"GDP, rolling four quarters", unit:"\u20acm", freq:"quarters", points:out};
+  return {label:"GDP, rolling four quarters", unit:"\u20acm", freq:"quarters", points:out, confirmed_at:gdp.confirmed_at};
 }
 function yoyGDP(gdpReal){
   // Matched by PERIOD, not by list position. A positional lag assumes the
@@ -1697,7 +1711,7 @@ function yoyGDP(gdpReal){
     const base = prior === null ? null : by[prior];
     if(base) out.push([x[0], +((x[1] / base - 1) * 100).toFixed(1)]);
   });
-  return {label:"Real GDP growth, year on year", unit:"%", freq: gdpReal.freq || "quarters", points:out};
+  return {label:"Real GDP growth, year on year", unit:"%", freq: gdpReal.freq || "quarters", points:out, confirmed_at:gdpReal.confirmed_at};
 }
 /* --------------- fallback sample data (until fetch_data.py) -------------- */
 function interp(keys, periods){
@@ -1945,10 +1959,20 @@ function statTile(el, key, title, series, opts){
   const led=freshness(series);
   const _lastP=series.points[series.points.length-1][0];
   const _ageDays=(Date.now()-periodEnd(_lastP).getTime())/86400000;
-  let ledTitle=led==="green"?"Updated on schedule":
-    (_ageDays>(STALE_MULT[series.freq]||3)*(STALE_DAYS[series.freq]||90)
-      ?"Latest published figure: "+fmtPeriod(_lastP)+". No newer observation has been released."
-      :"Awaiting next release");
+  const _ch=confirmedHoursAgo(series);
+  const _ago=h=>h<1?"under an hour ago":(h<48?Math.round(h)+" hours ago":Math.round(h/24)+" days ago");
+  let ledTitle;
+  if(_ch!==null){
+    // Says what was actually checked, and when -- not a guess from the date.
+    ledTitle=led==="green"
+      ?"Matches the latest release ("+fmtPeriod(_lastP)+"), checked "+_ago(_ch)
+      :"Couldn't refresh from the source for "+_ago(_ch).replace(" ago","")+"; showing the last figure confirmed ("+fmtPeriod(_lastP)+")";
+  } else {
+    ledTitle=led==="green"?"Updated on schedule":
+      (_ageDays>(STALE_MULT[series.freq]||3)*(STALE_DAYS[series.freq]||90)
+        ?"Latest published figure: "+fmtPeriod(_lastP)+". No newer observation has been released."
+        :"Awaiting next release");
+  }
   if(series.next) ledTitle+=" · next release "+series.next;
   const clickable=!!ANCHORS[key];
   const div=document.createElement("div");
@@ -4155,6 +4179,6 @@ fetch("data-ez.json",{cache: "no-cache"})
   }
 })();
 </script>
-<script src="mobile.js?v=13" defer></script>
+<script src="mobile.js?v=14" defer></script>
 </body>
 </html>

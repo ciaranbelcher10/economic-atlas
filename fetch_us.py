@@ -53,6 +53,11 @@ FRED_SERIES = {
     "ppi": ("PPIFID", "m", "PPI, final demand, YoY", "%", "yoy"),
     "pce": ("PCEPI", "m", "PCE price index (Fed's preferred gauge), YoY", "%", "yoy"),
     "fed_funds": ("FEDFUNDS", "m", "Effective federal funds rate", "%", None),
+    # The FOMC sets a target RANGE, and has since December 2008; that range,
+    # not the effective rate above, is the policy decision headlines quote.
+    # Both bounds are daily, so they are reduced to the month-end value.
+    "fed_funds_upper": ("DFEDTARU", "m", "Federal funds target range, upper bound", "%", "eom"),
+    "fed_funds_lower": ("DFEDTARL", "m", "Federal funds target range, lower bound", "%", "eom"),
     "debt_gdp": ("GFDEGDQ188S", "q", "Federal debt, % of GDP", "%", None),
     "net_debt": ("GFDEBTN", "q", "Total federal public debt", "$m", None),
     "deficit": ("MTSDS133FMS", "m", "Federal surplus or deficit, monthly", "$m", None),
@@ -102,6 +107,22 @@ def _period_back(per, months: int):
     return None
 
 
+def month_end(points: list) -> list:
+    """Collapse a daily series to one point per period: the last day's value.
+
+    The federal funds target range is published daily, and both FRED
+    fetchers here label each observation by its month, so a daily series
+    arrives as about thirty points sharing one label. FRED returns dates in
+    ascending order and the sort that follows is stable, so the last point
+    kept for each label is the latest day in it -- the target in force at
+    the end of that month, which is the figure a monthly chart should show.
+    """
+    last = {}
+    for per, val in points:
+        last[per] = val
+    return [[per, last[per]] for per in sorted(last)]
+
+
 def transform(points: list, kind: str | None) -> list:
     """Year on year or month on month rate, matched BY PERIOD, not by position.
 
@@ -116,6 +137,8 @@ def transform(points: list, kind: str | None) -> list:
     rather than a wrong one, which is correct: the rate genuinely is not
     computable for that month.
     """
+    if kind == "eom":
+        return month_end(points)
     if kind not in ("yoy", "mom"):
         return points
     back = 12 if kind == "yoy" else 1

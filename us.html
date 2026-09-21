@@ -1640,30 +1640,30 @@ document.addEventListener("DOMContentLoaded", function(){
 <section class="sec" id="sec-headline">
  <div class="hero" id="hero" aria-label="Headline figures"></div>
  <p class="lightskey" aria-label="Key to freshness lights">
- <span><span class="led green" aria-hidden="true"></span>&nbsp;updated on schedule</span>
- <span><span class="led orange" aria-hidden="true"></span>&nbsp;awaiting next release</span>
+ <span><span class="led green" aria-hidden="true"></span>&nbsp;matches latest release</span>
+ <span><span class="led orange" aria-hidden="true"></span>&nbsp;not refreshed recently</span>
  </p>
  <div class="grid" id="charts-headline"></div>
 </section>
 <section class="sec" id="sec-gdp" hidden>
  <div class="hero mini" id="tiles-gdp"></div>
- <p class="lightskey compact" aria-label="Key to freshness lights"><span><span class="led green" aria-hidden="true"></span>&nbsp;updated on schedule</span><span><span class="led orange" aria-hidden="true"></span>&nbsp;awaiting next release</span></p>
+ <p class="lightskey compact" aria-label="Key to freshness lights"><span><span class="led green" aria-hidden="true"></span>&nbsp;matches latest release</span><span><span class="led orange" aria-hidden="true"></span>&nbsp;not refreshed recently</span></p>
  <div class="grid" id="charts-gdp"></div>
 </section>
 <section class="sec" id="sec-inflation" hidden>
  <div class="hero mini" id="tiles-inflation"></div>
- <p class="lightskey compact" aria-label="Key to freshness lights"><span><span class="led green" aria-hidden="true"></span>&nbsp;updated on schedule</span><span><span class="led orange" aria-hidden="true"></span>&nbsp;awaiting next release</span></p>
+ <p class="lightskey compact" aria-label="Key to freshness lights"><span><span class="led green" aria-hidden="true"></span>&nbsp;matches latest release</span><span><span class="led orange" aria-hidden="true"></span>&nbsp;not refreshed recently</span></p>
  <div class="grid" id="charts-inflation"></div>
 </section>
 <section class="sec" id="sec-labour" hidden>
  <div class="hero mini" id="tiles-labour"></div>
- <p class="lightskey compact" aria-label="Key to freshness lights"><span><span class="led green" aria-hidden="true"></span>&nbsp;updated on schedule</span><span><span class="led orange" aria-hidden="true"></span>&nbsp;awaiting next release</span></p>
+ <p class="lightskey compact" aria-label="Key to freshness lights"><span><span class="led green" aria-hidden="true"></span>&nbsp;matches latest release</span><span><span class="led orange" aria-hidden="true"></span>&nbsp;not refreshed recently</span></p>
  <div class="grid" id="charts-labour"></div>
  <p class="secnote">On the roadmap: unemployment and inactivity broken down by age group and sector.</p>
 </section>
 <section class="sec" id="sec-trade" hidden>
  <div class="hero mini" id="tiles-trade"></div>
- <p class="lightskey compact" aria-label="Key to freshness lights"><span><span class="led green" aria-hidden="true"></span>&nbsp;updated on schedule</span><span><span class="led orange" aria-hidden="true"></span>&nbsp;awaiting next release</span></p>
+ <p class="lightskey compact" aria-label="Key to freshness lights"><span><span class="led green" aria-hidden="true"></span>&nbsp;matches latest release</span><span><span class="led orange" aria-hidden="true"></span>&nbsp;not refreshed recently</span></p>
  <div class="grid" id="charts-trade"></div>
  <div class="tpm-head"><h3>US goods trade: top partners</h3></div>
  <p class="tpm-scopenote"><strong>Goods trade only.</strong> Services aren't covered by this data source and aren't shown here, so relationships that lean heavily on services may be understated.</p>
@@ -1712,7 +1712,7 @@ document.addEventListener("DOMContentLoaded", function(){
 </section>
 <section class="sec" id="sec-public" hidden>
  <div class="hero mini" id="tiles-public"></div>
- <p class="lightskey compact" aria-label="Key to freshness lights"><span><span class="led green" aria-hidden="true"></span>&nbsp;updated on schedule</span><span><span class="led orange" aria-hidden="true"></span>&nbsp;awaiting next release</span></p>
+ <p class="lightskey compact" aria-label="Key to freshness lights"><span><span class="led green" aria-hidden="true"></span>&nbsp;matches latest release</span><span><span class="led orange" aria-hidden="true"></span>&nbsp;not refreshed recently</span></p>
  <div class="grid" id="charts-public"></div>
  <p class="secnote">On the roadmap: total debt stock, debt interest as a share of government spending (UK Debt Management Office), and a breakdown of where public money goes.</p>
 </section>
@@ -1780,7 +1780,21 @@ const STALE_DAYS={months:75, quarters:150, years:660};
    stalled. Annual series need a tighter multiple: at 3x, an annual figure
    almost 5.5 years old still claimed to be awaiting its next release. */
 const STALE_MULT={months:3, quarters:3, years:1.25};
+/* A series stamped confirmed_at has been checked against its source and
+   matched its latest release; the light reports that, not the age of the
+   data. An annual figure for 2023 is green if 2023 is still the latest the
+   source has published, and any series goes amber if we have not been able
+   to confirm it for two days, whatever its age. Series fetched before the
+   stamp existed fall back to the age rule below until their next fetch. */
+const CONFIRM_HOURS=48;
+function confirmedHoursAgo(series){
+  if(!series.confirmed_at) return null;
+  const t=Date.parse(series.confirmed_at);
+  return isNaN(t) ? null : (Date.now()-t)/3600000;
+}
 function freshness(series){
+  const _h=confirmedHoursAgo(series);
+  if(_h!==null) return _h<=CONFIRM_HOURS ? "green" : "orange";
   const last=series.points[series.points.length-1][0];
   const age=(Date.now()-periodEnd(last).getTime())/86400000;
   return age<=(STALE_DAYS[series.freq]||90) ? "green" : "orange";
@@ -1809,7 +1823,7 @@ function yoyGDP(gdpReal){
     const base = prior === null ? null : by[prior];
     if(base) out.push([x[0], +((x[1] / base - 1) * 100).toFixed(1)]);
   });
-  return {label:"Real GDP growth, year on year", unit:"%", freq: gdpReal.freq || "quarters", points:out};
+  return {label:"Real GDP growth, year on year", unit:"%", freq: gdpReal.freq || "quarters", points:out, confirmed_at:gdpReal.confirmed_at};
 }
 /* Trade intensity: (exports+imports)/GDP per complete calendar year, %.
    GDP is $bn at annual rates (average the 4 quarters); trade is $m (sum 12 months). */
@@ -1823,7 +1837,11 @@ function tradeIntensity(exp, imp, gdp){
   const X=sumBy(exp.points,12), M=sumBy(imp.points,12), G=avgBy(gdp.points);
   const out=Object.keys(G).filter(y=>X[y]!=null&&M[y]!=null)
     .sort().map(y=>[y, +((X[y]+M[y])/(G[y]*1000)*100).toFixed(1)]);
-  return out.length?{label:"Trade intensity",unit:"%",freq:"years",points:out}:null;
+  // Built from three series, so it is only as confirmed as the least
+  // recently confirmed of them; any one unconfirmed leaves it unstamped.
+  const stamps=[exp,imp,gdp].map(x=>x&&x.confirmed_at);
+  const confirmed_at=stamps.every(Boolean)?stamps.sort()[0]:undefined;
+  return out.length?{label:"Trade intensity",unit:"%",freq:"years",points:out,confirmed_at}:null;
 }
 /* --------------- fallback sample data (until fetch_data.py) -------------- */
 function interp(keys, periods){
@@ -2111,10 +2129,20 @@ function statTile(el, key, title, series, opts){
   const led=freshness(series);
   const _lastP=series.points[series.points.length-1][0];
   const _ageDays=(Date.now()-periodEnd(_lastP).getTime())/86400000;
-  let ledTitle=led==="green"?"Updated on schedule":
-    (_ageDays>(STALE_MULT[series.freq]||3)*(STALE_DAYS[series.freq]||90)
-      ?"Latest published figure: "+fmtPeriod(_lastP)+". No newer observation has been released."
-      :"Awaiting next release");
+  const _ch=confirmedHoursAgo(series);
+  const _ago=h=>h<1?"under an hour ago":(h<48?Math.round(h)+" hours ago":Math.round(h/24)+" days ago");
+  let ledTitle;
+  if(_ch!==null){
+    // Says what was actually checked, and when -- not a guess from the date.
+    ledTitle=led==="green"
+      ?"Matches the latest release ("+fmtPeriod(_lastP)+"), checked "+_ago(_ch)
+      :"Couldn't refresh from the source for "+_ago(_ch).replace(" ago","")+"; showing the last figure confirmed ("+fmtPeriod(_lastP)+")";
+  } else {
+    ledTitle=led==="green"?"Updated on schedule":
+      (_ageDays>(STALE_MULT[series.freq]||3)*(STALE_DAYS[series.freq]||90)
+        ?"Latest published figure: "+fmtPeriod(_lastP)+". No newer observation has been released."
+        :"Awaiting next release");
+  }
   if(series.next) ledTitle+=" · next release "+series.next;
   const clickable=!!ANCHORS[key];
   const div=document.createElement("div");
@@ -2290,6 +2318,10 @@ const INFO_CONTENT = {
   pce: {
     description: "The Federal Reserve's own preferred inflation gauge. Broader than CPI (covers more of what people actually spend on) and adjusted for substitution as prices change, the Fed's 2% target is set against this measure, not CPI.",
     source: "Calculated from FRED series PCEPI \u00b7 seasonally adjusted (BEA)."
+  },
+  fed_funds_upper: {
+    description: "The range the Federal Reserve's policy committee sets for the federal funds rate, and the figure headlines quote (\"4.25% to 4.50%\"). It has been a range rather than a single target since December 2008. The effective rate, which is what banks actually pay each other overnight, normally trades inside it.",
+    source: "FRED series DFEDTARU · federal funds target range, upper limit, set by the FOMC. Daily, shown as the value in force at month end."
   },
   fed_funds: {
     description: "The Federal Reserve's key interest rate, the anchor for most US mortgage, loan, and savings rates. Set by the FOMC.",
@@ -2547,6 +2579,9 @@ function render(data){
   if(s.fed_funds) chartPanel("fed_funds","charts-inflation","Federal funds rate",
     "The Federal Reserve's key interest rate, the anchor for borrowing costs across the economy.",
     s.fed_funds,"line",v=>v+"%",v=>v.toFixed(2)+"%","FRED series FEDFUNDS · effective rate, monthly average");
+  if(s.fed_funds_upper) chartPanel("fed_funds_upper","charts-inflation","Federal funds target range",
+    "The range the Federal Reserve sets, shown by its upper bound; the lower bound sits a quarter point below it. A range has been set since December 2008.",
+    s.fed_funds_upper,"line",v=>v+"%",v=>v.toFixed(2)+"%","FRED series DFEDTARU \u00b7 target range upper bound, month end");
   if(s.unemployment) chartPanel("unemployment","charts-labour","Unemployment rate",
     "The share of people who want a job but can't find one.",
     s.unemployment,"line",v=>v+"%",pct,"FRED series UNRATE · seasonally adjusted (BLS)");
@@ -2622,7 +2657,18 @@ function render(data){
     {fmt:pct,fmtD:pp,upIsGood:false,source:"FRED · PPIFID"});
   if(s.pce) statTile(tinf,"pce","PCE (YoY)",s.pce,
     {fmt:pct,fmtD:pp,upIsGood:false,source:"FRED · PCEPI"});
-  if(s.fed_funds) statTile(tinf,"fed_funds","Fed funds rate",s.fed_funds,
+  // The FOMC sets a target RANGE, and has since December 2008; that is the
+  // policy decision headlines quote. The tile shows both bounds, read from the
+  // same month so a range is never assembled from two different dates.
+  if(s.fed_funds_upper){
+    const lowerAt={}; (s.fed_funds_lower?s.fed_funds_lower.points:[]).forEach(p=>{lowerAt[p[0]]=p[1];});
+    const upLast=s.fed_funds_upper.points[s.fed_funds_upper.points.length-1][0];
+    const lo=lowerAt[upLast];
+    statTile(tinf,"fed_funds_upper","Fed funds target range",s.fed_funds_upper,
+      {fmt:v=>lo!=null?lo.toFixed(2)+"\u2013"+v.toFixed(2)+"%":v.toFixed(2)+"% (upper)",
+       fmtD:v=>v.toFixed(2)+"pp",upIsGood:false,source:"FRED \u00b7 DFEDTARL / DFEDTARU"});
+  }
+  if(s.fed_funds) statTile(tinf,"fed_funds","Fed funds (effective)",s.fed_funds,
     {fmt:v=>v.toFixed(2)+"%",fmtD:v=>v.toFixed(2)+"pp",upIsGood:false,source:"FRED · FEDFUNDS"});
   // Served and charted but had no tile; every served metric gets both.
   if(s.core_cpi) statTile(tinf,"core_cpi","Core CPI (YoY)",s.core_cpi,
@@ -4673,6 +4719,6 @@ document.querySelectorAll(".mtbtn").forEach(function(btn){
   }
 })();
 </script>
-<script src="mobile.js?v=13" defer></script>
+<script src="mobile.js?v=14" defer></script>
 </body>
 </html>

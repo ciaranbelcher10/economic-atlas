@@ -1199,7 +1199,7 @@ INDICATOR_TEMPLATE = """<!DOCTYPE html>
 </script>
 {toggle_block}
 {live_refresh_block}
-<script src="../mobile.js?v=12"></script>
+<script src="../mobile.js?v=14"></script>
 </body>
 </html>
 """

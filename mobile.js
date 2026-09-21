@@ -15,6 +15,57 @@
   function $(sel, root){ return (root||document).querySelector(sel); }
   function $all(sel, root){ return Array.prototype.slice.call((root||document).querySelectorAll(sel)); }
 
+  /* ---- country search: names people actually type -------------------------
+     The search boxes used to match only a link's exact visible text, so the
+     US link, which reads "U.S.", could not be found by typing "US" (the full
+     stops) or "United States" (a different name entirely). The same was true
+     of "United Kingdom" for the UK, "Euro area" for the Eurozone, "Holland"
+     for the Netherlands and "Türkiye" for Turkey.
+     Matching now ignores case, punctuation and accents, and checks each
+     country's other names as well as the one shown. Exposed on window so
+     Dashboard's picker searches with exactly the same rules. */
+  var COUNTRY_ALIASES = {
+    "us": ["usa", "united states", "united states of america", "america", "u s a"],
+    "uk": ["united kingdom", "britain", "great britain", "gb", "england"],
+    "eurozone": ["euro area", "euro zone", "ea", "ez", "europe"],
+    "south korea": ["korea", "republic of korea", "rok"],
+    "netherlands": ["holland", "the netherlands", "nl"],
+    "turkey": ["turkiye", "tuerkiye"],
+    "switzerland": ["swiss", "confederation"],
+    "germany": ["deutschland"],
+    "spain": ["espana"],
+    "south africa": ["rsa"],
+    "czechia": ["czech republic"]
+  };
+  function normaliseName(t){
+    var s = String(t || "").toLowerCase();
+    // strip accents where the browser supports it: "türkiye" -> "turkiye"
+    if(s.normalize) s = s.normalize("NFD").replace(/[\u0300-\u036f]/g, "");
+    // "u.s." -> "us", "côte d'ivoire" -> "cote divoire", then collapse spacing
+    return s.replace(/[.\u2019']/g, "").replace(/[^a-z0-9]+/g, " ").trim();
+  }
+
+  // True when what someone typed identifies this country. Two letters or
+  // fewer must match the START of a word in a name or alias -- so "us" finds
+  // the United States (via "usa") and "sw" finds Sweden and Switzerland as
+  // you type, but "us" does not find Australia or Austria, which contain it
+  // mid-word. Longer queries match anywhere, so "united st" still works.
+  function countryMatches(displayName, query){
+    var q = normaliseName(query);
+    if(!q) return false;
+    var name = normaliseName(displayName);
+    var names = [name].concat(COUNTRY_ALIASES[name] || []);
+    for(var i = 0; i < names.length; i++){
+      var n = names[i];
+      if(q.length <= 2){
+        var words = n.split(" ");
+        for(var w = 0; w < words.length; w++) if(words[w].indexOf(q) === 0) return true;
+      } else if(n.indexOf(q) !== -1) return true;
+    }
+    return false;
+  }
+  window.EATLAS_countryMatches = countryMatches;
+
   /* ------------------------------------------------------------------
      1. PERSISTENT MOBILE TOOL BAR
      ------------------------------------------------------------------ */
@@ -246,7 +297,7 @@
       input.addEventListener("input", function(){
         var q = input.value.trim().toLowerCase();
         if(!q){ results.hidden = true; results.innerHTML = ""; return; }
-        var matches = links.filter(function(a){ return a.textContent.toLowerCase().indexOf(q) !== -1; }).slice(0, 6);
+        var matches = links.filter(function(a){ return countryMatches(a.textContent, q); }).slice(0, 6);
         results.innerHTML = matches.length
           ? matches.map(function(a){ return '<a href="'+a.getAttribute("href")+'">'+a.textContent+'</a>'; }).join("")
           : '<p class="sc-none">No matching country.</p>';
@@ -323,7 +374,7 @@
     input.addEventListener("input", function(){
       var q = input.value.trim().toLowerCase();
       if(!q){ results.hidden = true; results.innerHTML = ""; return; }
-      var matches = links.filter(function(a){ return a.textContent.toLowerCase().indexOf(q) !== -1; }).slice(0, 8);
+      var matches = links.filter(function(a){ return countryMatches(a.textContent, q); }).slice(0, 8);
       if(!matches.length){
         results.innerHTML = '<p class="hqn-none">No matching country.</p>';
       } else {
@@ -607,8 +658,7 @@
           el.style.display = q ? "none" : "";
           return;
         }
-        var txt = el.textContent.toLowerCase();
-        el.style.display = (!q || txt.indexOf(q) !== -1) ? "" : "none";
+        el.style.display = (!q || countryMatches(el.textContent, q)) ? "" : "none";
       });
     });
   }

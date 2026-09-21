@@ -236,14 +236,26 @@ def apply_guard(out_series, prev_series, allow_shrink=None, log=print):
     Returns a dict of key -> (verdict, detail).
     """
     verdicts = {}
+    now = _confirm_stamp()
     for k, prev in (prev_series or {}).items():
         if k not in out_series:
+            # Not fetched this run: the previous series, including when it was
+            # last confirmed against its source, is kept exactly as it was.
             out_series[k] = prev
             verdicts[k] = ("carried-over", "absent this run, kept prior data")
             continue
-        chosen, verdict, detail = merge_series(k, out_series[k], prev, allow_shrink)
+        incoming = out_series[k]
+        chosen, verdict, detail = merge_series(k, incoming, prev, allow_shrink)
+        if _source_confirmed(verdict, incoming, prev):
+            chosen = dict(chosen)
+            chosen["confirmed_at"] = now
         out_series[k] = chosen
         verdicts[k] = (verdict, detail)
+    # A series new this run has no previous version, so the loop above never
+    # sees it; it came straight from the source, so it is confirmed now.
+    for k, series in list(out_series.items()):
+        if k not in (prev_series or {}) and isinstance(series, dict) and series.get("points"):
+            out_series[k] = dict(series, confirmed_at=now)
 
     if log:
         for k, (verdict, detail) in sorted(verdicts.items()):
@@ -254,6 +266,47 @@ def apply_guard(out_series, prev_series, allow_shrink=None, log=print):
             log("CARRIED OVER from previous run (failed this run, kept prior "
                 "data rather than deleting it): " + ", ".join(sorted(carried)))
     return verdicts
+
+
+def _confirm_stamp():
+    """UTC timestamp for "confirmed against its source", to the minute."""
+    from datetime import datetime, timezone
+    return datetime.now(timezone.utc).strftime("%Y-%m-%dT%H:%MZ")
+
+
+def _source_confirmed(verdict, incoming, prev):
+    """Did this run's fetch confirm the series we are about to store is current?
+
+    The freshness lights used to judge a series by the age of its latest data
+    point alone, which cannot tell "old" from "overdue": an annual debt figure
+    for 2023 showed amber even when 2023 was the latest the source had
+    published. What the site can honestly claim is narrower and more useful --
+    that on a given run the source was asked, and what we hold is the latest it
+    had. That is what this stamp records.
+
+      new, new-allowed, new-stale   the source's own series was stored
+      grafted                        the source supplied the newest points
+      kept                           the incoming series was rejected; only a
+                                     confirmation if it reached at least as far
+                                     as what we hold, at the same cadence (a
+                                     shorter history of the same current
+                                     series). A fallback to a coarser source,
+                                     such as annual data standing in for
+                                     monthly, confirms nothing.
+    """
+    if verdict in ("new", "new-allowed", "new-stale", "grafted"):
+        return True
+    if verdict != "kept":
+        return False
+    ni, pi = _shape(incoming), _shape(prev)
+    if ni is None or pi is None:
+        return False
+    _, _, last_new, freq_new, _ = ni
+    _, _, last_prev, freq_prev, _ = pi
+    if freq_new != freq_prev:
+        return False
+    end_new, end_prev = _period_end(last_new), _period_end(last_prev)
+    return bool(end_new and end_prev and end_new >= end_prev)
 
 
 def describe_verdict(verdicts):

@@ -2904,13 +2904,34 @@ function periodEnd(p){
    NOT a claim that the figure itself is wrong, just that a newer one
    probably exists upstream and hasn't been picked up by our fetch yet. */
 var STALE_DAYS = {months: 75, quarters: 150, years: 660};
+/* A series stamped confirmed_at has been checked against its source and
+   matched its latest release; the light reports that, not the age of the
+   data. An annual figure for 2023 is green if 2023 is still the latest the
+   source has published, and any series goes amber if we have not been able
+   to confirm it for two days, whatever its age. Series fetched before the
+   stamp existed fall back to the age rule below until their next fetch. */
+var CONFIRM_HOURS = 48;
+function confirmedHoursAgo(series){
+  if(!series.confirmed_at) return null;
+  var t = Date.parse(series.confirmed_at);
+  return isNaN(t) ? null : (Date.now()-t)/3600000;
+}
 function freshness(series){
+  var _h = confirmedHoursAgo(series);
+  if(_h !== null) return _h <= CONFIRM_HOURS ? "green" : "orange";
   var last = series.points[series.points.length - 1][0];
   var age = (Date.now() - periodEnd(last).getTime()) / 86400000;
   return age <= (STALE_DAYS[series.freq] || 90) ? "green" : "orange";
 }
 function freshnessTitle(series){
   var last = series.points[series.points.length - 1][0];
+  var ch = confirmedHoursAgo(series);
+  if(ch !== null){
+    var ago = ch < 1 ? "under an hour ago" : (ch < 48 ? Math.round(ch) + " hours ago" : Math.round(ch / 24) + " days ago");
+    return ch <= CONFIRM_HOURS
+      ? "Matches the latest release (" + fmtPeriod(last) + "), checked " + ago
+      : "Couldn't refresh from the source for " + ago.replace(" ago", "") + "; showing the last figure confirmed (" + fmtPeriod(last) + ")";
+  }
   var age = (Date.now() - periodEnd(last).getTime()) / 86400000;
   if(age <= (STALE_DAYS[series.freq] || 90)) return "Latest version of the data is live";
   return "Data may be outdated, awaiting next update (last published " + fmtPeriod(last) + ")";
@@ -3349,6 +3370,11 @@ var CONCEPT_KEYS = {
 var CONCEPT_LABEL = {
   gdp_level: "GDP level", gdp_real: "Real GDP level", gdp_growth: "GDP growth (annual, real)",
   cpi: "Inflation (year on year)", core_cpi: "Core inflation (year on year)",
+  // The newer inflation series, so each has a plain-English name to be
+  // found by and shown under, rather than only its technical label.
+  cpih_mom: "Inflation (CPIH, month on month)", cpi_qoq: "Inflation (quarter on quarter)",
+  cpi_mom_sa: "Inflation (month on month, seasonally adjusted)",
+  cpi_national: "Inflation (national CPI, year on year)", cpi_hicp: "Inflation (HICP, year on year)",
   cpi_mom: "Inflation (month on month)", cpih: "Inflation (CPIH, year on year)",
   ppi: "Producer prices (PPI, year on year)", pce: "PCE inflation (year on year)",
   unemployment: "Unemployment rate", employment: "Employment rate", inactivity: "Economic inactivity",
@@ -4738,8 +4764,12 @@ function refreshPickerGrid(){
       Object.keys(REGISTRY[country] || {}).forEach(function(key){
         if(!isPickable(key)) return;
         var s = REGISTRY[country][key];
-        var haystack = (country + " " + categoryOf(key) + " " + s.label).toLowerCase();
-        if(haystack.indexOf(searchTerm) !== -1) items.push({id: tileId(country, key), country: country, key: key});
+        // The plain-English name ("Inflation (year on year)") is searched as
+        // well as the technical series label ("CPI annual rate, all items"),
+        // or a search for "inflation" -- the example the box itself suggests
+        // -- found nothing at all.
+        if(pickerSearchMatches(country, categoryOf(key) + " " + (CONCEPT_LABEL[key] || "") + " " + s.label, searchTerm))
+          items.push({id: tileId(country, key), country: country, key: key});
       });
     });
     items.sort(function(a, b){
@@ -4830,6 +4860,39 @@ function showNudgeFor(country, key){
   document.getElementById("pickerNudge").classList.add("show");
 }
 document.getElementById("nudgeClose").addEventListener("click", hideNudge);
+// Search across countries and metrics.
+//
+// Every word typed must match either the country or the metric, so "uk
+// inflation" and "united states unemployment" narrow as you would expect.
+// Countries are matched by the same rules as the site's country search
+// (mobile.js), so "US", "United States" and "America" all find the U.S.
+// Short words match only at the start of a word: previously the whole
+// query was matched as a substring of one long string, so "us" also matched
+// "business", "industry" and "Australia".
+var _queryCountryCache = {};
+function queryNamesACountry(query, byCountry){
+  if(query in _queryCountryCache) return _queryCountryCache[query];
+  var hit = ALL_COUNTRIES.some(function(c){ return byCountry(c, query); });
+  _queryCountryCache[query] = hit;
+  return hit;
+}
+function pickerSearchMatches(country, text, query){
+  var byCountry = window.EATLAS_countryMatches || function(n, q){ return n.toLowerCase().indexOf(q) !== -1; };
+  if(byCountry(country, query)) return true;
+  // If what was typed names a country, that is the intent: show only that
+  // country's metrics. Otherwise "us" would also match every label
+  // containing "USD" (GDP in dollars) for Argentina, Indonesia and others.
+  if(queryNamesACountry(query, byCountry)) return false;
+  var t = String(text).toLowerCase();
+  var words = t.split(/[^a-z0-9]+/);
+  var terms = query.split(/\s+/).filter(Boolean);
+  if(!terms.length) return false;
+  return terms.every(function(term){
+    if(byCountry(country, term)) return true;
+    if(term.length <= 2) return words.some(function(w){ return w.indexOf(term) === 0; });
+    return t.indexOf(term) !== -1;
+  });
+}
 function renderPickerItems(items, pgrid, groupFn, groupOrder, isSearchMode){
   if(!items.length){
     pgrid.innerHTML = "<p class=\"pickerempty\">" + (isSearchMode ? "Nothing matches that search." : "Nothing available here yet.") + "</p>";
@@ -5951,6 +6014,6 @@ window.EATLAS_SAVED_CHARTS = (function(){
   }
 })();
 </script>
-<script src="mobile.js?v=13" defer></script>
+<script src="mobile.js?v=14" defer></script>
 </body>
 </html>
