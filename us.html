@@ -2574,6 +2574,10 @@ function render(data){
   if(s.debt_gdp) chartPanel("debt_gdp","charts-public","Federal debt, % of GDP",
     "Total federal government debt, compared with the size of the economy.",
     s.debt_gdp,"line",v=>v+"%",pct,"FRED series GFDEGDQ188S · total public debt (Treasury/OMB)");
+  // Served with a tile but no chart; every served metric gets both.
+  if(s.net_debt) chartPanel("net_debt","charts-public","Federal debt",
+    "Total debt of the federal government in dollars, the level behind the debt-to-GDP ratio above.",
+    s.net_debt,"line",v=>curFmt(v,s.net_debt.unit,0),v=>curFmt(v,s.net_debt.unit,1),"FRED series GFDEBTN \u00b7 total public debt (Treasury)");
   if(s.deficit) chartPanel("deficit","charts-public","Federal surplus or deficit",
     "The monthly gap between federal spending and tax receipts. Negative means a deficit; tax-season months often show surpluses.",
     s.deficit,"bar",v=>curFmt(v,s.deficit.unit,0),v=>curFmt(v,s.deficit.unit,1),"FRED series MTSDS133FMS · Monthly Treasury Statement",2005,0);
@@ -2606,6 +2610,9 @@ function render(data){
     {fmt:pct,fmtD:pp,upIsGood:true,source:"FRED · A191RL1Q225SBEA"});
   if(gdpYoY) statTile(tg,null,"Growth (YoY)",gdpYoY,
     {fmt:pct,fmtD:pp,upIsGood:true,source:"Calculated · GDPC1",infoKey:"gdp_growth"});
+  // Served and charted but had no tile; every served metric gets both.
+  if(s.productivity) statTile(tg,"productivity","Productivity",s.productivity,
+    {fmt:idx,fmtD:v=>(v>0?"+":"")+v.toFixed(1),upIsGood:true,source:"FRED \u00b7 OPHNFB"});
   const tinf=document.getElementById("tiles-inflation");
   if(s.cpi) statTile(tinf,"cpi","CPI (YoY)",s.cpi,
     {fmt:pct,fmtD:pp,upIsGood:false,source:"FRED · CPIAUCNS"});
@@ -2617,6 +2624,9 @@ function render(data){
     {fmt:pct,fmtD:pp,upIsGood:false,source:"FRED · PCEPI"});
   if(s.fed_funds) statTile(tinf,"fed_funds","Fed funds rate",s.fed_funds,
     {fmt:v=>v.toFixed(2)+"%",fmtD:v=>v.toFixed(2)+"pp",upIsGood:false,source:"FRED · FEDFUNDS"});
+  // Served and charted but had no tile; every served metric gets both.
+  if(s.core_cpi) statTile(tinf,"core_cpi","Core CPI (YoY)",s.core_cpi,
+    {fmt:pct,fmtD:pp,upIsGood:false,source:"FRED \u00b7 CPILFENS"});
   const tl=document.getElementById("tiles-labour");
   if(s.unemployment) statTile(tl,"unemployment","Unemployment",s.unemployment,
     {fmt:pct,fmtD:pp,upIsGood:false,source:"FRED · UNRATE"});
