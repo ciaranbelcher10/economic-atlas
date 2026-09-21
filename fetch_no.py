@@ -116,6 +116,7 @@ still the genuine test):
 from __future__ import annotations
 
 import re
+import oecd_turn
 import oecd_prices
 import json
 import time
@@ -346,6 +347,7 @@ OECD_QUERIES = [
 
 
 def fetch_oecd_bci() -> list | None:
+    oecd_turn.check()  # rotate OECD requests across groups; see oecd_turn.py
     import csv
     import io
     for url in OECD_QUERIES:
@@ -403,6 +405,7 @@ OECD_PRICES_BASE_COICOP2018 = "https://sdmx.oecd.org/public/rest/data/OECD.SDD.T
 
 
 def fetch_oecd_cpi(areas: tuple, freq: str) -> list | None:
+    oecd_turn.check()  # rotate OECD requests across groups; see oecd_turn.py
     import csv
     import io
 

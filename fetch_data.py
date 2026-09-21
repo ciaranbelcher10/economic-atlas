@@ -15,6 +15,7 @@ keyless series (OECD, World Bank); FRED series are skipped with a notice.
 from __future__ import annotations
 
 import csv
+import oecd_turn
 import io
 import re
 import json
@@ -286,6 +287,7 @@ OECD_BASE = "https://sdmx.oecd.org/public/rest/data/OECD.SDD.STES,DSD_STES@DF_CL
 
 
 def fetch_oecd_bci(ref_area: str) -> tuple[str, list] | None:
+    oecd_turn.check()  # rotate OECD requests across groups; see oecd_turn.py
     queries = [
         f"{OECD_BASE}/{ref_area}.M.BCICP...AA...H?format=csvfile&startPeriod=1990",
         f"{OECD_BASE}/{ref_area}.M.BCICP......?format=csvfile&startPeriod=1990",

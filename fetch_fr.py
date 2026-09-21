@@ -47,6 +47,7 @@ VERIFICATION NOTES:
 from __future__ import annotations
 
 import re
+import oecd_turn
 import json
 import os
 import sys
@@ -193,6 +194,7 @@ OECD_QUERIES = [
 
 
 def fetch_oecd_bci() -> list | None:
+    oecd_turn.check()  # rotate OECD requests across groups; see oecd_turn.py
     import csv
     import io
     for url in OECD_QUERIES:

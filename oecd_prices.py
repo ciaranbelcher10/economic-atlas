@@ -26,6 +26,8 @@ from __future__ import annotations
 import csv
 import io
 import time
+
+import oecd_turn
 from datetime import datetime, timezone
 
 __all__ = ["fetch_cpi_index", "mom_points", "period_back_1", "rate_from_index",
@@ -134,6 +136,14 @@ def fetch_cpi_index(areas, freq: str, http_get=None, label: str = "") -> list | 
     Returns ``[[period, level], ...]`` sorted by period, or None. None always
     means "no index available", never "a shorter series will do".
     """
+    # Outside this script's OECD hour, return None: the series is left
+    # absent and the guard keeps the previous one. Checked before any
+    # request is made, so a skipped hour costs the OECD nothing.
+    try:
+        oecd_turn.check()
+    except oecd_turn.NotThisHour as skip:
+        print(f"  [oecd-index] {label or areas} {skip}")
+        return None
     if http_get is None:  # pragma: no cover - exercised in production only
         import requests
         http_get = requests.get

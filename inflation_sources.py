@@ -24,6 +24,7 @@ from __future__ import annotations
 import csv
 import io
 import re
+import oecd_turn
 import time
 from datetime import datetime, timezone
 
@@ -165,6 +166,15 @@ def _parse_national(text: str, area: str) -> list:
 
 def fetch_national_cpi(area: str, get=None, today: datetime | None = None, pause: float = 0.4) -> dict | None:
     """National-methodology CPI 12-month rate, or None. Rejects any other methodology and any stale series."""
+    # Returns None rather than raising outside this script's OECD hour: the
+    # four callers assign the result directly, outside a try, so an exception
+    # here would stop the whole script. None leaves the key absent, and the
+    # guard carries the previous series forward.
+    try:
+        oecd_turn.check()
+    except oecd_turn.NotThisHour as skip:
+        print(f"  --  cpi_national     {skip}")
+        return None
     get = get or (requests.get if requests else None)
     if get is None:
         return None
