@@ -35,7 +35,7 @@ from datetime import date, timedelta
 
 ROOT = os.path.dirname(os.path.abspath(__file__))
 SITE_URL = "https://theeconomicatlas.com"
-KIT_VERSION = "3"
+KIT_VERSION = "4"
 
 # country display name -> (data-file code, page slug, alpha-2, region)
 COUNTRIES = {
@@ -1406,7 +1406,7 @@ def render_ranking(ranking, rows, unranked, all_rankings_meta, catalogue_by_coun
     }, ensure_ascii=False, indent=2)
 
     html_out = head_html(page_title, meta_desc, canonical, f"{SITE_URL}/og/rankings-{ranking['slug']}.png", jsonld)
-    html_out += HEADER_HTML_BASE.replace('<a class="item" href="../rankings">', '<a class="item active" href="../rankings">', 1)
+    html_out += HEADER_HTML_BASE
     html_out += f"""<main class="ind-wrap rk-wrap">
   <header class="ind-head">
     <h1>{esc(ranking['title'])}</h1>
@@ -1543,7 +1543,9 @@ def render_rankings_index(ranking_pages, rankings_meta):
                     for rk, _r, _u in ranking_pages],
     }, ensure_ascii=False, indent=2)
     html_out = head_html(page_title, meta_desc, canonical, f"{SITE_URL}/og/rankings-{ranking_pages[0][0]['slug']}.png", jsonld)
-    html_out += HEADER_HTML_BASE.replace('<a class="item" href="../rankings">', '<a class="item active" href="../rankings">', 1)
+    # No ribbon item is marked active anywhere else on the site (Compare
+    # doesn't highlight itself either), so these pages don't either.
+    html_out += HEADER_HTML_BASE
     html_out += f"""<main class="ind-wrap rk-wrap">
   <header class="ind-head">
     <h1>Economic Rankings by Country</h1>
