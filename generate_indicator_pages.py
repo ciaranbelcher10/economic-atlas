@@ -35,7 +35,7 @@ from datetime import date, timedelta
 
 ROOT = os.path.dirname(os.path.abspath(__file__))
 SITE_URL = "https://theeconomicatlas.com"
-KIT_VERSION = "5"
+KIT_VERSION = "6"
 
 # country display name -> (data-file code, page slug, alpha-2, region)
 COUNTRIES = {
