@@ -20,7 +20,7 @@
 <meta property="og:image" content="https://theeconomicatlas.com/og-image.png">
 <meta property="og:image:width" content="1200">
 <meta property="og:image:height" content="630">
-<meta property="og:image:alt" content="The Economic Atlas, hourly economic data, no commentary.">
+<meta property="og:image:alt" content="The Economic Atlas, official economic data, checked hourly, no commentary.">
 <meta name="twitter:card" content="summary_large_image">
 <meta name="twitter:title" content="Methodology · The Economic Atlas">
 <meta name="twitter:description" content="How The Economic Atlas sources, updates, and converts its data, every agency, every update cadence, every known limitation, in one place.">
@@ -1227,12 +1227,15 @@
  Every figure on this site traces back to an official national statistics agency or a recognised international body, never a news article, a blog, or a secondary aggregator. The primary sources in use across the site: national statistical offices (including ONS, MoSPI and Japan's Statistics Bureau, wherever a country's own office publishes a series we can fetch directly), FRED (Federal Reserve Bank of St. Louis), OECD, World Bank, Eurostat, IMF (IFS and WEO), BIS, UN Comtrade, the Bank of England, and the European Central Bank. Every individual metric on every country page has its own ⓘ info button showing the exact agency and series code behind that specific number, this page describes the system as a whole; the per-metric ⓘ is the precise citation for any single figure.</p>
  <h2>How often it updates</h2>
  <p style="color:var(--ink2); font-size:14.5px; line-height:1.6;">
- Most series refresh hourly via an automated pipeline that queries each source directly. Trade-partner data (the country-to-country trade breakdowns) updates once daily rather than hourly, since the underlying UN Comtrade figures themselves don't change hour to hour, and hourly polling would have been needless load for no benefit. Not every series updates every hour regardless of cadence, most official statistics are only published monthly, quarterly, or annually in the first place, so what "hourly" actually means in practice is: this site checks hourly for whether a new official reading has been published, not that a new reading exists every hour.</p>
+ Most series are checked hourly by an automated pipeline that queries each source directly. Trade-partner data (the country-to-country trade breakdowns) updates once daily rather than hourly, since the underlying UN Comtrade figures themselves don't change hour to hour, and hourly polling would have been needless load for no benefit. Not every series updates every hour regardless of cadence, most official statistics are only published monthly, quarterly, or annually in the first place, so what "hourly" actually means in practice is: this site checks hourly for whether a new official reading has been published, not that a new reading exists every hour.</p>
  <p style="color:var(--ink2); font-size:14.5px; line-height:1.6;">
  Each series shows a small freshness indicator (green or orange) next to it. Green means the series is within its normal publication window for that source and frequency. Orange means it's gone significantly past that window, which usually means the source hasn't published its next release yet, but occasionally means the automated fetch for that specific series needs attention. Either way, orange is a genuine signal, not decoration.</p>
  <h2>Dollarise: how currency conversion works</h2>
  <p style="color:var(--ink2); font-size:14.5px; line-height:1.6;">
  The Dollarise toggle converts a country's own-currency figures into US dollars. Critically, this does not take today's exchange rate and apply it retroactively across history, each historical data point is converted at its own contemporaneous exchange rate. For most currencies that rate history is monthly. For a handful (Argentina, Chile, Colombia, Indonesia, Israel, Morocco, Poland and Turkey) only an annual rate history is available, so each point is converted at its own year's rate rather than its own month's. Which resolution applies is stated in the info panel for every metric on those countries' pages. A reading from 2015 is converted at 2015's rate, not today's. Where a currency's exchange-rate history doesn't extend back as far as the underlying economic data (for example, before a currency existed in its current form), the earliest available rate is used for anything before that point, and this is disclosed on the relevant chart rather than silently applied.</p>
+  <h3 style="font-size:15px; margin:14px 0 4px;">Market exchange rates are not purchasing power parity</h3>
+ <p style="color:var(--ink2); font-size:14.5px; line-height:1.6;">
+ Dollarise uses market exchange rates, so a figure converted into dollars moves for three reasons: output changed, prices changed, or the currency moved against the dollar. That makes it the right measure of what an economy is worth in dollars, and the wrong one for comparing what people in different countries can actually buy. For international comparisons of real output or living standards, use a purchasing power parity (PPP) measure, which the Atlas does not currently carry.</p>
  <h2>Make it real: nominal vs. real terms</h2>
  <p style="color:var(--ink2); font-size:14.5px; line-height:1.6;">
  The Make It Real toggle adjusts nominal figures for inflation, so you're looking at real (inflation-adjusted) terms rather than raw current-price numbers. For countries experiencing very high inflation (Turkey and Argentina, currently), combining Make It Real with Dollarise at the same time can produce a result that's technically calculated correctly but economically difficult to interpret meaningfully, both pages carry an explicit warning when both toggles are active together for exactly this reason.</p>
@@ -1344,7 +1347,7 @@
   }
   var TOUR_STEPS = [
     { page: "index", type: "center", title: "New here? A 2-minute tour.",
-      body: "The Economic Atlas pulls hourly, official data across dozens of countries, no commentary, just numbers. This short tour shows you around. Exit any time from the link in each box." },
+      body: "The Economic Atlas checks official data across dozens of countries every hour, no commentary, just numbers. This short tour shows you around. Exit any time from the link in each box." },
     { page: "index", type: "anchor", target: function(){ return findMapPath("826"); }, title: "Start with a country",
       body: "Click the UK on the map to see headline figures, inflation, rates, trade and more, all in one place. That's the next stop on the tour." },
     { page: "uk", type: "anchor", target: "nav.cat button[data-sec='inflation']", restrictSiblings: "nav.cat button",

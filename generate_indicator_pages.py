@@ -35,7 +35,7 @@ from datetime import date, timedelta
 
 ROOT = os.path.dirname(os.path.abspath(__file__))
 SITE_URL = "https://theeconomicatlas.com"
-KIT_VERSION = "4"
+KIT_VERSION = "5"
 
 # country display name -> (data-file code, page slug, alpha-2, region)
 COUNTRIES = {
@@ -146,7 +146,7 @@ CORE_METRICS = {m["keys"][0]: (m["slug"], m["title"]) for m in METRICS}
 # the table as not ranked, with the reason, rather than silently dropped.
 RANKINGS = [
     dict(slug="gdp-by-country", metric="gdp", title="GDP by Country", col="GDP (US$)", usd=True, flow=True,
-         lede="The size of every economy we track over the last completed year, converted to US dollars at that year's average exchange rate."),
+         lede="The size of every economy we track over the last completed year, converted to US dollars at that year's average exchange rate. Those are market exchange rates, not purchasing power parity (PPP), so this ranks what each economy is worth in dollars rather than what its output buys at home."),
     dict(slug="gdp-growth-rate-by-country", metric="gdp-growth-rate", title="GDP Growth Rate by Country", col="Growth, quarter on quarter", freqs=["quarters"], flow=True,
          lede="How fast each economy grew or shrank in the final quarter of the last completed year, compared with the quarter before."),
     dict(slug="inflation-rate-by-country", metric="inflation-rate", title="Inflation Rate by Country", col="Inflation, year on year",
@@ -177,6 +177,18 @@ RANKING_BY_METRIC = {r["metric"]: r for r in RANKINGS}
 # rate rankings show each country's latest published reading.
 def flow_year():
     return date.today().year - 1
+
+def adjustment_of(text):
+    """Whether the source series is seasonally adjusted, read from the
+    citation the source itself gives us. Never inferred: a series whose
+    citation doesn't say returns None and the page says so."""
+    t = (text or "").lower()
+    if re.search(r"\bnot seasonally adjusted\b|\bnon[- ]seasonally adjusted\b|\bnsa\b|\bunadjusted\b", t):
+        return "Not seasonally adjusted"
+    if re.search(r"\bseasonally adjusted\b|\bsa\b|\bswda\b|\bworking[- ]day adjusted\b", t):
+        return "Seasonally adjusted"
+    return None
+
 
 def short_source(text):
     """(publisher, series) for the ranking table's Source column, taken from
@@ -1243,7 +1255,7 @@ def render_indicator(country, info, entry, rank_info, all_rankings_meta, n_indic
     rk_grid = rank_grid(all_rankings_meta, this_rk["slug"] if this_rk else None, country, rank_info)
     n_label = f"{n_indicators} live indicators" if n_indicators > 1 else "Live indicators"
     cta = glow_cta(f"../{cslug}", f"Explore the full {country} economy",
-                   f"{n_label} on one dashboard, from growth and prices to jobs, trade and public finances. Updated hourly from official sources.")
+                   f"{n_label} on one dashboard, from growth and prices to jobs, trade and public finances. Checked hourly against official sources.")
 
     meta_label = re.sub(r"\s*\([^)]*\)", "", title).strip().lower()
     page_title = f"{country} {title}: {latest_str} ({fmt_period_label(latest_p)}) | The Economic Atlas"
@@ -1264,8 +1276,19 @@ def render_indicator(country, info, entry, rank_info, all_rankings_meta, n_indic
     auth_full, cz_modal, cz_script = country_blocks(cslug)
     # A rolling four-quarter GDP total is four published quarters added up,
     # not a forecast of an unfinished year; say which four.
+    adj = adjustment_of(source_text)
+    src_pub, src_series = short_source(source_text)
     win = quarter_window_label(latest_p, freq, country in GDP_RAW_COUNTRIES) if m.get("ann") else None
     window_html = f'<p class="ind-when">Latest four quarters: <strong>{esc(win)}</strong></p>' if win else ""
+    adj_html = f'<p class="ind-adj">{esc(adj)}</p>' if adj else ""
+    # Source, series, frequency, unit, adjustment, latest observation and
+    # revision status, in one place, so the question doesn't need asking.
+    defs = [("Source", src_pub or source_text), ("Series", src_series or "See the citation below"),
+            ("Frequency", FREQ_WORD.get(freq, "")), ("Unit", _clean_unit(unit) or "index"),
+            ("Seasonal adjustment", adj or "Not stated in the source citation"),
+            ("Latest observation", fmt_period_label(latest_p)),
+            ("Revision status", "Latest published estimate, subject to revision")]
+    defs_html = "".join(f'<div><dt>{esc(k)}</dt><dd>{esc(v)}</dd></div>' for k, v in defs)
     rest = description[len(first_sentence(description)):].strip()
     about_p = f"<p>{esc(rest)}</p>" if rest else ""
     html_out = head_html(page_title, meta_desc, canonical, og_image, jsonld)
@@ -1285,6 +1308,7 @@ def render_indicator(country, info, entry, rank_info, all_rankings_meta, n_indic
       <p class="ind-delta {ddir}" id="indDelta"><span aria-hidden="true">{arrow}</span> {esc(dstr)} <span class="ind-delta-vs">vs {esc(fmt_period_label(prev_p))}</span></p>
       <p class="ind-when"><strong id="indPeriod">{esc(fmt_period_label(latest_p))}</strong> &middot; {esc(FREQ_WORD.get(freq, ''))} data</p>
       {window_html}
+      {adj_html}
     </div>
   </div>
   {LIGHTS_KEY}
@@ -1301,6 +1325,11 @@ def render_indicator(country, info, entry, rank_info, all_rankings_meta, n_indic
     <div class="ind-chart"><canvas id="indChart" role="img" aria-label="{esc(country)} {esc(title)}, {esc(fmt_period_label(pts[0][0]))} to {esc(fmt_period_label(latest_p))}"></canvas></div>
     <div class="lockedactions" id="indActions"></div>
     <p class="src">Source: {esc(source_text)}</p>
+  </section>
+  <section class="ind-section" aria-labelledby="defHead">
+    <h2 id="defHead">How this series is defined</h2>
+    <p class="ind-section-sub">Everything you need to check the figure against the source.</p>
+    <dl class="ind-defs">{defs_html}</dl>
   </section>
   <div class="ind-about">
     {about_p}
@@ -1549,7 +1578,7 @@ def render_rankings_index(ranking_pages, rankings_meta):
     html_out += f"""<main class="ind-wrap rk-wrap">
   <header class="ind-head">
     <h1>Economic Rankings by Country</h1>
-    <p class="ind-lede">Every country we track, ranked side by side on the measures that can be compared like for like. Rates and stocks show each country's latest reading; flows such as GDP show the last completed year. Updated hourly from official sources.</p>
+    <p class="ind-lede">Every country we track, ranked side by side on the measures that can be compared like for like. Rates and stocks show each country's latest reading; flows such as GDP show the last completed year. Checked hourly against official sources.</p>
   </header>
   <div style="height:26px"></div>
   <div class="rkx-grid">{''.join(cards)}</div>
