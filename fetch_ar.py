@@ -488,14 +488,15 @@ def _indec_parse_long(rows) -> list | None:
 
         Codigo;Descripcion;Clasificador;Periodo;Indice_IPC;v_m_IPC;v_i_a_IPC;Region
 
-    Returns YoY points computed from the index level, or None.
+    Returns the raw index-level points (period, index value), or None. YoY
+    and MoM are both derived from this same index by the caller.
 
     The year-on-year column (v_i_a_IPC) is deliberately NOT used: its scale
     is ambiguous from the file alone (0.021 and 2.1 both appear in INDEC
     products for the same 2.1% figure) and getting that wrong by a factor of
     100 is exactly the class of silent error this site exists to avoid. The
-    index level has no such ambiguity, so YoY is derived from it the same way
-    every other series on the site is.
+    index level has no such ambiguity, so both rates are derived from it the
+    same way every other series on the site is.
     """
     header = [_indec_norm(h) for h in rows[0]]
 
@@ -555,18 +556,13 @@ def _indec_parse_long(rows) -> list | None:
     by_period = regions[chosen]
     print(f"  [indec-ipc] long layout: region={chosen!r}, "
           f"{len(by_period)} 'Nivel general' index points")
-    yoy = []
-    for per in sorted(by_period):
-        prev = _period_back_n(per, 12)
-        base = by_period.get(prev) if prev else None
-        if base:
-            yoy.append([per, round((by_period[per] / base - 1) * 100, 2)])
-    return yoy or None
+    return sorted([[p, v] for p, v in by_period.items()], key=lambda x: x[0]) or None
 
 
 def _indec_parse_wide(rows) -> list | None:
     """Parse the older wide layout: a date column plus one column per
-    division, with 'Nivel general' as a column heading."""
+    division, with 'Nivel general' as a column heading. Returns raw
+    index-level points (period, index value), or None."""
     header = [_indec_norm(h) for h in rows[0]]
     general_col = None
     for i, h in enumerate(header):
@@ -590,17 +586,16 @@ def _indec_parse_wide(rows) -> list | None:
         print(f"  [indec-ipc] wide layout: only {len(points)} usable rows -- rejecting")
         return None
     points.sort(key=lambda p: p[0])
-    by_period = {q[0]: q[1] for q in points}
-    yoy = []
-    for per, val in points:
-        prev = _period_back_n(per, 12)
-        base = by_period.get(prev) if prev else None
-        if base:
-            yoy.append([per, round((val / base - 1) * 100, 2)])
-    return yoy or None
+    return points
 
 
-def fetch_indec_cpi_yoy() -> list | None:
+# Cached raw INDEC index for this process, so cpi (YoY) and cpi_mom (MoM)
+# both derive from a single HTTP fetch + parse rather than hitting INDEC's
+# CSV endpoint twice per run.
+_INDEC_INDEX_CACHE: dict = {}
+
+
+def fetch_indec_cpi_index() -> list | None:
     """Argentina's own national statistics office (INDEC) publishes this CSV
     directly and keeps it current with each monthly IPC release.
 
@@ -616,6 +611,10 @@ def fetch_indec_cpi_yoy() -> list | None:
     Both layouts are handled here, long first, so a revert on INDEC's side
     does not break this again.
 
+    Returns the raw index-level points (period, index value); callers derive
+    YoY and MoM from this same series. Cached per-process (see
+    _INDEC_INDEX_CACHE) so cpi and cpi_mom share one HTTP fetch.
+
     The sandbox this was written in cannot reach indec.gob.ar, so the long
     parser is built against that header line rather than against the file's
     body. It is written to refuse rather than guess: an unrecognised region
@@ -625,6 +624,8 @@ def fetch_indec_cpi_yoy() -> list | None:
     the Actions log on the first real run to see which layout it took, which
     region it selected and how many points it built.
     """
+    if "index" in _INDEC_INDEX_CACHE:
+        return _INDEC_INDEX_CACHE["index"]
     r = requests.get(INDEC_IPC_URL, timeout=60,
                      headers={"User-Agent": "economic-atlas/0.1"})
     r.raise_for_status()
@@ -641,6 +642,7 @@ def fetch_indec_cpi_yoy() -> list | None:
             continue
     if text is None:
         print("  [indec-ipc] could not decode response as text")
+        _INDEC_INDEX_CACHE["index"] = None
         return None
 
     for delim in (";", ","):
@@ -653,19 +655,44 @@ def fetch_indec_cpi_yoy() -> list | None:
         for layout, parser in (("long", _indec_parse_long),
                                ("wide", _indec_parse_wide)):
             try:
-                yoy = parser(rows)
+                idx = parser(rows)
             except Exception as exc:
                 print(f"  [indec-ipc] delimiter={delim!r} {layout} parser raised {exc}")
                 continue
-            if yoy:
+            if idx:
                 print(f"  [indec-ipc] delimiter={delim!r} {layout} SUCCESS: "
-                      f"{len(yoy)} points, {yoy[0][0]} to {yoy[-1][0]}")
-                return yoy
+                      f"{len(idx)} index points, {idx[0][0]} to {idx[-1][0]}")
+                _INDEC_INDEX_CACHE["index"] = idx
+                return idx
 
     first = text.splitlines()[0][:200] if text.splitlines() else "(empty)"
     print("  [indec-ipc] neither the long nor the wide layout parsed with "
           "either delimiter; raw header row: " + repr(first))
+    _INDEC_INDEX_CACHE["index"] = None
     return None
+
+
+def _indec_rate(idx: list, lag: int) -> list | None:
+    """Rate of change over `lag` periods, matched by period label (not list
+    position) so a hole in the index doesn't shift the comparison."""
+    by_period = {p: v for p, v in idx}
+    out = []
+    for per, val in idx:
+        prev = _period_back_n(per, lag)
+        base = by_period.get(prev) if prev else None
+        if base:
+            out.append([per, round((val / base - 1) * 100, 2)])
+    return out or None
+
+
+def fetch_indec_cpi_yoy() -> list | None:
+    idx = fetch_indec_cpi_index()
+    return _indec_rate(idx, 12) if idx else None
+
+
+def fetch_indec_cpi_mom() -> list | None:
+    idx = fetch_indec_cpi_index()
+    return _indec_rate(idx, 1) if idx else None
 
 
 def main() -> int:
@@ -746,6 +773,8 @@ def main() -> int:
          "Business confidence indicator, LT avg = 100 (OECD BCICP)", "index", "months"),
         ("cpi", lambda: fetch_indec_cpi_yoy(),
          "CPI, all items, YoY (INDEC, national statistics office)", "%", "months"),
+        ("cpi_mom", lambda: fetch_indec_cpi_mom(),
+         "CPI, all items, MoM (INDEC, national statistics office)", "%", "months"),
         ("unemployment", lambda: fetch_worldbank("SL.UEM.TOTL.ZS"),
          "Unemployment, total (modeled ILO estimate, World Bank)", "%", "years"),
         ("fdi", lambda: fetch_worldbank("BX.KLT.DINV.WD.GD.ZS"),

@@ -494,14 +494,24 @@ def _imf_age_days(period: str) -> float:
         return 1e9
 
 
-def fetch_imf_cpi(area: str) -> list | None:
-    """Monthly all-items CPI index from the IMF data portal, as a YoY rate.
+# Cached raw IMF CPI index for this process, so the YoY figure used on
+# cpi and the MoM figure used on cpi_mom both derive from a single HTTP
+# fetch + parse. Keyed by area since fetch_imf_cpi_index() is general.
+_IMF_INDEX_CACHE: dict = {}
+
+
+def fetch_imf_cpi_index(area: str) -> list | None:
+    """Raw monthly all-items CPI index-level points from the IMF data
+    portal (period, index value). YoY and MoM are both derived from this
+    same series by the caller. Cached per-process per area.
 
     Returns None on any failure, which leaves the caller's next fallback to
     take over. That matters: this endpoint has not been reachable from the
     build environment to confirm Morocco is present in the dataflow, so a
     silent, harmless failure is the designed outcome if it is not.
     """
+    if area in _IMF_INDEX_CACHE:
+        return _IMF_INDEX_CACHE[area]
     import csv
     import io
     for template in IMF_CPI_URLS:
@@ -553,20 +563,47 @@ def fetch_imf_cpi(area: str) -> list | None:
                   f"limit {IMF_MAX_AGE_DAYS})")
             continue
 
-        by_period = {p[0]: p[1] for p in index}
-        yoy = []
-        for per, val in index:
-            prev = _period_back_n(per, 12)
-            base = by_period.get(prev) if prev else None
-            if base:
-                yoy.append([per, round((val / base - 1) * 100, 2)])
-        if not yoy:
-            print(f"  [imf-cpi] {tag} YoY transform produced nothing")
-            continue
-        print(f"  [imf-cpi] {tag} SUCCESS: {len(yoy)} points, "
-              f"{yoy[0][0]} to {yoy[-1][0]}")
-        return yoy
+        print(f"  [imf-cpi] {tag} SUCCESS: {len(index)} index points, "
+              f"{index[0][0]} to {index[-1][0]}")
+        _IMF_INDEX_CACHE[area] = index
+        return index
+    _IMF_INDEX_CACHE[area] = None
     return None
+
+
+def _imf_rate(idx: list, lag: int) -> list | None:
+    by_period = {p: v for p, v in idx}
+    out = []
+    for per, val in idx:
+        prev = _period_back_n(per, lag)
+        base = by_period.get(prev) if prev else None
+        if base:
+            out.append([per, round((val / base - 1) * 100, 2)])
+    return out or None
+
+
+def fetch_imf_cpi(area: str) -> list | None:
+    """Monthly all-items CPI YoY rate, derived from the IMF index."""
+    idx = fetch_imf_cpi_index(area)
+    if not idx:
+        return None
+    yoy = _imf_rate(idx, 12)
+    if not yoy:
+        print(f"  [imf-cpi] CPI/{area} YoY transform produced nothing")
+        return None
+    return yoy
+
+
+def fetch_imf_cpi_mom(area: str) -> list | None:
+    """Monthly all-items CPI MoM rate, derived from the IMF index."""
+    idx = fetch_imf_cpi_index(area)
+    if not idx:
+        return None
+    mom = _imf_rate(idx, 1)
+    if not mom:
+        print(f"  [imf-cpi] CPI/{area} MoM transform produced nothing")
+        return None
+    return mom
 
 def fetch_cpi_with_fallback() -> tuple[list | None, str]:
     """Try OECD live CPI first, then IMF monthly, then World Bank annual.
@@ -713,6 +750,21 @@ def main() -> int:
     except Exception as exc:
         failures.append("cpi")
         print(f"FAIL  cpi              {exc}")
+
+    # cpi_mom: only derivable when the IMF monthly index is available (the
+    # World Bank fallback tier is annual and has no month-on-month figure).
+    try:
+        mom_points = fetch_imf_cpi_mom("MAR")
+        if not mom_points:
+            raise ValueError("no usable IMF monthly CPI index this run")
+        out["series"]["cpi_mom"] = {
+            "label": "CPI, all items, MoM (IMF, monthly)", "unit": "%",
+            "freq": "months", "points": mom_points}
+        print(f"  ok  cpi_mom          {len(mom_points):>5} observations "
+              f"({mom_points[0][0]} to {mom_points[-1][0]}, via IMF, monthly)")
+    except Exception as exc:
+        failures.append("cpi_mom")
+        print(f"FAIL  cpi_mom          {exc}")
 
     try:
         with open("data-ma.json") as f:

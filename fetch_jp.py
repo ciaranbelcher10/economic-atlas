@@ -220,11 +220,21 @@ def fetch_oecd_bci() -> list | None:
 ESTAT_BASE = "https://api.e-stat.go.jp/rest/3.0/app/json/getStatsData"
 ESTAT_CPI_STATS_DATA_ID = "0003427113"
 
+# Cached raw e-Stat CPI index for this process, so cpi (YoY) and cpi_mom
+# (MoM) both derive from a single HTTP fetch + parse.
+_ESTAT_INDEX_CACHE: dict = {}
 
-def fetch_estat_cpi() -> list | None:
+
+def fetch_estat_cpi_index() -> list | None:
+    """Raw e-Stat CPI index-level points (period, index value). YoY and MoM
+    are both derived from this same series by the caller. Cached per-process
+    (see _ESTAT_INDEX_CACHE)."""
+    if "index" in _ESTAT_INDEX_CACHE:
+        return _ESTAT_INDEX_CACHE["index"]
     app_id = os.environ.get("ESTAT_APP_ID")
     if not app_id:
         print("  [estat-cpi] no ESTAT_APP_ID set — skipping")
+        _ESTAT_INDEX_CACHE["index"] = None
         return None
 
     url = (f"{ESTAT_BASE}?appId={app_id}&statsDataId={ESTAT_CPI_STATS_DATA_ID}"
@@ -312,13 +322,33 @@ def fetch_estat_cpi() -> list | None:
         return None
 
     pts = sorted([[p, v] for p, v in rows.items()], key=lambda x: x[0])
-    yoy = transform(pts, "yoy")
+    print(f"  [estat-cpi] SUCCESS: {len(pts)} index points, {pts[0][0]} to {pts[-1][0]}")
+    _ESTAT_INDEX_CACHE["index"] = pts
+    return pts
+
+
+def fetch_estat_cpi() -> list | None:
+    idx = fetch_estat_cpi_index()
+    if not idx:
+        return None
+    yoy = transform(idx, "yoy")
     if not yoy:
-        print(f"  [estat-cpi] {len(pts)} index points parsed but YoY "
+        print(f"  [estat-cpi] {len(idx)} index points parsed but YoY "
               f"transform produced nothing")
         return None
-    print(f"  [estat-cpi] SUCCESS: {len(yoy)} points, {yoy[0][0]} to {yoy[-1][0]}")
     return yoy
+
+
+def fetch_estat_cpi_mom() -> list | None:
+    idx = fetch_estat_cpi_index()
+    if not idx:
+        return None
+    mom = transform(idx, "mom")
+    if not mom:
+        print(f"  [estat-cpi] {len(idx)} index points parsed but MoM "
+              f"transform produced nothing")
+        return None
+    return mom
 
 
 
@@ -604,6 +634,8 @@ def main() -> int:
          "Business confidence indicator, LT avg = 100 (OECD BCICP)", "index", "months"),
         ("cpi", lambda: fetch_estat_cpi() or fetch_oecd_cpi(("JPN",), "M"),
          "CPI, all items, YoY (e-Stat, Statistics Bureau of Japan)", "%", "months"),
+        ("cpi_mom", lambda: fetch_estat_cpi_mom(),
+         "CPI, all items, MoM (e-Stat, Statistics Bureau of Japan)", "%", "months"),
         ("fdi", lambda: fetch_worldbank("BX.KLT.DINV.WD.GD.ZS"),
          "FDI net inflows, % of GDP (World Bank)", "%", "years"),
         ("current_account", lambda: fetch_worldbank("BN.CAB.XOKA.GD.ZS"),
