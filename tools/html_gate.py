@@ -1,6 +1,6 @@
 #!/usr/bin/env python3
 """
-Structural gate over EVERY published HTML page: root, indicators/ and embed/.
+Structural gate over EVERY published HTML page: root, indicators/, embed/ and rankings/.
 
 Why this exists as a tool. The gate was previously run ad hoc against the root
 pages only, and reported "43 pages, 307 JS blocks, 66 ld+json, 0 failures".
@@ -55,7 +55,7 @@ REPO = os.environ.get("ATLAS_REPO") or find_repo(
 
 def pages():
     out = [f for f in sorted(os.listdir(REPO)) if f.endswith(".html")]
-    for sub in ("indicators", "embed"):
+    for sub in ("indicators", "embed", "rankings"):
         d = os.path.join(REPO, sub)
         if os.path.isdir(d):
             out += [os.path.join(sub, f) for f in sorted(os.listdir(d))

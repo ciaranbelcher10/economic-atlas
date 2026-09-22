@@ -3,110 +3,60 @@
 <head>
 <meta charset="UTF-8">
 <meta name="viewport" content="width=device-width, initial-scale=1.0">
-<title>Ireland Inflation Rate (CPI) - Live | The Economic Atlas</title>
+<title>Ireland Inflation Rate - Live | The Economic Atlas</title>
 <link rel="icon" type="image/png" sizes="32x32" href="../favicon-32.png">
 <meta name="robots" content="noindex">
 <style>
   *{box-sizing:border-box}
   html,body{margin:0;padding:0;font-family:"Avenir Next","Avenir","Nunito Sans",system-ui,sans-serif;color:#171B1E;background:transparent}
-  /* Standalone (opened directly, not inside an iframe) gets a centred,
-     bounded presentation so it doesn't look like a broken full-width
-     page. Genuinely embedded (window !== window.top) fills its iframe
-     edge-to-edge instead, since the host page controls sizing there. */
   body.standalone{background:#F5F6F3;min-height:100vh;display:flex;align-items:flex-start;justify-content:center;padding:40px 20px;}
   .w{padding:18px 20px 14px;border:1px solid #E4E6E1;border-radius:12px;max-width:100%;background:#fff;box-shadow:0 1px 2px rgba(0,0,0,.04);}
   body.standalone .w{width:380px;box-shadow:0 2px 12px rgba(0,0,0,.06);}
-  .w-head{display:flex;align-items:center;justify-content:space-between;margin-bottom:8px}
-  .w-title{font-size:.82rem;font-weight:700;opacity:.7;letter-spacing:.01em}
-  .w-value{font-size:1.9rem;font-weight:700;margin:2px 0;color:#171B1E}
-  .w-period{font-size:.72rem;opacity:.55;margin-bottom:10px}
+  .w-title{font-size:.82rem;font-weight:700;opacity:.7;letter-spacing:.01em;margin-bottom:8px}
+  .w-value{font-size:1.9rem;font-weight:800;margin:2px 0;color:#1E4566;font-variant-numeric:tabular-nums}
+  .w-period{font-size:.72rem;opacity:.6;margin-bottom:10px}
   .w-chart-outer{width:100%;aspect-ratio:1.618/1;position:relative;}
-  .w-badge{display:flex;align-items:center;gap:5px;font-size:.72rem;opacity:.6;text-decoration:none;color:#171B1E;margin-top:10px}
+  .w-badge{display:flex;align-items:center;gap:5px;font-size:.72rem;opacity:.65;text-decoration:none;color:#171B1E;margin-top:10px}
   .w-badge:hover{opacity:1}
   #chart svg{display:block;width:100%;height:100%}
 </style>
 </head>
 <body>
 <div class="w">
-  <div class="w-head"><span class="w-title">🇮🇪 Ireland &middot; Inflation Rate (CPI)</span></div>
-  <div class="w-value" id="val">&hellip;</div>
-  <div class="w-period" id="per"></div>
+  <div class="w-title">Ireland &middot; Inflation Rate</div>
+  <div class="w-value" id="val">3.4%</div>
+  <div class="w-period" id="per">Latest: Aug 2026</div>
   <div class="w-chart-outer" id="chart"></div>
-  <a class="w-badge" href="https://theeconomicatlas.com/indicators/ireland-inflation-rate" target="_blank" rel="noopener">Powered by The Economic Atlas &#8594;</a>
+  <a class="w-badge" href="https://theeconomicatlas.com/indicators/ireland-inflation-rate" target="_blank" rel="noopener">Powered by The Economic Atlas &#8599;</a>
 </div>
-<script>
-if(window.self === window.top){ document.body.classList.add("standalone"); }
-</script>
+<script>if(window.self === window.top){ document.body.classList.add("standalone"); }</script>
+<script src="../indicator-kit.js?v=1"></script>
 <script>
 (function(){
-  // Both failure branches below used to be silent: a missing data file hit an
-  // empty catch, and a missing series hit a bare return. Either way the widget
-  // sat on its placeholder ellipsis forever on whatever third-party page had
-  // embedded it, which reads as a broken widget rather than a data outage.
-  function unavailable(){
-    var v = document.getElementById("val");
-    if(v) v.textContent = "Data unavailable";
-    var p = document.getElementById("per");
-    if(p) p.textContent = "";
-  }
-  fetch("../data-ie.json").then(function(r){return r.json();}).then(function(d){
-    var s = d.series && d.series["cpi"];
-    if(!s || !s.points || !s.points.length){ unavailable(); return; }
-    var rawPts = s.points;
-    var isGdp = "cpi" === "gdp_level";
-    var gdpNeedsSum = isGdp && true && s.freq !== "years";
-    var fullPts = rawPts;
-    if(gdpNeedsSum){
-      fullPts = [];
-      for(var gi=3; gi<rawPts.length; gi++){
-        var w = rawPts.slice(gi-3, gi+1);
-        if(w.some(function(p){return p[1]==null;})) continue;
-        fullPts.push([rawPts[gi][0], w.reduce(function(sum,p){return sum+p[1];},0)]);
-      }
-    }
-    var pts = fullPts.slice(-24);
-    if(!pts.length) return;
+  var CFG = {"dataUrl": "../data-ie.json", "key": "cpi", "unit": "%", "country": "Ireland", "annualise": false, "gdpRaw": false};
+  var F = window.EATLAS_FMT;
+  fetch(CFG.dataUrl).then(function(r){ return r.json(); }).then(function(d){
+    var s = d.series && d.series[CFG.key];
+    if(!s || !s.points) return;
+    var pts = s.points.filter(function(p){ return p && p[1] != null; });
+    if(CFG.annualise) pts = F.annualise(pts, s.freq, CFG.gdpRaw);
+    if(pts.length < 2) return;
+    pts = pts.slice(-24);
     var last = pts[pts.length-1];
-    var unit = s.unit || "";
-    var v = last[1];
-    function fmtValue(v, unit){
-      unit = unit || "";
-      if(unit.indexOf("%") > -1) return v.toFixed(1) + "%";
-      var scales = [["bn",1e9],["m",1e6],["k",1e3]], currency = unit, mult = 1;
-      for(var i=0;i<scales.length;i++){
-        var suf = scales[i][0];
-        if(unit.slice(-suf.length) === suf && unit.length > suf.length){ currency = unit.slice(0,-suf.length); mult = scales[i][1]; break; }
-      }
-      var abs = v * mult;
-      var big = [["tn",1e12],["bn",1e9],["m",1e6],["k",1e3]];
-      var out = null;
-      for(var j=0;j<big.length;j++){
-        if(Math.abs(abs) >= big[j][1]){ out = currency + (abs/big[j][1]).toLocaleString(undefined,{minimumFractionDigits:2,maximumFractionDigits:2}) + big[j][0]; break; }
-      }
-      if(out === null) out = currency + abs.toLocaleString(undefined,{minimumFractionDigits:2,maximumFractionDigits:2});
-      return out.replace(/(\.\d*[1-9])0+(?!\d)|\.0+(?!\d)/, function(m, keep){ return keep || ""; });
-    }
-    var vs = fmtValue(v, unit);
-    document.getElementById("val").textContent = vs;
-    document.getElementById("per").textContent = "Latest: " + last[0];
-    var vals = pts.map(function(p){return p[1];}).filter(function(v){return v!==null;});
-    if(vals.length<2) return;
-    var lo = Math.min.apply(null, vals), hi = Math.max.apply(null, vals), span=(hi-lo)||1;
-    var W=340,H=210,pad=6,n=pts.length,step=(W-2*pad)/(n-1);
-    var coords = pts.map(function(p,i){
-      var x = pad + i*step, y = pad + (H-2*pad)*(1-(p[1]-lo)/span);
-      return [x,y];
-    });
-    var lineStr = coords.map(function(c){return c[0].toFixed(1)+","+c[1].toFixed(1);}).join(" ");
-    var areaStr = lineStr + " " + (W-pad).toFixed(1)+","+(H-pad).toFixed(1) + " " + pad.toFixed(1)+","+(H-pad).toFixed(1);
-    var lastC = coords[coords.length-1];
-    document.getElementById("chart").innerHTML =
-      '<svg viewBox="0 0 '+W+' '+H+'" preserveAspectRatio="none">' +
-      '<polygon points="'+areaStr+'" fill="#37659E" fill-opacity="0.08"/>' +
-      '<polyline points="'+lineStr+'" fill="none" stroke="#37659E" stroke-width="2.5" stroke-linejoin="round" stroke-linecap="round"/>' +
-      '<circle cx="'+lastC[0].toFixed(1)+'" cy="'+lastC[1].toFixed(1)+'" r="3.5" fill="#1E4566"/>' +
-      '</svg>';
-  }).catch(function(){ unavailable(); });
+    document.getElementById("val").textContent = F.fmtNum(last[1], {unit: CFG.unit, key: CFG.key, country: CFG.country});
+    document.getElementById("per").textContent = "Latest: " + F.fmtPeriod(last[0]);
+    var vals = pts.map(function(p){ return p[1]; });
+    var lo = Math.min.apply(null, vals), hi = Math.max.apply(null, vals), span = (hi-lo) || 1;
+    var W=340, H=210, pad=6, step=(W-2*pad)/(pts.length-1);
+    var xy = pts.map(function(p,i){ return [pad+i*step, pad+(H-2*pad)*(1-(p[1]-lo)/span)]; });
+    var line = xy.map(function(c){ return c[0].toFixed(1)+","+c[1].toFixed(1); }).join(" ");
+    var area = line + " " + (W-pad).toFixed(1)+","+(H-pad) + " " + pad+","+(H-pad);
+    var l = xy[xy.length-1];
+    document.getElementById("chart").innerHTML = '<svg viewBox="0 0 '+W+' '+H+'" preserveAspectRatio="none">'
+      + '<polygon points="'+area+'" fill="#37659E" fill-opacity="0.08"/>'
+      + '<polyline points="'+line+'" fill="none" stroke="#37659E" stroke-width="2.5" stroke-linejoin="round" stroke-linecap="round"/>'
+      + '<circle cx="'+l[0].toFixed(1)+'" cy="'+l[1].toFixed(1)+'" r="3.5" fill="#1E4566"/></svg>';
+  }).catch(function(){});
 })();
 </script>
 </body>

@@ -1,0 +1,192 @@
+/* indicator.css -- /indicators/ and /rankings/ pages.
+   Builds on style.css (tokens, nav, .panel, .led). The one loud element on
+   these pages is the glowing call to action; everything else stays quiet. */
+
+@property --ind-angle{syntax:"<angle>"; inherits:false; initial-value:0deg;}
+
+.ind-wrap{max-width:900px; margin:0 auto; padding:26px 24px 72px;}
+.rk-wrap{max-width:1040px;}
+
+/* ---------- crumb ---------- */
+.ind-crumb{display:flex; flex-wrap:wrap; align-items:center; gap:6px; font-size:13px; color:var(--ink2); margin:0 0 18px;}
+.ind-crumb a{color:var(--ink2); text-decoration:none; font-weight:600;}
+.ind-crumb a:hover{color:var(--navy); text-decoration:underline;}
+.ind-crumb .sep{opacity:.5;}
+
+/* ---------- headline ---------- */
+.ind-head h1{font-size:clamp(28px,4.4vw,40px); line-height:1.1; letter-spacing:-.02em; font-weight:800; margin:0;}
+.ind-head .ind-lede{color:var(--ink2); font-size:15.5px; line-height:1.55; margin:10px 0 0; max-width:62ch;}
+
+.ind-stat{display:flex; flex-wrap:wrap; align-items:flex-end; gap:10px 28px; margin:26px 0 22px;
+  padding:0 0 22px; border-bottom:1px solid var(--hair);}
+.ind-figure{display:flex; align-items:center; gap:12px; margin:0;
+  font-size:clamp(40px,7vw,60px); font-weight:800; letter-spacing:-.025em; line-height:1;
+  color:var(--navy); font-variant-numeric:tabular-nums; white-space:nowrap;}
+html[data-theme="dark"] .ind-figure{color:#CFE3F4;}
+.ind-figure .led{width:11px; height:11px; flex:none;}
+.ind-meta{display:flex; flex-direction:column; gap:4px; padding-bottom:6px;}
+.ind-delta{font-size:15px; font-weight:700; margin:0;}
+.ind-delta.good{color:#1E7B54;} .ind-delta.bad{color:#B0432E;} .ind-delta.flat{color:var(--ink2);}
+html[data-theme="dark"] .ind-delta.good{color:#5FCB94;} html[data-theme="dark"] .ind-delta.bad{color:#EE8A72;}
+.ind-delta-vs{font-weight:500; color:var(--ink2);}
+.ind-when{font-size:13px; color:var(--ink2); margin:0;}
+.ind-when strong{color:var(--ink); font-weight:700;}
+
+/* ---------- the glowing call to action ---------- */
+.glow-cta{position:relative; display:block; border-radius:18px; padding:2px; margin:0 0 30px;
+  text-decoration:none; color:#fff; isolation:isolate; transition:transform .2s ease;}
+.glow-cta::before, .glow-cta::after{content:""; position:absolute; inset:0; border-radius:inherit; z-index:-1;
+  background:conic-gradient(from var(--ind-angle), #40B7AD, #8AD9B1, #4796CE, #413D7B, #37659E, #40B7AD);
+  animation:ind-spin 5s linear infinite;}
+.glow-cta::after{inset:-4px; filter:blur(22px); opacity:.55; transition:opacity .25s ease;}
+.glow-inner{display:flex; align-items:center; gap:18px; border-radius:16px; padding:20px 22px 20px 24px;
+  background:radial-gradient(120% 160% at 0% 0%, #2F6A99 0%, #1E4566 45%, #1A2E4A 100%);}
+.glow-text{flex:1; min-width:0;}
+.glow-title{display:block; font-size:clamp(17px,2.4vw,20px); font-weight:800; letter-spacing:-.01em; line-height:1.25;}
+.glow-sub{display:block; font-size:14px; line-height:1.45; color:rgba(233,242,250,.82); margin-top:4px;}
+.glow-go{flex:none; width:46px; height:46px; border-radius:50%; display:flex; align-items:center; justify-content:center;
+  background:rgba(255,255,255,.14); box-shadow:inset 0 0 0 1px rgba(255,255,255,.28); transition:transform .2s ease, background .2s ease;}
+.glow-go svg{width:20px; height:20px;}
+.glow-cta:hover{transform:translateY(-2px);}
+.glow-cta:hover::after{opacity:.85;}
+.glow-cta:hover .glow-go{transform:translateX(3px); background:rgba(255,255,255,.24);}
+.glow-cta:focus-visible{outline:3px solid var(--blue); outline-offset:4px;}
+@keyframes ind-spin{to{--ind-angle:360deg;}}
+@media (prefers-reduced-motion:reduce){
+  .glow-cta::before, .glow-cta::after{animation:none;}
+  .glow-cta, .glow-go{transition:none;}
+}
+.glow-cta.compact{margin:0;}
+.glow-cta.compact .glow-inner{padding:16px 18px 16px 20px;}
+
+/* ---------- toggles (Dollarise / Make it real) ---------- */
+.ind-toggles{display:flex; flex-wrap:wrap; gap:8px; margin:0 0 14px;}
+
+/* ---------- chart panel ---------- */
+.ind-panel{padding:22px 24px 18px;}
+.ind-panelhead{display:flex; flex-wrap:wrap; align-items:center; justify-content:space-between; gap:10px; margin-bottom:4px;}
+.ind-panelhead h2{margin:0;}
+.ind-ranges{display:inline-flex; gap:2px; padding:3px; border-radius:999px; background:var(--paper); border:1px solid var(--hair);}
+.ind-ranges button{border:0; background:transparent; color:var(--ink2); cursor:pointer; border-radius:999px;
+  font:700 12px "Avenir Next","Avenir","Nunito Sans",sans-serif; padding:5px 12px;}
+.ind-ranges button.active{background:var(--navy); color:#fff;}
+.ind-ranges button:focus-visible{outline:2px solid var(--blue); outline-offset:1px;}
+.ind-chart{position:relative; width:100%; height:clamp(260px,42vw,380px);}
+
+/* ---------- about ---------- */
+.ind-about{display:grid; grid-template-columns:1fr; gap:6px; margin:26px 0 0; font-size:15px; line-height:1.6;}
+.ind-about p{margin:0; max-width:70ch;}
+.ind-about .ind-src{font-size:13px; color:var(--ink2);}
+
+/* ---------- sections ---------- */
+.ind-section{margin-top:40px;}
+.ind-section h2{font-size:19px; font-weight:800; letter-spacing:-.01em; margin:0 0 4px; text-transform:none; color:var(--ink);}
+.ind-section .ind-section-sub{font-size:13.5px; color:var(--ink2); margin:0 0 14px;}
+
+/* related indicators: one panel, hairline grid (the site's tile idiom) */
+.ind-related{display:grid; grid-template-columns:repeat(auto-fill,minmax(200px,1fr));
+  background:var(--panel); border:1px solid var(--hair); border-radius:14px; overflow:hidden;}
+.ind-related a{display:block; background:var(--panel); padding:14px 16px 13px; text-decoration:none; color:var(--ink);
+  box-shadow:inset -1px -1px 0 var(--hair); margin:0 -1px -1px 0; transition:background .15s ease;}
+.ind-related a:hover{background:var(--paper);}
+.ind-related a:focus-visible{outline:2px solid var(--blue); outline-offset:-2px;}
+.ind-related .r-name{display:block; font-size:13px; font-weight:600; color:var(--ink2);}
+.ind-related .r-val{display:block; font-size:21px; font-weight:800; letter-spacing:-.01em; margin-top:3px; font-variant-numeric:tabular-nums;}
+.ind-related .r-per{display:block; font-size:12px; color:var(--ink2); margin-top:1px;}
+.ind-cat{grid-column:1 / -1; background:var(--paper); box-shadow:inset 0 -1px 0 var(--hair); margin:0 -1px 0 0; padding:9px 16px 7px; font-size:12.5px; font-weight:700; color:var(--ink2);}
+
+/* ranking + secondary buttons */
+.rk-buttons{display:flex; flex-wrap:wrap; gap:8px;}
+.rk-btn{display:inline-flex; align-items:center; gap:8px; padding:10px 16px; border-radius:999px; text-decoration:none;
+  border:1px solid var(--hair); background:var(--panel); color:var(--ink); font-weight:700; font-size:14px;
+  transition:border-color .15s ease, color .15s ease, background .15s ease;}
+.rk-btn:hover{border-color:var(--blue); color:var(--navy);}
+.rk-btn.current{background:var(--navy); border-color:var(--navy); color:#fff;}
+.rk-btn .rk-n{font-weight:600; font-size:12px; color:var(--ink2);}
+.rk-btn.current .rk-n{color:rgba(255,255,255,.75);}
+.rk-btn:focus-visible{outline:2px solid var(--blue); outline-offset:2px;}
+.ind-secondary{display:flex; flex-wrap:wrap; gap:8px; margin-top:16px;}
+
+/* ---------- ranking table (Compare's summary table, extended) ---------- */
+.rk-card{background:var(--panel); border:1px solid var(--hair); border-radius:14px; padding:20px 22px 12px;}
+.rk-cardhead{display:flex; flex-wrap:wrap; align-items:baseline; justify-content:space-between; gap:6px 16px; margin-bottom:4px;}
+.rk-cardhead h2{font-size:17px; font-weight:800; margin:0; letter-spacing:-.01em; text-transform:none; color:var(--ink);}
+.rk-note{font-size:12.5px; color:var(--ink2); margin:0;}
+.rk-scroll{overflow-x:auto; margin:8px -6px 0; padding:0 6px;}
+.rk-table{width:100%; border-collapse:collapse; font-size:14px; min-width:640px;}
+.rk-table th{text-align:left; font-size:11.5px; text-transform:uppercase; letter-spacing:.03em; font-weight:700;
+  color:var(--ink2); padding:8px 12px; user-select:none; border-bottom:2px solid var(--hair);
+  position:sticky; top:0; background:var(--panel); z-index:1; white-space:nowrap;}
+.rk-table th[data-sort]{cursor:pointer;}
+.rk-table th[data-sort]:hover{color:var(--navy);}
+.rk-table th.sorted::after{content:" \25BE"; font-size:10px;}
+.rk-table th.sorted.asc::after{content:" \25B4";}
+.rk-table th.num, .rk-table td.num{text-align:right;}
+.rk-table td{padding:11px 12px; border-bottom:1px solid var(--hair); vertical-align:middle;}
+.rk-table tbody tr:last-child td{border-bottom:0;}
+.rk-table tbody tr{transition:background .12s ease;}
+.rk-table tbody tr:hover{background:var(--paper);}
+.rk-table td.rank{width:44px; font-weight:700; color:var(--ink2); font-variant-numeric:tabular-nums;}
+.rk-table td.country a{font-weight:700; color:var(--ink); text-decoration:none;}
+.rk-table td.country a:hover{color:var(--navy); text-decoration:underline;}
+.rk-table td.country .rk-region{display:block; font-size:11.5px; color:var(--ink2); font-weight:500;}
+.rk-table td.num{font-variant-numeric:tabular-nums; white-space:nowrap;}
+.rk-table td.val{font-weight:800; font-size:15px;}
+.rk-table .cellperiod{display:block; font-size:10.5px; font-weight:500; color:var(--ink2); margin-top:1px;}
+.rk-table .measuretag{display:block; font-size:10px; font-weight:500; color:var(--ink2); margin-top:1px;}
+.rk-table td.col-hi, .rk-table td.col-lo{position:relative;}
+.rk-table td.col-hi::after, .rk-table td.col-lo::after{content:""; position:absolute; left:10px; right:10px; bottom:4px; height:2px; border-radius:2px;}
+.rk-table td.col-hi::after{background:var(--navy);}
+.rk-table td.col-lo::after{background:var(--blue);}
+.rk-table td.chg.good{color:#1E7B54;} .rk-table td.chg.bad{color:#B0432E;} .rk-table td.chg.flat{color:var(--ink2);}
+html[data-theme="dark"] .rk-table td.chg.good{color:#5FCB94;} html[data-theme="dark"] .rk-table td.chg.bad{color:#EE8A72;}
+.rk-table td.trend{width:108px; padding-top:6px; padding-bottom:6px;}
+.rk-table td.trend svg{display:block; width:96px; height:28px;}
+.rk-spark{fill:none; stroke:var(--mako-3); stroke-width:1.6; stroke-linejoin:round; stroke-linecap:round;}
+.rk-spark-dot{fill:var(--navy);}
+html[data-theme="dark"] .rk-spark-dot{fill:#CFE3F4;}
+.rk-bar{display:block; height:4px; border-radius:2px; background:var(--hair); margin-top:5px; overflow:hidden;}
+.rk-bar span{display:block; height:100%; border-radius:2px; background:var(--mako-4);}
+.rk-bar span.neg{background:#8FB8D8;}
+.rk-unranked{font-size:13px; color:var(--ink2); margin:14px 0 4px; line-height:1.55;}
+.rk-summary{display:grid; grid-template-columns:repeat(3,minmax(0,1fr)); gap:1px; background:var(--hair);
+  border:1px solid var(--hair); border-radius:14px; overflow:hidden; margin:0 0 22px;}
+.rk-summary div{background:var(--panel); padding:14px 16px;}
+.rk-summary .s-lab{display:block; font-size:12.5px; font-weight:600; color:var(--ink2);}
+.rk-summary .s-val{display:block; font-size:22px; font-weight:800; letter-spacing:-.01em; margin-top:2px; font-variant-numeric:tabular-nums;}
+.rk-summary .s-who{display:block; font-size:12.5px; color:var(--ink2);}
+
+@media (max-width:640px){
+  .ind-wrap{padding:20px 16px 56px;}
+  .ind-stat{gap:10px 18px;}
+  .glow-inner{padding:16px 16px 16px 18px; gap:12px;}
+  .glow-go{width:40px; height:40px;}
+  .rk-summary div{padding:11px 10px;}
+  .rk-summary .s-val{font-size:16px;}
+  .rk-summary .s-lab, .rk-summary .s-who{font-size:11px;}
+  .rk-card{padding:16px 14px 8px;}
+  .ind-panel{padding:18px 16px 14px;}
+}
+
+/* ---------- Compare page: rankings strip ---------- */
+.cmp-rankings{margin-top:18px;}
+.cmp-rankings h3{margin:0 0 4px;}
+.cmp-rankings .expl{margin:0 0 14px;}
+.cmp-rankgrid{display:grid; grid-template-columns:repeat(auto-fill,minmax(210px,1fr));
+  background:var(--panel); border:1px solid var(--hair); border-radius:12px; overflow:hidden;}
+.cmp-rankgrid a{display:flex; align-items:center; justify-content:space-between; gap:10px; background:var(--panel);
+  padding:13px 16px; text-decoration:none; color:var(--ink); font-weight:700; font-size:14px;
+  box-shadow:inset -1px -1px 0 var(--hair); margin:0 -1px -1px 0; transition:background .15s ease, color .15s ease;}
+.cmp-rankgrid a:hover{background:var(--paper); color:var(--navy);}
+.cmp-rankgrid a:focus-visible{outline:2px solid var(--blue); outline-offset:-2px;}
+.cmp-rankgrid a svg{width:16px; height:16px; flex:none; opacity:.55;}
+.cmp-rankgrid a:hover svg{opacity:1;}
+.cmp-rankgrid a.current{background:var(--navy); color:#fff;}
+.cmp-rankgrid a.current .n{color:rgba(233,242,250,.8);}
+.cmp-rankgrid a.current svg{opacity:1;}
+.cmp-rankgrid .n{display:block; font-size:12px; font-weight:500; color:var(--ink2);}
+
+/* freshness light (country pages define this inline; these pages need their own copy) */
+.led{display:inline-block; width:9px; height:9px; border-radius:50%; background:#B8BDB6; flex:none;}
+.led.green{background:#2FA463; box-shadow:0 0 0 3px rgba(47,164,99,.16);}
+.led.orange{background:#E39B2D; box-shadow:0 0 0 3px rgba(227,155,45,.16);}

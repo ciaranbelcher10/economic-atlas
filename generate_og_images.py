@@ -26,8 +26,9 @@ import json, os
 from PIL import Image, ImageDraw, ImageFont
 
 from generate_indicator_pages import (
-    COUNTRIES, CORE_METRICS, load_json, fmt_value, ROOT,
-    annualize_gdp_points, fmt_period_label,
+    build_all,
+    COUNTRIES, METRICS, load_json, fmt_num, ROOT, fmt_period_label,
+    resolve, metric_title, unit_kind, usd_unit, to_usd_value, data_file_for, GDP_ALREADY_USD,
 )
 
 NAVY = (30, 69, 102)      # --navy
@@ -82,7 +83,7 @@ def usd_unit(unit):
             return "$" + suf
     return "$"
 
-def make_card(country_name, metric_title, latest_str, latest_period_label, out_path):
+def make_card(country_name, metric_title, latest_str, latest_period_label, out_path, footer=None):
     img = Image.new("RGB", (W * SCALE, H * SCALE), PAPER)
     draw = ImageDraw.Draw(img)
     cx = (W * SCALE) // 2
@@ -123,7 +124,7 @@ def make_card(country_name, metric_title, latest_str, latest_period_label, out_p
     # The footer describes the FIGURE, not the pipeline. A PNG is a snapshot the
     # moment it is written, and social platforms cache it for days after that, so
     # it must not claim to be live. The "as of" period is the honest statement.
-    draw.text((cx, 470 * SCALE), f"as of {latest_period_label}  \u00b7  theeconomicatlas.com", font=f_foot, fill=INK2, anchor="mm")
+    draw.text((cx, 470 * SCALE), footer or f"as of {latest_period_label}  \u00b7  theeconomicatlas.com", font=f_foot, fill=INK2, anchor="mm")
 
     img = img.resize((W, H), Image.LANCZOS)
     img.save(out_path)
@@ -135,44 +136,55 @@ def main():
     made = 0
     fx_missing = []
 
-    for country_name, (iso2, slug, alpha2) in COUNTRIES.items():
-        data_file = "data.json" if iso2 == "uk" else f"data-{iso2}.json"
-        data_path = os.path.join(ROOT, data_file)
+    for country_name, (iso2, slug, alpha2, region) in COUNTRIES.items():
+        data_path = os.path.join(ROOT, data_file_for(iso2))
         if not os.path.exists(data_path):
             continue
-        data = load_json(data_file)
+        data = load_json(data_file_for(iso2))
         series = data.get("series", {})
         country_sources = sources.get(country_name, {})
         fx = data.get("fx_to_usd")
 
-        for metric_key, (metric_slug, metric_title) in CORE_METRICS.items():
-            if metric_key not in series or metric_key not in country_sources:
+        for m in METRICS:
+            r = resolve(country_name, series, country_sources, m)
+            if not r:
                 continue
-            s = series[metric_key]
-            pts = [p for p in s.get("points", []) if p[1] is not None]
-            if metric_key == "gdp_level":
-                pts = annualize_gdp_points(pts, s.get("freq", ""), country_name)
-            if len(pts) < 2:
-                continue
+            key, s, pts = r
             unit = s.get("unit", "")
             latest_period, latest_val = pts[-1]
-
-            usd_val, ok = to_usd(latest_val, unit, fx)
-            if not ok:
-                fx_missing.append((country_name, metric_key))
-                usd_val = latest_val
-            latest_str = fmt_value(usd_val, usd_unit(unit))
-
-            page_slug = f"{slug}-{metric_slug}"
-            out_path = os.path.join(out_dir, f"{page_slug}.png")
-            make_card(country_name, metric_title, latest_str, fmt_period_label(latest_period), out_path)
+            title = metric_title(m, country_name, key, unit)
+            # Currency figures go out in US dollars, converted at the rate for
+            # their own period. Series already in dollars (the US, Switzerland's
+            # GDP, and the OECD trade series published in USD) are left alone:
+            # "$" on a GDP series outside the US is a local dollar and is converted.
+            local_dollar = unit.startswith("$") and key in ("gdp_level", "gdp_real") and country_name not in GDP_ALREADY_USD
+            if unit_kind(unit) == "cur" and (not unit.startswith("$") or local_dollar):
+                usd = to_usd_value(latest_val, latest_period, fx) if fx else None
+                if usd is None:
+                    fx_missing.append((country_name, key))
+                    latest_str = fmt_num(latest_val, unit, key, country_name)
+                else:
+                    latest_str = fmt_num(usd, usd_unit(unit), key, country_name, "value", True)
+            else:
+                latest_str = fmt_num(latest_val, unit, key, country_name, "value", unit.startswith("$"))
+            out_path = os.path.join(out_dir, f"{slug}-{m['slug']}.png")
+            make_card(country_name, title, latest_str, fmt_period_label(latest_period), out_path)
             made += 1
+
+    # one card per ranking: the top of the table, stated as a fact
+    _, _, _, ranking_pages = build_all(sources)
+    for rk, rows, unranked in ranking_pages:
+        top = rows[0]
+        make_card(rk["title"], f"{len(rows)} countries", top["value_str"], fmt_period_label(top["period"]),
+                  os.path.join(out_dir, f"rankings-{rk['slug']}.png"),
+                  footer=f"Highest: {top['country']}, {fmt_period_label(top['period'])}  \u00b7  theeconomicatlas.com")
+        made += 1
 
     print(f"Generated {made} OG images in /og/")
     if fx_missing:
-        print(f"Warning: {len(fx_missing)} pairs had no usable FX rate, used raw local-currency value:")
-        for c, m in fx_missing:
-            print(f"  {c} / {m}")
+        print(f"Warning: {len(fx_missing)} pairs had no usable FX rate, used the local-currency value:")
+        for c, k in fx_missing:
+            print(f"  {c} / {k}")
 
 if __name__ == "__main__":
     main()
