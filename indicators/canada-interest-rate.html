@@ -17,9 +17,12 @@
 <meta name="twitter:image" content="https://theeconomicatlas.com/og/canada-interest-rate.png">
 <link rel="icon" type="image/png" sizes="32x32" href="../favicon-32.png">
 <link rel="apple-touch-icon" href="../apple-touch-icon.png">
-<link rel="stylesheet" href="../style.css?v=51">
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+<link href="https://fonts.googleapis.com/css2?family=Nunito+Sans:wght@400;600;700&display=swap" rel="stylesheet">
+<link rel="stylesheet" href="../style.css?v=52">
 <link rel="stylesheet" href="../mobile.css?v=13">
-<link rel="stylesheet" href="../indicator.css?v=1">
+<link rel="stylesheet" href="../indicator.css?v=2">
 <script type="application/ld+json">
 {
   "@context": "https://schema.org",
@@ -270,12 +273,6 @@
 </div>
 <script src="https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2.116.0"></script>
 <script>
-// The real, complete auth system extracted verbatim from the country
-// pages (sign in, sign up, forgot/reset password, sign out, session
-// sync) -- not a second, separately-written copy. Only the unrelated
-// download-gating code that happened to share the same enclosing
-// function on the source page is left out, since nothing on this page
-// needs it.
 (function(){
   var SUPABASE_URL = "https://skluvrxnuibkordzgtmu.supabase.co";
   var SUPABASE_KEY = "sb_publishable_p6_GqrC8qcNC6KwPE46hkw_qdWQTuyT";
@@ -544,6 +541,594 @@
   sb.auth.getSession().then(function(res){
     updateAuthUI(res.data.session);
   });
+  // Expose so any chart on this page can send someone straight into the
+  // signup/login flow when they click a download button while logged out.
+  window.EATLAS_OPEN_AUTH_MODAL = openAuthModal;
+  // Shared, page-wide helper: every chart's "Download data" button (built
+  // by completely different code on country pages, Dashboard and Compare)
+  // calls into this one place to register itself. It tracks every button
+  // it's ever seen so that logging in or out updates all of them at once,
+  // without needing a page reload -- rather than each surface re-deriving
+  // login state independently.
+  window.EATLAS_DOWNLOAD = (function(){
+    var loggedIn = false;
+    var wired = []; // {btn, kind:'series'|'multi', pts/rows, title}
+    function csvEscape(v){
+      var s = String(v);
+      return /[",\n]/.test(s) ? '"' + s.replace(/"/g, '""') + '"' : s;
+    }
+    function seriesToCSV(pts){
+      var lines = ["Date,Value"];
+      pts.forEach(function(p){ lines.push(csvEscape(p[0]) + "," + csvEscape(p[1])); });
+      return lines.join("\n");
+    }
+    function multiToCSV(rows){
+      var lines = ["Country,Date,Value"];
+      rows.forEach(function(r){ lines.push(csvEscape(r.country) + "," + csvEscape(r.date || "") + "," + csvEscape(r.value)); });
+      return lines.join("\n");
+    }
+    function filenameFor(title){
+      return title.toLowerCase().replace(/[^a-z0-9]+/g, "_").replace(/^_+|_+$/g, "") + ".csv";
+    }
+    function triggerDownload(csv, title){
+      var blob = new Blob([csv], { type: "text/csv;charset=utf-8;" });
+      var url = URL.createObjectURL(blob);
+      var a = document.createElement("a");
+      a.href = url;
+      a.download = filenameFor(title);
+      document.body.appendChild(a);
+      a.click();
+      document.body.removeChild(a);
+      setTimeout(function(){ URL.revokeObjectURL(url); }, 200);
+    }
+    function setButtonLabel(btn, text, iconHtml){
+      btn.innerHTML = (iconHtml || "") + text;
+    }
+    function doDownload(entry){
+      var btn = entry.btn;
+      btn.classList.remove("unlocked", "dl-success");
+      btn.classList.add("dl-downloading");
+      setButtonLabel(btn, "Downloading\u2026");
+      btn.onclick = null; // ignore clicks mid-download rather than re-trigger
+      // The actual CSV build + browser download hand-off is effectively
+      // instant, but that means "Downloading..." would otherwise flash
+      // for a single frame -- this is about giving visible feedback for
+      // an action that's real but too fast to actually see, not about
+      // timing anything genuinely slow.
+      setTimeout(function(){
+        var csv = entry.kind === "multi" ? multiToCSV(entry.data) : seriesToCSV(entry.data);
+        triggerDownload(csv, entry.title);
+        btn.classList.remove("dl-downloading");
+        btn.classList.add("dl-success");
+        setButtonLabel(btn, "Downloaded \u2713");
+        // Re-derive the real state after the brief "Downloaded" flash,
+        // rather than assuming "unlocked" -- a credits-balance download
+        // that just spent its last 50p should land back on the locked
+        // state, not stay looking unlocked.
+        setTimeout(function(){ applyState(entry); }, 1600);
+      }, 450);
+    }
+    function startDownload(entry){
+      var prefs = window.EATLAS_PREFS;
+      if(prefs && prefs.isPro()){
+        doDownload(entry);
+        return;
+      }
+      // Not Pro: this click has to actually spend a credit first, via
+      // the spend_credit() RPC (row-locked server-side, so this can't be
+      // tricked into a double-spend by a fast double-click or two open
+      // tabs). Spend and download are two separate steps, so the button
+      // shows a distinct "using credit" state for the brief gap between
+      // them, rather than jumping straight to "Downloading...".
+      // A confirm step happens first (before any charge), and an explicit
+      // charged/balance alert happens right after -- the site's paid tier
+      // is the representation/tooling, not the underlying data, so being
+      // unambiguous about exactly what's being charged matters here.
+      var currentBalance = prefs ? prefs.getCreditsBalance() : 0;
+      var confirmed = window.confirm(
+        "Use 50p of credit to download this data? You have " + ("\u00a3" + (currentBalance/100).toFixed(2)) + " available."
+      );
+      if(!confirmed) return;
+      var btn = entry.btn;
+      btn.onclick = null;
+      setButtonLabel(btn, "Using credit\u2026");
+      sb.rpc("spend_credit", { action_kind: "download" }).then(function(res){
+        var ok = res.data && res.data.ok;
+        if(prefs && res.data && typeof res.data.balance === "number"){
+          prefs.setCreditsBalance(res.data.balance);
+        }
+        if(window.EATLAS_ACCOUNT) window.EATLAS_ACCOUNT.render();
+        if(!ok){
+          // Balance changed since this button was last rendered (spent
+          // elsewhere, another tab) -- reflect the real state instead of
+          // pretending the download happened.
+          applyState(entry);
+          return;
+        }
+        window.alert("50p charged. " + ("\u00a3" + (res.data.balance/100).toFixed(2)) + " left in credits.");
+        doDownload(entry);
+      }).catch(function(){ applyState(entry); });
+    }
+    function applyState(entry){
+      var btn = entry.btn;
+      btn.classList.remove("dl-downloading", "dl-success");
+      var prefs = window.EATLAS_PREFS;
+      if(!loggedIn){
+        btn.classList.remove("unlocked");
+        btn.setAttribute("data-tip", "Create a free account to unlock this feature.");
+        setButtonLabel(btn, "Download data", '<span class="lockicon">&#128274;</span> ');
+        btn.onclick = function(e){
+          e.preventDefault();
+          window.EATLAS_OPEN_AUTH_MODAL();
+        };
+        return;
+      }
+      if(prefs && prefs.isPro()){
+        btn.classList.add("unlocked");
+        btn.setAttribute("data-tip", "Download this chart's data as a CSV file.");
+        setButtonLabel(btn, "Download data");
+        btn.onclick = function(e){ e.preventDefault(); startDownload(entry); };
+        return;
+      }
+      if(prefs && prefs.hasCreditsFor("download")){
+        btn.classList.add("unlocked");
+        btn.setAttribute("data-tip", "Uses 50p of credit to download this chart's data as a CSV file.");
+        setButtonLabel(btn, "Download data (50p)");
+        btn.onclick = function(e){ e.preventDefault(); startDownload(entry); };
+        return;
+      }
+      // Logged in, not Pro, no credits left: locked, but a different
+      // Unreachable under the current isPro() override (every logged-in
+      // account is treated as Pro, so this branch never fires) -- kept
+      // as a safe fallback with no payment language, not deleted, so
+      // the branch still degrades sensibly if that override is ever
+      // reverted.
+      btn.classList.remove("unlocked");
+      btn.setAttribute("data-tip", "This feature isn't available right now.");
+      setButtonLabel(btn, "Download data", '<span class="lockicon">&#128274;</span> ');
+      btn.onclick = function(e){
+        e.preventDefault();
+        window.EATLAS_OPEN_AUTH_MODAL();
+      };
+    }
+    function register(btn, kind, data, title){
+      var entry = null;
+      for(var i = 0; i < wired.length; i++){ if(wired[i].btn === btn){ entry = wired[i]; break; } }
+      if(!entry){
+        entry = { btn: btn, kind: kind, data: data, title: title };
+        wired.push(entry);
+      } else {
+        entry.kind = kind; entry.data = data; entry.title = title;
+      }
+      applyState(entry);
+    }
+    return {
+      // pts: array of [date, value] pairs -- a single time series.
+      wire: function(btn, pts, title){ register(btn, "series", pts, title); },
+      // rows: array of {country, date, value} -- a cross-country comparison.
+      wireMulti: function(btn, rows, title){ register(btn, "multi", rows, title); },
+      setAuthState: function(isLoggedIn){
+        loggedIn = isLoggedIn;
+        wired.forEach(applyState);
+      },
+      // Called from EATLAS_PREFS.onSettled once Pro/credits status is
+      // actually known -- setAuthState() alone fires as soon as login
+      // state resolves, which is often before that fetch completes, so
+      // this is what applies the real (not just logged-in) state.
+      refreshEntitlement: function(){
+        wired.forEach(applyState);
+      }
+    };
+  })();
+  // Shared, page-wide preferences store, backed by the profiles table's
+  // `preferences` jsonb column -- the actual replacement for what used
+  // to be per-device localStorage. Deliberately does NOT fall back to
+  // localStorage when logged out: nothing persists at all in that case,
+  // by design, since the whole point is making an account the only way
+  // to keep anything.
+  window.EATLAS_PREFS = (function(){
+    var loggedIn = false;
+    var userId = null;
+    var cache = null;
+    var readyDone = false;
+    var readyResolve;
+    var readyPromise = new Promise(function(res){ readyResolve = res; });
+    var banners = [];
+    var loginCallbacks = [];
+    var settledCallbacks = [];
+    var adminFlag = false;
+    var planFlag = "free";
+    var trialEndsAt = null;
+    var creditsBalancePence = 0;
+    var welcomeShown = true; // safe default: never show a false-positive popup before the real value loads
+    function updateBanners(){
+      banners.forEach(function(el){ el.hidden = loggedIn; });
+    }
+    function resolveReady(){
+      if(!readyDone){ readyDone = true; readyResolve(); }
+    }
+    function fetchPrefs(wasLoggedOutBefore){
+      if(!loggedIn || !userId){
+        cache = {};
+        adminFlag = false;
+        planFlag = "free";
+        trialEndsAt = null;
+        creditsBalancePence = 0;
+        welcomeShown = true;
+        resolveReady();
+        settledCallbacks.forEach(function(cb){ cb(); });
+        return;
+      }
+      // Same query, same round-trip -- also grabs is_admin, plan,
+      // trial_ends_at, the credits balance, and whether the welcome
+      // popup has already been shown, rather than firing separate
+      // requests just for those.
+      sb.from("profiles").select("preferences, is_admin, plan, trial_ends_at, credits_balance_pence, welcome_shown").eq("id", userId).single().then(function(res){
+        cache = (res.data && res.data.preferences) || {};
+        adminFlag = !!(res.data && res.data.is_admin);
+        planFlag = (res.data && res.data.plan) || "free";
+        trialEndsAt = (res.data && res.data.trial_ends_at) || null;
+        creditsBalancePence = (res.data && res.data.credits_balance_pence) || 0;
+        welcomeShown = !!(res.data && res.data.welcome_shown);
+        resolveReady();
+        // A live login (not the initial page load) -- whatever was
+        // already pinned/selected this session, while unsaved, shouldn't
+        // just vanish now that saving is actually possible.
+        if(wasLoggedOutBefore) loginCallbacks.forEach(function(cb){ cb(); });
+        settledCallbacks.forEach(function(cb){ cb(); });
+      }).catch(function(){
+        cache = {};
+        adminFlag = false;
+        planFlag = "free";
+        trialEndsAt = null;
+        creditsBalancePence = 0;
+        welcomeShown = true;
+        resolveReady();
+        if(wasLoggedOutBefore) loginCallbacks.forEach(function(cb){ cb(); });
+        settledCallbacks.forEach(function(cb){ cb(); });
+      });
+    }
+    return {
+      ready: readyPromise,
+      isLoggedIn: function(){ return loggedIn; },
+      isAdmin: function(){ return loggedIn && adminFlag; },
+      // Pro entitlements (unlimited downloads, unlimited Customise &
+      // export) unlock for an active paid/trial plan OR an admin account
+      // -- admin is always a superset of Pro, never a separate check
+      // callers need to add.
+      // Every account gets full Pro access, unconditionally, regardless
+      // of the actual stored plan value -- this is a deliberate,
+      // reversible client-side override (see isPro's callers site-wide),
+      // not a change to what's actually stored in the database. The
+      // real plan/credits/subscription infrastructure underneath is
+      // untouched; this line is the single point to revert.
+      isPro: function(){ return loggedIn; },
+      getPlan: function(){ return planFlag; },
+      getTrialEndsAt: function(){ return trialEndsAt; },
+      getCreditsBalance: function(){ return creditsBalancePence; },
+      // Called after a successful spend_credit() RPC or a credits
+      // top-up, so the UI reflects the new balance immediately without
+      // needing a full re-fetch (or, for a top-up, without needing to
+      // wait on the webhook -- the actual balance is still whatever the
+      // next page load confirms from the database either way).
+      setCreditsBalance: function(pence){ creditsBalancePence = pence; },
+      hasSeenWelcome: function(){ return welcomeShown; },
+      // Fires once, right after the welcome popup is actually shown --
+      // a real column (not client-only), so a second device or a
+      // second browser never re-shows it. Fire-and-forget: worst case
+      // of the write failing is the popup shows once more than
+      // intended, never a functional problem.
+      markWelcomeShown: function(){
+        welcomeShown = true;
+        if(!loggedIn || !userId) return;
+        sb.from("profiles").update({ welcome_shown: true }).eq("id", userId).then(function(res){
+          if(res.error) console.error("Failed to mark welcome popup as shown:", res.error);
+        });
+      },
+      // Not logged in => no account => no access at all, per the pricing
+      // decision -- this and isPro() are the two checks Download and
+      // Customise & Export actually gate on.
+      hasCreditsFor: function(actionKind){
+        if(!loggedIn) return false;
+        var cost = actionKind === "customise_export" ? 100 : 50;
+        return creditsBalancePence >= cost;
+      },
+      get: function(key, fallback){
+        if(!cache || !(key in cache)) return fallback;
+        return cache[key];
+      },
+      set: function(key, value){
+        if(!cache) cache = {};
+        cache[key] = value;
+        if(!loggedIn || !userId) return; // logged out -- nothing to save, by design
+        sb.from("profiles").update({ preferences: cache }).eq("id", userId).then(function(res){
+          if(res.error) console.error("Failed to save preference:", res.error);
+        });
+      },
+      registerBanner: function(el){
+        banners.push(el);
+        updateBanners();
+      },
+      onLogin: function(cb){ loginCallbacks.push(cb); },
+      onSettled: function(cb){ settledCallbacks.push(cb); },
+      setAuthState: function(isLoggedIn, uid){
+        var wasLoggedOut = !loggedIn && isLoggedIn;
+        loggedIn = isLoggedIn;
+        userId = uid;
+        updateBanners();
+        fetchPrefs(wasLoggedOut);
+      }
+    };
+  })();
+  // Renders the Plan section inside the signed-in account view (trial
+  // countdown / Pro status / credits balance) and wires the three
+  // purchase-adjacent actions -- upgrade to Pro, manage subscription, buy
+  // credits -- to their Edge Functions. Reads all its state from
+  // EATLAS_PREFS rather than tracking anything independently, so it's
+  // always in sync with whatever gated Download/Customise & export.
+  window.EATLAS_ACCOUNT = (function(){
+    var FUNCTIONS_URL = "https://skluvrxnuibkordzgtmu.supabase.co/functions/v1";
+    function getAccessToken(){
+      return sb.auth.getSession().then(function(res){
+        return res.data.session ? res.data.session.access_token : null;
+      });
+    }
+    function callFunction(name, body){
+      return getAccessToken().then(function(token){
+        if(!token) return Promise.reject(new Error("Not signed in"));
+        return fetch(FUNCTIONS_URL + "/" + name, {
+          method: "POST",
+          headers: { "Authorization": "Bearer " + token, "Content-Type": "application/json" },
+          body: JSON.stringify(body || {})
+        }).then(function(r){
+          return r.json().then(function(data){ return { ok: r.ok, data: data }; });
+        });
+      });
+    }
+    function fmtPence(p){ return "\u00a3" + (p / 100).toFixed(2); }
+    function daysLeft(trialEndsAt){
+      if(!trialEndsAt) return 0;
+      var ms = new Date(trialEndsAt).getTime() - Date.now();
+      return Math.max(0, Math.ceil(ms / 86400000));
+    }
+    // Shared by all three buttons below: disable + show a redirecting
+    // state, call the function, then either navigate to the URL Stripe
+    // gave back or restore the button and surface the error. Nothing
+    // about this ever assumes success client-side -- the actual
+    // plan/credits change only ever happens via the webhook, confirmed
+    // on the next page load after returning from Stripe.
+    function redirectingAction(btn, functionName, body){
+      var original = btn.textContent;
+      btn.disabled = true;
+      btn.textContent = "Redirecting\u2026";
+      callFunction(functionName, body).then(function(res){
+        if(res.ok && res.data.url){
+          window.location.href = res.data.url;
+        } else {
+          btn.disabled = false;
+          btn.textContent = original;
+          alert(res.data.error || "Something went wrong. Please try again.");
+        }
+      }).catch(function(err){
+        btn.disabled = false;
+        btn.textContent = original;
+        alert(err.message || "Something went wrong. Please try again.");
+      });
+    }
+    function render(){
+      var box = document.getElementById("acctPlanBox");
+      if(!box) return;
+      var prefs = window.EATLAS_PREFS;
+      if(!prefs || !prefs.isLoggedIn()){ box.innerHTML = ""; return; }
+      if(prefs.isAdmin()){
+        box.innerHTML = '<p class="acct-plan-line"><strong>Admin account</strong>, full access to everything.</p>';
+        return;
+      }
+      // Every account gets full Pro access, unconditionally -- no trial
+      // countdown, no credits balance, no upgrade/manage-subscription
+      // buttons. This mirrors the isPro() override above: a deliberate,
+      // reversible client-side simplification, not a change to what's
+      // actually stored in the database.
+      box.innerHTML =
+        '<p class="acct-plan-line">Full access, unlimited downloads and Customise &amp; export.</p>';
+    }
+    return {
+      render: render,
+      callFunction: callFunction,
+      // Called after a successful spend_credit() RPC (see the Download /
+      // Customise & export gating) so the balance shown updates
+      // immediately rather than waiting for a page reload.
+      refreshAfterSpend: function(newBalancePence){
+        if(window.EATLAS_PREFS) window.EATLAS_PREFS.setCreditsBalance(newBalancePence);
+        render();
+      }
+    };
+  })();
+  // Confirms a just-completed Stripe redirect (upgrade or credits
+  // purchase) with a one-off message, then strips the query params so a
+  // refresh doesn't re-show it. The actual plan/credits change already
+  // happened server-side via the webhook before this redirect even
+  // occurred -- this is purely a "here's what just happened" courtesy,
+  // not what makes the upgrade/purchase real.
+  (function(){
+    var params = new URLSearchParams(window.location.search);
+    var hasRelevantParam = ["upgraded", "upgrade_cancelled", "credits_purchased", "credits_cancelled"]
+      .some(function(k){ return params.has(k); });
+    if(!hasRelevantParam) return;
+    window.EATLAS_PREFS.ready.then(function(){
+      setTimeout(function(){
+        if(params.get("upgraded") === "1"){
+          alert("Unlimited downloads and Customise & export are unlocked on your account.");
+        } else if(params.get("credits_purchased") === "1"){
+          alert("Credits added to your account.");
+        }
+      }, 300);
+    });
+    var url = new URL(window.location.href);
+    ["upgraded", "upgrade_cancelled", "credits_purchased", "credits_cancelled", "session_id"].forEach(function(k){
+      url.searchParams.delete(k);
+    });
+    window.history.replaceState({}, document.title, url.toString());
+  })();
+  // "Customise & export" unlocks for Pro (paid or trial) or an admin
+  // account. Previously admin-only while the feature was being tested;
+  // now a real Pro entitlement, per the pricing decision.
+  window.EATLAS_CUSTOMIZE = (function(){
+    var wired = [];
+    function openEditor(entry){
+      if(window.EATLAS_OPEN_CUSTOMIZE){
+        window.EATLAS_OPEN_CUSTOMIZE(entry.pts, entry.title, entry.srcNote, entry.fmtY, entry.yTitle, entry.filenameBase, entry.kind, entry.fmtPeriodFn, entry.metricKey);
+      }
+    }
+    function openViaCredit(entry, btn){
+      var prefs = window.EATLAS_PREFS;
+      var original = btn.innerHTML;
+      var currentBalance = prefs ? prefs.getCreditsBalance() : 0;
+      var confirmed = window.confirm(
+        "Use \u00a31 of credit to customise and export this chart? You have " + ("\u00a3" + (currentBalance/100).toFixed(2)) + " available."
+      );
+      if(!confirmed) return;
+      btn.onclick = null;
+      btn.innerHTML = "Using credit\u2026";
+      sb.rpc("spend_credit", { action_kind: "customise_export" }).then(function(res){
+        var ok = res.data && res.data.ok;
+        if(prefs && res.data && typeof res.data.balance === "number"){
+          prefs.setCreditsBalance(res.data.balance);
+        }
+        if(window.EATLAS_ACCOUNT) window.EATLAS_ACCOUNT.render();
+        if(!ok){
+          applyState(entry); // balance changed since render -- reflect the real state
+          return;
+        }
+        window.alert("\u00a31 charged. " + ("\u00a3" + (res.data.balance/100).toFixed(2)) + " left in credits.");
+        openEditor(entry);
+        applyState(entry); // one-off unlock spent; next render reflects the new balance
+      }).catch(function(){
+        btn.innerHTML = original;
+        applyState(entry);
+      });
+    }
+    function applyState(entry){
+      var btn = entry.btn;
+      var prefs = window.EATLAS_PREFS;
+      if(prefs && prefs.isPro()){
+        btn.classList.add("unlocked");
+        btn.innerHTML = "Customise &amp; export";
+        btn.setAttribute("data-tip", "Customise this chart and export it as an image.");
+        btn.onclick = function(e){ e.preventDefault(); openEditor(entry); };
+        return;
+      }
+      if(prefs && prefs.hasCreditsFor("customise_export")){
+        btn.classList.add("unlocked");
+        btn.innerHTML = "Customise &amp; export (\u00a31)";
+        btn.setAttribute("data-tip", "Uses \u00a31 of credit to customise and export this chart as an image.");
+        btn.onclick = function(e){ e.preventDefault(); openViaCredit(entry, btn); };
+        return;
+      }
+      btn.classList.remove("unlocked");
+      btn.innerHTML = '<span class="lockicon">&#128274;</span> Customise &amp; export';
+      btn.setAttribute("data-tip", "Create a free account to unlock this feature.");
+      btn.onclick = (prefs && prefs.isLoggedIn())
+        ? function(e){ e.preventDefault(); window.EATLAS_OPEN_AUTH_MODAL(); }
+        : null; // falls back to the plain href="../contact" already on the link
+    }
+    function register(btn, pts, title, srcNote, fmtY, yTitle, filenameBase, kind, fmtPeriodFn, metricKey){
+      var entry = null;
+      for(var i = 0; i < wired.length; i++){ if(wired[i].btn === btn){ entry = wired[i]; break; } }
+      if(!entry){ entry = { btn: btn }; wired.push(entry); }
+      entry.pts = pts; entry.title = title; entry.srcNote = srcNote;
+      entry.fmtY = fmtY; entry.yTitle = yTitle; entry.filenameBase = filenameBase; entry.kind = kind;
+      entry.fmtPeriodFn = fmtPeriodFn; entry.metricKey = metricKey;
+      applyState(entry);
+    }
+    return {
+      wire: register,
+      // Called from EATLAS_PREFS.onSettled -- there's no separate
+      // setAuthState() here (unlike EATLAS_DOWNLOAD) because this
+      // module never had its own independent login tracking; it always
+      // deferred entirely to EATLAS_PREFS, so a single refresh call
+      // covers every case.
+      refreshEntitlement: function(){
+        wired.forEach(applyState);
+      }
+    };
+  })();
+  // Non-dismissible trial countdown banner -- unlike alertBanner (which
+  // has a close button and remembers dismissal via localStorage), this
+  // one has no close button in its markup at all. That's deliberate:
+  // "cannot delete" is enforced by there being nothing to click, not by
+  // JS re-showing something a user closed.
+  function updateTrialBanner(){
+    // Always hidden -- no trial/upgrade messaging shown to anyone,
+    // regardless of the real stored trial state. Deliberate, reversible
+    // client-side override; the underlying trial/plan data is untouched.
+    var banner = document.getElementById("trialBanner");
+    if(banner) banner.hidden = true;
+  }
+  // Welcome-to-Pro popup: fires exactly once per account, the first time
+  // EATLAS_PREFS resolves with an active, unseen trial -- which in
+  // practice means the first real page load after signing up (signup
+  // itself doesn't have full plan/trial data loaded yet at that exact
+  // moment, so this fires on the very next load rather than trying to
+  // catch the instant of signup itself).
+  function maybeShowWelcomeProModal(){
+    var prefs = window.EATLAS_PREFS;
+    if(!prefs || !prefs.isLoggedIn()) return;
+    if(prefs.getPlan() !== "pro" || !prefs.getTrialEndsAt()) return;
+    if(prefs.hasSeenWelcome()) return;
+    var modal = document.getElementById("welcomeProModal");
+    if(!modal) return;
+    modal.hidden = false;
+    document.body.style.overflow = "hidden";
+    prefs.markWelcomeShown();
+  }
+  (function(){
+    var modal = document.getElementById("welcomeProModal");
+    if(!modal) return;
+    function close(){
+      modal.hidden = true;
+      document.body.style.overflow = "";
+    }
+    var closeBtn = document.getElementById("welcomeProClose");
+    var backdrop = document.getElementById("welcomeProBackdrop");
+    var gotIt = document.getElementById("welcomeProGotIt");
+    if(closeBtn) closeBtn.addEventListener("click", close);
+    if(backdrop) backdrop.addEventListener("click", close);
+    if(gotIt) gotIt.addEventListener("click", close);
+    document.addEventListener("keydown", function(e){
+      if(e.key === "Escape" && !modal.hidden) close();
+    });
+  })();
+  window.EATLAS_PREFS.onSettled(function(){
+    // Chartmaker is a Pro feature -- the page itself is gated on isPro(),
+    // and the nav link needs to actually be invisible to non-Pro users
+    // too, not just point at a page that says "log in" once clicked.
+    var navChartmakerLink = document.getElementById("navChartmakerLink");
+    window.EATLAS_ACCOUNT.render();
+    window.EATLAS_DOWNLOAD.refreshEntitlement();
+    window.EATLAS_CUSTOMIZE.refreshEntitlement();
+    updateTrialBanner();
+    maybeShowWelcomeProModal();
+  });
+  // If this page load is the redirect back from clicking "confirm your
+  // email" in the inbox, Supabase appends #access_token=...&type=signup
+  // to the URL before supabase-js quietly consumes it into a real
+  // session. That hand-off is otherwise invisible -- a visitor lands
+  // back on the homepage with no indication anything happened besides
+  // the nav button subtly changing. This makes it unmissable instead.
+  (function checkEmailConfirmation(){
+    if(window.location.hash && window.location.hash.indexOf("type=signup") !== -1){
+      var toast = document.createElement("div");
+      toast.className = "auth-toast";
+      toast.textContent = "\u2713 Email confirmed, you're now signed in.";
+      document.body.appendChild(toast);
+      setTimeout(function(){ toast.classList.add("show"); }, 10);
+      setTimeout(function(){
+        toast.classList.remove("show");
+        setTimeout(function(){ toast.remove(); }, 400);
+      }, 5000);
+    }
+  })();
 })();
 </script>
 <main class="ind-wrap">
@@ -570,6 +1155,7 @@
     </div>
     <p class="range" id="indRange">Jan 1975 to Aug 2026</p>
     <div class="ind-chart"><canvas id="indChart" role="img" aria-label="Canada Interest Rate, Jan 1975 to Aug 2026"></canvas></div>
+    <div class="lockedactions" id="indActions"></div>
     <p class="src">Source: FRED series IRSTCI01CAM156N · interbank overnight rate, monthly.</p>
   </section>
   <div class="ind-about">
@@ -603,22 +1189,1449 @@
   <section class="ind-section" aria-labelledby="rkHead">
     <h2 id="rkHead">Rankings</h2>
     <p class="ind-section-sub">See every country we track, side by side.</p>
-    <div class="cmp-rankgrid"><a class="current" href="../rankings/interest-rate-by-country"><span>Interest Rate by Country<span class="n">Canada is 11th of 12</span></span><svg viewBox="0 0 20 20" fill="none" aria-hidden="true"><path d="M4 10h11m-4.5-4.5L15 10l-4.5 4.5" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"/></svg></a><a class="" href="../rankings/gdp-by-country"><span>GDP by Country<span class="n">32 countries</span></span><svg viewBox="0 0 20 20" fill="none" aria-hidden="true"><path d="M4 10h11m-4.5-4.5L15 10l-4.5 4.5" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"/></svg></a><a class="" href="../rankings/gdp-growth-rate-by-country"><span>GDP Growth Rate by Country<span class="n">27 countries</span></span><svg viewBox="0 0 20 20" fill="none" aria-hidden="true"><path d="M4 10h11m-4.5-4.5L15 10l-4.5 4.5" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"/></svg></a><a class="" href="../rankings/inflation-rate-by-country"><span>Inflation Rate by Country<span class="n">32 countries</span></span><svg viewBox="0 0 20 20" fill="none" aria-hidden="true"><path d="M4 10h11m-4.5-4.5L15 10l-4.5 4.5" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"/></svg></a><a class="" href="../rankings/unemployment-rate-by-country"><span>Unemployment Rate by Country<span class="n">32 countries</span></span><svg viewBox="0 0 20 20" fill="none" aria-hidden="true"><path d="M4 10h11m-4.5-4.5L15 10l-4.5 4.5" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"/></svg></a><a class="" href="../rankings/10-year-government-bond-yield-by-country"><span>10-Year Government Bond Yield by Country<span class="n">20 countries</span></span><svg viewBox="0 0 20 20" fill="none" aria-hidden="true"><path d="M4 10h11m-4.5-4.5L15 10l-4.5 4.5" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"/></svg></a><a class="" href="../rankings/government-debt-by-country"><span>Government Debt to GDP by Country<span class="n">32 countries</span></span><svg viewBox="0 0 20 20" fill="none" aria-hidden="true"><path d="M4 10h11m-4.5-4.5L15 10l-4.5 4.5" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"/></svg></a><a class="" href="../rankings/government-budget-by-country"><span>Government Budget Balance by Country<span class="n">26 countries</span></span><svg viewBox="0 0 20 20" fill="none" aria-hidden="true"><path d="M4 10h11m-4.5-4.5L15 10l-4.5 4.5" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"/></svg></a><a class="" href="../rankings/current-account-by-country"><span>Current Account to GDP by Country<span class="n">19 countries</span></span><svg viewBox="0 0 20 20" fill="none" aria-hidden="true"><path d="M4 10h11m-4.5-4.5L15 10l-4.5 4.5" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"/></svg></a><a class="" href="../rankings/foreign-direct-investment-by-country"><span>Foreign Direct Investment by Country<span class="n">26 countries</span></span><svg viewBox="0 0 20 20" fill="none" aria-hidden="true"><path d="M4 10h11m-4.5-4.5L15 10l-4.5 4.5" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"/></svg></a><a class="" href="../rankings/business-confidence-by-country"><span>Business Confidence by Country<span class="n">28 countries</span></span><svg viewBox="0 0 20 20" fill="none" aria-hidden="true"><path d="M4 10h11m-4.5-4.5L15 10l-4.5 4.5" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"/></svg></a></div>
+    <div class="cmp-rankgrid"><a class="current" href="../rankings/interest-rate-by-country"><span>Interest Rate by Country<span class="n">Canada is 11th of 12</span></span><svg viewBox="0 0 20 20" fill="none" aria-hidden="true"><path d="M4 10h11m-4.5-4.5L15 10l-4.5 4.5" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"/></svg></a><a class="" href="../rankings/gdp-by-country"><span>GDP by Country<span class="n">32 countries</span></span><svg viewBox="0 0 20 20" fill="none" aria-hidden="true"><path d="M4 10h11m-4.5-4.5L15 10l-4.5 4.5" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"/></svg></a><a class="" href="../rankings/gdp-growth-rate-by-country"><span>GDP Growth Rate by Country<span class="n">27 countries</span></span><svg viewBox="0 0 20 20" fill="none" aria-hidden="true"><path d="M4 10h11m-4.5-4.5L15 10l-4.5 4.5" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"/></svg></a><a class="" href="../rankings/inflation-rate-by-country"><span>Inflation Rate by Country<span class="n">32 countries</span></span><svg viewBox="0 0 20 20" fill="none" aria-hidden="true"><path d="M4 10h11m-4.5-4.5L15 10l-4.5 4.5" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"/></svg></a><a class="" href="../rankings/unemployment-rate-by-country"><span>Unemployment Rate by Country<span class="n">32 countries</span></span><svg viewBox="0 0 20 20" fill="none" aria-hidden="true"><path d="M4 10h11m-4.5-4.5L15 10l-4.5 4.5" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"/></svg></a><a class="" href="../rankings/10-year-government-bond-yield-by-country"><span>10-Year Government Bond Yield by Country<span class="n">20 countries</span></span><svg viewBox="0 0 20 20" fill="none" aria-hidden="true"><path d="M4 10h11m-4.5-4.5L15 10l-4.5 4.5" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"/></svg></a><a class="" href="../rankings/government-debt-by-country"><span>Government Debt to GDP by Country<span class="n">32 countries</span></span><svg viewBox="0 0 20 20" fill="none" aria-hidden="true"><path d="M4 10h11m-4.5-4.5L15 10l-4.5 4.5" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"/></svg></a><a class="" href="../rankings/government-budget-by-country"><span>Government Budget Balance by Country<span class="n">10 countries</span></span><svg viewBox="0 0 20 20" fill="none" aria-hidden="true"><path d="M4 10h11m-4.5-4.5L15 10l-4.5 4.5" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"/></svg></a><a class="" href="../rankings/current-account-by-country"><span>Current Account to GDP by Country<span class="n">16 countries</span></span><svg viewBox="0 0 20 20" fill="none" aria-hidden="true"><path d="M4 10h11m-4.5-4.5L15 10l-4.5 4.5" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"/></svg></a><a class="" href="../rankings/foreign-direct-investment-by-country"><span>Foreign Direct Investment by Country<span class="n">23 countries</span></span><svg viewBox="0 0 20 20" fill="none" aria-hidden="true"><path d="M4 10h11m-4.5-4.5L15 10l-4.5 4.5" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"/></svg></a><a class="" href="../rankings/business-confidence-by-country"><span>Business Confidence by Country<span class="n">28 countries</span></span><svg viewBox="0 0 20 20" fill="none" aria-hidden="true"><path d="M4 10h11m-4.5-4.5L15 10l-4.5 4.5" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"/></svg></a></div>
     <div class="ind-secondary">
       <a class="rk-btn" href="../compare">Compare countries over time</a>
       <a class="rk-btn" href="../embed/canada-interest-rate">Embed this chart</a>
     </div>
   </section>
 </main>
-<footer>
+<div class="ind-footwrap"><footer>
  Data from official national and international statistics sources. Series codes are shown with each metric;
  figures are the latest published observations and are subject to revision.
  Ideas or corrections: <a href="../contact">get in touch</a>. <a href="../privacy">Privacy</a> &middot; <a href="../terms">Terms</a>.
 </footer>
+</div>
+<div class="chart-modal" id="customizeModal" hidden>
+ <div class="chart-modal-backdrop"></div>
+ <div class="chart-modal-content" style="width:min(1320px, 96vw); padding:26px 30px 22px; max-height:92vh; overflow-y:auto; overscroll-behavior:contain; display:block;">
+ <button type="button" class="chart-modal-close" id="customizeModalClose" aria-label="Close">&times;</button>
+ <div style="display:flex; align-items:center; justify-content:space-between; gap:12px; margin:0 26px 2px 0;">
+ <h2 style="margin:0; font-size:20px;">Customise &amp; export</h2>
+ <div style="display:flex; align-items:center; gap:10px;">
+ <!-- Admin-only (see EATLAS_OPEN_CUSTOMIZE's showSave/showOpen check
+             above); both hidden by default so they never flash for
+             non-admins before EATLAS_PREFS resolves. -->
+ <div style="position:relative;">
+ <button type="button" id="czOpenChartBtn" hidden style="display:inline-flex; align-items:center; gap:6px; border:1px solid var(--hair); background:var(--panel); color:var(--ink); font-family:'Avenir Next','Avenir','Nunito Sans',system-ui,sans-serif; font-weight:600; font-size:13px; padding:8px 14px; border-radius:8px; cursor:pointer;">Open chart</button>
+ <div id="czOpenChartPopover" hidden style="position:absolute; top:calc(100% + 8px); left:0; z-index:20; width:300px; max-height:340px; overflow-y:auto; background:var(--panel); border:1px solid var(--hair); border-radius:12px; padding:14px; box-shadow:0 12px 32px rgba(0,0,0,.22);">
+ <h4 style="font-size:11.5px; text-transform:uppercase; letter-spacing:.05em; margin:0 0 8px; color:var(--ink2);">Saved charts</h4>
+ <div id="czOpenChartList" style="font-size:12.5px; color:var(--ink2);">Loading…</div>
+ </div>
+ </div>
+ <button type="button" id="czSaveChartBtn" hidden style="display:inline-flex; align-items:center; gap:6px; border:1px solid var(--hair); background:var(--panel); color:var(--ink); font-family:'Avenir Next','Avenir','Nunito Sans',system-ui,sans-serif; font-weight:600; font-size:13px; padding:8px 14px; border-radius:8px; cursor:pointer;">Save chart</button>
+ <div style="position:relative;">
+ <button type="button" class="export-opts-btn" id="czExportOptsBtn" style="display:inline-flex; align-items:center; gap:6px; border:1px solid var(--hair); background:var(--panel); color:var(--ink); font-family:'Avenir Next','Avenir','Nunito Sans',system-ui,sans-serif; font-weight:600; font-size:13px; padding:8px 14px; border-radius:8px; cursor:pointer;">Export &#9662;</button>
+ <div id="czExportOptsPopover" hidden style="position:absolute; top:calc(100% + 8px); right:0; z-index:20; width:230px; background:var(--panel); border:1px solid var(--hair); border-radius:12px; padding:16px; box-shadow:0 12px 32px rgba(0,0,0,.22);">
+ <h4 style="font-size:11.5px; text-transform:uppercase; letter-spacing:.05em; margin:0 0 8px; color:var(--ink2);">Export theme</h4>
+ <div class="seg" id="czThemeSeg" style="display:flex; border:1px solid var(--hair); border-radius:8px; overflow:hidden;">
+ <button type="button" data-theme="light" class="active" style="flex:1; border:none; font:inherit; font-size:12px; font-weight:600; padding:7px 0; cursor:pointer;">Light</button>
+ <button type="button" data-theme="dark" style="flex:1; border:none; font:inherit; font-size:12px; font-weight:600; padding:7px 0; cursor:pointer;">Dark</button>
+ </div>
+ <h4 style="font-size:11.5px; text-transform:uppercase; letter-spacing:.05em; margin:14px 0 8px; color:var(--ink2);">Chart colour</h4>
+ <div id="czColorSwatches" style="display:flex; gap:6px; flex-wrap:wrap;"></div>
+ <h4 style="font-size:11.5px; text-transform:uppercase; letter-spacing:.05em; margin:14px 0 8px; color:var(--ink2);">Export</h4>
+ <div style="display:flex; gap:8px;">
+ <button type="button" id="czExportPngBtn" style="flex:1; padding:8px 0; border:1px solid var(--hair); background:var(--paper); color:var(--ink); border-radius:6px; cursor:pointer; font:inherit; font-size:12px;">PNG</button>
+ <button type="button" id="czExportSvgBtn" style="flex:1; padding:8px 0; border:1px solid var(--hair); background:var(--paper); color:var(--ink); border-radius:6px; cursor:pointer; font:inherit; font-size:12px;">SVG</button>
+ </div>
+ </div>
+ </div>
+ </div>
+ </div>
+ <p id="czModalCountry" style="font-size:13px; color:var(--ink2); margin:0 0 18px;"></p>
+ <div class="cz-layout-grid" style="display:grid; grid-template-columns:1fr 340px; gap:22px; align-items:start;">
+ <div>
+ <div id="czPreviewBox" style="width:100%; border:1px solid var(--hair); border-radius:10px; overflow:hidden; background:#fff;"></div>
+ <p id="czModalSrc" style="font-size:12px; color:var(--ink2); margin:10px 0 0;"></p>
+ <div class="ctl-panel" style="margin-top:16px; background:var(--panel); border:1px solid var(--hair); border-radius:12px; padding:12px 16px;">
+ <h3 style="font-size:12px; text-transform:uppercase; letter-spacing:.05em; margin:0 0 8px; color:var(--ink2);">Chart style</h3>
+ <div class="field" style="margin-bottom:8px;">
+ <label style="display:block; font-size:11.5px; font-weight:600; color:var(--ink2); margin-bottom:3px;" for="czChartTitleInput">Chart title (optional, shown at the top)</label>
+ <input type="text" id="czChartTitleInput" maxlength="80" placeholder="e.g. Overnight policy rate" style="width:100%; padding:5px 8px; border:1px solid var(--hair); border-radius:6px; background:var(--paper); color:var(--ink); font:inherit; font-size:12.5px;">
+ </div>
+ <div class="field" style="margin-bottom:6px;">
+ <label style="display:block; font-size:11.5px; font-weight:600; color:var(--ink2); margin-bottom:3px;" for="czYAxisTitleInput">Y-axis title</label>
+ <input type="text" id="czYAxisTitleInput" maxlength="40" placeholder="e.g. % change, year-on-year" style="width:100%; padding:5px 8px; border:1px solid var(--hair); border-radius:6px; background:var(--paper); color:var(--ink); font:inherit; font-size:12.5px;">
+ </div>
+ <div style="display:flex; align-items:center; justify-content:space-between; font-size:12px; color:var(--ink2); margin-bottom:8px;">
+ <span>Y-axis title position</span>
+ <div class="seg" id="czYTitlePosSeg" style="display:flex; border:1px solid var(--hair); border-radius:7px; overflow:hidden; width:130px;">
+ <button type="button" data-pos="along" class="active" style="flex:1; border:none; font:inherit; font-size:11.5px; font-weight:600; padding:5px 0; cursor:pointer;">Alongside</button>
+ <button type="button" data-pos="above" style="flex:1; border:none; font:inherit; font-size:11.5px; font-weight:600; padding:5px 0; cursor:pointer;">Above</button>
+ </div>
+ </div>
+ <div style="border-top:1px solid var(--hair); margin:0 0 8px;"></div>
+ <div style="display:grid; grid-template-columns:1fr 1fr; gap:6px 20px; margin-bottom:8px;">
+ <div style="display:flex; align-items:center; justify-content:space-between; font-size:12.5px; height:fit-content;">
+ <span>Chart type</span>
+ <div class="seg" id="czChartKindSeg" style="display:flex; border:1px solid var(--hair); border-radius:7px; overflow:hidden; width:100px;">
+ <button type="button" data-kind="line" class="active" style="flex:1; border:none; font:inherit; font-size:11.5px; font-weight:600; padding:5px 0; cursor:pointer;">Line</button>
+ <button type="button" data-kind="bar" style="flex:1; border:none; font:inherit; font-size:11.5px; font-weight:600; padding:5px 0; cursor:pointer;">Bar</button>
+ </div>
+ </div>
+ <div style="display:flex; flex-direction:column; gap:6px;">
+ <div id="czFillField" style="display:flex; align-items:center; justify-content:space-between; font-size:12.5px;">
+ <span>Shade area under the line</span>
+ <input type="checkbox" id="czFillToggle" checked style="width:15px; height:15px;">
+ </div>
+ <div id="czPointsField" style="display:flex; align-items:center; justify-content:space-between; font-size:12.5px;">
+ <span>Show data point markers</span>
+ <input type="checkbox" id="czPointsToggle" checked style="width:15px; height:15px;">
+ </div>
+ </div>
+ </div>
+ <div style="display:flex; align-items:center; justify-content:space-between; font-size:12.5px; margin-bottom:8px;">
+ <span>Reference line</span>
+ <div style="display:flex; align-items:center; gap:6px;">
+ <input type="checkbox" id="czReflineToggle">
+ <input type="number" id="czReflineValue" value="0" step="0.1" style="width:58px; padding:4px 6px; border:1px solid var(--hair); border-radius:5px; background:var(--paper); color:var(--ink); font:inherit; font-size:12px;">
+ </div>
+ </div>
+ <div id="czThresholdShadeField" style="display:none; align-items:center; justify-content:space-between; font-size:12.5px; margin-bottom:8px;">
+ <span>Colour by above/below reference line</span>
+ <input type="checkbox" id="czThresholdShadeToggle" style="width:15px; height:15px;">
+ </div>
+ <div id="czLogScaleField" style="display:flex; align-items:center; justify-content:space-between; font-size:12.5px; margin-top:8px;">
+ <span id="czLogScaleLabel">Log scale</span>
+ <input type="checkbox" id="czLogScaleToggle" style="width:15px; height:15px;">
+ </div>
+ <div style="display:grid; grid-template-columns:1fr 1fr; gap:6px 20px; margin-top:8px;">
+ <div style="display:flex; align-items:center; justify-content:space-between; font-size:12px; color:var(--ink2);">
+ <span>Y-axis labels</span>
+ <div style="display:flex; align-items:center; gap:6px;"><button type="button" class="cz-fs-btn" id="czYTickMinus" style="width:20px; height:20px; border:1px solid var(--hair); background:var(--paper); color:var(--ink); border-radius:5px; cursor:pointer; font-size:11.5px;">&minus;</button><span id="czYTickVal" style="display:none;">5</span><button type="button" class="cz-fs-btn" id="czYTickPlus" style="width:20px; height:20px; border:1px solid var(--hair); background:var(--paper); color:var(--ink); border-radius:5px; cursor:pointer; font-size:11.5px;">+</button></div>
+ </div>
+ <div style="display:flex; align-items:center; justify-content:space-between; font-size:12px; color:var(--ink2);">
+ <span>X-axis labels</span>
+ <div style="display:flex; align-items:center; gap:6px;"><button type="button" class="cz-fs-btn" id="czXTickMinus" style="width:20px; height:20px; border:1px solid var(--hair); background:var(--paper); color:var(--ink); border-radius:5px; cursor:pointer; font-size:11.5px;">&minus;</button><span id="czXTickVal" style="display:none;">3</span><button type="button" class="cz-fs-btn" id="czXTickPlus" style="width:20px; height:20px; border:1px solid var(--hair); background:var(--paper); color:var(--ink); border-radius:5px; cursor:pointer; font-size:11.5px;">+</button></div>
+ </div>
+ </div>
+ <div style="display:flex; align-items:center; justify-content:space-between; font-size:12px; color:var(--ink2); margin-top:8px;">
+ <span>X-axis label angle</span>
+ <div class="seg" id="czXAngleSeg" style="display:flex; border:1px solid var(--hair); border-radius:7px; overflow:hidden;">
+ <button type="button" data-angle="straight" class="active" style="border:none; font:inherit; font-size:11px; font-weight:600; padding:5px 8px; cursor:pointer;">Straight</button>
+ <button type="button" data-angle="diagonal" style="border:none; font:inherit; font-size:11px; font-weight:600; padding:5px 8px; cursor:pointer;">Diagonal</button>
+ <button type="button" data-angle="vertical" style="border:none; font:inherit; font-size:11px; font-weight:600; padding:5px 8px; cursor:pointer;">Vertical</button>
+ </div>
+ </div>
+ </div>
+ </div>
+ <div>
+ <div class="ctl-panel" style="background:var(--panel); border:1px solid var(--hair); border-radius:12px; padding:16px 18px;">
+ <h3 style="font-size:12px; text-transform:uppercase; letter-spacing:.05em; margin:0 0 12px; color:var(--ink2);">Date range</h3>
+ <div style="display:flex; gap:8px;">
+ <div style="flex:1;"><label style="display:block; font-size:12px; font-weight:600; color:var(--ink2); margin-bottom:5px;" for="czFromDate">From</label><select id="czFromDate" style="width:100%; padding:7px 9px; border:1px solid var(--hair); border-radius:7px; background:var(--paper); color:var(--ink); font:inherit; font-size:13px;"></select></div>
+ <div style="flex:1;"><label style="display:block; font-size:12px; font-weight:600; color:var(--ink2); margin-bottom:5px;" for="czToDate">To</label><select id="czToDate" style="width:100%; padding:7px 9px; border:1px solid var(--hair); border-radius:7px; background:var(--paper); color:var(--ink); font:inherit; font-size:13px;"></select></div>
+ </div>
+ </div>
+ <div class="ctl-panel" style="margin-top:14px; background:var(--panel); border:1px solid var(--hair); border-radius:12px; padding:16px 18px;">
+ <h3 style="font-size:12px; text-transform:uppercase; letter-spacing:.05em; margin:0 0 12px; color:var(--ink2);">Event lines &amp; arrows</h3>
+ <div id="czAnnotList"></div>
+ <button type="button" id="czAddAnnotBtn" style="width:100%; margin-top:2px; padding:8px 0; border:1.5px dashed var(--blue); background:none; color:var(--navy); font-family:'Avenir Next','Avenir','Nunito Sans',system-ui,sans-serif; font-weight:600; font-size:12.5px; border-radius:8px; cursor:pointer;">+ Add event</button>
+ <p style="font-size:11px; color:var(--ink2); margin:8px 0 0; line-height:1.4;">Drag a line/arrow to move its date. Drag a label anywhere to reposition it, or click it to type directly on the chart. Enter in the label starts a new line. Click an event's summary to collapse it. Up to 6.</p>
+ </div>
+ </div>
+ </div>
+ </div>
+</div>
 
 <script src="https://cdnjs.cloudflare.com/ajax/libs/Chart.js/4.4.1/chart.umd.min.js"></script>
-<script src="../indicator-kit.js?v=1"></script>
-<script>EATLAS_IND.initIndicator({"key": "overnight_rate", "country": "Canada", "unit": "%", "freq": "months", "upIsGood": false, "chart": "line", "annualise": false, "gdpRaw": false, "dataUrl": "../data-ca.json", "points": [["1975-01", 8.22727272727273], ["1975-02", 7.00625], ["1975-03", 6.73125], ["1975-04", 6.84090909090909], ["1975-05", 6.99404761904762], ["1975-06", 7.02976190476191], ["1975-07", 7.21022727272727], ["1975-08", 7.85625], ["1975-09", 8.02976190476191], ["1975-10", 8.31818181818182], ["1975-11", 8.76315789473684], ["1975-12", 9.44047619047619], ["1976-01", 9.27380952380952], ["1976-02", 9.28125], ["1976-03", 9.65760869565217], ["1976-04", 9.17857142857143], ["1976-05", 9.2125], ["1976-06", 9.40909090909091], ["1976-07", 9.42857142857143], ["1976-08", 9.52272727272727], ["1976-09", 9.49404761904762], ["1976-10", 9.5375], ["1976-11", 9.41666666666667], ["1976-12", 9.14227272727273], ["1977-01", 8.90625], ["1977-02", 8.23125], ["1977-03", 7.92391304347826], ["1977-04", 7.85], ["1977-05", 7.44642857142857], ["1977-06", 7.38068181818182], ["1977-07", 7.6625], ["1977-08", 7.8804347826087], ["1977-09", 7.08928571428571], ["1977-10", 7.71875], ["1977-11", 7.75], ["1977-12", 7.1065], ["1978-01", 7.26785714285714], ["1978-02", 7.49375], ["1978-03", 7.36931818181818], ["1978-04", 7.46875], ["1978-05", 7.90409090909091], ["1978-06", 8.125], ["1978-07", 8.694], ["1978-08", 9.0], ["1978-09", 8.25675], ["1978-10", 9.45238095238095], ["1978-11", 9.29190476190476], ["1978-12", 9.4078947368421], ["1979-01", 11.4831818181818], ["1979-02", 10.813], ["1979-03", 12.1875], ["1979-04", 11.775], ["1979-05", 11.6931818181818], ["1979-06", 10.9107142857143], ["1979-07", 11.9166666666667], ["1979-08", 11.0625], ["1979-09", 10.3684210526316], ["1979-10", 12.8579545454545], ["1979-11", 12.5119047619048], ["1979-12", 14.6315789473684], ["1980-01", 14.2784090909091], ["1980-02", 12.9047619047619], ["1980-03", 12.702380952381], ["1980-04", 16.6309523809524], ["1980-05", 17.7678571428571], ["1980-06", 16.0595238095238], ["1980-07", 11.9604545454545], ["1980-08", 9.8375], ["1980-09", 10.0], ["1980-10", 11.0], ["1980-11", 11.2565789473684], ["1980-12", 16.5357142857143], ["1981-01", 17.952380952381], ["1981-02", 16.8875], ["1981-03", 18.125], ["1981-04", 17.6788095238095], ["1981-05", 17.76875], ["1981-06", 19.8352272727273], ["1981-07", 19.8295454545455], ["1981-08", 21.8125], ["1981-09", 20.3095238095238], ["1981-10", 19.5119047619048], ["1981-11", 19.76875], ["1981-12", 16.0714285714286], ["1982-01", 14.488], ["1982-02", 14.52575], ["1982-03", 16.4510869565217], ["1982-04", 14.75], ["1982-05", 16.357], ["1982-06", 16.2513636363636], ["1982-07", 16.382380952381], ["1982-08", 16.8402380952381], ["1982-09", 14.3771428571429], ["1982-10", 13.933], ["1982-11", 12.5857142857143], ["1982-12", 11.6871428571429], ["1983-01", 11.989], ["1983-02", 10.233], ["1983-03", 9.61130434782609], ["1983-04", 9.9395], ["1983-05", 10.1690476190476], ["1983-06", 9.15090909090909], ["1983-07", 9.696], ["1983-08", 9.35727272727273], ["1983-09", 9.31428571428571], ["1983-10", 9.43], ["1983-11", 9.36619047619048], ["1983-12", 9.218], ["1984-01", 9.74095238095238], ["1984-02", 9.54047619047619], ["1984-03", 9.40136363636364], ["1984-04", 10.00575], ["1984-05", 9.75954545454545], ["1984-06", 10.9019047619048], ["1984-07", 11.6078571428571], ["1984-08", 12.2913636363636], ["1984-09", 12.2242105263158], ["1984-10", 12.2047727272727], ["1984-11", 11.9888095238095], ["1984-12", 10.66925], ["1985-01", 10.0113636363636], ["1985-02", 9.65625], ["1985-03", 10.5180952380952], ["1985-04", 10.1428571428571], ["1985-05", 10.0293181818182], ["1985-06", 9.99375], ["1985-07", 9.26159090909091], ["1985-08", 9.05952380952381], ["1985-09", 8.69375], ["1985-10", 8.76136363636364], ["1985-11", 9.1125], ["1985-12", 9.475], ["1986-01", 10.125], ["1986-02", 12.50625], ["1986-03", 12.9375], ["1986-04", 10.4602272727273], ["1986-05", 8.57142857142857], ["1986-06", 8.28595238095238], ["1986-07", 8.47681818181818], ["1986-08", 8.10625], ["1986-09", 8.13690476190476], ["1986-10", 8.31818181818182], ["1986-11", 8.2828947368421], ["1986-12", 8.30357142857143], ["1987-01", 8.13995238095238], ["1987-02", 7.37505], ["1987-03", 7.17913636363636], ["1987-04", 7.10527272727273], ["1987-05", 7.48775], ["1987-06", 8.44618181818182], ["1987-07", 8.5485], ["1987-08", 8.741], ["1987-09", 8.82238095238095], ["1987-10", 8.31666666666667], ["1987-11", 8.263], ["1987-12", 8.45476190476191], ["1988-01", 8.558], ["1988-02", 8.52], ["1988-03", 8.44521739130435], ["1988-04", 8.4665], ["1988-05", 8.65509523809524], ["1988-06", 8.89913636363636], ["1988-07", 8.9985], ["1988-08", 9.29045454545455], ["1988-09", 9.89809523809524], ["1988-10", 10.2105], ["1988-11", 10.1257142857143], ["1988-12", 10.241], ["1989-01", 10.5416666666667], ["1989-02", 10.89375], ["1989-03", 11.3068181818182], ["1989-04", 12.165625], ["1989-05", 12.46875], ["1989-06", 12.4403409090909], ["1989-07", 12.434375], ["1989-08", 12.3153409090909], ["1989-09", 12.15], ["1989-10", 12.1607142857143], ["1989-11", 12.1488095238095], ["1989-12", 12.2269736842105], ["1990-01", 12.4005681818182], ["1990-02", 12.75], ["1990-03", 12.8522727272727], ["1990-04", 12.834375], ["1990-05", 13.5397727272727], ["1990-06", 13.4107142857143], ["1990-07", 13.7083333333333], ["1990-08", 13.5454545454545], ["1990-09", 13.0625], ["1990-10", 12.4659090909091], ["1990-11", 12.4940476190476], ["1990-12", 11.9638157894737], ["1991-01", 11.8409090909091], ["1991-02", 11.234375], ["1991-03", 10.003125], ["1991-04", 9.63920454545454], ["1991-05", 9.25852272727273], ["1991-06", 8.78125], ["1991-07", 8.67329545454546], ["1991-08", 8.72916666666667], ["1991-09", 8.85], ["1991-10", 8.96590909090909], ["1991-11", 8.003125], ["1991-12", 7.503125], ["1992-01", 7.46306818181818], ["1992-02", 7.26875], ["1992-03", 6.96590909090909], ["1992-04", 6.74107142857143], ["1992-05", 6.353125], ["1992-06", 6.03977272727273], ["1992-07", 5.84375], ["1992-08", 5.159375], ["1992-09", 5.22321428571429], ["1992-10", 7.86904761904762], ["1992-11", 7.603125], ["1992-12", 7.69047619047619], ["1993-01", 6.703125], ["1993-02", 6.08125], ["1993-03", 5.14130434782609], ["1993-04", 4.61309523809524], ["1993-05", 4.58125], ["1993-06", 4.46590909090909], ["1993-07", 4.20833333333333], ["1993-08", 4.22321428571429], ["1993-09", 4.35119047619048], ["1993-10", 4.56875], ["1993-11", 4.16964285714286], ["1993-12", 4.19345238095238], ["1994-01", 3.978125], ["1994-02", 3.65], ["1994-03", 3.95108695652174], ["1994-04", 5.575], ["1994-05", 5.76785714285714], ["1994-06", 5.71590909090909], ["1994-07", 5.6125], ["1994-08", 5.27840909090909], ["1994-09", 5.11607142857143], ["1994-10", 4.975], ["1994-11", 5.11904761904762], ["1994-12", 5.521875], ["1995-01", 6.59821428571429], ["1995-02", 7.85], ["1995-03", 8.125], ["1995-04", 8.06421052631579], ["1995-05", 7.74363636363636], ["1995-06", 7.35318181818182], ["1995-07", 6.765], ["1995-08", 6.46090909090909], ["1995-09", 6.222], ["1995-10", 6.2447619047619], ["1995-11", 6.00142857142857], ["1995-12", 5.95578947368421], ["1996-01", 5.67409090909091], ["1996-02", 5.26904761904762], ["1996-03", 5.12666666666667], ["1996-04", 4.90571428571429], ["1996-05", 4.785], ["1996-06", 4.7775], ["1996-07", 4.67954545454545], ["1996-08", 4.27380952380952], ["1996-09", 4.053], ["1996-10", 3.62], ["1996-11", 3.1055], ["1996-12", 3.042], ["1997-01", 3.01545454545455], ["1997-02", 3.01], ["1997-03", 3.002], ["1997-04", 3.02090909090909], ["1997-05", 3.01142857142857], ["1997-06", 3.04857142857143], ["1997-07", 3.24545454545455], ["1997-08", 3.29], ["1997-09", 3.27333333333333], ["1997-10", 3.54], ["1997-11", 3.58736842105263], ["1997-12", 4.05285714285714], ["1998-01", 4.30095238095238], ["1998-02", 4.7455], ["1998-03", 4.73454545454545], ["1998-04", 4.74714285714286], ["1998-05", 4.764], ["1998-06", 4.76227272727273], ["1998-07", 4.775], ["1998-08", 4.896], ["1998-09", 5.7252380952381], ["1998-10", 5.40142857142857], ["1998-11", 5.1445], ["1998-12", 5.04095238095238], ["1999-01", 5.0195], ["1999-02", 4.9945], ["1999-03", 5.01086956521739], ["1999-04", 4.80142857142857], ["1999-05", 4.6135], ["1999-06", 4.59681818181818], ["1999-07", 4.60285714285714], ["1999-08", 4.63], ["1999-09", 4.60142857142857], ["1999-10", 4.592], ["1999-11", 4.67619047619048], ["1999-12", 4.76380952380952], ["2000-01", 4.7665], ["2000-02", 4.96619047619048], ["2000-03", 5.0804347826087], ["2000-04", 5.25526315789474], ["2000-05", 5.48181818181818], ["2000-06", 5.74772727272727], ["2000-07", 5.733], ["2000-08", 5.74636363636364], ["2000-09", 5.7525], ["2000-10", 5.75904761904762], ["2000-11", 5.74761904761905], ["2000-12", 5.75], ["2001-01", 5.66363636363636], ["2001-02", 5.4925], ["2001-03", 5.0619], ["2001-04", 4.86528], ["2001-05", 4.70777727272727], ["2001-06", 4.49231904761905], ["2001-07", 4.36030952380952], ["2001-08", 4.19521818181818], ["2001-09", 3.72707894736842], ["2001-10", 3.25254090909091], ["2001-11", 2.645], ["2001-12", 2.24130526315789], ["2002-01", 2.09457727272727], ["2002-02", 1.995595], ["2002-03", 1.993885], ["2002-04", 2.1184], ["2002-05", 2.24666363636364], ["2002-06", 2.48379], ["2002-07", 2.63122272727273], ["2002-08", 2.7436619047619], ["2002-09", 2.745535], ["2002-10", 2.74495909090909], ["2002-11", 2.744615], ["2002-12", 2.743], ["2003-01", 2.74370454545455], ["2003-02", 2.74527], ["2003-03", 2.98250952380952], ["2003-04", 3.12444285714286], ["2003-05", 3.24098571428571], ["2003-06", 3.24392380952381], ["2003-07", 3.09863181818182], ["2003-08", 2.9977], ["2003-09", 2.75954761904762], ["2003-10", 2.74890454545455], ["2003-11", 2.74813157894737], ["2003-12", 2.74817619047619], ["2004-01", 2.6397], ["2004-02", 2.495875], ["2004-03", 2.25863913043478], ["2004-04", 2.08036666666667], ["2004-05", 1.99798], ["2004-06", 1.99920909090909], ["2004-07", 1.9983619047619], ["2004-08", 1.99875238095238], ["2004-09", 2.20042380952381], ["2004-10", 2.35929], ["2004-11", 2.49629047619048], ["2004-12", 2.49874761904762], ["2005-01", 2.49787], ["2005-02", 2.495715], ["2005-03", 2.48621818181818], ["2005-04", 2.49271428571429], ["2005-05", 2.49057142857143], ["2005-06", 2.49321363636364], ["2005-07", 2.493535], ["2005-08", 2.49074090909091], ["2005-09", 2.70641904761905], ["2005-10", 2.863295], ["2005-11", 2.98621428571429], ["2005-12", 3.197755], ["2006-01", 3.30325238095238], ["2006-02", 3.476605], ["2006-03", 3.65477826086957], ["2006-04", 3.78952105263158], ["2006-05", 4.0283], ["2006-06", 4.23559090909091], ["2006-07", 4.24363], ["2006-08", 4.22417727272727], ["2006-09", 4.24365], ["2006-10", 4.23849047619048], ["2006-11", 4.24954761904762], ["2006-12", 4.25332105263158], ["2007-01", 4.24341363636364], ["2007-02", 4.235035], ["2007-03", 4.23000909090909], ["2007-04", 4.25083], ["2007-05", 4.23679545454545], ["2007-06", 4.25049523809524], ["2007-07", 4.44548571428571], ["2007-08", 4.45732272727273], ["2007-09", 4.44454736842105], ["2007-10", 4.50753181818182], ["2007-11", 4.50540952380952], ["2007-12", 4.27504736842105], ["2008-01", 4.15962272727273], ["2008-02", 4.00076], ["2008-03", 3.510385], ["2008-04", 3.33662727272727], ["2008-05", 2.99959047619048], ["2008-06", 2.9950380952381], ["2008-07", 2.99853636363636], ["2008-08", 2.999715], ["2008-09", 2.99397142857143], ["2008-10", 2.51529090909091], ["2008-11", 2.24564736842105], ["2008-12", 1.7110380952381], ["2009-01", 1.28339523809524], ["2009-02", 0.9979], ["2009-03", 0.515395454545455], ["2009-04", 0.399857142857143], ["2009-05", 0.24216], ["2009-06", 0.244122727272727], ["2009-07", 0.241186363636364], ["2009-08", 0.23976], ["2009-09", 0.239480952380952], ["2009-10", 0.241333333333333], ["2009-11", 0.242805], ["2009-12", 0.243090476190476], ["2010-01", 0.244385], ["2010-02", 0.244294736842105], ["2010-03", 0.244539130434783], ["2010-04", 0.247280952380952], ["2010-05", 0.2457], ["2010-06", 0.491890909090909], ["2010-07", 0.600385714285714], ["2010-08", 0.748733333333333], ["2010-09", 0.951171428571429], ["2010-10", 0.998505], ["2010-11", 0.998661904761905], ["2010-12", 0.997171428571429], ["2011-01", 0.99239], ["2011-02", 0.993605263157895], ["2011-03", 0.99414347826087], ["2011-04", 0.99646], ["2011-05", 0.996533333333333], ["2011-06", 0.997581818181818], ["2011-07", 0.998455], ["2011-08", 1.00026818181818], ["2011-09", 0.998304761904762], ["2011-10", 1.00045], ["2011-11", 0.999838095238095], ["2011-12", 0.99917], ["2012-01", 0.998461904761905], ["2012-02", 0.998625], ["2012-03", 0.999690909090909], ["2012-04", 1.00601], ["2012-05", 1.00081818181818], ["2012-06", 1.00080476190476], ["2012-07", 0.999066666666667], ["2012-08", 1.0021], ["2012-09", 1.00068421052632], ["2012-10", 1.00115454545455], ["2012-11", 1.0000619047619], ["2012-12", 1.00036315789474], ["2013-01", 1.00189545454545], ["2013-02", 1.00457894736842], ["2013-03", 1.00565], ["2013-04", 1.00444090909091], ["2013-05", 1.00434090909091], ["2013-06", 1.010085], ["2013-07", 1.00646818181818], ["2013-08", 0.998614285714286], ["2013-09", 0.99782], ["2013-10", 0.999127272727273], ["2013-11", 1.00199], ["2013-12", 1.001315], ["2014-01", 0.999745454545454], ["2014-02", 0.998157894736842], ["2014-03", 0.996480952380952], ["2014-04", 0.998171428571429], ["2014-05", 0.997471428571429], ["2014-06", 0.999871428571429], ["2014-07", 1.00012727272727], ["2014-08", 1.00018], ["2014-09", 0.999333333333333], ["2014-10", 1.00067272727273], ["2014-11", 1.00215263157895], ["2014-12", 1.00460952380952], ["2015-01", 0.9082], ["2015-02", 0.758426315789474], ["2015-03", 0.757040909090909], ["2015-04", 0.7505], ["2015-05", 0.734615], ["2015-06", 0.744677272727273], ["2015-07", 0.605131818181818], ["2015-08", 0.50731], ["2015-09", 0.500804761904762], ["2015-10", 0.5001], ["2015-11", 0.499145], ["2015-12", 0.513033333333333], ["2016-01", 0.513985], ["2016-02", 0.501745], ["2016-03", 0.498636363636364], ["2016-04", 0.502385714285714], ["2016-05", 0.499933333333333], ["2016-06", 0.5069], ["2016-07", 0.507105], ["2016-08", 0.499222727272727], ["2016-09", 0.499380952380952], ["2016-10", 0.493015], ["2016-11", 0.491557142857143], ["2016-12", 0.495425], ["2017-01", 0.491171428571429], ["2017-02", 0.491436842105263], ["2017-03", 0.49504347826087], ["2017-04", 0.497578947368421], ["2017-05", 0.491504545454545], ["2017-06", 0.494104545454545], ["2017-07", 0.669285], ["2017-08", 0.743154545454545], ["2017-09", 0.97019], ["2017-10", 0.993042857142857], ["2017-11", 0.991561904761905], ["2017-12", 0.996078947368421], ["2018-01", 1.11860454545455], ["2018-02", 1.23794736842105], ["2018-03", 1.2394], ["2018-04", 1.24545714285714], ["2018-05", 1.24541363636364], ["2018-06", 1.2481], ["2018-07", 1.42461428571429], ["2018-08", 1.49541363636364], ["2018-09", 1.49646315789474], ["2018-10", 1.56576818181818], ["2018-11", 1.74702380952381], ["2018-12", 1.74997368421053], ["2019-01", 1.74816818181818], ["2019-02", 1.74715263157895], ["2019-03", 1.74693333333333], ["2019-04", 1.74690476190476], ["2019-05", 1.74504545454545], ["2019-06", 1.742595], ["2019-07", 1.74657272727273], ["2019-08", 1.74780952380952], ["2019-09", 1.74658], ["2019-10", 1.74804545454545], ["2019-11", 1.74846], ["2019-12", 1.74805], ["2020-01", 1.74858636363636], ["2020-02", 1.74853157894737], ["2020-03", 0.953381818181818], ["2020-04", 0.234366666666667], ["2020-05", 0.22964], ["2020-06", 0.238577272727273], ["2020-07", 0.243040909090909], ["2020-08", 0.238435], ["2020-09", 0.228038095238095], ["2020-10", 0.231838095238095], ["2020-11", 0.22461], ["2020-12", 0.1993], ["2021-01", 0.18108], ["2021-02", 0.211021052631579], ["2021-03", 0.180426086956522], ["2021-04", 0.160319047619048], ["2021-05", 0.180915], ["2021-06", 0.187881818181818], ["2021-07", 0.189790476190476], ["2021-08", 0.200747619047619], ["2021-09", 0.187045], ["2021-10", 0.197725], ["2021-11", 0.202652380952381], ["2021-12", 0.160428571428571], ["2022-01", 0.175935], ["2022-02", 0.171747368421053], ["2022-03", 0.40775652173913], ["2022-04", 0.710333333333333], ["2022-05", 0.947242857142857], ["2022-06", 1.42881363636364], ["2022-07", 2.03743684210526], ["2022-08", 2.48295454545455], ["2022-09", 3.10176842105263], ["2022-10", 3.31408947368421], ["2022-11", 3.74122380952381], ["2022-12", 4.1245], ["2023-01", 4.29001428571429], ["2023-02", 4.49236842105263], ["2023-03", 4.49231304347826], ["2023-04", 4.49171764705882], ["2023-05", 4.49264761904762], ["2023-06", 4.68394545454545], ["2023-07", 4.90389], ["2023-08", 4.99421363636364], ["2023-09", 4.991785], ["2023-10", 5.001845], ["2023-11", 5.01366666666667], ["2023-12", 5.01547894736842], ["2024-01", 5.02609090909091], ["2024-02", 5.01497], ["2024-03", 5.00289], ["2024-04", 4.99991818181818], ["2024-05", 5.0027], ["2024-06", 4.80132], ["2024-07", 4.70747142857143], ["2024-08", 4.51298], ["2024-09", 4.29742222222222], ["2024-10", 4.13835], ["2024-11", 3.76488], ["2024-12", 3.46852], ["2025-01", 3.22181818181818], ["2025-02", 2.99341578947368], ["2025-03", 2.84069523809524], ["2025-04", 2.739815], ["2025-05", 2.74235238095238], ["2025-06", 2.744125], ["2025-07", 2.74803181818182], ["2025-08", 2.75275], ["2025-09", 2.657255], ["2025-10", 2.48545], ["2025-11", 2.24214210526316], ["2025-12", 2.25141904761905], ["2026-01", 2.25067619047619], ["2026-02", 2.25369473684211], ["2026-03", 2.25578636363636], ["2026-04", 2.25130952380952], ["2026-05", 2.244805], ["2026-06", 2.267285], ["2026-07", 2.27], ["2026-08", 2.25]], "realPoints": null, "realUnit": null, "realKey": null, "fx": null});</script>
+<script src="../indicator-kit.js?v=2"></script>
+<script>EATLAS_IND.initIndicator({"key": "overnight_rate", "country": "Canada", "unit": "%", "freq": "months", "upIsGood": false, "chart": "line", "annualise": false, "gdpRaw": false, "dataUrl": "../data-ca.json", "points": [["1975-01", 8.22727272727273], ["1975-02", 7.00625], ["1975-03", 6.73125], ["1975-04", 6.84090909090909], ["1975-05", 6.99404761904762], ["1975-06", 7.02976190476191], ["1975-07", 7.21022727272727], ["1975-08", 7.85625], ["1975-09", 8.02976190476191], ["1975-10", 8.31818181818182], ["1975-11", 8.76315789473684], ["1975-12", 9.44047619047619], ["1976-01", 9.27380952380952], ["1976-02", 9.28125], ["1976-03", 9.65760869565217], ["1976-04", 9.17857142857143], ["1976-05", 9.2125], ["1976-06", 9.40909090909091], ["1976-07", 9.42857142857143], ["1976-08", 9.52272727272727], ["1976-09", 9.49404761904762], ["1976-10", 9.5375], ["1976-11", 9.41666666666667], ["1976-12", 9.14227272727273], ["1977-01", 8.90625], ["1977-02", 8.23125], ["1977-03", 7.92391304347826], ["1977-04", 7.85], ["1977-05", 7.44642857142857], ["1977-06", 7.38068181818182], ["1977-07", 7.6625], ["1977-08", 7.8804347826087], ["1977-09", 7.08928571428571], ["1977-10", 7.71875], ["1977-11", 7.75], ["1977-12", 7.1065], ["1978-01", 7.26785714285714], ["1978-02", 7.49375], ["1978-03", 7.36931818181818], ["1978-04", 7.46875], ["1978-05", 7.90409090909091], ["1978-06", 8.125], ["1978-07", 8.694], ["1978-08", 9.0], ["1978-09", 8.25675], ["1978-10", 9.45238095238095], ["1978-11", 9.29190476190476], ["1978-12", 9.4078947368421], ["1979-01", 11.4831818181818], ["1979-02", 10.813], ["1979-03", 12.1875], ["1979-04", 11.775], ["1979-05", 11.6931818181818], ["1979-06", 10.9107142857143], ["1979-07", 11.9166666666667], ["1979-08", 11.0625], ["1979-09", 10.3684210526316], ["1979-10", 12.8579545454545], ["1979-11", 12.5119047619048], ["1979-12", 14.6315789473684], ["1980-01", 14.2784090909091], ["1980-02", 12.9047619047619], ["1980-03", 12.702380952381], ["1980-04", 16.6309523809524], ["1980-05", 17.7678571428571], ["1980-06", 16.0595238095238], ["1980-07", 11.9604545454545], ["1980-08", 9.8375], ["1980-09", 10.0], ["1980-10", 11.0], ["1980-11", 11.2565789473684], ["1980-12", 16.5357142857143], ["1981-01", 17.952380952381], ["1981-02", 16.8875], ["1981-03", 18.125], ["1981-04", 17.6788095238095], ["1981-05", 17.76875], ["1981-06", 19.8352272727273], ["1981-07", 19.8295454545455], ["1981-08", 21.8125], ["1981-09", 20.3095238095238], ["1981-10", 19.5119047619048], ["1981-11", 19.76875], ["1981-12", 16.0714285714286], ["1982-01", 14.488], ["1982-02", 14.52575], ["1982-03", 16.4510869565217], ["1982-04", 14.75], ["1982-05", 16.357], ["1982-06", 16.2513636363636], ["1982-07", 16.382380952381], ["1982-08", 16.8402380952381], ["1982-09", 14.3771428571429], ["1982-10", 13.933], ["1982-11", 12.5857142857143], ["1982-12", 11.6871428571429], ["1983-01", 11.989], ["1983-02", 10.233], ["1983-03", 9.61130434782609], ["1983-04", 9.9395], ["1983-05", 10.1690476190476], ["1983-06", 9.15090909090909], ["1983-07", 9.696], ["1983-08", 9.35727272727273], ["1983-09", 9.31428571428571], ["1983-10", 9.43], ["1983-11", 9.36619047619048], ["1983-12", 9.218], ["1984-01", 9.74095238095238], ["1984-02", 9.54047619047619], ["1984-03", 9.40136363636364], ["1984-04", 10.00575], ["1984-05", 9.75954545454545], ["1984-06", 10.9019047619048], ["1984-07", 11.6078571428571], ["1984-08", 12.2913636363636], ["1984-09", 12.2242105263158], ["1984-10", 12.2047727272727], ["1984-11", 11.9888095238095], ["1984-12", 10.66925], ["1985-01", 10.0113636363636], ["1985-02", 9.65625], ["1985-03", 10.5180952380952], ["1985-04", 10.1428571428571], ["1985-05", 10.0293181818182], ["1985-06", 9.99375], ["1985-07", 9.26159090909091], ["1985-08", 9.05952380952381], ["1985-09", 8.69375], ["1985-10", 8.76136363636364], ["1985-11", 9.1125], ["1985-12", 9.475], ["1986-01", 10.125], ["1986-02", 12.50625], ["1986-03", 12.9375], ["1986-04", 10.4602272727273], ["1986-05", 8.57142857142857], ["1986-06", 8.28595238095238], ["1986-07", 8.47681818181818], ["1986-08", 8.10625], ["1986-09", 8.13690476190476], ["1986-10", 8.31818181818182], ["1986-11", 8.2828947368421], ["1986-12", 8.30357142857143], ["1987-01", 8.13995238095238], ["1987-02", 7.37505], ["1987-03", 7.17913636363636], ["1987-04", 7.10527272727273], ["1987-05", 7.48775], ["1987-06", 8.44618181818182], ["1987-07", 8.5485], ["1987-08", 8.741], ["1987-09", 8.82238095238095], ["1987-10", 8.31666666666667], ["1987-11", 8.263], ["1987-12", 8.45476190476191], ["1988-01", 8.558], ["1988-02", 8.52], ["1988-03", 8.44521739130435], ["1988-04", 8.4665], ["1988-05", 8.65509523809524], ["1988-06", 8.89913636363636], ["1988-07", 8.9985], ["1988-08", 9.29045454545455], ["1988-09", 9.89809523809524], ["1988-10", 10.2105], ["1988-11", 10.1257142857143], ["1988-12", 10.241], ["1989-01", 10.5416666666667], ["1989-02", 10.89375], ["1989-03", 11.3068181818182], ["1989-04", 12.165625], ["1989-05", 12.46875], ["1989-06", 12.4403409090909], ["1989-07", 12.434375], ["1989-08", 12.3153409090909], ["1989-09", 12.15], ["1989-10", 12.1607142857143], ["1989-11", 12.1488095238095], ["1989-12", 12.2269736842105], ["1990-01", 12.4005681818182], ["1990-02", 12.75], ["1990-03", 12.8522727272727], ["1990-04", 12.834375], ["1990-05", 13.5397727272727], ["1990-06", 13.4107142857143], ["1990-07", 13.7083333333333], ["1990-08", 13.5454545454545], ["1990-09", 13.0625], ["1990-10", 12.4659090909091], ["1990-11", 12.4940476190476], ["1990-12", 11.9638157894737], ["1991-01", 11.8409090909091], ["1991-02", 11.234375], ["1991-03", 10.003125], ["1991-04", 9.63920454545454], ["1991-05", 9.25852272727273], ["1991-06", 8.78125], ["1991-07", 8.67329545454546], ["1991-08", 8.72916666666667], ["1991-09", 8.85], ["1991-10", 8.96590909090909], ["1991-11", 8.003125], ["1991-12", 7.503125], ["1992-01", 7.46306818181818], ["1992-02", 7.26875], ["1992-03", 6.96590909090909], ["1992-04", 6.74107142857143], ["1992-05", 6.353125], ["1992-06", 6.03977272727273], ["1992-07", 5.84375], ["1992-08", 5.159375], ["1992-09", 5.22321428571429], ["1992-10", 7.86904761904762], ["1992-11", 7.603125], ["1992-12", 7.69047619047619], ["1993-01", 6.703125], ["1993-02", 6.08125], ["1993-03", 5.14130434782609], ["1993-04", 4.61309523809524], ["1993-05", 4.58125], ["1993-06", 4.46590909090909], ["1993-07", 4.20833333333333], ["1993-08", 4.22321428571429], ["1993-09", 4.35119047619048], ["1993-10", 4.56875], ["1993-11", 4.16964285714286], ["1993-12", 4.19345238095238], ["1994-01", 3.978125], ["1994-02", 3.65], ["1994-03", 3.95108695652174], ["1994-04", 5.575], ["1994-05", 5.76785714285714], ["1994-06", 5.71590909090909], ["1994-07", 5.6125], ["1994-08", 5.27840909090909], ["1994-09", 5.11607142857143], ["1994-10", 4.975], ["1994-11", 5.11904761904762], ["1994-12", 5.521875], ["1995-01", 6.59821428571429], ["1995-02", 7.85], ["1995-03", 8.125], ["1995-04", 8.06421052631579], ["1995-05", 7.74363636363636], ["1995-06", 7.35318181818182], ["1995-07", 6.765], ["1995-08", 6.46090909090909], ["1995-09", 6.222], ["1995-10", 6.2447619047619], ["1995-11", 6.00142857142857], ["1995-12", 5.95578947368421], ["1996-01", 5.67409090909091], ["1996-02", 5.26904761904762], ["1996-03", 5.12666666666667], ["1996-04", 4.90571428571429], ["1996-05", 4.785], ["1996-06", 4.7775], ["1996-07", 4.67954545454545], ["1996-08", 4.27380952380952], ["1996-09", 4.053], ["1996-10", 3.62], ["1996-11", 3.1055], ["1996-12", 3.042], ["1997-01", 3.01545454545455], ["1997-02", 3.01], ["1997-03", 3.002], ["1997-04", 3.02090909090909], ["1997-05", 3.01142857142857], ["1997-06", 3.04857142857143], ["1997-07", 3.24545454545455], ["1997-08", 3.29], ["1997-09", 3.27333333333333], ["1997-10", 3.54], ["1997-11", 3.58736842105263], ["1997-12", 4.05285714285714], ["1998-01", 4.30095238095238], ["1998-02", 4.7455], ["1998-03", 4.73454545454545], ["1998-04", 4.74714285714286], ["1998-05", 4.764], ["1998-06", 4.76227272727273], ["1998-07", 4.775], ["1998-08", 4.896], ["1998-09", 5.7252380952381], ["1998-10", 5.40142857142857], ["1998-11", 5.1445], ["1998-12", 5.04095238095238], ["1999-01", 5.0195], ["1999-02", 4.9945], ["1999-03", 5.01086956521739], ["1999-04", 4.80142857142857], ["1999-05", 4.6135], ["1999-06", 4.59681818181818], ["1999-07", 4.60285714285714], ["1999-08", 4.63], ["1999-09", 4.60142857142857], ["1999-10", 4.592], ["1999-11", 4.67619047619048], ["1999-12", 4.76380952380952], ["2000-01", 4.7665], ["2000-02", 4.96619047619048], ["2000-03", 5.0804347826087], ["2000-04", 5.25526315789474], ["2000-05", 5.48181818181818], ["2000-06", 5.74772727272727], ["2000-07", 5.733], ["2000-08", 5.74636363636364], ["2000-09", 5.7525], ["2000-10", 5.75904761904762], ["2000-11", 5.74761904761905], ["2000-12", 5.75], ["2001-01", 5.66363636363636], ["2001-02", 5.4925], ["2001-03", 5.0619], ["2001-04", 4.86528], ["2001-05", 4.70777727272727], ["2001-06", 4.49231904761905], ["2001-07", 4.36030952380952], ["2001-08", 4.19521818181818], ["2001-09", 3.72707894736842], ["2001-10", 3.25254090909091], ["2001-11", 2.645], ["2001-12", 2.24130526315789], ["2002-01", 2.09457727272727], ["2002-02", 1.995595], ["2002-03", 1.993885], ["2002-04", 2.1184], ["2002-05", 2.24666363636364], ["2002-06", 2.48379], ["2002-07", 2.63122272727273], ["2002-08", 2.7436619047619], ["2002-09", 2.745535], ["2002-10", 2.74495909090909], ["2002-11", 2.744615], ["2002-12", 2.743], ["2003-01", 2.74370454545455], ["2003-02", 2.74527], ["2003-03", 2.98250952380952], ["2003-04", 3.12444285714286], ["2003-05", 3.24098571428571], ["2003-06", 3.24392380952381], ["2003-07", 3.09863181818182], ["2003-08", 2.9977], ["2003-09", 2.75954761904762], ["2003-10", 2.74890454545455], ["2003-11", 2.74813157894737], ["2003-12", 2.74817619047619], ["2004-01", 2.6397], ["2004-02", 2.495875], ["2004-03", 2.25863913043478], ["2004-04", 2.08036666666667], ["2004-05", 1.99798], ["2004-06", 1.99920909090909], ["2004-07", 1.9983619047619], ["2004-08", 1.99875238095238], ["2004-09", 2.20042380952381], ["2004-10", 2.35929], ["2004-11", 2.49629047619048], ["2004-12", 2.49874761904762], ["2005-01", 2.49787], ["2005-02", 2.495715], ["2005-03", 2.48621818181818], ["2005-04", 2.49271428571429], ["2005-05", 2.49057142857143], ["2005-06", 2.49321363636364], ["2005-07", 2.493535], ["2005-08", 2.49074090909091], ["2005-09", 2.70641904761905], ["2005-10", 2.863295], ["2005-11", 2.98621428571429], ["2005-12", 3.197755], ["2006-01", 3.30325238095238], ["2006-02", 3.476605], ["2006-03", 3.65477826086957], ["2006-04", 3.78952105263158], ["2006-05", 4.0283], ["2006-06", 4.23559090909091], ["2006-07", 4.24363], ["2006-08", 4.22417727272727], ["2006-09", 4.24365], ["2006-10", 4.23849047619048], ["2006-11", 4.24954761904762], ["2006-12", 4.25332105263158], ["2007-01", 4.24341363636364], ["2007-02", 4.235035], ["2007-03", 4.23000909090909], ["2007-04", 4.25083], ["2007-05", 4.23679545454545], ["2007-06", 4.25049523809524], ["2007-07", 4.44548571428571], ["2007-08", 4.45732272727273], ["2007-09", 4.44454736842105], ["2007-10", 4.50753181818182], ["2007-11", 4.50540952380952], ["2007-12", 4.27504736842105], ["2008-01", 4.15962272727273], ["2008-02", 4.00076], ["2008-03", 3.510385], ["2008-04", 3.33662727272727], ["2008-05", 2.99959047619048], ["2008-06", 2.9950380952381], ["2008-07", 2.99853636363636], ["2008-08", 2.999715], ["2008-09", 2.99397142857143], ["2008-10", 2.51529090909091], ["2008-11", 2.24564736842105], ["2008-12", 1.7110380952381], ["2009-01", 1.28339523809524], ["2009-02", 0.9979], ["2009-03", 0.515395454545455], ["2009-04", 0.399857142857143], ["2009-05", 0.24216], ["2009-06", 0.244122727272727], ["2009-07", 0.241186363636364], ["2009-08", 0.23976], ["2009-09", 0.239480952380952], ["2009-10", 0.241333333333333], ["2009-11", 0.242805], ["2009-12", 0.243090476190476], ["2010-01", 0.244385], ["2010-02", 0.244294736842105], ["2010-03", 0.244539130434783], ["2010-04", 0.247280952380952], ["2010-05", 0.2457], ["2010-06", 0.491890909090909], ["2010-07", 0.600385714285714], ["2010-08", 0.748733333333333], ["2010-09", 0.951171428571429], ["2010-10", 0.998505], ["2010-11", 0.998661904761905], ["2010-12", 0.997171428571429], ["2011-01", 0.99239], ["2011-02", 0.993605263157895], ["2011-03", 0.99414347826087], ["2011-04", 0.99646], ["2011-05", 0.996533333333333], ["2011-06", 0.997581818181818], ["2011-07", 0.998455], ["2011-08", 1.00026818181818], ["2011-09", 0.998304761904762], ["2011-10", 1.00045], ["2011-11", 0.999838095238095], ["2011-12", 0.99917], ["2012-01", 0.998461904761905], ["2012-02", 0.998625], ["2012-03", 0.999690909090909], ["2012-04", 1.00601], ["2012-05", 1.00081818181818], ["2012-06", 1.00080476190476], ["2012-07", 0.999066666666667], ["2012-08", 1.0021], ["2012-09", 1.00068421052632], ["2012-10", 1.00115454545455], ["2012-11", 1.0000619047619], ["2012-12", 1.00036315789474], ["2013-01", 1.00189545454545], ["2013-02", 1.00457894736842], ["2013-03", 1.00565], ["2013-04", 1.00444090909091], ["2013-05", 1.00434090909091], ["2013-06", 1.010085], ["2013-07", 1.00646818181818], ["2013-08", 0.998614285714286], ["2013-09", 0.99782], ["2013-10", 0.999127272727273], ["2013-11", 1.00199], ["2013-12", 1.001315], ["2014-01", 0.999745454545454], ["2014-02", 0.998157894736842], ["2014-03", 0.996480952380952], ["2014-04", 0.998171428571429], ["2014-05", 0.997471428571429], ["2014-06", 0.999871428571429], ["2014-07", 1.00012727272727], ["2014-08", 1.00018], ["2014-09", 0.999333333333333], ["2014-10", 1.00067272727273], ["2014-11", 1.00215263157895], ["2014-12", 1.00460952380952], ["2015-01", 0.9082], ["2015-02", 0.758426315789474], ["2015-03", 0.757040909090909], ["2015-04", 0.7505], ["2015-05", 0.734615], ["2015-06", 0.744677272727273], ["2015-07", 0.605131818181818], ["2015-08", 0.50731], ["2015-09", 0.500804761904762], ["2015-10", 0.5001], ["2015-11", 0.499145], ["2015-12", 0.513033333333333], ["2016-01", 0.513985], ["2016-02", 0.501745], ["2016-03", 0.498636363636364], ["2016-04", 0.502385714285714], ["2016-05", 0.499933333333333], ["2016-06", 0.5069], ["2016-07", 0.507105], ["2016-08", 0.499222727272727], ["2016-09", 0.499380952380952], ["2016-10", 0.493015], ["2016-11", 0.491557142857143], ["2016-12", 0.495425], ["2017-01", 0.491171428571429], ["2017-02", 0.491436842105263], ["2017-03", 0.49504347826087], ["2017-04", 0.497578947368421], ["2017-05", 0.491504545454545], ["2017-06", 0.494104545454545], ["2017-07", 0.669285], ["2017-08", 0.743154545454545], ["2017-09", 0.97019], ["2017-10", 0.993042857142857], ["2017-11", 0.991561904761905], ["2017-12", 0.996078947368421], ["2018-01", 1.11860454545455], ["2018-02", 1.23794736842105], ["2018-03", 1.2394], ["2018-04", 1.24545714285714], ["2018-05", 1.24541363636364], ["2018-06", 1.2481], ["2018-07", 1.42461428571429], ["2018-08", 1.49541363636364], ["2018-09", 1.49646315789474], ["2018-10", 1.56576818181818], ["2018-11", 1.74702380952381], ["2018-12", 1.74997368421053], ["2019-01", 1.74816818181818], ["2019-02", 1.74715263157895], ["2019-03", 1.74693333333333], ["2019-04", 1.74690476190476], ["2019-05", 1.74504545454545], ["2019-06", 1.742595], ["2019-07", 1.74657272727273], ["2019-08", 1.74780952380952], ["2019-09", 1.74658], ["2019-10", 1.74804545454545], ["2019-11", 1.74846], ["2019-12", 1.74805], ["2020-01", 1.74858636363636], ["2020-02", 1.74853157894737], ["2020-03", 0.953381818181818], ["2020-04", 0.234366666666667], ["2020-05", 0.22964], ["2020-06", 0.238577272727273], ["2020-07", 0.243040909090909], ["2020-08", 0.238435], ["2020-09", 0.228038095238095], ["2020-10", 0.231838095238095], ["2020-11", 0.22461], ["2020-12", 0.1993], ["2021-01", 0.18108], ["2021-02", 0.211021052631579], ["2021-03", 0.180426086956522], ["2021-04", 0.160319047619048], ["2021-05", 0.180915], ["2021-06", 0.187881818181818], ["2021-07", 0.189790476190476], ["2021-08", 0.200747619047619], ["2021-09", 0.187045], ["2021-10", 0.197725], ["2021-11", 0.202652380952381], ["2021-12", 0.160428571428571], ["2022-01", 0.175935], ["2022-02", 0.171747368421053], ["2022-03", 0.40775652173913], ["2022-04", 0.710333333333333], ["2022-05", 0.947242857142857], ["2022-06", 1.42881363636364], ["2022-07", 2.03743684210526], ["2022-08", 2.48295454545455], ["2022-09", 3.10176842105263], ["2022-10", 3.31408947368421], ["2022-11", 3.74122380952381], ["2022-12", 4.1245], ["2023-01", 4.29001428571429], ["2023-02", 4.49236842105263], ["2023-03", 4.49231304347826], ["2023-04", 4.49171764705882], ["2023-05", 4.49264761904762], ["2023-06", 4.68394545454545], ["2023-07", 4.90389], ["2023-08", 4.99421363636364], ["2023-09", 4.991785], ["2023-10", 5.001845], ["2023-11", 5.01366666666667], ["2023-12", 5.01547894736842], ["2024-01", 5.02609090909091], ["2024-02", 5.01497], ["2024-03", 5.00289], ["2024-04", 4.99991818181818], ["2024-05", 5.0027], ["2024-06", 4.80132], ["2024-07", 4.70747142857143], ["2024-08", 4.51298], ["2024-09", 4.29742222222222], ["2024-10", 4.13835], ["2024-11", 3.76488], ["2024-12", 3.46852], ["2025-01", 3.22181818181818], ["2025-02", 2.99341578947368], ["2025-03", 2.84069523809524], ["2025-04", 2.739815], ["2025-05", 2.74235238095238], ["2025-06", 2.744125], ["2025-07", 2.74803181818182], ["2025-08", 2.75275], ["2025-09", 2.657255], ["2025-10", 2.48545], ["2025-11", 2.24214210526316], ["2025-12", 2.25141904761905], ["2026-01", 2.25067619047619], ["2026-02", 2.25369473684211], ["2026-03", 2.25578636363636], ["2026-04", 2.25130952380952], ["2026-05", 2.244805], ["2026-06", 2.267285], ["2026-07", 2.27], ["2026-08", 2.25]], "realPoints": null, "realUnit": null, "realKey": null, "fx": null, "title": "Canada Interest Rate", "srcNote": "FRED series IRSTCI01CAM156N · interbank overnight rate, monthly."});</script>
+<script>
+(function(){
+  "use strict";
+  var G = { W:820, H:507, padL:60, padR:24, padT:34 };
+  // Approximation of the seaborn "mako" palette (dark indigo through
+  // blue/teal to pale mint) sampled at 8 stops -- an exact hex table
+  // wasn't retrievable from the docs (the reference page renders its
+  // swatches client-side rather than listing values), so this is a
+  // close visual match rather than a verified export of
+  // sns.color_palette("mako", 8).as_hex(). Swap in the exact values if
+  ///when available.
+  var MAKO_PALETTE = ["#0d0a29", "#2c2a5c", "#2f5d7c", "#287d8e", "#22a186", "#5fc088", "#a9dcac", "#dbf2d1"];
+  function hexToRgba(hex, alpha){
+    var m = hex.replace("#", "");
+    var r = parseInt(m.substring(0, 2), 16), g = parseInt(m.substring(2, 4), 16), b = parseInt(m.substring(4, 6), 16);
+    return "rgba(" + r + "," + g + "," + b + "," + alpha + ")";
+  }
+  var THEMES = {
+    light: { bg:"#FFFFFF", ink:"#171B1E", ink2:"#5A6167", grid:"#E4E6E1", line:"#348FA7", fill:"rgba(52,143,167,0.12)", annot:"#9AA4A0", annotText:"#6B7470" },
+    dark:  { bg:"#12181A", ink:"#EDEFEA", ink2:"#9AA4A0", grid:"#2A3436", line:"#348FA7", fill:"rgba(52,143,167,0.16)", annot:"#8A9490", annotText:"#B7BEBA" }
+  };
+  var czState = null; // set fresh each time the modal opens, for a specific chart
+  var FULL_SERIES = []; // the real [date, value] points for whichever chart is currently open
+  // Some pages (Dashboard in particular) keep their own fmtPeriod inside
+  // a private closure, not a true global -- rather than assume it's
+  // reachable, the page passes its own version in explicitly, with this
+  // as a safe fallback if it ever isn't.
+  var czFmtPeriod = function(p){
+    if(/^\d{4}-\d{2}$/.test(p)){
+      var months = ["Jan","Feb","Mar","Apr","May","Jun","Jul","Aug","Sep","Oct","Nov","Dec"];
+      return months[+p.slice(5) - 1] + " " + p.slice(0, 4);
+    }
+    if(/^\d{4}-Q\d$/.test(p)) return p.slice(5) + " " + p.slice(0, 4);
+    return p;
+  };
+  function nearestIndex(pts, dateStr){
+    var idx = 0, bestDiff = Infinity;
+    for(var i = 0; i < pts.length; i++){
+      var diff = Math.abs(new Date(pts[i][0]) - new Date(dateStr));
+      if(diff < bestDiff){ bestDiff = diff; idx = i; }
+    }
+    return idx;
+  }
+  function escapeXML(s){
+    return String(s).replace(/&/g, "&amp;").replace(/</g, "&lt;").replace(/>/g, "&gt;").replace(/"/g, "&quot;");
+  }
+  function tickIndicesCz(n, len){
+    if(len <= 1) return [0];
+    n = Math.max(2, Math.min(n, len));
+    var idxs = [];
+    for(var k = 0; k < n; k++) idxs.push(Math.round((k / (n - 1)) * (len - 1)));
+    return idxs.filter(function(v, i, arr){ return arr.indexOf(v) === i; });
+  }
+  function estTextWidthCz(text, fontSize){
+    var lines = text.split("\n");
+    var longest = lines.reduce(function(m, l){ return Math.max(m, l.length); }, 0);
+    return longest * fontSize * 0.56;
+  }
+  function czXAxisLabelSVG(x, y, text, fill, angle){
+    if(angle === "diagonal"){
+      return "<text x='" + x.toFixed(1) + "' y='" + (y - 2) + "' font-size='11' fill='" + fill + "' text-anchor='end' transform='rotate(-45 " + x.toFixed(1) + " " + (y - 2) + ")'>" + escapeXML(text) + "</text>";
+    }
+    if(angle === "vertical"){
+      return "<text x='" + x.toFixed(1) + "' y='" + (y - 2) + "' font-size='11' fill='" + fill + "' text-anchor='end' transform='rotate(-90 " + x.toFixed(1) + " " + (y - 2) + ")'>" + escapeXML(text) + "</text>";
+    }
+    return "<text x='" + x.toFixed(1) + "' y='" + y + "' font-size='11' fill='" + fill + "' text-anchor='middle'>" + escapeXML(text) + "</text>";
+  }
+  // Was a flat text.length * fontSize * 0.5 guess -- underestimates
+  // width for source citations dense with uppercase FRED/ONS/OECD
+  // series codes and digits. Measures the actual rendered width via an
+  // offscreen canvas using the same font stack as the SVG text
+  // elements, matching the fix applied to Compare/ChartMaker's own
+  // copy of this function, so wrap/truncate decisions match reality
+  // instead of a guess everywhere on the site, not just those two pages.
+  var _measureCanvas = null;
+  function estProseWidth(text, fontSize){
+    try {
+      if(!_measureCanvas) _measureCanvas = document.createElement("canvas");
+      var ctx = _measureCanvas.getContext("2d");
+      ctx.font = fontSize + "px Helvetica, Arial, sans-serif";
+      return ctx.measureText(String(text)).width;
+    } catch(e){
+      return String(text).length * fontSize * 0.58; // fallback if canvas is unavailable
+    }
+  }
+  function czTruncSrcFooter(text){
+    var madeOnW = estProseWidth("Made on theeconomicatlas.com", 11);
+    var maxW = (G.W - G.padR) - G.padL - madeOnW - 16;
+    if(estProseWidth(text, 11) <= maxW) return text;
+    var t = text;
+    while(t.length > 1 && estProseWidth(t + "\u2026", 11) > maxW){ t = t.slice(0, -1); }
+    return t + "\u2026";
+  }
+  function labelBoxCz(a){
+    var lines = String(a.label || "Event").split("\n").slice(0, 4);
+    var fs = a.fontSize || 11;
+    var lineH = fs * 1.25;
+    var w = estTextWidthCz(a.label || "Event", fs);
+    var h = lines.length * lineH;
+    var left, right;
+    if(a.align === "left"){ right = a.labelX; left = a.labelX - w; }
+    else if(a.align === "right"){ left = a.labelX; right = a.labelX + w; }
+    else { left = a.labelX - w / 2; right = a.labelX + w / 2; }
+    var top = a.labelY - fs * 0.85, bottom = a.labelY + h - fs * 0.85 + (fs * 0.3);
+    return { left: left, right: right, top: top, bottom: bottom, w: right - left, h: bottom - top };
+  }
+  function closestBoxPointCz(box, tx, ty){
+    return { x: Math.max(box.left, Math.min(box.right, tx)), y: Math.max(box.top, Math.min(box.bottom, ty)) };
+  }
+  function defaultLabelPosCz(ax){ return { labelX: ax, labelY: G.padT - 8 }; }
+  function czFilteredSeries(){
+    return FULL_SERIES.filter(function(p){ return p[0] >= czState.from && p[0] <= czState.to; });
+  }
+  // Standard "nice numbers" axis algorithm (Talbot/Lin/Hanrahan-style):
+  // rather than evenly slicing the padded data range -- which produces
+  // arbitrary values like 0.335% or 3.085% -- this snaps both the tick
+  // step and the axis bounds themselves to round, human-chosen numbers
+  // (1/2/2.5/5/10 x a power of ten), the same approach real charting
+  // libraries use.
+  function niceNum(range, round){
+    var exponent = Math.floor(Math.log10(range));
+    var fraction = range / Math.pow(10, exponent);
+    var niceFraction;
+    if(round){
+      if(fraction < 1.5) niceFraction = 1;
+      else if(fraction < 3) niceFraction = 2;
+      else if(fraction < 7) niceFraction = 5;
+      else niceFraction = 10;
+    } else {
+      if(fraction <= 1) niceFraction = 1;
+      else if(fraction <= 2) niceFraction = 2;
+      else if(fraction <= 5) niceFraction = 5;
+      else niceFraction = 10;
+    }
+    return niceFraction * Math.pow(10, exponent);
+  }
+  function niceTicks(rawMin, rawMax, targetCount){
+    if(rawMin === rawMax){ rawMin -= 1; rawMax += 1; }
+    var range = niceNum(rawMax - rawMin, false);
+    var step = niceNum(range / Math.max(1, targetCount - 1), true);
+    var niceMin = Math.floor(rawMin / step) * step;
+    var niceMax = Math.ceil(rawMax / step) * step;
+    var ticks = [];
+    for(var v = niceMin; v <= niceMax + step * 0.5; v += step){
+      ticks.push(Math.round(v / step) * step);
+    }
+    return { ticks: ticks, min: niceMin, max: niceMax };
+  }
+  // The old Y-axis tick control drove niceTicks() by a "target count"
+  // that then got snapped to a round step via niceNum(). Several
+  // adjacent target counts (say 5, 6, 7, 8) frequently snap to the SAME
+  // round step for a given data range, so clicking +/- did visibly
+  // nothing for several clicks in a row and only changed once a click
+  // crossed into a different rounding bucket -- it read as broken, not
+  // just coarse. Fixing this properly means not asking "how many ticks
+  // do you want" at all -- instead the control walks directly through
+  // the actual list of round step sizes (1/2/2.5/5/10 x a power of ten)
+  // available for this data's range, so every single click is
+  // guaranteed to land on a different step and produce a different,
+  // correctly round-numbered axis. Sorted descending: index 0 is the
+  // largest step (fewest ticks), the last index is the smallest step
+  // (most ticks).
+  function niceStepCandidates(rawMin, rawMax){
+    var range = niceNum(Math.max(rawMax - rawMin, 1e-9), false);
+    var baseExp = Math.floor(Math.log10(range));
+    var fracs = [10, 5, 2.5, 2, 1];
+    var raw = [];
+    for(var e = baseExp + 2; e >= baseExp - 3; e--){
+      for(var i = 0; i < fracs.length; i++) raw.push(fracs[i] * Math.pow(10, e));
+    }
+    raw = raw.filter(function(v, i, arr){ return arr.indexOf(v) === i; });
+    raw.sort(function(a, b){ return b - a; });
+    // Count ticks the SAME way the axis actually renders them (via
+    // niceTicksFromStep against the real rawMin/rawMax), not via a
+    // formula estimate off the rounded 'range' -- an estimate-based
+    // count can still under/over-count relative to what actually
+    // renders (rounding rawMin/rawMax up/down to the nearest step can
+    // add a tick the formula didn't predict), which silently let
+    // through duplicate-count candidates the first version of this
+    // function was supposed to remove.
+    var withCounts = raw.map(function(step){
+      return { step: step, n: niceTicksFromStep(rawMin, rawMax, step).ticks.length };
+    }).filter(function(c){ return c.n >= 2 && c.n <= 15; })
+      // A step several orders of magnitude too large for the actual
+      // data (e.g. a step of 10,000 for a series spanning -2 to 6) can
+      // still innocently pass the n>=2/n<=15 count filter -- rounding
+      // a tiny span up to the nearest huge step naturally lands on a
+      // "3 ticks" result even though the resulting axis (-10,000 to
+      // 10,000) bears no relation to the real data. Left in, these
+      // waste index slots and make small-range series (percentages,
+      // rates) saturate after only 2-3 useful clicks. Capping how much
+      // wider than the true data span the rounded axis is allowed to
+      // be excludes exactly these degenerate cases without touching
+      // any candidate that's actually a sensible zoom level.
+      .filter(function(c){
+        var trueSpan = Math.max(rawMax - rawMin, 1e-9);
+        var niceSpan = niceTicksFromStep(rawMin, rawMax, c.step).max - niceTicksFromStep(rawMin, rawMax, c.step).min;
+        return niceSpan <= trueSpan * 4;
+      });
+    // Several large steps (e.g. 1bn, 500m, 100m for a ~4tn range) all
+    // round the same data down to the same "2 ticks" result -- keeping
+    // every one of them as a separate index is what caused the original
+    // bug in a different guise: clicking + would silently re-select a
+    // different step that LOOKS identical because it produces the same
+    // tick count. Collapsing consecutive candidates that share a tick
+    // count down to a single entry (the largest such step, i.e. the
+    // roundest number) guarantees every remaining index is a genuinely
+    // distinct, visibly different result.
+    var out = [];
+    var lastN = null;
+    withCounts.forEach(function(c){
+      if(c.n !== lastN){ out.push(c.step); lastN = c.n; }
+    });
+    if(!out.length) out = [range / 4 || 1];
+    return out;
+  }
+  function niceTicksFromStep(rawMin, rawMax, step){
+    var niceMin = Math.floor(rawMin / step) * step;
+    var niceMax = Math.ceil(rawMax / step) * step;
+    var ticks = [];
+    for(var v = niceMin; v <= niceMax + step * 0.5; v += step){
+      ticks.push(Math.round(v / step) * step);
+    }
+    return { ticks: ticks, min: niceMin, max: niceMax };
+  }
+  // Picks the step-candidate index (out of niceStepCandidates()) whose
+  // resulting tick count is closest to targetCount -- used only once,
+  // to establish a sensible DEFAULT index when the modal first opens
+  // for a chart (so it still starts out looking like ~5 ticks), never
+  // called again afterwards. From then on the index is just walked
+  // directly by the +/- buttons.
+  function defaultStepIdxFor(rawMin, rawMax, targetCount){
+    var candidates = niceStepCandidates(rawMin, rawMax);
+    var bestIdx = 0, bestDiff = Infinity;
+    for(var i = 0; i < candidates.length; i++){
+      var n = Math.ceil((rawMax - rawMin) / candidates[i]) + 1;
+      var diff = Math.abs(n - targetCount);
+      if(diff < bestDiff){ bestDiff = diff; bestIdx = i; }
+    }
+    return bestIdx;
+  }
+  // Some of the site's own formatters (e.g. GDP level's currency
+  // tiering into tn/bn/m) pick a unit independently per value -- fine
+  // for a single number, but on an axis it means zero can land in a
+  // different, smaller tier than the rest ("0m" beside "400.00tn").
+  // Reusing the largest tick's tier for zero specifically keeps the
+  // whole axis reading in one consistent unit.
+  // Axis ticks are always "nice round numbers", so a formatter tuned for
+  // precise values (2dp currency, etc.) tends to print redundant
+  // trailing zeros here -- $35.00tn instead of $35tn. Trims them without
+  // touching the formatter itself, which still needs full precision for
+  // tooltips/downloads elsewhere. Same fix as Compare's czmTrimAxisZeros.
+  function czTrimAxisZeros(str){
+    return str.replace(/(\.\d*[1-9])0+(?!\d)|\.0+(?!\d)/g, function(m, keep){ return keep || ""; });
+  }
+  function czAxisTickLabel(v, allTicks, fmtY){
+    var raw = Math.round(v * 100) / 100;
+    if(raw !== 0) return czTrimAxisZeros(fmtY(raw));
+    var refVal = allTicks.reduce(function(best, t){ return Math.abs(t) > Math.abs(best) ? t : best; }, allTicks[0]);
+    if(refVal === 0) return czTrimAxisZeros(fmtY(0));
+    var refLabel = fmtY(Math.round(refVal * 100) / 100);
+    return czTrimAxisZeros(refLabel.replace(/[\d.,]+/, function(numStr){
+      var decMatch = numStr.match(/\.(\d+)/);
+      return decMatch ? "0." + "0".repeat(decMatch[1].length) : "0";
+    }));
+  }
+  // Log-scale ticks don't follow the "round step" logic linear ticks
+  // use -- by convention a log axis marks powers of ten and their 2x/5x
+  // subdivisions (1, 2, 5, 10, 20, 50, 100...), which read correctly
+  // regardless of how many decades the data spans.
+  function niceLogTicks(minV, maxV){
+    var loE = Math.floor(Math.log10(minV)) - 1;
+    var hiE = Math.ceil(Math.log10(maxV)) + 1;
+    var mults = [1, 2, 5];
+    var candidates = [];
+    for(var e = loE; e <= hiE; e++){
+      mults.forEach(function(m){ candidates.push(m * Math.pow(10, e)); });
+    }
+    candidates = candidates.filter(function(v, i, arr){ return arr.indexOf(v) === i; }).sort(function(a, b){ return a - b; });
+    // The axis bounds MUST bracket the true data range, not just the
+    // displayed tick labels -- picking ticks[0] as the axis minimum (the
+    // earlier version of this function) meant that whenever no nice 1/2/5
+    // value happened to land close to the real minimum, the chosen floor
+    // could end up ABOVE it, silently clamping every point below that
+    // floor to the bottom edge of the chart (a flat line, not a gap --
+    // easy to miss unless you're looking for it). axisMin/axisMax are
+    // picked independently as the nearest nice value at-or-below /
+    // at-or-above the true data, and the displayed ticks are then
+    // whichever nice candidates fall within that bracket.
+    var axisMin = minV, axisMax = maxV;
+    for(var i = candidates.length - 1; i >= 0; i--){
+      if(candidates[i] <= minV * 1.0001){ axisMin = candidates[i]; break; }
+    }
+    for(var j = 0; j < candidates.length; j++){
+      if(candidates[j] >= maxV * 0.9999){ axisMax = candidates[j]; break; }
+    }
+    var ticks = candidates.filter(function(v){ return v >= axisMin * 0.999 && v <= axisMax * 1.001; });
+    if(ticks.length < 2) ticks = [axisMin, axisMax];
+    return { ticks: ticks, min: axisMin, max: axisMax };
+  }
+  // Log scale is only meaningful (and only mathematically valid) once
+  // every value in view -- including the reference line, if it's on --
+  // is strictly positive. Rather than silently falling back to linear
+  // when the user picks a date range that includes a zero or negative
+  // value, availability is re-checked on every render and the control
+  // itself is disabled with an explanation, so the person always knows
+  // why the option isn't there right now instead of wondering why their
+  // click did nothing.
+  function czLogScaleAvailable(){
+    var pts = czFilteredSeries();
+    var vals = pts.map(function(p){ return p[1]; });
+    if(czState.refLine.enabled) vals.push(czState.refLine.value);
+    return vals.every(function(v){ return v > 0; }) && vals.length > 0;
+  }
+  function czGeom(){
+    var pts = czFilteredSeries();
+    var padB = 70;
+    var allVals = pts.map(function(p){ return p[1]; });
+    // The reference line must NOT feed into the axis's own min/max --
+    // it's a threshold marker, not a data point, and letting it into
+    // this calculation meant a reference value far outside the real
+    // data (e.g. a threshold near zero on a chart of trillions) dragged
+    // the entire visible axis down to accommodate it, cluttering the
+    // low end with many indistinguishable extra ticks under log scale.
+    // If the reference value falls outside the resulting [minV, maxV],
+    // y() below clamps its rendered position to the nearest edge and
+    // the label is suppressed (see the reference-line drawing code) --
+    // that's the correct way to handle "the threshold is off-chart",
+    // not by silently resizing the chart to fit it.
+    var rawMin = Math.min.apply(null, allVals), rawMax = Math.max.apply(null, allVals);
+    var useLog = czState.yScale === "log" && czLogScaleAvailable();
+    var nice, minV, maxV;
+    if(useLog){
+      nice = niceLogTicks(rawMin, rawMax);
+      minV = nice.min; maxV = nice.max;
+    } else {
+      var stepCandidates = niceStepCandidates(rawMin, rawMax);
+      var stepIdx = Math.max(0, Math.min(stepCandidates.length - 1, czState.yTickStepIdx));
+      nice = niceTicksFromStep(rawMin, rawMax, stepCandidates[stepIdx]);
+      minV = nice.min; maxV = nice.max;
+    }
+    var padT = (czState.yTitlePos === "above" ? G.padT + 18 : G.padT) + (czState.chartTitle ? 24 : 0);
+    var plotW = G.W - G.padL - G.padR, plotH = G.H - padT - padB;
+    return {
+      pts: pts, minV: minV, maxV: maxV, plotW: plotW, plotH: plotH, padB: padB, padT: padT,
+      yTickValues: nice.ticks, yScale: useLog ? "log" : "linear",
+      x: function(i){
+        if(czState.chartKind === "bar"){
+          if(pts.length === 1) return G.padL + plotW / 2;
+          var bandW = plotW / pts.length;
+          return G.padL + bandW * (i + 0.5);
+        }
+        return G.padL + (pts.length === 1 ? plotW / 2 : (i / (pts.length - 1)) * plotW);
+      },
+      y: function(v){
+        var py;
+        if(useLog){
+          var vc = Math.max(v, minV);
+          py = padT + plotH - ((Math.log10(vc) - Math.log10(minV)) / (Math.log10(maxV) - Math.log10(minV))) * plotH;
+        } else {
+          py = padT + plotH - ((v - minV) / (maxV - minV)) * plotH;
+        }
+        // Clamping the OUTPUT pixel position (rather than only the log
+        // branch's input value, as before) covers both scale types
+        // uniformly: anything outside the visible range -- including a
+        // reference line whose value now legitimately sits outside
+        // [minV, maxV], since it's no longer allowed to distort those
+        // bounds -- pins to the nearest edge instead of rendering off
+        // the chart entirely.
+        return Math.max(padT, Math.min(padT + plotH, py));
+      }
+    };
+  }
+  function czBuildSVG(theme, forExport){
+    var t = THEMES[theme];
+    var gm = czGeom();
+    var pts = gm.pts;
+    if(!pts.length) return "<svg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 " + G.W + " " + G.H + "'></svg>";
+    var svg = [];
+    svg.push("<svg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 " + G.W + " " + G.H + "' font-family='Helvetica, Arial, sans-serif'>");
+    svg.push("<rect x='0' y='0' width='" + G.W + "' height='" + G.H + "' fill='" + t.bg + "'/>");
+    if(czState.chartTitle){
+      svg.push("<text x='" + (G.W / 2) + "' y='24' font-size='16' font-weight='700' fill='" + t.ink + "' text-anchor='middle'>" + escapeXML(czState.chartTitle) + "</text>");
+    }
+    var axisColor = t.ink2;
+    gm.yTickValues.forEach(function(v){
+      var gy = gm.y(v);
+      svg.push("<line x1='" + G.padL + "' y1='" + gy.toFixed(1) + "' x2='" + (G.W - G.padR) + "' y2='" + gy.toFixed(1) + "' stroke='" + t.grid + "' stroke-width='1'/>");
+      svg.push("<line x1='" + (G.padL - 5) + "' y1='" + gy.toFixed(1) + "' x2='" + G.padL + "' y2='" + gy.toFixed(1) + "' stroke='" + axisColor + "' stroke-width='1.3'/>");
+      svg.push("<text x='" + (G.padL - 10) + "' y='" + (gy + 4).toFixed(1) + "' font-size='11' fill='" + t.ink2 + "' text-anchor='end'>" + czAxisTickLabel(v, gm.yTickValues, czState.fmtY) + "</text>");
+    });
+    var axisBottomY = gm.padT + gm.plotH;
+    svg.push("<line x1='" + G.padL + "' y1='" + gm.padT + "' x2='" + G.padL + "' y2='" + axisBottomY + "' stroke='" + axisColor + "' stroke-width='1.5'/>");
+    svg.push("<line x1='" + G.padL + "' y1='" + axisBottomY + "' x2='" + (G.W - G.padR) + "' y2='" + axisBottomY + "' stroke='" + axisColor + "' stroke-width='1.5'/>");
+    if(czState.yTitlePos === "above"){
+      svg.push("<text x='4' y='18' font-size='11.5' font-weight='600' fill='" + t.ink2 + "'>" + escapeXML(czState.yTitle) + "</text>");
+    } else {
+      var yTitleX = 16, yTitleY = gm.padT + gm.plotH / 2;
+      svg.push("<text x='" + yTitleX + "' y='" + yTitleY + "' font-size='11.5' font-weight='600' fill='" + t.ink2 + "' text-anchor='middle' transform='rotate(-90 " + yTitleX + " " + yTitleY + ")'>" + escapeXML(czState.yTitle) + "</text>");
+    }
+    tickIndicesCz(czState.xTicks, pts.length).forEach(function(idx, tickPos, allTicks){
+      var tx = gm.x(idx);
+      svg.push("<line x1='" + tx.toFixed(1) + "' y1='" + axisBottomY + "' x2='" + tx.toFixed(1) + "' y2='" + (axisBottomY + 5) + "' stroke='" + axisColor + "' stroke-width='1.3'/>");
+    });
+    var cursorY = axisBottomY + 26;
+    tickIndicesCz(czState.xTicks, pts.length).forEach(function(idx, tickPos, allTicks){
+      var isFirst = tickPos === 0, isLast = tickPos === allTicks.length - 1;
+      if((czState.xLabelAngle || "straight") === "straight"){
+        var anchor = isFirst ? "start" : isLast ? "end" : "middle";
+        svg.push("<text x='" + gm.x(idx).toFixed(1) + "' y='" + cursorY + "' font-size='11' fill='" + t.ink2 + "' text-anchor='" + anchor + "'>" + czFmtPeriod(pts[idx][0]) + "</text>");
+      } else {
+        svg.push(czXAxisLabelSVG(gm.x(idx), cursorY, czFmtPeriod(pts[idx][0]), t.ink2, czState.xLabelAngle));
+      }
+    });
+    if(czState.refLine.enabled){
+      var ry = gm.y(czState.refLine.value);
+      svg.push("<line x1='" + G.padL + "' y1='" + ry.toFixed(1) + "' x2='" + (G.W - G.padR) + "' y2='" + ry.toFixed(1) + "' stroke='" + t.annot + "' stroke-width='1.3' stroke-dasharray='4,3'/>");
+      // The line itself is fine to draw pinned to the axis edge when the
+      // reference value sits outside the visible range -- that's honest,
+      // it shows "there's a threshold beyond what's shown". But printing
+      // this label's exact number where it visually COINCIDES with an
+      // axis tick's own label is what actually needs preventing --
+      // checking whether refLine.value falls within [minV, maxV] isn't
+      // enough on its own, since a linear axis floor often rounds down
+      // to exactly 0, and a reference value that's merely small relative
+      // to the data (not literally out of range) still lands within a
+      // pixel or two of the "0" tick's row. Comparing actual rendered
+      // pixel positions against every tick directly catches that case
+      // too, not just the strictly-out-of-range one.
+      var collidesWithTick = gm.yTickValues.some(function(tv){ return Math.abs(gm.y(tv) - ry) < 9; });
+      if(!collidesWithTick){
+        svg.push("<text x='" + (G.padL - 10) + "' y='" + (ry + 4).toFixed(1) + "' font-size='11' fill='" + t.ink2 + "' text-anchor='end'>" + czState.fmtY(Math.round(czState.refLine.value * 100) / 100) + "</text>");
+      }
+    }
+    czState.annotations.forEach(function(a, ai){
+      svg.push(czAnnotationSVG(a, ai, gm, t, forExport));
+    });
+    // Threshold value the two-colour split uses. Bars have always
+    // defaulted to splitting at zero (kept as-is so nothing already
+    // live regresses); "Colour by above/below reference line" only
+    // appears once Reference line itself is on, and opting into it
+    // repoints the split to the reference line's own value instead of
+    // a hardcoded zero -- in EITHER chart mode, since a line chart's
+    // fill can be split the same way a bar's colour can.
+    var useThreshold = czState.refLine.enabled && czState.threshold2Color;
+    var thresholdVal = useThreshold ? czState.refLine.value : 0;
+    var threshY = Math.max(gm.padT, Math.min(gm.padT + gm.plotH, gm.y(thresholdVal)));
+    // A user-picked mako swatch overrides the theme's default chart
+    // colour, but only for the chart's own line/bar/fill -- axis text,
+    // gridlines, and the negative/below-threshold indigo stay
+    // theme-driven regardless, since those aren't what the picker is for.
+    var chartColor = czState.lineColor || t.line;
+    var chartFillColor = czState.lineColor ? hexToRgba(czState.lineColor, theme === "dark" ? 0.16 : 0.12) : t.fill;
+    if(czState.chartKind === "bar"){
+      // Same up/down colour convention as the real site's own bar charts
+      // (mako "sea" for positive, mako "indigo" for negative) -- not a
+      // separate palette invented for this tool.
+      var barW = Math.max(2, (gm.plotW / pts.length) * 0.62);
+      pts.forEach(function(p, i){
+        var bx = gm.x(i);
+        var by = gm.y(p[1]);
+        var top = Math.min(by, threshY);
+        var h = Math.max(0.6, Math.abs(by - threshY));
+        var color = p[1] < thresholdVal ? "#413D7B" : chartColor;
+        svg.push("<rect x='" + (bx - barW / 2).toFixed(1) + "' y='" + top.toFixed(1) + "' width='" + barW.toFixed(1) + "' height='" + h.toFixed(1) + "' fill='" + color + "'/>");
+      });
+    } else {
+      var linePath = pts.map(function(p, i){ return (i === 0 ? "M" : "L") + gm.x(i).toFixed(1) + "," + gm.y(p[1]).toFixed(1); }).join(" ");
+      // Clip regions are generated once, up front, whenever threshold
+      // colouring is active -- not just when Fill happens to also be on
+      // -- since the line stroke and the point markers both need the
+      // same split, independently of whether the area beneath them is
+      // shaded.
+      var clipId = null;
+      if(useThreshold){
+        clipId = "czThreshClip" + Math.round(Math.random() * 1e6);
+        svg.push("<clipPath id='" + clipId + "a'><rect x='0' y='" + gm.padT + "' width='" + G.W + "' height='" + (threshY - gm.padT) + "'/></clipPath>");
+        svg.push("<clipPath id='" + clipId + "b'><rect x='0' y='" + threshY + "' width='" + G.W + "' height='" + (gm.padT + gm.plotH - threshY) + "'/></clipPath>");
+      }
+      if(czState.showFill){
+        var areaPath = linePath + " L" + gm.x(pts.length - 1).toFixed(1) + "," + (gm.padT + gm.plotH) + " L" + gm.x(0).toFixed(1) + "," + (gm.padT + gm.plotH) + " Z";
+        if(useThreshold){
+          // Two clip regions (above/below the threshold's pixel row)
+          // applied to the SAME full area path, rather than computing
+          // exact line/threshold crossing points -- geometrically
+          // simpler and just as correct, since a straight horizontal
+          // clip line does the split for us.
+          svg.push("<path d='" + areaPath + "' fill='" + chartColor + "' fill-opacity='0.14' clip-path='url(#" + clipId + "a)'/>");
+          svg.push("<path d='" + areaPath + "' fill='#413D7B' fill-opacity='0.16' clip-path='url(#" + clipId + "b)'/>");
+        } else {
+          svg.push("<path d='" + areaPath + "' fill='" + chartFillColor + "'/>");
+        }
+      }
+      if(useThreshold){
+        // The stroke gets the SAME two-colour clip treatment as the
+        // fill -- drawing the identical full-length path twice, each
+        // copy visible only within its clip region, rather than trying
+        // to split the path data itself at every threshold crossing.
+        // Simpler, and the visual result is identical to a true
+        // per-segment split since SVG clipping is a rendering-time
+        // operation, not a change to the underlying path geometry.
+        svg.push("<path d='" + linePath + "' fill='none' stroke='" + chartColor + "' stroke-width='2.5' stroke-linejoin='round' stroke-linecap='round' clip-path='url(#" + clipId + "a)'/>");
+        svg.push("<path d='" + linePath + "' fill='none' stroke='#413D7B' stroke-width='2.5' stroke-linejoin='round' stroke-linecap='round' clip-path='url(#" + clipId + "b)'/>");
+      } else {
+        svg.push("<path d='" + linePath + "' fill='none' stroke='" + chartColor + "' stroke-width='2.5' stroke-linejoin='round' stroke-linecap='round'/>");
+      }
+      if(czState.showPoints !== false){
+        pts.forEach(function(p, i){
+          var ptColor = useThreshold ? (p[1] < thresholdVal ? "#413D7B" : chartColor) : chartColor;
+          svg.push("<circle cx='" + gm.x(i).toFixed(1) + "' cy='" + gm.y(p[1]).toFixed(1) + "' r='2.2' fill='" + ptColor + "'/>");
+        });
+      }
+    }
+    if(forExport){
+      cursorY += 20;
+      svg.push("<line x1='" + G.padL + "' y1='" + cursorY + "' x2='" + (G.W - G.padR) + "' y2='" + cursorY + "' stroke='" + t.grid + "' stroke-width='1'/>");
+      cursorY += 18;
+      svg.push("<text x='" + G.padL + "' y='" + cursorY + "' font-size='11' fill='" + t.ink2 + "'>Source: " + escapeXML(czTruncSrcFooter(czState.srcNote)) + "</text>");
+      svg.push("<text x='" + (G.W - G.padR) + "' y='" + cursorY + "' font-size='11' fill='" + t.ink2 + "' text-anchor='end'>Made on theeconomicatlas.com</text>");
+    }
+    svg.push("</svg>");
+    return svg.join("");
+  }
+  function czAnnotationSVG(a, ai, gm, t, forExport){
+    var pts = gm.pts;
+    if(a.date < pts[0][0] || a.date > pts[pts.length - 1][0]) return "";
+    var idx = nearestIndex(pts, a.date);
+    var ax = gm.x(idx);
+    var ay = gm.y(pts[idx][1]);
+    var s = ["<g data-cz-annot-group='" + ai + "'>"];
+    if(a.type === "line"){
+      s.push("<line data-cz-vline='" + ai + "' x1='" + ax.toFixed(1) + "' y1='" + gm.padT + "' x2='" + ax.toFixed(1) + "' y2='" + (gm.padT + gm.plotH) + "' stroke='" + t.annot + "' stroke-width='1.5' stroke-dasharray='4,3'/>");
+      if(!forExport) s.push("<rect data-cz-line-handle='" + ai + "' x='" + (ax - 7).toFixed(1) + "' y='" + gm.padT + "' width='14' height='" + gm.plotH + "' fill='transparent' cursor='ew-resize'/>");
+    } else {
+      var box = labelBoxCz(a);
+      var start = closestBoxPointCz(box, ax, ay);
+      var angle = Math.atan2(ay - start.y, ax - start.x);
+      var headLen = 8;
+      var hx1 = ax - headLen * Math.cos(angle - Math.PI / 7);
+      var hy1 = ay - headLen * Math.sin(angle - Math.PI / 7);
+      var hx2 = ax - headLen * Math.cos(angle + Math.PI / 7);
+      var hy2 = ay - headLen * Math.sin(angle + Math.PI / 7);
+      s.push("<line data-cz-vline='" + ai + "' x1='" + start.x.toFixed(1) + "' y1='" + start.y.toFixed(1) + "' x2='" + ax.toFixed(1) + "' y2='" + ay.toFixed(1) + "' stroke='" + t.annot + "' stroke-width='1.5'/>");
+      s.push("<path d='M" + ax.toFixed(1) + "," + ay.toFixed(1) + " L" + hx1.toFixed(1) + "," + hy1.toFixed(1) + " L" + hx2.toFixed(1) + "," + hy2.toFixed(1) + " Z' fill='" + t.annot + "'/>");
+      s.push("<circle cx='" + ax.toFixed(1) + "' cy='" + ay.toFixed(1) + "' r='3' fill='" + t.annot + "'/>");
+      if(!forExport) s.push("<circle data-cz-line-handle='" + ai + "' cx='" + ax.toFixed(1) + "' cy='" + ay.toFixed(1) + "' r='9' fill='transparent' cursor='ew-resize'/>");
+    }
+    var anchorMap = { left: "end", center: "middle", right: "start" };
+    var anchor = anchorMap[a.align] || "middle";
+    var lines = String(a.label || "Event").split("\n").slice(0, 4);
+    var fs = a.fontSize || 11;
+    var lineH = fs * 1.25;
+    s.push("<text data-cz-label='" + ai + "' x='" + a.labelX.toFixed(1) + "' y='" + a.labelY.toFixed(1) + "' font-size='" + fs + "' font-weight='600' fill='" + t.annotText + "' text-anchor='" + anchor + "'>");
+    lines.forEach(function(ln, li){
+      s.push("<tspan x='" + a.labelX.toFixed(1) + "' dy='" + (li === 0 ? 0 : lineH) + "'>" + escapeXML(ln) + "</tspan>");
+    });
+    s.push("</text>");
+    if(!forExport){
+      var box2 = labelBoxCz(a);
+      s.push("<rect data-cz-label-handle='" + ai + "' x='" + (box2.left - 4).toFixed(1) + "' y='" + (box2.top - 2).toFixed(1) + "' width='" + (box2.w + 8).toFixed(1) + "' height='" + (box2.h + 6).toFixed(1) + "' fill='transparent' cursor='grab'/>");
+    }
+    s.push("</g>");
+    return s.join("");
+  }
+  var czPreviewBox = document.getElementById("czPreviewBox");
+  function czRenderPreview(){
+    czSyncModeFields();
+    czPreviewBox.innerHTML = czBuildSVG(czState.exportTheme, false);
+    czWireDragHandles();
+    // czGeom() re-derives the real step-candidate list for whatever
+    // data/date-range is currently active, so the +/- clamp and the
+    // displayed tick count must be read back from it after every
+    // render rather than assumed -- the candidate count isn't fixed.
+    var gm = czGeom();
+    if(czYTickVal) czYTickVal.textContent = gm.yTickValues.length;
+  }
+  function czWireDragHandles(){
+    var svgEl = czPreviewBox.querySelector("svg");
+    if(!svgEl) return;
+    function svgPoint(ev){
+      var rect = svgEl.getBoundingClientRect();
+      var scale = G.W / rect.width;
+      return { x: (ev.clientX - rect.left) * scale, y: (ev.clientY - rect.top) * scale };
+    }
+    function refreshGroup(ai){
+      var gm = czGeom();
+      var t = THEMES[czState.exportTheme];
+      var group = svgEl.querySelector("[data-cz-annot-group='" + ai + "']");
+      if(!group) return;
+      var temp = document.createElementNS("http://www.w3.org/2000/svg", "g");
+      temp.innerHTML = czAnnotationSVG(czState.annotations[ai], ai, gm, t, false).replace(/^<g[^>]*>/, "").replace(/<\/g>$/, "");
+      group.replaceChildren.apply(group, temp.childNodes);
+      wireOneGroup(ai, group);
+    }
+    function wireOneGroup(ai, group){
+      var lineHandle = group.querySelector("[data-cz-line-handle='" + ai + "']");
+      var labelHandle = group.querySelector("[data-cz-label-handle='" + ai + "']");
+      if(lineHandle) lineHandle.addEventListener("pointerdown", function(e){ startLineDrag(e, ai); });
+      if(labelHandle) labelHandle.addEventListener("pointerdown", function(e){ startLabelDragOrClick(e, ai); });
+    }
+    function startLineDrag(e, ai){
+      e.preventDefault();
+      var gm = czGeom();
+      function move(ev){
+        var p = svgPoint(ev);
+        // Nearest-point search on gm.x(i) rather than a linear fraction of
+        // plotW -- bar charts use band-centered x-positions (not evenly
+        // edge-to-edge like line charts), so a frac-based formula would
+        // pick the wrong index once a chart is switched to bar view.
+        var idx = 0, best = Infinity;
+        for(var i = 0; i < gm.pts.length; i++){
+          var d = Math.abs(gm.x(i) - p.x);
+          if(d < best){ best = d; idx = i; }
+        }
+        var a = czState.annotations[ai];
+        a.date = gm.pts[idx][0];
+        var ax = gm.x(idx);
+        a.labelX = a.align === "left" ? ax - 50 : a.align === "right" ? ax + 50 : ax;
+        refreshGroup(ai);
+      }
+      function up(){
+        window.removeEventListener("pointermove", move);
+        window.removeEventListener("pointerup", up);
+        czSyncAnnotListInputs();
+        czRenderPreview();
+      }
+      window.addEventListener("pointermove", move);
+      window.addEventListener("pointerup", up);
+    }
+    function startLabelDragOrClick(e, ai){
+      e.preventDefault();
+      var a = czState.annotations[ai];
+      var startClient = { x: e.clientX, y: e.clientY };
+      var startSvg = svgPoint(e);
+      var offX = startSvg.x - a.labelX, offY = startSvg.y - a.labelY;
+      var moved = false;
+      function move(ev){
+        if(Math.abs(ev.clientX - startClient.x) > 4 || Math.abs(ev.clientY - startClient.y) > 4) moved = true;
+        if(!moved) return;
+        var p = svgPoint(ev);
+        a.labelX = Math.max(20, Math.min(G.W - 20, p.x - offX));
+        a.labelY = Math.max(16, Math.min(G.H - 16, p.y - offY));
+        refreshGroup(ai);
+      }
+      function up(){
+        window.removeEventListener("pointermove", move);
+        window.removeEventListener("pointerup", up);
+        if(moved){ czRenderPreview(); }
+        else { czOpenInlineEditor(ai); }
+      }
+      window.addEventListener("pointermove", move);
+      window.addEventListener("pointerup", up);
+    }
+    svgEl.querySelectorAll("[data-cz-annot-group]").forEach(function(group){
+      var ai = parseInt(group.getAttribute("data-cz-annot-group"), 10);
+      wireOneGroup(ai, group);
+    });
+  }
+  function czOpenInlineEditor(ai){
+    var a = czState.annotations[ai];
+    var svgEl = czPreviewBox.querySelector("svg");
+    var rect = svgEl.getBoundingClientRect();
+    var scale = rect.width / G.W;
+    var box = labelBoxCz(a);
+    var overlay = document.createElement("textarea");
+    overlay.className = "cz-inline-editor";
+    overlay.style.position = "fixed";
+    overlay.style.border = "1.5px dashed var(--blue)";
+    overlay.style.background = "rgba(255,255,255,.94)";
+    overlay.style.borderRadius = "3px";
+    overlay.style.padding = "1px 3px";
+    overlay.style.zIndex = "60";
+    overlay.style.resize = "none";
+    overlay.style.outline = "none";
+    overlay.value = a.label;
+    overlay.style.left = (rect.left + box.left * scale - 4) + "px";
+    overlay.style.top = (rect.top + box.top * scale - 2) + "px";
+    overlay.style.width = Math.max(70, box.w * scale + 8) + "px";
+    overlay.style.height = Math.max(24, box.h * scale + 6) + "px";
+    overlay.style.fontSize = Math.max(10, a.fontSize * scale) + "px";
+    overlay.style.fontWeight = "600";
+    overlay.style.fontFamily = "Helvetica, Arial, sans-serif";
+    overlay.style.color = THEMES[czState.exportTheme].annotText;
+    overlay.style.textAlign = a.align === "left" ? "right" : a.align === "right" ? "left" : "center";
+    document.body.appendChild(overlay);
+    overlay.focus();
+    overlay.select();
+    function syncSidebar(){
+      var boxes = document.querySelectorAll(".cz-annot-label-box");
+      if(boxes[ai]) boxes[ai].value = a.label;
+    }
+    overlay.addEventListener("input", function(){
+      a.label = overlay.value || "Event";
+      syncSidebar();
+    });
+    function commit(){
+      if(overlay.parentNode) overlay.remove();
+      czRenderPreview();
+    }
+    overlay.addEventListener("blur", commit);
+    overlay.addEventListener("keydown", function(e){
+      if(e.key === "Escape"){ e.preventDefault(); commit(); }
+    });
+  }
+  function czSyncAnnotListInputs(){
+    document.querySelectorAll(".cz-annot-date").forEach(function(input, i){
+      input.value = czState.annotations[i].date;
+    });
+  }
+  var czFromInput = document.getElementById("czFromDate");
+  var czToInput = document.getElementById("czToDate");
+  czFromInput.addEventListener("change", function(){
+    if(czFromInput.value > czToInput.value) czFromInput.value = czToInput.value;
+    czState.from = czFromInput.value;
+    czRenderPreview();
+  });
+  czToInput.addEventListener("change", function(){
+    if(czToInput.value < czFromInput.value) czToInput.value = czFromInput.value;
+    czState.to = czToInput.value;
+    czRenderPreview();
+  });
+  document.getElementById("czFillToggle").addEventListener("change", function(e){ czState.showFill = e.target.checked; czRenderPreview(); });
+  document.getElementById("czPointsToggle").addEventListener("change", function(e){ czState.showPoints = e.target.checked; czRenderPreview(); });
+  document.getElementById("czChartTitleInput").addEventListener("input", function(e){ czState.chartTitle = e.target.value; czRenderPreview(); });
+  document.getElementById("czYAxisTitleInput").addEventListener("input", function(e){ czState.yTitle = e.target.value; czRenderPreview(); });
+  document.getElementById("czReflineToggle").addEventListener("change", function(e){ czState.refLine.enabled = e.target.checked; czSyncModeFields(); czRenderPreview(); });
+  document.getElementById("czReflineValue").addEventListener("input", function(e){
+    czState.refLine.value = parseFloat(e.target.value) || 0;
+    if(czState.refLine.enabled) czRenderPreview();
+  });
+  document.getElementById("czThresholdShadeToggle").addEventListener("change", function(e){ czState.threshold2Color = e.target.checked; czRenderPreview(); });
+  document.getElementById("czLogScaleToggle").addEventListener("change", function(e){ czState.yScale = e.target.checked ? "log" : "linear"; czRenderPreview(); });
+  // "Shade area under the line" / "Show data point markers" are
+  // line-only concepts -- a bar has no line to shade under or place a
+  // marker on -- so they're hidden rather than left checked-but-inert
+  // once the user is in Bar mode. The threshold-colour control is the
+  // opposite case: it only makes sense once a reference line actually
+  // exists (there's nothing to be "above or below" without one), so it
+  // stays hidden until Reference line is switched on, but then applies
+  // in EITHER chart mode -- see czBuildSVG's use of czState.threshold2Color.
+  function czSyncModeFields(){
+    var isBar = czState.chartKind === "bar";
+    // Setting .hidden here does nothing: both fields already carry an
+    // inline style="display:flex..." in their markup, and an inline
+    // style always beats the browser's own [hidden]{display:none} rule
+    // on specificity -- the hidden attribute would be set correctly but
+    // silently produce no visual change. Setting style.display directly
+    // is the only thing that actually overrides it.
+    document.getElementById("czFillField").style.display = isBar ? "none" : "flex";
+    document.getElementById("czPointsField").style.display = isBar ? "none" : "flex";
+    document.getElementById("czThresholdShadeField").style.display = czState.refLine.enabled ? "flex" : "none";
+    // Log scale's availability depends on the CURRENT date-range
+    // selection, not just the chart's data as a whole -- a series that's
+    // all-positive today can include a zero or negative value once the
+    // person widens the date range, so this has to be re-checked on
+    // every render, not just once when the modal opens.
+    var logAvailable = czLogScaleAvailable();
+    var logToggle = document.getElementById("czLogScaleToggle");
+    var logLabel = document.getElementById("czLogScaleLabel");
+    logToggle.disabled = !logAvailable;
+    if(!logAvailable && czState.yScale === "log"){ czState.yScale = "linear"; logToggle.checked = false; }
+    logLabel.textContent = logAvailable ? "Log scale" : "Log scale (unavailable, data includes zero or negative values)";
+    logLabel.style.color = logAvailable ? "" : "var(--ink2)";
+    // The Y-axis tick +/- control walks a list of round LINEAR step
+    // sizes -- meaningless once the axis is logarithmic, where ticks
+    // are fixed at powers of ten and their 2x/5x subdivisions instead.
+    // Left enabled, clicking them while log scale is on would silently
+    // do nothing, which is exactly the "looks broken" failure mode this
+    // whole round of fixes was about -- so they're disabled instead.
+    var isLog = czState.yScale === "log" && logAvailable;
+    document.getElementById("czYTickMinus").disabled = isLog;
+    document.getElementById("czYTickPlus").disabled = isLog;
+  }
+  var czChartKindSeg = document.getElementById("czChartKindSeg");
+  czChartKindSeg.querySelectorAll("button").forEach(function(btn){
+    btn.addEventListener("click", function(){
+      czChartKindSeg.querySelectorAll("button").forEach(function(b){ b.classList.remove("active"); });
+      btn.classList.add("active");
+      czState.chartKind = btn.dataset.kind;
+      czSyncModeFields();
+      czRenderPreview();
+    });
+  });
+  var czYTitlePosSeg = document.getElementById("czYTitlePosSeg");
+  czYTitlePosSeg.querySelectorAll("button").forEach(function(btn){
+    btn.addEventListener("click", function(){
+      czYTitlePosSeg.querySelectorAll("button").forEach(function(b){ b.classList.remove("active"); });
+      btn.classList.add("active");
+      czState.yTitlePos = btn.dataset.pos;
+      czRenderPreview();
+    });
+  });
+  var czYTickVal = document.getElementById("czYTickVal");
+  var czXTickVal = document.getElementById("czXTickVal");
+  // Index walks niceStepCandidates() directly (descending: index 0 =
+  // largest step = fewest ticks), so every click guarantees a visibly
+  // different, still-round-numbered axis -- see niceStepCandidates()'s
+  // comment for why the old target-count approach silently no-opped
+  // on most clicks. The displayed number and the clamp bound both come
+  // from czRenderPreview() re-deriving the real candidate list for the
+  // current data/date-range each time, since the candidate count isn't
+  // fixed in advance.
+  document.getElementById("czYTickMinus").addEventListener("click", function(){ czState.yTickStepIdx = Math.max(0, czState.yTickStepIdx - 1); czRenderPreview(); });
+  document.getElementById("czYTickPlus").addEventListener("click", function(){ czState.yTickStepIdx = czState.yTickStepIdx + 1; czRenderPreview(); });
+  document.getElementById("czXTickMinus").addEventListener("click", function(){ czState.xTicks = Math.max(2, czState.xTicks - 1); czXTickVal.textContent = czState.xTicks; czRenderPreview(); });
+  document.getElementById("czXTickPlus").addEventListener("click", function(){ czState.xTicks = Math.min(10, czState.xTicks + 1); czXTickVal.textContent = czState.xTicks; czRenderPreview(); });
+  var czXAngleSeg = document.getElementById("czXAngleSeg");
+  czXAngleSeg.querySelectorAll("button").forEach(function(b){
+    b.addEventListener("click", function(){
+      czState.xLabelAngle = b.dataset.angle;
+      czXAngleSeg.querySelectorAll("button").forEach(function(bb){ bb.classList.toggle("active", bb === b); });
+      czRenderPreview();
+    });
+  });
+  var MAX_CZ_ANNOTATIONS = 6, MIN_CZ_FS = 9, MAX_CZ_FS = 20;
+  var czAnnotList = document.getElementById("czAnnotList");
+  var czAddAnnotBtn = document.getElementById("czAddAnnotBtn");
+  function czRenderAnnotList(){
+    czAnnotList.innerHTML = "";
+    czState.annotations.forEach(function(a, i){
+      var card = document.createElement("div");
+      card.className = "cz-annot-card";
+      card.style.cssText = "border:1px solid var(--hair); border-radius:9px; padding:10px 11px; margin-bottom:9px; background:var(--paper);";
+      var summarySpan = document.createElement("span");
+      summarySpan.style.cssText = "font-size:12.5px; font-weight:600; overflow:hidden; text-overflow:ellipsis; white-space:nowrap; flex:1; cursor:pointer;";
+      function updateSummary(){
+        var firstLine = String(a.label || "Event").split("\n")[0];
+        summarySpan.textContent = firstLine + " \u00b7 " + czFmtPeriod(a.date);
+      }
+      updateSummary();
+      var chevron = document.createElement("span");
+      chevron.style.cssText = "cursor:pointer; color:var(--ink2); font-size:12px; padding:0 2px;";
+      chevron.textContent = "\u25be";
+      var header = document.createElement("div");
+      header.style.cssText = "display:flex; align-items:center; gap:8px;";
+      var rmBtn = document.createElement("button");
+      rmBtn.type = "button";
+      rmBtn.className = "cz-rm";
+      rmBtn.title = "Remove";
+      rmBtn.style.cssText = "flex-shrink:0; width:24px; height:24px; border:1px solid var(--hair); background:var(--panel); color:var(--ink2); border-radius:6px; cursor:pointer; font-size:13px; line-height:1;";
+      rmBtn.textContent = "\u00d7";
+      header.appendChild(summarySpan);
+      header.appendChild(rmBtn);
+      header.appendChild(chevron);
+      var body = document.createElement("div");
+      body.className = "cz-annot-body";
+      body.style.cssText = "margin-top:9px;";
+      body.innerHTML =
+        "<div style='display:flex; gap:6px; margin-bottom:8px;'>" +
+          "<select class='cz-annot-date' style='flex:1; padding:6px 8px; border:1px solid var(--hair); border-radius:6px; background:var(--panel); font:inherit; font-size:12.5px;'>" + FULL_SERIES.map(function(p){ return "<option value='" + p[0] + "'" + (p[0] === a.date ? " selected" : "") + ">" + czFmtPeriod(p[0]) + "</option>"; }).join("") + "</select>" +
+        "</div>" +
+        "<div class='seg' style='display:flex; border:1px solid var(--hair); border-radius:6px; overflow:hidden; margin-bottom:8px;'>" +
+          "<button type='button' data-type='line' class='" + (a.type === "line" ? "active" : "") + "' style='flex:1; border:none; font:inherit; font-size:12px; font-weight:600; padding:7px 0; cursor:pointer;'>Line</button>" +
+          "<button type='button' data-type='arrow' class='" + (a.type === "arrow" ? "active" : "") + "' style='flex:1; border:none; font:inherit; font-size:12px; font-weight:600; padding:7px 0; cursor:pointer;'>Arrow</button>" +
+        "</div>" +
+        "<textarea class='cz-annot-label-box' rows='1' maxlength='90' placeholder='Label (Enter for a new line)' style='width:100%; border:1px solid var(--hair); border-radius:6px; background:var(--panel); color:var(--ink); font:inherit; font-size:12.5px; padding:6px 8px; resize:vertical; min-height:40px; margin-bottom:8px;'>" + a.label.replace(/</g, "&lt;") + "</textarea>" +
+        "<div style='display:flex; align-items:center; gap:10px;'>" +
+          "<div class='align-seg' style='display:flex; border:1px solid var(--hair); border-radius:6px; overflow:hidden; flex-shrink:0;'>" +
+            "<button type='button' data-align='left' class='" + (a.align === "left" ? "active" : "") + "' style='width:26px; height:24px; border:none; cursor:pointer; font-size:12px;'>&#8676;</button>" +
+            "<button type='button' data-align='center' class='" + (a.align === "center" ? "active" : "") + "' style='width:26px; height:24px; border:none; cursor:pointer; font-size:12px;'>&#9679;</button>" +
+            "<button type='button' data-align='right' class='" + (a.align === "right" ? "active" : "") + "' style='width:26px; height:24px; border:none; cursor:pointer; font-size:12px;'>&#8677;</button>" +
+          "</div>" +
+          "<div style='display:flex; align-items:center; gap:6px; margin-left:auto;'><button type='button' class='cz-fs-btn cz-fs-minus' style='width:22px; height:22px; border:1px solid var(--hair); border-radius:6px; cursor:pointer; font-size:12px;'>&minus;</button><span class='cz-fs-val' style='font-size:11.5px; min-width:18px; text-align:center;'>" + a.fontSize + "</span><button type='button' class='cz-fs-btn cz-fs-plus' style='width:22px; height:22px; border:1px solid var(--hair); border-radius:6px; cursor:pointer; font-size:12px;'>+</button></div>" +
+        "</div>";
+      card.appendChild(header);
+      card.appendChild(body);
+      // Collapsed by default only for events that were already set up
+      // before this render (freshly-added ones start open, so there's
+      // something to actually fill in first).
+      function setCollapsed(collapsed){
+        a._czCollapsed = collapsed;
+        body.style.display = collapsed ? "none" : "block";
+        chevron.textContent = collapsed ? "\u25b8" : "\u25be";
+      }
+      setCollapsed(!!a._czCollapsed);
+      function toggleCollapsed(){ setCollapsed(!a._czCollapsed); }
+      summarySpan.addEventListener("click", toggleCollapsed);
+      chevron.addEventListener("click", toggleCollapsed);
+      body.querySelector(".cz-annot-date").addEventListener("change", function(e){
+        a.date = e.target.value;
+        var gm = czGeom();
+        var idx = nearestIndex(gm.pts, a.date);
+        var ax = gm.x(idx);
+        a.labelX = a.align === "left" ? ax - 50 : a.align === "right" ? ax + 50 : ax;
+        updateSummary();
+        czRenderPreview();
+      });
+      body.querySelectorAll("[data-type]").forEach(function(btn){
+        btn.addEventListener("click", function(){
+          a.type = btn.dataset.type;
+          body.querySelectorAll("[data-type]").forEach(function(b){ b.classList.toggle("active", b === btn); });
+          czRenderPreview();
+        });
+      });
+      body.querySelectorAll("[data-align]").forEach(function(btn){
+        btn.addEventListener("click", function(){
+          a.align = btn.dataset.align;
+          body.querySelectorAll("[data-align]").forEach(function(b){ b.classList.toggle("active", b === btn); });
+          var gm = czGeom();
+          var idx = nearestIndex(gm.pts, a.date);
+          var ax = gm.x(idx);
+          a.labelX = a.align === "left" ? ax - 50 : a.align === "right" ? ax + 50 : ax;
+          czRenderPreview();
+        });
+      });
+      var labelBoxEl = body.querySelector(".cz-annot-label-box");
+      labelBoxEl.addEventListener("input", function(e){
+        a.label = e.target.value || "Event";
+        e.target.style.height = "auto";
+        e.target.style.height = e.target.scrollHeight + "px";
+        updateSummary();
+        czRenderPreview();
+      });
+      card.querySelector(".cz-rm").addEventListener("click", function(e){
+        e.stopPropagation();
+        czState.annotations.splice(i, 1);
+        czRenderAnnotList();
+        czRenderPreview();
+      });
+      var fsVal = body.querySelector(".cz-fs-val");
+      body.querySelector(".cz-fs-minus").addEventListener("click", function(){ a.fontSize = Math.max(MIN_CZ_FS, a.fontSize - 1); fsVal.textContent = a.fontSize; czRenderPreview(); });
+      body.querySelector(".cz-fs-plus").addEventListener("click", function(){ a.fontSize = Math.min(MAX_CZ_FS, a.fontSize + 1); fsVal.textContent = a.fontSize; czRenderPreview(); });
+      czAnnotList.appendChild(card);
+    });
+    czAddAnnotBtn.disabled = czState.annotations.length >= MAX_CZ_ANNOTATIONS;
+  }
+  czAddAnnotBtn.addEventListener("click", function(){
+    if(czState.annotations.length >= MAX_CZ_ANNOTATIONS) return;
+    var gm = czGeom();
+    var idx = nearestIndex(gm.pts, czState.from);
+    var ax = gm.x(idx);
+    czState.annotations.push(Object.assign({ type: "line", date: czState.from, label: "New event", align: "center", fontSize: 11 }, defaultLabelPosCz(ax)));
+    czRenderAnnotList();
+    czRenderPreview();
+  });
+  function czFilenameBase(){ return czState.filenameBase + "_" + czState.from + "_to_" + czState.to; }
+  function czDownloadBlob(blob, filename){
+    var url = URL.createObjectURL(blob);
+    var a = document.createElement("a");
+    a.href = url; a.download = filename;
+    document.body.appendChild(a); a.click(); document.body.removeChild(a);
+    setTimeout(function(){ URL.revokeObjectURL(url); }, 200);
+  }
+  function czExportBtnState(btn, phase, label){
+    btn.textContent = label;
+    if(phase === "working"){
+      btn.disabled = true; btn.style.cursor = "wait";
+      btn.style.background = "var(--navy-2)"; btn.style.borderColor = "var(--navy-2)"; btn.style.color = "#fff";
+    } else if(phase === "success"){
+      btn.style.background = "#2FA463"; btn.style.borderColor = "#2FA463"; btn.style.color = "#fff";
+    } else {
+      btn.disabled = false; btn.style.cursor = "pointer";
+      btn.style.background = ""; btn.style.borderColor = ""; btn.style.color = "";
+    }
+  }
+  document.getElementById("czExportSvgBtn").addEventListener("click", function(){
+    var btn = this;
+    if(btn.disabled) return;
+    czExportBtnState(btn, "working", "Exporting\u2026");
+    setTimeout(function(){
+      var svgStr = czBuildSVG(czState.exportTheme, true);
+      czDownloadBlob(new Blob([svgStr], { type: "image/svg+xml;charset=utf-8" }), czFilenameBase() + ".svg");
+      czExportBtnState(btn, "success", "Exported \u2713");
+      setTimeout(function(){ czExportBtnState(btn, "idle", "SVG"); }, 1600);
+    }, 450);
+  });
+  document.getElementById("czExportPngBtn").addEventListener("click", function(){
+    var btn = this;
+    if(btn.disabled) return;
+    czExportBtnState(btn, "working", "Exporting\u2026");
+    var svgStr = czBuildSVG(czState.exportTheme, true);
+    var url = URL.createObjectURL(new Blob([svgStr], { type: "image/svg+xml;charset=utf-8" }));
+    var img = new Image();
+    img.onload = function(){
+      var scale = 3;
+      var canvas = document.createElement("canvas");
+      canvas.width = G.W * scale; canvas.height = G.H * scale;
+      var ctx = canvas.getContext("2d");
+      ctx.scale(scale, scale);
+      ctx.drawImage(img, 0, 0, G.W, G.H);
+      URL.revokeObjectURL(url);
+      canvas.toBlob(function(blob){
+        czDownloadBlob(blob, czFilenameBase() + ".png");
+        czExportBtnState(btn, "success", "Exported \u2713");
+        setTimeout(function(){ czExportBtnState(btn, "idle", "PNG"); }, 1600);
+      }, "image/png");
+    };
+    img.src = url;
+  });
+  var czThemeSeg = document.getElementById("czThemeSeg");
+  czThemeSeg.querySelectorAll("button").forEach(function(btn){
+    btn.addEventListener("click", function(){
+      czThemeSeg.querySelectorAll("button").forEach(function(b){ b.classList.remove("active"); });
+      btn.classList.add("active");
+      czState.exportTheme = btn.dataset.theme;
+      czRenderPreview();
+    });
+  });
+  // Swatches are built once, up front, rather than per-render -- the
+  // palette itself never changes, only which swatch is marked active,
+  // so rebuilding the buttons on every render would be wasted work and
+  // would also drop focus/hover state while the person is picking.
+  var czColorSwatchesEl = document.getElementById("czColorSwatches");
+  MAKO_PALETTE.forEach(function(hex){
+    var b = document.createElement("button");
+    b.type = "button";
+    b.dataset.color = hex;
+    b.title = hex;
+    b.style.cssText = "width:22px; height:22px; border-radius:5px; border:2px solid transparent; background:" + hex + "; cursor:pointer; padding:0;";
+    b.addEventListener("click", function(){
+      // Clicking the already-selected swatch clears back to the
+      // theme's default colour rather than being a no-op -- otherwise
+      // there'd be no way to undo a colour choice without reopening
+      // the modal fresh.
+      czState.lineColor = (czState.lineColor === hex) ? null : hex;
+      czSyncColorSwatches();
+      czRenderPreview();
+    });
+    czColorSwatchesEl.appendChild(b);
+  });
+  function czSyncColorSwatches(){
+    czColorSwatchesEl.querySelectorAll("button").forEach(function(b){
+      b.style.borderColor = (b.dataset.color === czState.lineColor) ? "var(--ink)" : "transparent";
+    });
+  }
+  var czExportOptsBtn = document.getElementById("czExportOptsBtn");
+  var czExportOptsPopover = document.getElementById("czExportOptsPopover");
+  czExportOptsBtn.addEventListener("click", function(e){
+    e.stopPropagation();
+    czExportOptsPopover.hidden = !czExportOptsPopover.hidden;
+  });
+  document.addEventListener("click", function(e){
+    if(!czExportOptsPopover.hidden && !czExportOptsPopover.contains(e.target) && e.target !== czExportOptsBtn){
+      czExportOptsPopover.hidden = true;
+    }
+  });
+  document.getElementById("customizeModalClose").addEventListener("click", function(){
+    document.getElementById("customizeModal").hidden = true;
+  });
+  // Entry point: called with a specific chart's real data whenever an
+  // admin clicks an unlocked "Customise & export" button.
+  window.EATLAS_OPEN_CUSTOMIZE = function(pts, title, srcNote, fmtY, yTitle, filenameBase, kind, fmtPeriodFn, metricKey){
+    FULL_SERIES = pts;
+    if(fmtPeriodFn) czFmtPeriod = fmtPeriodFn;
+    var effectiveFmtY = fmtY || function(v){ return v.toFixed(1) + "%"; };
+    // If no explicit y-axis title was passed in, take a reasonable guess:
+    // most of the site's charts are percentages, detectable by testing
+    // what the metric's own formatter does with a sample value.
+    var guessedYTitle = yTitle;
+    if(!guessedYTitle){
+      try { guessedYTitle = String(effectiveFmtY(1)).indexOf("%") !== -1 ? "%" : ""; }
+      catch(e){ guessedYTitle = ""; }
+    }
+    czState = {
+      from: pts[0][0], to: pts[pts.length - 1][0],
+      showFill: true, showPoints: true, refLine: { enabled: false, value: 0 }, threshold2Color: false,
+      yTitlePos: "along", yTickStepIdx: defaultStepIdxFor(Math.min.apply(null, pts.map(function(p){ return p[1]; })), Math.max.apply(null, pts.map(function(p){ return p[1]; })), 5),
+      xTicks: 3, xLabelAngle: "straight", chartTitle: title || "",
+      chartKind: kind === "bar" ? "bar" : "line", yScale: "linear", lineColor: null,
+      annotations: [], exportTheme: "light",
+      srcNote: srcNote, yTitle: guessedYTitle, fmtY: effectiveFmtY,
+      filenameBase: (filenameBase || title || "chart").toLowerCase().replace(/[^a-z0-9]+/g, "_").replace(/^_+|_+$/g, ""),
+      metricKey: metricKey || null
+    };
+    // Save/Open Chart buttons: admin-only (client-side hide -- RLS on the
+    // saved_charts table is the real backstop, see saved_charts.sql).
+    // Hidden entirely for non-metric charts (metricKey missing) since
+    // there's nothing stable to re-fetch by on reload.
+    var czSaveBtn = document.getElementById("czSaveChartBtn");
+    var czOpenBtn = document.getElementById("czOpenChartBtn");
+    var showSaveOpen = !!(metricKey); // admin gate removed -- Save & Share is now available to all logged-in users, same as before minus the isAdmin() check
+    if(czSaveBtn) czSaveBtn.hidden = !showSaveOpen;
+    if(czOpenBtn) czOpenBtn.hidden = !showSaveOpen;
+    document.getElementById("czModalCountry").textContent = title;
+    document.getElementById("czModalSrc").textContent = "Source: " + srcNote;
+    document.getElementById("czChartTitleInput").value = czState.chartTitle;
+    document.getElementById("czYAxisTitleInput").value = czState.yTitle;
+    czChartKindSeg.querySelectorAll("button").forEach(function(b){ b.classList.toggle("active", b.dataset.kind === czState.chartKind); });
+    var periodOptionsHtml = pts.map(function(p){ return "<option value='" + p[0] + "'>" + czFmtPeriod(p[0]) + "</option>"; }).join("");
+    document.getElementById("czFromDate").innerHTML = periodOptionsHtml;
+    document.getElementById("czToDate").innerHTML = periodOptionsHtml;
+    document.getElementById("czFromDate").value = czState.from;
+    document.getElementById("czToDate").value = czState.to;
+    document.getElementById("czFillToggle").checked = true;
+    document.getElementById("czPointsToggle").checked = true;
+    document.getElementById("czReflineToggle").checked = false;
+    document.getElementById("czReflineValue").value = "0";
+    document.getElementById("czThresholdShadeToggle").checked = false;
+    document.getElementById("czLogScaleToggle").checked = false;
+    czSyncColorSwatches();
+    czYTitlePosSeg.querySelectorAll("button").forEach(function(b){ b.classList.toggle("active", b.dataset.pos === "along"); });
+    czXTickVal.textContent = "3"; czState.xLabelAngle = "straight"; czXAngleSeg.querySelectorAll("button").forEach(function(b){ b.classList.toggle("active", b.dataset.angle === "straight"); });
+    czThemeSeg.querySelectorAll("button").forEach(function(b){ b.classList.toggle("active", b.dataset.theme === "light"); });
+    czSyncModeFields();
+    czRenderAnnotList();
+    czRenderPreview();
+    document.getElementById("customizeModal").hidden = false;
+  };
+  // ---- Save & Share, Phase 2: all charts on the UK page, admin-only ----
+  // Saves the SELECTION (metric key + date range + a subset of style),
+  // never the plotted values -- see saved_charts.sql. Loading a saved
+  // chart re-reads window.EATLAS_SERIES (populated fresh by render() on
+  // every page load) rather than replaying stored numbers.
+  //
+  // Metadata (title/format/source note) for each metric key now comes
+  // from window.EATLAS_CHART_META, auto-registered by chartPanel() itself
+  // as it builds each chart -- replaces the earlier hardcoded map that
+  // only knew about boe_rate, so every chart with a key on this page is
+  // save/loadable with nothing to hand-maintain per metric.
+  // Renders a saved chart's created_at (a UTC ISO string from Postgres)
+  // in the viewer's own local time -- this is "when I clicked save", a
+  // personal-convenience timestamp, not site data, so local time (not
+  // UTC, unlike renderLastUpdated elsewhere on this page) is the right
+  // call here.
+  function czFormatSavedAt(iso){
+    if(!iso) return "";
+    var dt = new Date(iso);
+    if(isNaN(dt.getTime())) return "";
+    var dd = String(dt.getDate()).padStart(2, "0");
+    var mo = MONTHS[dt.getMonth()];
+    var yy = dt.getFullYear();
+    var hh = String(dt.getHours()).padStart(2, "0");
+    var mi = String(dt.getMinutes()).padStart(2, "0");
+    return dd + " " + mo + " " + yy + ", " + hh + ":" + mi;
+  }
+  function czSaveStyleSnapshot(){
+    return {
+      chartTitle: czState.chartTitle, yTitle: czState.yTitle,
+      chartKind: czState.chartKind, showFill: czState.showFill, showPoints: czState.showPoints,
+      refLine: czState.refLine, threshold2Color: czState.threshold2Color
+    };
+  }
+  function loadSavedChart(row){
+    var meta = window.EATLAS_CHART_META && window.EATLAS_CHART_META[row.metric_key];
+    var series = window.EATLAS_SERIES && window.EATLAS_SERIES[row.metric_key];
+    if(!meta || !series || !series.points){
+      window.alert("This saved chart's series isn't available on this page.");
+      return;
+    }
+    var pts = series.points;
+    if(row.from_period || row.to_period){
+      var filtered = pts.filter(function(p){
+        return (!row.from_period || p[0] >= row.from_period) && (!row.to_period || p[0] <= row.to_period);
+      });
+      if(filtered.length) pts = filtered;
+    }
+    window.EATLAS_OPEN_CUSTOMIZE(pts, row.name || meta.title, meta.srcNote, meta.fmtY, "", meta.title, meta.kind, czFmtPeriod, row.metric_key);
+    var style = row.style || {};
+    if(style.chartTitle != null){ czState.chartTitle = style.chartTitle; document.getElementById("czChartTitleInput").value = style.chartTitle; }
+    if(style.yTitle != null){ czState.yTitle = style.yTitle; document.getElementById("czYAxisTitleInput").value = style.yTitle; }
+    if(style.chartKind){
+      czState.chartKind = style.chartKind;
+      czChartKindSeg.querySelectorAll("button").forEach(function(b){ b.classList.toggle("active", b.dataset.kind === czState.chartKind); });
+    }
+    if(style.refLine){
+      czState.refLine = style.refLine;
+      document.getElementById("czReflineToggle").checked = !!style.refLine.enabled;
+      document.getElementById("czReflineValue").value = style.refLine.value;
+    }
+    czState.showFill = style.showFill !== false;
+    document.getElementById("czFillToggle").checked = czState.showFill;
+    czState.showPoints = style.showPoints !== false;
+    document.getElementById("czPointsToggle").checked = czState.showPoints;
+    czRenderPreview();
+  }
+  // ---- Saved charts list: lives in the "Open chart" popover next to
+  // Save chart inside Customise & Export, not as a separate page panel
+  // -- superseded that earlier standalone-panel version per feedback
+  // after confirming save/load round-tripped correctly.
+  window.EATLAS_SAVED_CHARTS = (function(){
+    function render(rows){
+      var listEl = document.getElementById("czOpenChartList");
+      if(!listEl) return;
+      listEl.innerHTML = "";
+      if(!rows.length){
+        listEl.textContent = 'No saved charts yet , open "Bank Rate" → Customise & export → Save chart.';
+        return;
+      }
+      rows.forEach(function(row){
+        var line = document.createElement("div");
+        line.style.cssText = "display:flex; align-items:flex-start; justify-content:space-between; gap:10px; padding:10px 0; border-top:1px solid var(--hair);";
+        var labelWrap = document.createElement("span");
+        labelWrap.style.cssText = "display:flex; flex-direction:column; min-width:0;";
+        var nameEl = document.createElement("span");
+        nameEl.textContent = row.name;
+        nameEl.style.cssText = "font-weight:600; color:var(--ink);";
+        var metaEl = document.createElement("span");
+        metaEl.textContent = row.metric_key + " · saved " + czFormatSavedAt(row.created_at);
+        metaEl.style.cssText = "font-size:11.5px; color:var(--ink2); margin-top:2px;";
+        labelWrap.appendChild(nameEl); labelWrap.appendChild(metaEl);
+        var btnWrap = document.createElement("span");
+        btnWrap.style.cssText = "display:flex; gap:6px; flex-shrink:0;";
+        // Primary action -- same solid-fill treatment as the site's real
+        // .btn class (var(--blue) fill, navy-2 on hover) rather than a
+        // generic bordered box, so this reads as the intended action in
+        // the list, not just another neutral control.
+        var openBtn = document.createElement("button");
+        openBtn.type = "button"; openBtn.textContent = "Open";
+        openBtn.style.cssText = "font-family:inherit; font-weight:600; font-size:12px; padding:5px 12px; border:none; border-radius:6px; background:var(--blue); color:#fff; cursor:pointer;";
+        openBtn.addEventListener("mouseenter", function(){ openBtn.style.background = "var(--navy-2)"; });
+        openBtn.addEventListener("mouseleave", function(){ openBtn.style.background = "var(--blue)"; });
+        openBtn.addEventListener("click", function(){
+          loadSavedChart(row);
+          var pop = document.getElementById("czOpenChartPopover");
+          if(pop) pop.hidden = true;
+        });
+        // Destructive action -- understated until hovered (matches the
+        // site's existing pattern for secondary controls like
+        // .expandBtn/.resetzoom, which sit muted until interacted with),
+        // turning to the same warm red used elsewhere on this page for a
+        // "needs attention" state (the Compare page's clashing-color
+        // indicator) rather than introducing a new colour.
+        var delBtn = document.createElement("button");
+        delBtn.type = "button"; delBtn.textContent = "Delete";
+        delBtn.style.cssText = "font-family:inherit; font-weight:600; font-size:12px; padding:5px 12px; border:1px solid var(--hair); border-radius:6px; background:var(--paper); color:var(--ink2); cursor:pointer;";
+        delBtn.addEventListener("mouseenter", function(){ delBtn.style.color = "#D65A3C"; delBtn.style.borderColor = "#D65A3C"; });
+        delBtn.addEventListener("mouseleave", function(){ delBtn.style.color = "var(--ink2)"; delBtn.style.borderColor = "var(--hair)"; });
+        delBtn.addEventListener("click", function(){
+          if(!window.confirm('Delete "' + row.name + '"?')) return;
+          window.sb.from("saved_charts").delete().eq("id", row.id).then(function(){ refresh(); });
+        });
+        btnWrap.appendChild(openBtn); btnWrap.appendChild(delBtn);
+        line.appendChild(labelWrap); line.appendChild(btnWrap);
+        listEl.appendChild(line);
+      });
+    }
+    function refresh(){
+      window.sb.auth.getUser().then(function(res){
+        var user = res.data && res.data.user;
+        if(!user) return render([]);
+        return window.sb.from("saved_charts").select("*").eq("user_id", user.id).eq("country_code", "ca").eq("metric_key", czState.metricKey)
+          .order("created_at", { ascending: false }).then(function(qres){ render(qres.data || []); });
+      }).catch(function(){ render([]); });
+    }
+    return { refresh: refresh };
+  })();
+  var czOpenChartBtn = document.getElementById("czOpenChartBtn");
+  var czOpenChartPopover = document.getElementById("czOpenChartPopover");
+  if(czOpenChartBtn && czOpenChartPopover){
+    czOpenChartBtn.addEventListener("click", function(e){
+      e.stopPropagation();
+      var willShow = czOpenChartPopover.hidden;
+      czOpenChartPopover.hidden = !willShow;
+      if(willShow) window.EATLAS_SAVED_CHARTS.refresh();
+    });
+    document.addEventListener("click", function(e){
+      if(!czOpenChartPopover.hidden && !czOpenChartPopover.contains(e.target) && e.target !== czOpenChartBtn){
+        czOpenChartPopover.hidden = true;
+      }
+    });
+  }
+  document.getElementById("czSaveChartBtn").addEventListener("click", function(){
+    var btn = this;
+    if(!czState || !czState.metricKey) return;
+    var name = window.prompt("Name this saved chart:", czState.chartTitle || "");
+    if(name === null) return;
+    name = name.trim();
+    if(!name) return;
+    var original = btn.textContent;
+    btn.disabled = true; btn.textContent = "Saving…";
+    // Wrapped in try/catch: a synchronous error here (e.g. window.sb not
+    // existing for some reason) must not leave the button stuck on
+    // "Saving..." forever with no feedback -- that's exactly the bug
+    // this replaces, caused by window.sb not existing at the time this
+    // was first shipped.
+    try {
+      window.sb.auth.getUser().then(function(res){
+        var user = res.data && res.data.user;
+        if(!user) throw new Error("Not signed in");
+        return window.sb.from("saved_charts").insert({
+          user_id: user.id,
+          name: name,
+          country_code: "ca",
+          metric_key: czState.metricKey,
+          from_period: czState.from,
+          to_period: czState.to,
+          style: czSaveStyleSnapshot()
+        });
+      }).then(function(res){
+        if(res && res.error) throw res.error;
+        btn.textContent = "Saved ✓";
+        if(window.EATLAS_SAVED_CHARTS) window.EATLAS_SAVED_CHARTS.refresh();
+        setTimeout(function(){ btn.disabled = false; btn.textContent = original; }, 1600);
+      }).catch(function(err){
+        window.alert("Couldn't save this chart: " + (err && err.message ? err.message : "unknown error"));
+        btn.disabled = false; btn.textContent = original;
+      });
+    } catch(err){
+      window.alert("Couldn't save this chart: " + (err && err.message ? err.message : "unknown error"));
+      btn.disabled = false; btn.textContent = original;
+    }
+  });
+})();
+</script>
 <script src="../mobile.js?v=14"></script>
 </body>
 </html>

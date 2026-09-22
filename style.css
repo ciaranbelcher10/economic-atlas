@@ -434,16 +434,30 @@ footer a:hover{text-decoration:underline;}
   white-space:nowrap; flex-shrink:0;}
 .authbtn:hover{background:var(--navy-2); color:#fff;}
 
-/* Soft pulsing glow on "Log in" to draw new-visitor attention -- only
-   while logged out (.signed-in is added by the auth-state script once a
-   session exists, see authBtn.classList.add("signed-in")), and only a
-   box-shadow/border-radius change so it never affects layout or the
-   a.item-matching look the button has otherwise. */
-.authbtn:not(.signed-in){border-radius:8px; animation:authGlow 1.8s ease-in-out infinite;}
-.authbtn:not(.signed-in):hover{animation:none;}
-@keyframes authGlow{
-  0%, 100%{box-shadow:0 0 6px 1px rgba(71,150,206,0.25); transform:scale(1);}
-  50%{box-shadow:0 0 26px 8px rgba(71,150,206,0.95); transform:scale(1.04);}
+/* Log in: the same rotating teal-to-navy glow ring as the call-to-action
+   buttons on the indicator and ranking pages (v1.6.2). Only while logged
+   out: .signed-in is added by the auth-state script once a session exists.
+   The ring is two pseudo-elements behind the button, so layout and the
+   a.item-matching look are untouched; the button gets the nav's own navy
+   fill so only a 2px rim of the ring shows. */
+@property --auth-angle{syntax:"<angle>"; inherits:false; initial-value:0deg;}
+.authbtn:not(.signed-in){position:relative; isolation:isolate; border-radius:10px;
+  background:transparent; margin:6px 4px; padding:8px 16px;}
+/* ::before is the rotating ring (a soft glow spilling 3px past the edge);
+   ::after is the button's own fill laid over its centre, so only the rim
+   of the ring shows. Both sit behind the label. */
+.authbtn:not(.signed-in)::before{content:""; position:absolute; inset:-3px; border-radius:13px; z-index:-2;
+  pointer-events:none; filter:blur(3px);
+  background:conic-gradient(from var(--auth-angle), #40B7AD, #8AD9B1, #4796CE, #413D7B, #37659E, #40B7AD);
+  animation:authSpin 5s linear infinite;}
+.authbtn:not(.signed-in)::after{content:""; position:absolute; inset:1px; border-radius:9px; z-index:-1;
+  pointer-events:none; background:var(--navy); transition:background .2s ease;}
+.authbtn:not(.signed-in):hover{background:transparent;}
+.authbtn:not(.signed-in):hover::after{background:var(--navy-2);}
+.authbtn:not(.signed-in):hover::before{filter:blur(5px);}
+@keyframes authSpin{to{--auth-angle:360deg;}}
+@media (prefers-reduced-motion:reduce){
+  .authbtn:not(.signed-in)::before{animation:none;}
 }
 #tourReplayWrap{display:none;}
 

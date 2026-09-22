@@ -35,7 +35,7 @@ from datetime import date, timedelta
 
 ROOT = os.path.dirname(os.path.abspath(__file__))
 SITE_URL = "https://theeconomicatlas.com"
-KIT_VERSION = "1"
+KIT_VERSION = "2"
 
 # country display name -> (data-file code, page slug, alpha-2, region)
 COUNTRIES = {
@@ -145,10 +145,10 @@ CORE_METRICS = {m["keys"][0]: (m["slug"], m["title"]) for m in METRICS}
 # not comparable with an annual one); rows on another basis are listed below
 # the table as not ranked, with the reason, rather than silently dropped.
 RANKINGS = [
-    dict(slug="gdp-by-country", metric="gdp", title="GDP by Country", col="GDP (US$)", usd=True,
-         lede="The size of every economy we track, measured over the latest four quarters (or latest year) and converted to US dollars at the exchange rates for that same period."),
-    dict(slug="gdp-growth-rate-by-country", metric="gdp-growth-rate", title="GDP Growth Rate by Country", col="Growth, quarter on quarter", freqs=["quarters"],
-         lede="How fast each economy grew or shrank in its latest quarter, compared with the quarter before."),
+    dict(slug="gdp-by-country", metric="gdp", title="GDP by Country", col="GDP (US$)", usd=True, flow=True,
+         lede="The size of every economy we track over the last completed year, converted to US dollars at that year's average exchange rate."),
+    dict(slug="gdp-growth-rate-by-country", metric="gdp-growth-rate", title="GDP Growth Rate by Country", col="Growth, quarter on quarter", freqs=["quarters"], flow=True,
+         lede="How fast each economy grew or shrank in the final quarter of the last completed year, compared with the quarter before."),
     dict(slug="inflation-rate-by-country", metric="inflation-rate", title="Inflation Rate by Country", col="Inflation, year on year",
          lede="How fast consumer prices are rising in each economy, compared with a year earlier, on each country's headline measure."),
     dict(slug="unemployment-rate-by-country", metric="unemployment-rate", title="Unemployment Rate by Country", col="Unemployment rate",
@@ -159,16 +159,41 @@ RANKINGS = [
          lede="What each government pays to borrow for ten years, the market's gauge of inflation and interest rate expectations."),
     dict(slug="government-debt-by-country", metric="government-debt", title="Government Debt to GDP by Country", col="Debt, % of GDP",
          lede="Everything each government owes, compared with the size of its economy."),
-    dict(slug="government-budget-by-country", metric="government-budget", title="Government Budget Balance by Country", col="Balance, % of GDP", units=["%"], freqs=["years"],
+    dict(slug="government-budget-by-country", metric="government-budget", title="Government Budget Balance by Country", col="Balance, % of GDP", units=["%"], freqs=["years"], flow=True,
          lede="Each government's budget surplus or deficit for its latest full year, as a share of GDP. Below zero is a deficit."),
-    dict(slug="current-account-by-country", metric="current-account-to-gdp", title="Current Account to GDP by Country", col="Current account, % of GDP",
+    dict(slug="current-account-by-country", metric="current-account-to-gdp", title="Current Account to GDP by Country", col="Current account, % of GDP", freqs=["years"], flow=True,
          lede="Each economy's overall balance with the rest of the world, trade plus investment income, as a share of GDP."),
-    dict(slug="foreign-direct-investment-by-country", metric="foreign-direct-investment", title="Foreign Direct Investment by Country", col="FDI inflows, % of GDP",
+    dict(slug="foreign-direct-investment-by-country", metric="foreign-direct-investment", title="Foreign Direct Investment by Country", col="FDI inflows, % of GDP", freqs=["years"], flow=True,
          lede="Money invested into each economy's businesses from abroad, as a share of GDP."),
     dict(slug="business-confidence-by-country", metric="business-confidence", title="Business Confidence by Country", col="Index (average = 100)",
          lede="The OECD's survey measure of how optimistic firms are. 100 is each country's long-run average."),
 ]
 RANKING_BY_METRIC = {r["metric"]: r for r in RANKINGS}
+# Flow rankings (flow=True) show the last completed calendar year only,
+# the same rule Compare applies: a flow for a year that has not ended is a
+# part-year total and is never shown. Every figure is a published
+# observation for that year (or, for GDP, the year's published quarters
+# added together, the way an annual GDP figure is itself built). Stock and
+# rate rankings show each country's latest published reading.
+def flow_year():
+    return date.today().year - 1
+
+def short_source(text):
+    """(publisher, series) for the ranking table's Source column, taken from
+    the same citation string shown under each country's chart."""
+    head = re.sub(r"^Calculated from\s+", "", (text or "").split(" \u00b7 ")[0]).strip()
+    rest = text or ""
+    m = re.match(r"^FRED series\s+(\S+)", head)
+    if m:
+        for agency in ("IMF", "Eurostat", "OECD", "BLS", "BEA", "Cabinet Office", "ECB", "BIS", "World Bank"):
+            if agency in rest:
+                return f"{agency} via FRED", m.group(1)
+        return "FRED", m.group(1)
+    m = re.match(r"^(World Bank|Eurostat|OECD|ONS|IMF)\s+(?:series\s+)?(\S+)", head)
+    if m:
+        return m.group(1), m.group(2)
+    return head, ""
+
 # Old standalone pages that used to rank here; they now forward to the new ones.
 LEGACY_RANKING_REDIRECTS = {
     "gdp-by-country": "gdp-by-country",
@@ -927,6 +952,27 @@ def esc(s):
 ARROW_SVG = ('<svg viewBox="0 0 20 20" fill="none" aria-hidden="true"><path d="M4 10h11m-4.5-4.5L15 10l-4.5 4.5" '
              'stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"/></svg>')
 
+_BLOCK_CACHE = {}
+def country_blocks(cslug):
+    """Download data + Customise & export, taken verbatim from the country's
+    own page at build time, so the indicator page runs exactly the code the
+    country page runs (and follows any change to it on the next build).
+    Returns (auth_script, customise_modal_html, customise_script)."""
+    if cslug in _BLOCK_CACHE:
+        return _BLOCK_CACHE[cslug]
+    src = open(os.path.join(ROOT, f"{cslug}.html"), encoding="utf-8").read()
+    auth = re.search(r"<script>\s*\(function\(\)\{\s*var SUPABASE_URL.*?</script>", src, re.S)
+    modal = re.search(r'<div class="chart-modal" id="customizeModal" hidden>.*?(?=<script>\s*\(function\(\)\{\s*"use strict";\s*var G = \{ W:820)', src, re.S)
+    cz = re.search(r'<script>\s*\(function\(\)\{\s*"use strict";\s*var G = \{ W:820.*?</script>', src, re.S)
+    if not (auth and modal and cz):
+        raise SystemExit(f"{cslug}.html: could not find the download/customise blocks to reuse")
+    fix = lambda t: t.replace('href="contact"', 'href="../contact"').replace("href=\\\"contact\\\"", "href=\\\"../contact\\\"")
+    out = (fix(auth.group(0)), fix(modal.group(0)), fix(cz.group(0)))
+    _BLOCK_CACHE[cslug] = out
+    return out
+
+TRIMMED_AUTH_RE = re.compile(r"<script>\s*// The real, complete auth system extracted verbatim.*?</script>", re.S)
+
 def ordinal(n):
     return f"{n}{'th' if 10 <= n % 100 <= 20 else {1: 'st', 2: 'nd', 3: 'rd'}.get(n % 10, 'th')}"
 
@@ -949,7 +995,10 @@ def head_html(title, desc, canonical, og_image, jsonld, extra_css=""):
 <meta name="twitter:description" content="{esc(desc)}">
 {og}<link rel="icon" type="image/png" sizes="32x32" href="../favicon-32.png">
 <link rel="apple-touch-icon" href="../apple-touch-icon.png">
-<link rel="stylesheet" href="../style.css?v=51">
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+<link href="https://fonts.googleapis.com/css2?family=Nunito+Sans:wght@400;600;700&display=swap" rel="stylesheet">
+<link rel="stylesheet" href="../style.css?v=52">
 <link rel="stylesheet" href="../mobile.css?v=13">
 <link rel="stylesheet" href="../indicator.css?v={KIT_VERSION}">
 <script type="application/ld+json">
@@ -959,8 +1008,9 @@ def head_html(title, desc, canonical, og_image, jsonld, extra_css=""):
 <body>
 """
 
-def page_tail(extra_js=""):
-    return f"""{FOOTER_HTML}
+def page_tail(extra_js="", extra_html=""):
+    return f"""<div class="ind-footwrap">{FOOTER_HTML}</div>
+{extra_html}
 <script src="https://cdnjs.cloudflare.com/ajax/libs/Chart.js/4.4.1/chart.umd.min.js"></script>
 <script src="../indicator-kit.js?v={KIT_VERSION}"></script>
 {extra_js}
@@ -1029,16 +1079,36 @@ def build_country_catalogue(country, data, sources):
     return out
 
 
+def _year_total_gdp(series, country, year):
+    """A year's GDP from its published observations: the annual figure, the
+    sum of its four quarters, or (US, Japan, published at an annual rate)
+    their average. None unless every period of the year is published."""
+    freq = series.get("freq", "")
+    pts = {p[0]: p[1] for p in clean_points(series)}
+    if freq == "years":
+        return pts.get(str(year))
+    qs = [pts.get(f"{year}-Q{q}") for q in (1, 2, 3, 4)]
+    if any(v is None for v in qs):
+        return None
+    return sum(qs) / 4 if country in GDP_RAW_COUNTRIES else sum(qs)
+
+
 def rank_rows(ranking, catalogue_by_country):
     """Rows for one ranking: (ranked rows sorted high to low, unranked notes)."""
     m = METRIC_BY_SLUG[ranking["metric"]]
     rows, unranked = [], []
+    Y = flow_year()
     for country, info in catalogue_by_country.items():
         entry = info["by_slug"].get(m["slug"])
         if not entry:
             continue
         s, pts, unit, key = entry["s"], entry["pts"], entry["unit"], entry["key"]
         freq = s.get("freq", "")
+        src_pub, src_series = short_source(info["sources"].get(key, {}).get("source", ""))
+        # Freshness follows the series' newest release, not the (fixed)
+        # reference year a flow ranking shows.
+        base = dict(country=country, freq=freq, key=key, unit=unit, src_pub=src_pub, src_series=src_series,
+                    latest_period=pts[-1][0])
         if ranking.get("freqs") and freq not in ranking["freqs"]:
             want = FREQ_WORD.get(ranking["freqs"][0], "").lower()
             unranked.append((country, f"published {FREQ_WORD.get(freq, freq).lower()}, not {want}"))
@@ -1046,32 +1116,50 @@ def rank_rows(ranking, catalogue_by_country):
         if ranking.get("units") and not any(u in unit for u in ranking["units"]):
             unranked.append((country, "published in currency, not as a share of GDP"))
             continue
-        period, val = pts[-1]
-        spark = trailing_years(pts, 5)
+
         if ranking.get("usd"):
+            val = _year_total_gdp(s, country, Y)
+            prior = _year_total_gdp(s, country, Y - 1)
+            if val is None:
+                unranked.append((country, f"{Y} not yet complete"))
+                continue
             fx = info["data"].get("fx_to_usd")
-            if country in GDP_ALREADY_USD or unit_kind(unit) != "cur":
+            if country in GDP_ALREADY_USD:
                 usd = val
             elif fx:
-                usd = to_usd_value(val, period, fx)
+                usd = to_usd_value(val, str(Y), fx)
             else:
                 usd = None
             if usd is None:
                 unranked.append((country, "no exchange rate to convert to US dollars"))
                 continue
-            # One-year change in the country's own currency, so the column
-            # measures the economy, not exchange-rate swings.
-            prior = [p for p in pts if _month_key(p[0]) == _month_key(period) - 12]
-            chg = (val / prior[0][1] - 1) * 100 if prior and prior[0][1] else None
-            rows.append(dict(country=country, value=usd * scale_of(unit) / 1e9, value_str=fmt_num(usd, usd_unit(unit), key, country, "cell", True),
+            chg = (val / prior - 1) * 100 if prior else None
+            yearly = [(str(y), _year_total_gdp(s, country, y)) for y in range(Y - 5, Y + 1)]
+            spark = [p for p in yearly if p[1] is not None]
+            rows.append(dict(base, value=usd * scale_of(unit) / 1e9,
+                             value_str=fmt_num(usd, usd_unit(unit), key, country, "cell", True),
                              change=chg, change_str=(fmt_num(chg, "%", "", "", "delta").replace("pp", "%") if chg is not None else "n/a"),
-                             period=period, freq=freq, spark=spark, key=key, unit=unit))
+                             period=str(Y), spark=spark))
+            continue
+
+        if ranking.get("flow"):
+            target = f"{Y}-Q4" if freq == "quarters" else str(Y)
+            idx = next((i for i, p in enumerate(pts) if p[0] == target), None)
+            if idx is None or idx == 0:
+                latest = fmt_period_label(pts[-1][0])
+                unranked.append((country, f"no {fmt_period_label(target)} figure yet, latest is {latest}"))
+                continue
+            period, val = pts[idx]
+            prev_p, prev = pts[idx - 1]
+            spark = trailing_years(pts[:idx + 1], 5)
         else:
-            prev = pts[-2][1]
-            d = rounded_delta(val - prev, unit, key)
-            rows.append(dict(country=country, value=val, value_str=fmt_num(val, unit, key, country, "cell"),
-                             change=d, change_str=fmt_num(d, unit, key, country, "delta") if abs(d) > 1e-9 else "No change",
-                             period=period, freq=freq, spark=spark, key=key, unit=unit, prev_period=pts[-2][0]))
+            period, val = pts[-1]
+            prev_p, prev = pts[-2]
+            spark = trailing_years(pts, 5)
+        d = rounded_delta(val - prev, unit, key)
+        rows.append(dict(base, value=val, value_str=fmt_num(val, unit, key, country, "cell"),
+                         change=d, change_str=fmt_num(d, unit, key, country, "delta") if abs(d) > 1e-9 else "No change",
+                         period=period, spark=spark, prev_period=prev_p))
     rows.sort(key=lambda r: -r["value"])
     return rows, unranked
 
@@ -1157,10 +1245,15 @@ def render_indicator(country, info, entry, rank_info, all_rankings_meta, n_indic
     }, ensure_ascii=False, indent=2)
     og_image = f"{SITE_URL}/og/{page_slug}.png"
 
+    auth_full, cz_modal, cz_script = country_blocks(cslug)
     rest = description[len(first_sentence(description)):].strip()
     about_p = f"<p>{esc(rest)}</p>" if rest else ""
     html_out = head_html(page_title, meta_desc, canonical, og_image, jsonld)
-    html_out += header_for(cslug)
+    hdr = header_for(cslug)
+    hdr, n_auth = TRIMMED_AUTH_RE.subn(lambda _m: auth_full, hdr)
+    if n_auth != 1:
+        raise SystemExit("header auth block not found for replacement")
+    html_out += hdr
     html_out += f"""<main class="ind-wrap">
   <nav class="ind-crumb" aria-label="Breadcrumb"><a href="../{cslug}">{esc(country)}</a><span class="sep" aria-hidden="true">/</span><span>{esc(m['cat'])}</span></nav>
   <header class="ind-head">
@@ -1185,6 +1278,7 @@ def render_indicator(country, info, entry, rank_info, all_rankings_meta, n_indic
     </div>
     <p class="range" id="indRange">{esc(fmt_period_label(pts[0][0]))} to {esc(fmt_period_label(latest_p))}</p>
     <div class="ind-chart"><canvas id="indChart" role="img" aria-label="{esc(country)} {esc(title)}, {esc(fmt_period_label(pts[0][0]))} to {esc(fmt_period_label(latest_p))}"></canvas></div>
+    <div class="lockedactions" id="indActions"></div>
     <p class="src">Source: {esc(source_text)}</p>
   </section>
   <div class="ind-about">
@@ -1209,8 +1303,10 @@ def render_indicator(country, info, entry, rank_info, all_rankings_meta, n_indic
   </section>
 </main>
 """
+    cfg["title"] = f"{country} {title}"
+    cfg["srcNote"] = source_text
     boot = f"<script>EATLAS_IND.initIndicator({json.dumps(cfg, ensure_ascii=False)});</script>"
-    html_out += page_tail(boot)
+    html_out += page_tail(boot + "\n" + cz_script, cz_modal)
     return page_slug, html_out
 
 
@@ -1227,20 +1323,21 @@ def render_ranking(ranking, rows, unranked, all_rankings_meta, catalogue_by_coun
         c = r["country"]
         cslug = COUNTRIES[c][1]
         cls = ""
-        fresh = is_fresh(r["period"], r["freq"])
+        fresh = is_fresh(r["latest_period"], r["freq"])
         led = f'<span class="led {"green" if fresh else "orange"}" aria-hidden="true" style="width:7px;height:7px;margin-right:5px;vertical-align:1px"></span>'
         tag = FREQ_WORD.get(r["freq"], "")
         width = abs(r["value"]) / bar_max * 100 if bar_max else 0
         chg_title = f' title="Nominal change on a year earlier, in {esc(c)}\'s own currency"' if usd else (f' title="Change on {esc(fmt_period_label(r.get("prev_period", "")))}"' if r.get("prev_period") else "")
         chg_attr = "" if r["change"] is None else f"{r['change']:.6g}"
         body.append(
-            f'<tr data-rank="{i}" data-country="{esc(c)}" data-value="{r["value"]:.6g}" data-change="{chg_attr}" data-period="{period_end_date(r["period"]).isoformat()}">'
+            f'<tr data-rank="{i}" data-country="{esc(c)}" data-value="{r["value"]:.6g}" data-change="{chg_attr}" data-period="{period_end_date(r["period"]).isoformat()}" data-source="{esc(r["src_pub"])}">'
             f'<td class="rank">{i}</td>'
             f'<td class="country"><a href="../indicators/{cslug}-{m["slug"]}">{esc(c)}</a><span class="rk-region">{esc(COUNTRIES[c][3])}</span></td>'
             f'<td class="num val{cls}">{esc(r["value_str"])}<span class="rk-bar"><span class="{"neg" if r["value"] < 0 else ""}" style="width:{width:.1f}%"></span></span></td>'
             f'<td class="num chg"{chg_title}>{esc(r["change_str"])}</td>'
             f'<td class="num">{led}{esc(fmt_period_label(r["period"]))}<span class="measuretag">{esc(tag)}</span></td>'
             f'<td class="trend">{sparkline_svg(r["spark"])}</td>'
+            f'<td class="src">{esc(r["src_pub"])}<span class="src-series">{esc(r["src_series"])}</span></td>'
             f'</tr>')
     table = "\n".join(body)
 
@@ -1264,6 +1361,14 @@ def render_ranking(ranking, rows, unranked, all_rankings_meta, catalogue_by_coun
     cta = glow_cta("../compare", f"Compare {metric_word} over time in Compare",
                    "Pick any countries and any years, then chart, map and rank them side by side, same period for every country.")
     chg_head = "1-year change (nominal)" if usd else "Change"
+    Y = flow_year()
+    if ranking.get("flow"):
+        head_txt = f"{len(rows)} countries, {Y}"
+        note_txt = (f"Every figure is for {Y}, the last completed year. A year still in progress is never shown for a flow, "
+                    "because a part-year total isn't comparable. Click any column to sort.")
+    else:
+        head_txt = f"{len(rows)} countries, latest reading"
+        note_txt = "Each country's latest published reading, with the period it refers to. Periods can differ between countries. Click any column to sort."
 
     latest_all = max((r["period"] for r in rows), key=lambda p: period_end_date(p)) if rows else ""
     top = rows[0] if rows else None
@@ -1292,8 +1397,8 @@ def render_ranking(ranking, rows, unranked, all_rankings_meta, catalogue_by_coun
   {cta}
   <section class="rk-card" aria-labelledby="rkTableHead">
     <div class="rk-cardhead">
-      <h2 id="rkTableHead">{len(rows)} countries, latest reading</h2>
-      <p class="rk-note">Click any column to sort. Reference periods can differ between countries; each is shown beside its figure.</p>
+      <h2 id="rkTableHead">{head_txt}</h2>
+      <p class="rk-note">{note_txt}</p>
     </div>
     <div class="rk-scroll">
       <table class="rk-table" id="rkTable">
@@ -1304,6 +1409,7 @@ def render_ranking(ranking, rows, unranked, all_rankings_meta, catalogue_by_coun
           <th scope="col" class="num" data-sort="change" aria-sort="none">{chg_head}</th>
           <th scope="col" class="num" data-sort="period" aria-sort="none">Period</th>
           <th scope="col">5-year trend</th>
+          <th scope="col" data-sort="source" data-type="text">Source</th>
         </tr></thead>
         <tbody>
 {table}

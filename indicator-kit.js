@@ -267,6 +267,22 @@
         led.title = t; led.setAttribute("aria-label", t);
       }
       drawChart(pts, c.unit, c.dollarised);
+      wireActions(pts, c.unit, c.dollarised);
+    }
+    /* Download data + Customise & export: the country page's own buttons and
+       gating (EATLAS_DOWNLOAD / EATLAS_CUSTOMIZE, reused verbatim). Rebuilt
+       on every paint so a toggle (Dollarise, Make it real) hands the
+       exporter the series actually on screen. */
+    function wireActions(pts, unit, dollarised){
+      var box = document.getElementById("indActions");
+      if(!box) return;
+      box.innerHTML = '<a class="lockedbtn dl-btn" href="../contact" data-tip="Create a free account to unlock this feature."><span class="lockicon">&#128274;</span> Download data</a>'
+        + '<a class="lockedbtn cz-btn" href="../contact" data-tip="Create a free account to unlock this feature."><span class="lockicon">&#128274;</span> Customise &amp; export</a>';
+      var title = cfg.title + (state.real_on && state.real ? " (real)" : "") + (dollarised ? " (US$)" : "");
+      var fmtY = function(v){ return fmtNum(v, fo(unit, dollarised, "axis")); };
+      var dl = box.querySelector(".dl-btn"), cz = box.querySelector(".cz-btn");
+      if(window.EATLAS_DOWNLOAD) window.EATLAS_DOWNLOAD.wire(dl, pts, title);
+      if(window.EATLAS_CUSTOMIZE) window.EATLAS_CUSTOMIZE.wire(cz, pts, title, cfg.srcNote || "", fmtY, "", title, cfg.chart, fmtPeriod, cfg.key);
     }
 
     document.querySelectorAll("[data-range]").forEach(function(b){

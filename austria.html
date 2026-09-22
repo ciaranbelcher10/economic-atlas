@@ -80,7 +80,7 @@
 <link href="https://fonts.googleapis.com/css2?family=Nunito+Sans:wght@400;600;700&display=swap" rel="stylesheet">
 <link rel="icon" type="image/png" sizes="32x32" href="favicon-32.png">
 <link rel="apple-touch-icon" href="apple-touch-icon.png">
-<link rel="stylesheet" href="style.css?v=51">
+<link rel="stylesheet" href="style.css?v=52">
 <style>
 .led{display:inline-block; width:9px; height:9px; border-radius:50%;
   margin-right:9px; vertical-align:middle; position:relative; top:-3px;}
@@ -2082,6 +2082,9 @@ const SEC_OF={"charts-headline":"headline","charts-gdp":"gdp","charts-inflation"
 const ANCHORS={};   /* series key -> {sec, panelEl} */
 let panelId=0;
 function statTile(el, key, title, series, opts){
+  // Headline section: 10 tiles at most, a hard limit (v1.6.2). Tiles are
+  // added in priority order, so anything past the tenth is dropped.
+  if(el && el.id === "hero" && el.querySelectorAll(":scope > .stat").length >= 10) return;
   const pts=series.points, last=pts[pts.length-1], prev=pts[pts.length-2];
   const d=+(last[1]-prev[1]).toFixed(2);
   const dir=d===0?"flat":((d>0)===opts.upIsGood?"good":"bad");

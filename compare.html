@@ -32,7 +32,7 @@
 <link href="https://fonts.googleapis.com/css2?family=Nunito+Sans:wght@400;600;700&display=swap" rel="stylesheet">
 <link rel="icon" type="image/png" sizes="32x32" href="favicon-32.png">
 <link rel="apple-touch-icon" href="apple-touch-icon.png">
-<link rel="stylesheet" href="style.css?v=51">
+<link rel="stylesheet" href="style.css?v=52">
 <style>
 :root{ --map-nodata: #E9EBE7; }
 /* ---- info button + popover (per-card data source & methodology) ---- */
@@ -191,6 +191,7 @@ html[data-theme="dark"]{ --map-nodata: #C4CAC0; }
 .tpm-rankswatch{width:9px; height:9px; border-radius:50%; flex:none;}
 .tpm-rankname{flex:1; font-weight:600; font-size:13px; min-width:0; overflow:hidden;
   text-overflow:ellipsis; white-space:nowrap;}
+.tpm-ranktag{display:block; font-weight:500; font-size:10.5px; color:var(--ink2); white-space:normal; line-height:1.3; margin-top:1px;}
 .tpm-rankvalue{font-weight:700; font-size:13px; color:var(--ink); white-space:nowrap; flex:none; text-align:right;}
 .tpm-rankvalue .per{display:block; font-weight:400; font-size:10.5px; color:var(--ink2);}
 .addtile{background:var(--panel); border:2px dashed var(--hair); border-radius:14px; padding:18px 20px;
@@ -2893,9 +2894,25 @@ function currentYear(){ return new Date().getFullYear(); }
 // A stock (debt as a share of GDP) is a level at a point in time rather than
 // something accumulated, so averaging it makes no sense: the latest reading
 // is shown, with the period it refers to.
+// v1.6.2: flows named explicitly. aggKind() alone let the deficit, the
+// current account and FDI (averaged as "mean") through as if they were
+// rates, so a card could open on a part-year total. A flow is only ever
+// shown for a year that has ended.
+var FLOW_CONCEPTS = {
+  gdp_level: 1, gdp_real: 1, gdp_growth: 1, trade_balance: 1, exports: 1, imports: 1,
+  debt_interest: 1, deficit: 1, current_account: 1, fdi: 1
+};
+function isFlowConcept(concept){ return !!FLOW_CONCEPTS[concept]; }
 function partialYearAllowed(concept){
+  if(isFlowConcept(concept)) return false;
   var kind = aggKind(concept);
   return kind === "mean" || kind === "end";
+}
+// The latest year a card may show: the last completed year for a flow
+// (2025 during 2026), the newest year with data for a rate or stock.
+function maxYearFor(concept){
+  var cy = CURRENT_YEAR == null ? currentYear() : CURRENT_YEAR;
+  return isFlowConcept(concept) ? Math.min(cy, lastEndedYear()) : cy;
 }
 function yearWindow(series, year, allowPartial){
   if(year > lastEndedYear() && !(allowPartial && year === currentYear())) return null;
@@ -3285,16 +3302,19 @@ var DEFAULT_CHANGE_END_YEAR = 2026;
 // page-wide slider controlling every card at once. Keyed by concept.
 // cardTimeState[concept] = {mode, snapshotYear, changeStartYear, changeEndYear}
 var cardTimeState = {};
-function defaultCardTimeState(){
+// Every card opens as a bar chart of one year: the last completed year for
+// a flow, the latest year for a rate or stock (see maxYearFor).
+function defaultCardTimeState(concept){
+  var end = concept ? maxYearFor(concept) : DEFAULT_SNAPSHOT_YEAR;
   return {
     mode: "snapshot",
-    snapshotYear: DEFAULT_SNAPSHOT_YEAR,
-    changeStartYear: DEFAULT_CHANGE_START_YEAR,
-    changeEndYear: DEFAULT_CHANGE_END_YEAR
+    snapshotYear: end,
+    changeStartYear: Math.min(DEFAULT_CHANGE_START_YEAR, end - 1),
+    changeEndYear: end
   };
 }
 function ensureCardTimeState(concept){
-  if(!cardTimeState[concept]) cardTimeState[concept] = defaultCardTimeState();
+  if(!cardTimeState[concept]) cardTimeState[concept] = defaultCardTimeState(concept);
   return cardTimeState[concept];
 }
 // Clamps a card's state into whatever range is actually valid for that
@@ -3307,9 +3327,10 @@ function ensureCardTimeState(concept){
 function clampCardTimeState(concept){
   var st = ensureCardTimeState(concept);
   var minYear = computeTimeSliderMinYear();
-  st.snapshotYear = Math.min(CURRENT_YEAR, Math.max(minYear, st.snapshotYear));
-  st.changeStartYear = Math.max(minYear, st.changeStartYear);
-  st.changeEndYear = Math.min(CURRENT_YEAR, Math.max(st.changeStartYear + 1, st.changeEndYear));
+  var maxYear = maxYearFor(concept);
+  st.snapshotYear = Math.min(maxYear, Math.max(minYear, st.snapshotYear));
+  st.changeStartYear = Math.min(maxYear - 1, Math.max(minYear, st.changeStartYear));
+  st.changeEndYear = Math.min(maxYear, Math.max(st.changeStartYear + 1, st.changeEndYear));
   return st;
 }
 // Live per-card map instances, keyed by concept -- see createCardMap().
@@ -3789,10 +3810,9 @@ function buildBarChart(canvas, concept){
     type: "bar",
     plugins: [noDataPlugin],
     data: {
-      labels: rows.map(function(r){
-        var tag = r.dv ? measureTag(r.country, concept) : null;
-        return tag ? [r.country, tag] : r.country;
-      }),
+      // Country names only on the axis; the measure behind each bar is
+      // named in the ranking list beside the chart and in the tooltip.
+      labels: rows.map(function(r){ return r.country; }),
       datasets: [{
         data: rows.map(function(r){ return r.dv ? r.dv.value : null; }),
         backgroundColor: rows.map(function(r){ return getCountryColor(r.country); }),
@@ -3898,6 +3918,12 @@ function buildLineChart(canvas, concept){
   });
   return {chart: chart, isCurrencyMetric: isCurrencyMetric, datasets: datasets};
 }
+// The measure and frequency behind a country's figure, under its name in
+// the ranking list (e.g. "national CPI, annual data").
+function rankTagHtml(country, concept){
+  var tag = measureTag(country, concept);
+  return tag ? "<span class=\"tpm-ranktag\">" + escapeAttr(tag) + "</span>" : "";
+}
 function renderBarRankList(container, concept, rows, chart){
   var sorted = rows.filter(function(r){ return r.dv != null; }).slice()
     .sort(function(a, b){ return b.dv.value - a.dv.value; });
@@ -3910,7 +3936,7 @@ function renderBarRankList(container, concept, rows, chart){
     var fresh = countryFreshness(r.country, concept);
     li.innerHTML = "<span class=\"tpm-ranknum\">" + (i + 1) + "</span>"
       + "<span class=\"tpm-rankswatch\" style=\"background:" + getCountryColor(r.country) + ";\"></span>"
-      + "<span class=\"tpm-rankname\">" + r.country + "</span>"
+      + "<span class=\"tpm-rankname\">" + r.country + rankTagHtml(r.country, concept) + "</span>"
       + "<span class=\"tpm-rankvalue\">" + (fresh ? "<span class=\"led " + fresh.led + "\" title=\"" + fresh.title + "\" role=\"img\" aria-label=\"" + fresh.title + "\"></span>" : "") + displayString(r.dv) + "<span class=\"per\">" + periodLabelFor(r.dv) + "</span></span>";
     li.addEventListener("mouseenter", function(){ highlightBarIndex(chart, idx, true); });
     li.addEventListener("mouseleave", function(){ highlightBarIndex(chart, idx, false); });
@@ -3940,7 +3966,7 @@ function renderLineRankList(container, concept, datasets, chart){
     var fresh = countryFreshness(r.label, concept);
     li.innerHTML = "<span class=\"tpm-ranknum\">" + (i + 1) + "</span>"
       + "<span class=\"tpm-rankswatch\" style=\"background:" + getCountryColor(r.label) + ";\"></span>"
-      + "<span class=\"tpm-rankname\">" + r.label + "</span>"
+      + "<span class=\"tpm-rankname\">" + r.label + rankTagHtml(r.label, concept) + "</span>"
       + "<span class=\"tpm-rankvalue\">" + (fresh ? "<span class=\"led " + fresh.led + "\" title=\"" + fresh.title + "\" role=\"img\" aria-label=\"" + fresh.title + "\"></span>" : "") + valText + "<span class=\"per\">" + fmtPeriod(r.period) + "</span></span>";
     li.addEventListener("mouseenter", function(){ highlightLineIndex(chart, r.idx, true); });
     li.addEventListener("mouseleave", function(){ highlightLineIndex(chart, r.idx, false); });
@@ -4162,7 +4188,7 @@ function wireCardTimeControls(card, concept){
   snapWrap.hidden = st.mode !== "snapshot";
   changeWrap.hidden = st.mode !== "change";
   snapSlider.min = minYear;
-  snapSlider.max = CURRENT_YEAR;
+  snapSlider.max = maxYearFor(concept);
   snapSlider.value = st.snapshotYear;
   snapLabel.textContent = st.snapshotYear;
   snapSlider.addEventListener("input", function(){
@@ -4170,7 +4196,7 @@ function wireCardTimeControls(card, concept){
     snapLabel.textContent = st.snapshotYear;
     refreshOneCard(concept);
   });
-  [changeStartSlider, changeEndSlider].forEach(function(s){ s.min = minYear; s.max = CURRENT_YEAR; });
+  [changeStartSlider, changeEndSlider].forEach(function(s){ s.min = minYear; s.max = maxYearFor(concept); });
   changeStartSlider.value = st.changeStartYear;
   changeEndSlider.value = st.changeEndYear;
   updateCardChangeSliderVisuals(card, st);
