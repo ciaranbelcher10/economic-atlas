@@ -178,15 +178,53 @@ RANKING_BY_METRIC = {r["metric"]: r for r in RANKINGS}
 def flow_year():
     return date.today().year - 1
 
-def adjustment_of(text):
-    """Whether the source series is seasonally adjusted, read from the
-    citation the source itself gives us. Never inferred: a series whose
-    citation doesn't say returns None and the page says so."""
+RATE_ADJ_KEYS = {"boe_rate", "fed_funds", "ecb_rate", "boj_rate", "overnight_rate", "policy_rate", "bond_yield_10y"}
+
+def adjustment_of(text, key="", freq=""):
+    """Seasonal adjustment for one series, in this order:
+
+    1. the citation says so in words;
+    2. interest rates: seasonal adjustment does not apply to a policy rate
+       or a bond yield, which are point-in-time prices, not flows;
+    3. annual data: there is no within-year pattern to remove;
+    4. the series identifier states it, for families where the publisher
+       documents the convention:
+         - IMF IFS: NGDPSAXDC.. / NGDPRSAXDC.. are seasonally adjusted and
+           NGDPNSAXDC.. / NGDPRNSAXDC.. are not (checked against FRED's own
+           seasonal-adjustment field for these series);
+         - OECD MEI via FRED: the trailing letter after the unit code is S
+           for seasonally adjusted and N for not (FRED tags these series SA
+           or NSA to match);
+         - Eurostat HICP (…NEST, or a citation naming HICP): Eurostat
+           publishes the HICP unadjusted;
+         - OECD business confidence (BCICP): published seasonally adjusted,
+           normalised to a long-run average of 100.
+
+    Anything else returns None and the page says the source doesn't state it.
+    Nothing here is inferred from the numbers themselves."""
     t = (text or "").lower()
     if re.search(r"\bnot seasonally adjusted\b|\bnon[- ]seasonally adjusted\b|\bnsa\b|\bunadjusted\b", t):
         return "Not seasonally adjusted"
     if re.search(r"\bseasonally adjusted\b|\bsa\b|\bswda\b|\bworking[- ]day adjusted\b", t):
         return "Seasonally adjusted"
+    if key in RATE_ADJ_KEYS:
+        return "Not applicable, interest rates are not seasonally adjusted"
+    if freq == "years":
+        return "Not applicable, annual data"
+    up = (text or "").upper()
+    if re.search(r"NGDPR?NSAXDC", up):
+        return "Not seasonally adjusted"
+    if re.search(r"NGDPR?SAXDC", up):
+        return "Seasonally adjusted"
+    if "BCICP" in up:
+        return "Seasonally adjusted"
+    if "HICP" in up or re.search(r"[A-Z0-9]+M086NEST\b", up):
+        return "Not seasonally adjusted"
+    if re.search(r"XT[A-Z0-9]*SA[MQ]\b", up):   # OECD MEI trade code ending SAM/SAQ
+        return "Seasonally adjusted"
+    m = re.search(r"\b[A-Z]{2,}[A-Z0-9]*\d{2}[A-Z]{1,3}(?:667|657|659|086|156)([SN])\b", up)
+    if m:
+        return "Seasonally adjusted" if m.group(1) == "S" else "Not seasonally adjusted"
     return None
 
 
@@ -1276,7 +1314,7 @@ def render_indicator(country, info, entry, rank_info, all_rankings_meta, n_indic
     auth_full, cz_modal, cz_script = country_blocks(cslug)
     # A rolling four-quarter GDP total is four published quarters added up,
     # not a forecast of an unfinished year; say which four.
-    adj = adjustment_of(source_text)
+    adj = adjustment_of(source_text, key, freq)
     src_pub, src_series = short_source(source_text)
     win = quarter_window_label(latest_p, freq, country in GDP_RAW_COUNTRIES) if m.get("ann") else None
     window_html = f'<p class="ind-when">Latest four quarters: <strong>{esc(win)}</strong></p>' if win else ""
