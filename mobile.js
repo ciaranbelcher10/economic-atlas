@@ -75,9 +75,17 @@
     if(!navTop) return;
     var page = (location.pathname.split("/").pop() || "index").replace(".html","") || "index";
     var isCountryPage = !!document.querySelector("nav.cat");
+    // Indicator and ranking pages live one level down (/indicators/, /rankings/),
+    // so every link in this bar needs "../" there or it resolves inside that
+    // folder (v1.6.3 fix).
+    var inSubfolder = /\/(indicators|rankings)\//.test(location.pathname);
+    var prefix = inSubfolder ? "../" : "";
+    var onRankings = /\/rankings(\/|$)/.test(location.pathname);
+    var onIndicator = /\/indicators\//.test(location.pathname);
     var tools = [
-      { href:"index",     label:"Countries", ic:"\uD83C\uDF0D", match:function(p){ return p==="index" || isCountryPage; } },
+      { href:"index",     label:"Countries", ic:"\uD83C\uDF0D", match:function(p){ return (p==="index" || isCountryPage || onIndicator) && !onRankings; } },
       { href:"compare",   label:"Compare",   ic:"\u2696\uFE0F",  match:function(p){ return p==="compare"; } },
+      { href:"rankings",  label:"Rankings",  ic:"\uD83C\uDFC5",  match:function(){ return onRankings; } },
       { href:"dashboard", label:"Dashboard", ic:"\uD83D\uDCCC",  match:function(p){ return p==="dashboard"; } },
       { href:"chartmaker",label:"Chartmaker",ic:"\uD83D\uDCC8",  match:function(p){ return p==="chartmaker"; } },
       { href:"calendar",  label:"Calendar",  ic:"\uD83D\uDDD3\uFE0F", match:function(p){ return p==="calendar"; } }
@@ -87,7 +95,7 @@
     bar.setAttribute("aria-label","Tools");
     tools.forEach(function(t){
       var a = document.createElement("a");
-      a.href = t.href;
+      a.href = prefix + t.href;
       if(t.match(page)) a.className = "active";
       a.innerHTML = '<span class="ic" aria-hidden="true">'+t.ic+'</span>'+t.label;
       bar.appendChild(a);

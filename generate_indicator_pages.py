@@ -35,7 +35,7 @@ from datetime import date, timedelta
 
 ROOT = os.path.dirname(os.path.abspath(__file__))
 SITE_URL = "https://theeconomicatlas.com"
-KIT_VERSION = "2"
+KIT_VERSION = "3"
 
 # country display name -> (data-file code, page slug, alpha-2, region)
 COUNTRIES = {
@@ -514,6 +514,7 @@ HEADER_HTML_BASE = """<script>(function(){
  </div>
  </div>
  <a class="item" href="../compare">Compare</a>
+ <a class="item" href="../rankings">Rankings</a>
  <a class="item" href="../dashboard">My Dashboard</a>
  <a class="item" href="../chartmaker" id="navChartmakerLink">Chartmaker</a>
  <a class="item" href="../calendar" id="navCalendarLink">Calendar</a>
@@ -999,7 +1000,7 @@ def head_html(title, desc, canonical, og_image, jsonld, extra_css=""):
 <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
 <link href="https://fonts.googleapis.com/css2?family=Nunito+Sans:wght@400;600;700&display=swap" rel="stylesheet">
 <link rel="stylesheet" href="../style.css?v=52">
-<link rel="stylesheet" href="../mobile.css?v=13">
+<link rel="stylesheet" href="../mobile.css?v=14">
 <link rel="stylesheet" href="../indicator.css?v={KIT_VERSION}">
 <script type="application/ld+json">
 {jsonld}
@@ -1014,10 +1015,14 @@ def page_tail(extra_js="", extra_html=""):
 <script src="https://cdnjs.cloudflare.com/ajax/libs/Chart.js/4.4.1/chart.umd.min.js"></script>
 <script src="../indicator-kit.js?v={KIT_VERSION}"></script>
 {extra_js}
-<script src="../mobile.js?v=14"></script>
+<script src="../mobile.js?v=15"></script>
 </body>
 </html>
 """
+
+LIGHTS_KEY = ('<p class="lightskey"><span><span class="led green" aria-hidden="true"></span>'
+              'Matches the latest release</span><span><span class="led orange" aria-hidden="true"></span>'
+              'Not refreshed recently, awaiting the next release</span></p>')
 
 def glow_cta(href, title, sub, compact=False):
     return (f'<a class="glow-cta{" compact" if compact else ""}" href="{href}">'
@@ -1061,6 +1066,17 @@ def trailing_years(pts, years=5):
     return f if len(f) >= 2 else pts[-2:]
 
 FREQ_WORD = {"months": "Monthly", "quarters": "Quarterly", "years": "Annual"}
+
+
+def quarter_window_label(period, freq, raw):
+    """'Q3 2025 to Q2 2026' for a rolling four-quarter figure, so a GDP
+    total is never mistaken for a calendar year that hasn't ended."""
+    m = re.match(r"^(\d{4})-Q([1-4])$", period)
+    if raw or freq != "quarters" or not m:
+        return None
+    y, q = int(m.group(1)), int(m.group(2))
+    sy, sq = (y - 1, q + 1) if q < 4 else (y, 1)
+    return f"{fmt_period_label(f'{sy}-Q{sq}')} to {fmt_period_label(period)}"
 
 
 def build_country_catalogue(country, data, sources):
@@ -1246,6 +1262,10 @@ def render_indicator(country, info, entry, rank_info, all_rankings_meta, n_indic
     og_image = f"{SITE_URL}/og/{page_slug}.png"
 
     auth_full, cz_modal, cz_script = country_blocks(cslug)
+    # A rolling four-quarter GDP total is four published quarters added up,
+    # not a forecast of an unfinished year; say which four.
+    win = quarter_window_label(latest_p, freq, country in GDP_RAW_COUNTRIES) if m.get("ann") else None
+    window_html = f'<p class="ind-when">Latest four quarters: <strong>{esc(win)}</strong></p>' if win else ""
     rest = description[len(first_sentence(description)):].strip()
     about_p = f"<p>{esc(rest)}</p>" if rest else ""
     html_out = head_html(page_title, meta_desc, canonical, og_image, jsonld)
@@ -1255,7 +1275,6 @@ def render_indicator(country, info, entry, rank_info, all_rankings_meta, n_indic
         raise SystemExit("header auth block not found for replacement")
     html_out += hdr
     html_out += f"""<main class="ind-wrap">
-  <nav class="ind-crumb" aria-label="Breadcrumb"><a href="../{cslug}">{esc(country)}</a><span class="sep" aria-hidden="true">/</span><span>{esc(m['cat'])}</span></nav>
   <header class="ind-head">
     <h1>{esc(country)} {esc(title)}</h1>
     <p class="ind-lede">{esc(first_sentence(description))}</p>
@@ -1265,8 +1284,10 @@ def render_indicator(country, info, entry, rank_info, all_rankings_meta, n_indic
     <div class="ind-meta">
       <p class="ind-delta {ddir}" id="indDelta"><span aria-hidden="true">{arrow}</span> {esc(dstr)} <span class="ind-delta-vs">vs {esc(fmt_period_label(prev_p))}</span></p>
       <p class="ind-when"><strong id="indPeriod">{esc(fmt_period_label(latest_p))}</strong> &middot; {esc(FREQ_WORD.get(freq, ''))} data</p>
+      {window_html}
     </div>
   </div>
+  {LIGHTS_KEY}
   {cta}
   {toggles_html}
   <section class="panel ind-panel" aria-labelledby="chartTitle">
@@ -1385,9 +1406,8 @@ def render_ranking(ranking, rows, unranked, all_rankings_meta, catalogue_by_coun
     }, ensure_ascii=False, indent=2)
 
     html_out = head_html(page_title, meta_desc, canonical, f"{SITE_URL}/og/rankings-{ranking['slug']}.png", jsonld)
-    html_out += HEADER_HTML_BASE.replace('<a class="item" href="../compare">', '<a class="item active" href="../compare">', 1)
+    html_out += HEADER_HTML_BASE.replace('<a class="item" href="../rankings">', '<a class="item active" href="../rankings">', 1)
     html_out += f"""<main class="ind-wrap rk-wrap">
-  <nav class="ind-crumb" aria-label="Breadcrumb"><a href="../compare">Compare</a><span class="sep" aria-hidden="true">/</span><span>Rankings</span></nav>
   <header class="ind-head">
     <h1>{esc(ranking['title'])}</h1>
     <p class="ind-lede">{esc(ranking['lede'])}</p>
@@ -1395,6 +1415,7 @@ def render_ranking(ranking, rows, unranked, all_rankings_meta, catalogue_by_coun
   <div style="height:24px"></div>
   {summary}
   {cta}
+  {LIGHTS_KEY}
   <section class="rk-card" aria-labelledby="rkTableHead">
     <div class="rk-cardhead">
       <h2 id="rkTableHead">{head_txt}</h2>
@@ -1496,6 +1517,49 @@ EMBED_TEMPLATE = """<!DOCTYPE html>
 """
 
 
+def render_rankings_index(ranking_pages, rankings_meta):
+    """/rankings: the way in from the ribbon. Every ranking, each with who
+    currently leads it, so the page answers something on its own rather than
+    being a menu."""
+    canonical = f"{SITE_URL}/rankings"
+    cards = []
+    for rk, rows, _unranked in ranking_pages:
+        top = rows[0]
+        cards.append(
+            f'<a class="rkx-card" href="{rk["slug"]}">'
+            f'<span class="rkx-name">{esc(rk["title"].replace(" by Country", ""))}</span>'
+            f'<span class="rkx-lead"><span class="rkx-val">{esc(top["value_str"])}</span>'
+            f'<span class="rkx-who">{esc(top["country"])}, {esc(fmt_period_label(top["period"]))}</span></span>'
+            f'<span class="rkx-meta">{len(rows)} countries &middot; {esc(rk["col"])}</span>'
+            f'{ARROW_SVG}</a>')
+    page_title = "Economic Rankings by Country: GDP, Inflation, Debt and More | The Economic Atlas"
+    meta_desc = ("Every country we track, ranked on the indicators that can be compared like for like: GDP, growth, "
+                 "inflation, unemployment, interest rates, bond yields, government debt, budget balance, the current "
+                 "account, FDI and business confidence.")
+    jsonld = json.dumps({
+        "@context": "https://schema.org", "@type": "CollectionPage",
+        "name": "Economic Rankings by Country", "description": meta_desc, "url": canonical,
+        "hasPart": [{"@type": "Dataset", "name": rk["title"], "url": f"{SITE_URL}/rankings/{rk['slug']}"}
+                    for rk, _r, _u in ranking_pages],
+    }, ensure_ascii=False, indent=2)
+    html_out = head_html(page_title, meta_desc, canonical, f"{SITE_URL}/og/rankings-{ranking_pages[0][0]['slug']}.png", jsonld)
+    html_out += HEADER_HTML_BASE.replace('<a class="item" href="../rankings">', '<a class="item active" href="../rankings">', 1)
+    html_out += f"""<main class="ind-wrap rk-wrap">
+  <header class="ind-head">
+    <h1>Economic Rankings by Country</h1>
+    <p class="ind-lede">Every country we track, ranked side by side on the measures that can be compared like for like. Rates and stocks show each country's latest reading; flows such as GDP show the last completed year. Updated hourly from official sources.</p>
+  </header>
+  <div style="height:26px"></div>
+  <div class="rkx-grid">{''.join(cards)}</div>
+  {glow_cta("../compare", "Build your own comparison in Compare",
+            "Pick any countries, any indicators and any years, then chart, map and rank them side by side.")}
+  <p class="rk-unranked">Figures come from national statistics offices, central banks, Eurostat, the OECD, the IMF and the World Bank, the same sources cited on each country's own page. Each ranking names the source behind every country's figure.</p>
+</main>
+"""
+    html_out += page_tail("<script>EATLAS_IND.initRanking();</script>")
+    return html_out
+
+
 def legacy_redirect_html(target_slug):
     url = f"{SITE_URL}/rankings/{target_slug}"
     return f"""<!DOCTYPE html>
@@ -1578,6 +1642,10 @@ def main():
         with open(os.path.join(ROOT, "rankings", f"{rk['slug']}.html"), "w", encoding="utf-8") as f:
             f.write(render_ranking(rk, rows, unranked, rankings_meta, catalogue_by_country))
         urls.append(f"{SITE_URL}/rankings/{rk['slug']}")
+
+    with open(os.path.join(ROOT, "rankings", "index.html"), "w", encoding="utf-8") as f:
+        f.write(render_rankings_index(ranking_pages, rankings_meta))
+    urls.append(f"{SITE_URL}/rankings")
 
     for old, new in LEGACY_RANKING_REDIRECTS.items():
         with open(os.path.join(ROOT, f"{old}.html"), "w", encoding="utf-8") as f:
