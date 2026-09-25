@@ -35,6 +35,12 @@ from datetime import date, timedelta
 
 ROOT = os.path.dirname(os.path.abspath(__file__))
 SITE_URL = "https://theeconomicatlas.com"
+# Every Dataset block carries these. Google's Dataset validator treats a
+# missing description as a critical error and flags creator and licence as
+# recommended; the licence covers our compilation and presentation, not the
+# underlying official statistics, which stay with their publishers.
+CREATOR = {"@type": "Organization", "name": "The Economic Atlas", "url": SITE_URL}
+LICENSE = f"{SITE_URL}/terms"
 KIT_VERSION = "6"
 
 # country display name -> (data-file code, page slug, alpha-2, region)
@@ -1305,7 +1311,7 @@ def render_indicator(country, info, entry, rank_info, all_rankings_meta, n_indic
         "name": f"{country} {title}", "description": description or f"{country} {title}", "url": canonical,
         "temporalCoverage": f"{iso_period(pts[0][0])}/{iso_period(latest_p)}",
         "spatialCoverage": country,
-        "creator": {"@type": "Organization", "name": "The Economic Atlas", "url": SITE_URL},
+        "creator": CREATOR, "license": LICENSE,
         "distribution": {"@type": "DataDownload", "encodingFormat": "application/json", "contentUrl": f"{SITE_URL}/{data_file}"},
         "variableMeasured": title,
     }, ensure_ascii=False, indent=2)
@@ -1468,7 +1474,7 @@ def render_ranking(ranking, rows, unranked, all_rankings_meta, catalogue_by_coun
         "@context": "https://schema.org", "@type": "Dataset",
         "name": ranking["title"], "description": ranking["lede"], "url": canonical,
         "spatialCoverage": [r["country"] for r in rows],
-        "creator": {"@type": "Organization", "name": "The Economic Atlas", "url": SITE_URL},
+        "creator": CREATOR, "license": LICENSE,
         "variableMeasured": m["title"],
     }, ensure_ascii=False, indent=2)
 
@@ -1606,8 +1612,11 @@ def render_rankings_index(ranking_pages, rankings_meta):
     jsonld = json.dumps({
         "@context": "https://schema.org", "@type": "CollectionPage",
         "name": "Economic Rankings by Country", "description": meta_desc, "url": canonical,
-        "hasPart": [{"@type": "Dataset", "name": rk["title"], "url": f"{SITE_URL}/rankings/{rk['slug']}"}
-                    for rk, _r, _u in ranking_pages],
+        "hasPart": [{"@type": "Dataset", "name": rk["title"], "url": f"{SITE_URL}/rankings/{rk['slug']}",
+                     "description": rk["lede"], "creator": CREATOR, "license": LICENSE,
+                     "variableMeasured": METRIC_BY_SLUG[rk["metric"]]["title"],
+                     "spatialCoverage": [r["country"] for r in rows]}
+                    for rk, rows, _u in ranking_pages],
     }, ensure_ascii=False, indent=2)
     html_out = head_html(page_title, meta_desc, canonical, f"{SITE_URL}/og/rankings-{ranking_pages[0][0]['slug']}.png", jsonld)
     # No ribbon item is marked active anywhere else on the site (Compare
