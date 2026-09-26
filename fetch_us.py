@@ -64,6 +64,14 @@ FRED_SERIES = {
     "trade_balance": ("BOPGSTB", "m", "Trade balance, goods & services, SA", "$m", None),
     "exports": ("BOPTEXP", "m", "Exports, goods & services, SA", "$m", None),
     "imports": ("BOPTIMP", "m", "Imports, goods & services, SA", "$m", None),
+    # OECD's monthly series, not FRED's own daily DGS10 -- this file's
+    # fetch_fred() has no daily-to-monthly reduction step (unlike
+    # fetch_data.py's fetch_fx_history, built for exactly that problem),
+    # so a daily series here would produce ~20 duplicate points per month
+    # under the same period label. IRLTLT01USM156N is native monthly,
+    # confirmed live on FRED, no reduction needed -- same series family
+    # already used for 20+ other countries on this site.
+    "bond_yield_10y": ("IRLTLT01USM156N", "m", "10-year government bond yield", "%", None),
 }
 
 FRED_URL = ("https://api.stlouisfed.org/fred/series/observations"
@@ -234,6 +242,28 @@ def load_previous() -> dict:
         return {}
 
 
+def fetch_fx_monthly(sid: str, key: str) -> list:
+    """Daily FRED series reduced to one point per month (last trading day's
+    value). Needed because this file's fetch_fred() has no such reduction
+    step (unlike fetch_data.py's fetch_fx_history, built for this exact
+    purpose for the UK's own GBP/USD) -- DEXUSEU is daily, and feeding it
+    straight through fetch_fred with freq="m" would produce ~20 duplicate
+    points per month under the same period label."""
+    r = requests.get(FRED_URL.format(sid=sid, key=key), timeout=60,
+                      headers={"User-Agent": "economic-atlas/0.1"})
+    r.raise_for_status()
+    monthly = {}
+    for o in r.json().get("observations", []):
+        if o.get("value") in (None, "", "."):
+            continue
+        try:
+            val = float(o["value"])
+        except ValueError:
+            continue
+        monthly[fred_period(o["date"], "m")] = val
+    return sorted(monthly.items())
+
+
 def main() -> int:
     previous = load_previous()
     out = {
@@ -283,6 +313,22 @@ def main() -> int:
             print(f"FAIL  {name:<16} {exc}")
 
     try:
+        if key:
+            eur_hist = fetch_fx_monthly("DEXUSEU", key)
+            if eur_hist:
+                out["fx_eur_usd"] = {"pair": "EUR/USD", "rate": eur_hist[-1][1],
+                                      "as_of": eur_hist[-1][0], "direction": "multiply",
+                                      "history": eur_hist}
+                print(f"  ok  fx_eur_usd     {len(eur_hist):>5} observations "
+                      f"({eur_hist[0][0]} to {eur_hist[-1][0]}, months)")
+            else:
+                print("note  fx_eur_usd: no observations returned")
+        else:
+            print("note  fx_eur_usd not set (no FRED_API_KEY)")
+    except Exception as exc:
+        print(f"FAIL  fx_eur_usd       {exc}")
+
+    try:
         with open("data-us.json") as f:
             prev_full = json.load(f)
     except Exception:
@@ -305,6 +351,9 @@ def main() -> int:
     if not out.get("fx_to_usd") and prev_full.get("fx_to_usd"):
         out["fx_to_usd"] = prev_full["fx_to_usd"]
         print("CARRIED OVER fx_to_usd from previous run")
+    if not out.get("fx_eur_usd") and prev_full.get("fx_eur_usd"):
+        out["fx_eur_usd"] = prev_full["fx_eur_usd"]
+        print("CARRIED OVER fx_eur_usd from previous run")
 
     if not out["series"]:
         print("\nNothing fetched.")

@@ -60,6 +60,7 @@ FRED_SERIES = {
     "deficit": ("GGNLBAJPA188N", "a", "General government net lending/borrowing, % of GDP", "%", None, 1.0),
     "exports": ("XTEXVA01JPM667S", "m", "Exports of goods, $", "$m", None, 1e-6),
     "imports": ("XTIMVA01JPM667S", "m", "Imports of goods, $", "$m", None, 1e-6),
+    "bond_yield_10y": ("IRLTLT01JPM156N", "m", "10-year government bond yield (JGB)", "%", None, 1.0),
 }
 
 FRED_URL = ("https://api.stlouisfed.org/fred/series/observations"
@@ -756,6 +757,35 @@ def main() -> int:
                   "Dollarise will be unavailable on this page until next run.")
     except Exception as exc:
         print(f"FAIL  fx_to_usd        {exc}")
+
+    # fx_to_eur (Markets section, Sep 2026): JPY/EUR, triangulated the same
+    # way as Canada's CAD/EUR -- Japan's own fx_to_usd is "divide"
+    # convention (JPY per 1 USD, e.g. ~150), so JPY per EUR is a
+    # multiply-through: JPY-per-USD * USD-per-EUR (DEXUSEU, already
+    # USD-per-1-EUR). Getting this backwards (dividing instead of
+    # multiplying) would silently produce a plausible-looking but wrong
+    # number, not an obvious crash.
+    try:
+        if key and out.get("fx_to_usd", {}).get("history"):
+            eur_usd_hist = dict(fetch_fred("DEXUSEU", "d", key))
+            jpy_usd_hist = dict(out["fx_to_usd"]["history"])
+            cross = sorted(
+                (period, round(jpy_usd_hist[period] * eur_usd_hist[period], 2))
+                for period in jpy_usd_hist
+                if period in eur_usd_hist
+            )
+            if cross:
+                out["fx_to_eur"] = {"pair": "JPY/EUR", "rate": cross[-1][1],
+                                     "as_of": cross[-1][0], "direction": "divide",
+                                     "history": cross}
+                print(f"  ok  fx_to_eur       {len(cross):>5} observations "
+                      f"({cross[0][0]} to {cross[-1][0]}, months, triangulated)")
+            else:
+                print("note  fx_to_eur: no overlapping months -- skipped")
+        else:
+            print("note  fx_to_eur not set (fx_to_usd history unavailable this run)")
+    except Exception as exc:
+        print(f"FAIL  fx_to_eur        {exc}")
 
     with open("data-jp.json", "w") as f:
         json.dump(out, f)

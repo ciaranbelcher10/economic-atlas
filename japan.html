@@ -1627,6 +1627,7 @@ document.addEventListener("DOMContentLoaded", function(){
  <button data-sec="labour">Labour market</button>
  <button data-sec="trade">Trade</button>
  <button data-sec="public">Public Finances</button>
+ <button data-sec="markets">Markets</button>
 </nav>
 <div class="metric-toggles" aria-label="Display options">
  <button type="button" class="mtoggle" id="toggleReal" onclick="toggleMetric('real',this)" aria-pressed="false">
@@ -1716,6 +1717,12 @@ document.addEventListener("DOMContentLoaded", function(){
  <p class="lightskey compact" aria-label="Key to freshness lights"><span><span class="led green" aria-hidden="true"></span>&nbsp;matches latest release</span><span><span class="led orange" aria-hidden="true"></span>&nbsp;not refreshed recently</span></p>
  <div class="grid" id="charts-public"></div>
  <p class="secnote">On the roadmap: total debt stock, debt interest as a share of government spending (UK Debt Management Office), and a breakdown of where public money goes.</p>
+</section>
+<section class="sec" id="sec-markets" hidden>
+ <div class="hero mini" id="tiles-markets"></div>
+ <p class="lightskey compact" aria-label="Key to freshness lights"><span><span class="led green" aria-hidden="true"></span>&nbsp;matches latest release</span><span><span class="led orange" aria-hidden="true"></span>&nbsp;not refreshed recently</span></p>
+ <div class="grid" id="charts-markets"></div>
+ <p class="secnote">Government bond yields and exchange rates are market prices, not government statistics -- shown here as the fast-moving complement to the macro data above, sourced the same way (OECD and the Federal Reserve's own published series), never a news aggregator or a paid data vendor.</p>
 </section>
 <footer>
  Data: <a href="https://fred.stlouisfed.org">FRED</a> (Cabinet Office of Japan, OECD and IMF series),
@@ -1892,6 +1899,10 @@ function sampleData(){
       [["1994-01",2.2],["1995-09",0.45],["1999-03",0.03],["2006-08",0.25],["2008-11",0.3],
        ["2010-10",0.09],["2016-02",-0.05],["2024-03",0.08],["2024-08",0.25],["2025-01",0.48],
        ["2026-06",0.75]],mR)),
+    bond_yield_10y:S("10-year government bond yield (JGB)","%","months",interp(
+      [["1994-01",4.3],["1995-09",2.8],["1999-03",1.7],["2003-06",0.6],["2006-08",1.7],
+       ["2008-11",1.4],["2010-10",0.9],["2013-04",0.6],["2016-02",-0.05],["2020-03",0.0],
+       ["2023-08",0.6],["2024-08",1.0],["2025-01",1.2],["2026-06",1.5]],mR)),
     debt_gdp:S("Gov. gross debt % GDP","%","years",interp(
       [["1980",47],["1995",92],["2005",176],["2013",232],["2020",259],["2023",250]],
       yearsBetween(1980,2023))),
@@ -2070,7 +2081,7 @@ document.addEventListener("DOMContentLoaded", ()=>{
 document.addEventListener("keydown", e=>{ if(e.key==="Escape") closeChartModal(); });
 /* -------------------------------- render ---------------------------------- */
 const SEC_OF={"charts-headline":"headline","charts-gdp":"gdp","charts-inflation":"inflation",
-  "charts-labour":"labour","charts-trade":"trade","charts-public":"public"};
+  "charts-labour":"labour","charts-trade":"trade","charts-public":"public","charts-markets":"markets"};
 const ANCHORS={};   /* series key -> {sec, panelEl} */
 let panelId=0;
 function statTile(el, key, title, series, opts){
@@ -2310,6 +2321,17 @@ function render(data){
   if(s.boj_rate) chartPanel("boj_rate","charts-inflation","Call money rate",
     "The overnight interbank rate, the closest market measure of the Bank of Japan's policy stance.",
     s.boj_rate,"line",v=>v+"%",v=>v.toFixed(2)+"%","FRED series IRSTCI01JPM156N \u00b7 monthly average (OECD)");
+  if(s.bond_yield_10y) chartPanel("bond_yield_10y","charts-markets","10-year government bond yield (JGB)",
+    "The interest rate the Japanese government pays to borrow for 10 years -- a benchmark watched closely given the scale of Japan's public debt.",
+    s.bond_yield_10y,"line",v=>v.toFixed(1)+"%",v=>v.toFixed(2)+"%","OECD (FRED series IRLTLT01JPM156N) \u00b7 long-term government bond yields, 10-year, main including benchmark");
+  if(data.fx_to_usd && data.fx_to_usd.history) chartPanel("fx_jpyusd","charts-markets","JPY/USD exchange rate",
+    "How many yen it takes to buy one US dollar. A rising number means a weaker yen.",
+    {points:data.fx_to_usd.history,unit:"",freq:"months"},"line",v=>v.toFixed(0),v=>v.toFixed(2),
+    "Federal Reserve H.10 (FRED series DEXJPUS) \u00b7 noon buying rate, New York");
+  if(data.fx_to_eur && data.fx_to_eur.history) chartPanel("fx_jpyeur","charts-markets","JPY/EUR exchange rate",
+    "How many yen it takes to buy one euro.",
+    {points:data.fx_to_eur.history,unit:"",freq:"months"},"line",v=>v.toFixed(0),v=>v.toFixed(2),
+    "Derived from Federal Reserve H.10 series DEXJPUS and DEXUSEU (FRED has no direct JPY/EUR series)");
   if(s.unemployment) chartPanel("unemployment","charts-labour","Unemployment rate",
     "The share of people who want a job but can't find one.",
     s.unemployment,"line",v=>v+"%",pct,"FRED series LRHUTTTTJPM156S \u00b7 seasonally adjusted (OECD)");
@@ -2379,6 +2401,15 @@ function render(data){
     {fmt:pct,fmtD:pp,upIsGood:false,source:"FRED \u00b7 GGGDTAJPA188N"});
   if(s.deficit) statTile(tp,"deficit","Deficit (% of GDP)",s.deficit,
     {fmt:pct,fmtD:pp,upIsGood:true,source:"FRED \u00b7 GGNLBAJPA188N"});
+  const tm=document.getElementById("tiles-markets");
+  if(s.bond_yield_10y) statTile(tm,"bond_yield_10y","10-year JGB yield",s.bond_yield_10y,
+    {fmt:v=>v.toFixed(2)+"%",fmtD:v=>v.toFixed(2)+"pp",upIsGood:false,source:"OECD \u00b7 IRLTLT01JPM156N"});
+  if(data.fx_to_usd && data.fx_to_usd.history) statTile(tm,"fx_jpyusd","JPY/USD",
+    {points:data.fx_to_usd.history,freq:"months"},
+    {fmt:v=>v.toFixed(0),fmtD:v=>v.toFixed(2),upIsGood:false,source:"Fed H.10 \u00b7 DEXJPUS"});
+  if(data.fx_to_eur && data.fx_to_eur.history) statTile(tm,"fx_jpyeur","JPY/EUR",
+    {points:data.fx_to_eur.history,freq:"months"},
+    {fmt:v=>v.toFixed(0),fmtD:v=>v.toFixed(2),upIsGood:false,source:"Derived \u00b7 DEXJPUS \u00d7 DEXUSEU"});
   renderNewDataBanner(data.new_points_meta);
   renderLastUpdated(data.updated);
 }
@@ -2386,8 +2417,8 @@ function render(data){
 let PAGE_DATA = null;
 const TOGGLE_STATE = { real:false, dollar:false };
 const CURRENCY_KEYS = ["gdp_level","gdp_real","net_debt","deficit","trade_balance","exports","imports"];
-const CONTAINER_IDS = ["hero","tiles-gdp","tiles-inflation","tiles-labour","tiles-trade","tiles-public",
-                        "charts-headline","charts-gdp","charts-inflation","charts-labour","charts-trade","charts-public"];
+const CONTAINER_IDS = ["hero","tiles-gdp","tiles-inflation","tiles-labour","tiles-trade","tiles-public","tiles-markets",
+                        "charts-headline","charts-gdp","charts-inflation","charts-labour","charts-trade","charts-public","charts-markets"];
 function scaleOf(unitStr){
   // Strip a trailing descriptive suffix like " (2021 prices)" before
   // checking the scale marker -- several countries' gdp_real unit

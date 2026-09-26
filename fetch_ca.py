@@ -70,6 +70,7 @@ FRED_SERIES = {
     "debt_gdp": ("GGGDTACAA188N", "a", "General government gross debt, % of GDP", "%", None, 1.0),
     "deficit": ("GGNLBACAA188N", "a", "General government net lending/borrowing, % of GDP", "%", None, 1.0),
     "trade_balance": ("CANXTNTVA01CXMLQ", "q", "Trade balance, goods, $", "$m", None, 1e-6),
+    "bond_yield_10y": ("IRLTLT01CAM156N", "m", "10-year government bond yield", "%", None, 1.0),
 }
 
 FRED_URL = ("https://api.stlouisfed.org/fred/series/observations"
@@ -588,6 +589,39 @@ def main() -> int:
                   "Dollarise will be unavailable on this page until next run.")
     except Exception as exc:
         print(f"FAIL  fx_to_usd        {exc}")
+
+    # fx_to_eur (Markets section, Sep 2026): CAD/EUR, triangulated. Canada's
+    # own fx_to_usd is stored "divide" convention (CAD per 1 USD, e.g.
+    # ~1.40) -- the OPPOSITE convention from a "multiply" country like the
+    # UK (USD per 1 GBP). So CAD per EUR is a multiply-through, not a
+    # divide: CAD-per-USD * USD-per-EUR = CAD-per-EUR (both rates already
+    # in compatible units for this). USD-per-EUR comes from DEXUSEU
+    # directly (that series IS already "USD per 1 EUR", multiply-style).
+    # Get the direction convention wrong here and the resulting numbers
+    # are off by a factor of roughly (1.40)^2 -- silently plausible-
+    # looking, not obviously broken, which is exactly why this is spelled
+    # out rather than copied from the UK version unchanged.
+    try:
+        if key and out.get("fx_to_usd", {}).get("history"):
+            eur_usd_hist = dict(fetch_fred("DEXUSEU", "d", key))
+            cad_usd_hist = dict(out["fx_to_usd"]["history"])
+            cross = sorted(
+                (period, round(cad_usd_hist[period] * eur_usd_hist[period], 4))
+                for period in cad_usd_hist
+                if period in eur_usd_hist
+            )
+            if cross:
+                out["fx_to_eur"] = {"pair": "CAD/EUR", "rate": cross[-1][1],
+                                     "as_of": cross[-1][0], "direction": "divide",
+                                     "history": cross}
+                print(f"  ok  fx_to_eur       {len(cross):>5} observations "
+                      f"({cross[0][0]} to {cross[-1][0]}, months, triangulated)")
+            else:
+                print("note  fx_to_eur: no overlapping months -- skipped")
+        else:
+            print("note  fx_to_eur not set (fx_to_usd history unavailable this run)")
+    except Exception as exc:
+        print(f"FAIL  fx_to_eur        {exc}")
 
     with open("data-ca.json", "w") as f:
         json.dump(out, f)

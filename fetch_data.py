@@ -582,6 +582,60 @@ def build_uk() -> bool:
     except Exception as exc:
         print(f"FAIL  fx_to_usd        {exc}")
 
+    # bond_yield_10y (Markets section, Sep 2026): OECD's "Long-Term
+    # Government Bond Yields: 10-Year: Main (Including Benchmark)" series,
+    # confirmed live on FRED for the UK specifically (IRLTLT01GBM156N) --
+    # same portable OECD family already used for 20 other countries, just
+    # not previously added for the UK itself.
+    try:
+        pts = fetch_fred("IRLTLT01GBM156N", "months", api_key) if api_key else None
+        if pts:
+            out["series"]["bond_yield_10y"] = {
+                "label": "10-year government bond yield (gilt)", "unit": "%",
+                "freq": "months", "points": pts}
+            ok_line("bond_yield_10y", pts, "months")
+        elif not api_key:
+            print("note  bond_yield_10y not set (no FRED_API_KEY)")
+        else:
+            failures.append("bond_yield_10y")
+            print("FAIL  bond_yield_10y   no observations returned")
+    except Exception as exc:
+        failures.append("bond_yield_10y")
+        print(f"FAIL  bond_yield_10y   {exc}")
+
+    # fx_to_eur (Markets section, Sep 2026): GBP/EUR. FRED has no direct
+    # GBP/EUR cross-rate series -- triangulated instead from two series it
+    # does have: GBP/USD (DEXUSUK, already fetched above as fx_to_usd) and
+    # EUR/USD (DEXUSEU). GBP/EUR = (USD per GBP) / (USD per EUR), computed
+    # per matching month; months present in one series but not the other
+    # are simply skipped rather than guessed. This is the pattern for
+    # every non-Eurozone, non-USD country added to Markets -- Eurozone
+    # members don't need it (they ARE the EUR), and the US shows EUR/USD
+    # directly from the Eurozone's own fx_to_usd instead of a triangulated
+    # cross.
+    try:
+        if api_key and out.get("fx_to_usd", {}).get("history"):
+            eur_usd_hist = dict(fetch_fx_history("DEXUSEU", api_key))
+            gbp_usd_hist = dict(out["fx_to_usd"]["history"])
+            cross = sorted(
+                (period, round(gbp_usd_hist[period] / eur_usd_hist[period], 4))
+                for period in gbp_usd_hist
+                if period in eur_usd_hist and eur_usd_hist[period]
+            )
+            if cross:
+                out["fx_to_eur"] = {"pair": "GBP/EUR", "rate": cross[-1][1],
+                                     "as_of": cross[-1][0], "direction": "multiply",
+                                     "history": cross}
+                print(f"  ok  fx_to_eur       {len(cross):>5} observations "
+                      f"({cross[0][0]} to {cross[-1][0]}, months, triangulated)")
+            else:
+                print("note  fx_to_eur: no overlapping months between "
+                      "GBP/USD and EUR/USD histories -- skipped")
+        else:
+            print("note  fx_to_eur not set (fx_to_usd history unavailable this run)")
+    except Exception as exc:
+        print(f"FAIL  fx_to_eur        {exc}")
+
     return finalise(out, previous, "data.json", failures)
 
 

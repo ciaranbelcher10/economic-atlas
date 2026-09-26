@@ -1549,6 +1549,7 @@ document.addEventListener("DOMContentLoaded", function(){
  <button data-sec="labour">Labour market</button>
  <button data-sec="trade">Trade</button>
  <button data-sec="public">Public Finances</button>
+ <button data-sec="markets">Markets</button>
 </nav>
 <div class="metric-toggles" aria-label="Display options">
  <button type="button" class="mtoggle" id="toggleReal" onclick="toggleMetric('real',this)" aria-pressed="false">
@@ -1595,6 +1596,12 @@ document.addEventListener("DOMContentLoaded", function(){
  <p class="lightskey compact" aria-label="Key to freshness lights"><span><span class="led green" aria-hidden="true"></span>&nbsp;matches latest release</span><span><span class="led orange" aria-hidden="true"></span>&nbsp;not refreshed recently</span></p>
  <div class="grid" id="charts-public"></div>
  <p class="secnote">On the roadmap: total debt stock, debt interest as a share of government spending (UK Debt Management Office), and a breakdown of where public money goes.</p>
+</section>
+<section class="sec" id="sec-markets" hidden>
+ <div class="hero mini" id="tiles-markets"></div>
+ <p class="lightskey compact" aria-label="Key to freshness lights"><span><span class="led green" aria-hidden="true"></span>&nbsp;matches latest release</span><span><span class="led orange" aria-hidden="true"></span>&nbsp;not refreshed recently</span></p>
+ <div class="grid" id="charts-markets"></div>
+ <p class="secnote">Government bond yields and exchange rates are market prices, not government statistics -- shown here as the fast-moving complement to the macro data above, sourced the same way (OECD and the Federal Reserve's own published series), never a news aggregator or a paid data vendor. No separate "euro" exchange rate is shown here, since the euro area's own currency is the euro.</p>
 </section>
 <footer>
  Data: <a href="https://fred.stlouisfed.org">FRED</a> (Eurostat, ECB, OECD and IMF series),
@@ -1771,6 +1778,10 @@ function sampleData(){
       [["1999-01",2.0],["2000-10",3.75],["2003-06",1.0],["2008-07",3.25],["2009-05",0.25],
        ["2012-07",0.0],["2014-06",-0.1],["2016-03",-0.4],["2019-09",-0.5],["2022-06",-0.5],
        ["2022-09",0.75],["2023-09",4.0],["2024-06",3.75],["2025-06",2.0],["2026-06",2.0]],mR)),
+    bond_yield_10y:S("10-year government bond yield (EA19 average)","%","months",interp(
+      [["1999-01",3.9],["2000-10",5.4],["2003-06",4.1],["2008-07",4.5],["2009-05",3.9],
+       ["2012-07",4.8],["2014-06",2.2],["2016-03",0.8],["2019-09",0.1],["2022-06",1.9],
+       ["2022-09",2.5],["2023-09",3.4],["2024-06",3.0],["2025-06",2.9],["2026-06",2.8]],mR)),
     debt_gdp:S("Gov. gross debt % GDP","%","years",interp(
       [["1995",72],["2007",66],["2014",94],["2019",84],["2020",97],["2023",89],["2024",88]],
       yearsBetween(1995,2024))),
@@ -1949,7 +1960,7 @@ document.addEventListener("DOMContentLoaded", ()=>{
 document.addEventListener("keydown", e=>{ if(e.key==="Escape") closeChartModal(); });
 /* -------------------------------- render ---------------------------------- */
 const SEC_OF={"charts-headline":"headline","charts-gdp":"gdp","charts-inflation":"inflation",
-  "charts-labour":"labour","charts-trade":"trade","charts-public":"public"};
+  "charts-labour":"labour","charts-trade":"trade","charts-public":"public","charts-markets":"markets"};
 const ANCHORS={};   /* series key -> {sec, panelEl} */
 let panelId=0;
 function statTile(el, key, title, series, opts){
@@ -2186,6 +2197,13 @@ function render(data){
   if(s.ecb_rate) chartPanel("ecb_rate","charts-inflation","ECB deposit facility rate",
     "The European Central Bank's key interest rate, the anchor for borrowing costs across the euro area.",
     s.ecb_rate,"line",v=>v+"%",v=>v.toFixed(2)+"%","FRED series ECBDFR \u00b7 end-of-month value (ECB)");
+  if(s.bond_yield_10y) chartPanel("bond_yield_10y","charts-markets","10-year government bond yield (EA19 average)",
+    "The interest rate euro-area governments pay to borrow for 10 years, averaged across the currency union -- individual member states can differ substantially from this average.",
+    s.bond_yield_10y,"line",v=>v.toFixed(1)+"%",v=>v.toFixed(2)+"%","OECD (FRED series IRLTLT01EZM156N) \u00b7 long-term government bond yields, 10-year, main including benchmark");
+  if(data.fx_to_usd && data.fx_to_usd.history) chartPanel("fx_eurusd","charts-markets","EUR/USD exchange rate",
+    "How many US dollars one euro buys -- the world's most heavily traded currency pair.",
+    {points:data.fx_to_usd.history,unit:"",freq:"months"},"line",v=>"$"+v.toFixed(2),v=>"$"+v.toFixed(4),
+    "Federal Reserve H.10 (FRED series DEXUSEU) \u00b7 noon buying rate, New York");
   if(s.unemployment) chartPanel("unemployment","charts-labour","Unemployment rate",
     "The share of people who want a job but can't find one.",
     s.unemployment,"line",v=>v+"%",pct,"Eurostat une_rt_m \u00b7 euro area, seasonally adjusted");
@@ -2269,6 +2287,12 @@ function render(data){
     {fmt:pct,fmtD:pp,upIsGood:false,source:"Eurostat \u00b7 gov_10dd_edpt1"});
   if(s.deficit) statTile(tp,"deficit","Deficit (% of GDP)",s.deficit,
     {fmt:pct,fmtD:pp,upIsGood:true,source:"Eurostat \u00b7 gov_10dd_edpt1"});
+  const tm=document.getElementById("tiles-markets");
+  if(s.bond_yield_10y) statTile(tm,"bond_yield_10y","10-year bond yield (EA19)",s.bond_yield_10y,
+    {fmt:v=>v.toFixed(2)+"%",fmtD:v=>v.toFixed(2)+"pp",upIsGood:false,source:"OECD \u00b7 IRLTLT01EZM156N"});
+  if(data.fx_to_usd && data.fx_to_usd.history) statTile(tm,"fx_eurusd","EUR/USD",
+    {points:data.fx_to_usd.history,freq:"months"},
+    {fmt:v=>"$"+v.toFixed(2),fmtD:v=>"$"+v.toFixed(4),upIsGood:true,source:"Fed H.10 \u00b7 DEXUSEU"});
   renderNewDataBanner(data.new_points_meta);
   renderLastUpdated(data.updated);
 }
@@ -2276,8 +2300,8 @@ function render(data){
 let PAGE_DATA = null;
 const TOGGLE_STATE = { real:false, dollar:false };
 const CURRENCY_KEYS = ["gdp_level","gdp_real","net_debt","deficit","trade_balance","exports","imports"];
-const CONTAINER_IDS = ["hero","tiles-gdp","tiles-inflation","tiles-labour","tiles-trade","tiles-public",
-                        "charts-headline","charts-gdp","charts-inflation","charts-labour","charts-trade","charts-public"];
+const CONTAINER_IDS = ["hero","tiles-gdp","tiles-inflation","tiles-labour","tiles-trade","tiles-public","tiles-markets",
+                        "charts-headline","charts-gdp","charts-inflation","charts-labour","charts-trade","charts-public","charts-markets"];
 function scaleOf(unitStr){
   // Strip a trailing descriptive suffix like " (2021 prices)" before
   // checking the scale marker -- several countries' gdp_real unit

@@ -44,6 +44,7 @@ FRED_SERIES = {
     "ecb_rate": ("ECBDFR", "d", "ECB deposit facility rate", "%", None, 1.0),
     "exports": ("XTEXVA01EZM667S", "m", "Exports of goods, $", "$m", None, 1e-6),
     "imports": ("XTIMVA01EZM667S", "m", "Imports of goods, $", "$m", None, 1e-6),
+    "bond_yield_10y": ("IRLTLT01EZM156N", "m", "10-year government bond yield (EA19 average)", "%", None, 1.0),
 }
 
 FRED_URL = ("https://api.stlouisfed.org/fred/series/observations"

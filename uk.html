@@ -1774,6 +1774,7 @@ document.addEventListener("DOMContentLoaded", function(){
  <button data-sec="labour">Labour market</button>
  <button data-sec="trade">Trade</button>
  <button data-sec="public">Public Finances</button>
+ <button data-sec="markets">Markets</button>
 </nav>
 <div class="metric-toggles" aria-label="Display options">
  <button type="button" class="mtoggle" id="toggleReal" onclick="toggleMetric('real',this)" aria-pressed="false">
@@ -1893,6 +1894,12 @@ document.addEventListener("DOMContentLoaded", function(){
  <ol class="cofog-list" id="cofogList"></ol>
  </div>
  <p class="secnote" id="cofogSecnote">Annual data, published with a real lag behind the current date, not comparable in freshness to the monthly/quarterly series above.</p>
+</section>
+<section class="sec" id="sec-markets" hidden>
+ <div class="hero mini" id="tiles-markets"></div>
+ <p class="lightskey compact" aria-label="Key to freshness lights"><span><span class="led green" aria-hidden="true"></span>&nbsp;matches latest release</span><span><span class="led orange" aria-hidden="true"></span>&nbsp;not refreshed recently</span></p>
+ <div class="grid" id="charts-markets"></div>
+ <p class="secnote">Government bond yields and exchange rates are market prices, not government statistics -- shown here as the fast-moving complement to the macro data above, sourced the same way (OECD and the Federal Reserve's own published series), never a news aggregator or a paid data vendor.</p>
 </section>
 <footer>
  Data: <a href="https://www.ons.gov.uk">Office for National Statistics</a> (Open Government Licence v3.0),
@@ -2106,6 +2113,11 @@ function sampleData(){
       [["1975-01",11.0],["1980-01",16.0],["1990-10",14.9],["1993-01",6.0],["1998-06",7.5],
        ["2003-07",3.5],["2007-07",5.75],["2009-03",0.5],["2016-08",0.25],["2018-08",0.75],
        ["2020-03",0.1],["2021-12",0.25],["2023-08",5.25],["2024-08",5.0],["2025-08",4.0],["2026-06",4.0]],mBoe)),
+    bond_yield_10y:S("10-year government bond yield (gilt)","%","months",interp(
+      [["1975-01",14.4],["1980-01",13.8],["1990-10",10.5],["1993-01",7.9],["1998-06",5.8],
+       ["2003-07",4.6],["2007-07",5.5],["2009-03",3.2],["2016-08",0.6],["2018-08",1.4],
+       ["2020-03",0.4],["2021-12",1.0],["2022-10",4.5],["2023-08",4.7],["2024-08",4.0],
+       ["2025-08",4.6],["2026-06",4.5]],mBoe)),
     debt_gdp:S("Net debt % GDP (HF6X)","%","months",interp(
       [["1997-04",36.5],["2002-01",29.5],["2008-01",35.5],["2010-01",64.0],["2015-01",80.0],
        ["2019-12",80.5],["2020-09",95.0],["2023-01",94.0],["2026-05",95.1]],mDebt)),
@@ -2302,7 +2314,7 @@ document.addEventListener("DOMContentLoaded", ()=>{
 document.addEventListener("keydown", e=>{ if(e.key==="Escape") closeChartModal(); });
 /* -------------------------------- render ---------------------------------- */
 const SEC_OF={"charts-headline":"headline","charts-gdp":"gdp","charts-inflation":"inflation",
-  "charts-labour":"labour","charts-trade":"trade","charts-public":"public"};
+  "charts-labour":"labour","charts-trade":"trade","charts-public":"public","charts-markets":"markets"};
 const ANCHORS={};   /* series key -> {sec, panelEl} */
 window.ANCHORS = ANCHORS; // exposed so the tour engine (a separate script tag) can resolve a real chart panel by key, rather than guessing at auto-generated element IDs
 let panelId=0;
@@ -2582,6 +2594,17 @@ function render(data){
   if(s.boe_rate) chartPanel("boe_rate","charts-inflation","Bank Rate",
     "The Bank of England's base interest rate, the anchor for mortgage, loan and savings rates.",
     s.boe_rate,"line",v=>v+"%",v=>v.toFixed(2)+"%","Bank of England · IUDBEDR, official Bank Rate");
+  if(s.bond_yield_10y) chartPanel("bond_yield_10y","charts-markets","10-year government bond yield",
+    "The interest rate the UK government pays to borrow for 10 years -- a benchmark for mortgage rates and a signal of investor confidence in the public finances.",
+    s.bond_yield_10y,"line",v=>v.toFixed(1)+"%",v=>v.toFixed(2)+"%","OECD (FRED series IRLTLT01GBM156N) · long-term government bond yields, 10-year, main including benchmark");
+  if(data.fx_to_usd && data.fx_to_usd.history) chartPanel("fx_gbpusd","charts-markets","GBP/USD exchange rate",
+    "How many US dollars one pound buys. The same rate used to Dollarise this page's own charts.",
+    {points:data.fx_to_usd.history,unit:"",freq:"months"},"line",v=>"$"+v.toFixed(2),v=>"$"+v.toFixed(4),
+    "Federal Reserve H.10 (FRED series DEXUSUK) · noon buying rate, New York");
+  if(data.fx_to_eur && data.fx_to_eur.history) chartPanel("fx_gbpeur","charts-markets","GBP/EUR exchange rate",
+    "How many euros one pound buys -- the UK's largest trading-partner currency.",
+    {points:data.fx_to_eur.history,unit:"",freq:"months"},"line",v=>"€"+v.toFixed(2),v=>"€"+v.toFixed(4),
+    "Derived from Federal Reserve H.10 series DEXUSUK and DEXUSEU (FRED has no direct GBP/EUR series)");
   if(s.unemployment) chartPanel("unemployment","charts-labour","Unemployment rate",
     "The share of people who want a job but can't find one.",
     s.unemployment,"line",v=>v+"%",pct,"ONS series MGSX (LMS) · aged 16 and over, SA");
@@ -2695,6 +2718,21 @@ function render(data){
      upIsGood:false,source:"ONS · HF6W, £bn"});
   if(s.deficit) statTile(tp,"deficit","Borrowing",s.deficit,
     {fmt:v=>curFmt(v,s.deficit.unit,1),fmtD:v=>curFmt(v,s.deficit.unit,1),upIsGood:false,source:"ONS · DZLS"});
+  const tm=document.getElementById("tiles-markets");
+  if(s.bond_yield_10y) statTile(tm,"bond_yield_10y","10-year gilt yield",s.bond_yield_10y,
+    {fmt:v=>v.toFixed(2)+"%",fmtD:v=>v.toFixed(2)+"pp",upIsGood:false,source:"OECD · IRLTLT01GBM156N"});
+  if(data.fx_to_usd && data.fx_to_usd.history) statTile(tm,"fx_gbpusd","GBP/USD",
+    {points:data.fx_to_usd.history,freq:"months"},
+    // upIsGood here is a framing choice, disclosed rather than silent: a
+    // stronger pound (rate rises) is treated as "good" from a UK resident's
+    // standpoint (more purchasing power abroad), the same framing most UK
+    // press coverage uses -- it is genuinely two-sided (bad for UK exporters
+    // and for overseas earners converting back to GBP) but a tile needs one
+    // direction, and this is the more common one.
+    {fmt:v=>"$"+v.toFixed(2),fmtD:v=>"$"+v.toFixed(4),upIsGood:true,source:"Fed H.10 · DEXUSUK"});
+  if(data.fx_to_eur && data.fx_to_eur.history) statTile(tm,"fx_gbpeur","GBP/EUR",
+    {points:data.fx_to_eur.history,freq:"months"},
+    {fmt:v=>"€"+v.toFixed(2),fmtD:v=>"€"+v.toFixed(4),upIsGood:true,source:"Derived · DEXUSUK ÷ DEXUSEU"});
   // Served and charted but had no tile; every served metric gets both.
   if(s.debt_interest) statTile(tp,"debt_interest","Debt interest",s.debt_interest,
     {fmt:v=>curFmt(v,s.debt_interest.unit,1),fmtD:v=>curFmt(v,s.debt_interest.unit,0),upIsGood:false,source:"ONS \u00b7 NMFX"});
@@ -2918,8 +2956,8 @@ document.addEventListener("click", e=>{
   }
   openInfoPopover(btn, infoKey, title);
 }, true);
-const CONTAINER_IDS = ["hero","tiles-gdp","tiles-inflation","tiles-labour","tiles-trade","tiles-public",
-                        "charts-headline","charts-gdp","charts-inflation","charts-labour","charts-trade","charts-public"];
+const CONTAINER_IDS = ["hero","tiles-gdp","tiles-inflation","tiles-labour","tiles-trade","tiles-public","tiles-markets",
+                        "charts-headline","charts-gdp","charts-inflation","charts-labour","charts-trade","charts-public","charts-markets"];
 function scaleOf(unitStr){
   // Strip a trailing descriptive suffix like " (2021 prices)" before
   // checking the scale marker -- several countries' gdp_real unit

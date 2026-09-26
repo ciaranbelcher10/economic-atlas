@@ -1627,6 +1627,7 @@ document.addEventListener("DOMContentLoaded", function(){
  <button data-sec="labour">Labour market</button>
  <button data-sec="trade">Trade</button>
  <button data-sec="public">Public Finances</button>
+ <button data-sec="markets">Markets</button>
 </nav>
 <div class="metric-toggles" aria-label="Display options">
  <button type="button" class="mtoggle" id="toggleReal" onclick="toggleMetric('real',this)" aria-pressed="false">
@@ -1718,6 +1719,12 @@ document.addEventListener("DOMContentLoaded", function(){
  <p class="lightskey compact" aria-label="Key to freshness lights"><span><span class="led green" aria-hidden="true"></span>&nbsp;matches latest release</span><span><span class="led orange" aria-hidden="true"></span>&nbsp;not refreshed recently</span></p>
  <div class="grid" id="charts-public"></div>
  <p class="secnote">On the roadmap: federal debt stock, and a breakdown of where public money goes.</p>
+</section>
+<section class="sec" id="sec-markets" hidden>
+ <div class="hero mini" id="tiles-markets"></div>
+ <p class="lightskey compact" aria-label="Key to freshness lights"><span><span class="led green" aria-hidden="true"></span>&nbsp;matches latest release</span><span><span class="led orange" aria-hidden="true"></span>&nbsp;not refreshed recently</span></p>
+ <div class="grid" id="charts-markets"></div>
+ <p class="secnote">Government bond yields and exchange rates are market prices, not government statistics -- shown here as the fast-moving complement to the macro data above, sourced the same way (OECD and the Federal Reserve's own published series), never a news aggregator or a paid data vendor.</p>
 </section>
 <footer>
  Data: <a href="https://fred.stlouisfed.org">FRED, Federal Reserve Bank of St. Louis</a> (IMF, OECD),
@@ -1889,6 +1896,10 @@ function sampleData(){
       [["1996-01",6.0],["2001-01",5.75],["2004-01",2.5],["2007-07",4.5],["2009-04",0.25],
        ["2015-07",0.5],["2018-10",1.75],["2020-03",0.25],["2022-07",2.5],["2023-07",5.0],
        ["2025-06",2.75],["2026-05",2.24]],mR)),
+    bond_yield_10y:S("10-year government bond yield","%","months",interp(
+      [["1996-01",7.5],["2001-01",5.5],["2004-01",4.7],["2007-07",4.6],["2009-04",3.1],
+       ["2015-07",1.8],["2018-10",2.4],["2020-03",0.8],["2022-07",3.1],["2023-07",3.5],
+       ["2025-06",3.2],["2026-05",3.3]],mR)),
     unemployment:S("Unemployment, 15+, SA","%","months",interp(
       [["1996-01",9.6],["2000-01",6.8],["2008-10",6.2],["2009-08",8.7],["2019-12",5.6],
        ["2020-05",13.7],["2022-06",4.9],["2024-06",6.4],["2026-04",6.9]],mR)),
@@ -2064,7 +2075,7 @@ document.addEventListener("DOMContentLoaded", ()=>{
 document.addEventListener("keydown", e=>{ if(e.key==="Escape") closeChartModal(); });
 /* -------------------------------- render ---------------------------------- */
 const SEC_OF={"charts-headline":"headline","charts-gdp":"gdp","charts-inflation":"inflation",
-  "charts-labour":"labour","charts-trade":"trade","charts-public":"public"};
+  "charts-labour":"labour","charts-trade":"trade","charts-public":"public","charts-markets":"markets"};
 const ANCHORS={};   /* series key -> {sec, panelEl} */
 let panelId=0;
 function statTile(el, key, title, series, opts){
@@ -2310,6 +2321,17 @@ function render(data){
   if(s.overnight_rate) chartPanel("overnight_rate","charts-inflation","Interbank overnight rate",
     "The rate banks charge each other for overnight loans, closely tracks the Bank of Canada's target rate. Not the BoC's own published rate series directly.",
     s.overnight_rate,"line",v=>v+"%",v=>v.toFixed(2)+"%",SRC_RATE);
+  if(s.bond_yield_10y) chartPanel("bond_yield_10y","charts-markets","10-year government bond yield",
+    "The interest rate the Canadian government pays to borrow for 10 years -- a benchmark for mortgage rates and a signal of investor confidence in the public finances.",
+    s.bond_yield_10y,"line",v=>v.toFixed(1)+"%",v=>v.toFixed(2)+"%","OECD (FRED series IRLTLT01CAM156N) · long-term government bond yields, 10-year, main including benchmark");
+  if(data.fx_to_usd && data.fx_to_usd.history) chartPanel("fx_cadusd","charts-markets","CAD/USD exchange rate",
+    "How many Canadian dollars it takes to buy one US dollar -- Canada's most important currency pair by far, given the scale of Canada-US trade. A rising number means a weaker Canadian dollar.",
+    {points:data.fx_to_usd.history,unit:"",freq:"months"},"line",v=>v.toFixed(2),v=>v.toFixed(4),
+    "Federal Reserve H.10 (FRED series DEXCAUS) · noon buying rate, New York");
+  if(data.fx_to_eur && data.fx_to_eur.history) chartPanel("fx_cadeur","charts-markets","CAD/EUR exchange rate",
+    "How many Canadian dollars it takes to buy one euro.",
+    {points:data.fx_to_eur.history,unit:"",freq:"months"},"line",v=>v.toFixed(2),v=>v.toFixed(4),
+    "Derived from Federal Reserve H.10 series DEXCAUS and DEXUSEU (FRED has no direct CAD/EUR series)");
   if(s.unemployment) chartPanel("unemployment","charts-labour","Unemployment rate",
     "The share of people 15 and over who want a job but can't find one.",
     s.unemployment,"line",v=>v+"%",pct,SRC_UNEMP);
@@ -2378,6 +2400,19 @@ function render(data){
     {fmt:pct,fmtD:pp,upIsGood:false,source:SRC_FISCAL});
   if(s.deficit) statTile(tp,"deficit","Balance (% of GDP)",s.deficit,
     {fmt:pct,fmtD:pp,upIsGood:true,source:SRC_FISCAL});
+  const tm=document.getElementById("tiles-markets");
+  if(s.bond_yield_10y) statTile(tm,"bond_yield_10y","10-year bond yield",s.bond_yield_10y,
+    {fmt:v=>v.toFixed(2)+"%",fmtD:v=>v.toFixed(2)+"pp",upIsGood:false,source:"OECD · IRLTLT01CAM156N"});
+  if(data.fx_to_usd && data.fx_to_usd.history) statTile(tm,"fx_cadusd","CAD/USD",
+    {points:data.fx_to_usd.history,freq:"months"},
+    // A rising number means more CAD needed per USD, i.e. a WEAKER
+    // Canadian dollar -- so upIsGood is false here, the opposite framing
+    // from UK's GBP/USD tile, because Canada's rate is stored the
+    // opposite way round (CAD per USD, not USD per CAD).
+    {fmt:v=>v.toFixed(2),fmtD:v=>v.toFixed(4),upIsGood:false,source:"Fed H.10 · DEXCAUS"});
+  if(data.fx_to_eur && data.fx_to_eur.history) statTile(tm,"fx_cadeur","CAD/EUR",
+    {points:data.fx_to_eur.history,freq:"months"},
+    {fmt:v=>v.toFixed(2),fmtD:v=>v.toFixed(4),upIsGood:false,source:"Derived · DEXCAUS × DEXUSEU"});
   renderNewDataBanner(data.new_points_meta);
   renderLastUpdated(data.updated);
 }
@@ -2385,8 +2420,8 @@ function render(data){
 let PAGE_DATA = null;
 const TOGGLE_STATE = { real:false, dollar:false };
 const CURRENCY_KEYS = ["gdp_level","gdp_real","net_debt","deficit","trade_balance","exports","imports"];
-const CONTAINER_IDS = ["hero","tiles-gdp","tiles-inflation","tiles-labour","tiles-trade","tiles-public",
-                        "charts-headline","charts-gdp","charts-inflation","charts-labour","charts-trade","charts-public"];
+const CONTAINER_IDS = ["hero","tiles-gdp","tiles-inflation","tiles-labour","tiles-trade","tiles-public","tiles-markets",
+                        "charts-headline","charts-gdp","charts-inflation","charts-labour","charts-trade","charts-public","charts-markets"];
 function scaleOf(unitStr){
   // Strip a trailing descriptive suffix like " (2021 prices)" before
   // checking the scale marker -- several countries' gdp_real unit
