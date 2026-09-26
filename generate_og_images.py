@@ -27,7 +27,7 @@ from PIL import Image, ImageDraw, ImageFont
 
 from generate_indicator_pages import (
     build_all,
-    COUNTRIES, METRICS, load_json, fmt_num, ROOT, fmt_period_label,
+    COUNTRIES, METRICS, load_json, fmt_num, ROOT, fmt_period_label, synth_fx_series,
     resolve, metric_title, unit_kind, usd_unit, to_usd_value, data_file_for, GDP_ALREADY_USD,
 )
 
@@ -142,6 +142,10 @@ def main():
             continue
         data = load_json(data_file_for(iso2))
         series = data.get("series", {})
+        # Same exchange-rate series the indicator page is built from.
+        fx_series = synth_fx_series(country_name, data)
+        if fx_series:
+            series = dict(series, fx_usd=fx_series)
         country_sources = sources.get(country_name, {})
         fx = data.get("fx_to_usd")
 

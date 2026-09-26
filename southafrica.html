@@ -1619,6 +1619,7 @@ document.addEventListener("DOMContentLoaded", function(){
  <button data-sec="labour">Labour market</button>
  <button data-sec="trade">Trade</button>
  <button data-sec="public">Public Finances</button>
+ <button data-sec="markets">Markets</button>
 </nav>
 <div class="metric-toggles" aria-label="Display options">
  <button type="button" class="mtoggle" id="toggleReal" onclick="toggleMetric('real',this)" aria-pressed="false">
@@ -1710,6 +1711,12 @@ document.addEventListener("DOMContentLoaded", function(){
  <p class="lightskey compact" aria-label="Key to freshness lights"><span><span class="led green" aria-hidden="true"></span>&nbsp;matches latest release</span><span><span class="led orange" aria-hidden="true"></span>&nbsp;not refreshed recently</span></p>
  <div class="grid" id="charts-public"></div>
  <p class="secnote">On the roadmap: federal debt stock, and a breakdown of where public money goes.</p>
+</section>
+<section class="sec" id="sec-markets" hidden>
+ <div class="hero mini" id="tiles-markets"></div>
+ <p class="lightskey compact" aria-label="Key to freshness lights"><span><span class="led green" aria-hidden="true"></span>&nbsp;matches latest release</span><span><span class="led orange" aria-hidden="true"></span>&nbsp;not refreshed recently</span></p>
+ <div class="grid" id="charts-markets"></div>
+ <p class="secnote">Government bond yields and exchange rates are market prices, not government statistics -- shown here as the fast-moving complement to the macro data above, sourced the same way (the OECD, the Federal Reserve and the World Bank), never a news aggregator or a paid data vendor.</p>
 </section>
 <footer>
  Data: <a href="https://fred.stlouisfed.org">FRED, Federal Reserve Bank of St. Louis</a> (IMF, OECD),
@@ -2058,7 +2065,7 @@ document.addEventListener("DOMContentLoaded", ()=>{
 document.addEventListener("keydown", e=>{ if(e.key==="Escape") closeChartModal(); });
 /* -------------------------------- render ---------------------------------- */
 const SEC_OF={"charts-headline":"headline","charts-gdp":"gdp","charts-inflation":"inflation",
-  "charts-labour":"labour","charts-trade":"trade","charts-public":"public"};
+  "charts-labour":"labour","charts-trade":"trade","charts-public":"public","charts-markets":"markets"};
 const ANCHORS={};   /* series key -> {sec, panelEl} */
 let panelId=0;
 function statTile(el, key, title, series, opts){
@@ -2120,7 +2127,7 @@ function statTile(el, key, title, series, opts){
   el.appendChild(div);
 }
 // Every metric with its own /indicators/ page for this country (v1.6.1: all of them, not just four).
-const INDICATOR_PAGE_SLUGS = {gdp_level:"gdp", gdp_real:"real-gdp", gdp_growth:"gdp-growth-rate", cpi:"inflation-rate", cpi_mom:"inflation-rate-mom", unemployment:"unemployment-rate", bond_yield_10y:"10-year-government-bond-yield", trade_balance:"balance-of-trade", current_account:"current-account-to-gdp", fdi:"foreign-direct-investment", debt_gdp:"government-debt", deficit:"government-budget", business_confidence:"business-confidence"};
+const INDICATOR_PAGE_SLUGS = {gdp_level:"gdp", gdp_real:"real-gdp", gdp_growth:"gdp-growth-rate", cpi:"inflation-rate", cpi_mom:"inflation-rate-mom", unemployment:"unemployment-rate", bond_yield_10y:"10-year-government-bond-yield", trade_balance:"balance-of-trade", current_account:"current-account-to-gdp", fdi:"foreign-direct-investment", debt_gdp:"government-debt", deficit:"government-budget", business_confidence:"business-confidence", fx_zarusd:"exchange-rate"};
 // Keeps only the bases this country actually serves, so the selector never
 // offers something the source cannot support and never appears at all when
 // there is only one basis. Order is preserved: the first survivor is default.
@@ -2315,7 +2322,7 @@ function render(data){
       {id:"mom", label:"Month on month", series:s.cpi_mom, srcNote:"OECD live prices system \u00b7 CPI, all items, YoY", expl:"How much consumer prices moved compared with the month before. Not the annual rate divided by twelve: it reacts to one-off price changes the annual rate smooths out."},
       {id:"qoq", label:"Quarter on quarter", series:s.cpi_qoq, srcNote:"OECD live prices system \u00b7 CPI, all items, YoY", expl:"How much consumer prices moved compared with the quarter before. This country publishes its CPI quarterly, so a quarter on quarter change is the shortest basis its source supports."}
     ]));
-  if(s.bond_yield_10y) chartPanel("bond_yield_10y","charts-inflation","10-year government bond yield",
+  if(s.bond_yield_10y) chartPanel("bond_yield_10y","charts-markets","10-year government bond yield",
     "The yield on 10-year South African government bonds, a market gauge of inflation and rate expectations. Not the SARB's repo rate.",
     s.bond_yield_10y,"line",v=>v+"%",v=>v.toFixed(2)+"%",SRC_BOND);
   if(s.unemployment) chartPanel("unemployment","charts-labour","Unemployment rate",
@@ -2371,8 +2378,6 @@ function render(data){
   // rate shows only that.
   if(s.cpi_mom) statTile(tinf,null,"CPI (MoM)",s.cpi_mom,
     {fmt:pct,fmtD:pp,upIsGood:false,source:"OECD live prices system",infoKey:"cpi_mom"});
-  if(s.bond_yield_10y) statTile(tinf,"bond_yield_10y","10Y bond yield",s.bond_yield_10y,
-    {fmt:v=>v.toFixed(2)+"%",fmtD:v=>v.toFixed(2)+"pp",upIsGood:false,source:SRC_BOND});
   const tl=document.getElementById("tiles-labour");
   if(s.unemployment) statTile(tl,"unemployment","Unemployment",s.unemployment,
     {fmt:pct,fmtD:pp,upIsGood:false,source:SRC_UNEMP});
@@ -2386,6 +2391,16 @@ function render(data){
     {fmt:pct,fmtD:pp,upIsGood:false,source:SRC_FISCAL});
   if(s.deficit) statTile(tp,"deficit","Balance (% of GDP)",s.deficit,
     {fmt:pct,fmtD:pp,upIsGood:true,source:SRC_FISCAL});
+  if(data.fx_to_usd && data.fx_to_usd.history) chartPanel("fx_zarusd","charts-markets","ZAR/USD exchange rate",
+    "How many South African rands it takes to buy one US dollar. A rising number means a weaker South African rand.",
+    {points:data.fx_to_usd.history,unit:"",freq:"months"},"line",v=>"R"+v.toFixed(2),v=>"R"+v.toFixed(2)+" per $1",
+    "Federal Reserve H.10 (FRED series DEXSFUS) \u00b7 end-of-month rate");
+  const tm=document.getElementById("tiles-markets");
+  if(s.bond_yield_10y) statTile(tm,"bond_yield_10y","10-year bond yield",s.bond_yield_10y,
+    {fmt:v=>v.toFixed(2)+"%",fmtD:v=>v.toFixed(2)+"pp",upIsGood:false,source:SRC_BOND});
+  if(data.fx_to_usd && data.fx_to_usd.history) statTile(tm,"fx_zarusd","ZAR/USD",
+    {points:data.fx_to_usd.history,freq:"months",confirmed_at:data.fx_to_usd.confirmed_at},
+    {fmt:v=>"R"+v.toFixed(2)+" per $1",fmtD:v=>"R"+v.toFixed(4),upIsGood:false,source:"Fed H.10 \u00b7 DEXSFUS"});
   renderNewDataBanner(data.new_points_meta);
   renderLastUpdated(data.updated);
 }
@@ -2393,8 +2408,8 @@ function render(data){
 let PAGE_DATA = null;
 const TOGGLE_STATE = { real:false, dollar:false };
 const CURRENCY_KEYS = ["gdp_level","gdp_real","net_debt","deficit","trade_balance","exports","imports"];
-const CONTAINER_IDS = ["hero","tiles-gdp","tiles-inflation","tiles-labour","tiles-trade","tiles-public",
-                        "charts-headline","charts-gdp","charts-inflation","charts-labour","charts-trade","charts-public"];
+const CONTAINER_IDS = ["hero","tiles-gdp","tiles-inflation","tiles-labour","tiles-trade","tiles-public","tiles-markets",
+                        "charts-headline","charts-gdp","charts-inflation","charts-labour","charts-trade","charts-public","charts-markets"];
 function scaleOf(unitStr){
   // Strip a trailing descriptive suffix like " (2021 prices)" before
   // checking the scale marker -- several countries' gdp_real unit

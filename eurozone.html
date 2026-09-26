@@ -1601,7 +1601,7 @@ document.addEventListener("DOMContentLoaded", function(){
  <div class="hero mini" id="tiles-markets"></div>
  <p class="lightskey compact" aria-label="Key to freshness lights"><span><span class="led green" aria-hidden="true"></span>&nbsp;matches latest release</span><span><span class="led orange" aria-hidden="true"></span>&nbsp;not refreshed recently</span></p>
  <div class="grid" id="charts-markets"></div>
- <p class="secnote">Government bond yields and exchange rates are market prices, not government statistics -- shown here as the fast-moving complement to the macro data above, sourced the same way (OECD and the Federal Reserve's own published series), never a news aggregator or a paid data vendor. No separate "euro" exchange rate is shown here, since the euro area's own currency is the euro.</p>
+ <p class="secnote">Government bond yields and exchange rates are market prices, not government statistics -- shown here as the fast-moving complement to the macro data above, sourced the same way (the ECB and the Federal Reserve's own published series), never a news aggregator or a paid data vendor. No separate "euro" exchange rate is shown here, since the euro area's own currency is the euro.</p>
 </section>
 <footer>
  Data: <a href="https://fred.stlouisfed.org">FRED</a> (Eurostat, ECB, OECD and IMF series),
@@ -1778,7 +1778,7 @@ function sampleData(){
       [["1999-01",2.0],["2000-10",3.75],["2003-06",1.0],["2008-07",3.25],["2009-05",0.25],
        ["2012-07",0.0],["2014-06",-0.1],["2016-03",-0.4],["2019-09",-0.5],["2022-06",-0.5],
        ["2022-09",0.75],["2023-09",4.0],["2024-06",3.75],["2025-06",2.0],["2026-06",2.0]],mR)),
-    bond_yield_10y:S("10-year government bond yield (EA19 average)","%","months",interp(
+    bond_yield_10y:S("10-year government benchmark bond yield, euro area","%","months",interp(
       [["1999-01",3.9],["2000-10",5.4],["2003-06",4.1],["2008-07",4.5],["2009-05",3.9],
        ["2012-07",4.8],["2014-06",2.2],["2016-03",0.8],["2019-09",0.1],["2022-06",1.9],
        ["2022-09",2.5],["2023-09",3.4],["2024-06",3.0],["2025-06",2.9],["2026-06",2.8]],mR)),
@@ -2022,7 +2022,7 @@ function statTile(el, key, title, series, opts){
   el.appendChild(div);
 }
 // Every metric with its own /indicators/ page for this country (v1.6.1: all of them, not just four).
-const INDICATOR_PAGE_SLUGS = {gdp_level:"gdp", gdp_real:"real-gdp", gdp_growth:"gdp-growth-rate", cpi:"inflation-rate", cpi_mom:"inflation-rate-mom", unemployment:"unemployment-rate", ecb_rate:"interest-rate", trade_balance:"balance-of-trade", exports:"exports", imports:"imports", fdi:"foreign-direct-investment", debt_gdp:"government-debt", deficit:"government-budget", business_confidence:"business-confidence", bond_yield_10y:"10-year-government-bond-yield"};
+const INDICATOR_PAGE_SLUGS = {gdp_level:"gdp", gdp_real:"real-gdp", gdp_growth:"gdp-growth-rate", cpi:"inflation-rate", cpi_mom:"inflation-rate-mom", unemployment:"unemployment-rate", ecb_rate:"interest-rate", trade_balance:"balance-of-trade", exports:"exports", imports:"imports", fdi:"foreign-direct-investment", debt_gdp:"government-debt", deficit:"government-budget", business_confidence:"business-confidence", bond_yield_10y:"10-year-government-bond-yield", fx_eurusd:"exchange-rate"};
 // Keeps only the bases this country actually serves, so the selector never
 // offers something the source cannot support and never appears at all when
 // there is only one basis. Order is preserved: the first survivor is default.
@@ -2211,9 +2211,9 @@ function render(data){
   if(s.ecb_rate) chartPanel("ecb_rate","charts-inflation","ECB deposit facility rate",
     "The European Central Bank's key interest rate, the anchor for borrowing costs across the euro area.",
     s.ecb_rate,"line",v=>v+"%",v=>v.toFixed(2)+"%","FRED series ECBDFR \u00b7 end-of-month value (ECB)");
-  if(s.bond_yield_10y) chartPanel("bond_yield_10y","charts-markets","10-year government bond yield (EA19 average)",
-    "The interest rate euro-area governments pay to borrow for 10 years, averaged across the currency union -- individual member states can differ substantially from this average.",
-    s.bond_yield_10y,"line",v=>v.toFixed(1)+"%",v=>v.toFixed(2)+"%","OECD (FRED series IRLTLT01EZM156N) \u00b7 long-term government bond yields, 10-year, main including benchmark");
+  if(s.bond_yield_10y) chartPanel("bond_yield_10y","charts-markets","10-year government benchmark bond yield",
+    "The ECB's euro-area 10-year government benchmark yield, the headline gauge of what it costs euro-area governments to borrow for 10 years. Individual member states can differ substantially from it.",
+    s.bond_yield_10y,"line",v=>v.toFixed(1)+"%",v=>v.toFixed(2)+"%","ECB Data Portal (series FM.M.U2.EUR.4F.BB.U2_10Y.YLD) \u00b7 euro area 10-year government benchmark bond yield, end of month");
   if(data.fx_to_usd && data.fx_to_usd.history) chartPanel("fx_eurusd","charts-markets","EUR/USD exchange rate",
     "How many US dollars one euro buys -- the world's most heavily traded currency pair.",
     {points:data.fx_to_usd.history,unit:"",freq:"months"},"line",v=>"$"+v.toFixed(2),v=>"$"+v.toFixed(4),
@@ -2302,10 +2302,10 @@ function render(data){
   if(s.deficit) statTile(tp,"deficit","Deficit (% of GDP)",s.deficit,
     {fmt:pct,fmtD:pp,upIsGood:true,source:"Eurostat \u00b7 gov_10dd_edpt1"});
   const tm=document.getElementById("tiles-markets");
-  if(s.bond_yield_10y) statTile(tm,"bond_yield_10y","10-year bond yield (EA19)",s.bond_yield_10y,
-    {fmt:v=>v.toFixed(2)+"%",fmtD:v=>v.toFixed(2)+"pp",upIsGood:false,source:"OECD \u00b7 IRLTLT01EZM156N"});
+  if(s.bond_yield_10y) statTile(tm,"bond_yield_10y","10-year bond yield",s.bond_yield_10y,
+    {fmt:v=>v.toFixed(2)+"%",fmtD:v=>v.toFixed(2)+"pp",upIsGood:false,source:"ECB \u00b7 FM U2_10Y"});
   if(data.fx_to_usd && data.fx_to_usd.history) statTile(tm,"fx_eurusd","EUR/USD",
-    {points:data.fx_to_usd.history,freq:"months"},
+    {points:data.fx_to_usd.history,freq:"months",confirmed_at:data.fx_to_usd.confirmed_at},
     {fmt:v=>"$"+v.toFixed(2)+" per €1",fmtD:v=>"$"+v.toFixed(4),upIsGood:true,source:"Fed H.10 \u00b7 DEXUSEU"});
   renderNewDataBanner(data.new_points_meta);
   renderLastUpdated(data.updated);

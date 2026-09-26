@@ -286,6 +286,35 @@ country invisible everywhere until every metric is individually confirmed.
 
 ---
 
+## 7a. The Markets section (every country has one since v1.6.14)
+
+Every country page carries a Markets tab: nav button `data-sec="markets"`,
+`<section id="sec-markets">` with `tiles-markets` and `charts-markets`,
+both registered in the page's own `SEC_OF` and `CONTAINER_IDS`.
+
+1. **Check `fx_to_usd.direction` in the data file before writing anything.**
+   `"multiply"` means the stored rate is US$ per 1 local unit (GBP, EUR,
+   AUD); `"divide"` means local units per US$1 (almost everyone else). The
+   tile reads `"$1.34 per £1"` for multiply and `"C$1.40 per $1"` for divide,
+   and `upIsGood` is true for multiply, false for divide. Never invert the
+   stored number.
+2. **Exchange-rate tile/chart key is `fx_<ccy>usd`** (e.g. `fx_nokusd`).
+   Add `fx_<ccy>usd:"exchange-rate"` to the page's `INDICATOR_PAGE_SLUGS`
+   unless the country uses the euro (euro members have no exchange-rate
+   page of their own; the Eurozone's is the one page for the euro).
+3. **Bond yield** tile and chart live in Markets, not Prices. If no free
+   official source exists, say so in a `secnote` rather than leaving a gap.
+4. **Nothing else to wire for FX.** `generate_indicator_pages.py` builds the
+   exchange-rate page and the currency-change ranking from `fx_to_usd`
+   (`synth_fx_series`), Compare and ChartMaker derive the
+   `fx_usd_change` concept from it in the browser (`fxChangeSeries`), and
+   `generate_og_images.py` makes the card. You only need an `fx_usd`
+   citation for the country in `data-metric-sources.json`, stating the
+   real source and whether the monthly figure is end-of-month or an
+   average (every FRED-based fetcher here keeps the month-end daily rate).
+5. If the fetcher is annual-only (World Bank `PA.NUS.FCRF`), use
+   `freq:"years"` on the tile and chart.
+
 ## 8. Verification, before packaging
 
 Run the full mandatory gate (as for any other change to this codebase):

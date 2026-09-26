@@ -26,6 +26,7 @@
   function cleanUnit(u){ return String(u || "").replace(/\s*\([^)]*\)\s*$/, "").trim(); }
   function unitKind(u){
     var c = cleanUnit(u);
+    if(c.indexOf(" per ") > -1) return "fx";
     if(c.indexOf("%") > -1) return "pct";
     if(c === "index" || c === "") return "index";
     return "cur";
@@ -49,6 +50,7 @@
     if(sym === "$" && !dollarised && NATIVE_KEYS[key] && NATIVE_DOLLAR[country]) sym = NATIVE_DOLLAR[country];
     return sym;
   }
+  function fxDp(a){ return a >= 1000 ? 0 : (a >= 100 ? 2 : 4); }
   function trim(s){ return s.replace(/(\.\d*[1-9])0+(?!\d)|\.0+(?!\d)/, function(m, keep){ return keep || ""; }); }
 
   /* mode: "value" (headline), "cell" (table column: fixed decimals, no trim), "tip" (tooltip), "axis" (tick), "delta" (signed change) */
@@ -68,6 +70,16 @@
       if(mode === "axis") return (neg ? MINUS : "") + trim(a.toFixed(1));
       if(mode === "delta") return sign + a.toFixed(1) + " pts";
       return (neg ? MINUS : "") + a.toFixed(1);
+    }
+    if(kind === "fx"){
+      // Exchange rate as published: "C$1.4008 per US$1". Mirrors fmt_num().
+      var parts = cleanUnit(o.unit).split(" per "), quote = parts[0], base = parts.slice(1).join(" per ");
+      var fdp = mode === "delta" ? (a >= 1000 ? 0 : (a >= 1 ? 2 : 4)) : fxDp(a);
+      var num = a.toFixed(fdp).replace(/^\d+/, function(n){ return n.replace(/\B(?=(\d{3})+(?!\d))/g, ","); });
+      if(mode === "axis") return quote + trim(num);
+      if(mode === "delta") return sign + quote + num;
+      if(mode === "cell") return quote + num;
+      return quote + num + " per " + base;
     }
     var sym = symbolOf(o.unit, o.key, o.country, o.dollarised);
     var abs = a * scaleOf(o.unit);

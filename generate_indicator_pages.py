@@ -110,6 +110,9 @@ METRICS = [
     dict(slug="economic-inactivity-rate", keys=["inactivity"], title="Economic Inactivity Rate", cat="Labour market", up=False, chart="line"),
     dict(slug="interest-rate", keys=["boe_rate", "fed_funds", "ecb_rate", "boj_rate", "overnight_rate"], title="Interest Rate", cat="Interest rates", up=False, chart="line"),
     dict(slug="10-year-government-bond-yield", keys=["bond_yield_10y"], title="10-Year Government Bond Yield", cat="Interest rates", up=False, chart="line"),
+    # Exchange rate against the US dollar, as each source publishes it (no
+    # inversion). up is decided per country in metric_up(): see FX_* below.
+    dict(slug="exchange-rate", keys=["fx_usd"], title="Exchange Rate Against the US Dollar", cat="Markets", up=True, chart="line"),
     dict(slug="balance-of-trade", keys=["trade_balance"], title="Balance of Trade", cat="Trade", up=True, chart="bar"),
     dict(slug="exports", keys=["exports"], title="Exports", cat="Trade", up=True, chart="line"),
     dict(slug="imports", keys=["imports"], title="Imports", cat="Trade", up=False, chart="line"),
@@ -137,6 +140,10 @@ def metric_title(m, country, key, unit):
     return m["title"]
 
 def metric_up(m, country, unit):
+    if m["slug"] == "exchange-rate":
+        # "US$ per X" (multiply convention): a rise is a stronger local
+        # currency. "X per US$" (divide convention): a rise is a weaker one.
+        return _clean_unit(unit).startswith("US$ per")
     if m["slug"] == "government-budget" and country == "UK" and "%" not in unit:
         return False
     return m["up"]
@@ -163,6 +170,9 @@ RANKINGS = [
          lede="Central bank policy rates, the anchor for borrowing costs, for every economy where we carry the series. Euro area members share the ECB's rate."),
     dict(slug="10-year-government-bond-yield-by-country", metric="10-year-government-bond-yield", title="10-Year Government Bond Yield by Country", col="10-year yield",
          lede="What each government pays to borrow for ten years, the market's gauge of inflation and interest rate expectations."),
+    dict(slug="currency-change-against-us-dollar-by-country", metric="exchange-rate", fx_change=True,
+         title="Currency Change Against the US Dollar by Country", col="Change vs US$, last full year",
+         lede="How much each currency gained or lost against the US dollar over the last completed calendar year, comparing that year's average rate with the year before. For currencies with monthly data the average is taken over the twelve month-end rates; where only an annual figure is published (World Bank official rate), that annual average is used. Exchange rates themselves are not comparable across currencies, so this ranks the change, not the rate. Above zero means the currency strengthened. Euro area members share the euro and appear once, as the Eurozone."),
     dict(slug="government-debt-by-country", metric="government-debt", title="Government Debt to GDP by Country", col="Debt, % of GDP",
          lede="Everything each government owes, compared with the size of its economy."),
     dict(slug="government-budget-by-country", metric="government-budget", title="Government Budget Balance by Country", col="Balance, % of GDP", units=["%"], freqs=["years"], flow=True,
@@ -184,7 +194,7 @@ RANKING_BY_METRIC = {r["metric"]: r for r in RANKINGS}
 # because different countries feed the same indicator page from
 # different named series, but Compare has one unified "policy_rate"
 # concept card for all of them, not one card per bank.
-RANKING_CONCEPT_OVERRIDE = {"interest-rate": "policy_rate"}
+RANKING_CONCEPT_OVERRIDE = {"interest-rate": "policy_rate", "exchange-rate": "fx_usd_change"}
 # Flow rankings (flow=True) show the last completed calendar year only,
 # the same rule Compare applies: a flow for a year that has not ended is a
 # part-year total and is never shown. Every figure is a published
@@ -195,7 +205,7 @@ def flow_year():
     return date.today().year - 1
 
 RATE_ADJ_KEYS = {"boe_rate", "fed_funds", "fed_funds_upper", "fed_funds_lower", "ecb_rate", "boj_rate",
-                  "overnight_rate", "policy_rate", "bond_yield_10y"}
+                  "overnight_rate", "policy_rate", "bond_yield_10y", "fx_usd"}
 
 def adjustment_of(text, key="", freq=""):
     """Seasonal adjustment for one series, in this order:
@@ -278,6 +288,8 @@ def adjustment_of(text, key="", freq=""):
         return "Not seasonally adjusted"
     if "indec" in t and ("cpi" in t or "ipc" in t):
         return "Not seasonally adjusted"
+    if key == "fx_usd":
+        return "Not applicable, exchange rates are market prices and are not seasonally adjusted"
     if key in RATE_ADJ_KEYS:
         return "Not applicable, interest rates are not seasonally adjusted"
     if freq == "years":
@@ -350,6 +362,8 @@ def _clean_unit(u):
 
 def unit_kind(u):
     c = _clean_unit(u)
+    if " per " in c:
+        return "fx"
     if "%" in c:
         return "pct"
     if c in ("index", ""):
@@ -405,6 +419,17 @@ def fmt_num(v, unit, key="", country="", mode="value", dollarised=False):
         if mode == "delta":
             return sign + _fixed(a, 1) + " pts"
         return (MINUS if neg else "") + _fixed(a, 1)
+    if kind == "fx":
+        quote, base = _clean_unit(unit).split(" per ", 1)
+        dp = fx_dp(a) if mode != "delta" else (0 if a >= 1000 else (2 if a >= 1 else 4))
+        num = re.sub(r"^(\d+)", lambda g: f"{int(g.group(1)):,}", _fixed(a, dp))  # JS toFixed rounding
+        if mode == "axis":
+            return quote + _trim(num)
+        if mode == "delta":
+            return sign + quote + num
+        if mode == "cell":
+            return quote + num
+        return quote + num + " per " + base
     sym = symbol_of(unit, key, country, dollarised)
     ab = a * scale_of(unit)
     d = 1 if mode in ("axis", "delta") else 2
@@ -423,6 +448,11 @@ def fmt_num(v, unit, key="", country="", mode="value", dollarised=False):
     # KRW, ARS) run past 1,000tn; group the digits so they stay readable.
     out = re.sub(r"^(\d+)", lambda m: f"{int(m.group(1)):,}", out)
     return sign + sym + out
+
+def fx_dp(a):
+    """Decimals for an exchange rate: enough to show a real move at every
+    magnitude, from US$0.7111 per A$1 to Rp16,478 per US$1."""
+    return 0 if a >= 1000 else (2 if a >= 100 else 4)
 
 def delta_dp(unit, key):
     k = unit_kind(unit)
@@ -1248,6 +1278,12 @@ def rank_rows(ranking, catalogue_by_country):
     Y = flow_year()
     for country, info in catalogue_by_country.items():
         entry = info["by_slug"].get(m["slug"])
+        if ranking.get("fx_change") and not entry:
+            if country in FX_EURO_MEMBERS:
+                unranked.append((country, "uses the euro, ranked once as the Eurozone"))
+            elif country == "US":
+                unranked.append((country, "the US dollar is the reference currency"))
+            continue
         if not entry:
             continue
         s, pts, unit, key = entry["s"], entry["pts"], entry["unit"], entry["key"]
@@ -1263,6 +1299,23 @@ def rank_rows(ranking, catalogue_by_country):
             continue
         if ranking.get("units") and not any(u in unit for u in ranking["units"]):
             unranked.append((country, "published in currency, not as a share of GDP"))
+            continue
+
+        if ranking.get("fx_change"):
+            avgs = {y: fx_year_average(pts, freq, y) for y in range(Y - 6, Y + 1)}
+            if avgs[Y] is None or avgs[Y - 1] is None:
+                unranked.append((country, f"no complete {Y} average yet"))
+                continue
+            strong_up = metric_up(m, country, unit)
+            chg = {y: fx_value_change(avgs[y], avgs[y - 1], strong_up)
+                   for y in range(Y - 5, Y + 1) if avgs[y] is not None and avgs[y - 1] is not None}
+            val = chg[Y]
+            prev = chg.get(Y - 1)
+            d = round(val - prev, 1) if prev is not None else None
+            rows.append(dict(base, unit="%", value=val, value_str=fmt_num(val, "%", "", country, "cell"),
+                             change=d if d is not None else 0.0,
+                             change_str=(fmt_num(d, "%", "", country, "delta") if d else ("No change" if d == 0 else "n/a")),
+                             period=str(Y), prev_period=str(Y - 1), spark=sorted(chg.items())))
             continue
 
         if ranking.get("usd"):
@@ -1523,7 +1576,8 @@ def render_ranking(ranking, rows, unranked, all_rankings_meta, catalogue_by_coun
     unranked_html = ""
     if unranked:
         parts = "; ".join(f"{esc(c)} ({esc(why)})" for c, why in sorted(unranked))
-        unranked_html = f'<p class="rk-unranked">Not ranked here: {parts}. Each still has its own page.</p>'
+        tail = " Each still has its own country page." if ranking.get("fx_change") else " Each still has its own page."
+        unranked_html = f'<p class="rk-unranked">Not ranked here: {parts}.{tail}</p>'
 
     metric_word = re.sub(r"\s*\([^)]*\)", "", m["title"]).lower()
     if m["slug"] == "gdp":
@@ -1533,7 +1587,13 @@ def render_ranking(ranking, rows, unranked, all_rankings_meta, catalogue_by_coun
                    "Pick any countries and any years, then chart, map and rank them side by side, same period for every country.")
     chg_head = "1-year change (nominal)" if usd else "Change"
     Y = flow_year()
-    if ranking.get("flow"):
+    if ranking.get("fx_change"):
+        chg_head = f"Change vs {Y - 1} move"
+        head_txt = f"{len(rows)} currencies, {Y}"
+        note_txt = (f"Every figure is {Y}'s average rate against {Y - 1}'s, the last two completed years, so every currency "
+                    "is measured over the same period. Change shows how much faster or slower the move was than the year before, "
+                    "in percentage points. Click any column to sort.")
+    elif ranking.get("flow"):
         head_txt = f"{len(rows)} countries, {Y}"
         note_txt = (f"Every figure is for {Y}, the last completed year. A year still in progress is never shown for a flow, "
                     "because a part-year total isn't comparable. Click any column to sort.")
@@ -1738,6 +1798,50 @@ def rewrite_sitemap(urls, today):
         f.write("\n".join(kept + new + ["</urlset>"]) + "\n")
 
 
+# Currencies shared by several tracked economies: the euro area members use
+# the Eurozone's own EUR/USD series, so they get no exchange-rate page or
+# ranking row of their own (it would be the same series repeated).
+FX_EURO_MEMBERS = {"Austria", "France", "Germany", "Ireland", "Italy", "Netherlands", "Spain"}
+FX_SYMBOL = {"GBP": "\u00a3", "EUR": "\u20ac", "JPY": "\u00a5", "CAD": "C$", "AUD": "A$",
+             "BRL": "R$", "MXN": "MX$", "INR": "\u20b9", "KRW": "\u20a9"}
+
+def fx_symbol(code):
+    return FX_SYMBOL.get(code, code + "\u00a0")
+
+def synth_fx_series(country, data):
+    """The exchange-rate series for this country's indicator page, built
+    from its fx_to_usd block exactly as fetched: values are not inverted,
+    and the unit names which way round they run."""
+    fx = data.get("fx_to_usd") or {}
+    hist = fx.get("history") or []
+    if country in FX_EURO_MEMBERS or not hist or fx.get("direction") not in ("multiply", "divide"):
+        return None
+    code = str(fx.get("pair", "")).split("/")[0]
+    if len(code) != 3:
+        return None
+    annual = bool(re.fullmatch(r"\d{4}", str(hist[-1][0])))
+    if fx["direction"] == "multiply":
+        unit = f"US$ per {fx_symbol(code)}1"
+    else:
+        unit = f"{fx_symbol(code)} per US$1"
+    return {"label": f"{code}/USD exchange rate", "unit": unit + (" (annual average)" if annual else " (end of month)"),
+            "freq": "years" if annual else "months",
+            "points": [[p, v] for p, v in hist if v is not None]}
+
+def fx_year_average(pts, freq, year):
+    """A calendar year's average rate: the published annual figure, or the
+    mean of all twelve monthly figures. None unless the year is complete."""
+    d = {p: v for p, v in pts}
+    if freq == "years":
+        return d.get(str(year))
+    vals = [d.get(f"{year}-{m:02d}") for m in range(1, 13)]
+    return None if any(v is None for v in vals) else sum(vals) / 12
+
+def fx_value_change(now, before, strong_up):
+    """% change in the local currency's value against the US dollar."""
+    return (now / before - 1) * 100 if strong_up else (before / now - 1) * 100
+
+
 def build_all(sources_all):
     catalogue_by_country = {}
     for country, (iso2, cslug, alpha2, region) in COUNTRIES.items():
@@ -1746,6 +1850,9 @@ def build_all(sources_all):
             print(f"  {country}: missing data file, skipped")
             continue
         data = load_json(data_file_for(iso2))
+        fxs = synth_fx_series(country, data)
+        if fxs:
+            data.setdefault("series", {})["fx_usd"] = fxs
         sources = sources_all.get(country, {})
         cat = build_country_catalogue(country, data, sources)
         catalogue_by_country[country] = dict(data=data, sources=sources, catalogue=cat,

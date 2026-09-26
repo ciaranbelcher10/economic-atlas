@@ -1619,6 +1619,7 @@ document.addEventListener("DOMContentLoaded", function(){
  <button data-sec="labour">Labour market</button>
  <button data-sec="trade">Trade</button>
  <button data-sec="public">Public Finances</button>
+ <button data-sec="markets">Markets</button>
 </nav>
 <div class="metric-toggles" aria-label="Display options">
  <button type="button" class="mtoggle" id="toggleReal" onclick="toggleMetric('real',this)" aria-pressed="false">
@@ -1709,6 +1710,13 @@ document.addEventListener("DOMContentLoaded", function(){
  <p class="lightskey compact" aria-label="Key to freshness lights"><span><span class="led green" aria-hidden="true"></span>&nbsp;matches latest release</span><span><span class="led orange" aria-hidden="true"></span>&nbsp;not refreshed recently</span></p>
  <div class="grid" id="charts-public"></div>
  <p class="secnote">On the roadmap: federal debt stock, and a breakdown of where public money goes.</p>
+</section>
+<section class="sec" id="sec-markets" hidden>
+ <div class="hero mini" id="tiles-markets"></div>
+ <p class="lightskey compact" aria-label="Key to freshness lights"><span><span class="led green" aria-hidden="true"></span>&nbsp;matches latest release</span><span><span class="led orange" aria-hidden="true"></span>&nbsp;not refreshed recently</span></p>
+ <div class="grid" id="charts-markets"></div>
+ <p class="secnote">We have not yet found a free official source for Thailand's 10-year government bond yield, so only the exchange rate is shown here.</p>
+ <p class="secnote">Government bond yields and exchange rates are market prices, not government statistics -- shown here as the fast-moving complement to the macro data above, sourced the same way (the OECD, the Federal Reserve and the World Bank), never a news aggregator or a paid data vendor.</p>
 </section>
 <footer>
  Data: <a href="https://fred.stlouisfed.org">FRED, Federal Reserve Bank of St. Louis</a> (IMF, OECD),
@@ -2057,7 +2065,7 @@ document.addEventListener("DOMContentLoaded", ()=>{
 document.addEventListener("keydown", e=>{ if(e.key==="Escape") closeChartModal(); });
 /* -------------------------------- render ---------------------------------- */
 const SEC_OF={"charts-headline":"headline","charts-gdp":"gdp","charts-inflation":"inflation",
-  "charts-labour":"labour","charts-trade":"trade","charts-public":"public"};
+  "charts-labour":"labour","charts-trade":"trade","charts-public":"public","charts-markets":"markets"};
 const ANCHORS={};   /* series key -> {sec, panelEl} */
 let panelId=0;
 function statTile(el, key, title, series, opts){
@@ -2119,7 +2127,7 @@ function statTile(el, key, title, series, opts){
   el.appendChild(div);
 }
 // Every metric with its own /indicators/ page for this country (v1.6.1: all of them, not just four).
-const INDICATOR_PAGE_SLUGS = {gdp_level:"gdp", gdp_real:"real-gdp", gdp_growth:"gdp-growth-rate", cpi:"inflation-rate", unemployment:"unemployment-rate", fdi:"foreign-direct-investment", debt_gdp:"government-debt"};
+const INDICATOR_PAGE_SLUGS = {gdp_level:"gdp", gdp_real:"real-gdp", gdp_growth:"gdp-growth-rate", cpi:"inflation-rate", unemployment:"unemployment-rate", fdi:"foreign-direct-investment", debt_gdp:"government-debt", fx_thbusd:"exchange-rate"};
 // Keeps only the bases this country actually serves, so the selector never
 // offers something the source cannot support and never appears at all when
 // there is only one basis. Order is preserved: the first survivor is default.
@@ -2366,6 +2374,14 @@ function render(data){
   const tp=document.getElementById("tiles-public");
   if(s.debt_gdp) statTile(tp,"debt_gdp","Gov. debt (% of GDP)",s.debt_gdp,
     {fmt:pct,fmtD:pp,upIsGood:false,source:SRC_FISCAL});
+  if(data.fx_to_usd && data.fx_to_usd.history) chartPanel("fx_thbusd","charts-markets","THB/USD exchange rate",
+    "How many Thai bahts it takes to buy one US dollar. A rising number means a weaker Thai baht.",
+    {points:data.fx_to_usd.history,unit:"",freq:"months"},"line",v=>"THB "+v.toFixed(2),v=>"THB "+v.toFixed(2)+" per $1",
+    "Federal Reserve H.10 (FRED series DEXTHUS) \u00b7 end-of-month rate");
+  const tm=document.getElementById("tiles-markets");
+  if(data.fx_to_usd && data.fx_to_usd.history) statTile(tm,"fx_thbusd","THB/USD",
+    {points:data.fx_to_usd.history,freq:"months",confirmed_at:data.fx_to_usd.confirmed_at},
+    {fmt:v=>"THB "+v.toFixed(2)+" per $1",fmtD:v=>"THB "+v.toFixed(4),upIsGood:false,source:"Fed H.10 \u00b7 DEXTHUS"});
   renderNewDataBanner(data.new_points_meta);
   renderLastUpdated(data.updated);
 }
@@ -2378,8 +2394,8 @@ const TOGGLE_STATE = { real:false, dollar:false };
 // NY.GDP.MKTP.KN (constant LCU), on the same basis as gdp_level, so the
 // toggle is enabled normally like every other country.
 const CURRENCY_KEYS = ["gdp_level","gdp_real","net_debt","deficit","trade_balance","exports","imports"];
-const CONTAINER_IDS = ["hero","tiles-gdp","tiles-inflation","tiles-labour","tiles-trade","tiles-public",
-                        "charts-headline","charts-gdp","charts-inflation","charts-labour","charts-trade","charts-public"];
+const CONTAINER_IDS = ["hero","tiles-gdp","tiles-inflation","tiles-labour","tiles-trade","tiles-public","tiles-markets",
+                        "charts-headline","charts-gdp","charts-inflation","charts-labour","charts-trade","charts-public","charts-markets"];
 function scaleOf(unitStr){
   // Strip a trailing descriptive suffix like " (2021 prices)" before
   // checking the scale marker -- several countries' gdp_real unit

@@ -26,7 +26,7 @@ import series_guard
 # Add an entry ONLY when intentionally swapping source, and say why, e.g.
 #     ALLOW_SHRINK = {"ppi": "PPIACO -> PPIFID, final demand is the BLS headline"}
 # Remove it once the new series has landed.
-ALLOW_SHRINK = {}
+ALLOW_SHRINK = {"bond_yield_10y": "OECD EA19 IRLTLT01EZM156N (discontinued Jan 2026) -> ECB euro area 10-year benchmark, FM.M.U2.EUR.4F.BB.U2_10Y.YLD"}
 
 # key: (fred_id, freq 'm'|'q', label, unit, transform None|'yoy'|'mom', scale)
 # scale multiplies the raw FRED value before any transform. Use this to correct
@@ -44,12 +44,40 @@ FRED_SERIES = {
     "ecb_rate": ("ECBDFR", "d", "ECB deposit facility rate", "%", None, 1.0),
     "exports": ("XTEXVA01EZM667S", "m", "Exports of goods, $", "$m", None, 1e-6),
     "imports": ("XTIMVA01EZM667S", "m", "Imports of goods, $", "$m", None, 1e-6),
-    "bond_yield_10y": ("IRLTLT01EZM156N", "m", "10-year government bond yield (EA19 average)", "%", None, 1.0),
 }
 
 FRED_URL = ("https://api.stlouisfed.org/fred/series/observations"
             "?series_id={sid}&api_key={key}&file_type=json"
             "&observation_start=1970-01-01")
+
+
+# Euro area 10-year government benchmark bond yield, straight from the ECB
+# Data Portal. Replaces OECD's EA19 aggregate on FRED (IRLTLT01EZM156N),
+# which stopped at January 2026 once the euro area became 21 members.
+# Series key FM.M.U2.EUR.4F.BB.U2_10Y.YLD: monthly, euro area (changing
+# composition), percent per annum, end-of-period observation (checked on
+# data.ecb.europa.eu, collection indicator "E").
+ECB_BOND_URL = ("https://data-api.ecb.europa.eu/service/data/FM/"
+                "M.U2.EUR.4F.BB.U2_10Y.YLD?format=csvdata")
+
+
+def fetch_ecb_bond_yield() -> list:
+    import csv, io
+    r = requests.get(ECB_BOND_URL, timeout=60,
+                     headers={"User-Agent": "economic-atlas/0.1", "Accept": "text/csv"})
+    r.raise_for_status()
+    rows = list(csv.DictReader(io.StringIO(r.text)))
+    points = []
+    for row in rows:
+        per, val = (row.get("TIME_PERIOD") or "").strip(), (row.get("OBS_VALUE") or "").strip()
+        if not re.fullmatch(r"\d{4}-\d{2}", per) or val in ("", "NaN"):
+            continue
+        points.append([per, round(float(val), 4)])
+    points.sort(key=lambda p: p[0])
+    # Shape check: a monthly percent-per-annum yield, never outside -2..25.
+    if points and not all(-2 < v < 25 for _, v in points):
+        raise ValueError("ECB bond yield outside plausible range, refusing")
+    return points
 
 
 def fred_period(date: str, freq: str) -> str:
@@ -395,6 +423,8 @@ def main() -> int:
          "General government gross debt, % of GDP (Eurostat gov_10dd_edpt1)", "%", "years"),
         ("deficit", lambda: fetch_eurostat_govfinance("B9"),
          "General government net lending/borrowing, % of GDP (Eurostat gov_10dd_edpt1)", "%", "years"),
+        ("bond_yield_10y", lambda: fetch_ecb_bond_yield(),
+         "10-year government benchmark bond yield, euro area (ECB FM.M.U2.EUR.4F.BB.U2_10Y.YLD)", "%", "months"),
         ("fdi", lambda: fetch_worldbank("BX.KLT.DINV.WD.GD.ZS"),
          "FDI net inflows, % of GDP (World Bank)", "%", "years"),
         ("current_account", lambda: fetch_worldbank("BN.CAB.XOKA.GD.ZS"),
