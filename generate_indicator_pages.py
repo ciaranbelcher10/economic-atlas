@@ -184,7 +184,8 @@ RANKING_BY_METRIC = {r["metric"]: r for r in RANKINGS}
 def flow_year():
     return date.today().year - 1
 
-RATE_ADJ_KEYS = {"boe_rate", "fed_funds", "ecb_rate", "boj_rate", "overnight_rate", "policy_rate", "bond_yield_10y"}
+RATE_ADJ_KEYS = {"boe_rate", "fed_funds", "fed_funds_upper", "fed_funds_lower", "ecb_rate", "boj_rate",
+                  "overnight_rate", "policy_rate", "bond_yield_10y"}
 
 def adjustment_of(text, key="", freq=""):
     """Seasonal adjustment for one series, in this order:
@@ -204,15 +205,69 @@ def adjustment_of(text, key="", freq=""):
          - Eurostat HICP (…NEST, or a citation naming HICP): Eurostat
            publishes the HICP unadjusted;
          - OECD business confidence (BCICP): published seasonally adjusted,
-           normalised to a long-run average of 100.
+           normalised to a long-run average of 100;
+         - OECD live prices system / Main Economic Indicators CPI (level,
+           YoY or MoM, any country): OECD's own FAQ states plainly that
+           "The OECD publishes non-seasonally adjusted national CPIs that
+           are not usually revised" -- confirmed Sep 2026 against FRED's
+           OECD CPI series metadata (e.g. OECDCPALTT01IXOBM/GYM/GYQ, and
+           per-country mirrors such as SWECPIALLQINMEI, JPNCPIALLMINMEI),
+           all tagged Not Seasonally Adjusted regardless of country or
+           transformation;
+         - INDEC (Argentina) CPI/IPC: published NSA only, no seasonally
+           adjusted domestic series exists;
+         - Eurostat quarterly national accounts GDP via FRED (mnemonics of
+           the form {CLV,CP}M{NAC,EUR}[S|NSA]...B1GQ<country>): the letter
+           immediately after NAC/EUR states it directly -- S before (C)AB1GQ
+           is seasonally adjusted (confirmed for both the "...SCAB1GQ.."
+           and "...SAB1GQ.." spellings -- Switzerland's own mnemonic uses
+           the shorter one), NSA before B1GQ is not (confirmed Sep 2026
+           against FRED metadata for Austria, Ireland and Switzerland
+           specifically; this is Eurostat's own published naming
+           convention, not inferred);
+         - OECD National Accounts GDP-by-expenditure growth via FRED,
+           mnemonics ending RQPSMEI/RAPSMEI (e.g. CHLGDPRQPSMEI,
+           NORGDPRQPSMEI, ESPGDPRQPSMEI) or NAEXKP0<n>G[PY]SAQ (Colombia):
+           all confirmed Seasonally Adjusted (ADJUSTMENT: Y in OECD's own
+           data filters, checked per-country via FRED, not assumed from
+           one example);
+         - OECD harmonized unemployment rate via FRED, mnemonics of the
+           form LRHU...<digit>S or ...<digit>N (e.g. LRHUTTTTDKM156S):
+           trailing S/N states seasonally adjusted or not directly,
+           confirmed against FRED metadata for Denmark, Ireland and the US;
+         - A citation that says "Not applicable: <reason>" verbatim (e.g.
+           Norway debt_gdp, a quarterly stock with no SA/NSA variant in its
+           Eurostat dataset) surfaces that reason directly rather than
+           falling through to None.
+
+    The final 10 (of an original 81) were resolved by reading the actual
+    fetch script for each -- the query parameters and code comments there
+    are the most authoritative source there is, more so than any citation
+    text: Austria/Poland trade_balance query indic_et=TRD_VAL (the plain,
+    not seasonally-and-calendar-adjusted variant); Norway deficit passes
+    s_adj="NSA" explicitly, debt_gdp's dataset has no s_adj dimension at
+    all; Spain gdp_level/gdp_real pass s_adj="SCA"; Japan trade_balance's
+    own comment identifies the OECD "667S" family, confirmed SA via FRED;
+    Mexico gdp_growth is derived from NGDPRSAXDCMXQ, already covered by
+    the IMF IFS SAXDC rule above; India cpi follows the same OECD CPI
+    convention documented above; India unemployment's MoSPI source
+    bulletin states plainly it is not seasonally adjusted.
 
     Anything else returns None and the page says the source doesn't state it.
     Nothing here is inferred from the numbers themselves."""
     t = (text or "").lower()
     if re.search(r"\bnot seasonally adjusted\b|\bnon[- ]seasonally adjusted\b|\bnsa\b|\bunadjusted\b", t):
         return "Not seasonally adjusted"
-    if re.search(r"\bseasonally adjusted\b|\bsa\b|\bswda\b|\bworking[- ]day adjusted\b", t):
+    if re.search(r"\bseasonally (?:and calendar )?adjusted\b|\bsa\b|\bswda\b|\bworking[- ]day adjusted\b", t):
         return "Seasonally adjusted"
+    m0 = re.search(r"not applicable[:,]?\s*([^.]*)\.?", t)
+    if m0:
+        reason = m0.group(1).strip()
+        return f"Not applicable, {reason}" if reason else "Not applicable"
+    if "oecd live prices system" in t or "oecd prices database" in t:
+        return "Not seasonally adjusted"
+    if "indec" in t and ("cpi" in t or "ipc" in t):
+        return "Not seasonally adjusted"
     if key in RATE_ADJ_KEYS:
         return "Not applicable, interest rates are not seasonally adjusted"
     if freq == "years":
@@ -228,6 +283,17 @@ def adjustment_of(text, key="", freq=""):
         return "Not seasonally adjusted"
     if re.search(r"XT[A-Z0-9]*SA[MQ]\b", up):   # OECD MEI trade code ending SAM/SAQ
         return "Seasonally adjusted"
+    if re.search(r"M(?:NAC|EUR)SC?AB1GQ", up):
+        return "Seasonally adjusted"
+    if re.search(r"M(?:NAC|EUR)NSAB1GQ", up):
+        return "Not seasonally adjusted"
+    if re.search(r"\b[A-Z]{3}GDPR[AQ]PSMEI\b", up):
+        return "Seasonally adjusted"
+    if re.search(r"\b[A-Z]{3}NAEXKP0\dG[PY]SAQ\b", up):
+        return "Seasonally adjusted"
+    m2 = re.search(r"\bLRHU[A-Z0-9]*\d([SN])\b", up)
+    if m2:
+        return "Seasonally adjusted" if m2.group(1) == "S" else "Not seasonally adjusted"
     m = re.search(r"\b[A-Z]{2,}[A-Z0-9]*\d{2}[A-Z]{1,3}(?:667|657|659|086|156)([SN])\b", up)
     if m:
         return "Seasonally adjusted" if m.group(1) == "S" else "Not seasonally adjusted"
