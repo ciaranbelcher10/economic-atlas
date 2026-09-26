@@ -2377,7 +2377,7 @@ function statTile(el, key, title, series, opts){
   el.appendChild(div);
 }
 // Every metric with its own /indicators/ page for this country (v1.6.1: all of them, not just four).
-const INDICATOR_PAGE_SLUGS = {gdp_level:"gdp", gdp_real:"real-gdp", gdp_growth:"gdp-growth-rate", productivity:"productivity", cpi:"inflation-rate", cpi_mom:"inflation-rate-mom", cpih:"cpih-inflation-rate", cpih_mom:"cpih-inflation-rate-mom", unemployment:"unemployment-rate", unemployment_1624:"youth-unemployment-rate", employment:"employment-rate", inactivity:"economic-inactivity-rate", boe_rate:"interest-rate", trade_balance:"balance-of-trade", exports:"exports", imports:"imports", current_account:"current-account-to-gdp", fdi:"foreign-direct-investment", debt_gdp:"government-debt", net_debt:"government-net-debt", deficit:"government-budget", debt_interest:"government-debt-interest", business_confidence:"business-confidence"};
+const INDICATOR_PAGE_SLUGS = {gdp_level:"gdp", gdp_real:"real-gdp", gdp_growth:"gdp-growth-rate", productivity:"productivity", cpi:"inflation-rate", cpi_mom:"inflation-rate-mom", cpih:"cpih-inflation-rate", cpih_mom:"cpih-inflation-rate-mom", unemployment:"unemployment-rate", unemployment_1624:"youth-unemployment-rate", employment:"employment-rate", inactivity:"economic-inactivity-rate", boe_rate:"interest-rate", trade_balance:"balance-of-trade", exports:"exports", imports:"imports", current_account:"current-account-to-gdp", fdi:"foreign-direct-investment", debt_gdp:"government-debt", net_debt:"government-net-debt", deficit:"government-budget", debt_interest:"government-debt-interest", business_confidence:"business-confidence", bond_yield_10y:"10-year-government-bond-yield"};
 // bases: optional [{id,label,series,srcNote,expl}] for a metric the country
 // publishes on more than one basis (year on year, month on month, quarter on
 // quarter). The list is built from what is actually served, so a country that
@@ -2743,10 +2743,10 @@ function render(data){
     // press coverage uses -- it is genuinely two-sided (bad for UK exporters
     // and for overseas earners converting back to GBP) but a tile needs one
     // direction, and this is the more common one.
-    {fmt:v=>"$"+v.toFixed(2),fmtD:v=>"$"+v.toFixed(4),upIsGood:true,source:"Fed H.10 · DEXUSUK"});
+    {fmt:v=>"$"+v.toFixed(2)+" per £1",fmtD:v=>"$"+v.toFixed(4),upIsGood:true,source:"Fed H.10 · DEXUSUK"});
   if(data.fx_to_eur && data.fx_to_eur.history) statTile(tm,"fx_gbpeur","GBP/EUR",
     {points:data.fx_to_eur.history,freq:"months"},
-    {fmt:v=>"€"+v.toFixed(2),fmtD:v=>"€"+v.toFixed(4),upIsGood:true,source:"Derived · DEXUSUK ÷ DEXUSEU"});
+    {fmt:v=>"€"+v.toFixed(2)+" per £1",fmtD:v=>"€"+v.toFixed(4),upIsGood:true,source:"Derived · DEXUSUK ÷ DEXUSEU"});
   // Served and charted but had no tile; every served metric gets both.
   if(s.debt_interest) statTile(tp,"debt_interest","Debt interest",s.debt_interest,
     {fmt:v=>curFmt(v,s.debt_interest.unit,1),fmtD:v=>curFmt(v,s.debt_interest.unit,0),upIsGood:false,source:"ONS \u00b7 NMFX"});

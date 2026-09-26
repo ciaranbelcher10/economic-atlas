@@ -2137,7 +2137,7 @@ function statTile(el, key, title, series, opts){
   el.appendChild(div);
 }
 // Every metric with its own /indicators/ page for this country (v1.6.1: all of them, not just four).
-const INDICATOR_PAGE_SLUGS = {gdp_level:"gdp", gdp_real:"real-gdp", gdp_growth:"gdp-growth-rate", cpi:"inflation-rate", cpi_mom:"inflation-rate-mom", unemployment:"unemployment-rate", overnight_rate:"interest-rate", trade_balance:"balance-of-trade", current_account:"current-account-to-gdp", fdi:"foreign-direct-investment", debt_gdp:"government-debt", deficit:"government-budget", business_confidence:"business-confidence"};
+const INDICATOR_PAGE_SLUGS = {gdp_level:"gdp", gdp_real:"real-gdp", gdp_growth:"gdp-growth-rate", cpi:"inflation-rate", cpi_mom:"inflation-rate-mom", unemployment:"unemployment-rate", overnight_rate:"interest-rate", trade_balance:"balance-of-trade", current_account:"current-account-to-gdp", fdi:"foreign-direct-investment", debt_gdp:"government-debt", deficit:"government-budget", business_confidence:"business-confidence", bond_yield_10y:"10-year-government-bond-yield"};
 // Keeps only the bases this country actually serves, so the selector never
 // offers something the source cannot support and never appears at all when
 // there is only one basis. Order is preserved: the first survivor is default.
@@ -2423,10 +2423,10 @@ function render(data){
     // Canadian dollar -- so upIsGood is false here, the opposite framing
     // from UK's GBP/USD tile, because Canada's rate is stored the
     // opposite way round (CAD per USD, not USD per CAD).
-    {fmt:v=>v.toFixed(2),fmtD:v=>v.toFixed(4),upIsGood:false,source:"Fed H.10 · DEXCAUS"});
+    {fmt:v=>"C$"+v.toFixed(2)+" per $1",fmtD:v=>"C$"+v.toFixed(4),upIsGood:false,source:"Fed H.10 · DEXCAUS"});
   if(data.fx_to_eur && data.fx_to_eur.history) statTile(tm,"fx_cadeur","CAD/EUR",
     {points:data.fx_to_eur.history,freq:"months"},
-    {fmt:v=>v.toFixed(2),fmtD:v=>v.toFixed(4),upIsGood:false,source:"Derived · DEXCAUS × DEXUSEU"});
+    {fmt:v=>"C$"+v.toFixed(2)+" per €1",fmtD:v=>"C$"+v.toFixed(4),upIsGood:false,source:"Derived · DEXCAUS × DEXUSEU"});
   renderNewDataBanner(data.new_points_meta);
   renderLastUpdated(data.updated);
 }
