@@ -2219,6 +2219,20 @@ function chartPanel(key, containerId, title, expl, series, kind, fmtY, fmtTip, s
   panel.querySelector(".expandBtn").addEventListener("click", ()=> openChartModal(id));
 }
 const COUNTRY_LABEL="Switzerland";
+// Human-readable fallback for any series key missing from NAMES, so the
+// "Latest:" banner never shows a raw underscored key (v1.6.13).
+const _KEY_NAMES={cpi_mom:"Inflation (m/m)",cpi_qoq:"Inflation (q/q)",cpi_mom_sa:"Inflation (m/m, SA)",
+  cpih_mom:"CPIH inflation (m/m)",cpi_national:"National CPI",gdp_growth_yoy:"GDP growth (y/y)",
+  gdp_level_annual:"GDP (annual)",gdp_real_annual:"Real GDP (annual)",gdp_nominal:"Nominal GDP",
+  unemployment_1624:"Youth unemployment (16\u201324)",debt_interest:"Debt interest",
+  bond_yield_10y:"10-year bond yield",fed_funds_upper:"Fed funds rate (upper)",fed_funds_lower:"Fed funds rate (lower)"};
+function _nameOf(k){
+  if(_KEY_NAMES[k]) return _KEY_NAMES[k];
+  const fx=/^fx_([a-z]{3})([a-z]{3})$/.exec(k);
+  if(fx) return fx[1].toUpperCase()+"/"+fx[2].toUpperCase();
+  const t=String(k).replace(/_/g," ").trim();
+  return t.charAt(0).toUpperCase()+t.slice(1);
+}
 function renderNewDataBanner(meta){
   if(!meta) return;
   const now=Date.now();
@@ -2242,7 +2256,7 @@ function renderNewDataBanner(meta){
     const mo=String(dt.getUTCMonth()+1).padStart(2,"0");
     const btn=document.createElement("button");
     btn.type="button"; btn.className="newdata-link";
-    btn.textContent=`${COUNTRY_LABEL} ${NAMES[k]||k} ${dd}/${mo} Update`;
+    btn.textContent=`${COUNTRY_LABEL} ${NAMES[k]||_nameOf(k)} ${dd}/${mo} Update`;
     btn.addEventListener("click",()=>{
       const a=ANCHORS[k]; showSec(a.sec);
       setTimeout(()=>a.panelEl.scrollIntoView({behavior:"smooth",block:"start"}),60);
