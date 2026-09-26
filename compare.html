@@ -3357,6 +3357,32 @@ function addMetric(key){
   lastAddedMetric = key;
   renderAll();
 }
+// ?metric=<concept key> adds (and scrolls to) that metric's card on
+// load, same idea as ?countries=all above -- the link target from a
+// ranking page's "See in Compare" link, so someone comparing GDP across
+// countries on a ranking page can jump straight into Compare already
+// looking at GDP, rather than having to find and add it manually via
+// the metric picker. Silently ignored if the key doesn't exist (never
+// throws for an old or mistyped link) or is already visible (nothing
+// to add, but still worth scrolling to on load).
+(function(){
+  try{
+    var params = new URLSearchParams(window.location.search);
+    var wanted = params.get("metric");
+    if(!wanted || !CONCEPT_LABEL[wanted]) return;
+    if(visibleMetrics.indexOf(wanted) === -1){
+      addMetric(wanted);
+    } else {
+      lastAddedMetric = wanted;
+    }
+    window.addEventListener("load", function(){
+      setTimeout(function(){
+        var card = document.querySelector('.metric-card[data-concept="' + wanted + '"]');
+        if(card) card.scrollIntoView({behavior: "smooth", block: "start"});
+      }, 300);
+    });
+  }catch(e){}
+})();
 // Tracks whichever metric was most recently added during the current
 // picker session, so closing the picker can scroll straight to it
 // rather than leaving the person wherever the picker happened to be

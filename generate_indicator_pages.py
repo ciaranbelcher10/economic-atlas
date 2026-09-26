@@ -175,6 +175,16 @@ RANKINGS = [
          lede="The OECD's survey measure of how optimistic firms are. 100 is each country's long-run average."),
 ]
 RANKING_BY_METRIC = {r["metric"]: r for r in RANKINGS}
+# Maps a ranking's own metric slug to the concept key Compare's own
+# ?metric= URL parameter expects (see compare.html). For every ranking
+# except interest-rate this is just that metric's first data key
+# (METRIC_BY_SLUG[...]["keys"][0]) -- they were named to match on
+# purpose. interest-rate is the one exception: its "keys" list is every
+# individual central-bank rate (boe_rate, fed_funds, ecb_rate, ...),
+# because different countries feed the same indicator page from
+# different named series, but Compare has one unified "policy_rate"
+# concept card for all of them, not one card per bank.
+RANKING_CONCEPT_OVERRIDE = {"interest-rate": "policy_rate"}
 # Flow rankings (flow=True) show the last completed calendar year only,
 # the same rule Compare applies: a flow for a year that has not ended is a
 # part-year total and is never shown. Every figure is a published
@@ -1518,7 +1528,8 @@ def render_ranking(ranking, rows, unranked, all_rankings_meta, catalogue_by_coun
     metric_word = re.sub(r"\s*\([^)]*\)", "", m["title"]).lower()
     if m["slug"] == "gdp":
         metric_word = "GDP"
-    cta = glow_cta("../compare", f"Compare {metric_word} over time in Compare",
+    compare_concept = RANKING_CONCEPT_OVERRIDE.get(ranking["metric"], m["keys"][0])
+    cta = glow_cta(f"../compare?countries=all&metric={compare_concept}", f"Compare {metric_word} over time in Compare",
                    "Pick any countries and any years, then chart, map and rank them side by side, same period for every country.")
     chg_head = "1-year change (nominal)" if usd else "Change"
     Y = flow_year()
