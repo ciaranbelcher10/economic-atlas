@@ -1835,6 +1835,9 @@ def synth_fx_series(country, data):
         pts = [[p, round(v * n, 6)] for p, v in hist if v]
     else:
         pts = [[p, float(f"{n / v:.6g}")] for p, v in hist if v]
+    start = FXC.SERIES_START.get(code)
+    if start:
+        pts = [p for p in pts if str(p[0]) >= start[0]]
     unit = f"{FXC.quote_symbol('USD', code)} per {FXC.home_unit(code)}"
     return {"label": f"{FXC.NAME[code]} in US dollars", "unit": unit + (" (annual average)" if annual else " (end of month)"),
             "freq": "years" if annual else "months", "points": pts}

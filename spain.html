@@ -168,6 +168,7 @@ nav.cat button.active{background:var(--blue); border-color:var(--blue); color:#f
 .hero.mini .figure{font-size:25px;}
 .hero.mini .source{font-size:10.5px;}
 .stat .figure{white-space:nowrap;}
+#tiles-markets .stat .label{min-height:2.6em;}
 .stat .figure .fxper{display:block;font-size:.46em;font-weight:500;letter-spacing:0;opacity:.72;margin-top:4px;white-space:nowrap;}
 .stat.link{cursor:pointer; transition:border-color .15s, box-shadow .15s;}
 .stat.link:hover{border-color:var(--blue); box-shadow:0 2px 10px rgba(30,69,102,.10);}
@@ -2136,7 +2137,7 @@ function statTile(el, key, title, series, opts){
       <p class="figure"><span class="led ${led}" title="${ledTitle}" role="img"
         aria-label="${ledTitle}"></span>${opts.fmt(last[1])}</p>
       <p class="delta ${dir}"><span class="arrow" aria-hidden="true">${arrow}</span>
-        ${d>0?"+":""}${opts.fmtD(d)} ${opts.vsText||"vs prior"}</p>
+        ${d>0&&!opts.signed?"+":""}${opts.fmtD(d)} ${opts.vsText||"vs prior"}</p>
       <p class="period">${fmtPeriod(last[0])}</p>
       <p class="source">${opts.source}</p>`;
   el.appendChild(div);
@@ -2310,12 +2311,14 @@ function renderFxMarkets(tm){
     const daily=Array.isArray(p.daily) && p.daily.length>=2;
     const ts=daily ? {points:p.daily,freq:"days",confirmed_at:p.confirmed_at}
                    : {points:p.points,freq:p.freq,confirmed_at:p.confirmed_at};
-    const dp=fxDp(ts.points[ts.points.length-1][1]);
+    const prevV=ts.points[ts.points.length-2][1];
     statTile(tm,p.key,p.title,ts,
       {fmt:v=>q+fxNum(v)+'<span class="fxper">per '+b+'</span>',
-       fmtD:v=>(v<0?"\u2212":"")+q+Math.abs(v).toFixed(dp),dDp:dp,
-       upIsGood:true,source:p.source_short,
-       vsText:daily?"vs previous trading day":(p.freq==="years"?"vs previous year":"vs prior")});
+       // Change as a %: a day's move is often smaller than the rate's last
+       // decimal, which printed a real move as "$0.00".
+       fmtD:v=>{const pc=prevV ? v/prevV*100 : 0; return (pc<0?"\u2212":"+")+Math.abs(pc).toFixed(2)+"%";},dDp:8,
+       upIsGood:true,signed:true,source:p.source_short,
+       vsText:daily?"vs prior day":(p.freq==="years"?"vs prior year":"vs prior month")});
   });
 }
 function render(data){

@@ -122,6 +122,10 @@ def build_pair(country, home, quote, u_daily, prev_data):
                     continue
                 val = usd / qa
             pts.append([str(y), sig(val * n)])
+        start = C.SERIES_START.get(home)
+        if start:
+            pts = [p for p in pts if p[0] >= start[0]]
+            base["description"] += f" Starts in {start[0]}, with {start[1]}; earlier years are in older currency units."
         if len(pts) < 2:
             return None
         if quote == "USD":
@@ -159,11 +163,11 @@ def build_pair(country, home, quote, u_daily, prev_data):
         else:
             how = f"{n:,} \u00f7 the published {home} per US$"
         src = f"Federal Reserve H.10 (FRED series {sid}) \u00b7 noon buying rate, New York; {how}."
-        short = f"Fed H.10 \u00b7 {sid}"
+        short = f"Fed H.10 \u00b7 {sid} \u00b7 published weekly"
     else:
         src = (f"Derived from Federal Reserve H.10 series {ids[0]} and {ids[1]} (FRED) on each trading day: "
                f"{C.SYMBOL[quote]} per {C.home_unit(home)} = (US$ per {C.home_unit(home)}) \u00f7 (US$ per {C.SYMBOL[quote]}1).")
-        short = f"Derived \u00b7 {ids[0]}, {ids[1]}"
+        short = f"Derived \u00b7 {ids[0]}, {ids[1]} \u00b7 published weekly"
     cutoff = (date.today() - timedelta(days=365 * DAILY_YEARS)).isoformat()
     return dict(base, freq="months", points=[[p, v] for p, v in month_end(daily)],
                 daily=[p for p in daily if p[0] >= cutoff], source=src, source_short=short)

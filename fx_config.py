@@ -43,6 +43,19 @@ QUOTE_NAME = {"USD": "US dollars", "EUR": "euros", "GBP": "pounds"}
 SCALE = {"JPY": 100, "INR": 100, "THB": 100, "TRY": 100, "KRW": 1000, "ARS": 1000,
          "CLP": 1000, "COP": 1000, "IDR": 10000}
 
+# Where a currency was redenominated or replaced after hyperinflation, the
+# World Bank still reports the whole history in today's units, so the early
+# years run to absurd sizes ($72 trillion per ARS 1,000 in 1963) and flatten
+# everything since. Charts start when the current currency began; the
+# figures themselves are untouched and the chart description says why.
+SERIES_START = {
+    "ARS": ("1992", "the current peso, introduced in 1992"),
+    "CLP": ("1976", "the current peso, reintroduced in 1975"),
+    "ILS": ("1986", "the new shekel, introduced in 1985"),
+    "PLN": ("1995", "the redenominated zloty of 1995"),
+    "TRY": ("2005", "the new lira of 2005"),
+}
+
 EURO_MEMBERS = {"Austria", "France", "Germany", "Ireland", "Italy", "Netherlands", "Spain"}
 
 # country -> (home currency, data-file suffix, quote currencies in display order)
