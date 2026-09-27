@@ -141,9 +141,9 @@ def metric_title(m, country, key, unit):
 
 def metric_up(m, country, unit):
     if m["slug"] == "exchange-rate":
-        # "US$ per X" (multiply convention): a rise is a stronger local
-        # currency. "X per US$" (divide convention): a rise is a weaker one.
-        return _clean_unit(unit).startswith("US$ per")
+        # Always US$ per unit of home currency since v1.6.16: a rise is a
+        # stronger home currency.
+        return True
     if m["slug"] == "government-budget" and country == "UK" and "%" not in unit:
         return False
     return m["up"]
@@ -1302,11 +1302,16 @@ def rank_rows(ranking, catalogue_by_country):
             continue
 
         if ranking.get("fx_change"):
-            avgs = {y: fx_year_average(pts, freq, y) for y in range(Y - 6, Y + 1)}
+            # From the block exactly as published (not the inverted page
+            # series): the same arithmetic Compare's fxChangeSeries() runs.
+            _fx = info["data"].get("fx_to_usd") or {}
+            _raw = [(p, v) for p, v in (_fx.get("history") or []) if v]
+            _rfreq = "years" if _raw and re.fullmatch(r"\d{4}", str(_raw[-1][0])) else "months"
+            avgs = {y: fx_year_average(_raw, _rfreq, y) for y in range(Y - 6, Y + 1)}
             if avgs[Y] is None or avgs[Y - 1] is None:
                 unranked.append((country, f"no complete {Y} average yet"))
                 continue
-            strong_up = metric_up(m, country, unit)
+            strong_up = _fx.get("direction") == "multiply"
             chg = {y: fx_value_change(avgs[y], avgs[y - 1], strong_up)
                    for y in range(Y - 5, Y + 1) if avgs[y] is not None and avgs[y - 1] is not None}
             val = chg[Y]
@@ -1809,24 +1814,30 @@ def fx_symbol(code):
     return FX_SYMBOL.get(code, code + "\u00a0")
 
 def synth_fx_series(country, data):
-    """The exchange-rate series for this country's indicator page, built
-    from its fx_to_usd block exactly as fetched: values are not inverted,
-    and the unit names which way round they run."""
+    """The exchange-rate series for this country's indicator page: US$ per
+    unit of home currency (per 100/1,000/10,000 units where fx_config says
+    so), so a rise is always a stronger home currency. Built from the
+    fx_to_usd block the country's fetch script stores; a rate published the
+    other way round is inverted exactly (N / published rate) and the
+    citation says so. Month-end values for daily sources, World Bank annual
+    averages otherwise."""
+    import fx_config as FXC
     fx = data.get("fx_to_usd") or {}
     hist = fx.get("history") or []
     if country in FX_EURO_MEMBERS or not hist or fx.get("direction") not in ("multiply", "divide"):
         return None
     code = str(fx.get("pair", "")).split("/")[0]
-    if len(code) != 3:
+    if len(code) != 3 or code not in FXC.NAME:
         return None
+    n = FXC.SCALE.get(code, 1)
     annual = bool(re.fullmatch(r"\d{4}", str(hist[-1][0])))
     if fx["direction"] == "multiply":
-        unit = f"US$ per {fx_symbol(code)}1"
+        pts = [[p, round(v * n, 6)] for p, v in hist if v]
     else:
-        unit = f"{fx_symbol(code)} per US$1"
-    return {"label": f"{code}/USD exchange rate", "unit": unit + (" (annual average)" if annual else " (end of month)"),
-            "freq": "years" if annual else "months",
-            "points": [[p, v] for p, v in hist if v is not None]}
+        pts = [[p, float(f"{n / v:.6g}")] for p, v in hist if v]
+    unit = f"{FXC.quote_symbol('USD', code)} per {FXC.home_unit(code)}"
+    return {"label": f"{FXC.NAME[code]} in US dollars", "unit": unit + (" (annual average)" if annual else " (end of month)"),
+            "freq": "years" if annual else "months", "points": pts}
 
 def fx_year_average(pts, freq, year):
     """A calendar year's average rate: the published annual figure, or the

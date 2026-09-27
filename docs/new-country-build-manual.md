@@ -292,22 +292,25 @@ Every country page carries a Markets tab: nav button `data-sec="markets"`,
 `<section id="sec-markets">` with `tiles-markets` and `charts-markets`,
 both registered in the page's own `SEC_OF` and `CONTAINER_IDS`.
 
-1. **Check `fx_to_usd.direction` in the data file before writing anything.**
-   `"multiply"` means the stored rate is US$ per 1 local unit (GBP, EUR,
-   AUD); `"divide"` means local units per US$1 (almost everyone else). The
-   tile reads `"$1.34 per £1"` for multiply and `"C$1.40 per $1"` for divide,
-   and `upIsGood` is true for multiply, false for divide. Never invert the
-   stored number.
-2. **Exchange-rate tile/chart key is `fx_<ccy>usd`** (e.g. `fx_nokusd`).
-   Add `fx_<ccy>usd:"exchange-rate"` to the page's `INDICATOR_PAGE_SLUGS`
-   unless the country uses the euro (euro members have no exchange-rate
-   page of their own; the Eurozone's is the one page for the euro).
+1. **Exchange rates are data-driven since v1.6.16.** Add the country to
+   `COUNTRY_FX` in `fx_config.py` (home currency, data-file suffix, and which
+   of $, euro and pound it is quoted against), plus `SYMBOL`/`NAME`, and a
+   `SCALE` entry if one unit is worth very little (so the tile reads
+   "$0.64 per ¥100", not "$0.0064 per ¥1"). `fetch_fx_daily.py` then writes
+   `data-fx-<suffix>.json`, and the page's own `renderFxMarkets()` draws every
+   pair in it. Every rate is $/euro/pound per unit of HOME currency, so a rise
+   always means a stronger home currency; never hand-write an FX tile.
+2. The page must load its FX file alongside its data file (`FX_FETCH`, see any
+   existing page) and call `renderFxMarkets(document.getElementById("tiles-markets"))`
+   before `renderNewDataBanner`. Add `fx_<home>_usd:"exchange-rate"` to
+   `INDICATOR_PAGE_SLUGS` unless the country uses the euro or is the US.
 3. **Bond yield** tile and chart live in Markets, not Prices. If no free
    official source exists, say so in a `secnote` rather than leaving a gap.
 4. **Nothing else to wire for FX.** `generate_indicator_pages.py` builds the
    exchange-rate page and the currency-change ranking from `fx_to_usd`
-   (`synth_fx_series`), Compare and ChartMaker derive the
-   `fx_usd_change` concept from it in the browser (`fxChangeSeries`), and
+   (`synth_fx_series`), Compare derives the `fx_usd_change` concept from it in
+   the browser (`fxChangeSeries`), ChartMaker and My Dashboard read the
+   nominal rates from `data-fx-*.json` (`addFxSeries`), and
    `generate_og_images.py` makes the card. You only need an `fx_usd`
    citation for the country in `data-metric-sources.json`, stating the
    real source and whether the monthly figure is end-of-month or an

@@ -3129,9 +3129,10 @@ var CATEGORY_OF = {
   trade_balance: "Trade", exports: "Trade", imports: "Trade",
   business_confidence: "Business & investment", fdi: "Business & investment",
   boe_rate: "Rates & yields", fed_funds: "Rates & yields", ecb_rate: "Rates & yields",
-  boj_rate: "Rates & yields", overnight_rate: "Rates & yields", bond_yield_10y: "Rates & yields"
+  boj_rate: "Rates & yields", overnight_rate: "Rates & yields", bond_yield_10y: "Rates & yields",
+  fx_usd: "Exchange rates", fx_eur: "Exchange rates", fx_gbp: "Exchange rates"
 };
-var CATEGORY_ORDER = ["GDP & growth", "Labour market", "Prices", "Public finances", "Trade", "Business & investment", "Rates & yields", "Other"];
+var CATEGORY_ORDER = ["GDP & growth", "Labour market", "Prices", "Public finances", "Trade", "Business & investment", "Rates & yields", "Exchange rates", "Other"];
 // Same explainer text already used on each country's own page for these
 // metrics, so a description reads identically here as it does there.
 // Two (gdp_real, cpi_mom) aren't shown as their own chart on any country
@@ -3169,6 +3170,9 @@ var EXPLAINER_OF = {
   ecb_rate: "The European Central Bank's key interest rate, the anchor for borrowing costs across the euro area.",
   boj_rate: "The overnight interbank rate, the closest market measure of the Bank of Japan's policy stance.",
   overnight_rate: "The rate banks charge each other for overnight loans, closely tracks the central bank's target rate.",
+  fx_usd: "US dollars per unit of the home currency (per 100 or 1,000 units for small-value currencies). A rise means a stronger home currency.",
+  fx_eur: "Euros per unit of the home currency. A rise means a stronger home currency.",
+  fx_gbp: "Pounds per unit of the home currency. A rise means a stronger home currency.",
   bond_yield_10y: "The yield on 10-year government bonds, a market gauge of inflation and rate expectations, not the central bank's own policy rate."
 };
 function explainerOf(key){
@@ -3328,6 +3332,29 @@ document.addEventListener("click", function(e){
   e.stopPropagation();
   openInfoPopover(btn, btn.dataset.country, btn.dataset.key);
 }, true);
+// Exchange rates (v1.6.16): read from each country's data-fx-XX.json, which
+// fetch_fx_daily.py builds. Always $, euro or pound per unit of the home
+// currency, so a rising line is a stronger home currency. Stored under
+// fx_usd / fx_eur / fx_gbp by the currency they are quoted in.
+function fxFileFor(dataFile){
+  var m = /^data(?:-([a-z]{2}))?\.json$/.exec(String(dataFile || ""));
+  return m ? "data-fx-" + (m[1] || "uk") + ".json" : null;
+}
+function addFxSeries(reg, fx){
+  if(!reg || !fx || !Array.isArray(fx.pairs)) return;
+  fx.pairs.forEach(function(p){
+    var k = {USD: "fx_usd", EUR: "fx_eur", GBP: "fx_gbp"}[p.quote];
+    if(!k || !Array.isArray(p.points) || p.points.length < 2) return;
+    reg[k] = {label: p.title + " (" + p.quote_symbol + " per " + p.base_unit + ")",
+              unit: p.quote_symbol + " per " + p.base_unit, freq: p.freq, points: p.points,
+              confirmed_at: p.confirmed_at, fx_source: p.source};
+  });
+}
+function fxFmtValue(v, unit){
+  var parts = String(unit).split(" per "), a = Math.abs(v);
+  var n = a >= 100 ? Math.round(a).toLocaleString("en-GB") : (a >= 1 ? a.toFixed(2) : a.toFixed(4));
+  return (v < 0 ? "\u2212" : "") + parts[0] + n + (parts[1] ? " per " + parts[1] : "");
+}
 function loadAll(){
   var entries = Object.keys(FILES);
   return Promise.all([loadMetricSources()].concat(entries.map(function(country){
@@ -3343,6 +3370,11 @@ function loadAll(){
           }
         });
         if(payload.fx_to_usd) FX_RATES[country] = payload.fx_to_usd;
+        var fxf = fxFileFor(FILES[country]);
+        if(fxf) return fetch(fxf, {cache: "no-cache"})
+          .then(function(r){ return r.ok ? r.json() : null; })
+          .catch(function(){ return null; })
+          .then(function(fx){ addFxSeries(REGISTRY[country], fx); });
       })
       .catch(function(err){
         console.warn("Couldn't load data for " + country + ":", err);
@@ -3385,7 +3417,8 @@ var CONCEPT_LABEL = {
   current_account: "Current account, % of GDP", fdi: "FDI, % of GDP",
   trade_balance: "Trade balance", exports: "Exports", imports: "Imports",
   business_confidence: "Business confidence", productivity: "Productivity",
-  bond_yield_10y: "10-year bond yield", policy_rate: "Policy rate"
+  bond_yield_10y: "10-year bond yield", policy_rate: "Policy rate",
+  fx_usd: "Exchange rate against the US dollar", fx_eur: "Exchange rate against the euro", fx_gbp: "Exchange rate against the pound"
 };
 var CONCEPT_UNIT = {
   gdp_level:"currency", gdp_real:"currency", gdp_growth:"%", cpi:"%", core_cpi:"%", cpi_mom:"%", cpih:"%", ppi:"%", pce:"%",
@@ -4016,6 +4049,7 @@ function curFmt(rawValue, unitStr, decimals, country){
 }
 function isCurrencyUnit(u){
   if(u === "%" || u === "index") return false;
+  if(/ per /.test(String(u))) return false;   // exchange rates are never Dollarised
   // Most currency series already carry a tn/bn/m scale suffix (e.g.
   // "£bn"), but a few (Israel and Morocco's World Bank GDP, pulled as
   // NY.GDP.MKTP.CD "current US$") come through as a plain currency
@@ -4037,6 +4071,7 @@ function isCurrencyUnit(u){
 var TWO_DECIMAL_KEYS = {boe_rate: 1, fed_funds: 1, ecb_rate: 1, boj_rate: 1, overnight_rate: 1, bond_yield_10y: 1};
 function fmtVal(v, unit, key, country){
   if(!unit) return String(v);
+  if(/ per /.test(unit)) return fxFmtValue(v, unit);
   if(unit === "%") return v.toFixed(key && TWO_DECIMAL_KEYS[key] ? 2 : 1) + "%";
   if(isCurrencyUnit(unit)) return curFmt(v, unit, 1, country);
   // Plain indices (business confidence, productivity) were falling

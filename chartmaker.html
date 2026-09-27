@@ -1689,7 +1689,7 @@ var CONCEPT_KEYS = {
   current_account: ["current_account"], fdi: ["fdi"],
   trade_balance: ["trade_balance"], exports: ["exports"], imports: ["imports"],
   business_confidence: ["business_confidence"], productivity: ["productivity"],
-  bond_yield_10y: ["bond_yield_10y"], fx_usd_change: ["fx_usd_change"],
+  bond_yield_10y: ["bond_yield_10y"], fx_usd: ["fx_usd"], fx_eur: ["fx_eur"], fx_gbp: ["fx_gbp"],
   policy_rate: ["boe_rate", "fed_funds", "ecb_rate", "boj_rate", "overnight_rate", "rate"]
 };
 var CONCEPT_LABEL = {
@@ -1705,7 +1705,7 @@ var CONCEPT_LABEL = {
   trade_balance: "Trade balance", exports: "Exports", imports: "Imports",
   business_confidence: "Business confidence", productivity: "Productivity",
   bond_yield_10y: "10-year bond yield", policy_rate: "Policy rate",
-  fx_usd_change: "Currency vs US dollar (annual change)"
+  fx_usd: "Exchange rate against the US dollar", fx_eur: "Exchange rate against the euro", fx_gbp: "Exchange rate against the pound"
 };
 var CONCEPT_CATEGORY = {
   gdp_level:"GDP & growth", gdp_real:"GDP & growth", gdp_growth:"GDP & growth", productivity:"GDP & growth",
@@ -1716,7 +1716,7 @@ var CONCEPT_CATEGORY = {
   current_account:"Public finances",
   trade_balance:"Trade", exports:"Trade", imports:"Trade",
   business_confidence:"Business & investment", fdi:"Business & investment",
-  bond_yield_10y:"Rates & yields", policy_rate:"Rates & yields", fx_usd_change:"Exchange rates"
+  bond_yield_10y:"Rates & yields", policy_rate:"Rates & yields", fx_usd:"Exchange rates", fx_eur:"Exchange rates", fx_gbp:"Exchange rates"
 };
 var CATEGORY_ORDER = ["GDP & growth", "Labour market", "Prices", "Public finances", "Trade", "Business & investment", "Rates & yields", "Exchange rates"];
 // The measure behind a country's inflation series differs by country: "cpi"
@@ -1841,7 +1841,9 @@ var CONCEPT_EXPLAINER = {
   business_confidence: "A survey-based index of business optimism; 100 marks the long-term average.",
   productivity: "How much the economy produces for each hour worked.",
   bond_yield_10y: "The yield on 10-year government bonds, a market gauge of inflation and rate expectations.",
-  fx_usd_change: "How much the currency gained or lost against the US dollar over each calendar year, comparing the year's average rate with the year before. Above zero means it strengthened.",
+  fx_usd: "US dollars per unit of the home currency (per 100 or 1,000 units for small-value currencies). A rise means a stronger home currency.",
+  fx_eur: "Euros per unit of the home currency. A rise means a stronger home currency.",
+  fx_gbp: "Pounds per unit of the home currency. A rise means a stronger home currency.",
   policy_rate: "The central bank's key interest rate."
 };
 var CONCEPT_UNIT = {
@@ -1849,7 +1851,7 @@ var CONCEPT_UNIT = {
   unemployment:"%", employment:"%", inactivity:"%", participation:"%", unemployment_1624:"%",
   debt_gdp:"%", deficit:"%", net_debt:"currency", debt_interest:"currency",
   current_account:"%", fdi:"%", trade_balance:"currency", exports:"currency", imports:"currency",
-  business_confidence:"index", productivity:"index", bond_yield_10y:"%", policy_rate:"%", fx_usd_change:"%"
+  business_confidence:"index", productivity:"index", bond_yield_10y:"%", policy_rate:"%", fx_usd:"fx", fx_eur:"fx", fx_gbp:"fx"
 };
 
 /* ============================== live data layer ============================== */
@@ -1976,8 +1978,11 @@ function loadAllCountryData(){
           if(s && Array.isArray(s.points) && s.points.length) REGISTRY[country][key] = s;
         });
         if(payload.fx_to_usd) FX_RATES[country] = payload.fx_to_usd;
-        var fxChg = fxChangeSeries(payload.fx_to_usd);
-        if(fxChg) REGISTRY[country].fx_usd_change = fxChg;
+        var fxf = fxFileFor(FILES[country]);
+        if(fxf) return fetchWithTimeout(fxf, 12000)
+          .then(function(r){ return r.ok ? r.json() : null; })
+          .catch(function(){ return null; })
+          .then(function(fx){ addFxSeries(REGISTRY[country], fx); });
       })
       .catch(function(err){
         console.warn("Couldn't load data for " + country + ":", err);
@@ -2048,7 +2053,7 @@ function getSeries(country, concept){
       if(concept === "gdp_level" || concept === "gdp_real"){
         pts = resolveGDPPoints(reg, concept, country, raw);
       }
-      return { label: CONCEPT_LABEL[concept], unit: raw.unit || CONCEPT_UNIT[concept], freq: raw.freq, points: pts };
+      return { label: (/^fx_/.test(concept) ? raw.label : CONCEPT_LABEL[concept]), unit: raw.unit || CONCEPT_UNIT[concept], freq: raw.freq, points: pts };
     }
   }
   return null;
@@ -2086,41 +2091,30 @@ function loadSourceMap(){
 }
 var POLICY_RATE_KEYS = ["boe_rate", "fed_funds", "ecb_rate", "boj_rate", "overnight_rate", "rate"];
 
-// Currency change against the US dollar, derived in the browser from the
-// fx_to_usd block each data file already carries (the same series the
-// country page and indicator page chart). One figure per completed calendar
-// year: that year's average rate against the year before, as the % change in
-// the local currency's value, so a rise always means a stronger currency
-// whichever way round the source publishes the pair. Monthly sources are
-// averaged over all twelve month-end rates; annual sources (World Bank
-// official rate) are used as published. Mirrors fx_year_average() and
-// fx_value_change() in generate_indicator_pages.py, which build the ranking.
-function fxChangeSeries(fx){
-  if(!fx || !Array.isArray(fx.history) || !fx.history.length) return null;
-  if(fx.direction !== "multiply" && fx.direction !== "divide") return null;
-  var annual = /^\d{4}$/.test(String(fx.history[fx.history.length - 1][0]));
-  var by = {}, years = {};
-  fx.history.forEach(function(p){ if(p[1] != null && isFinite(p[1])){ by[p[0]] = p[1]; years[String(p[0]).slice(0, 4)] = 1; } });
-  var avg = {};
-  Object.keys(years).forEach(function(y){
-    if(annual){ if(by[y] != null) avg[y] = by[y]; return; }
-    var s = 0;
-    for(var m = 1; m <= 12; m++){
-      var v = by[y + "-" + (m < 10 ? "0" : "") + m];
-      if(v == null) return;
-      s += v;
-    }
-    avg[y] = s / 12;
+// Exchange rates (v1.6.16): read from each country's data-fx-XX.json, which
+// fetch_fx_daily.py builds. Always $, euro or pound per unit of the home
+// currency, so a rising line is a stronger home currency. Stored under
+// fx_usd / fx_eur / fx_gbp by the currency they are quoted in.
+function fxFileFor(dataFile){
+  var m = /^data(?:-([a-z]{2}))?\.json$/.exec(String(dataFile || ""));
+  return m ? "data-fx-" + (m[1] || "uk") + ".json" : null;
+}
+function addFxSeries(reg, fx){
+  if(!reg || !fx || !Array.isArray(fx.pairs)) return;
+  fx.pairs.forEach(function(p){
+    var k = {USD: "fx_usd", EUR: "fx_eur", GBP: "fx_gbp"}[p.quote];
+    if(!k || !Array.isArray(p.points) || p.points.length < 2) return;
+    reg[k] = {label: p.title + " (" + p.quote_symbol + " per " + p.base_unit + ")",
+              unit: p.quote_symbol + " per " + p.base_unit, freq: p.freq, points: p.points,
+              confirmed_at: p.confirmed_at, fx_source: p.source};
   });
-  var pts = Object.keys(avg).sort().filter(function(y){ return avg[String(+y - 1)] != null; }).map(function(y){
-    var now = avg[y], before = avg[String(+y - 1)];
-    var chg = fx.direction === "multiply" ? (now / before - 1) * 100 : (before / now - 1) * 100;
-    return [y, Math.round(chg * 100) / 100];
-  });
-  return pts.length >= 2 ? {label: "Currency change against the US dollar (annual average, year on year)", unit: "%", freq: "years", points: pts} : null;
+}
+function fxFmtValue(v, unit){
+  var parts = String(unit).split(" per "), a = Math.abs(v);
+  var n = a >= 100 ? Math.round(a).toLocaleString("en-GB") : (a >= 1 ? a.toFixed(2) : a.toFixed(4));
+  return (v < 0 ? "\u2212" : "") + parts[0] + n + (parts[1] ? " per " + parts[1] : "");
 }
 var SOURCE_ALT_KEYS = {
-  fx_usd_change: ["fx_usd"],
   policy_rate: POLICY_RATE_KEYS,
   employment: ["employment_rate"],
   participation: ["participation_rate"]
@@ -4067,6 +4061,9 @@ function buildFmtY(){
     }
     if(unit === "index"){
       return function(v){ return (+v.toFixed(1)).toString(); };
+    }
+    if(/ per /.test(unit)){
+      return function(v){ return fxFmtValue(v, unit.split(" per ")[0]); };
     }
     // Currency unit -- the real recorded unit string (e.g. "\u00a3m", "$m"),
     // not a guessed default, so the symbol and scale are always correct

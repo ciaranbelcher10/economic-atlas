@@ -49,7 +49,7 @@ function load(transform) {
         const p = path.join(process.cwd(), f);
         if (!fs.existsSync(p)) return Promise.reject(new Error("no such file " + f));
         let body = JSON.parse(fs.readFileSync(p, "utf8"));
-        if (f === DATA) body = transform(body);
+        if (f === DATA || /^data-fx-[a-z]{2}\.json$/.test(f)) body = transform(body);
         return Promise.resolve({ ok: true, status: 200,
           json: () => Promise.resolve(body), text: () => Promise.resolve(JSON.stringify(body)) });
       };
@@ -67,14 +67,17 @@ const FX_KEYS = ["fx_to_usd", "fx_to_eur", "fx_eur_usd"];
 function stampAll(hoursAgo) {
   return body => {
     const t = new Date(Date.now() - hoursAgo * 3600000).toISOString().slice(0, 16) + "Z";
-    for (const k of Object.keys(body.series)) body.series[k].confirmed_at = t;
+    for (const k of Object.keys(body.series || {})) body.series[k].confirmed_at = t;
     // Exchange-rate blocks sit outside series; stamp_fx.py stamps them.
     for (const k of FX_KEYS) if (body[k] && body[k].history) body[k].confirmed_at = t;
+    // data-fx-XX.json pairs (v1.6.16), stamped by fetch_fx_daily.py.
+    for (const p of body.pairs || []) p.confirmed_at = t;
     return body;
   };
 }
-const unstamped = body => { for (const k of Object.keys(body.series)) delete body.series[k].confirmed_at;
-  for (const k of FX_KEYS) if (body[k]) delete body[k].confirmed_at; return body; };
+const unstamped = body => { for (const k of Object.keys(body.series || {})) delete body.series[k].confirmed_at;
+  for (const k of FX_KEYS) if (body[k]) delete body[k].confirmed_at;
+  for (const p of body.pairs || []) delete p.confirmed_at; return body; };
 
 function lights(dom) {
   return [...dom.window.document.querySelectorAll(".stat")].map(el => {

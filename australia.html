@@ -168,6 +168,7 @@ nav.cat button.active{background:var(--blue); border-color:var(--blue); color:#f
 .hero.mini .figure{font-size:25px;}
 .hero.mini .source{font-size:10.5px;}
 .stat .figure{white-space:nowrap;}
+.stat .figure .fxper{display:block;font-size:.46em;font-weight:500;letter-spacing:0;opacity:.72;margin-top:4px;white-space:nowrap;}
 .stat.link{cursor:pointer; transition:border-color .15s, box-shadow .15s;}
 .stat.link:hover{border-color:var(--blue); box-shadow:0 2px 10px rgba(30,69,102,.10);}
 .newdata{display:flex; align-items:center; gap:10px; flex-wrap:wrap;
@@ -1776,22 +1777,24 @@ if(location.hash &&
   showSec(location.hash.slice(1));
 /* ------------------------------ period utils ----------------------------- */
 function fmtPeriod(p){
+  if(/^\d{4}-\d{2}-\d{2}$/.test(p)) return (+p.slice(8))+" "+MONTHS[+p.slice(5,7)-1]+" "+p.slice(0,4);
   if(/^\d{4}-\d{2}$/.test(p)) return MONTHS[+p.slice(5)-1]+" "+p.slice(0,4);
   if(/^\d{4}-Q\d$/.test(p)) return p.slice(5)+" "+p.slice(0,4);
   return p;
 }
 const year = p => p.slice(0,4);
 function periodEnd(p){
+  if(/^\d{4}-\d{2}-\d{2}$/.test(p)) return new Date(+p.slice(0,4), +p.slice(5,7)-1, +p.slice(8));
   if(/^\d{4}-\d{2}$/.test(p)) return new Date(+p.slice(0,4), +p.slice(5), 0);
   if(/^\d{4}-Q\d$/.test(p)) return new Date(+p.slice(0,4), +p.slice(6)*3, 0);
   return new Date(+p.slice(0,4), 11, 31);
 }
-const STALE_DAYS={months:75, quarters:150, years:660};
+const STALE_DAYS={days:10, months:75, quarters:150, years:660};
 /* How far past STALE_DAYS a series must fall before the freshness tooltip
    stops saying "Awaiting next release" and admits the source series has
    stalled. Annual series need a tighter multiple: at 3x, an annual figure
    almost 5.5 years old still claimed to be awaiting its next release. */
-const STALE_MULT={months:3, quarters:3, years:1.25};
+const STALE_MULT={days:3, months:3, quarters:3, years:1.25};
 /* A series stamped confirmed_at has been checked against its source and
    matched its latest release; the light reports that, not the age of the
    data. An annual figure for 2023 is green if 2023 is still the latest the
@@ -2080,7 +2083,7 @@ function statTile(el, key, title, series, opts){
   // added in priority order, so anything past the tenth is dropped.
   if(el && el.id === "hero" && el.querySelectorAll(":scope > .stat").length >= 10) return;
   const pts=series.points, last=pts[pts.length-1], prev=pts[pts.length-2];
-  const d=+(last[1]-prev[1]).toFixed(2);
+  const d=+(last[1]-prev[1]).toFixed(opts.dDp!=null?opts.dDp:2);
   const dir=d===0?"flat":((d>0)===opts.upIsGood?"good":"bad");
   const arrow=d===0?"▬":(d>0?"▲":"▼");
   const led=freshness(series);
@@ -2128,13 +2131,13 @@ function statTile(el, key, title, series, opts){
       <p class="figure"><span class="led ${led}" title="${ledTitle}" role="img"
         aria-label="${ledTitle}"></span>${opts.fmt(last[1])}</p>
       <p class="delta ${dir}"><span class="arrow" aria-hidden="true">${arrow}</span>
-        ${d>0?"+":""}${opts.fmtD(d)} vs prior</p>
+        ${d>0?"+":""}${opts.fmtD(d)} ${opts.vsText||"vs prior"}</p>
       <p class="period">${fmtPeriod(last[0])}</p>
       <p class="source">${opts.source}</p>`;
   el.appendChild(div);
 }
 // Every metric with its own /indicators/ page for this country (v1.6.1: all of them, not just four).
-const INDICATOR_PAGE_SLUGS = {gdp_level:"gdp", gdp_real:"real-gdp", gdp_growth:"gdp-growth-rate", cpi:"inflation-rate", cpi_qoq:"inflation-rate-qoq", unemployment:"unemployment-rate", bond_yield_10y:"10-year-government-bond-yield", trade_balance:"balance-of-trade", current_account:"current-account-to-gdp", fdi:"foreign-direct-investment", debt_gdp:"government-debt", deficit:"government-budget", business_confidence:"business-confidence", fx_audusd:"exchange-rate"};
+const INDICATOR_PAGE_SLUGS = {gdp_level:"gdp", gdp_real:"real-gdp", gdp_growth:"gdp-growth-rate", cpi:"inflation-rate", cpi_qoq:"inflation-rate-qoq", unemployment:"unemployment-rate", bond_yield_10y:"10-year-government-bond-yield", trade_balance:"balance-of-trade", current_account:"current-account-to-gdp", fdi:"foreign-direct-investment", debt_gdp:"government-debt", deficit:"government-budget", business_confidence:"business-confidence", fx_aud_usd:"exchange-rate"};
 // Keeps only the bases this country actually serves, so the selector never
 // offers something the source cannot support and never appears at all when
 // there is only one basis. Order is preserved: the first survivor is default.
@@ -2233,7 +2236,7 @@ const _KEY_NAMES={cpi_mom:"Inflation (m/m)",cpi_qoq:"Inflation (q/q)",cpi_mom_sa
   bond_yield_10y:"10-year bond yield",fed_funds_upper:"Fed funds rate (upper)",fed_funds_lower:"Fed funds rate (lower)"};
 function _nameOf(k){
   if(_KEY_NAMES[k]) return _KEY_NAMES[k];
-  const fx=/^fx_([a-z]{3})([a-z]{3})$/.exec(k);
+  const fx=/^fx_([a-z]{3})_?([a-z]{3})$/.exec(k);
   if(fx) return fx[1].toUpperCase()+"/"+fx[2].toUpperCase();
   const t=String(k).replace(/_/g," ").trim();
   return t.charAt(0).toUpperCase()+t.slice(1);
@@ -2280,6 +2283,35 @@ function renderLastUpdated(updatedIso){
   const hh=String(dt.getUTCHours()).padStart(2,"0");
   const mi=String(dt.getUTCMinutes()).padStart(2,"0");
   el.textContent=`Data last refreshed: ${dd} ${mo} ${yy}, ${hh}:${mi} UTC`;
+}
+/* ------------------------- exchange rates (v1.6.16) ------------------------
+   data-fx-XX.json, built hourly by fetch_fx_daily.py: every rate is $, euro or
+   pound per unit of this country's currency, so a rise is always a stronger
+   home currency. Tiles show the newest trading day (Fed H.10 is published
+   weekly, so that can be a few days back); charts show month-end history. */
+let FX_DATA=null;
+function fxNum(v){
+  const a=Math.abs(v);
+  return a>=100 ? Math.round(a).toLocaleString("en-GB") : (a>=1 ? a.toFixed(2) : a.toFixed(4));
+}
+function fxDp(v){ const a=Math.abs(v); return a>=100 ? 0 : (a>=1 ? 2 : 4); }
+function renderFxMarkets(tm){
+  if(!FX_DATA || !Array.isArray(FX_DATA.pairs)) return;
+  FX_DATA.pairs.forEach(p=>{
+    if(!p || !Array.isArray(p.points) || p.points.length<2) return;
+    const q=p.quote_symbol, b=p.base_unit;
+    chartPanel(p.key,"charts-markets",p.title,p.description,
+      {points:p.points,unit:"",freq:p.freq},"line",v=>q+fxNum(v),v=>q+fxNum(v)+" per "+b,p.source);
+    const daily=Array.isArray(p.daily) && p.daily.length>=2;
+    const ts=daily ? {points:p.daily,freq:"days",confirmed_at:p.confirmed_at}
+                   : {points:p.points,freq:p.freq,confirmed_at:p.confirmed_at};
+    const dp=fxDp(ts.points[ts.points.length-1][1]);
+    statTile(tm,p.key,p.title,ts,
+      {fmt:v=>q+fxNum(v)+'<span class="fxper">per '+b+'</span>',
+       fmtD:v=>(v<0?"\u2212":"")+q+Math.abs(v).toFixed(dp),dDp:dp,
+       upIsGood:true,source:p.source_short,
+       vsText:daily?"vs previous trading day":(p.freq==="years"?"vs previous year":"vs prior")});
+  });
 }
 function render(data){
   const s=data.series;
@@ -2398,16 +2430,10 @@ function render(data){
     {fmt:pct,fmtD:pp,upIsGood:false,source:SRC_FISCAL});
   if(s.deficit) statTile(tp,"deficit","Balance (% of GDP)",s.deficit,
     {fmt:pct,fmtD:pp,upIsGood:true,source:SRC_FISCAL});
-  if(data.fx_to_usd && data.fx_to_usd.history) chartPanel("fx_audusd","charts-markets","AUD/USD exchange rate",
-    "How many US dollars one Australian dollar buys. A rising number means a stronger Australian dollar.",
-    {points:data.fx_to_usd.history,unit:"",freq:"months"},"line",v=>"$"+v.toFixed(2),v=>"$"+v.toFixed(2)+" per A$1",
-    "Federal Reserve H.10 (FRED series DEXUSAL) \u00b7 end-of-month rate");
   const tm=document.getElementById("tiles-markets");
   if(s.bond_yield_10y) statTile(tm,"bond_yield_10y","10-year bond yield",s.bond_yield_10y,
     {fmt:v=>v.toFixed(2)+"%",fmtD:v=>v.toFixed(2)+"pp",upIsGood:false,source:SRC_BOND});
-  if(data.fx_to_usd && data.fx_to_usd.history) statTile(tm,"fx_audusd","AUD/USD",
-    {points:data.fx_to_usd.history,freq:"months",confirmed_at:data.fx_to_usd.confirmed_at},
-    {fmt:v=>"$"+v.toFixed(2)+" per A$1",fmtD:v=>"$"+v.toFixed(4),upIsGood:true,source:"Fed H.10 \u00b7 DEXUSAL"});
+  renderFxMarkets(document.getElementById("tiles-markets"));
   renderNewDataBanner(data.new_points_meta);
   renderLastUpdated(data.updated);
 }
@@ -2849,9 +2875,11 @@ function applyToggleHighlighting(){
     if(dollarOn && dollarBtn) dollarBtn.classList.add("fx-dollar");
   }
 }
+const FX_FETCH=fetch("data-fx-au.json",{cache: "no-cache"})
+  .then(r=>r.ok ? r.json() : null).catch(()=>null);
 fetch("data-au.json",{cache: "no-cache"})
   .then(r=>{ if(!r.ok) throw new Error(r.status); return r.json(); })
-  .then(d=>{ PAGE_DATA=d; rerender(); })
+  .then(d=>FX_FETCH.then(fx=>{ FX_DATA=fx; PAGE_DATA=d; rerender(); }))
   .catch(()=>{ PAGE_DATA=sampleData(); rerender(); });
 </script>
 <script>
