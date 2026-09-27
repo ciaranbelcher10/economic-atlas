@@ -16,11 +16,18 @@ Only official sources that publish a free daily series and allow reuse:
           British Government Securities, daily. Used with the Bank's
           permission (its database terms otherwise exclude commercial use).
 
-Deliberately NOT here (v1.6.17):
-  Euro area The ECB publishes its 10-year benchmark only monthly; the daily
-            benchmark data are licensed and not redistributed. The daily ECB
-            yield-curve par yield is a different, model-based measure, so
-            putting it on the same tile would mix two definitions.
+  Euro area (v1.6.20) ECB yield curve, YC.B.U2.EUR.4F.G_N_C.SV_C_YM.PY_10Y:
+          10-year par yield fitted to all euro-area central government bonds,
+          daily. A model-based measure, NOT the ECB 10-year benchmark the
+          monthly chart shows, so it gets its own key (bond_par_10y) and its
+          own tile, labelled as such, and never replaces the benchmark.
+
+Long-term yields, monthly (v1.6.20), for the four countries with no OECD
+10-year series: Indonesia, Morocco, Singapore, Thailand. IMF Monetary and
+Financial Statistics (MFS_IR dataflow, sovereign bond yield
+S13BOND_RT_PT_A_PT), as each central bank reports it. The maturity follows
+the national definition and is not guaranteed to be 10 years, so these are
+stored as bond_yield_lt and kept out of the 10-year rankings and Compare.
 
 The tile is the only thing this feeds. Charts, Compare, rankings and
 indicator pages keep the harmonised monthly series (OECD, and the ECB for the
@@ -152,6 +159,58 @@ def fetch_uk():
     return _check(sorted(pts), sid)
 
 
+def fetch_ez_par():
+    url = ("https://data-api.ecb.europa.eu/service/data/YC/"
+           f"B.U2.EUR.4F.G_N_C.SV_C_YM.PY_10Y?format=csvdata&startPeriod={_cutoff()}")
+    r = requests.get(url, timeout=60, headers=dict(UA, Accept="text/csv"))
+    r.raise_for_status()
+    pts = []
+    for row in csv.DictReader(io.StringIO(r.content.decode("utf-8-sig", "replace"))):
+        d, v = (row.get("TIME_PERIOD") or "").strip(), (row.get("OBS_VALUE") or "").strip()
+        if re.fullmatch(r"\d{4}-\d{2}-\d{2}", d) and v not in ("", "NaN"):
+            pts.append([d, round(float(v), 3)])
+    return _check(sorted(pts), "ECB YC PY_10Y")
+
+
+def fetch_imf_bond(iso3):
+    """Monthly sovereign bond yield from IMF MFS_IR (the pipeline already
+    reaches api.imf.org for Morocco's CPI). Rejects a dead series."""
+    url = ("https://api.imf.org/external/sdmx/3.0/data/dataflow/IMF.STA/MFS_IR/~/"
+           f"{iso3}.S13BOND_RT_PT_A_PT.M?c[TIME_PERIOD]=ge:1990-M01")
+    r = requests.get(url, timeout=60, headers=dict(UA, Accept="text/csv"))
+    print(f"  [imf-bond] {iso3} status={r.status_code}")
+    r.raise_for_status()
+    pts = []
+    for row in csv.DictReader(io.StringIO(r.text)):
+        per = (row.get("TIME_PERIOD") or "").strip().replace("-M", "-")
+        v = (row.get("OBS_VALUE") or "").strip()
+        if re.fullmatch(r"\d{4}-\d{2}", per) and v:
+            try:
+                pts.append([per, round(float(v), 3)])
+            except ValueError:
+                pass
+    pts = sorted(pts)
+    if len(pts) < 24:
+        raise ValueError(f"IMF MFS_IR {iso3}: only {len(pts)} monthly observations")
+    last = datetime.strptime(pts[-1][0] + "-01", "%Y-%m-%d").date()
+    if (date.today() - last).days > 400:
+        raise ValueError(f"IMF MFS_IR {iso3}: series ends {pts[-1][0]}, too old to show as current")
+    bad = [p for p in pts if not (-2 < p[1] < 40)]
+    if bad:
+        raise ValueError(f"IMF MFS_IR {iso3}: implausible yield {bad[0]}")
+    return pts
+
+
+_LT_DESC = ("{c} central bank's long-term government bond yield as reported to the IMF (Monetary and Financial "
+            "Statistics, sovereign bond yield, monthly). The maturity follows the national definition and is not "
+            "necessarily 10 years, so it is not included in the 10-year rankings or in Compare.")
+
+LONG_TERM = {
+    "Indonesia": ("id", "IDN"), "Morocco": ("ma", "MAR"),
+    "Singapore": ("sg", "SGP"), "Thailand": ("th", "THA"),
+}
+
+
 SOURCES = {
     "UK": ("uk", "10-year gilt yield", fetch_uk,
            "Bank of England, 10-year nominal par yield on British Government Securities, daily (series IUDMNPY). Used with the Bank's permission.",
@@ -168,10 +227,26 @@ SOURCES = {
 }
 
 
+def _jobs():
+    for country, (suffix, title, fn, source, short) in SOURCES.items():
+        yield country, suffix, "bond_yield_10y", "days", title, fn, source, short, None
+    yield ("Eurozone", "ez", "bond_par_10y", "days", "10-year par yield (daily)", fetch_ez_par,
+           "ECB yield curve, 10-year par yield fitted to all euro-area central government bonds, daily "
+           "(series YC.B.U2.EUR.4F.G_N_C.SV_C_YM.PY_10Y). A model-based measure, not the ECB 10-year benchmark "
+           "shown in the chart, which is published only monthly.",
+           "ECB yield curve \u00b7 PY_10Y, daily", None)
+    for country, (suffix, iso3) in LONG_TERM.items():
+        yield (country, suffix, "bond_yield_lt", "months", "Long-term bond yield",
+               (lambda i=iso3: fetch_imf_bond(i)),
+               f"IMF Monetary and Financial Statistics (MFS_IR), sovereign bond yield {iso3}.S13BOND_RT_PT_A_PT.M, monthly, as reported by the central bank.",
+               "IMF MFS \u00b7 sovereign bond yield, monthly", _LT_DESC.format(c=country + "'s"))
+
+
 def main(base_dir="."):
     now = datetime.now(timezone.utc).strftime("%Y-%m-%dT%H:%MZ")
     failures = 0
-    for country, (suffix, title, fn, source, short) in SOURCES.items():
+    jobs = list(_jobs())
+    for country, suffix, key, freq, title, fn, source, short, desc in jobs:
         path = os.path.join(base_dir, f"data-bond-{suffix}.json")
         try:
             pts = fn()
@@ -188,10 +263,11 @@ def main(base_dir="."):
         except Exception:
             pass
         with open(path, "w") as f:
-            json.dump({"country": country, "key": "bond_yield_10y", "title": title, "points": pts,
-                       "source": source, "source_short": short, "confirmed_at": now}, f, separators=(",", ":"))
-        print(f"  ok  {country:<7} {pts[-1][1]}% on {pts[-1][0]} ({len(pts)} trading days)")
-    return 1 if failures == len(SOURCES) else 0
+            json.dump({"country": country, "key": key, "freq": freq, "title": title, "points": pts,
+                       "description": desc, "source": source, "source_short": short, "confirmed_at": now},
+                      f, separators=(",", ":"))
+        print(f"  ok  {country:<9} {key:<14} {pts[-1][1]}% at {pts[-1][0]} ({len(pts)} observations)")
+    return 1 if failures == len(jobs) else 0
 
 
 if __name__ == "__main__":

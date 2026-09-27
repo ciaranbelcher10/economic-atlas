@@ -2284,6 +2284,7 @@ function renderLastUpdated(updatedIso){
    home currency. Tiles show the newest trading day (Fed H.10 is published
    weekly, so that can be a few days back); charts show month-end history. */
 let FX_DATA=null;
+let BOND_DAILY=null;   // data-bond-XX.json
 function fxNum(v){
   const a=Math.abs(v);
   if(a===0) return "0";
@@ -2309,6 +2310,28 @@ function renderFxMarkets(tm){
        upIsGood:true,signed:true,source:p.source_short,
        vsText:daily?"vs prior day":(p.freq==="years"?"vs prior year":"vs prior month")});
   });
+}
+/* Extra bond measures from data-bond-XX.json (v1.6.20): a long-term yield
+   where no OECD 10-year series exists (IMF, monthly), or the euro area's
+   daily ECB par yield. Each has its own key, title and source, so it is
+   never mistaken for the harmonised 10-year series the rankings compare. */
+function renderBondExtra(tm){
+  const b=BOND_DAILY;
+  if(!b || b.key==="bond_yield_10y" || !Array.isArray(b.points) || b.points.length<2) return;
+  const daily=b.freq==="days";
+  if(!daily) chartPanel(b.key,"charts-markets",b.title,b.description||"",
+    {points:b.points,unit:"%",freq:b.freq},"line",v=>v.toFixed(1)+"%",v=>v.toFixed(2)+"%",b.source);
+  statTile(tm,b.key,b.title,{points:b.points,freq:b.freq,confirmed_at:b.confirmed_at},
+    {fmt:v=>v.toFixed(2)+"%",fmtD:v=>(v<0?"\u2212":"")+Math.abs(v).toFixed(2)+"pp",upIsGood:false,
+     source:b.source_short,vsText:daily?"vs prior day":"vs prior month"});
+  const sec=document.getElementById("sec-markets");
+  if(sec){
+    sec.querySelectorAll(".secnote").forEach(n=>{ if(/not yet found a free official source/.test(n.textContent)) n.hidden=true; });
+    if(daily && b.source && !sec.querySelector(".bond-extra-note")){
+      const p=document.createElement("p"); p.className="secnote bond-extra-note"; p.textContent=b.source;
+      const g=document.getElementById("charts-markets"); if(g) g.after(p);
+    }
+  }
 }
 function render(data){
   const s=data.series;
@@ -2411,6 +2434,7 @@ function render(data){
   if(s.debt_gdp) statTile(tp,"debt_gdp","Gov. debt (% of GDP)",s.debt_gdp,
     {fmt:pct,fmtD:pp,upIsGood:false,source:SRC_FISCAL});
   const tm=document.getElementById("tiles-markets");
+  renderBondExtra(document.getElementById("tiles-markets"));
   renderFxMarkets(document.getElementById("tiles-markets"));
   renderNewDataBanner(data.new_points_meta);
   renderLastUpdated(data.updated);
@@ -2850,9 +2874,11 @@ function applyToggleHighlighting(){
 }
 const FX_FETCH=fetch("data-fx-th.json",{cache: "no-cache"})
   .then(r=>r.ok ? r.json() : null).catch(()=>null);
+const BOND_FETCH=fetch("data-bond-th.json",{cache: "no-cache"})
+  .then(r=>r.ok ? r.json() : null).catch(()=>null);
 fetch("data-th.json",{cache: "no-cache"})
   .then(r=>{ if(!r.ok) throw new Error(r.status); return r.json(); })
-  .then(d=>FX_FETCH.then(fx=>{ FX_DATA=fx; PAGE_DATA=d; rerender(); }))
+  .then(d=>Promise.all([FX_FETCH,BOND_FETCH]).then(([fx,bd])=>{ FX_DATA=fx; BOND_DAILY=bd; PAGE_DATA=d; rerender(); }))
   .catch(()=>{ PAGE_DATA=sampleData(); rerender(); });
 </script>
 <script>
