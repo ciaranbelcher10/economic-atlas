@@ -205,6 +205,47 @@ _LT_DESC = ("{c} central bank's long-term government bond yield as reported to t
             "Statistics, sovereign bond yield, monthly). The maturity follows the national definition and is not "
             "necessarily 10 years, so it is not included in the 10-year rankings or in Compare.")
 
+def fetch_oecd_irlt(iso3):
+    """OECD long-term interest rate (IRLT, the 10-year government bond
+    yield the OECD publishes for members and some partner economies), from
+    the Short-Term Economic Statistics financial-market dataflow. Monthly
+    where published, quarterly otherwise. Same concept as the OECD series
+    every other country page uses, but read directly from OECD rather than
+    FRED because FRED carries no mirror for these economies."""
+    url = ("https://sdmx.oecd.org/public/rest/data/OECD.SDD.STES,DSD_STES@DF_FINMARK/"
+           f"{iso3}..IRLT......?format=csvfile&startPeriod=1990")
+    r = requests.get(url, timeout=60, headers=dict(UA, Accept="text/csv"))
+    print(f"  [oecd-irlt] {iso3} status={r.status_code}")
+    r.raise_for_status()
+    by_freq = {"M": [], "Q": []}
+    for row in csv.DictReader(io.StringIO(r.text)):
+        f = (row.get("FREQ") or "").strip()
+        per = (row.get("TIME_PERIOD") or "").strip()
+        v = (row.get("OBS_VALUE") or "").strip()
+        if f not in by_freq or not v:
+            continue
+        if not (re.fullmatch(r"\d{4}-\d{2}", per) or re.fullmatch(r"\d{4}-Q[1-4]", per)):
+            continue
+        try:
+            by_freq[f].append([per, round(float(v), 3)])
+        except ValueError:
+            pass
+    freq, pts = ("months", sorted(by_freq["M"])) if len(by_freq["M"]) >= 24 else ("quarters", sorted(by_freq["Q"]))
+    if len(pts) < 8:
+        raise ValueError(f"OECD IRLT {iso3}: only {len(pts)} observations")
+    last = pts[-1][0]
+    y, rest = int(last[:4]), last[5:]
+    m = (int(rest[1]) * 3) if rest.startswith("Q") else int(rest)
+    if (date.today() - date(y, m, 1)).days > 400:
+        raise ValueError(f"OECD IRLT {iso3}: series ends {last}, too old to show as current")
+    bad = [p for p in pts if not (-2 < p[1] < 40)]
+    if bad:
+        raise ValueError(f"OECD IRLT {iso3}: implausible yield {bad[0]}")
+    return freq, pts
+
+
+OECD_IRLT = {"Indonesia": ("id", "IDN"), "Singapore": ("sg", "SGP")}
+
 LONG_TERM = {
     "Indonesia": ("id", "IDN"), "Morocco": ("ma", "MAR"),
     "Singapore": ("sg", "SGP"), "Thailand": ("th", "THA"),
@@ -235,7 +276,16 @@ def _jobs():
            "(series YC.B.U2.EUR.4F.G_N_C.SV_C_YM.PY_10Y). A model-based measure, not the ECB 10-year benchmark "
            "shown in the chart, which is published only monthly.",
            "ECB yield curve \u00b7 PY_10Y, daily", None)
+    for country, (suffix, iso3) in OECD_IRLT.items():
+        yield (country, suffix, "bond_yield_lt", "months", "10-year bond yield (OECD)",
+               (lambda i=iso3: fetch_oecd_irlt(i)),
+               f"OECD Short-Term Economic Statistics, long-term interest rate (IRLT), {iso3}: the 10-year government bond yield as reported to the OECD.",
+               "OECD \u00b7 IRLT, long-term interest rate",
+               f"The yield on {country}'s 10-year government bonds as reported to the OECD. {country} is not an OECD member, so this "
+               "comes from the OECD's partner-economy data rather than the harmonised series the 10-year rankings use, and is kept out of them.")
     for country, (suffix, iso3) in LONG_TERM.items():
+        if country in OECD_IRLT:
+            continue
         yield (country, suffix, "bond_yield_lt", "months", "Long-term bond yield",
                (lambda i=iso3: fetch_imf_bond(i)),
                f"IMF Monetary and Financial Statistics (MFS_IR), sovereign bond yield {iso3}.S13BOND_RT_PT_A_PT.M, monthly, as reported by the central bank.",
@@ -250,6 +300,8 @@ def main(base_dir="."):
         path = os.path.join(base_dir, f"data-bond-{suffix}.json")
         try:
             pts = fn()
+            if isinstance(pts, tuple):
+                freq, pts = pts
         except Exception as exc:
             failures += 1
             print(f"FAIL  {country}: {exc} (previous file, if any, kept with its old stamp)")
