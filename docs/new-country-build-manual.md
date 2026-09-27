@@ -304,7 +304,12 @@ both registered in the page's own `SEC_OF` and `CONTAINER_IDS`.
    existing page) and call `renderFxMarkets(document.getElementById("tiles-markets"))`
    before `renderNewDataBanner`. Add `fx_<home>_usd:"exchange-rate"` to
    `INDICATOR_PAGE_SLUGS` unless the country uses the euro or is the US.
-3. **Bond yield** tile and chart live in Markets, not Prices. If no free
+3. **Bond yield** tile and chart live in Markets, not Prices. Since v1.6.17 the tile can show the latest trading day from
+   `data-bond-<suffix>.json` (`fetch_bonds_daily.py`: UK, US, Canada, Japan),
+   while the chart, Compare and rankings stay on the harmonised monthly series.
+   Only add a country there if its official daily source is free AND its terms
+   allow commercial reuse, or you hold permission (the UK's Bank of England
+   feed is used with the Bank's permission). If no free
    official source exists, say so in a `secnote` rather than leaving a gap.
 4. **Nothing else to wire for FX.** `generate_indicator_pages.py` builds the
    exchange-rate page and the currency-change ranking from `fx_to_usd`
