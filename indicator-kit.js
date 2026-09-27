@@ -75,6 +75,7 @@
       // Exchange rate as published: "C$1.4008 per US$1". Mirrors fmt_num().
       var parts = cleanUnit(o.unit).split(" per "), quote = parts[0], base = parts.slice(1).join(" per ");
       var fdp = mode === "delta" ? (a >= 1000 ? 0 : (a >= 1 ? 2 : 4)) : fxDp(a);
+      if(a === 0) fdp = 0;   // "$0" on an axis, not "$0.0000"
       var num = a.toFixed(fdp).replace(/^\d+/, function(n){ return n.replace(/\B(?=(\d{3})+(?!\d))/g, ","); });
       if(mode === "axis") return quote + trim(num);
       if(mode === "delta") return sign + quote + num;
@@ -264,7 +265,9 @@
         var dir = flat ? "flat" : ((d > 0) === cfg.upIsGood ? "good" : "bad");
         dEl.className = "ind-delta " + dir;
         dEl.innerHTML = '<span aria-hidden="true">' + (flat ? "\u25AC" : (d > 0 ? "\u25B2" : "\u25BC")) + '</span> '
-          + (flat ? "No change" : fmtNum(d, fo(c.unit, c.dollarised, "delta"))) + ' <span class="ind-delta-vs">vs ' + fmtPeriod(prev[0]) + '</span>';
+          + (flat ? "No change" : (unitKind(c.unit) === "fx" && prev[1]
+              ? (function(pc){ return (pc < 0 ? "\u2212" : "+") + Math.abs(pc).toFixed(2) + "%"; })((last[1] - prev[1]) / prev[1] * 100)
+              : fmtNum(d, fo(c.unit, c.dollarised, "delta")))) + ' <span class="ind-delta-vs">vs ' + fmtPeriod(prev[0]) + '</span>';
       }
       var per = document.getElementById("indPeriod");
       if(per) per.textContent = fmtPeriod(last[0]);

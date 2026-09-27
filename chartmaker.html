@@ -1809,6 +1809,9 @@ function defaultInflationKey(country){
 }
 function conceptLabelFor(country, concept){
   var base = CONCEPT_LABEL[concept] || concept;
+  // Exchange rates: name the actual unit ("Argentine peso in US dollars ($ per
+  // ARS 1,000)") so two countries on one chart can't be misread as comparable.
+  if(/^fx_/.test(concept) && REGISTRY[country] && REGISTRY[country][concept]) return REGISTRY[country][concept].label;
   if(concept !== "cpi" && concept !== "cpi_mom" && concept !== "core_cpi") return base;
   var m = measureName(country, concept);
   if(!m) return base;
@@ -2111,7 +2114,7 @@ function addFxSeries(reg, fx){
 }
 function fxFmtValue(v, unit){
   var parts = String(unit).split(" per "), a = Math.abs(v);
-  var n = a >= 100 ? Math.round(a).toLocaleString("en-GB") : (a >= 1 ? a.toFixed(2) : a.toFixed(4));
+  var n = a === 0 ? "0" : a >= 100 ? Math.round(a).toLocaleString("en-GB") : (a >= 1 ? a.toFixed(2) : a.toFixed(4));
   return (v < 0 ? "\u2212" : "") + parts[0] + n + (parts[1] ? " per " + parts[1] : "");
 }
 var SOURCE_ALT_KEYS = {

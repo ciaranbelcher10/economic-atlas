@@ -422,6 +422,8 @@ def fmt_num(v, unit, key="", country="", mode="value", dollarised=False):
     if kind == "fx":
         quote, base = _clean_unit(unit).split(" per ", 1)
         dp = fx_dp(a) if mode != "delta" else (0 if a >= 1000 else (2 if a >= 1 else 4))
+        if a == 0:
+            dp = 0                                   # "$0" on an axis, not "$0.0000"
         num = re.sub(r"^(\d+)", lambda g: f"{int(g.group(1)):,}", _fixed(a, dp))  # JS toFixed rounding
         if mode == "axis":
             return quote + _trim(num)
@@ -1391,6 +1393,10 @@ def render_indicator(country, info, entry, rank_info, all_rankings_meta, n_indic
     ddir = "flat" if flat else ("good" if (d > 0) == entry["up"] else "bad")
     arrow = "\u25AC" if flat else ("\u25B2" if d > 0 else "\u25BC")
     dstr = "No change" if flat else fmt_num(d, unit, key, country, "delta")
+    if unit_kind(unit) == "fx" and not flat and prev_v:
+        # Exchange rates: the change as a %, the same way every tile shows it.
+        pc = (latest_v - prev_v) / prev_v * 100
+        dstr = ("\u2212" if pc < 0 else "+") + _fixed(abs(pc), 2) + "%"
     fresh = is_fresh(latest_p, freq)
     led_title = f"Latest release: {fmt_period_label(latest_p)}" if fresh else f"Awaiting next release. Last data: {fmt_period_label(latest_p)}"
     updated = (info["data"].get("updated") or "")[:10]
@@ -1588,12 +1594,14 @@ def render_ranking(ranking, rows, unranked, all_rankings_meta, catalogue_by_coun
     if m["slug"] == "gdp":
         metric_word = "GDP"
     compare_concept = RANKING_CONCEPT_OVERRIDE.get(ranking["metric"], m["keys"][0])
-    cta = glow_cta(f"../compare?countries=all&metric={compare_concept}", f"Compare {metric_word} over time in Compare",
+    cta_text = ("Compare currency changes against the US dollar over time" if ranking.get("fx_change")
+                else f"Compare {metric_word} over time")
+    cta = glow_cta(f"../compare?countries=all&metric={compare_concept}", f"{cta_text} in Compare",
                    "Pick any countries and any years, then chart, map and rank them side by side, same period for every country.")
     chg_head = "1-year change (nominal)" if usd else "Change"
     Y = flow_year()
     if ranking.get("fx_change"):
-        chg_head = f"Change vs {Y - 1} move"
+        chg_head = f"vs {Y - 1}'s change"
         head_txt = f"{len(rows)} currencies, {Y}"
         note_txt = (f"Every figure is {Y}'s average rate against {Y - 1}'s, the last two completed years, so every currency "
                     "is measured over the same period. Change shows how much faster or slower the move was than the year before, "
