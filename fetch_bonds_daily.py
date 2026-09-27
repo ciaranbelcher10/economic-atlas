@@ -244,7 +244,55 @@ def fetch_oecd_irlt(iso3):
     return freq, pts
 
 
-OECD_IRLT = {"Indonesia": ("id", "IDN"), "Singapore": ("sg", "SGP")}
+OECD_IRLT = {"Indonesia": ("id", "IDN")}
+
+
+_MONTHS = {m: i for i, m in enumerate(
+    ["jan", "feb", "mar", "apr", "may", "jun", "jul", "aug", "sep", "oct", "nov", "dec"], 1)}
+
+
+def fetch_singstat_sgs10():
+    """Singapore 10-year government bond yield, monthly, from the Department
+    of Statistics' open TableBuilder API (table M700071, "Interest Rates",
+    no key). The table defines it as the end-of-month rate: the average of
+    closing bid rates quoted by SGS primary dealers (MAS data)."""
+    url = "https://tablebuilder.singstat.gov.sg/api/table/tabledata/M700071?limit=5000"
+    r = requests.get(url, timeout=60, headers=dict(UA, Accept="application/json"))
+    print(f"  [singstat] M700071 status={r.status_code}")
+    r.raise_for_status()
+    body = r.json()
+
+    def rows(node):
+        if isinstance(node, dict):
+            if "rowText" in node and "columns" in node:
+                yield node
+            for v in node.values():
+                yield from rows(v)
+        elif isinstance(node, list):
+            for v in node:
+                yield from rows(v)
+
+    match = [row for row in rows(body) if "10-year bond yield" in str(row.get("rowText", "")).lower()]
+    if not match:
+        top = list(body)[:5] if isinstance(body, dict) else type(body).__name__
+        raise ValueError(f"SingStat M700071: no '10-Year Bond Yield' row (top-level keys {top})")
+    pts = []
+    for c in match[0]["columns"]:
+        k, v = str(c.get("key", "")).strip(), str(c.get("value", "")).strip()
+        m = re.fullmatch(r"(\d{4})\s+([A-Za-z]{3})", k)
+        if not m or v in ("", "na", "-"):
+            continue
+        try:
+            pts.append([f"{m[1]}-{_MONTHS[m[2].lower()]:02d}", round(float(v), 3)])
+        except (ValueError, KeyError):
+            continue
+    pts.sort()
+    if len(pts) < 24:
+        raise ValueError(f"SingStat M700071: only {len(pts)} monthly observations")
+    y, mo = map(int, pts[-1][0].split("-"))
+    if (date.today() - date(y, mo, 1)).days > 400:
+        raise ValueError(f"SingStat M700071: series ends {pts[-1][0]}, too old to show as current")
+    return pts
 
 LONG_TERM = {
     "Indonesia": ("id", "IDN"), "Morocco": ("ma", "MAR"),
@@ -283,8 +331,16 @@ def _jobs():
                "OECD \u00b7 IRLT, long-term interest rate",
                f"The yield on {country}'s 10-year government bonds as reported to the OECD. {country} is not an OECD member, so this "
                "comes from the OECD's partner-economy data rather than the harmonised series the 10-year rankings use, and is kept out of them.")
+    yield ("Singapore", "sg", "bond_yield_lt", "months", "10-year bond yield", fetch_singstat_sgs10,
+           "Singapore Department of Statistics, TableBuilder table M700071 (Interest Rates, monthly): "
+           "Government Securities 10-Year Bond Yield, end of month, the average of closing bid rates quoted by "
+           "SGS primary dealers (Monetary Authority of Singapore data).",
+           "SingStat \u00b7 M700071, end of month",
+           "The yield on Singapore's 10-year government bonds at the end of each month. Singapore is not an OECD "
+           "member, so this comes from its own statistics office rather than the harmonised OECD series the "
+           "10-year rankings use, and is kept out of them.")
     for country, (suffix, iso3) in LONG_TERM.items():
-        if country in OECD_IRLT:
+        if country in OECD_IRLT or country == "Singapore":
             continue
         yield (country, suffix, "bond_yield_lt", "months", "Long-term bond yield",
                (lambda i=iso3: fetch_imf_bond(i)),
