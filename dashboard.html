@@ -4105,13 +4105,15 @@ var REAL_AFFECTED_KEYS = ["gdp_level"];
 // MXN, ZAR, BRL) -- their gdp_level/gdp_real are genuinely local-currency
 // (IMF IFS national-currency series) and need converting like any other
 // country's. But other $-prefixed series on these same countries --
-// trade_balance, from OECD's "667S" family -- really is USD-denominated
-// regardless of the country's own currency, and still needs the normal
-// already-USD protection below. So this only applies to the two concepts
-// it's known to be correct for.
+// trade_balance, exports and imports -- start as OECD "667S" USD series
+// but are converted to the local currency, at each period's own rate, by
+// the fetch script before they are served, while keeping the bare $ unit.
+// So they are local-currency too. Other $-prefixed concepts keep the
+// already-USD protection below.
 var DOLLAR_GLYPH_LOCAL_CURRENCY_COUNTRIES = {Australia:1, Canada:1, Mexico:1, "South Africa":1, Brazil:1};
 function isAlreadyUSD(unit, country, key){
-  if((key === "gdp_level" || key === "gdp_real") &&
+  if((key === "gdp_level" || key === "gdp_real" || key === "trade_balance" ||
+      key === "exports" || key === "imports") &&
      country && DOLLAR_GLYPH_LOCAL_CURRENCY_COUNTRIES[country]){
     return false;
   }

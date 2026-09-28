@@ -104,19 +104,19 @@ const tileOf = (win, id) => [...win.document.querySelectorAll(".tile")]
     process.exit(1);
   }
   const add = (id) => win.EATLAS_DASH.ensurePinned(id);
-  add("UK::cpi"); add("Japan::cpi");
+  add("UK::cpi"); add("Singapore::cpi");
   await new Promise(r => setTimeout(r, 300));
 
   const ukTile = tileOf(win, "UK::cpi");
-  const jpTile = tileOf(win, "Japan::cpi");
+  const jpTile = tileOf(win, "Singapore::cpi");
   if (!ukTile) fail("UK::cpi tile did not render");
-  if (!jpTile) fail("Japan::cpi tile did not render");
+  if (!jpTile) fail("Singapore::cpi tile did not render");
   if (!ukTile || !jpTile) { console.log(`\n${checks} checks, ${failures} failures`); process.exit(1); }
 
   // --- controls offered only where there is a choice ---------------------
   const jpGroup = jpTile.querySelector(".basisselect");
-  if (jpGroup) fail("Japan tile offers a control despite serving one basis only");
-  else ok("Japan tile offers no control, as it serves year on year only");
+  if (jpGroup) fail("Singapore tile offers a control despite serving one basis only");
+  else ok("Singapore tile offers no control, as it serves year on year only");
 
   const ukGroup = ukTile.querySelector(".basisselect");
   if (!ukGroup) { fail("UK tile offers no measure/basis control"); }

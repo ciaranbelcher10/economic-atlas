@@ -2333,7 +2333,7 @@ function render(data){
   /* currency formatting handled dynamically by curFmt() below */
   const idx=v=>v.toFixed(1);
   const SRC_GDP="FRED series NGDPSAXDCMXQ \u00b7 IMF International Financial Statistics, quarterly";
-  const SRC_TRADE="FRED series XTNTVA01MXQ667S \u00b7 OECD merchandise trade, quarterly";
+  const SRC_TRADE="FRED series XTNTVA01MXQ667S \u00b7 OECD merchandise trade, quarterly, in pesos at each period\u2019s rate";
   const SRC_FISCAL="FRED \u00b7 IMF World Economic Outlook, annual";
   const SRC_WB="World Bank \u00b7 % of GDP, annual";
   const SRC_BCI="OECD \u00b7 BCICP, amplitude-adjusted, long-term average = 100";
@@ -2510,12 +2510,13 @@ function isAlreadyUSD(u, key){
   // currency happens to use the $ glyph too, and for those countries
   // gdp_level/gdp_real are genuinely local-currency (IMF IFS national-
   // currency series) and SHOULD be converted. But other $-prefixed series
-  // on the very same page -- trade_balance, sourced from OECD's "667S"
-  // family -- really is USD-denominated regardless of the page's own
-  // currency, and still needs the normal already-USD protection. So the
-  // override only overrides the check for the two keys it's known to
-  // apply to.
-  if ((key === "gdp_level" || key === "gdp_real") &&
+  // on the very same page -- trade_balance, exports and imports -- start
+  // as OECD "667S" USD series but are converted to the local currency, at
+  // each period's own rate, by the fetch script before they are served,
+  // while keeping the bare $ unit. So they are local-currency too and must
+  // be converted like GDP. Other $-prefixed keys keep the protection.
+  if ((key === "gdp_level" || key === "gdp_real" || key === "trade_balance" ||
+       key === "exports" || key === "imports") &&
       typeof NATIVE_SYMBOL_OVERRIDE !== "undefined" && NATIVE_SYMBOL_OVERRIDE) {
     return false;
   }
@@ -2625,7 +2626,7 @@ const INFO_CONTENT = {
   },
   gdp_growth: {
     description: "How much the economy grew or shrank compared with the previous three months, in real (inflation-adjusted) terms.",
-    source: "IMF International Financial Statistics, via FRED, quarter-on-quarter.",
+    source: "Derived from FRED series NGDPRSAXDCMXQ (IMF International Financial Statistics), quarter-on-quarter, seasonally adjusted.",
     real: "This is already a real (inflation-adjusted) growth rate as published, \u201cMake it real\u201d has no additional effect on it.",
     dollar: "A growth rate (%) is currency-agnostic, converting the underlying pesos to dollars doesn't change the percentage change. \u201cDollarise\u201d has no effect on this figure."
   },
@@ -2665,7 +2666,7 @@ const INFO_CONTENT = {
   },
   trade_balance: {
     description: "Exports minus imports of goods each quarter. Below zero means Mexico buys more from abroad than it sells.",
-    source: "FRED series XTNTVA01MXQ667S \u00b7 OECD merchandise trade, quarterly.",
+    source: "FRED series XTNTVA01MXQ667S · OECD merchandise trade, quarterly, converted from US dollars to pesos at each period's own rate.",
     dollar: "Each historical point is converted at its own contemporaneous MXN/USD rate (monthly resolution from FRED's DEXMXUS, 1993-11 onward), with the same earliest-rate fallback as GDP, see the GDP entry for detail."
   },
   current_account: {

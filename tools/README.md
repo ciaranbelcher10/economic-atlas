@@ -20,7 +20,21 @@ node tools/sampledata_gate.js
 
 Override with `ATLAS_REPO=/path/to/clone` if you keep them elsewhere.
 
-Requires `python3` and `node`. No third-party packages.
+Requires `python3` and `node`. The Python harnesses need no third-party
+packages. The JS harnesses that load a whole page (`coverage_gate.js`,
+`test_freshness_lights.js`, `test_chartmaker_inflation.js`,
+`test_dashboard_inflation.js`, `test_basis_select.js`) need `jsdom`, which is
+not in the repo; without it they crash with MODULE_NOT_FOUND rather than
+fail a check. From the repo root:
+
+```
+npm install jsdom --no-save
+NODE_PATH=$(pwd)/node_modules node tools/coverage_gate.js
+```
+
+`data-metric-sources.json` is written as `json.dumps(d, indent=2,
+ensure_ascii=False) + "\n"`. Prove that round trip on the unmodified file
+before editing it.
 
 ---
 
@@ -333,3 +347,25 @@ The cause was a "symbol already present" check that matched the symbol inside
 the replacement text it had just inserted. That same mistake happened three
 times in one session. When writing a bulk migration, check for `def name`,
 never the bare `name`.
+
+## `test_trade_fx.py`: trade converted at each period's own rate
+
+```
+python3 tools/test_trade_fx.py
+```
+
+OECD "667S" trade series are USD. Fetch scripts convert them to the
+country's own currency, and must do so at each period's own exchange rate.
+Converting the whole history at today's spot rate rewrote every past
+figure: Japan's January 2010 trade balance read 74% too high, Brazil's
+2010-Q1 210% too high. Nine fetch scripts did this while seven used the
+per-period helper. This fails on any `to_local = lambda v: v * fx_rate`
+style converter and exercises `_fx_rate_for_period` on monthly, quarterly
+and annual periods against monthly and annual rate history.
+
+Expected: 16 per-period converters, 144 rate-selection cases, 0 failures.
+
+The converted series keep a bare `$` unit for Australia, Canada, Mexico,
+Brazil and South Africa, so every consumer's `isAlreadyUSDUnit` exception
+covers `trade_balance`, `exports` and `imports` as well as GDP. Without that,
+Compare showed Brazil's 2025 surplus as $354.8bn (reais read as dollars).

@@ -148,29 +148,30 @@ async function boot() {
 
   // --- a country with no monthly series offers no monthly basis ----------
   // A country that still serves one basis only. Brazil had one until the
-  // OECD index landed, so this deliberately uses Japan, whose cpi_mom is
-  // not served. If Japan ever gains one, this assertion should be moved
-  // rather than deleted -- the rule it checks still matters.
+  // OECD index landed, and Singapore until e-Stat monthly CPI landed, so this
+  // now uses Singapore, which serves an annual year-on-year rate only. If
+  // Singapore ever gains another basis, move this assertion rather than
+  // deleting it: the rule it checks still matters.
   const mclose = $("#cmMetricClose") || $("#cmMetricModal .modal-close");
   if (mclose) mclose.dispatchEvent(new win.Event("click", { bubbles: true }));
   await new Promise(r => setTimeout(r, 60));
-  if (openPickerFor("Japan")) {
+  if (openPickerFor("Singapore")) {
     await new Promise(r => setTimeout(r, 120));
-    const jp = inflationCards();
-    if (!jp.length) fail("Japan picker shows no Inflation entry (modal hidden=" +
+    const sg = inflationCards();
+    if (!sg.length) fail("Singapore picker shows no Inflation entry (modal hidden=" +
       $("#cmMetricModal").hidden + ", cards seen: " +
       cards().map(c => c.querySelector("div") && c.querySelector("div").textContent.trim()).join(" | ").slice(0, 200) + ")");
-    if (jp.length) { jp[0].dispatchEvent(new win.Event("click", { bubbles: true })); await new Promise(r => setTimeout(r, 150)); }
+    if (sg.length) { sg[0].dispatchEvent(new win.Event("click", { bubbles: true })); await new Promise(r => setTimeout(r, 150)); }
   }
   // the series title is an <input> value, not text content
   const rowTitle = r => { const i = r.querySelector(".main-edit"); return i ? i.value : r.textContent; };
-  const jpRow = seriesRows().filter(r => /Japan/.test(rowTitle(r)))[0];
-  if (!jpRow) fail("Japan inflation series was not added");
+  const sgRow = seriesRows().filter(r => /Singapore/.test(rowTitle(r)))[0];
+  if (!sgRow) fail("Singapore inflation series was not added");
   else {
-    const jpSels = selectsIn(jpRow);
-    const basisSel = jpSels.filter(x => [...x.options].some(o => /Year on year/.test(o.textContent)))[0];
-    if (basisSel) fail("Japan offers a basis selector despite serving only one basis");
-    else ok("Japan offers no basis selector, as it serves only year on year");
+    const sgSels = selectsIn(sgRow);
+    const basisSel = sgSels.filter(x => [...x.options].some(o => /Year on year/.test(o.textContent)))[0];
+    if (basisSel) fail("Singapore offers a basis selector despite serving only one basis");
+    else ok("Singapore offers no basis selector, as it serves only year on year");
   }
 
   // --- reconciliation flags an automatic switch --------------------------

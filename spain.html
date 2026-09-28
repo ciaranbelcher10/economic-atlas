@@ -2433,7 +2433,7 @@ function render(data){
   // Guarded on the series, so a country with only a year-on-year
   // rate shows only that.
   if(s.cpi_mom) statTile(tinf,null,"CPI (MoM)",s.cpi_mom,
-    {fmt:pct,fmtD:pp,upIsGood:false,source:"FRED · HICP, all items, YoY",infoKey:"cpi_mom"});
+    {fmt:pct,fmtD:pp,upIsGood:false,source:"FRED · HICP, all items, MoM",infoKey:"cpi_mom"});
   if(s.ecb_rate) statTile(tinf,"ecb_rate","ECB deposit rate",s.ecb_rate,
     {fmt:v=>v.toFixed(2)+"%",fmtD:v=>v.toFixed(2)+"pp",upIsGood:false,source:"FRED \u00b7 ECBDFR"});
   const tl=document.getElementById("tiles-labour");
@@ -2623,13 +2623,13 @@ function hasPreHistoryPoints(series, fx){
 const INFO_CONTENT = {
   gdp_level: {
     description: "The total value of everything Spain produces in a year, at current prices, on a rolling four-quarter basis.",
-    source: "Eurostat namq_10_gdp \u00b7 quarterly, EUR-denominated (falls back to World Bank current US$, annual, only if Eurostat is unavailable on a given run).",
+    source: "Eurostat namq_10_gdp · quarterly, EUR-denominated, seasonally and calendar adjusted (falls back to World Bank current US$, annual, only if Eurostat is unavailable on a given run).",
     real: "\u201cMake it real\u201d swaps this to Spain's real (chained-volume, inflation-adjusted) GDP series. This strips out the effect of price changes, so it shows genuine output growth rather than growth that's really just inflation.",
     dollar: "When this series is on its normal Eurostat (EUR) path, \u201cDollarise\u201d converts each historical point using that point's OWN contemporaneous EUR/USD rate (monthly resolution, from FRED's DEXUSEU series, which starts 1999-01, the euro's launch). On the rarer occasion this falls back to the World-Bank USD series, it's already in dollars and Dollarise correctly has no further effect."
   },
   gdp_real: {
     description: "GDP adjusted for inflation, shown in chained-volume terms, the same production, valued at constant prices, so changes reflect real output growth rather than price changes.",
-    source: "Eurostat namq_10_gdp \u00b7 quarterly, chain-linked volume, EUR-denominated (same World-Bank USD fallback as GDP current prices).",
+    source: "Eurostat namq_10_gdp · quarterly, chain-linked volume, EUR-denominated, seasonally and calendar adjusted (same World-Bank USD fallback as GDP current prices).",
     real: "This IS the \u201cMake it real\u201d series, toggling it off shows GDP at current (nominal) prices instead.",
     dollar: "Same conditional behaviour as GDP (current prices): converts at each point's own contemporaneous EUR/USD rate on the normal Eurostat path, or is already USD and left alone on the rarer World-Bank fallback path."
   },

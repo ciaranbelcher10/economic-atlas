@@ -2427,6 +2427,9 @@ function render(data){
   const tinf=document.getElementById("tiles-inflation");
   if(s.cpi) statTile(tinf,"cpi","CPI (YoY)",s.cpi,
     {fmt:pct,fmtD:pp,upIsGood:false,source:"Statistics Bureau of Japan (e-Stat) \u00b7 YoY"});
+  // Every basis this country serves gets a tile as well as a chart.
+  if(s.cpi_mom) statTile(tinf,null,"CPI (MoM)",s.cpi_mom,
+    {fmt:pct,fmtD:pp,upIsGood:false,source:"Statistics Bureau of Japan (e-Stat) \u00b7 all items, MoM",infoKey:"cpi_mom"});
   if(s.boj_rate) statTile(tinf,"boj_rate","Call money rate",s.boj_rate,
     {fmt:v=>v.toFixed(2)+"%",fmtD:v=>v.toFixed(2)+"pp",upIsGood:false,source:"FRED \u00b7 IRSTCI01JPM156N"});
   const tl=document.getElementById("tiles-labour");
@@ -2627,17 +2630,17 @@ const INFO_CONTENT = {
   },
   gdp_growth: {
     description: "How much the economy grew or shrank compared with the previous three months, in real (inflation-adjusted) terms.",
-    source: "Calculated from FRED series JPNRGDPEXP (Cabinet Office of Japan), quarter-on-quarter.",
+    source: "Calculated from FRED series JPNRGDPEXP (Cabinet Office of Japan), quarter-on-quarter, seasonally adjusted.",
     real: "This is already a real (inflation-adjusted) growth rate as published, \u201cMake it real\u201d has no additional effect on it.",
     dollar: "A growth rate (%) is currency-agnostic, converting the underlying yen to dollars doesn't change the percentage change. \u201cDollarise\u201d has no effect on this figure."
   },
   cpi: {
     description: "How much consumer prices are rising compared with a year ago. The Bank of Japan targets 2% inflation.",
-    source: "Statistics Bureau of Japan (e-Stat) \u00b7 all items, year on year."
+    source: "Statistics Bureau of Japan (e-Stat) · all items, year on year, not seasonally adjusted (Japan's headline reported CPI figure; a separate SA series exists for sequential analysis only)."
   },
   cpi_mom: {
     description: "How much consumer prices rose or fell compared with just the previous month, more volatile than the annual rate, useful for spotting turning points earlier.",
-    source: "Statistics Bureau of Japan (e-Stat) \u00b7 all items, month on month, derived from the same CPI index used for the year-on-year figure."
+    source: "Statistics Bureau of Japan (e-Stat) · all items, month on month, derived from the same CPI index used for the year-on-year figure, not seasonally adjusted (Japan's headline reported CPI figure; a separate SA series exists for sequential analysis only)."
   },
   boj_rate: {
     description: "The overnight interbank rate, the closest market measure of the Bank of Japan's policy stance.",
@@ -2659,7 +2662,7 @@ const INFO_CONTENT = {
   },
   trade_balance: {
     description: "Exports minus imports of goods each month. Below zero means Japan buys more from abroad than it sells.",
-    source: "Derived from OECD goods trade series, converted to yen at ingestion time (the OECD's own source is USD-denominated).",
+    source: "Derived from OECD goods trade series (the '667S' family), converted from US dollars to yen at each period's own rate, seasonally adjusted.",
     dollar: "Each historical point is converted at its own contemporaneous JPY/USD rate (monthly resolution from FRED's DEXJPUS, 1971 onward), see the GDP entry for the pre-1971 fallback detail, which shouldn't apply in practice given this series' own start date."
   },
   exports: {
