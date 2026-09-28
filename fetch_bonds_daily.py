@@ -244,7 +244,11 @@ def fetch_oecd_irlt(iso3):
     return freq, pts
 
 
-OECD_IRLT = {"Indonesia": ("id", "IDN")}
+# Indonesia: the OECD's IRLT series stops at Dec 2024, and the only live
+# alternative found (AsianBondsOnline) is Bloomberg data, which the site does
+# not republish. Left empty so the hourly log stays clean; fetch_oecd_irlt()
+# is kept so a country can be re-added here if the OECD resumes a series.
+OECD_IRLT = {}
 
 
 _MONTHS = {m: i for i, m in enumerate(
@@ -295,7 +299,7 @@ def fetch_singstat_sgs10():
     return pts
 
 LONG_TERM = {
-    "Indonesia": ("id", "IDN"), "Morocco": ("ma", "MAR"),
+    "Morocco": ("ma", "MAR"),
     "Singapore": ("sg", "SGP"), "Thailand": ("th", "THA"),
 }
 
