@@ -53,6 +53,7 @@ import sys
 from datetime import datetime, timezone
 
 import requests
+import imf_weo
 import series_guard
 
 # Series this script is deliberately allowed to replace with a shorter or
@@ -73,8 +74,6 @@ FRED_SERIES = {
     "gdp_growth": ("NGDPRSAXDCAUQ", "q", "Real GDP growth, QoQ", "%", "qoq", 1.0),
     "unemployment": ("LRUNTTTTAUQ156S", "q", "Unemployment rate, 15+, SA", "%", None, 1.0),
     "bond_yield_10y": ("IRLTLT01AUM156N", "m", "10-year government bond yield", "%", None, 1.0),
-    "debt_gdp": ("GGGDTAAUA188N", "a", "General government gross debt, % of GDP", "%", None, 1.0),
-    "deficit": ("GGNLBAAUA188N", "a", "General government net lending/borrowing, % of GDP", "%", None, 1.0),
     "trade_balance": ("XTNTVA01AUM667S", "m", "Trade balance, goods, $", "$m", None, 1e-6),
 }
 
@@ -513,6 +512,10 @@ def main() -> int:
                 print(f"FAIL  {name:<16} {exc}")
 
     extras = [
+        ("debt_gdp", lambda: imf_weo.fetch("AUS", imf_weo.DEBT),
+         "General government gross debt, % of GDP (IMF WEO)", "%", "years"),
+        ("deficit", lambda: imf_weo.fetch("AUS", imf_weo.DEFICIT),
+         "General government net lending/borrowing, % of GDP (IMF WEO)", "%", "years"),
         ("business_confidence", lambda: fetch_oecd_bci(),
          "Business confidence indicator, LT avg = 100 (OECD BCICP)", "index", "months"),
         ("cpi", lambda: fetch_oecd_cpi(("AUS",), "Q"),

@@ -54,6 +54,7 @@ import sys
 from datetime import datetime, timezone
 
 import requests
+import imf_weo
 import series_guard
 
 # Series this script is deliberately allowed to replace with a shorter or
@@ -73,8 +74,6 @@ FRED_SERIES = {
     "gdp_real": ("NGDPRSAXDCZAQ", "q", "Real GDP, SA", "$m", None, 1.0),
     "unemployment": ("LRUN64TTZAQ156S", "q", "Unemployment rate, 15-64, SA", "%", None, 1.0),
     "bond_yield_10y": ("IRLTLT01ZAM156N", "m", "10-year government bond yield", "%", None, 1.0),
-    "debt_gdp": ("GGGDTAZAA188N", "a", "General government gross debt, % of GDP", "%", None, 1.0),
-    "deficit": ("GGNLBAZAA188N", "a", "General government net lending/borrowing, % of GDP", "%", None, 1.0),
     "trade_balance": ("XTNTVA01ZAQ667S", "q", "Trade balance, goods, $", "$m", None, 1e-6),
 }
 
@@ -538,6 +537,10 @@ def main() -> int:
             print("SKIP  gdp_growth       no real GDP series this run, not deriving from nominal")
 
     extras = [
+        ("debt_gdp", lambda: imf_weo.fetch("ZAF", imf_weo.DEBT),
+         "General government gross debt, % of GDP (IMF WEO)", "%", "years"),
+        ("deficit", lambda: imf_weo.fetch("ZAF", imf_weo.DEFICIT),
+         "General government net lending/borrowing, % of GDP (IMF WEO)", "%", "years"),
         ("business_confidence", lambda: fetch_oecd_bci(),
          "Business confidence indicator, LT avg = 100 (OECD BCICP)", "index", "months"),
                 ("fdi", lambda: fetch_worldbank("BX.KLT.DINV.WD.GD.ZS"),

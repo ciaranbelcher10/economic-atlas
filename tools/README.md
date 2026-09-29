@@ -369,3 +369,27 @@ The converted series keep a bare `$` unit for Australia, Canada, Mexico,
 Brazil and South Africa, so every consumer's `isAlreadyUSDUnit` exception
 covers `trade_balance`, `exports` and `imports` as well as GDP. Without that,
 Compare showed Brazil's 2025 surplus as $354.8bn (reais read as dollars).
+
+## `test_imf_weo.py`: IMF World Economic Outlook, fetched directly
+
+```
+python3 tools/test_imf_weo.py
+```
+
+General government debt and deficit for Argentina, Australia, Brazil,
+Canada, India, Indonesia, Japan, Korea, Mexico, Turkey and South Africa
+come from the IMF's own API through `imf_weo.py`. They used to come from
+FRED's copies (GGGDTA...A188N / GGNLBA...A188N), which FRED stopped
+refreshing after the April 2025 WEO while every call kept succeeding.
+
+The API does not mark the last actual year, so `imf_weo.parse` keeps only
+years before the year of the country's COUNTRY_UPDATE_DATE (the site's
+existing rule for IMF vintages) and rejects an edition more than 400 days
+old. The test builds replies to the shape the live API returned, including
+its out-of-order time axis, and checks: projections never kept, values on
+the right year, stale edition / missing update date / missing country all
+rejected, and no fetch script still wiring the frozen FRED family.
+
+Expected: 81 checks (8 parser, 72 fetch scripts, 1 wiring count), 0 failures.
+`citation_ids.py` recognises GGXWDG_NGDP / GGXCNL_NGDP from the
+`imf_weo.fetch(..., imf_weo.DEBT|DEFICIT)` call.

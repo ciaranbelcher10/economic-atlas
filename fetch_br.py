@@ -75,6 +75,7 @@ import sys
 from datetime import datetime, timezone
 
 import requests
+import imf_weo
 import series_guard
 
 # Series this script is deliberately allowed to replace with a shorter or
@@ -92,8 +93,6 @@ ALLOW_SHRINK = {}
 FRED_SERIES = {
     "gdp_level": ("NGDPNSAXDCBRQ", "q", "GDP nominal, NSA", "$m", None, 1.0),
     "gdp_real": ("NGDPRSAXDCBRQ", "q", "Real GDP, SA", "$m", None, 1.0),
-    "debt_gdp": ("GGGDTABRA188N", "a", "General government gross debt, % of GDP", "%", None, 1.0),
-    "deficit": ("GGNLBABRA188N", "a", "General government net lending/borrowing, % of GDP", "%", None, 1.0),
     "trade_balance": ("XTNTVA01BRQ667S", "q", "Trade balance, goods, $", "$m", None, 1e-6),
 }
 
@@ -557,6 +556,10 @@ def main() -> int:
             print("SKIP  gdp_growth       no real GDP series this run, not deriving from nominal")
 
     extras = [
+        ("debt_gdp", lambda: imf_weo.fetch("BRA", imf_weo.DEBT),
+         "General government gross debt, % of GDP (IMF WEO)", "%", "years"),
+        ("deficit", lambda: imf_weo.fetch("BRA", imf_weo.DEFICIT),
+         "General government net lending/borrowing, % of GDP (IMF WEO)", "%", "years"),
         ("business_confidence", lambda: fetch_oecd_bci(),
          "Business confidence indicator, LT avg = 100 (OECD BCICP)", "index", "months"),
                 ("fdi", lambda: fetch_worldbank("BX.KLT.DINV.WD.GD.ZS"),

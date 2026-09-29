@@ -92,6 +92,7 @@ import sys
 from datetime import datetime, timezone
 
 import requests
+import imf_weo
 import series_guard
 
 # Series this script is deliberately allowed to replace with a shorter or
@@ -109,8 +110,6 @@ ALLOW_SHRINK = {}
 FRED_SERIES = {
     "gdp_real": ("NGDPRSAXDCIDQ", "q", "Real GDP, current national prices, SA (IMF IFS)", "IDRm", None, 1.0),
     "gdp_level": ("NGDPSAXDCIDQ", "q", "Nominal GDP, current prices, SA (IMF IFS)", "IDRm", None, 1.0),
-    "debt_gdp": ("GGGDTAIDA188N", "a", "General government gross debt, % of GDP (IMF WEO)", "%", None, 1.0),
-    "deficit": ("GGNLBAIDA188N", "a", "General government net lending/borrowing, % of GDP (IMF WEO)", "%", None, 1.0),
     "trade_balance": ("XTNTVA01IDM667S", "m", "Trade balance, goods, USD exchange-rate-converted, SA (OECD)", "$m", None, 1e-6),
     # fx_raw removed (Aug 2026): the OECD series it pointed to
     # (CCUSMA02IDM618N) is discontinued -- fx_to_usd now uses World
@@ -504,6 +503,10 @@ def main() -> int:
         print(f"FAIL  fx_to_usd        {exc}")
 
     extras = [
+        ("debt_gdp", lambda: imf_weo.fetch("IDN", imf_weo.DEBT),
+         "General government gross debt, % of GDP (IMF WEO)", "%", "years"),
+        ("deficit", lambda: imf_weo.fetch("IDN", imf_weo.DEFICIT),
+         "General government net lending/borrowing, % of GDP (IMF WEO)", "%", "years"),
         ("business_confidence", lambda: fetch_oecd_bci(),
          "Business confidence indicator, LT avg = 100 (OECD BCICP)", "index", "months"),
         ("cpi", lambda: fetch_oecd_cpi(("IDN",), "M"),

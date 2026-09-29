@@ -97,6 +97,7 @@ import sys
 from datetime import datetime, timezone
 
 import requests
+import imf_weo
 import series_guard
 
 # Series this script is deliberately allowed to replace with a shorter or
@@ -121,8 +122,6 @@ FRED_SERIES = {
     # India page labels were changed to match.
     "gdp_growth": ("NGDPRNSAXDCINQ", "q", "Real GDP growth, YoY", "%", "yoy_q", 1.0),
     "bond_yield_10y": ("INDIRLTLT01STM", "m", "10-year government bond yield", "%", None, 1.0),
-    "debt_gdp": ("GGGDTAINA188N", "a", "General government gross debt, % of GDP", "%", None, 1.0),
-    "deficit": ("GGNLBAINA188N", "a", "General government net lending/borrowing, % of GDP", "%", None, 1.0),
     "exports": ("XTEXVA01INM667S", "m", "Exports of goods, $", "$m", None, 1e-6),
     "trade_balance": ("XTNTVA01INM667S", "m", "Trade balance, goods, $", "$m", None, 1e-6),
 }
@@ -704,6 +703,10 @@ def main() -> int:
                 print(f"FAIL  {name:<16} {exc}")
 
     extras = [
+        ("debt_gdp", lambda: imf_weo.fetch("IND", imf_weo.DEBT),
+         "General government gross debt, % of GDP (IMF WEO)", "%", "years"),
+        ("deficit", lambda: imf_weo.fetch("IND", imf_weo.DEFICIT),
+         "General government net lending/borrowing, % of GDP (IMF WEO)", "%", "years"),
         ("business_confidence", lambda: fetch_oecd_bci(),
          "Business confidence indicator, LT avg = 100 (OECD BCICP)", "index", "months"),
         ("cpi", lambda: fetch_oecd_cpi(("IND",), "M"),
