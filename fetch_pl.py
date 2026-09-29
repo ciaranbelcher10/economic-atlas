@@ -28,14 +28,11 @@ still the genuine test):
   updated Mar 2026), OECD, 10-year government bond yield, monthly.
   Poland has this where Turkey/Indonesia did not -- included as a
   genuinely available series rather than skipped by habit.
-- debt_gdp (GGGDTAPLA188N) / deficit (GGNLBAPLA188N): CONFIRMED live
-  (through 2024, updated Apr 2025), IMF World Economic Outlook, general
-  government, % of GDP, ANNUAL. Poland is an EU member and Eurostat's
-  quarterly gov_10q_ggdebt dataset also genuinely covers it (confirmed
-  via Eurostat's own release commentary, which explicitly discusses
-  Poland's debt ratio) -- the IMF-WEO annual series was used instead
-  for consistency with the fetch pipeline's simpler, already-proven
-  code path, not because the Eurostat option doesn't exist.
+- debt_gdp / deficit (Eurostat gov_10dd_edpt1, geo=PL): the EDP
+  notification figures every other EU member on the site uses. Previously
+  IMF WEO (GGGDTAPLA188N / GGNLBAPLA188N), which ran a year behind and
+  differed from the EDP figures (2024 debt 55.3 vs 54.8, deficit -6.6 vs
+  -6.4). Eurostat's April 2026 notification publishes Poland's 2025 values.
 - participation_rate (LRAC64TTPLQ156S) / employment_rate (LREM64TTPLQ156S):
   ADDED -- same portable OECD FRED family used for other full OECD
   members (e.g. Austria's LRAC64TTATQ156S/LREM64TTATQ156S), reused here
@@ -102,8 +99,6 @@ FRED_SERIES = {
     "gdp_level": ("NGDPSAXDCPLQ", "q", "Nominal GDP, current prices, SA (IMF IFS)", "PLNm", None, 1.0),
     "unemployment": ("LRHUTTTTPLM156S", "m", "Unemployment rate, 15+, SA (OECD harmonized)", "%", None, 1.0),
     "bond_yield_10y": ("IRLTLT01PLM156N", "m", "10-year government bond yield (OECD)", "%", None, 1.0),
-    "debt_gdp": ("GGGDTAPLA188N", "a", "General government gross debt, % of GDP (IMF WEO)", "%", None, 1.0),
-    "deficit": ("GGNLBAPLA188N", "a", "General government net lending/borrowing, % of GDP (IMF WEO)", "%", None, 1.0),
     "participation_rate": ("LRAC64TTPLQ156S", "q", "Labour force participation rate, 15-64, SA (OECD)", "%", None, 1.0),
     "employment_rate": ("LREM64TTPLQ156S", "q", "Employment rate, 15-64, SA (OECD)", "%", None, 1.0),
     # fx_raw removed (Aug 2026): the OECD series it pointed to
@@ -215,6 +210,26 @@ def fetch_eurostat_trade_balance_world_pl() -> list | None:
     print(f"  [eurostat-trade-world] balance derived: {len(balance)} points, "
           f"{balance[0][0]} to {balance[-1][0]}")
     return balance
+
+
+def fetch_eurostat_govfinance(na_item: str) -> list | None:
+    url = (f"{EUROSTAT_STATS_BASE}/gov_10dd_edpt1?format=JSON&lang=EN"
+          f"&geo=PL&sector=S13&unit=PC_GDP&na_item={na_item}"
+          f"&sinceTimePeriod=2000")
+    try:
+        r = requests.get(url, timeout=60,
+                         headers={"User-Agent": "economic-atlas/0.1"})
+        print(f"  [eurostat-gov-{na_item}] PL status={r.status_code}")
+        r.raise_for_status()
+    except Exception as exc:
+        print(f"  [eurostat-gov-{na_item}] PL request failed: {exc}")
+        return None
+    try:
+        return _parse_jsonstat(r.text, f"eurostat-gov-{na_item}-PL")
+    except Exception as exc:
+        print(f"  [eurostat-gov-{na_item}] PL parsing failed: {exc}; "
+              f"first 300 chars: {r.text[:300]!r}")
+        return None
 
 
 FRED_URL = ("https://api.stlouisfed.org/fred/series/observations"
@@ -666,6 +681,10 @@ def main() -> int:
          "Business confidence indicator, LT avg = 100 (OECD BCICP)", "index", "months"),
         ("fdi", lambda: fetch_worldbank("BX.KLT.DINV.WD.GD.ZS"),
          "FDI net inflows, % of GDP (World Bank)", "%", "years"),
+        ("debt_gdp", lambda: fetch_eurostat_govfinance("GD"),
+         "General government gross debt, % of GDP (Eurostat)", "%", "years"),
+        ("deficit", lambda: fetch_eurostat_govfinance("B9"),
+         "General government net lending/borrowing, % of GDP (Eurostat)", "%", "years"),
     ]
     for name, fn, label, unit, fr in extras:
         try:
