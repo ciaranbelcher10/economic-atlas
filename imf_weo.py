@@ -46,6 +46,39 @@ def _update_date(text):
         return None
 
 
+def _text(entry):
+    """An SDMX value entry ({"value": ..}, {"id": ..}, {"name": ..} or
+    {"name": {"en": ..}}) or a bare scalar, as a string."""
+    if isinstance(entry, dict):
+        for k in ("value", "id", "name"):
+            x = entry.get(k)
+            if isinstance(x, dict):
+                x = next(iter(x.values()), None)
+            if x not in (None, ""):
+                return str(x)
+        return None
+    return None if entry is None else str(entry)
+
+
+def _attr_value(v, vals):
+    """A series attribute as the reply gives it. SDMX-JSON allows an index
+    into the attribute's value list (as a number or as digits in a string)
+    or the value itself; the live WEO reply was seen to differ from the
+    shape first assumed, so every form is accepted."""
+    if v is None:
+        return None
+    if isinstance(v, bool):
+        return None
+    if isinstance(v, int) or (isinstance(v, str) and v.isdigit()):
+        i = int(v)
+        if 0 <= i < len(vals):
+            return _text(vals[i])
+        return None
+    if isinstance(v, (list, tuple)):
+        return _attr_value(v[0], vals) if v else None
+    return _text(v)
+
+
 def parse(payload: dict, iso3: str, indicator: str, now: datetime | None = None):
     """Return (points, info) from one SDMX 3.0 JSON reply.
 
@@ -66,11 +99,8 @@ def parse(payload: dict, iso3: str, indicator: str, now: datetime | None = None)
             continue
         upd = None
         for n, v in enumerate(s.get("attributes") or []):
-            if n < len(sattr) and sattr[n]["id"] == "COUNTRY_UPDATE_DATE" \
-                    and isinstance(v, int):
-                vals = sattr[n].get("values") or []
-                if v < len(vals):
-                    upd = _update_date(vals[v].get("value", vals[v].get("id")))
+            if n < len(sattr) and sattr[n]["id"] == "COUNTRY_UPDATE_DATE":
+                upd = _update_date(_attr_value(v, sattr[n].get("values") or []))
         if upd is None:
             return None, {"reason": "no COUNTRY_UPDATE_DATE"}
         if (now - upd).days > MAX_AGE_DAYS:

@@ -60,6 +60,28 @@ check(imf_weo.parse(reply(), "JPN", "GGXCNL_NGDP", NOW)[0] is None,
 check(imf_weo.parse(reply(), "AUS", "GGXWDG_NGDP", NOW)[0] is None,
       "indicator absent from the reply: None")
 
+# The live WEO reply carried COUNTRY_UPDATE_DATE in a form the first
+# parser did not read (every CI run on 30 Sep 2026 logged "rejected: no
+# COUNTRY_UPDATE_DATE" after status=200). Every form SDMX-JSON allows must
+# resolve to the same answer.
+def reply_attr(attr, values):
+    r = reply()
+    st = r["data"]["structures"][0]
+    st["attributes"]["series"][1]["values"] = values
+    r["data"]["dataSets"][0]["series"]["0:0:0"]["attributes"] = [0, attr]
+    return r
+for label, attr, vals in [
+        ("index as number", 0, [{"value": "9/26/2025"}]),
+        ("index as text", "0", [{"value": "9/26/2025"}]),
+        ("the date itself", "9/26/2025", []),
+        ("date in a value object", {"value": "9/26/2025"}, []),
+        ("index in a list", [0], [{"id": "9/26/2025"}]),
+        ("localised name", 0, [{"name": {"en": "9/26/2025"}}])]:
+    got = imf_weo.parse(reply_attr(attr, vals), "AUS", "GGXCNL_NGDP", NOW)[0]
+    check(got is not None and got[-1][0] == "2024", f"update date given as {label}: kept to 2024")
+check(imf_weo.parse(reply_attr("7", [{"value": "9/26/2025"}]), "AUS", "GGXCNL_NGDP", NOW)[0] is None,
+      "index pointing past the value list: rejected, never guessed")
+
 frozen = re.compile(r'"(GGGDTA|GGNLBA)[A-Z]{2}A188N"')
 for f in sorted(glob.glob("fetch_*.py")):
     t = open(f, encoding="utf-8").read()

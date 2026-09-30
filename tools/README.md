@@ -390,6 +390,8 @@ its out-of-order time axis, and checks: projections never kept, values on
 the right year, stale edition / missing update date / missing country all
 rejected, and no fetch script still wiring the frozen FRED family.
 
-Expected: 81 checks (8 parser, 72 fetch scripts, 1 wiring count), 0 failures.
+Expected: 88 checks (8 parser, 7 update-date forms, 72 fetch scripts, 1 wiring count), 0 failures.
+The update-date forms exist because the first version only read the date as
+a numeric index, and every live run was rejected with "no COUNTRY_UPDATE_DATE".
 `citation_ids.py` recognises GGXWDG_NGDP / GGXCNL_NGDP from the
 `imf_weo.fetch(..., imf_weo.DEBT|DEFICIT)` call.
