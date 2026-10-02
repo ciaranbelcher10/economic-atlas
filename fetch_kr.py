@@ -19,6 +19,11 @@ VERIFICATION NOTES (checked against each series' own FRED page before wiring in)
   This is the 10-year government bond yield, not the Bank of Korea's own
   base rate (no live FRED series carries that verbatim) -- labelled
   honestly as a bond yield, same pattern as India/Australia.
+- debt_gdp / deficit: CURRENT SOURCE (since v1.6.27, Sep 2026) is the IMF
+  World Economic Outlook fetched directly through imf_weo.py, not FRED.
+  FRED's GGGDTA...A188N / GGNLBA...A188N copies stopped updating after the
+  April 2025 WEO. The notes below describe the old FRED wiring and are kept
+  only as history.
 - debt_gdp (GGGDTAKRA188N) / deficit (GGNLBAKRA188N): IMF WEO annual, both
   confirmed live through 2023 -- consistent with the same series family's
   lag pattern for every other country already on the site.
@@ -562,6 +567,11 @@ def main() -> int:
     # already used elsewhere) so a run where every series fails still
     # gets rescued by carried-over data rather than giving up entirely.
     _prev_series = prev_full.get("series", {})
+    # Trade conversion below must only touch series fetched fresh this run:
+    # a carried-over series is already in local currency, and for countries
+    # whose converted unit keeps a bare $ it would otherwise be converted a
+    # second time. See tools/test_trade_fx.py.
+    _fresh_keys = set(out["series"])
     _guard_verdicts = series_guard.apply_guard(
         out["series"], _prev_series, allow_shrink=ALLOW_SHRINK)
     if not out.get("fx_to_usd") and prev_full.get("fx_to_usd"):
@@ -602,6 +612,7 @@ def main() -> int:
         print("Fresh (< 2 days old): " + ", ".join(
             f"{k} ({p})" for k, p in out["new_points"].items()))
 
+    _fx_ok = False
     try:
         if key:
             fx_pts = fetch_fred("DEXKOUS", "d", key)
@@ -614,8 +625,9 @@ def main() -> int:
                       f"history {fx_pts[0][0]} to {fx_period} ({len(fx_pts)} points)")
 
                 to_local = lambda v, per: v * _fx_rate_for_period(fx_pts, per, fx_rate)
+                _fx_ok = True
                 for tk in ("trade_balance", "exports", "imports"):
-                    if tk in out["series"]:
+                    if tk in out["series"] and tk in _fresh_keys:
                         ser = out["series"][tk]
                         if ser["unit"].strip().startswith("$"):
                             ser["points"] = [[p, round(to_local(v, p), 1)] for p, v in ser["points"]]
@@ -630,6 +642,20 @@ def main() -> int:
                   "Dollarise will be unavailable on this page until next run.")
     except Exception as exc:
         print(f"FAIL  fx_to_usd        {exc}")
+
+    # No exchange rate this run: a freshly fetched USD trade series would be
+    # published unconverted. Keep last run's converted figures instead (or
+    # leave the key out), so a page never shows dollars as local currency.
+    if not _fx_ok:
+        for tk in ("trade_balance", "exports", "imports"):
+            ser = out["series"].get(tk)
+            if tk in _fresh_keys and ser and ser["unit"].strip().startswith("$"):
+                if tk in _prev_series:
+                    out["series"][tk] = _prev_series[tk]
+                    print(f"CARRIED OVER {tk}: no exchange rate this run to convert it")
+                else:
+                    del out["series"][tk]
+                    print(f"FAIL  {tk:<16} no exchange rate this run to convert it; left out")
 
     with open("data-kr.json", "w") as f:
         json.dump(out, f)

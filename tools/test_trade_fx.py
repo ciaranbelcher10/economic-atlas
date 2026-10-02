@@ -38,6 +38,22 @@ for f in sorted(glob.glob("fetch_*.py")):
         converters.append(f)
 print(f"per-period converters: {len(converters)}")
 
+# A carried-over trade series is already in local currency. Where its unit
+# keeps a bare $ (Australia, Brazil, Canada, Mexico, South Africa), converting
+# it again would multiply it by the exchange rate a second time; and with no
+# exchange rate this run, a fresh USD series must not be published as local
+# currency. Every converter must convert fresh series only and fall back to
+# last run's converted figures when the rate is missing.
+for f in converters:
+    src = open(f, encoding="utf-8").read()
+    if "_fresh_keys = set(out[\"series\"])" not in src:
+        fail(f"{f}: does not record which series were fetched fresh")
+    if 'and tk in _fresh_keys:' not in src:
+        fail(f"{f}: converts carried-over series too (double conversion)")
+    if "if not _fx_ok:" not in src or "_fx_ok = True" not in src:
+        fail(f"{f}: no fallback when the exchange rate is missing")
+print(f"fresh-only conversion and missing-rate fallback checked in {len(converters)} scripts")
+
 hist_m = [["2019-12", 1.0], ["2020-01", 2.0], ["2020-06", 3.0], ["2021-01", 4.0]]
 hist_a = [["2019", 10.0], ["2020", 20.0]]
 cases = [(hist_m, "2020-03", 2.0), (hist_m, "2020-Q2", 3.0), (hist_m, "2020", 3.0),

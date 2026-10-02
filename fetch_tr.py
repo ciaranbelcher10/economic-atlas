@@ -39,6 +39,11 @@ still the genuine test):
   series was found for Turkey during this build (only an annual,
   stale-through-2022 all-persons variant turned up) -- genuine gap,
   left out rather than guessed. Revisit if a better source surfaces.
+- debt_gdp / deficit: CURRENT SOURCE (since v1.6.27, Sep 2026) is the IMF
+  World Economic Outlook fetched directly through imf_weo.py, not FRED.
+  FRED's GGGDTA...A188N / GGNLBA...A188N copies stopped updating after the
+  April 2025 WEO. The notes below describe the old FRED wiring and are kept
+  only as history.
 - debt_gdp (GGGDTATRA188N) / deficit (GGNLBATRA188N): CONFIRMED live
   (through 2023, updated Apr 2025), IMF World Economic Outlook, general
   government, % of GDP, ANNUAL. This is the IMF-WEO FRED family that

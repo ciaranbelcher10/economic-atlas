@@ -365,6 +365,16 @@ and annual periods against monthly and annual rate history.
 
 Expected: 16 per-period converters, 144 rate-selection cases, 0 failures.
 
+It also checks that each converter only converts series fetched fresh this
+run, and keeps last run's converted figures when there is no exchange rate.
+Without the first, a carried-over trade series whose converted unit keeps a
+bare $ (Australia, Brazil, Canada, Mexico, South Africa) would be multiplied
+by the exchange rate a second time; without the second, a fresh USD series
+would be published as local currency. Both paths were run end to end with
+the network faked (Brazil, Japan, Sweden: normal run, no exchange rate, no
+trade fetch); no double conversion occurred in 400 past commits of any of
+the five $-unit countries.
+
 The converted series keep a bare `$` unit for Australia, Canada, Mexico,
 Brazil and South Africa, so every consumer's `isAlreadyUSDUnit` exception
 covers `trade_balance`, `exports` and `imports` as well as GDP. Without that,
@@ -395,3 +405,22 @@ The update-date forms exist because the first version only read the date as
 a numeric index, and every live run was rejected with "no COUNTRY_UPDATE_DATE".
 `citation_ids.py` recognises GGXWDG_NGDP / GGXCNL_NGDP from the
 `imf_weo.fetch(..., imf_weo.DEBT|DEFICIT)` call.
+
+## `test_estat_cpi.py`: Japan CPI, 2025 base, published rates
+
+```
+python3 tools/test_estat_cpi.py
+```
+
+Japan's CPI comes from e-Stat table 0004052037 (2025 base; the Statistics
+Bureau's headline since 28 Aug 2026). The previous table, 0003427113 (2020
+base), stops in December 2026 and gave rates up to 0.16 point off the
+headline (Jul 2026: 2.06% against 1.9%). The new table carries three kinds
+of figure under class "tab" (1 index, 2 month on month, 3 year on year), so
+the parser must keep them apart; the request is narrowed to all items,
+national, because the whole table is past e-Stat's 100,000-value limit and
+would come back truncated. Rates are used as published: across a rebasing
+they are not equal to rates recalculated from the index (Jun 2026: 1.6%
+published, 1.70% recalculated).
+
+Expected: 11 checks, 0 failures. Published rates win where present; any earlier periods are filled from the index so the series never gets shorter.

@@ -200,155 +200,145 @@ def fetch_oecd_bci() -> list | None:
     return None
 
 
-# ---- e-Stat (Statistics Bureau of Japan) live CPI (post-8.3.2) ----
-# OECD's DF_PRICES_ALL has no current Japan CPI at all (confirmed on a live
-# 8.3.0 run -- every METHODOLOGY/ADJUSTMENT variant for JPN dead-ends at the
-# retired 2015=100 base, June 2021). This queries Japan's own statistics
-# bureau directly via the e-Stat API, using an ESTAT_APP_ID repository
-# secret (same pattern as FRED_API_KEY/MOSPI creds -- a free, user-issued
-# key, not something Claude can obtain). statsDataId "0003427113" is the
-# long-run national CPI table (2020=100 base, the one currently in force --
-# Japan's last base-year rebasing was Aug 2021, per e-Stat's own news
-# archive, and no newer rebasing notice was posted as of this write-up) --
-# sourced from public e-Stat API tutorials, not verified end-to-end from
-# this sandbox (e-Stat isn't reachable from the build environment). Rather
-# than hardcode a guessed category code for "all items" (cat01), this reads
-# the response's own CLASS_INF metadata to find it by name, and does the
-# same for the time-axis codes, so it's robust to code churn even if the
-# guessed statsDataId itself turns out to need adjustment. Check the
-# [estat-cpi] log lines on the first live run.
+# ---- e-Stat (Statistics Bureau of Japan) live CPI ----
+# OECD's DF_PRICES_ALL has no current Japan CPI (every JPN variant ends at
+# the retired 2015 base), so this queries Japan's own statistics bureau via
+# the e-Stat API with the ESTAT_APP_ID repository secret.
 ESTAT_BASE = "https://api.e-stat.go.jp/rest/3.0/app/json/getStatsData"
-ESTAT_CPI_STATS_DATA_ID = "0003427113"
+# 2025-base national CPI (消費者物価指数（2025年基準）), the Statistics Bureau's
+# headline series since 28 Aug 2026. Confirmed by a live probe on 2 Oct 2026:
+# table updated 2026-10-02; class "tab" holds 1=index, 2=change on the
+# previous month (for monthly periods), 3=change on the same month a year
+# earlier; all-items is cat01 0001; national is area 00000; index runs
+# 1970-01 to 2026-08 (Aug 2026 = 102.2). The previous table, 0003427113
+# (2020 base), is published alongside until December 2026 only.
+#
+# The rates are taken as PUBLISHED (tab 2 and 3), not recalculated from the
+# index: across a rebasing the Bureau's official rates are not the same as
+# rates recalculated from the linked index (June 2026: 1.6% official, 1.70%
+# recalculated). If the published rates are missing, the rates are derived
+# from the index as before, and the log says so.
+ESTAT_CPI_STATS_DATA_ID = "0004052037"
+ESTAT_ALL_ITEMS = "0001"
+ESTAT_NATIONAL = "00000"
 
-# Cached raw e-Stat CPI index for this process, so cpi (YoY) and cpi_mom
-# (MoM) both derive from a single HTTP fetch + parse.
-_ESTAT_INDEX_CACHE: dict = {}
+# Cached parse for this process: {"index": [...], "yoy": [...], "mom": [...]}
+_ESTAT_CACHE: dict = {}
 
 
-def fetch_estat_cpi_index() -> list | None:
-    """Raw e-Stat CPI index-level points (period, index value). YoY and MoM
-    are both derived from this same series by the caller. Cached per-process
-    (see _ESTAT_INDEX_CACHE)."""
-    if "index" in _ESTAT_INDEX_CACHE:
-        return _ESTAT_INDEX_CACHE["index"]
-    app_id = os.environ.get("ESTAT_APP_ID")
-    if not app_id:
-        print("  [estat-cpi] no ESTAT_APP_ID set — skipping")
-        _ESTAT_INDEX_CACHE["index"] = None
-        return None
-
-    url = (f"{ESTAT_BASE}?appId={app_id}&statsDataId={ESTAT_CPI_STATS_DATA_ID}"
-           f"&cdArea=00000&metaGetFlg=Y&cntGetFlg=N")
-    try:
-        r = requests.get(url, timeout=60,
-                         headers={"User-Agent": "economic-atlas/0.1"})
-        print(f"  [estat-cpi] status={r.status_code}")
-        r.raise_for_status()
-        payload = r.json()
-    except Exception as exc:
-        print(f"  [estat-cpi] request failed: {exc}")
-        return None
-
+def _estat_cpi_parse(payload: dict):
+    """Split one getStatsData reply into index / MoM / YoY series, each a
+    sorted [[YYYY-MM, value], ...] list for all items, national, monthly."""
     root = payload.get("GET_STATS_DATA", {})
     result = root.get("RESULT", {})
     if str(result.get("STATUS", "0")) != "0":
         print(f"  [estat-cpi] API error status={result.get('STATUS')} "
               f"msg={result.get('ERROR_MSG')!r}")
         return None
+    sd = root.get("STATISTICAL_DATA", {})
+    objs = sd.get("CLASS_INF", {}).get("CLASS_OBJ", [])
+    objs = [objs] if isinstance(objs, dict) else objs
 
-    stat_data = root.get("STATISTICAL_DATA", {})
-    class_objs = stat_data.get("CLASS_INF", {}).get("CLASS_OBJ", [])
-    if isinstance(class_objs, dict):
-        class_objs = [class_objs]
-
-    def classes_for(class_id: str) -> list:
-        for co in class_objs:
-            if co.get("@id") == class_id:
+    def classes(cid):
+        for co in objs:
+            if co.get("@id") == cid:
                 items = co.get("CLASS", [])
                 return [items] if isinstance(items, dict) else items
         return []
 
-    # Find the "all items" (総合) category code -- exact match preferred
-    # over e.g. "生鮮食品を除く総合" (all items less fresh food), which also
-    # contains the substring "総合".
-    cat_items = classes_for("cat01")
-    all_items_code = None
-    for c in cat_items:
-        if c.get("@name") == "総合":
-            all_items_code = c.get("@code")
-            break
-    if all_items_code is None:
-        for c in cat_items:
-            if "総合" in (c.get("@name") or ""):
-                all_items_code = c.get("@code")
-                print(f"  [estat-cpi] no exact '総合' match; falling back to "
-                      f"{c.get('@name')!r} ({all_items_code})")
-                break
-    if all_items_code is None:
-        print(f"  [estat-cpi] could not find an 'all items' category in "
-              f"cat01 metadata ({len(cat_items)} categories present)")
+    names = {c.get("@code"): (c.get("@name") or "") for c in classes("cat01")}
+    if "総合" not in names.get(ESTAT_ALL_ITEMS, ""):
+        print(f"  [estat-cpi] cat01 {ESTAT_ALL_ITEMS} is {names.get(ESTAT_ALL_ITEMS)!r}, "
+              f"not all items; refusing to guess")
         return None
-
-    # Build time-code -> "YYYY-MM" from the time-axis metadata rather than
-    # guessing e-Stat's internal time-code format.
-    time_items = classes_for("time")
     period_of = {}
-    for t in time_items:
-        name = t.get("@name", "")
-        m = re.match(r"(\d{4})年(\d{1,2})月", name)
+    for tm in classes("time"):
+        m = re.match(r"(\d{4})年(\d{1,2})月$", (tm.get("@name") or "").strip())
         if m:
-            period_of[t.get("@code")] = f"{m.group(1)}-{int(m.group(2)):02d}"
-
-    values = stat_data.get("DATA_INF", {}).get("VALUE", [])
-    if isinstance(values, dict):
-        values = [values]
-    rows = {}
-    for v in values:
-        if v.get("@cat01") != all_items_code:
+            period_of[tm.get("@code")] = f"{m.group(1)}-{int(m.group(2)):02d}"
+    tab_kind = {"1": "index", "2": "mom", "3": "yoy"}
+    out = {"index": {}, "mom": {}, "yoy": {}}
+    vals = sd.get("DATA_INF", {}).get("VALUE", [])
+    vals = [vals] if isinstance(vals, dict) else vals
+    for v in vals:
+        if v.get("@cat01") != ESTAT_ALL_ITEMS or v.get("@area", ESTAT_NATIONAL) != ESTAT_NATIONAL:
             continue
+        kind = tab_kind.get(v.get("@tab", "1"))
         period = period_of.get(v.get("@time"))
-        raw = v.get("$")
-        if period is None or raw in (None, ""):
+        if not kind or not period:
             continue
         try:
-            rows[period] = float(raw)
-        except ValueError:
+            out[kind][period] = float(v.get("$"))
+        except (TypeError, ValueError):
             continue
+    return {k: sorted([[p, x] for p, x in d.items()]) for k, d in out.items()}
 
-    if not rows:
-        print(f"  [estat-cpi] parsed response but got 0 matching rows "
-              f"(cat01={all_items_code}, {len(values)} VALUE entries, "
-              f"{len(period_of)} time codes resolved)")
+
+def _estat_cpi() -> dict | None:
+    if "parsed" in _ESTAT_CACHE:
+        return _ESTAT_CACHE["parsed"]
+    _ESTAT_CACHE["parsed"] = None
+    app_id = os.environ.get("ESTAT_APP_ID")
+    if not app_id:
+        print("  [estat-cpi] no ESTAT_APP_ID set — skipping")
         return None
+    # Narrowed to all items, national: the whole table is far past the
+    # 100,000-value reply limit and would come back silently truncated.
+    url = (f"{ESTAT_BASE}?appId={app_id}&statsDataId={ESTAT_CPI_STATS_DATA_ID}"
+           f"&cdArea={ESTAT_NATIONAL}&cdCat01={ESTAT_ALL_ITEMS}"
+           f"&metaGetFlg=Y&cntGetFlg=N&limit=100000")
+    try:
+        r = requests.get(url, timeout=60, headers={"User-Agent": "economic-atlas/0.1"})
+        print(f"  [estat-cpi] status={r.status_code}")
+        r.raise_for_status()
+        parsed = _estat_cpi_parse(r.json())
+    except Exception as exc:
+        print(f"  [estat-cpi] request failed: {exc}")
+        return None
+    if not parsed or not parsed["index"]:
+        print("  [estat-cpi] no all-items national index in the reply")
+        return None
+    i = parsed["index"]
+    print(f"  [estat-cpi] SUCCESS (2025 base): {len(i)} index points, {i[0][0]} to {i[-1][0]}; "
+          f"published rates: {len(parsed['yoy'])} YoY, {len(parsed['mom'])} MoM")
+    _ESTAT_CACHE["parsed"] = parsed
+    return parsed
 
-    pts = sorted([[p, v] for p, v in rows.items()], key=lambda x: x[0])
-    print(f"  [estat-cpi] SUCCESS: {len(pts)} index points, {pts[0][0]} to {pts[-1][0]}")
-    _ESTAT_INDEX_CACHE["index"] = pts
-    return pts
+
+def fetch_estat_cpi_index() -> list | None:
+    p = _estat_cpi()
+    return p["index"] if p else None
+
+
+def _published_or_derived(kind: str, how: str):
+    """Published rates wherever the Bureau publishes them; rates derived from
+    the index only for periods it does not (or for everything, if published
+    rates are missing or behind the index). Never shorter than the index can
+    support, so the shrink guard cannot hold on to the old table's series
+    just because the published rates start later than the index."""
+    p = _estat_cpi()
+    if not p:
+        return None
+    derived = dict(transform(p["index"], how) or [])
+    pub = dict(p[kind])
+    if not pub or max(pub) != p["index"][-1][0]:
+        print(f"  [estat-cpi] published {kind} rates missing or behind the index; "
+              f"derived {len(derived)} from the index instead")
+        return sorted([[k, v] for k, v in derived.items()]) or None
+    filled = [k for k in derived if k not in pub]
+    if filled:
+        print(f"  [estat-cpi] {kind}: {len(pub)} published, {len(filled)} earlier "
+              f"periods derived from the index ({min(filled)} to {max(filled)})")
+    merged = {**derived, **pub}
+    return sorted([[k, v] for k, v in merged.items()])
 
 
 def fetch_estat_cpi() -> list | None:
-    idx = fetch_estat_cpi_index()
-    if not idx:
-        return None
-    yoy = transform(idx, "yoy")
-    if not yoy:
-        print(f"  [estat-cpi] {len(idx)} index points parsed but YoY "
-              f"transform produced nothing")
-        return None
-    return yoy
+    return _published_or_derived("yoy", "yoy")
 
 
 def fetch_estat_cpi_mom() -> list | None:
-    idx = fetch_estat_cpi_index()
-    if not idx:
-        return None
-    mom = transform(idx, "mom")
-    if not mom:
-        print(f"  [estat-cpi] {len(idx)} index points parsed but MoM "
-              f"transform produced nothing")
-        return None
-    return mom
+    return _published_or_derived("mom", "mom")
 
 
 
@@ -670,9 +660,9 @@ def main() -> int:
         ("business_confidence", lambda: fetch_oecd_bci(),
          "Business confidence indicator, LT avg = 100 (OECD BCICP)", "index", "months"),
         ("cpi", lambda: fetch_estat_cpi() or fetch_oecd_cpi(("JPN",), "M"),
-         "CPI, all items, YoY (e-Stat, 2020 base, Statistics Bureau of Japan)", "%", "months"),
+         "CPI, all items, YoY (e-Stat, 2025 base, Statistics Bureau of Japan)", "%", "months"),
         ("cpi_mom", lambda: fetch_estat_cpi_mom(),
-         "CPI, all items, MoM (e-Stat, 2020 base, Statistics Bureau of Japan)", "%", "months"),
+         "CPI, all items, MoM (e-Stat, 2025 base, Statistics Bureau of Japan)", "%", "months"),
         ("fdi", lambda: fetch_worldbank("BX.KLT.DINV.WD.GD.ZS"),
          "FDI net inflows, % of GDP (World Bank)", "%", "years"),
         ("current_account", lambda: fetch_worldbank("BN.CAB.XOKA.GD.ZS"),
@@ -706,6 +696,11 @@ def main() -> int:
     # separate prev_full read further below (for new_points_meta
     # tracking) is untouched by this -- redundant but harmless.
     _prev_series_early = _prev_full_early.get("series", {})
+    # Trade conversion below must only touch series fetched fresh this run:
+    # a carried-over series is already in local currency, and for countries
+    # whose converted unit keeps a bare $ it would otherwise be converted a
+    # second time. See tools/test_trade_fx.py.
+    _fresh_keys = set(out["series"])
     _guard_verdicts = series_guard.apply_guard(
         out["series"], _prev_series_early, allow_shrink=ALLOW_SHRINK)
     if not out.get("fx_to_usd") and _prev_full_early.get("fx_to_usd"):
@@ -721,9 +716,16 @@ def main() -> int:
         tb = [[p, round(x - imp[p], 1)]
               for p, x in out["series"]["exports"]["points"] if p in imp]
         if tb:
+            # Unit from the flows it is built from: carried-over flows are
+            # already in yen and must not be labelled or converted as dollars.
             out["series"]["trade_balance"] = {
-                "label": "Trade balance, goods (exports minus imports)", "unit": "$m",
+                "label": "Trade balance, goods (exports minus imports)",
+                "unit": out["series"]["exports"]["unit"],
                 "freq": "months", "points": tb}
+            if "exports" in _fresh_keys and "imports" in _fresh_keys:
+                _fresh_keys.add("trade_balance")
+            else:
+                _fresh_keys.discard("trade_balance")
             print(f"  ok  {'trade_balance':<16} {len(tb):>5} observations (derived)")
 
     try:
@@ -765,6 +767,7 @@ def main() -> int:
         print("Fresh (< 2 days old): " + ", ".join(
             f"{k} ({p})" for k, p in out["new_points"].items()))
 
+    _fx_ok = False
     try:
         if key:
             fx_pts = fetch_fred("DEXJPUS", "d", key)
@@ -777,8 +780,9 @@ def main() -> int:
                       f"history {fx_pts[0][0]} to {fx_period} ({len(fx_pts)} points)")
 
                 to_local = lambda v, per: v * _fx_rate_for_period(fx_pts, per, fx_rate)
+                _fx_ok = True
                 for tk in ("trade_balance", "exports", "imports"):
-                    if tk in out["series"]:
+                    if tk in out["series"] and tk in _fresh_keys:
                         ser = out["series"][tk]
                         if ser["unit"].strip().startswith("$"):
                             ser["points"] = [[p, round(to_local(v, p), 1)] for p, v in ser["points"]]
@@ -793,6 +797,20 @@ def main() -> int:
                   "Dollarise will be unavailable on this page until next run.")
     except Exception as exc:
         print(f"FAIL  fx_to_usd        {exc}")
+
+    # No exchange rate this run: a freshly fetched USD trade series would be
+    # published unconverted. Keep last run's converted figures instead (or
+    # leave the key out), so a page never shows dollars as local currency.
+    if not _fx_ok:
+        for tk in ("trade_balance", "exports", "imports"):
+            ser = out["series"].get(tk)
+            if tk in _fresh_keys and ser and ser["unit"].strip().startswith("$"):
+                if tk in _prev_series_early:
+                    out["series"][tk] = _prev_series_early[tk]
+                    print(f"CARRIED OVER {tk}: no exchange rate this run to convert it")
+                else:
+                    del out["series"][tk]
+                    print(f"FAIL  {tk:<16} no exchange rate this run to convert it; left out")
 
     # fx_to_eur (Markets section, Sep 2026): JPY/EUR, triangulated the same
     # way as Canada's CAD/EUR -- Japan's own fx_to_usd is "divide"

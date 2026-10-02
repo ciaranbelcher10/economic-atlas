@@ -39,6 +39,11 @@ still the genuine test):
   INDEC-sourced series exists (per published figures) but no verified
   live FRED mirror of it was found during this build, so the annual
   World Bank modeled estimate is used instead.
+- debt_gdp / deficit: CURRENT SOURCE (since v1.6.27, Sep 2026) is the IMF
+  World Economic Outlook fetched directly through imf_weo.py, not FRED.
+  FRED's GGGDTA...A188N / GGNLBA...A188N copies stopped updating after the
+  April 2025 WEO. The notes below describe the old FRED wiring and are kept
+  only as history.
 - debt_gdp (GGGDTAARA188N) / deficit (GGNLBAARA188N): CONFIRMED live
   (through 2024, updated Apr 2025), IMF World Economic Outlook, general
   government, % of GDP, ANNUAL. Same IMF-WEO FRED family used for

@@ -593,6 +593,11 @@ def main() -> int:
     # already used elsewhere) so a run where every series fails still
     # gets rescued by carried-over data rather than giving up entirely.
     _prev_series = prev_full.get("series", {})
+    # Trade conversion below must only touch series fetched fresh this run:
+    # a carried-over series is already in local currency, and for countries
+    # whose converted unit keeps a bare $ it would otherwise be converted a
+    # second time. See tools/test_trade_fx.py.
+    _fresh_keys = set(out["series"])
     _guard_verdicts = series_guard.apply_guard(
         out["series"], _prev_series, allow_shrink=ALLOW_SHRINK)
     if not out.get("fx_to_usd") and prev_full.get("fx_to_usd"):
@@ -645,6 +650,7 @@ def main() -> int:
     # Chile/Colombia/Argentina/Indonesia. Needs no FRED_API_KEY, so this
     # now runs unconditionally rather than behind the `if key:` gate the
     # old FRED-based fetch used.
+    _fx_ok = False
     try:
         fx_pts = fetch_worldbank("PA.NUS.FCRF")
         if fx_pts:
@@ -656,8 +662,9 @@ def main() -> int:
                   f"history {fx_pts[0][0]} to {fx_period} ({len(fx_pts)} points, annual)")
 
             to_local = lambda v, per: v * _fx_rate_for_period(fx_pts, per, fx_rate)
+            _fx_ok = True
             for tk in ("trade_balance", "exports", "imports"):
-                if tk in out["series"]:
+                if tk in out["series"] and tk in _fresh_keys:
                     ser = out["series"][tk]
                     if ser["unit"].strip().startswith("$"):
                         ser["points"] = [[p, round(to_local(v, p), 1)] for p, v in ser["points"]]
@@ -669,6 +676,20 @@ def main() -> int:
             print("note  fx_to_usd: no observations returned")
     except Exception as exc:
         print(f"FAIL  fx_to_usd        {exc}")
+
+    # No exchange rate this run: a freshly fetched USD trade series would be
+    # published unconverted. Keep last run's converted figures instead (or
+    # leave the key out), so a page never shows dollars as local currency.
+    if not _fx_ok:
+        for tk in ("trade_balance", "exports", "imports"):
+            ser = out["series"].get(tk)
+            if tk in _fresh_keys and ser and ser["unit"].strip().startswith("$"):
+                if tk in _prev_series:
+                    out["series"][tk] = _prev_series[tk]
+                    print(f"CARRIED OVER {tk}: no exchange rate this run to convert it")
+                else:
+                    del out["series"][tk]
+                    print(f"FAIL  {tk:<16} no exchange rate this run to convert it; left out")
 
     with open("data-il.json", "w") as f:
         json.dump(out, f)

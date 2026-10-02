@@ -652,6 +652,10 @@ def main() -> int:
     except Exception:
         _prev_for_merge = {}
     _prev_series = _prev_for_merge.get("series", {})
+    # Trade conversion below must only touch series fetched fresh this run:
+    # a carried-over series is already in local currency. See
+    # tools/test_trade_fx.py.
+    _fresh_keys = set(out["series"])
     _guard_verdicts = series_guard.apply_guard(
         out["series"], _prev_series, allow_shrink=ALLOW_SHRINK)
     if not out.get("fx_to_usd") and _prev_for_merge.get("fx_to_usd"):
@@ -697,6 +701,7 @@ def main() -> int:
         print("Fresh (< 2 days old): " + ", ".join(
             f"{k} ({p})" for k, p in out["new_points"].items()))
 
+    _fx_ok = False
     try:
         if key:
             fx_pts = fetch_fred("DEXSDUS", "d", key)
@@ -708,8 +713,9 @@ def main() -> int:
                 print(f"  ok  fx_to_usd        1 observation ({fx_period}, {fx_rate})")
 
                 to_local = lambda v, per: v * _fx_rate_for_period(fx_pts, per, fx_rate)
+                _fx_ok = True
                 for tk in ("trade_balance", "exports", "imports"):
-                    if tk in out["series"]:
+                    if tk in out["series"] and tk in _fresh_keys:
                         ser = out["series"][tk]
                         if ser["unit"].strip().startswith("$"):
                             ser["points"] = [[p, round(to_local(v, p), 1)]
@@ -722,6 +728,19 @@ def main() -> int:
                             print(f"  ok  {tk:<16} converted $->kr using {fx_rate}")
     except Exception as exc:
         print(f"FAIL  fx_to_usd        {exc}")
+
+    # No exchange rate this run: keep last run's converted trade figures
+    # rather than publish a fresh USD series in place of local currency.
+    if not _fx_ok:
+        for tk in ("trade_balance", "exports", "imports"):
+            ser = out["series"].get(tk)
+            if tk in _fresh_keys and ser and ser["unit"].strip().startswith("$"):
+                if tk in _prev_series:
+                    out["series"][tk] = _prev_series[tk]
+                    print(f"CARRIED OVER {tk}: no exchange rate this run to convert it")
+                else:
+                    del out["series"][tk]
+                    print(f"FAIL  {tk:<16} no exchange rate this run to convert it; left out")
 
     with open("data-se.json", "w") as f:
         json.dump(out, f)

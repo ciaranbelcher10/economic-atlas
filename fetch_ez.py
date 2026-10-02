@@ -491,6 +491,11 @@ def main() -> int:
     # separate prev_full read further below (for new_points_meta
     # tracking) is untouched by this -- redundant but harmless.
     _prev_series_early = _prev_full_early.get("series", {})
+    # Trade conversion below must only touch series fetched fresh this run:
+    # a carried-over series is already in local currency, and for countries
+    # whose converted unit keeps a bare $ it would otherwise be converted a
+    # second time. See tools/test_trade_fx.py.
+    _fresh_keys = set(out["series"])
     _guard_verdicts = series_guard.apply_guard(
         out["series"], _prev_series_early, allow_shrink=ALLOW_SHRINK)
     if not out.get("fx_to_usd") and _prev_full_early.get("fx_to_usd"):
@@ -512,6 +517,7 @@ def main() -> int:
         out["series"]["imports"] = {
             "label": "Imports of goods, extra-euro-area (Eurostat teiet110)",
             "unit": "\u20acm", "freq": "months", "points": es_imp}
+        _fresh_keys.update(("exports", "imports"))
         print(f"  ok  exports/imports replaced with live Eurostat series "
               f"({es_exp[-1][0]} / {es_imp[-1][0]})")
     else:
@@ -531,6 +537,10 @@ def main() -> int:
                 "label": "Trade balance, goods, extra-euro-area (derived from Eurostat teiet010 and teiet110)",
                 "unit": out["series"]["exports"]["unit"],
                 "freq": "months", "points": tb}
+            if "exports" in _fresh_keys and "imports" in _fresh_keys:
+                _fresh_keys.add("trade_balance")
+            else:
+                _fresh_keys.discard("trade_balance")
             print(f"  ok  {'trade_balance':<16} {len(tb):>5} observations (derived)")
 
     try:
@@ -572,6 +582,7 @@ def main() -> int:
         print("Fresh (< 2 days old): " + ", ".join(
             f"{k} ({p})" for k, p in out["new_points"].items()))
 
+    _fx_ok = False
     try:
         if key:
             fx_pts = fetch_fred("DEXUSEU", "d", key)
@@ -584,8 +595,9 @@ def main() -> int:
                       f"history {fx_pts[0][0]} to {fx_period} ({len(fx_pts)} points)")
 
                 to_local = lambda v, per: v / _fx_rate_for_period(fx_pts, per, fx_rate)
+                _fx_ok = True
                 for tk in ("trade_balance", "exports", "imports"):
-                    if tk in out["series"]:
+                    if tk in out["series"] and tk in _fresh_keys:
                         ser = out["series"][tk]
                         if ser["unit"].strip().startswith("$"):
                             ser["points"] = [[p, round(to_local(v, p), 1)] for p, v in ser["points"]]
@@ -600,6 +612,20 @@ def main() -> int:
                   "Dollarise will be unavailable on this page until next run.")
     except Exception as exc:
         print(f"FAIL  fx_to_usd        {exc}")
+
+    # No exchange rate this run: a freshly fetched USD trade series would be
+    # published unconverted. Keep last run's converted figures instead (or
+    # leave the key out), so a page never shows dollars as local currency.
+    if not _fx_ok:
+        for tk in ("trade_balance", "exports", "imports"):
+            ser = out["series"].get(tk)
+            if tk in _fresh_keys and ser and ser["unit"].strip().startswith("$"):
+                if tk in _prev_series_early:
+                    out["series"][tk] = _prev_series_early[tk]
+                    print(f"CARRIED OVER {tk}: no exchange rate this run to convert it")
+                else:
+                    del out["series"][tk]
+                    print(f"FAIL  {tk:<16} no exchange rate this run to convert it; left out")
 
     with open("data-ez.json", "w") as f:
         json.dump(out, f)

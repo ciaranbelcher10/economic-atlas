@@ -1467,11 +1467,14 @@ def render_indicator(country, info, entry, rank_info, all_rankings_meta, n_indic
     adj_html = f'<p class="ind-adj">{esc(adj)}</p>' if adj else ""
     # Source, series, frequency, unit, adjustment, latest observation and
     # revision status, in one place, so the question doesn't need asking.
+    # Exchange rates and bond yields are market prices: nothing revises
+    # them later, and there is no seasonal adjustment to report.
+    market = unit_kind(unit) == "fx" or key.startswith("bond_")
     defs = [("Source", src_pub or source_text), ("Series", src_series or "See the citation below"),
             ("Frequency", FREQ_WORD.get(freq, "")), ("Unit", _clean_unit(unit) or "index"),
-            ("Seasonal adjustment", adj or "Not stated in the source citation"),
+            ("Seasonal adjustment", adj or ("Not applicable: a market price" if market else "Not stated in the source citation")),
             ("Latest observation", fmt_period_label(latest_p)),
-            ("Revision status", "Latest published estimate, subject to revision")]
+            ("Revision status", "Market price, not revised" if market else "Latest published estimate, subject to revision")]
     defs_html = "".join(f'<div><dt>{esc(k)}</dt><dd>{esc(v)}</dd></div>' for k, v in defs)
     rest = description[len(first_sentence(description)):].strip()
     about_p = f"<p>{esc(rest)}</p>" if rest else ""
