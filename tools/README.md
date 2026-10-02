@@ -424,3 +424,21 @@ they are not equal to rates recalculated from the index (Jun 2026: 1.6%
 published, 1.70% recalculated).
 
 Expected: 11 checks, 0 failures. Published rates win where present; any earlier periods are filled from the index so the series never gets shorter.
+
+## `sitemap_gate.py` — every served page in the sitemap, exactly once
+
+```
+python3 tools/sitemap_gate.py
+```
+
+Fails on a duplicate `<loc>`, a served page missing from `sitemap.xml`, a
+listed URL with no file behind it, or a listed page that is `noindex` or a
+redirect stub. Served pages: root `*.html` (except `404.html` and the
+`*-by-country.html` redirect stubs), `indicators/`, `embed/`, `rankings/`.
+`rewrite_sitemap()` in `generate_indicator_pages.py` builds the sitemap the
+same way, so run the generator first; on the committed tree (before CI has
+regenerated it) the gate correctly fails.
+
+Expected after a generator run (v1.6.30): **993 `<loc>`, 993 unique, 993
+served pages, 0 duplicates / 0 missing / 0 no file / 0 blocked**
+(42 root, 469 indicators, 469 embeds, 13 rankings).

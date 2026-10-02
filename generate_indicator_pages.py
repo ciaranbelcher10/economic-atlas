@@ -1684,7 +1684,6 @@ EMBED_TEMPLATE = """<!DOCTYPE html>
 <meta name="viewport" content="width=device-width, initial-scale=1.0">
 <title>{country_name} {metric_title} - Live | The Economic Atlas</title>
 <link rel="icon" type="image/png" sizes="32x32" href="../favicon-32.png">
-<meta name="robots" content="noindex">
 <style>
   *{{box-sizing:border-box}}
   html,body{{margin:0;padding:0;font-family:"Avenir Next","Avenir","Nunito Sans",system-ui,sans-serif;color:#171B1E;background:transparent}}
@@ -1804,14 +1803,48 @@ def legacy_redirect_html(target_slug):
 """
 
 
+SITEMAP_GENERATED = ("/indicators/", "/embed/", "/rankings")
+SITEMAP_ROOT_SKIP = {"404.html"}
+
+
+def root_page_listable(fname):
+    """A root .html page belongs in the sitemap unless it is the 404 page,
+    a redirect stub (meta refresh) or marked noindex."""
+    if fname in SITEMAP_ROOT_SKIP or not fname.endswith(".html"):
+        return False
+    with open(os.path.join(ROOT, fname), encoding="utf-8") as f:
+        head = f.read(4000)
+    return 'http-equiv="refresh"' not in head and "noindex" not in head
+
+
 def rewrite_sitemap(urls, today):
+    """Rebuild sitemap.xml: every listable root page (existing lastmod and
+    changefreq kept; new pages dated today) plus the generated indicator,
+    embed and ranking URLs. Each <loc> appears exactly once."""
     path = os.path.join(ROOT, "sitemap.xml")
-    with open(path, encoding="utf-8") as f:
-        lines = f.read().splitlines()
-    kept = [l for l in lines if "/indicators/" not in l and "/rankings/" not in l and "</urlset>" not in l]
-    new = [f"  <url><loc>{u}</loc><lastmod>{today}</lastmod><changefreq>daily</changefreq></url>" for u in urls]
+    old = {}
+    if os.path.exists(path):
+        with open(path, encoding="utf-8") as f:
+            for l in f.read().splitlines():
+                m = re.search(r"<loc>([^<]+)</loc>", l)
+                if m and not any(g in m.group(1) for g in SITEMAP_GENERATED):
+                    old.setdefault(m.group(1), l)
+    statics = []
+    for fname in sorted(os.listdir(ROOT)):
+        if not root_page_listable(fname):
+            continue
+        stem = fname[:-5]
+        u = f"{SITE_URL}/" if stem == "index" else f"{SITE_URL}/{stem}"
+        statics.append(old.get(u) or f"  <url><loc>{u}</loc><lastmod>{today}</lastmod><changefreq>daily</changefreq></url>")
+    statics.sort(key=lambda l: (f"<loc>{SITE_URL}/</loc>" not in l, l))
+    seen, new = set(), []
+    for u in urls:
+        if u not in seen:
+            seen.add(u)
+            new.append(f"  <url><loc>{u}</loc><lastmod>{today}</lastmod><changefreq>daily</changefreq></url>")
+    out = ['<?xml version="1.0" encoding="UTF-8"?>', '<urlset xmlns="http://www.sitemaps.org/schemas/sitemap/0.9">']
     with open(path, "w", encoding="utf-8") as f:
-        f.write("\n".join(kept + new + ["</urlset>"]) + "\n")
+        f.write("\n".join(out + statics + new + ["</urlset>"]) + "\n")
 
 
 # Currencies shared by several tracked economies: the euro area members use
@@ -1923,6 +1956,7 @@ def main():
             with open(os.path.join(ROOT, "embed", f"{page_slug}.html"), "w", encoding="utf-8") as f:
                 f.write(embed)
             urls.append(f"{SITE_URL}/indicators/{page_slug}")
+            urls.append(f"{SITE_URL}/embed/{page_slug}")
             generated += 1
 
     for rk, rows, unranked in ranking_pages:
