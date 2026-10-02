@@ -23,7 +23,7 @@ line-for-line ports of each other; tools/test_indicator_fmt.js checks that
 they agree for every country x metric pair. Rules match the country pages'
 curFmt(): % at 1dp (policy rates and bond yields 2dp), index at 1dp, currency
 folded to tn/bn/m with its real symbol (ISO code where the unit has no glyph,
-A$/R$/C$/MX$/R on GDP for the five non-US dollar-glyph currencies).
+A$/R$/C$/MX$/R on GDP and trade for the five non-US dollar-glyph currencies).
 
 A country/metric pair is skipped, never padded, when the series is missing,
 has fewer than two readings, or has no source citation in
@@ -349,7 +349,7 @@ GDP_RAW_COUNTRIES = {"US", "Japan"}          # already published at an annual ra
 GDP_ALREADY_USD = {"US", "Switzerland"}      # no Dollarise; no FX conversion
 RATE_KEYS = {"boe_rate", "fed_funds", "ecb_rate", "boj_rate", "overnight_rate", "policy_rate", "bond_yield_10y"}
 NATIVE_DOLLAR = {"Australia": "A$", "Brazil": "R$", "Canada": "C$", "Mexico": "MX$", "South Africa": "R"}
-NATIVE_KEYS = {"gdp_level", "gdp_real"}
+NATIVE_KEYS = {"gdp_level", "gdp_real", "trade_balance", "exports", "imports"}
 STALE_DAYS = {"months": 75, "quarters": 150, "years": 660}
 MONTH_NAMES = ["Jan","Feb","Mar","Apr","May","Jun","Jul","Aug","Sep","Oct","Nov","Dec"]
 MINUS = "\u2212"

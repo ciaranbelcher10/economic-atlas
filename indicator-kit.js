@@ -20,7 +20,7 @@
   var MINUS = "\u2212";
   var RATE_KEYS = {boe_rate:1, fed_funds:1, ecb_rate:1, boj_rate:1, overnight_rate:1, policy_rate:1, bond_yield_10y:1};
   var NATIVE_DOLLAR = {Australia:"A$", Brazil:"R$", Canada:"C$", Mexico:"MX$", "South Africa":"R"};
-  var NATIVE_KEYS = {gdp_level:1, gdp_real:1};
+  var NATIVE_KEYS = {gdp_level:1, gdp_real:1, trade_balance:1, exports:1, imports:1};
   var STALE_DAYS = {months:75, quarters:150, years:660};
 
   function cleanUnit(u){ return String(u || "").replace(/\s*\([^)]*\)\s*$/, "").trim(); }
