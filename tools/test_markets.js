@@ -1,4 +1,4 @@
-// Markets page gate (v1.6.36): runs markets.html in jsdom against the real
+// Markets page gate (v1.6.36; visuals v1.6.37): runs markets.html in jsdom against the real
 // data files and checks every table renders and no table mixes measures.
 //   npm install jsdom --no-save; export NODE_PATH=$(pwd)/node_modules
 //   node tools/test_markets.js        -> "N checks, 0 failures"
@@ -46,7 +46,20 @@ setTimeout(() => {
   check("annual FX rows dated by year", fa.length > 0 && fa.every(r => /^\d{4}$/.test(r[2])));
   check("every FX rate in US$ per home unit", fx.concat(fa).every(r => /^\$[\d.]+ per /.test(r[1])));
   check("FX tables non-empty", fx.length >= 10 && fa.length >= 5, `${fx.length}/${fa.length}`);
-  // 5. copy rules
+  // 5. visuals agree with the tables row for row (v1.6.37)
+  const ticks = d.querySelectorAll(".mk-tick");
+  check("ticker has at least 5 cards", ticks.length >= 5, ticks.length);
+  check("every ticker card dated", [...ticks].every(t => /\d{4}/.test(t.querySelector(".d").textContent)));
+  const cy = d.querySelectorAll("#cYields svg rect").length;
+  check("yield bars = yield table rows", cy === y.length, `${cy} vs ${y.length}`);
+  check("Eurozone bar shows end of month", !ez || /end of month/.test([...d.querySelectorAll("#cYields text")].map(t => t.textContent).join(" ")));
+  const fxWith = fx.filter(r => r[5] !== "n/a").length, cf = d.querySelectorAll("#cFx svg rect").length;
+  check("currency bars = daily FX rows with a 1-year change", cf === fxWith, `${cf} vs ${fxWith}`);
+  check("no annual-only currency in the scoreboard", !fa.some(r => [...d.querySelectorAll("#cFx svg title")].some(t => t.textContent.startsWith(r[0] + ":"))));
+  const cl = d.querySelectorAll("#cDaily svg path").length;
+  check("one daily line per daily yield row", cl === dl.length, `${cl} vs ${dl.length}`);
+  check("charts carry text alternatives", ["cYields","cFx","cDaily"].every(id => { const s = d.querySelector("#" + id + " svg"); return s && s.getAttribute("role") === "img" && (s.getAttribute("aria-label") || "").length > 20; }));
+  // 6. copy rules
   const text = d.querySelector("main, .wrap") ? d.body.textContent : "";
   check("no em dashes in rendered copy", !/\u2014/.test([...d.querySelectorAll(".mk-sec, .mk-intro")].map(e => e.textContent).join(" ")));
   console.log(`${checks} checks, ${fails} failures`);

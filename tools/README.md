@@ -509,4 +509,9 @@ the daily `bond_yield_10y` files (UK, US, Canada, Japan); the euro-area par
 yield and the SG/MA/TH long-term yields appear only in their own table;
 the euro is shown once, no euro member or US dollar row; daily and annual
 exchange rates sit in separate tables, all as US$ per unit of home currency.
-Expected: **17 checks, 0 failures**.
+Since v1.6.37 it also checks the visuals against the tables: the ticker is
+dated, the yield bars and currency bars match their tables row for row
+(annual-only currencies never in the scoreboard), one daily line per daily
+yield, the Eurozone bar shows its end-of-month basis, and every chart has a
+text alternative.
+Expected: **25 checks, 0 failures**.

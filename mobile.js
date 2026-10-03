@@ -88,7 +88,8 @@
       { href:"rankings",  label:"Rankings",  ic:"\uD83C\uDFC5",  match:function(){ return onRankings; } },
       { href:"dashboard", label:"Dashboard", ic:"\uD83D\uDCCC",  match:function(p){ return p==="dashboard"; } },
       { href:"chartmaker",label:"Chartmaker",ic:"\uD83D\uDCC8",  match:function(p){ return p==="chartmaker"; } },
-      { href:"calendar",  label:"Calendar",  ic:"\uD83D\uDDD3\uFE0F", match:function(p){ return p==="calendar"; } }
+      { href:"calendar",  label:"Calendar",  ic:"\uD83D\uDDD3\uFE0F", match:function(p){ return p==="calendar"; } },
+      { href:"markets",   label:"Markets",   ic:"\uD83D\uDCB1", match:function(p){ return p==="markets"; } }
     ];
     var bar = document.createElement("nav");
     bar.id = "mobToolbar";

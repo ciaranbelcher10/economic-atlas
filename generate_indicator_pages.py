@@ -683,6 +683,7 @@ HEADER_HTML_BASE = """<script>(function(){
  <a class="item" href="../dashboard">My Dashboard</a>
  <a class="item" href="../chartmaker" id="navChartmakerLink">Chartmaker</a>
  <a class="item" href="../calendar" id="navCalendarLink">Calendar</a>
+ <a class="item" href="../markets" id="navMarketsLink">Markets</a>
 </div></nav>
 <script>
 (function(){
@@ -1165,7 +1166,7 @@ def head_html(title, desc, canonical, og_image, jsonld, extra_css=""):
 <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
 <link href="https://fonts.googleapis.com/css2?family=Nunito+Sans:wght@400;600;700&display=swap" rel="stylesheet">
 <link rel="stylesheet" href="../style.css?v=52">
-<link rel="stylesheet" href="../mobile.css?v=14">
+<link rel="stylesheet" href="../mobile.css?v=15">
 <link rel="stylesheet" href="../indicator.css?v={KIT_VERSION}">
 <script type="application/ld+json">
 {jsonld}
@@ -1180,7 +1181,7 @@ def page_tail(extra_js="", extra_html=""):
 <script src="https://cdnjs.cloudflare.com/ajax/libs/Chart.js/4.4.1/chart.umd.min.js"></script>
 <script src="../indicator-kit.js?v={KIT_VERSION}"></script>
 {extra_js}
-<script src="../mobile.js?v=15"></script>
+<script src="../mobile.js?v=16"></script>
 </body>
 </html>
 """

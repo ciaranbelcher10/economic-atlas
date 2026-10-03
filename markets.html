@@ -33,7 +33,7 @@
 <link rel="icon" type="image/png" sizes="32x32" href="favicon-32.png">
 <link rel="apple-touch-icon" href="apple-touch-icon.png">
 <link rel="stylesheet" href="style.css?v=52">
-<link rel="stylesheet" href="mobile.css?v=14">
+<link rel="stylesheet" href="mobile.css?v=15">
 </head>
 <body>
 <nav class="top"><div class="wrap">
@@ -125,6 +125,7 @@
  <a class="item" href="dashboard">My Dashboard</a>
  <a class="item" href="chartmaker" id="navChartmakerLink">Chartmaker</a>
  <a class="item" href="calendar" id="navCalendarLink">Calendar</a>
+ <a class="item active" href="markets" id="navMarketsLink">Markets</a>
 </div></nav>
 <div class="wrap" style="padding-top:16px;">
  <div class="savebar" id="alertBanner" hidden>
@@ -1148,11 +1149,40 @@
 })();
 </script>
 <div class="wrap">
-<header class="page">
- <p class="eyebrow"><span class="dot" aria-hidden="true"></span>The Economic Atlas</p>
- <h1>Markets</h1>
+<header class="mk-hero">
+ <p class="mk-kicker"><span class="mk-pulse" aria-hidden="true"></span>Markets</p>
+ <h1>What the world pays to borrow, and what its money is worth</h1>
+ <p class="mk-sub">Government bond yields and exchange rates for the economies we track, straight from central banks, finance ministries and statistics offices. Every figure is dated and sourced.</p>
+ <div class="mk-ticker" id="mkTicker" aria-label="Headline market figures"></div>
 </header>
 <style>
+.mk-hero{position:relative; overflow:hidden; color:#fff; border-radius:20px; margin:18px 0 22px; padding:34px 34px 26px;
+  background:radial-gradient(1200px 400px at 85% -10%, rgba(64,183,173,.35), transparent 60%), radial-gradient(900px 500px at -10% 120%, rgba(71,150,206,.35), transparent 60%), linear-gradient(135deg,#0B1F33 0%,#14324F 45%,#1E4566 100%);}
+.mk-hero h1{font-size:clamp(26px,4.2vw,44px); line-height:1.08; font-weight:700; letter-spacing:-.02em; margin:6px 0 10px; max-width:900px; color:#fff;}
+.mk-sub{color:rgba(255,255,255,.78); max-width:720px; line-height:1.5; margin:0 0 22px; font-size:15.5px;}
+.mk-kicker{display:flex; align-items:center; gap:8px; text-transform:uppercase; letter-spacing:.14em; font-size:12px; font-weight:700; color:#8AD9B1; margin:0;}
+.mk-pulse{width:9px; height:9px; border-radius:50%; background:#40B7AD; box-shadow:0 0 0 0 rgba(64,183,173,.7); animation:mkpulse 2s infinite;}
+@keyframes mkpulse{0%{box-shadow:0 0 0 0 rgba(64,183,173,.7);}70%{box-shadow:0 0 0 10px rgba(64,183,173,0);}100%{box-shadow:0 0 0 0 rgba(64,183,173,0);}}
+@media (prefers-reduced-motion: reduce){.mk-pulse{animation:none;}}
+.mk-ticker{display:grid; grid-template-columns:repeat(auto-fill,minmax(150px,1fr)); gap:10px;}
+.mk-tick{display:block; color:#fff; text-decoration:none; background:rgba(255,255,255,.07); border:1px solid rgba(255,255,255,.12); border-radius:12px; padding:11px 12px 8px; transition:background .15s, transform .15s;}
+.mk-tick:hover{background:rgba(255,255,255,.13); transform:translateY(-2px);}
+.mk-tick .l{font-size:11.5px; color:rgba(255,255,255,.7); font-weight:600; letter-spacing:.02em;}
+.mk-tick .v{font-size:24px; font-weight:700; letter-spacing:-.01em; margin:2px 0 0; font-variant-numeric:tabular-nums;}
+.mk-tick .c{font-size:12px; font-weight:700; font-variant-numeric:tabular-nums;}
+.mk-tick .c.up{color:#7FE0A8;} .mk-tick .c.down{color:#FF9A9A;} .mk-tick .c.flat{color:rgba(255,255,255,.6);}
+.mk-tick .d{font-size:10.5px; color:rgba(255,255,255,.5);}
+.mk-tick svg{display:block; width:100%; height:30px; margin-top:4px;}
+.mk-grid{display:grid; grid-template-columns:1fr 1fr; gap:18px; margin:0 0 26px;}
+.mk-card{background:var(--panel); border:1px solid var(--hair); border-radius:16px; padding:20px 22px;}
+.mk-card.mk-wide{grid-column:1 / -1;}
+.mk-card h2{font-size:20px; font-weight:700; letter-spacing:-.01em; margin:0 0 4px;}
+.mk-chart{color:var(--ink); margin-top:8px;}
+.mk-chart svg{display:block; width:100%; height:auto; overflow:visible;}
+.mk-chart a:hover rect{opacity:.85;}
+.mk-chart text{font-family:inherit;}
+.mk-full{font-size:22px; font-weight:700; letter-spacing:-.01em; margin:8px 0 2px;}
+@media (max-width:820px){.mk-grid{grid-template-columns:1fr;} .mk-hero{padding:26px 20px 20px; border-radius:16px;}}
 .mk-intro{color:var(--ink2); max-width:760px; line-height:1.55; margin:4px 0 18px;}
 .mk-sec{background:var(--panel); border:1px solid var(--hair); border-radius:14px; padding:20px 22px; margin:0 0 18px;}
 .mk-sec h2{font-size:17px; font-weight:700; margin:0 0 4px;}
@@ -1170,7 +1200,26 @@ html[data-theme="dark"] table.mk td.up{color:#6FCB96;} html[data-theme="dark"] t
 .mk-empty{color:var(--ink2); font-size:14px;}
 table.mk a{color:inherit; text-decoration:none; border-bottom:1px dotted var(--ink2);}
 </style>
-<p class="mk-intro">Government bond yields and exchange rates from official sources: central banks, finance ministries and national statistics offices. Every row shows the date of its latest figure and where it comes from. The light beside each country is green when the figure is as recent as its source normally allows, amber when it is overdue, and red when it is well overdue. Click a column heading to sort.</p>
+<div class="mk-grid">
+ <section class="mk-card mk-wide" id="chart-yields">
+  <h2>Borrowing costs around the world</h2>
+  <p class="mk-note">The 10-year government bond yield in each economy, latest month or quarter. Higher means the government pays more to borrow for ten years. Select a bar to open that economy.</p>
+  <div id="cYields" class="mk-chart"></div>
+ </section>
+ <section class="mk-card" id="chart-fx">
+  <h2>Currency scoreboard</h2>
+  <p class="mk-note">Change against the US dollar over the past year, from daily Federal Reserve rates. Right of the line, the currency buys more dollars than a year ago.</p>
+  <div id="cFx" class="mk-chart"></div>
+ </section>
+ <section class="mk-card" id="chart-daily">
+  <h2>A year in daily 10-year yields</h2>
+  <p class="mk-note">Every trading day's reading for the four economies whose official source publishes one.</p>
+  <div id="cDaily" class="mk-chart"></div>
+ </section>
+</div>
+
+<h2 class="mk-full">The numbers in full</h2>
+<p class="mk-intro">Every row shows the date of its latest figure and where it comes from. The light beside each one is green when the figure is as recent as its source normally allows, amber when it is overdue, and red when it is well overdue. Select a column heading to sort.</p>
 
 <section class="mk-sec" id="yields">
  <h2>10-year government bond yields</h2>
@@ -1363,6 +1412,114 @@ Promise.all([
   fa.sort(function(a, b){ return b.keys[3] - a.keys[3]; });
   render("tFx", fr, 7); sortable("tFx");
   render("tFxA", fa, 5); sortable("tFxA");
+
+  // ---------- Visuals (drawn from the same series as the tables) ----------
+  var SVGNS = "http://www.w3.org/2000/svg";
+  function spark(pts, color){
+    if(!pts || pts.length < 2) return "";
+    var vals = pts.map(function(p){ return p[1]; });
+    var lo = Math.min.apply(null, vals), hi = Math.max.apply(null, vals), span = (hi - lo) || 1;
+    var w = 140, h = 30;
+    var d = pts.map(function(p, i){ return (i ? "L" : "M") + (i / (pts.length - 1) * w).toFixed(1) + "," + (h - 2 - (p[1] - lo) / span * (h - 4)).toFixed(1); }).join("");
+    return '<svg viewBox="0 0 ' + w + ' ' + h + '" preserveAspectRatio="none" aria-hidden="true"><path d="' + d + '" fill="none" stroke="' + color + '" stroke-width="1.6" vector-effect="non-scaling-stroke"/></svg>';
+  }
+  function lastYear(pts){ if(!pts || !pts.length) return []; var cut = shiftDate(pts[pts.length-1][0], 0, 0, 1); return pts.filter(function(p){ return p[0] >= cut && p[1] != null; }); }
+
+  // Ticker: daily 10-year yields and the euro, pound and yen against the dollar.
+  var tick = [];
+  [["us","US 10-year"],["uk","UK 10-year"],["jp","Japan 10-year"],["ca","Canada 10-year"]].forEach(function(t){
+    var b = bonds[t[0]]; if(!b || b.key !== "bond_yield_10y" || !b.points || !b.points.length) return;
+    var pts = b.points.filter(function(p){ return p[1] != null; }), last = pts[pts.length-1];
+    var o = onOrBefore(pts, shiftDate(last[0], 7)); var w = o ? last[1] - o[1] : null;
+    tick.push({href: C[t[0]][1], l: t[1], v: fmt(last[1], 2) + "%", c: w, cs: signed(w, 2, "pp") + " on the week", d: periodLabel(last[0]), sp: lastYear(pts)});
+  });
+  [["ez","Euro","€1"],["uk","Pound","£1"],["jp","Yen","¥100"]].forEach(function(t){
+    var f = fx.filter(function(x){ return x.country === C[t[0]][0]; })[0];
+    var pr = f && (f.pairs || []).filter(function(x){ return x.quote === "USD"; })[0];
+    if(!pr || !pr.daily || !pr.daily.length) return;
+    var pts = pr.daily.filter(function(p){ return p[1] != null; }), last = pts[pts.length-1];
+    var o = onOrBefore(pts, shiftDate(last[0], 7)); var w = o ? (last[1] / o[1] - 1) * 100 : null;
+    tick.push({href: C[t[0]][1], l: t[1] + " in US$ (per " + t[2] + ")", v: "$" + fmt(last[1], last[1] < 1 ? 4 : 3), c: w, cs: signed(w, 1, "%") + " on the week", d: periodLabel(last[0]), sp: lastYear(pts)});
+  });
+  document.getElementById("mkTicker").innerHTML = tick.map(function(t){
+    var k = t.c == null || Math.abs(t.c) < 1e-9 ? "flat" : (t.c > 0 ? "up" : "down");
+    return '<a class="mk-tick" href="' + t.href + '"><div class="l">' + esc(t.l) + '</div><div class="v">' + t.v + '</div><div class="c ' + k + '">' + t.cs + '</div>' + spark(t.sp, k === "down" ? "#FF9A9A" : "#7FE0A8") + '<div class="d">' + t.d + '</div></a>';
+  }).join("");
+
+  // Bar chart: every 10-year yield in the period-average table.
+  (function(){
+    var rows = [];
+    codes.forEach(function(cc){
+      var d = data[cc], sr = d && d.series && d.series.bond_yield_10y;
+      if(!sr || !sr.points || sr.points.length < 2) return;
+      var pts = sr.points.filter(function(p){ return p[1] != null; }), last = pts[pts.length-1];
+      var bsrc = srcLine(sources, C[cc][0], "bond_yield_10y") || "";
+      rows.push({cc: cc, name: C[cc][0], v: last[1], p: last[0], basis: /end of month/i.test(bsrc) ? ", end of month" : ""});
+    });
+    rows.sort(function(a, b){ return b.v - a.v; });
+    if(!rows.length) return;
+    var max = Math.ceil(rows[0].v), W = 900, L = 118, R = 190, rowH = 24, H = rows.length * rowH + 26;
+    var stops = ["#2E1E3B","#413D7B","#37659E","#348FA7","#40B7AD","#8AD9B1"];
+    function col(v){ var t = Math.max(0, Math.min(1, v / max)); return stops[Math.min(stops.length - 1, Math.floor((1 - t) * stops.length))]; }
+    var g = "";
+    for(var x = 0; x <= max; x += max > 8 ? 2 : 1){
+      var gx = L + x / max * (W - L - R);
+      g += '<line x1="' + gx + '" x2="' + gx + '" y1="0" y2="' + (H - 22) + '" stroke="currentColor" stroke-opacity=".12"/><text x="' + gx + '" y="' + (H - 6) + '" font-size="12" text-anchor="middle" fill="currentColor" fill-opacity=".6">' + x + '%</text>';
+    }
+    rows.forEach(function(r, i){
+      var y = i * rowH, w = Math.max(2, r.v / max * (W - L - R));
+      g += '<a href="' + C[r.cc][1] + '"><title>' + esc(r.name) + ': ' + fmt(r.v, 2) + '% (' + periodLabel(r.p) + r.basis + ')</title>' +
+        '<text x="' + (L - 10) + '" y="' + (y + 16) + '" font-size="13" text-anchor="end" fill="currentColor">' + esc(r.name) + '</text>' +
+        '<rect x="' + L + '" y="' + (y + 4) + '" width="' + w.toFixed(1) + '" height="' + (rowH - 8) + '" rx="4" fill="' + col(r.v) + '"/>' +
+        '<text x="' + (L + w + 8).toFixed(1) + '" y="' + (y + 16) + '" font-size="13" font-weight="700" fill="currentColor">' + fmt(r.v, 2) + '%<tspan font-weight="400" fill-opacity=".55" font-size="11.5"> ' + periodLabel(r.p) + r.basis + '</tspan></text></a>';
+    });
+    document.getElementById("cYields").innerHTML = '<svg viewBox="0 0 ' + W + ' ' + H + '" role="img" aria-label="Bar chart of 10-year government bond yields, highest ' + esc(rows[0].name) + ' at ' + fmt(rows[0].v, 2) + ' percent, lowest ' + esc(rows[rows.length-1].name) + ' at ' + fmt(rows[rows.length-1].v, 2) + ' percent.">' + g + '</svg>';
+  })();
+
+  // Diverging bars: one-year change against the US dollar (daily rates only).
+  (function(){
+    var rows = fr.map(function(r){ return {label: r.keys[0].replace(/ \(.*\)$/, "").replace(/^Euro$/, "Euro"), full: r.keys[0], v: r.keys[5]}; }).filter(function(r){ return r.v != null; });
+    rows.sort(function(a, b){ return b.v - a.v; });
+    if(!rows.length) return;
+    var m = Math.max.apply(null, rows.map(function(r){ return Math.abs(r.v); })); m = Math.ceil(m);
+    var W = 520, mid = W / 2, half = W / 2 - 92, rowH = 24, H = rows.length * rowH + 8, g = "";
+    g += '<line x1="' + mid + '" x2="' + mid + '" y1="0" y2="' + H + '" stroke="currentColor" stroke-opacity=".35"/>';
+    rows.forEach(function(r, i){
+      var y = i * rowH, w = Math.max(2, Math.abs(r.v) / m * half), up = r.v >= 0;
+      var x = up ? mid : mid - w, c = up ? "#2FA36B" : "#C94545";
+      g += '<g><title>' + esc(r.full) + ': ' + signed(r.v, 1, "%") + ' over the year</title>' +
+        '<rect x="' + x.toFixed(1) + '" y="' + (y + 4) + '" width="' + w.toFixed(1) + '" height="' + (rowH - 8) + '" rx="4" fill="' + c + '"/>' +
+        '<text x="' + (up ? mid - 8 : mid + 8) + '" y="' + (y + 16) + '" font-size="12.5" text-anchor="' + (up ? "end" : "start") + '" fill="currentColor">' + esc(r.label) + '</text>' +
+        '<text x="' + (up ? mid + w + 6 : mid - w - 6).toFixed(1) + '" y="' + (y + 16) + '" font-size="12.5" font-weight="700" text-anchor="' + (up ? "start" : "end") + '" fill="' + c + '">' + signed(r.v, 1, "%") + '</text></g>';
+    });
+    document.getElementById("cFx").innerHTML = '<svg viewBox="0 0 ' + W + ' ' + H + '" role="img" aria-label="One-year change of each currency against the US dollar. Biggest gain ' + esc(rows[0].full) + ' ' + signed(rows[0].v, 1, " percent") + ', biggest fall ' + esc(rows[rows.length-1].full) + ' ' + signed(rows[rows.length-1].v, 1, " percent") + '.">' + g + '</svg>';
+  })();
+
+  // Lines: daily 10-year yields over the past year.
+  (function(){
+    var COL = {us:"#4796CE", uk:"#C94545", jp:"#40B7AD", ca:"#D99A2B"}, ser = [];
+    ["us","uk","jp","ca"].forEach(function(cc){ var b = bonds[cc]; if(b && b.key === "bond_yield_10y" && b.points && b.points.length) ser.push({cc: cc, pts: lastYear(b.points)}); });
+    if(!ser.length) return;
+    var all = [].concat.apply([], ser.map(function(s){ return s.pts; }));
+    var lo = Math.floor(Math.min.apply(null, all.map(function(p){ return p[1]; })) * 2) / 2;
+    var hi = Math.ceil(Math.max.apply(null, all.map(function(p){ return p[1]; })) * 2) / 2;
+    var d0 = Math.min.apply(null, all.map(function(p){ return Date.parse(p[0]); })), d1 = Math.max.apply(null, all.map(function(p){ return Date.parse(p[0]); }));
+    var W = 520, H = 300, L = 36, R = 124, T = 8, B = 26;
+    function X(t){ return L + (t - d0) / ((d1 - d0) || 1) * (W - L - R); }
+    function Y(v){ return T + (hi - v) / ((hi - lo) || 1) * (H - T - B); }
+    var g = "";
+    for(var v = lo; v <= hi + 1e-9; v += 0.5){ g += '<line x1="' + L + '" x2="' + (W - R) + '" y1="' + Y(v).toFixed(1) + '" y2="' + Y(v).toFixed(1) + '" stroke="currentColor" stroke-opacity=".1"/><text x="' + (L - 6) + '" y="' + (Y(v) + 4).toFixed(1) + '" font-size="11" text-anchor="end" fill="currentColor" fill-opacity=".6">' + v.toFixed(1) + '</text>'; }
+    var mStart = new Date(d0); mStart.setUTCDate(1); mStart.setUTCMonth(mStart.getUTCMonth() + 1);
+    for(var t = mStart; t.getTime() <= d1; t.setUTCMonth(t.getUTCMonth() + 3)){ g += '<text x="' + X(t.getTime()).toFixed(1) + '" y="' + (H - 6) + '" font-size="11" text-anchor="middle" fill="currentColor" fill-opacity=".6">' + MONTHS[t.getUTCMonth()] + ' ' + String(t.getUTCFullYear()).slice(2) + '</text>'; }
+    var labels = ser.map(function(s){ var l = s.pts[s.pts.length-1]; return {s: s, y: Y(l[1]), v: l[1]}; }).sort(function(a, b){ return a.y - b.y; });
+    for(var i = 1; i < labels.length; i++){ if(labels[i].y - labels[i-1].y < 14) labels[i].y = labels[i-1].y + 14; }
+    ser.forEach(function(s){
+      var d = s.pts.map(function(p, i){ return (i ? "L" : "M") + X(Date.parse(p[0])).toFixed(1) + "," + Y(p[1]).toFixed(1); }).join("");
+      g += '<path d="' + d + '" fill="none" stroke="' + COL[s.cc] + '" stroke-width="2" stroke-linejoin="round"><title>' + esc(C[s.cc][0]) + ' 10-year yield, daily</title></path>';
+    });
+    labels.forEach(function(l){ var last = l.s.pts[l.s.pts.length-1]; g += '<circle cx="' + X(Date.parse(last[0])).toFixed(1) + '" cy="' + Y(last[1]).toFixed(1) + '" r="3.5" fill="' + COL[l.s.cc] + '"/><text x="' + (W - R + 8) + '" y="' + (l.y + 4).toFixed(1) + '" font-size="12.5" font-weight="700" fill="' + COL[l.s.cc] + '">' + esc(C[l.s.cc][0]) + ' ' + fmt(l.v, 2) + '%</text>'; });
+    document.getElementById("cDaily").innerHTML = '<svg viewBox="0 0 ' + W + ' ' + H + '" role="img" aria-label="Line chart of daily 10-year government bond yields over the past year for ' + ser.map(function(s){ return C[s.cc][0]; }).join(", ") + '.">' + g + '</svg>';
+  })();
 });
 })();
 </script>
@@ -1396,6 +1553,6 @@ Promise.all([
   }
 })();
 </script>
-<script src="mobile.js?v=15" defer></script>
+<script src="mobile.js?v=16" defer></script>
 </body>
 </html>
