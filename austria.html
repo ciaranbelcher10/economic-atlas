@@ -2346,8 +2346,8 @@ function render(data){
   const pct=v=>v.toFixed(1)+"%", pp=v=>v.toFixed(1)+"pp";
   /* currency formatting handled dynamically by curFmt() below */
   const idx=v=>v.toFixed(1);
-  const SRC_GDP_NOMINAL="FRED series CPMNACSCAB1GQAT \u00b7 Eurostat (Statistical Office of the European Communities), quarterly, seasonally adjusted, trailing 4-quarter sum";
-  const SRC_GDP_REAL="FRED series CLVMNACSCAB1GQAT \u00b7 Eurostat (Statistical Office of the European Communities), quarterly, seasonally adjusted, trailing 4-quarter sum";
+  const SRC_GDP_NOMINAL="Eurostat namq_10_gdp (CP_MEUR) \u00b7 current prices, seasonally and calendar adjusted, quarterly, shown as a rolling four-quarter sum";
+  const SRC_GDP_REAL="Eurostat namq_10_gdp (CLV20_MEUR) \u00b7 chain-linked volumes, 2020 reference year, seasonally and calendar adjusted, quarterly, shown as a rolling four-quarter sum";
   const SRC_GDP = TOGGLE_STATE.real ? SRC_GDP_REAL : SRC_GDP_NOMINAL;
   const SRC_TRADE="Eurostat \u00b7 goods trade, total, monthly";
   const SRC_FISCAL="Eurostat gov_10dd_edpt1 \u00b7 EDP notification table, general government, % of GDP, annual";
@@ -2631,19 +2631,19 @@ function hasPreHistoryPoints(series, fx){
 const INFO_CONTENT = {
   gdp_level: {
     description: "The total value of everything Austria produces in a year, at current prices, on a rolling four-quarter basis.",
-    source: "FRED series CPMNACSCAB1GQAT \u00b7 Eurostat, quarterly, seasonally adjusted, trailing 4-quarter sum.",
-    real: "\u201cMake it real\u201d swaps this to Austria's real (chained-volume, inflation-adjusted) GDP series (FRED series CLVMNACSCAB1GQAT). This strips out the effect of price changes, so it shows genuine output growth rather than growth that's really just inflation.",
+    source: "Eurostat namq_10_gdp (CP_MEUR) \u00b7 current prices, seasonally and calendar adjusted, quarterly, shown as a rolling four-quarter sum.",
+    real: "\u201cMake it real\u201d swaps this to Austria's real (chained-volume, inflation-adjusted) GDP series (Eurostat namq_10_gdp, CLV20_MEUR). This strips out the effect of price changes, so it shows genuine output growth rather than growth that's really just inflation.",
     dollar: "\u201cDollarise\u201d converts each historical point using that point's OWN contemporaneous EUR/USD rate (monthly resolution, from FRED's DEXUSEU series, which starts 1999-01, the euro's launch). This series starts in 1996, so the earliest few points predate DEXUSEU and fall back to the earliest rate DEXUSEU provides (1999-01), disclosed in the page's toggle note if it applies."
   },
   gdp_real: {
     description: "GDP adjusted for inflation, shown in chained-volume terms, the same production, valued at constant prices, so changes reflect real output growth rather than price changes.",
-    source: "FRED series CLVMNACSCAB1GQAT \u00b7 Eurostat, quarterly, seasonally adjusted, trailing 4-quarter sum.",
+    source: "Eurostat namq_10_gdp (CLV20_MEUR) \u00b7 chain-linked volumes, 2020 reference year, seasonally and calendar adjusted, quarterly, shown as a rolling four-quarter sum.",
     real: "This IS the \u201cMake it real\u201d series, toggling it off shows GDP at current (nominal) prices instead.",
     dollar: "Same historical-rate matching as GDP (current prices): each point converted at its own contemporaneous EUR/USD rate where available (1999 onward), falling back to the earliest available rate (1999-01) for anything before that."
   },
   gdp_growth: {
     description: "How much the economy grew or shrank compared with the previous three months, in real (inflation-adjusted) terms.",
-    source: "FRED series CLVMNACSCAB1GQAT \u00b7 Eurostat, quarterly, quarter-on-quarter.",
+    source: "Derived from Eurostat namq_10_gdp (CLV20_MEUR) \u00b7 real GDP, seasonally and calendar adjusted, quarter-on-quarter.",
     real: "This is already a real (inflation-adjusted) growth rate as published, \u201cMake it real\u201d has no additional effect on it.",
     dollar: "A growth rate (%) is currency-agnostic, converting the underlying euros to dollars doesn't change the percentage change. \u201cDollarise\u201d has no effect on this figure."
   },

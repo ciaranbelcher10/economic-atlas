@@ -442,3 +442,19 @@ regenerated it) the gate correctly fails.
 Expected after a generator run (v1.6.30): **993 `<loc>`, 993 unique, 993
 served pages, 0 duplicates / 0 missing / 0 no file / 0 blocked**
 (42 root, 469 indicators, 469 embeds, 13 rankings).
+
+## `test_eurostat_gdp.py` — Eurostat quarterly GDP (v1.6.32)
+
+```
+python3 tools/test_eurostat_gdp.py
+```
+
+Offline checks for `eurostat_gdp.py` (JSON-stat parsing, rejection of short
+or late-starting replies, labels, units) and its wiring into `fetch_at.py`,
+`fetch_dk.py` and `fetch_nl.py`: Eurostat is fetched before FRED, FRED skips
+the keys Eurostat supplied, and growth labels name the real source.
+Expected: **36 ok, 0 failed**.
+
+`citation_ids.py` treats `namq_10_gdp` as the id for gdp_level, gdp_real and
+gdp_growth in any script calling `eurostat_gdp.fetch_levels`. Baseline after
+v1.6.32: **MATCH 358 / MISMATCH 0 / CROSS 0 / UNCITED 0 / NO-ID 143**.

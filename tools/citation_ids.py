@@ -52,7 +52,7 @@ def country_to_script():
 
 # Identifiers we expect to see: FRED-style uppercase, Eurostat lowercase
 # dataset ids, World Bank dotted indicators, IMF indicator codes.
-ID_RE = re.compile(r"\b(?:GGX[A-Z]+_NGDP|[A-Z][A-Z0-9]*(?:\.[A-Z0-9]+){2,}|[A-Z][A-Z0-9]{5,}|(?:tei|gov|une|nama|prc|ei|sts|ext)[a-z]*_?[a-z0-9_]*\d[a-z0-9_]*)\b")
+ID_RE = re.compile(r"\b(?:GGX[A-Z]+_NGDP|[A-Z][A-Z0-9]*(?:\.[A-Z0-9]+){2,}|[A-Z][A-Z0-9]{5,}|(?:tei|gov|une|nama|namq|prc|ei|sts|ext)[a-z]*_?[a-z0-9_]*\d[a-z0-9_]*)\b")
 STOPWORDS = {
     "GDP", "CPI", "HICP", "OECD", "IMF", "BIS", "ONS", "FRED", "EDP", "COICOP",
     "USD", "EUR", "NSA", "PPP", "YoY", "QoQ", "ILO", "WEO", "IFS", "EU", "ECB",
@@ -167,6 +167,10 @@ def script_ids_for(script, metric):
     m = re.search(r'\("%s",\s*lambda:\s*imf_weo\.fetch\("[A-Z]{3}",\s*imf_weo\.(DEBT|DEFICIT)\)' % re.escape(metric), s)
     if m:
         ids.add({"DEBT": "GGXWDG_NGDP", "DEFICIT": "GGXCNL_NGDP"}[m.group(1)])
+    # Quarterly GDP fetched directly from Eurostat (eurostat_gdp.py, v1.6.32):
+    # the dataset is the id; the FRED table entries remain only as fallback.
+    if "eurostat_gdp.fetch_levels(" in s and metric in ("gdp_level", "gdp_real", "gdp_growth"):
+        ids.add("namq_10_gdp")
     if metric in ("debt_gdp", "deficit"):
         ds = re.findall(r"(gov_10[a-z0-9_]+)", s)
         if ds:

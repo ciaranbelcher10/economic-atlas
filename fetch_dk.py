@@ -1,5 +1,10 @@
 """Fetch Denmark economic series and write data-dk.json.
 
+CURRENT SOURCE (since v1.6.32): gdp_level and gdp_real come direct from
+Eurostat namq_10_gdp via eurostat_gdp.py (CP_* and CLV20_*), gdp_growth is
+derived from that real series. The FRED copies listed below are used only
+if Eurostat fails on a run; they had stopped taking Eurostat revisions.
+
 Run:  FRED_API_KEY=yourkey python3 fetch_dk.py
 Sources: FRED (free key required: fred.stlouisfed.org), OECD, World Bank.
 In GitHub Actions the key comes from the FRED_API_KEY repository secret.
@@ -106,6 +111,7 @@ from datetime import datetime, timezone
 
 import requests
 import series_guard
+import eurostat_gdp
 import inflation_sources
 
 # Series this script is deliberately allowed to replace with a shorter or
@@ -610,11 +616,18 @@ def main() -> int:
     }
     failures = []
 
+    # gdp_level / gdp_real direct from Eurostat (v1.6.32); FRED's copies
+    # had stopped taking revisions. FRED is used only if Eurostat fails.
+    es_gdp = eurostat_gdp.fetch_levels("DK", "MNAC", "DKKm")
+    out["series"].update(es_gdp)
+
     key = os.environ.get("FRED_API_KEY")
     if not key:
         print("WARN  no FRED_API_KEY set — FRED series will be skipped.")
     else:
         for name, (sid, freq, label, unit, tf, scale) in FRED_SERIES.items():
+            if name in es_gdp:
+                continue
             try:
                 raw = fetch_fred(sid, freq, key)
                 if scale != 1.0:
@@ -644,7 +657,7 @@ def main() -> int:
             if not growth_points:
                 raise ValueError("qoq transform produced no points")
             out["series"]["gdp_growth"] = {
-                "label": "Real GDP growth, QoQ (derived from CLVMNACSCAB1GQDK)",
+                "label": f"Real GDP growth, QoQ (derived from {eurostat_gdp.source_tag(out['series']['gdp_real'])})",
                 "unit": "%", "freq": "quarters", "points": growth_points,
             }
             print(f"  ok  gdp_growth      {len(growth_points):>5} observations "

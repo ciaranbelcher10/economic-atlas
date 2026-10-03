@@ -1,5 +1,10 @@
 """Fetch Austria economic series and write data-at.json.
 
+CURRENT SOURCE (since v1.6.32): gdp_level and gdp_real come direct from
+Eurostat namq_10_gdp via eurostat_gdp.py (CP_* and CLV20_*), gdp_growth is
+derived from that real series. The FRED copies listed below are used only
+if Eurostat fails on a run; they had stopped taking Eurostat revisions.
+
 Run:  FRED_API_KEY=yourkey python3 fetch_at.py
 Sources: FRED (free key required: fred.stlouisfed.org), OECD, Eurostat
 (via free public API, for fiscal series).
@@ -82,6 +87,7 @@ from datetime import datetime, timezone
 
 import requests
 import series_guard
+import eurostat_gdp
 
 # Series this script is deliberately allowed to replace with a shorter or
 # lower-frequency one. Without an entry here, series_guard keeps the previous
@@ -438,11 +444,18 @@ def main() -> int:
     }
     failures = []
 
+    # gdp_level / gdp_real direct from Eurostat (v1.6.32); FRED's copies
+    # had stopped taking revisions. FRED is used only if Eurostat fails.
+    es_gdp = eurostat_gdp.fetch_levels("AT", "MEUR", "\u20acm")
+    out["series"].update(es_gdp)
+
     key = os.environ.get("FRED_API_KEY")
     if not key:
         print("WARN  no FRED_API_KEY set — FRED series will be skipped.")
     else:
         for name, (sid, freq, label, unit, tf, scale) in FRED_SERIES.items():
+            if name in es_gdp:
+                continue
             try:
                 raw = fetch_fred(sid, freq, key)
                 if scale != 1.0:
@@ -467,7 +480,7 @@ def main() -> int:
                 growth = gdp_growth_from_level(gpts)
                 if growth:
                     out["series"]["gdp_growth"] = {
-                        "label": "Real GDP growth, QoQ (derived)", "unit": "%",
+                        "label": f"Real GDP growth, QoQ, SA (derived from {eurostat_gdp.source_tag(out['series']['gdp_real'])})", "unit": "%",
                         "freq": "quarters", "points": growth}
                     print(f"  ok  gdp_growth       {len(growth):>5} observations (derived)")
             except Exception as exc:
