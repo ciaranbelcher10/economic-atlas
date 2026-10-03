@@ -1,4 +1,4 @@
-// Markets page gate (v1.6.36; visuals v1.6.37): runs markets.html in jsdom against the real
+// Markets page gate (v1.6.36; visuals v1.6.37; links and copy v1.6.38): runs markets.html in jsdom against the real
 // data files and checks every table renders and no table mixes measures.
 //   npm install jsdom --no-save; export NODE_PATH=$(pwd)/node_modules
 //   node tools/test_markets.js        -> "N checks, 0 failures"
@@ -59,6 +59,24 @@ setTimeout(() => {
   const cl = d.querySelectorAll("#cDaily svg path").length;
   check("one daily line per daily yield row", cl === dl.length, `${cl} vs ${dl.length}`);
   check("charts carry text alternatives", ["cYields","cFx","cDaily"].every(id => { const s = d.querySelector("#" + id + " svg"); return s && s.getAttribute("role") === "img" && (s.getAttribute("aria-label") || "").length > 20; }));
+  // 7. every country item links to an existing country page (v1.6.38)
+  const pageOk = href => fs.existsSync(path.join(root, href.replace(/^\//, "") + ".html"));
+  const linkSets = {
+    ticker: [...d.querySelectorAll(".mk-tick")].map(a => a.getAttribute("href")),
+    yieldBars: [...d.querySelectorAll("#cYields svg rect")].map(r => r.closest("a") && r.closest("a").getAttribute("href")),
+    fxBars: [...d.querySelectorAll("#cFx svg rect")].map(r => r.closest("a") && r.closest("a").getAttribute("href")),
+    dailyLabels: [...d.querySelectorAll("#cDaily svg text")].filter(t => /%$/.test(t.textContent)).map(t => t.closest("a") && t.closest("a").getAttribute("href")),
+    tableRows: ["tYields","tDaily","tOther","tFx","tFxA"].flatMap(id => [...d.querySelectorAll("#" + id + " tbody tr")].map(tr => { const a = tr.querySelector("td a"); return a && a.getAttribute("href"); }))
+  };
+  for (const [name, hrefs] of Object.entries(linkSets)) {
+    check(name + " all linked", hrefs.length > 0 && hrefs.every(Boolean), hrefs.filter(h => !h).length + " unlinked of " + hrefs.length);
+    check(name + " links resolve to pages", hrefs.filter(Boolean).every(pageOk), hrefs.filter(h => h && !pageOk(h)).join(","));
+  }
+  // 8. plain copy: no stock AI phrasing in what a reader sees
+  const seen = [...d.querySelectorAll(".mk-hero, .mk-sec, .mk-card, .mk-intro, .mk-full")].map(e => e.textContent).join(" ");
+  const stock = ["straight from", "delve", "landscape", "in today's", "tapestry", "navigate", "unlock", "seamless", "robust", "it's worth noting", "whether you're"];
+  check("no stock phrasing", !stock.some(w => seen.toLowerCase().includes(w)), stock.filter(w => seen.toLowerCase().includes(w)).join(","));
+  check("no double hyphens in copy", !/ -- /.test(seen));
   // 6. copy rules
   const text = d.querySelector("main, .wrap") ? d.body.textContent : "";
   check("no em dashes in rendered copy", !/\u2014/.test([...d.querySelectorAll(".mk-sec, .mk-intro")].map(e => e.textContent).join(" ")));

@@ -2127,7 +2127,7 @@ function statTile(el, key, title, series, opts){
     div.addEventListener("click",go);
     div.addEventListener("keydown",e=>{if(e.key==="Enter"||e.key===" "){e.preventDefault();go();}});
   }
-  const _indicatorSlug = INDICATOR_PAGE_SLUGS[key];
+  const _indicatorSlug = INDICATOR_PAGE_SLUGS[(opts && opts.pageKey) || key];  // pageKey: a derived tile's own indicator page (v1.6.38)
   const _countrySlug = window.EATLAS_COUNTRY_SLUG;
   if(_indicatorSlug){
     div.classList.add("hasPageLink");
@@ -2147,7 +2147,7 @@ function statTile(el, key, title, series, opts){
   el.appendChild(div);
 }
 // Every metric with its own /indicators/ page for this country (v1.6.1: all of them, not just four).
-const INDICATOR_PAGE_SLUGS = {gdp_level:"gdp", gdp_real:"real-gdp", cpi:"inflation-rate", cpi_mom:"inflation-rate-mom", unemployment:"unemployment-rate", employment_rate:"employment-rate", participation_rate:"labour-force-participation-rate", bond_yield_10y:"10-year-government-bond-yield", trade_balance:"balance-of-trade", current_account:"current-account-to-gdp", fdi:"foreign-direct-investment", debt_gdp:"government-debt", deficit:"government-budget", business_confidence:"business-confidence", fx_ils_usd:"exchange-rate"};
+const INDICATOR_PAGE_SLUGS = {gdp_growth_yoy:"gdp-annual-growth-rate", trade_intensity:"trade-intensity", cpi_qoq:"inflation-rate-qoq", gdp_level:"gdp", gdp_real:"real-gdp", cpi:"inflation-rate", cpi_mom:"inflation-rate-mom", unemployment:"unemployment-rate", employment_rate:"employment-rate", participation_rate:"labour-force-participation-rate", bond_yield_10y:"10-year-government-bond-yield", trade_balance:"balance-of-trade", current_account:"current-account-to-gdp", fdi:"foreign-direct-investment", debt_gdp:"government-debt", deficit:"government-budget", business_confidence:"business-confidence", fx_ils_usd:"exchange-rate"};
 // Keeps only the bases this country actually serves, so the selector never
 // offers something the source cannot support and never appears at all when
 // there is only one basis. Order is preserved: the first survivor is default.
@@ -2431,7 +2431,7 @@ function render(data){
   if(s.gdp_growth) statTile(tg,"gdp_growth","Growth (QoQ)",s.gdp_growth,
     {fmt:pct,fmtD:pp,upIsGood:true,source:SRC_GDP});
   if(gdpYoY) statTile(tg,null,"Growth (YoY)",gdpYoY,
-    {fmt:pct,fmtD:pp,upIsGood:true,source:SRC_GDP,infoKey:"gdp_growth"});
+    {pageKey:"gdp_growth_yoy",fmt:pct,fmtD:pp,upIsGood:true,source:SRC_GDP,infoKey:"gdp_growth"});
   const tinf=document.getElementById("tiles-inflation");
   if(s.cpi) statTile(tinf,"cpi","CPI (YoY)",s.cpi,
     {fmt:pct,fmtD:pp,upIsGood:false,source:"OECD live prices system"});
@@ -2439,7 +2439,7 @@ function render(data){
   // Guarded on the series, so a country with only a year-on-year
   // rate shows only that.
   if(s.cpi_mom) statTile(tinf,null,"CPI (MoM)",s.cpi_mom,
-    {fmt:pct,fmtD:pp,upIsGood:false,source:"OECD live prices system",infoKey:"cpi_mom"});
+    {pageKey:"cpi_mom",fmt:pct,fmtD:pp,upIsGood:false,source:"OECD live prices system",infoKey:"cpi_mom"});
   const tl=document.getElementById("tiles-labour");
   if(s.unemployment) statTile(tl,"unemployment","Unemployment",s.unemployment,
     {fmt:pct,fmtD:pp,upIsGood:false,source:SRC_UNEMP});

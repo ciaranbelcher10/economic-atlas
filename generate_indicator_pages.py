@@ -115,6 +115,7 @@ METRICS = [
     dict(slug="exchange-rate", keys=["fx_usd"], title="Exchange Rate Against the US Dollar", cat="Markets", up=True, chart="line"),
     dict(slug="balance-of-trade", keys=["trade_balance"], title="Balance of Trade", cat="Trade", up=True, chart="bar"),
     dict(slug="exports", keys=["exports"], title="Exports", cat="Trade", up=True, chart="line"),
+    dict(slug="trade-intensity", keys=["trade_intensity"], title="Trade Intensity", cat="Trade", up=True, chart="line"),
     dict(slug="imports", keys=["imports"], title="Imports", cat="Trade", up=False, chart="line"),
     dict(slug="current-account-to-gdp", keys=["current_account"], title="Current Account (% of GDP)", cat="Trade", up=True, chart="bar"),
     dict(slug="foreign-direct-investment", keys=["fdi"], title="Foreign Direct Investment (% of GDP)", cat="Trade", up=True, chart="line"),
@@ -1518,7 +1519,7 @@ def render_indicator(country, info, entry, rank_info, all_rankings_meta, n_indic
     cta = glow_cta(f"../{cslug}", f"Explore the full {country} economy",
                    f"{n_label} on one dashboard, from growth and prices to jobs, trade and public finances. Checked hourly against official sources.")
 
-    meta_label = re.sub(r"\s*\([^)]*\)", "", title).strip().lower()
+    meta_label = lower_keep_acronyms(re.sub(r"\s*\([^)]*\)", "", title).strip())
     page_title = f"{country} {title}: {latest_str} ({fmt_period_label(latest_p)}) | The Economic Atlas"
     meta_desc = f"{country} {meta_label} was {latest_str} in {fmt_period_label(latest_p)}. {first_sentence(description)} Live chart and full history from {fmt_period_label(pts[0][0])}."
     if len(meta_desc) > 300:
@@ -1670,7 +1671,7 @@ def render_ranking(ranking, rows, unranked, all_rankings_meta, catalogue_by_coun
         tail = " Each still has its own country page." if ranking.get("fx_change") else " Each still has its own page."
         unranked_html = f'<p class="rk-unranked">Not ranked here: {parts}.{tail}</p>'
 
-    metric_word = re.sub(r"\s*\([^)]*\)", "", m["title"]).lower()
+    metric_word = lower_keep_acronyms(re.sub(r"\s*\([^)]*\)", "", m["title"]))
     if m["slug"] == "gdp":
         metric_word = "GDP"
     compare_concept = RANKING_CONCEPT_OVERRIDE.get(ranking["metric"], m["keys"][0])
@@ -1977,6 +1978,100 @@ def fx_value_change(now, before, strong_up):
     return (now / before - 1) * 100 if strong_up else (before / now - 1) * 100
 
 
+ACRONYMS = {"GDP", "CPI", "CPIH", "HICP", "FDI", "PCE", "PPI", "US", "UK", "QoQ", "YoY", "MoM"}
+
+
+def lower_keep_acronyms(text):
+    """Lower-case a title for use mid-sentence, keeping acronyms such as GDP
+    and CPI in capitals (v1.6.38: descriptions read "Germany gdp was ...")."""
+    return " ".join(w if w in ACRONYMS else w.lower() for w in text.split(" "))
+
+
+def _year_ago(period):
+    m = re.match(r"^(\d{4})-Q(\d)$", period)
+    if m: return f"{int(m.group(1)) - 1}-Q{m.group(2)}"
+    m = re.match(r"^(\d{4})-(\d{2})$", period)
+    if m: return f"{int(m.group(1)) - 1}-{m.group(2)}"
+    m = re.match(r"^(\d{4})$", period)
+    if m: return str(int(m.group(1)) - 1)
+    return None
+
+
+def _js_round1(x):
+    """+(x).toFixed(1) as the country pages compute it."""
+    return float(Decimal(repr(x)).quantize(Decimal("0.1"), rounding=ROUND_HALF_UP))
+
+
+def yoy_points(series):
+    """Mirror of yoyGDP() on the country pages: each period against the same
+    period a year earlier, matched by period, one decimal."""
+    by = {p: v for p, v in series.get("points", []) if v is not None}
+    out = []
+    for p, v in series.get("points", []):
+        prior = _year_ago(p)
+        base = by.get(prior) if prior else None
+        if v is not None and base:
+            out.append([p, _js_round1((v / base - 1) * 100)])
+    return out
+
+
+def trade_intensity_points(country, exp, imp, gdp):
+    """Mirror of tradeIntensity() on the UK and US pages: a year's exports
+    plus imports over that year's GDP. The US page averages its four
+    annual-rate GDP quarters and converts $bn to $m; the UK page sums its
+    four quarterly levels (both series in pounds million)."""
+    def by_year(pts):
+        m = {}
+        for p, v in pts:
+            m.setdefault(p[:4], []).append(v)
+        return m
+    X = {y: sum(a) for y, a in by_year(exp["points"]).items() if len(a) == 12}
+    M = {y: sum(a) for y, a in by_year(imp["points"]).items() if len(a) == 12}
+    G4 = {y: a for y, a in by_year(gdp["points"]).items() if len(a) == 4}
+    out = []
+    for y in sorted(G4):
+        if y in X and y in M:
+            if country == "US":
+                v = (X[y] + M[y]) / ((sum(G4[y]) / 4) * 1000) * 100
+            else:
+                v = 100 * (X[y] + M[y]) / sum(G4[y])
+            out.append([y, _js_round1(v)])
+    return out
+
+
+TRADE_INTENSITY_COUNTRIES = {"UK", "US"}
+
+
+def add_derived(country, data, sources):
+    """Series the country pages calculate in the browser and show as tiles,
+    added here so each tile has its own indicator page (v1.6.38):
+    gdp_growth_yoy from real GDP (unless the country publishes it), and
+    trade intensity for the UK and US. Citations are built from the source
+    lines of the series they come from. The data files are not changed."""
+    series = dict(data.get("series", {}))
+    sources = dict(sources)
+    real = series.get("gdp_real")
+    if "gdp_growth_yoy" not in series and real and real.get("points"):
+        pts = yoy_points(real)
+        base_src = (sources.get("gdp_real") or {}).get("source", "")
+        if len(pts) >= 2 and base_src:
+            series["gdp_growth_yoy"] = {"label": "Real GDP growth, year on year (calculated)", "unit": "%",
+                                        "freq": real.get("freq", "quarters"), "points": pts}
+            sources["gdp_growth_yoy"] = {
+                "description": "How much bigger or smaller the economy is than a year earlier, adjusted for inflation: each period's real GDP against the same period a year before.",
+                "source": "Calculated from real GDP, each period against the same period a year earlier. Real GDP: " + base_src}
+    if country in TRADE_INTENSITY_COUNTRIES and all(k in series for k in ("exports", "imports", "gdp_level")):
+        pts = trade_intensity_points(country, series["exports"], series["imports"], series["gdp_level"])
+        srcs = [(sources.get(k) or {}).get("source", "") for k in ("exports", "imports", "gdp_level")]
+        if len(pts) >= 2 and all(srcs):
+            series["trade_intensity"] = {"label": "Trade intensity", "unit": "%", "freq": "years", "points": pts}
+            sources["trade_intensity"] = {
+                "description": "Exports plus imports as a share of GDP over each calendar year: how open the economy is to trade.",
+                "source": "Calculated: a full year's exports plus imports, divided by that year's GDP. Exports: " + srcs[0] + " Imports: " + srcs[1] + " GDP: " + srcs[2]}
+    data = dict(data, series=series)
+    return data, sources
+
+
 def build_all(sources_all):
     catalogue_by_country = {}
     for country, (iso2, cslug, alpha2, region) in COUNTRIES.items():
@@ -1989,6 +2084,7 @@ def build_all(sources_all):
         if fxs:
             data.setdefault("series", {})["fx_usd"] = fxs
         sources = sources_all.get(country, {})
+        data, sources = add_derived(country, data, sources)
         cat = build_country_catalogue(country, data, sources)
         catalogue_by_country[country] = dict(data=data, sources=sources, catalogue=cat,
                                              by_slug={e["m"]["slug"]: e for e in cat})
