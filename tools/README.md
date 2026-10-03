@@ -474,3 +474,22 @@ quarter-on-quarter rate). Countries' own `gdp_growth` series mix QoQ, QoQ
 annualised (US), year on year (ES, IN, NO, AR) and annual (SG, TH), so the
 ranking computes from `gdp_real`, as Compare does.
 Expected: **47 ok, 0 failed**; on the v1.6.32 tree it reports 10 failures.
+
+## `test_eurostat_unemp.py` — EU unemployment direct from Eurostat (v1.6.34)
+
+```
+python3 tools/test_eurostat_unemp.py
+```
+
+Offline checks for `eurostat_unemp.py` (parsing, short-reply rejection,
+query parameters, label) and its wiring into the ten EU fetchers (AT DE DK
+ES FR IE IT NL PL SE): Eurostat runs before FRED, FRED skips the key,
+`ALLOW_SHRINK` covers the switch. Also checks `fetch_ez.py` takes GDP for
+EA21 from `eurostat_gdp` and government finance for EA21 first.
+Expected: **48 ok, 0 failed**.
+
+`citation_ids.py` treats `une_rt_m` as the id for unemployment in scripts
+calling `eurostat_unemp.fetch` (the pattern accepts `une_rt_[maq]`, which
+has no digit). `citation_provider.py` reports 10 unemployment MISMATCH
+lines (served=OECD) until the next pipeline run replaces the served labels;
+0 after.

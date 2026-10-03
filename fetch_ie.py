@@ -1,5 +1,9 @@
 """Fetch Ireland economic series and write data-ie.json.
 
+CURRENT SOURCE (since v1.6.34): unemployment comes direct from Eurostat
+une_rt_m via eurostat_unemp.py; the LRHUTTTT FRED series below is the
+fallback only.
+
 Run:  FRED_API_KEY=yourkey python3 fetch_ie.py
 Sources: FRED (free key required: fred.stlouisfed.org), OECD, World Bank.
 In GitHub Actions the key comes from the FRED_API_KEY repository secret.
@@ -78,6 +82,7 @@ from datetime import datetime, timezone
 
 import requests
 import series_guard
+import eurostat_unemp
 import inflation_sources
 
 # Series this script is deliberately allowed to replace with a shorter or
@@ -89,7 +94,7 @@ import inflation_sources
 # Add an entry ONLY when intentionally swapping source, and say why, e.g.
 #     ALLOW_SHRINK = {"ppi": "PPIACO -> PPIFID, final demand is the BLS headline"}
 # Remove it once the new series has landed.
-ALLOW_SHRINK = {}
+ALLOW_SHRINK = {"unemployment": "v1.6.34: OECD/FRED LRHUTTTT copy -> Eurostat une_rt_m; Eurostat history can start later"}
 
 # key: (fred_id, freq 'm'|'q'|'a', label, unit, transform None|'yoy'|'mom'|'qoq', scale)
 # - participation_rate (LRAC64TTIEQ156S) / employment_rate (LREM64TTIEQ156S): OECD infra-annual labour-statistics FRED family, quarterly, ages 15-64. Same pattern confirmed live for Germany (pilot); inferred-by-pattern for Ireland -- not individually confirmed, check the first Actions log.
@@ -540,11 +545,18 @@ def main() -> int:
     }
     failures = []
 
+    # unemployment direct from Eurostat une_rt_m (v1.6.34); the FRED/OECD
+    # copy is the fallback only.
+    es_unemp = eurostat_unemp.fetch("IE")
+    out["series"].update(es_unemp)
+
     key = os.environ.get("FRED_API_KEY")
     if not key:
         print("WARN  no FRED_API_KEY set — FRED series will be skipped.")
     else:
         for name, (sid, freq, label, unit, tf, scale) in FRED_SERIES.items():
+            if name in es_unemp:
+                continue
             try:
                 raw = fetch_fred(sid, freq, key)
                 if scale != 1.0:

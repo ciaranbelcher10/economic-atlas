@@ -2252,13 +2252,13 @@ function render(data){
   if(gdpAnnual) chartPanel("gdp_level","charts-gdp","GDP",
     "The total value of everything the euro area produces in a year, at current prices.",
     gdpAnnual,"line",v=>curFmt(v,s.gdp_level.unit,0),v=>curFmt(v,s.gdp_level.unit,2),
-    "FRED series CPMNACSCAB1GQEA19 \u00b7 nominal, rolling four-quarter sum, EA19 aggregate (Eurostat)",1996);
+    "Eurostat namq_10_gdp (CP_MEUR) \u00b7 euro area EA21 (today's 21 members, back-calculated), current prices, rolling four-quarter sum",1996);
   if(s.gdp_growth) chartPanel("gdp_growth","charts-gdp","Real GDP growth, quarter on quarter",
     "How much the economy grew or shrank compared with the previous three months.",
-    s.gdp_growth,"bar",v=>v+"%",pct,"Calculated from FRED series CLVMEURSCAB1GQEA19 (Eurostat)",1998,0);
+    s.gdp_growth,"bar",v=>v+"%",pct,"Derived from Eurostat namq_10_gdp (CLV20_MEUR) · euro area EA21 (today's 21 members, back-calculated), real GDP, seasonally and calendar adjusted, quarter-on-quarter",1998,0);
   if(gdpYoY) chartPanel(null,"charts-gdp","Real GDP growth, year on year",
     "How much bigger or smaller the economy is than a year ago, adjusted for inflation.",
-    gdpYoY,"line",v=>v+"%",pct,"Calculated from FRED series CLVMEURSCAB1GQEA19 (Eurostat)",1998,0,"gdp_growth");
+    gdpYoY,"line",v=>v+"%",pct,"Derived from Eurostat namq_10_gdp (CLV20_MEUR) · euro area EA21 (today's 21 members, back-calculated), real GDP, seasonally and calendar adjusted, year-on-year",1998,0,"gdp_growth");
   if(s.cpi) chartPanel("cpi","charts-inflation","HICP inflation, annual rate",
     "How much consumer prices are rising compared with a year ago. The ECB targets 2%.",
     s.cpi,"line",v=>v+"%",pct,"Calculated from FRED series CP0000EZ19M086NEST \u00b7 all items, EA19 aggregate (Eurostat)",undefined,undefined,undefined,
@@ -2308,9 +2308,9 @@ function render(data){
     s.deficit,"bar",v=>v+"%",pct,"Eurostat gov_10dd_edpt1 \u00b7 net lending/borrowing, annual",undefined,0);
   const hero=document.getElementById("hero");
   if(gdpAnnual) statTile(hero,"gdp_level","GDP (annual)",gdpAnnual,
-    {fmt:v=>curFmt(v,s.gdp_level.unit,2),fmtD:v=>curFmt(v,s.gdp_level.unit,0),upIsGood:true,source:"FRED \u00b7 Eurostat, rolling 4 quarters"});
+    {fmt:v=>curFmt(v,s.gdp_level.unit,2),fmtD:v=>curFmt(v,s.gdp_level.unit,0),upIsGood:true,source:"Eurostat \u00b7 namq_10_gdp, EA21, rolling 4 quarters"});
   if(s.gdp_growth) statTile(hero,"gdp_growth","GDP growth (QoQ)",s.gdp_growth,
-    {fmt:pct,fmtD:pp,upIsGood:true,source:"Calculated \u00b7 Eurostat via FRED"});
+    {fmt:pct,fmtD:pp,upIsGood:true,source:"Calculated \u00b7 Eurostat namq_10_gdp, EA21"});
   if(s.cpi) statTile(hero,"cpi","HICP inflation",s.cpi,
     {fmt:pct,fmtD:pp,upIsGood:false,source:"FRED \u00b7 CP0000EZ19M086NEST, YoY"});
   if(s.unemployment) statTile(hero,"unemployment","Unemployment",s.unemployment,
@@ -2329,11 +2329,11 @@ function render(data){
     {fmt:v=>curFmt(v,s.trade_balance.unit,1),fmtD:v=>curFmt(v,s.trade_balance.unit,1),upIsGood:true,source:(tradeLive?"Derived \u00b7 Eurostat teiet010 and teiet110, \u20ac million":"Derived \u00b7 OECD goods trade, converted to €")});
   const tg=document.getElementById("tiles-gdp");
   if(gdpAnnual) statTile(tg,"gdp_level","GDP (annual)",gdpAnnual,
-    {fmt:v=>curFmt(v,s.gdp_level.unit,2),fmtD:v=>curFmt(v,s.gdp_level.unit,0),upIsGood:true,source:"FRED \u00b7 Eurostat"});
+    {fmt:v=>curFmt(v,s.gdp_level.unit,2),fmtD:v=>curFmt(v,s.gdp_level.unit,0),upIsGood:true,source:"Eurostat \u00b7 namq_10_gdp, EA21"});
   if(s.gdp_growth) statTile(tg,"gdp_growth","Growth (QoQ)",s.gdp_growth,
-    {fmt:pct,fmtD:pp,upIsGood:true,source:"Calculated \u00b7 Eurostat"});
+    {fmt:pct,fmtD:pp,upIsGood:true,source:"Calculated \u00b7 Eurostat namq_10_gdp, EA21"});
   if(gdpYoY) statTile(tg,null,"Growth (YoY)",gdpYoY,
-    {fmt:pct,fmtD:pp,upIsGood:true,source:"Calculated \u00b7 Eurostat",infoKey:"gdp_growth"});
+    {fmt:pct,fmtD:pp,upIsGood:true,source:"Calculated \u00b7 Eurostat namq_10_gdp, EA21",infoKey:"gdp_growth"});
   const tinf=document.getElementById("tiles-inflation");
   if(s.cpi) statTile(tinf,"cpi","HICP (YoY)",s.cpi,
     {fmt:pct,fmtD:pp,upIsGood:false,source:"FRED \u00b7 Eurostat"});
@@ -2518,19 +2518,19 @@ function hasPreHistoryPoints(series, fx){
 const INFO_CONTENT = {
   gdp_level: {
     description: "The total value of everything the euro area produces in a year, at current prices, on a rolling four-quarter basis.",
-    source: "FRED series CPMNACSCAB1GQEA19 \u00b7 Eurostat, EA19 aggregate, nominal, rolling four-quarter sum.",
+    source: "Eurostat namq_10_gdp (CP_MEUR) \u00b7 euro area EA21 (today's 21 members, back-calculated), current prices, seasonally and calendar adjusted, quarterly, shown as a rolling four-quarter sum.",
     real: "\u201cMake it real\u201d swaps this to the euro area's real (chained-volume, inflation-adjusted) GDP series. This strips out the effect of price changes, so it shows genuine output growth rather than growth that's really just inflation.",
     dollar: "\u201cDollarise\u201d converts each historical point using that point's OWN contemporaneous EUR/USD rate (monthly resolution, from FRED's DEXUSEU series, which starts 1999-01, the euro's launch). This series starts in 1995, so points before 1999 have no genuine historical euro rate available and fall back to the earliest rate DEXUSEU provides (1999-01), disclosed in the page's toggle note. This is a considered approximation for those years, not a precise historical conversion."
   },
   gdp_real: {
     description: "GDP adjusted for inflation, chained-volume terms, the same production, valued at constant prices, so changes reflect real output growth rather than price changes.",
-    source: "FRED series CLVMEURSCAB1GQEA19 \u00b7 Eurostat, EA19 aggregate, quarterly.",
+    source: "Eurostat namq_10_gdp (CLV20_MEUR) \u00b7 euro area EA21 (today's 21 members, back-calculated), chain-linked volumes, 2020 reference year, seasonally and calendar adjusted, quarterly.",
     real: "This IS the \u201cMake it real\u201d series, toggling it off shows GDP at current (nominal) prices instead.",
     dollar: "Same historical-rate matching as GDP (current prices): each point converted at its own contemporaneous EUR/USD rate where available (1999 onward), falling back to the earliest available rate (1999-01) for anything before that."
   },
   gdp_growth: {
     description: "How much the euro area economy grew or shrank compared with the previous three months (QoQ tile) or the same period a year ago (YoY tile), in real (inflation-adjusted) terms.",
-    source: "Calculated from FRED series CLVMEURSCAB1GQEA19 (Eurostat).",
+    source: "Derived from Eurostat namq_10_gdp (CLV20_MEUR) · euro area EA21 (today's 21 members, back-calculated), real GDP, seasonally and calendar adjusted, quarter-on-quarter.",
     real: "This is already a real (inflation-adjusted) growth rate as published, \u201cMake it real\u201d has no additional effect on it.",
     dollar: "A growth rate (%) is currency-agnostic, converting the underlying euros to dollars doesn't change the percentage change. \u201cDollarise\u201d has no effect on this figure."
   },
@@ -2582,12 +2582,12 @@ const INFO_CONTENT = {
   },
   debt_gdp: {
     description: "Everything euro-area governments owe combined, compared with the size of the economy.",
-    source: "Eurostat gov_10dd_edpt1 \u00b7 EDP notification table, general government, % of GDP, annual.",
+    source: "Eurostat gov_10dd_edpt1 \u00b7 EDP notification table, general government, euro area EA21 (today's 21 members), % of GDP, annual.",
     dollar: "Already expressed as a % of GDP, currency-agnostic. \u201cDollarise\u201d has no effect on this figure."
   },
   deficit: {
     description: "The yearly gap between government spending and revenue across the euro area. Negative means a deficit.",
-    source: "Eurostat gov_10dd_edpt1 \u00b7 EDP notification table, general government, % of GDP, annual.",
+    source: "Eurostat gov_10dd_edpt1 \u00b7 EDP notification table, general government, euro area EA21 (today's 21 members), % of GDP, annual.",
     dollar: "Already expressed as a % of GDP, currency-agnostic. \u201cDollarise\u201d has no effect on this figure."
   }
 };

@@ -1,5 +1,10 @@
 """Fetch euro-area economic series and write data-ez.json.
 
+CURRENT SOURCE (since v1.6.34): GDP (level, real, growth) for the current
+euro area EA21 direct from Eurostat namq_10_gdp via eurostat_gdp.py, and
+government debt/deficit for EA21 first; the EA19 FRED copies are the
+fallback only.
+
 Run:  FRED_API_KEY=yourkey python3 fetch_ez.py
 Sources: FRED (free key required: fred.stlouisfed.org), OECD, World Bank.
 In GitHub Actions the key comes from the FRED_API_KEY repository secret.
@@ -16,6 +21,7 @@ from datetime import datetime, timezone
 
 import requests
 import series_guard
+import eurostat_gdp
 
 # Series this script is deliberately allowed to replace with a shorter or
 # lower-frequency one. Without an entry here, series_guard keeps the previous
@@ -284,7 +290,7 @@ def fetch_eurostat_unemployment() -> list | None:
 
 
 def fetch_eurostat_govfinance(na_item: str) -> list | None:
-    for area in ("EA20", "EA19", "EA21"):
+    for area in ("EA21", "EA20", "EA19"):
         url = (f"{EUROSTAT_STATS_BASE}/gov_10dd_edpt1?format=JSON&lang=EN"
               f"&geo={area}&sector=S13&unit=PC_GDP&na_item={na_item}"
               f"&sinceTimePeriod=2000")
@@ -426,11 +432,27 @@ def main() -> int:
     }
     failures = []
 
+    # GDP for the CURRENT euro area (EA21, Bulgaria included from 2026,
+    # backcast) direct from Eurostat (v1.6.34). The FRED copies were the
+    # EA19 aggregate, while unemployment, trade and government finance
+    # already used today's membership.
+    es_gdp = eurostat_gdp.fetch_levels("EA21", "MEUR", "\u20acm")
+    out["series"].update(es_gdp)
+    if "gdp_real" in es_gdp:
+        g = transform(es_gdp["gdp_real"]["points"], "qoq")
+        if g:
+            out["series"]["gdp_growth"] = {
+                "label": "Real GDP growth, QoQ, SA (derived from Eurostat namq_10_gdp, CLV20_MEUR, EA21)",
+                "unit": "%", "freq": "quarters", "points": g}
+            es_gdp = dict(es_gdp, gdp_growth=out["series"]["gdp_growth"])
+
     key = os.environ.get("FRED_API_KEY")
     if not key:
         print("WARN  no FRED_API_KEY set — FRED series will be skipped.")
     else:
         for name, (sid, freq, label, unit, tf, scale) in FRED_SERIES.items():
+            if name in es_gdp:
+                continue
             try:
                 raw = fetch_fred(sid, freq, key)
                 if scale != 1.0:

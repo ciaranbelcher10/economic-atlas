@@ -72,7 +72,7 @@ for c, geo, cur in (("at", "AT", "MEUR"), ("dk", "DK", "MNAC"), ("nl", "NL", "ME
     check(f"{c} imports module", "\nimport eurostat_gdp\n" in s)
     check(f"{c} calls fetch_levels", f'eurostat_gdp.fetch_levels("{geo}", "{cur}"' in s)
     check(f"{c} Eurostat before FRED", s.index("eurostat_gdp.fetch_levels(") < s.index('os.environ.get("FRED_API_KEY")'))
-    check(f"{c} FRED skips Eurostat keys", re.search(r"FRED_SERIES\.items\(\):\n\s+if name in es_gdp:\n\s+continue", s) is not None)
+    check(f"{c} FRED skips Eurostat keys", re.search(r"FRED_SERIES\.items\(\):\n\s+if name in es_gdp( or name in es_unemp)?:\n\s+continue", s) is not None)
     check(f"{c} growth label from source", "source_tag(out['series']['gdp_real'])" in s)
     check(f"{c} no hard-coded CLVM growth label", "derived from CLVMNACSCAB1GQ" not in s)
     check(f"{c} docstring CURRENT SOURCE", "CURRENT SOURCE (since v1.6.32)" in s[:3000])
