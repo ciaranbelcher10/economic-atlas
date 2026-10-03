@@ -29,6 +29,7 @@ from generate_indicator_pages import (
     build_all,
     COUNTRIES, METRICS, load_json, fmt_num, ROOT, fmt_period_label, synth_fx_series,
     resolve, metric_title, unit_kind, usd_unit, to_usd_value, data_file_for, GDP_ALREADY_USD,
+    add_derived,
 )
 
 NAVY = (30, 69, 102)      # --navy
@@ -147,6 +148,10 @@ def main():
         if fx_series:
             series = dict(series, fx_usd=fx_series)
         country_sources = sources.get(country_name, {})
+        # The derived series the indicator pages are built from (v1.6.38:
+        # GDP growth year on year, trade intensity), so every page has a card.
+        derived, country_sources = add_derived(country_name, dict(data, series=series), country_sources)
+        series = derived["series"]
         fx = data.get("fx_to_usd")
 
         for m in METRICS:

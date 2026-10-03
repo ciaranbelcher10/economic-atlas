@@ -536,3 +536,16 @@ MoM -> `cpi_mom`, CPIH MoM -> `cpih_mom`, CPI QoQ -> `cpi_qoq`, Trade
 intensity -> `trade_intensity` (UK and US, same arithmetic as each page's
 `tradeIntensity()`, which differ: the US averages annual-rate GDP in $bn).
 Expected: **678 tiles, all with a page**.
+
+## `og_gate.py` — every indicator page has its preview image (v1.6.40)
+
+```
+python3 generate_indicator_pages.py; python3 generate_og_images.py   # first
+python3 tools/og_gate.py
+```
+
+Fails when an indicator page's `og:image` points at a file missing from
+`og/`. v1.6.38 added 32 pages whose cards were never drawn because
+`generate_og_images.py` built its own catalogue without `add_derived()`.
+Expected: **501 pages, all with a preview image** (513 cards are drawn;
+the extra 12 are for the rankings).
