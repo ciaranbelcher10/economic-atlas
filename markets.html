@@ -125,7 +125,7 @@
  <a class="item" href="dashboard">My Dashboard</a>
  <a class="item" href="chartmaker" id="navChartmakerLink">Chartmaker</a>
  <a class="item" href="calendar" id="navCalendarLink">Calendar</a>
- <a class="item active" href="markets" id="navMarketsLink">Markets</a>
+ <a class="item" href="markets" id="navMarketsLink">Markets</a>
 </div></nav>
 <div class="wrap" style="padding-top:16px;">
  <div class="savebar" id="alertBanner" hidden>
@@ -1167,7 +1167,7 @@
 .mk-ticker{display:grid; grid-template-columns:repeat(7,minmax(0,1fr)); gap:10px;}
 @media (max-width:1180px){.mk-ticker{grid-template-columns:repeat(4,minmax(0,1fr));}}
 @media (max-width:720px){.mk-ticker{grid-template-columns:repeat(2,minmax(0,1fr));}}
-.mk-tick .v{white-space:nowrap;}
+.mk-tick .v{white-space:nowrap;} .mk-tick .l, .mk-tick .c{white-space:nowrap; overflow:hidden; text-overflow:ellipsis;}
 .mk-tick{display:block; color:#fff; text-decoration:none; background:rgba(255,255,255,.07); border:1px solid rgba(255,255,255,.12); border-radius:12px; padding:11px 12px 8px; transition:background .15s, transform .15s;}
 .mk-tick:hover{background:rgba(255,255,255,.13); transform:translateY(-2px);}
 .mk-tick .l{font-size:11.5px; color:rgba(255,255,255,.7); font-weight:600; letter-spacing:.02em;}
@@ -1434,15 +1434,15 @@ Promise.all([
     var b = bonds[t[0]]; if(!b || b.key !== "bond_yield_10y" || !b.points || !b.points.length) return;
     var pts = b.points.filter(function(p){ return p[1] != null; }), last = pts[pts.length-1];
     var o = onOrBefore(pts, shiftDate(last[0], 7)); var w = o ? last[1] - o[1] : null;
-    tick.push({href: C[t[0]][1], l: t[1], v: fmt(last[1], 2) + "%", c: w, cs: signed(w, 2, "pp") + " on the week", d: periodLabel(last[0]), sp: lastYear(pts)});
+    tick.push({href: C[t[0]][1], l: t[1], v: fmt(last[1], 2) + "%", c: w, cs: signed(w, 2, "pp") + " in a week", d: periodLabel(last[0]), sp: lastYear(pts)});
   });
-  [["ez","Euro","€1"],["uk","Pound","£1"],["jp","Yen","¥100"]].forEach(function(t){
+  [["ez","€1 in US$"],["uk","£1 in US$"],["jp","¥100 in US$"]].forEach(function(t){
     var f = fx.filter(function(x){ return x.country === C[t[0]][0]; })[0];
     var pr = f && (f.pairs || []).filter(function(x){ return x.quote === "USD"; })[0];
     if(!pr || !pr.daily || !pr.daily.length) return;
     var pts = pr.daily.filter(function(p){ return p[1] != null; }), last = pts[pts.length-1];
     var o = onOrBefore(pts, shiftDate(last[0], 7)); var w = o ? (last[1] / o[1] - 1) * 100 : null;
-    tick.push({href: C[t[0]][1], l: t[1] + " in US$ (per " + t[2] + ")", v: "$" + fmt(last[1], last[1] < 1 ? 4 : 3), c: w, cs: signed(w, 1, "%") + " on the week", d: periodLabel(last[0]), sp: lastYear(pts)});
+    tick.push({href: C[t[0]][1], l: t[1], v: "$" + fmt(last[1], last[1] < 1 ? 4 : 3), c: w, cs: signed(w, 1, "%") + " in a week", d: periodLabel(last[0]), sp: lastYear(pts)});
   });
   document.getElementById("mkTicker").innerHTML = tick.map(function(t){
     var k = t.c == null || Math.abs(t.c) < 1e-9 ? "flat" : (t.c > 0 ? "up" : "down");
@@ -1556,6 +1556,6 @@ Promise.all([
   }
 })();
 </script>
-<script src="mobile.js?v=16" defer></script>
+<script src="mobile.js?v=17" defer></script>
 </body>
 </html>

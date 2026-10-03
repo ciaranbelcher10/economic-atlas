@@ -1182,7 +1182,7 @@ def page_tail(extra_js="", extra_html=""):
 <script src="https://cdnjs.cloudflare.com/ajax/libs/Chart.js/4.4.1/chart.umd.min.js"></script>
 <script src="../indicator-kit.js?v={KIT_VERSION}"></script>
 {extra_js}
-<script src="../mobile.js?v=16"></script>
+<script src="../mobile.js?v=17"></script>
 </body>
 </html>
 """
