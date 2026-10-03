@@ -111,11 +111,11 @@ import series_guard
 # Add an entry ONLY when intentionally swapping source, and say why, e.g.
 #     ALLOW_SHRINK = {"ppi": "PPIACO -> PPIFID, final demand is the BLS headline"}
 # Remove it once the new series has landed.
-ALLOW_SHRINK = {}
+ALLOW_SHRINK = {"gdp_growth": "v1.6.33: QoQ -> YoY from NSA real GDP, four fewer points at the start"}
 
 # key: (fred_id, freq 'm'|'q'|'a', label, unit, transform None|'yoy'|'mom'|'qoq', scale)
 FRED_SERIES = {
-    "gdp_real": ("NGDPRNSAXDCARQ", "q", "Real GDP, current national prices, NSA (IMF IFS)", "ARSm", None, 1.0),
+    "gdp_real": ("NGDPRNSAXDCARQ", "q", "Real GDP, constant prices, NSA (IMF IFS)", "ARSm", None, 1.0),
     # NOTE (internal, deliberately not in the label): this nominal series is
     # seasonally adjusted while gdp_real above is NSA, because no
     # matching-adjustment nominal series was confirmed live. Both are
@@ -737,10 +737,15 @@ def main() -> int:
         # See the Switzerland Bug 6 writeup for the full diagnosis.
         if "gdp_real" in out["series"]:
             level_pts = out["series"]["gdp_real"]["points"]
-            growth_pts = yoy_from_level(level_pts, 1)
+            # v1.6.33: year on year (lag 4), not quarter on quarter. The
+            # only real GDP series available here is NOT seasonally
+            # adjusted, and quarter-on-quarter changes in unadjusted data
+            # mostly show the seasons (+9.6% then -5.2% in 2025). Year on
+            # year compares like quarters, as India's page does.
+            growth_pts = yoy_from_level(level_pts, 4)
             if growth_pts:
                 out["series"]["gdp_growth"] = {
-                    "label": "Real GDP growth, QoQ (derived from NGDPRNSAXDCARQ)",
+                    "label": "Real GDP growth, YoY (derived from NGDPRNSAXDCARQ, not seasonally adjusted)",
                     "unit": "%", "freq": "quarters", "points": growth_pts,
                 }
                 print(f"  ok  gdp_growth      {len(growth_pts):>5} observations (derived QoQ)")

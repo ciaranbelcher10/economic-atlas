@@ -458,3 +458,19 @@ Expected: **36 ok, 0 failed**.
 `citation_ids.py` treats `namq_10_gdp` as the id for gdp_level, gdp_real and
 gdp_growth in any script calling `eurostat_gdp.fetch_levels`. Baseline after
 v1.6.32: **MATCH 358 / MISMATCH 0 / CROSS 0 / UNCITED 0 / NO-ID 143**.
+
+## `test_growth_basis.py` — one definition of GDP growth (v1.6.33)
+
+```
+python3 generate_indicator_pages.py   # first; then revert generated output
+python3 tools/test_growth_basis.py
+```
+
+Fails if any fetcher derives `gdp_growth` from nominal `gdp_level`, labels a
+quarter-on-quarter growth series built from not-seasonally-adjusted data, or
+if the GDP growth ranking contains anything other than quarter-on-quarter
+growth of seasonally adjusted quarterly real GDP (or a published SA
+quarter-on-quarter rate). Countries' own `gdp_growth` series mix QoQ, QoQ
+annualised (US), year on year (ES, IN, NO, AR) and annual (SG, TH), so the
+ranking computes from `gdp_real`, as Compare does.
+Expected: **47 ok, 0 failed**; on the v1.6.32 tree it reports 10 failures.

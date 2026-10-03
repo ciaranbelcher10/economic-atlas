@@ -160,8 +160,8 @@ CORE_METRICS = {m["keys"][0]: (m["slug"], m["title"]) for m in METRICS}
 RANKINGS = [
     dict(slug="gdp-by-country", metric="gdp", title="GDP by Country", col="GDP (US$)", usd=True, flow=True,
          lede="The size of every economy we track over the last completed year, converted to US dollars at that year's average exchange rate. Those are market exchange rates, not purchasing power parity (PPP), so this ranks what each economy is worth in dollars rather than what its output buys at home."),
-    dict(slug="gdp-growth-rate-by-country", metric="gdp-growth-rate", title="GDP Growth Rate by Country", col="Growth, quarter on quarter", freqs=["quarters"], flow=True,
-         lede="How fast each economy grew or shrank in the final quarter of the last completed year, compared with the quarter before."),
+    dict(slug="gdp-growth-rate-by-country", metric="gdp-growth-rate", title="GDP Growth Rate by Country", col="Growth, quarter on quarter", flow=True, from_real=True,
+         lede="How fast each economy grew or shrank in the final quarter of the last completed year, compared with the quarter before. Every row is computed the same way, from the country's seasonally adjusted real GDP, so the figures can be compared directly even where a country's own headline uses a different measure."),
     dict(slug="inflation-rate-by-country", metric="inflation-rate", title="Inflation Rate by Country", col="Inflation, year on year",
          lede="How fast consumer prices are rising in each economy, compared with a year earlier, on each country's headline measure."),
     dict(slug="unemployment-rate-by-country", metric="unemployment-rate", title="Unemployment Rate by Country", col="Unemployment rate",
@@ -268,7 +268,8 @@ def adjustment_of(text, key="", freq=""):
     s_adj="NSA" explicitly, debt_gdp's dataset has no s_adj dimension at
     all; Spain gdp_level/gdp_real pass s_adj="SCA"; Japan trade_balance's
     own comment identifies the OECD "667S" family, confirmed SA via FRED;
-    Mexico gdp_growth is derived from NGDPRSAXDCMXQ, already covered by
+    Mexico gdp_growth is derived from real GDP NGDPRSAXDCMXQ (v1.6.33;
+    before that it was wrongly derived from nominal GDP), covered by
     the IMF IFS SAXDC rule above; India cpi follows the same OECD CPI
     convention documented above; India unemployment's MoSPI source
     bulletin states plainly it is not seasonally adjusted.
@@ -1273,6 +1274,68 @@ def _year_total_gdp(series, country, year):
     return sum(qs) / 4 if country in GDP_RAW_COUNTRIES else sum(qs)
 
 
+def _prev_quarter(p):
+    y, q = int(p[:4]), int(p[-1])
+    return f"{y - 1}-Q4" if q == 1 else f"{y}-Q{q - 1}"
+
+
+def _real_qoq_row(country, info, Y):
+    """Ranking row for quarter-on-quarter real GDP growth in Y-Q4, or a
+    string saying why the country is not ranked ("" = say nothing)."""
+    rs = info["data"].get("series", {}).get("gdp_real")
+    if not rs:
+        return "no real GDP series to compute growth from" if info["by_slug"].get("gdp-growth-rate") else ""
+    freq = rs.get("freq", "")
+    if freq != "quarters":
+        # Same measure published directly: a seasonally adjusted,
+        # quarter-on-quarter growth rate (not annualised, not year on year).
+        gs = info["data"].get("series", {}).get("gdp_growth") or {}
+        glab = gs.get("label", "")
+        gsrc = info["sources"].get("gdp_growth", {}).get("source", "")
+        if (gs.get("freq") == "quarters" and "QoQ" in glab and "annualis" not in glab.lower()
+                and adjustment_of(f"{glab} {gsrc}", "gdp_growth", "quarters") == "Seasonally adjusted"):
+            g = {p: v for p, v in clean_points(gs)}
+            target = f"{Y}-Q4"
+            if target not in g:
+                return f"no {fmt_period_label(target)} figure yet, latest is {fmt_period_label(max(g))}"
+            prev_p = _prev_quarter(target)
+            val, prev = g[target], g.get(prev_p)
+            src_pub, src_series = short_source(gsrc)
+            dlt = rounded_delta(val - prev, "%", "gdp_growth") if prev is not None else None
+            return dict(country=country, freq="quarters", key="gdp_growth", unit="%", src_pub=src_pub, src_series=src_series,
+                        latest_period=max(g), value=val, value_str=fmt_num(val, "%", "gdp_growth", country, "cell"),
+                        change=dlt if dlt is not None else 0.0,
+                        change_str=(fmt_num(dlt, "%", "gdp_growth", country, "delta") if dlt and abs(dlt) > 1e-9 else ("No change" if dlt is not None else "n/a")),
+                        period=target, prev_period=prev_p,
+                        spark=[(p, v) for p, v in sorted(g.items()) if p <= target and int(p[:4]) > Y - 5])
+        how = {"years": "annually", "months": "monthly"}.get(freq, freq)
+        return f"real GDP is published {how}, not quarterly"
+    src = info["sources"].get("gdp_real", {}).get("source", "")
+    if adjustment_of(f"{rs.get('label', '')} {src}", "gdp_real", freq) != "Seasonally adjusted":
+        return "real GDP is not seasonally adjusted, so quarter-on-quarter growth would mostly reflect the seasons"
+    d = {p: v for p, v in clean_points(rs)}
+
+    def qg(p):
+        q = _prev_quarter(p)
+        return (d[p] / d[q] - 1) * 100 if p in d and q in d and d[q] else None
+    target = f"{Y}-Q4"
+    val = qg(target)
+    if val is None:
+        latest = max(d) if d else None
+        return f"no {fmt_period_label(target)} figure yet" + (f", latest is {fmt_period_label(latest)}" if latest else "")
+    prev_p = _prev_quarter(target)
+    prev = qg(prev_p)
+    spark = [(p, round(qg(p), 2)) for p in sorted(d) if p <= target and int(p[:4]) > Y - 5 and qg(p) is not None]
+    src_pub, src_series = short_source(src)
+    val = round(val, 2)
+    dlt = rounded_delta(val - prev, "%", "gdp_growth") if prev is not None else None
+    return dict(country=country, freq="quarters", key="gdp_growth", unit="%", src_pub=src_pub, src_series=src_series,
+                latest_period=max(d), value=val, value_str=fmt_num(val, "%", "gdp_growth", country, "cell"),
+                change=dlt if dlt is not None else 0.0,
+                change_str=(fmt_num(dlt, "%", "gdp_growth", country, "delta") if dlt and abs(dlt) > 1e-9 else ("No change" if dlt is not None else "n/a")),
+                period=target, spark=spark, prev_period=prev_p)
+
+
 def rank_rows(ranking, catalogue_by_country):
     """Rows for one ranking: (ranked rows sorted high to low, unranked notes)."""
     m = METRIC_BY_SLUG[ranking["metric"]]
@@ -1280,6 +1343,19 @@ def rank_rows(ranking, catalogue_by_country):
     Y = flow_year()
     for country, info in catalogue_by_country.items():
         entry = info["by_slug"].get(m["slug"])
+        if ranking.get("from_real"):
+            # One definition for every row: quarter-on-quarter growth of
+            # seasonally adjusted quarterly real GDP, as Compare computes
+            # growth from gdp_real. Each country's own gdp_growth series
+            # mixes measures (QoQ, QoQ annualised, YoY, annual), so it is
+            # not used here.
+            row = _real_qoq_row(country, info, Y)
+            if isinstance(row, str):
+                if row:
+                    unranked.append((country, row))
+            else:
+                rows.append(row)
+            continue
         if ranking.get("fx_change") and not entry:
             if country in FX_EURO_MEMBERS:
                 unranked.append((country, "uses the euro, ranked once as the Eurozone"))

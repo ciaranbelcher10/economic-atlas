@@ -2362,12 +2362,9 @@ function render(data){
   if(gdpAnnual) chartPanel("gdp_level","charts-gdp","GDP",
     "The total value of everything Argentina produces in a year, at current prices.",
     gdpAnnual,"line",v=>curFmt(v,s.gdp_level.unit,2),v=>curFmt(v,s.gdp_level.unit,2),SRC_GDP_LEVEL,1996);
-  if(s.gdp_growth) chartPanel("gdp_growth","charts-gdp","Real GDP growth, quarter on quarter",
-    "How much the economy grew or shrank compared with the previous three months.",
+  if(s.gdp_growth) chartPanel("gdp_growth","charts-gdp","Real GDP growth, year on year",
+    "How much bigger or smaller the economy is than in the same quarter a year earlier, adjusted for inflation. Argentina's quarterly GDP is not seasonally adjusted, so it is compared year on year rather than quarter on quarter.",
     s.gdp_growth,"bar",v=>v+"%",pct,SRC_GDP_REAL,1999,0);
-  if(gdpYoY) chartPanel(null,"charts-gdp","Real GDP growth, year on year",
-    "How much bigger or smaller the economy is than a year ago, adjusted for inflation.",
-    gdpYoY,"line",v=>v+"%",pct,SRC_GDP_REAL,1999,0,"gdp_growth");
   if(s.cpi) chartPanel("cpi","charts-inflation","CPI inflation, annual rate",
     "How much consumer prices are rising compared with a year ago. Argentina's inflation has been exceptionally volatile in recent years, so large swings here reflect real conditions, not a data error, though note the separate, well-documented caveat about official INDEC figures from 2007-2015 in the footer below.",
     s.cpi,"line",v=>v+"%",pct,"INDEC \u00b7 CPI (IPC), national, all items, YoY",undefined,undefined,undefined,
@@ -2394,7 +2391,7 @@ function render(data){
   const hero=document.getElementById("hero");
   if(gdpAnnual) statTile(hero,"gdp_level","GDP (annual)",gdpAnnual,
     {fmt:v=>curFmt(v,s.gdp_level.unit,2),fmtD:v=>curFmt(v,s.gdp_level.unit,1),upIsGood:true,source:SRC_GDP_LEVEL});
-  if(s.gdp_growth) statTile(hero,"gdp_growth","GDP growth (QoQ)",s.gdp_growth,
+  if(s.gdp_growth) statTile(hero,"gdp_growth","GDP growth (YoY)",s.gdp_growth,
     {fmt:pct,fmtD:pp,upIsGood:true,source:SRC_GDP_REAL});
   if(s.cpi) statTile(hero,"cpi","CPI inflation",s.cpi,
     {fmt:pct,fmtD:pp,upIsGood:false,source:"INDEC \u00b7 CPI (IPC), national"});
@@ -2413,10 +2410,8 @@ function render(data){
   const tg=document.getElementById("tiles-gdp");
   if(gdpAnnual) statTile(tg,"gdp_level","GDP (annual)",gdpAnnual,
     {fmt:v=>curFmt(v,s.gdp_level.unit,2),fmtD:v=>curFmt(v,s.gdp_level.unit,1),upIsGood:true,source:SRC_GDP_LEVEL});
-  if(s.gdp_growth) statTile(tg,"gdp_growth","Growth (QoQ)",s.gdp_growth,
+  if(s.gdp_growth) statTile(tg,"gdp_growth","Growth (YoY)",s.gdp_growth,
     {fmt:pct,fmtD:pp,upIsGood:true,source:SRC_GDP_REAL});
-  if(gdpYoY) statTile(tg,null,"Growth (YoY)",gdpYoY,
-    {fmt:pct,fmtD:pp,upIsGood:true,source:SRC_GDP_REAL,infoKey:"gdp_growth"});
   const tinf=document.getElementById("tiles-inflation");
   if(s.cpi) statTile(tinf,"cpi","CPI (YoY)",s.cpi,
     {fmt:pct,fmtD:pp,upIsGood:false,source:"INDEC \u00b7 CPI (IPC), national"});
@@ -2621,8 +2616,8 @@ const INFO_CONTENT = {
     dollar: "See the gdp_level entry for the important caveat about combining this with \u201cDollarise.\u201d"
   },
   gdp_growth: {
-    description: "How much the economy grew or shrank compared with the previous three months, in real (inflation-adjusted) terms.",
-    source: "FRED series NGDPRNSAXDCARQ \u00b7 IMF International Financial Statistics, quarterly, not seasonally adjusted.",
+    description: "How much the economy grew or shrank compared with the same quarter a year earlier, in real (inflation-adjusted) terms.",
+    source: "Derived from FRED series NGDPRNSAXDCARQ \u00b7 IMF International Financial Statistics, real GDP, not seasonally adjusted, year on year (each quarter against the same quarter a year earlier, because quarter-on-quarter changes in unadjusted data mostly reflect the seasons).",
     real: "This is already a real (inflation-adjusted) growth rate as published, \u201cMake it real\u201d has no additional effect on it.",
     dollar: "A growth rate (%) is currency-agnostic, converting the underlying pesos to dollars doesn't change the percentage change. \u201cDollarise\u201d has no effect on this figure."
   },

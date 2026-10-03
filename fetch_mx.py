@@ -516,13 +516,16 @@ def main() -> int:
                 failures.append(name)
                 print(f"FAIL  {name:<16} {exc}")
 
-        if "gdp_level" in out["series"]:
+        # gdp_growth from REAL GDP (v1.6.33). It was derived from the
+        # nominal gdp_level, so the "real" growth figure included inflation
+        # and stopped a quarter early whenever nominal GDP lagged real.
+        if "gdp_real" in out["series"]:
             try:
-                gpts = out["series"]["gdp_level"]["points"]
+                gpts = out["series"]["gdp_real"]["points"]
                 growth = gdp_growth_from_level(gpts)
                 if growth:
                     out["series"]["gdp_growth"] = {
-                        "label": "Real GDP growth, QoQ (derived)", "unit": "%",
+                        "label": "Real GDP growth, QoQ, SA (derived from NGDPRSAXDCMXQ)", "unit": "%",
                         "freq": "quarters", "points": growth}
                     print(f"  ok  gdp_growth       {len(growth):>5} observations (derived)")
             except Exception as exc:
