@@ -486,10 +486,11 @@ query parameters, label) and its wiring into the ten EU fetchers (AT DE DK
 ES FR IE IT NL PL SE): Eurostat runs before FRED, FRED skips the key,
 `ALLOW_SHRINK` covers the switch. Also checks `fetch_ez.py` takes GDP for
 EA21 from `eurostat_gdp` and government finance for EA21 first.
-Expected: **48 ok, 0 failed**.
+Expected: **51 ok, 0 failed** (v1.6.35 adds three checks: Eurozone HICP
+for EA21 from `prc_hicp_minr`, published annual and monthly rates).
 
 `citation_ids.py` treats `une_rt_m` as the id for unemployment in scripts
 calling `eurostat_unemp.fetch` (the pattern accepts `une_rt_[maq]`, which
-has no digit). `citation_provider.py` reports 10 unemployment MISMATCH
+has no digit), and `prc_hicp_minr` as the id for Eurozone `cpi`/`cpi_mom`. `citation_provider.py` reports 10 unemployment MISMATCH
 lines (served=OECD) until the next pipeline run replaces the served labels;
 0 after.

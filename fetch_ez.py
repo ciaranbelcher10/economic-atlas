@@ -3,7 +3,8 @@
 CURRENT SOURCE (since v1.6.34): GDP (level, real, growth) for the current
 euro area EA21 direct from Eurostat namq_10_gdp via eurostat_gdp.py, and
 government debt/deficit for EA21 first; the EA19 FRED copies are the
-fallback only.
+fallback only. HICP (cpi, cpi_mom) for EA21 direct from Eurostat
+prc_hicp_minr since v1.6.35, published rates.
 
 Run:  FRED_API_KEY=yourkey python3 fetch_ez.py
 Sources: FRED (free key required: fred.stlouisfed.org), OECD, World Bank.
@@ -266,6 +267,27 @@ def _parse_jsonstat(text: str, tag: str) -> list | None:
     return pts
 
 
+def fetch_eurostat_hicp(unit: str) -> list | None:
+    """Euro area (EA21) HICP all items, published rate, from Eurostat
+    prc_hicp_minr (ECOICOP ver.2, the dataset current since the 2026
+    classification change; prc_hicp_manr/mmor stop at 2025-12).
+    unit: "RCH_A" annual rate, "RCH_M" monthly rate. v1.6.35."""
+    url = (f"{EUROSTAT_STATS_BASE}/prc_hicp_minr?format=JSON&lang=EN"
+           f"&geo=EA21&coicop18=TOTAL&unit={unit}&sinceTimePeriod=1996")
+    try:
+        r = requests.get(url, timeout=60, headers={"User-Agent": "economic-atlas/0.1"})
+        print(f"  [eurostat-hicp] EA21 {unit} status={r.status_code}")
+        r.raise_for_status()
+        pts = _parse_jsonstat(r.text, f"eurostat-hicp-EA21-{unit}")
+    except Exception as exc:
+        print(f"  [eurostat-hicp] EA21 {unit} failed: {exc}")
+        return None
+    if not pts or len(pts) < 300:
+        print(f"  [eurostat-hicp] EA21 {unit} rejected: {len(pts or [])} points (need >= 300)")
+        return None
+    return pts
+
+
 def fetch_eurostat_unemployment() -> list | None:
     for area in ("EA21", "EA20", "EA19"):
         url = (f"{EUROSTAT_STATS_BASE}/une_rt_m?format=JSON&lang=EN"
@@ -445,6 +467,15 @@ def main() -> int:
                 "label": "Real GDP growth, QoQ, SA (derived from Eurostat namq_10_gdp, CLV20_MEUR, EA21)",
                 "unit": "%", "freq": "quarters", "points": g}
             es_gdp = dict(es_gdp, gdp_growth=out["series"]["gdp_growth"])
+    # HICP for EA21 direct from Eurostat prc_hicp_minr (v1.6.35): the
+    # published annual and monthly rates. The FRED copy was the EA19
+    # aggregate and ran a month behind.
+    for name, unit, label in (("cpi", "RCH_A", "HICP, all items, annual rate (Eurostat prc_hicp_minr, EA21)"),
+                              ("cpi_mom", "RCH_M", "HICP, all items, monthly rate (Eurostat prc_hicp_minr, EA21)")):
+        pts = fetch_eurostat_hicp(unit)
+        if pts:
+            out["series"][name] = {"label": label, "unit": "%", "freq": "months", "points": pts}
+            es_gdp = dict(es_gdp, **{name: out["series"][name]})
 
     key = os.environ.get("FRED_API_KEY")
     if not key:

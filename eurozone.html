@@ -2261,10 +2261,10 @@ function render(data){
     gdpYoY,"line",v=>v+"%",pct,"Derived from Eurostat namq_10_gdp (CLV20_MEUR) · euro area EA21 (today's 21 members, back-calculated), real GDP, seasonally and calendar adjusted, year-on-year",1998,0,"gdp_growth");
   if(s.cpi) chartPanel("cpi","charts-inflation","HICP inflation, annual rate",
     "How much consumer prices are rising compared with a year ago. The ECB targets 2%.",
-    s.cpi,"line",v=>v+"%",pct,"Calculated from FRED series CP0000EZ19M086NEST \u00b7 all items, EA19 aggregate (Eurostat)",undefined,undefined,undefined,
+    s.cpi,"line",v=>v+"%",pct,"Eurostat prc_hicp_minr (RCH_A) \u00b7 HICP, all items, euro area EA21 (today's 21 members), annual rate of change as published, monthly",undefined,undefined,undefined,
     basesFor([
-      {id:"yoy", label:"Year on year", series:s.cpi, srcNote:"Calculated from FRED series CP0000EZ19M086NEST \u00b7 all items, EA19 aggregate (Eurostat)", expl:"How much consumer prices are rising compared with a year ago. The ECB targets 2%."},
-      {id:"mom", label:"Month on month", series:s.cpi_mom, srcNote:"HICP, all items, change on the previous month (CP0000EZ19M086NEST)",
+      {id:"yoy", label:"Year on year", series:s.cpi, srcNote:"Eurostat prc_hicp_minr (RCH_A) \u00b7 HICP, all items, euro area EA21 (today's 21 members), annual rate of change as published, monthly", expl:"How much consumer prices are rising compared with a year ago. The ECB targets 2%."},
+      {id:"mom", label:"Month on month", series:s.cpi_mom, srcNote:"Eurostat prc_hicp_minr (RCH_M) \u00b7 HICP, all items, euro area EA21 (today's 21 members), monthly rate of change as published",
        expl:"How much consumer prices moved compared with the month before. Not the annual rate divided by twelve: it reacts to one-off price changes the annual rate smooths out."}
     ]));
   if(s.ecb_rate) chartPanel("ecb_rate","charts-inflation","ECB deposit facility rate",
@@ -2312,7 +2312,7 @@ function render(data){
   if(s.gdp_growth) statTile(hero,"gdp_growth","GDP growth (QoQ)",s.gdp_growth,
     {fmt:pct,fmtD:pp,upIsGood:true,source:"Calculated \u00b7 Eurostat namq_10_gdp, EA21"});
   if(s.cpi) statTile(hero,"cpi","HICP inflation",s.cpi,
-    {fmt:pct,fmtD:pp,upIsGood:false,source:"FRED \u00b7 CP0000EZ19M086NEST, YoY"});
+    {fmt:pct,fmtD:pp,upIsGood:false,source:"Eurostat \u00b7 prc_hicp_minr, EA21, annual rate"});
   if(s.unemployment) statTile(hero,"unemployment","Unemployment",s.unemployment,
     {fmt:pct,fmtD:pp,upIsGood:false,source:"Eurostat \u00b7 une_rt_m"});
   if(s.current_account) statTile(hero,"current_account","Current account",s.current_account,
@@ -2336,9 +2336,9 @@ function render(data){
     {fmt:pct,fmtD:pp,upIsGood:true,source:"Calculated \u00b7 Eurostat namq_10_gdp, EA21",infoKey:"gdp_growth"});
   const tinf=document.getElementById("tiles-inflation");
   if(s.cpi) statTile(tinf,"cpi","HICP (YoY)",s.cpi,
-    {fmt:pct,fmtD:pp,upIsGood:false,source:"FRED \u00b7 Eurostat"});
+    {fmt:pct,fmtD:pp,upIsGood:false,source:"Eurostat \u00b7 prc_hicp_minr, EA21, annual rate"});
   if(s.cpi_mom) statTile(tinf,null,"HICP (MoM)",s.cpi_mom,
-    {fmt:pct,fmtD:pp,upIsGood:false,source:"FRED \u00b7 Eurostat",infoKey:"cpi_mom"});
+    {fmt:pct,fmtD:pp,upIsGood:false,source:"Eurostat \u00b7 prc_hicp_minr, EA21, monthly rate",infoKey:"cpi_mom"});
   if(s.ecb_rate) statTile(tinf,"ecb_rate","ECB deposit rate",s.ecb_rate,
     {fmt:v=>v.toFixed(2)+"%",fmtD:v=>v.toFixed(2)+"pp",upIsGood:false,source:"FRED \u00b7 ECBDFR"});
   const tl=document.getElementById("tiles-labour");
@@ -2536,11 +2536,11 @@ const INFO_CONTENT = {
   },
   cpi: {
     description: "How much consumer prices are rising across the euro area compared with a year ago. The ECB targets 2% inflation.",
-    source: "Calculated from FRED series CP0000EZ19M086NEST \u00b7 HICP, all items, EA19 aggregate."
+    source: "Eurostat prc_hicp_minr (RCH_A) \u00b7 HICP, all items, euro area EA21 (today's 21 members), annual rate of change as published, monthly."
   },
   cpi_mom: {
     description: "How much consumer prices rose or fell compared with just the previous month, more volatile than the annual rate, useful for spotting turning points earlier.",
-    source: "Derived from FRED series CP0000EZ19M086NEST (Eurostat)."
+    source: "Eurostat prc_hicp_minr (RCH_M) \u00b7 HICP, all items, euro area EA21 (today's 21 members), monthly rate of change as published."
   },
   ecb_rate: {
     description: "The European Central Bank's key interest rate, the anchor for borrowing costs across the euro area. This is the deposit facility rate specifically, one of the ECB's three main policy rates.",
