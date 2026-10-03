@@ -494,3 +494,19 @@ calling `eurostat_unemp.fetch` (the pattern accepts `une_rt_[maq]`, which
 has no digit), and `prc_hicp_minr` as the id for Eurozone `cpi`/`cpi_mom`. `citation_provider.py` reports 10 unemployment MISMATCH
 lines (served=OECD) until the next pipeline run replaces the served labels;
 0 after.
+
+## `test_markets.js` — Markets page (v1.6.36)
+
+```
+node tools/test_markets.js
+```
+
+Runs `markets.html` in jsdom against the real data files. Checks every table
+renders without script errors and that no table mixes measures: the
+10-year table holds exactly the countries carrying `bond_yield_10y`, sorted,
+with the Eurozone's end-of-month basis marked; the daily table holds only
+the daily `bond_yield_10y` files (UK, US, Canada, Japan); the euro-area par
+yield and the SG/MA/TH long-term yields appear only in their own table;
+the euro is shown once, no euro member or US dollar row; daily and annual
+exchange rates sit in separate tables, all as US$ per unit of home currency.
+Expected: **17 checks, 0 failures**.
