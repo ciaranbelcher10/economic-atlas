@@ -35,7 +35,11 @@ for c, g in GEO.items():
     s = open(os.path.join(ROOT, f"fetch_{c}.py"), encoding="utf-8").read()
     check(f"{c} calls fetch({g})", f'eurostat_unemp.fetch("{g}")' in s)
     check(f"{c} Eurostat before FRED", s.index("eurostat_unemp.fetch(") < s.index('os.environ.get("FRED_API_KEY")'))
-    check(f"{c} FRED skips es_unemp", re.search(r"FRED_SERIES\.items\(\):\n\s+if [^\n]*name in es_unemp:\n\s+continue", s) is not None)
+    # Since v1.6.42, PL/IT/ES skip a combined `direct` mapping (unemployment
+    # plus the ECB yield); it must still contain es_unemp.
+    check(f"{c} FRED skips es_unemp", re.search(r"FRED_SERIES\.items\(\):\n\s+if [^\n]*name in es_unemp:\n\s+continue", s) is not None
+          or (re.search(r"FRED_SERIES\.items\(\):\n\s+if [^\n]*name in direct:\n\s+continue", s) is not None
+              and re.search(r"direct = \{\*\*es_unemp,", s) is not None))
     check(f"{c} allow_shrink unemployment", '"unemployment": "v1.6.34' in s)
 s = open(os.path.join(ROOT, "fetch_ez.py"), encoding="utf-8").read()
 check("ez GDP EA21 via eurostat_gdp", 'eurostat_gdp.fetch_levels("EA21", "MEUR"' in s)

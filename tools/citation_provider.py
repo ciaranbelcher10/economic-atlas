@@ -39,6 +39,7 @@ FAMILIES = [
     ("ONS",         r"\bONS\b"),
     ("BLS",         r"\bBLS\b|CPIAUC|CPILFE|UNRATE|PAYEMS|CIVPART"),
     ("Eurostat",    r"Eurostat|CLVMNAC|CPMNAC|namq_10|une_rt_m|gov_10dd|teiet\d"),
+    ("ECB",         r"ECB IRS|L40\.CI\.0000"),
     ("OECD",        r"\bOECD\b|XTNTVA01|XTEXVA01|XTIMVA01|LRHUTTTT|LRUN64TT|MEI\b"),
 ]
 # On inflation rows only, "harmonized" alone names the HICP measure. On

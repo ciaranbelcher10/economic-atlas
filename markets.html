@@ -1352,7 +1352,7 @@ Promise.all([
     var yAgo = lagBack(pts, perYear);
     var c1 = prev ? last[1] - prev[1] : null, c12 = yAgo ? last[1] - yAgo[1] : null;
     var src = srcLine(sources, C[cc][0], "bond_yield_10y");
-    var basis = /end of month/i.test(src || "") ? ", end of month" : "";
+    var basis = /end of month|month-end/i.test(src || "") ? ", end of month" : "";
     yr.push({keys:[C[cc][0], last[1], last[0], c1, c12, src],
       cells: '<td>' + countryCell(cc, [last[0], s.freq]) + '</td><td class="num">' + fmt(last[1], 2) + '%</td><td>' + periodLabel(last[0]) + basis + '</td><td class="num ' + cls(c1) + '">' + signed(c1, 2, "pp") + '</td><td class="num ' + cls(c12) + '">' + signed(c12, 2, "pp") + '</td><td class="src">' + srcText(src) + '</td>'});
   });
@@ -1457,7 +1457,7 @@ Promise.all([
       if(!sr || !sr.points || sr.points.length < 2) return;
       var pts = sr.points.filter(function(p){ return p[1] != null; }), last = pts[pts.length-1];
       var bsrc = srcLine(sources, C[cc][0], "bond_yield_10y") || "";
-      rows.push({cc: cc, name: C[cc][0], v: last[1], p: last[0], basis: /end of month/i.test(bsrc) ? ", end of month" : ""});
+      rows.push({cc: cc, name: C[cc][0], v: last[1], p: last[0], basis: /end of month|month-end/i.test(bsrc) ? ", end of month" : ""});
     });
     rows.sort(function(a, b){ return b.v - a.v; });
     if(!rows.length) return;

@@ -44,6 +44,8 @@ VERIFICATION NOTES for the rest:
 
 - unemployment (LRHUTTTTESM156S): checked directly, live monthly through
   Apr 2026, standard naming convention.
+- bond_yield_10y: SERVED FROM THE ECB (IRS, monthly) via ecb_irs.py since
+  v1.6.42; the FRED entry below is the fallback only. Original build note:
 - bond_yield_10y: uses the QUARTERLY series (IRLTLT01ESQ156N), confirmed
   live through Q4 2025. The monthly sibling wasn't directly confirmed
   either way in search results, so the quarterly one was used, same
@@ -83,6 +85,7 @@ from datetime import datetime, timezone
 import requests
 import series_guard
 import eurostat_unemp
+import ecb_irs
 
 # Series this script is deliberately allowed to replace with a shorter or
 # lower-frequency one. Without an entry here, series_guard keeps the previous
@@ -487,13 +490,18 @@ def main() -> int:
     # copy is the fallback only.
     es_unemp = eurostat_unemp.fetch("ES")
     out["series"].update(es_unemp)
+    # 10-year yield direct from the ECB (IRS, monthly) since v1.6.42; the
+    # FRED entry below is the fallback only.
+    ecb_yield = ecb_irs.fetch("ES", "EUR")
+    out["series"].update(ecb_yield)
+    direct = {**es_unemp, **ecb_yield}   # served without FRED
 
     key = os.environ.get("FRED_API_KEY")
     if not key:
         print("WARN  no FRED_API_KEY set -- FRED series will be skipped.")
     else:
         for name, (sid, freq, label, unit, tf, scale) in FRED_SERIES.items():
-            if name in es_unemp:
+            if name in direct:
                 continue
             try:
                 raw = fetch_fred(sid, freq, key)

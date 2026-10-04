@@ -174,6 +174,10 @@ def script_ids_for(script, metric):
     # Monthly unemployment fetched directly from Eurostat (eurostat_unemp.py, v1.6.34).
     if "eurostat_unemp.fetch(" in s and metric == "unemployment":
         ids.add("une_rt_m")
+    # 10-year yield fetched directly from the ECB IRS dataset (ecb_irs.py, v1.6.42).
+    if metric == "bond_yield_10y":
+        for cc, cur in re.findall(r'ecb_irs\.fetch\("([A-Z]{2})",\s*"([A-Z]{3})"\)', s):
+            ids.add(f"M.{cc}.L.L40.CI.0000.{cur}.N.Z")
     # Euro area HICP fetched directly from Eurostat prc_hicp_minr (fetch_ez.py, v1.6.35).
     if "fetch_eurostat_hicp(" in s and metric in ("cpi", "cpi_mom"):
         ids.add("prc_hicp_minr")
