@@ -52,7 +52,7 @@ def country_to_script():
 
 # Identifiers we expect to see: FRED-style uppercase, Eurostat lowercase
 # dataset ids, World Bank dotted indicators, IMF indicator codes.
-ID_RE = re.compile(r"\b(?:GGX[A-Z]+_NGDP|[A-Z][A-Z0-9]*(?:\.[A-Z0-9]+){2,}|[A-Z][A-Z0-9]{5,}|(?:tei|gov|une|nama|namq|prc|ei|sts|ext)[a-z]*_?[a-z0-9_]*\d[a-z0-9_]*|une_rt_[maq]|prc_hicp_minr)\b")
+ID_RE = re.compile(r"\b(?:GGX[A-Z]+_NGDP|[A-Z][A-Z0-9]*(?:\.[A-Z0-9]+){2,}|[A-Z][A-Z0-9]{5,}|(?:tei|gov|une|nama|namq|prc|ei|sts|ext)[a-z]*_?[a-z0-9_]*\d[a-z0-9_]*|une_rt_[maq]|prc_hicp_minr|DF_IALFS_UNE_M)\b")
 STOPWORDS = {
     "GDP", "CPI", "HICP", "OECD", "IMF", "BIS", "ONS", "FRED", "EDP", "COICOP",
     "USD", "EUR", "NSA", "PPP", "YoY", "QoQ", "ILO", "WEO", "IFS", "EU", "ECB",
@@ -174,6 +174,9 @@ def script_ids_for(script, metric):
     # Monthly unemployment fetched directly from Eurostat (eurostat_unemp.py, v1.6.34).
     if "eurostat_unemp.fetch(" in s and metric == "unemployment":
         ids.add("une_rt_m")
+    # Monthly unemployment fetched directly from the OECD (oecd_unemp.py, v1.6.43).
+    if "oecd_unemp.fetch(" in s and metric == "unemployment":
+        ids.add("DF_IALFS_UNE_M")
     # 10-year yield fetched directly from the ECB IRS dataset (ecb_irs.py, v1.6.42).
     if metric == "bond_yield_10y":
         for cc, cur in re.findall(r'ecb_irs\.fetch\("([A-Z]{2})",\s*"([A-Z]{3})"\)', s):

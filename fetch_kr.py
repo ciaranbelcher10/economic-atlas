@@ -1,4 +1,8 @@
-"""Fetch South Korea economic series and write data-kr.json.
+"""
+CURRENT SOURCE (since v1.6.43): unemployment comes direct from the OECD
+(DF_IALFS_UNE_M) via oecd_unemp.py in this script's OECD hour; the FRED
+entry LRHUTTTTKRM156S below is the fallback only.
+Fetch South Korea economic series and write data-kr.json.
 
 Run:  FRED_API_KEY=yourkey python3 fetch_kr.py
 Sources: FRED (free key required: fred.stlouisfed.org), OECD, World Bank.
@@ -47,6 +51,7 @@ from __future__ import annotations
 
 import re
 import oecd_turn
+import oecd_unemp
 import oecd_prices
 import json
 import time
@@ -495,11 +500,26 @@ def main() -> int:
     }
     failures = []
 
+    # unemployment direct from the OECD (v1.6.43), in this script's OECD
+    # hour only. Off-turn the key is left out so series_guard carries the
+    # previous series over; FRED is used only if OECD fails on-turn.
+    skip_fred = set()
+    try:
+        oecd_u = oecd_unemp.fetch("KOR")
+        if oecd_u:
+            out["series"].update(oecd_u)
+            skip_fred.add("unemployment")
+    except oecd_turn.NotThisHour as exc:
+        print(f"  --  unemployment     {exc}")
+        skip_fred.add("unemployment")
+
     key = os.environ.get("FRED_API_KEY")
     if not key:
         print("WARN  no FRED_API_KEY set — FRED series will be skipped.")
     else:
         for name, (sid, freq, label, unit, tf, scale) in FRED_SERIES.items():
+            if name in skip_fred:
+                continue
             try:
                 raw = fetch_fred(sid, freq, key)
                 if scale != 1.0:

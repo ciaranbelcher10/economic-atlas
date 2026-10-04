@@ -3176,7 +3176,18 @@ var EXPLAINER_OF = {
   fx_gbp: "Pounds per unit of the home currency. A rise means a stronger home currency.",
   bond_yield_10y: "The yield on 10-year government bonds, a market gauge of inflation and rate expectations, not the central bank's own policy rate."
 };
-function explainerOf(key){
+// Per-country description first (from data-metric-sources.json, the same
+// text as that country's own info panel), first sentence only: a key can
+// mean different things by country, e.g. gdp_growth is quarter on quarter
+// for most, annualised for the US, year on year for India, Spain, Norway
+// and Argentina, and annual for Singapore and Thailand (v1.6.43).
+function explainerOf(key, country){
+  var info = country ? metricInfo(country, key) : null;
+  var d = info && info.description;
+  if(d){
+    var m = String(d).match(/^(?:i\.e\.|e\.g\.|[^.!?])*[.!?](?=\s|$)/);
+    return m ? m[0] : d;
+  }
   return EXPLAINER_OF[key] || "Economic indicator tracked on this country's own page.";
 }
 var REGISTRY = {}; // REGISTRY[country][key] = {label, unit, freq, points}
@@ -4953,7 +4964,7 @@ function renderPickerItems(items, pgrid, groupFn, groupOrder, isSearchMode){
       var div = document.createElement("div");
       div.className = "pickeritem" + (added ? " added" : "");
       div.dataset.key = it.key; div.dataset.country = it.country; // lets the tour engine target a specific metric reliably, rather than matching on label text
-      div.innerHTML = "<div>" + s.label + "</div><div class=\"e\">" + (added ? "Already shown above" : explainerOf(it.key)) + "</div>";
+      div.innerHTML = "<div>" + s.label + "</div><div class=\"e\">" + (added ? "Already shown above" : explainerOf(it.key, it.country)) + "</div>";
       if(!added){
         div.addEventListener("click", function(){
           // Guards against the exact bug reported live: a rapid double-
