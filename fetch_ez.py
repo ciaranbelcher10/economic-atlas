@@ -311,6 +311,37 @@ def fetch_eurostat_unemployment() -> list | None:
     return None
 
 
+def fetch_eurostat_current_account() -> list | None:
+    """Euro-area current account, % of GDP, annual (v1.6.45).
+
+    Replaces World Bank BN.CAB.XOKA.GD.ZS for country EMU, which returns 66
+    rows that are all null (probe tools/probe_ez_ca.py, 5 Oct 2026), so the
+    series had never reached data-ez.json. Eurostat bop_gdp6_q holds the
+    euro-area balance against the rest of the world (partner EXT_EA20) at
+    annual frequency, 2013 onward. The BoP aggregate is still published for
+    EA20, so EA20 is tried first; EA21 is tried in case Eurostat adds it.
+    """
+    for geo in ("EA20", "EA21"):
+        url = (f"{EUROSTAT_STATS_BASE}/bop_gdp6_q?format=JSON&lang=EN&freq=A"
+               f"&geo={geo}&partner=EXT_{geo}&bop_item=CA&stk_flow=BAL"
+               f"&unit=PC_GDP&s_adj=NSA&sinceTimePeriod=1999")
+        try:
+            r = requests.get(url, timeout=60,
+                             headers={"User-Agent": "economic-atlas/0.1"})
+            print(f"  [eurostat-ca] {geo} status={r.status_code}")
+            r.raise_for_status()
+        except Exception as exc:
+            print(f"  [eurostat-ca] {geo} request failed: {exc}")
+            continue
+        try:
+            pts = _parse_jsonstat(r.text, f"eurostat-ca-{geo}")
+            if pts:
+                return pts
+        except Exception as exc:
+            print(f"  [eurostat-ca] {geo} parsing failed: {exc}")
+    return None
+
+
 def fetch_eurostat_govfinance(na_item: str) -> list | None:
     for area in ("EA21", "EA20", "EA19"):
         url = (f"{EUROSTAT_STATS_BASE}/gov_10dd_edpt1?format=JSON&lang=EN"
@@ -513,8 +544,8 @@ def main() -> int:
          "10-year government benchmark bond yield, euro area (ECB FM.M.U2.EUR.4F.BB.U2_10Y.YLD)", "%", "months"),
         ("fdi", lambda: fetch_worldbank("BX.KLT.DINV.WD.GD.ZS"),
          "FDI net inflows, % of GDP (World Bank)", "%", "years"),
-        ("current_account", lambda: fetch_worldbank("BN.CAB.XOKA.GD.ZS"),
-         "Current account balance, % of GDP (World Bank)", "%", "years"),
+        ("current_account", lambda: fetch_eurostat_current_account(),
+         "Current account balance, % of GDP, euro area EA20 vs rest of world (Eurostat bop_gdp6_q)", "%", "years"),
     ]
     for name, fn, label, unit, fr in extras:
         try:

@@ -2027,7 +2027,7 @@ function statTile(el, key, title, series, opts){
   el.appendChild(div);
 }
 // Every metric with its own /indicators/ page for this country (v1.6.1: all of them, not just four).
-const INDICATOR_PAGE_SLUGS = {gdp_growth_yoy:"gdp-annual-growth-rate", trade_intensity:"trade-intensity", cpi_qoq:"inflation-rate-qoq", gdp_level:"gdp", gdp_real:"real-gdp", gdp_growth:"gdp-growth-rate", cpi:"inflation-rate", cpi_mom:"inflation-rate-mom", unemployment:"unemployment-rate", ecb_rate:"interest-rate", trade_balance:"balance-of-trade", exports:"exports", imports:"imports", fdi:"foreign-direct-investment", debt_gdp:"government-debt", deficit:"government-budget", business_confidence:"business-confidence", bond_yield_10y:"10-year-government-bond-yield", fx_eur_usd:"exchange-rate"};
+const INDICATOR_PAGE_SLUGS = {gdp_growth_yoy:"gdp-annual-growth-rate", trade_intensity:"trade-intensity", cpi_qoq:"inflation-rate-qoq", gdp_level:"gdp", gdp_real:"real-gdp", gdp_growth:"gdp-growth-rate", cpi:"inflation-rate", cpi_mom:"inflation-rate-mom", unemployment:"unemployment-rate", ecb_rate:"interest-rate", trade_balance:"balance-of-trade", exports:"exports", imports:"imports", current_account:"current-account-to-gdp", fdi:"foreign-direct-investment", debt_gdp:"government-debt", deficit:"government-budget", business_confidence:"business-confidence", bond_yield_10y:"10-year-government-bond-yield", fx_eur_usd:"exchange-rate"};
 // Keeps only the bases this country actually serves, so the selector never
 // offers something the source cannot support and never appears at all when
 // there is only one basis. Order is preserved: the first survivor is default.
@@ -2294,7 +2294,7 @@ function render(data){
     s.trade_balance,"bar",v=>curFmt(v,s.trade_balance.unit,0),v=>curFmt(v,s.trade_balance.unit,1),(tradeLive?"Derived from Eurostat teiet010 and teiet110, extra-euro-area goods trade, \u20ac million":"Derived from OECD goods trade series, converted to euros: discontinued Apr 2023"),1999,0);
   if(s.current_account) chartPanel("current_account","charts-trade","Current account",
     "The euro area's overall balance with the rest of the world (trade plus investment income) as a share of GDP.",
-    s.current_account,"line",v=>v+"%",pct,"World Bank \u00b7 % of GDP, annual, euro-area aggregate",undefined,0);
+    s.current_account,"line",v=>v+"%",pct,"Eurostat bop_gdp6_q \u00b7 % of GDP, annual, euro area (EA20) vs rest of world",undefined,0);
   if(s.exports) chartPanel("exports","charts-trade","Exports, goods",
     "The value of goods the euro area sells to the rest of the world "+tradeExpl,
     s.exports,"line",v=>curFmt(v,s.exports.unit,0),v=>curFmt(v,s.exports.unit,1),(tradeLive?"Eurostat teiet010 \u00b7 extra-euro-area goods exports, \u20ac million":"FRED series XTEXVA01EZM667S \u00b7 goods, SA (OECD): discontinued Apr 2023"));
@@ -2578,7 +2578,7 @@ const INFO_CONTENT = {
   },
   current_account: {
     description: "The euro area's overall balance with the rest of the world, trade in goods and services plus net investment income, as a share of GDP.",
-    source: "World Bank \u00b7 % of GDP, annual, euro-area aggregate.",
+    source: "Eurostat bop_gdp6_q \u00b7 balance of payments, current account balance of the euro area (EA20) with the rest of the world, % of GDP, annual, 2013 onward.",
     dollar: "Already expressed as a % of GDP, currency-agnostic. \u201cDollarise\u201d has no effect on this figure."
   },
   debt_gdp: {
