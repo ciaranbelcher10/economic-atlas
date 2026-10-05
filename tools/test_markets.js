@@ -66,12 +66,45 @@ setTimeout(() => {
     yieldBars: [...d.querySelectorAll("#cYields svg rect")].map(r => r.closest("a") && r.closest("a").getAttribute("href")),
     fxBars: [...d.querySelectorAll("#cFx svg rect")].map(r => r.closest("a") && r.closest("a").getAttribute("href")),
     dailyLabels: [...d.querySelectorAll("#cDaily svg text")].filter(t => /%$/.test(t.textContent)).map(t => t.closest("a") && t.closest("a").getAttribute("href")),
-    tableRows: ["tYields","tDaily","tOther","tFx","tFxA"].flatMap(id => [...d.querySelectorAll("#" + id + " tbody tr")].map(tr => { const a = tr.querySelector("td a"); return a && a.getAttribute("href"); }))
+    tableRows: ["tYields","tPolicy","tDaily","tOther","tFx","tFxA"].flatMap(id => [...d.querySelectorAll("#" + id + " tbody tr")].map(tr => { const a = tr.querySelector("td a"); return a && a.getAttribute("href"); }))
   };
   for (const [name, hrefs] of Object.entries(linkSets)) {
     check(name + " all linked", hrefs.length > 0 && hrefs.every(Boolean), hrefs.filter(h => !h).length + " unlinked of " + hrefs.length);
     check(name + " links resolve to pages", hrefs.filter(Boolean).every(pageOk), hrefs.filter(h => h && !pageOk(h)).join(","));
   }
+  // 9. policy rates and spread (v1.6.46)
+  const pr = rows("tPolicy");
+  const POLICY = {"data.json":"boe_rate","data-us.json":"fed_funds_upper","data-ez.json":"ecb_rate","data-ca.json":"overnight_rate","data-jp.json":"boj_rate"};
+  const NAMES = {"data.json":"UK","data-us.json":"US","data-ez.json":"Eurozone","data-ca.json":"Canada","data-jp.json":"Japan","data-at.json":"Austria","data-de.json":"Germany","data-es.json":"Spain","data-fr.json":"France","data-ie.json":"Ireland","data-it.json":"Italy","data-nl.json":"Netherlands"};
+  const EUROF = ["at","de","es","fr","ie","it","nl"].map(c => `data-${c}.json`);
+  const pk = f => POLICY[f] || (EUROF.includes(f) ? "ecb_rate" : null);
+  const pWant = files.filter(f => { const k = pk(f); const s = load(f).series || {}; return k && s[k] && (s[k].points || []).length; });
+  check("policy table has every stored policy rate", pr.length === pWant.length, `${pr.length} vs ${pWant.length}`);
+  check("policy table at least 12 rows", pr.length >= 12, pr.length);
+  check("CA and JP marked as market rates", ["Canada","Japan"].every(n => { const r = pr.find(x => x[0] === n); return !r || /market rate/.test(r[2]); }));
+  check("UK, US, Eurozone not marked market", ["UK","US","Eurozone"].every(n => { const r = pr.find(x => x[0] === n); return r && !/market rate/.test(r[2]); }));
+  const num = t => parseFloat(t.replace("\u2212","-"));
+  let spreadOk = true, spreadBad = [];
+  for (const f of pWant) {
+    const s = load(f).series, yp = (s.bond_yield_10y ? s.bond_yield_10y.points : []).filter(p => p[1] != null), pp = s[pk(f)].points.filter(p => p[1] != null);
+    const ly = yp[yp.length - 1], same = ly && pp.find(p => p[0] === ly[0]);
+    const row = pr.find(r => r[0] === NAMES[f]);
+    if (!row) { spreadOk = false; spreadBad.push(f + " no row"); continue; }
+    const want = same ? (ly[1] - same[1]) : null;
+    if (want == null ? row[5] !== "n/a" : Math.abs(num(row[5]) - want) > 0.006) { spreadOk = false; spreadBad.push(f + " " + row[5]); }
+  }
+  check("every spread = same-month yield minus rate, else n/a", spreadOk, spreadBad.join(";"));
+  const sf = dom.window.__mkSpreadFor;
+  check("spread helper exposed", typeof sf === "function");
+  if (typeof sf === "function") {
+    check("same month gives spread", Math.abs(sf([["2026-07",4],["2026-08",4.5]], [["2026-08",3.75],["2026-09",4]]).spread - 0.75) < 1e-9);
+    check("policy missing that month gives null", sf([["2026-08",4.5]], [["2026-07",3.75],["2026-09",4]]).spread === null);
+    check("quarterly yield never paired", sf([["2026-Q2",4.5]], [["2026-06",3.75]]).spread === null);
+    check("never uses latest policy for older yield", sf([["2026-08",4.5]], [["2026-10",2]]).spread === null);
+    check("no yield gives null", sf([], [["2026-08",3]]).spread === null);
+  }
+  check("spreads sorted high to low, n/a last", pr.every((r, i) => i === 0 || pr[i-1][5] === "n/a" ? (i === 0 || pr[i-1][5] !== "n/a" || r[5] === "n/a") : (r[5] === "n/a" || num(pr[i-1][5]) >= num(r[5]))));
+  check("policy rows linked to pages", pr.every((r, i) => { const a = d.querySelectorAll("#tPolicy tbody tr")[i].querySelector("td a"); return a && fs.existsSync(path.join(root, a.getAttribute("href") + ".html")); }));
   // 8. plain copy: no stock AI phrasing in what a reader sees
   const seen = [...d.querySelectorAll(".mk-hero, .mk-sec, .mk-card, .mk-intro, .mk-full")].map(e => e.textContent).join(" ");
   const stock = ["straight from", "delve", "landscape", "in today's", "tapestry", "navigate", "unlock", "seamless", "robust", "it's worth noting", "whether you're"];

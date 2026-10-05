@@ -1230,6 +1230,12 @@ table.mk a{color:inherit; text-decoration:none; border-bottom:1px dotted var(--i
  <div class="mk-scroll"><table class="mk" id="tYields"><thead><tr><th>Country</th><th class="num">Yield</th><th>Period</th><th class="num">Change on previous period</th><th class="num">Change on a year earlier</th><th>Source</th></tr></thead><tbody><tr><td class="mk-empty" colspan="6">Loading</td></tr></tbody></table></div>
 </section>
 
+<section class="mk-sec" id="policy">
+ <h2>Policy rates and the 10-year spread</h2>
+ <p class="mk-note">The interest rate each central bank sets, beside the 10-year yield for the same country. The spread is the 10-year yield minus that rate, in percentage points, for the same month only, so it uses the rate in force that month, which can differ from the latest rate. Where the latest yield and the rate for that month are not both published, the spread shows n/a. Canada and Japan show a market overnight rate, which tracks the central bank's own rate closely but is not the rate it announces. Countries without a stored policy rate are not listed.</p>
+ <div class="mk-scroll"><table class="mk" id="tPolicy"><thead><tr><th>Country</th><th class="num">Rate</th><th>Measure</th><th>Date</th><th class="num">10-year yield</th><th class="num">Spread</th><th>Source</th></tr></thead><tbody><tr><td class="mk-empty" colspan="7">Loading</td></tr></tbody></table></div>
+</section>
+
 <section class="mk-sec" id="yields-daily">
  <h2>Daily 10-year yields</h2>
  <p class="mk-note">For the economies whose official source publishes the 10-year yield every trading day. These are single-day readings, not averages, so they are shown apart from the table above. Changes are in percentage points against the last reading on or before each earlier date.</p>
@@ -1260,6 +1266,18 @@ table.mk a{color:inherit; text-decoration:none; border-bottom:1px dotted var(--i
 var C = {uk:["UK","uk"],us:["US","us"],ez:["Eurozone","eurozone"],jp:["Japan","japan"],in:["India","india"],ca:["Canada","canada"],au:["Australia","australia"],kr:["South Korea","southkorea"],il:["Israel","israel"],mx:["Mexico","mexico"],br:["Brazil","brazil"],za:["South Africa","southafrica"],ma:["Morocco","morocco"],de:["Germany","germany"],fr:["France","france"],it:["Italy","italy"],es:["Spain","spain"],nl:["Netherlands","netherlands"],dk:["Denmark","denmark"],ie:["Ireland","ireland"],no:["Norway","norway"],cl:["Chile","chile"],co:["Colombia","colombia"],tr:["Turkey","turkey"],id:["Indonesia","indonesia"],pl:["Poland","poland"],ch:["Switzerland","switzerland"],ar:["Argentina","argentina"],se:["Sweden","sweden"],sg:["Singapore","singapore"],at:["Austria","austria"],th:["Thailand","thailand"]};
 var EURO = {at:1,de:1,es:1,fr:1,ie:1,it:1,nl:1};
 var MINUS = "\u2212";
+var POLICY_KEY = {uk:"boe_rate", us:"fed_funds_upper", ez:"ecb_rate", ca:"overnight_rate", jp:"boj_rate"};
+var MARKET_RATE = {overnight_rate:1, boj_rate:1};
+// Spread = latest 10-year yield minus the policy rate for that same month.
+// Monthly yields only; any other period, or no rate for that month, gives null.
+function spreadFor(yPts, pPts){
+  var y = yPts && yPts.length ? yPts[yPts.length - 1] : null;
+  if(!y || !/^\d{4}-\d{2}$/.test(y[0])) return {yieldPt: y, spread: null};
+  for(var i = 0; i < pPts.length; i++){ if(pPts[i][0] === y[0] && pPts[i][1] != null) return {yieldPt: y, spread: y[1] - pPts[i][1], ratePt: pPts[i]}; }
+  return {yieldPt: y, spread: null};
+}
+window.__mkSpreadFor = spreadFor;
+
 function dataFile(cc){ return cc === "uk" ? "data.json" : "data-" + cc + ".json"; }
 function get(url){ return fetch(url, {cache:"no-cache"}).then(function(r){ return r.ok ? r.json() : null; }).catch(function(){ return null; }); }
 function esc(s){ return String(s == null ? "" : s).replace(/[&<>"]/g, function(c){ return {"&":"&amp;","<":"&lt;",">":"&gt;","\"":"&quot;"}[c]; }); }
@@ -1358,6 +1376,28 @@ Promise.all([
   });
   yr.sort(function(a, b){ return b.keys[1] - a.keys[1]; });
   render("tYields", yr, 6); sortable("tYields");
+
+
+  // 1b. Policy rates beside the 10-year yield; spread for the same month only.
+  var pr = [];
+  codes.forEach(function(cc){
+    var d = data[cc]; var ser = d && d.series; if(!ser) return;
+    var key = POLICY_KEY[cc] || (EURO[cc] ? "ecb_rate" : null);
+    var ps = key && ser[key];
+    if(!ps || !ps.points || !ps.points.length) return;
+    var pp = ps.points.filter(function(p){ return p[1] != null; }); if(!pp.length) return;
+    var last = pp[pp.length - 1];
+    var ys = ser.bond_yield_10y, yp = ys && ys.points ? ys.points.filter(function(p){ return p[1] != null; }) : [];
+    var sp = spreadFor(yp, pp);
+    var measure = String(ps.label || key).replace(/\s*\([^)]*\)\s*$/, "") + (MARKET_RATE[key] ? ", market rate" : "");
+    var src = srcLine(sources, C[cc][0], key);
+    var ycell = sp.yieldPt ? fmt(sp.yieldPt[1], 2) + "% (" + periodLabel(sp.yieldPt[0]) + ")" : "n/a";
+    if(sp.ratePt && sp.ratePt[1] !== last[1]) ycell += ", rate then " + fmt(sp.ratePt[1], 2) + "%";
+    pr.push({keys:[C[cc][0], last[1], measure, last[0], sp.yieldPt ? sp.yieldPt[1] : null, sp.spread, src],
+      cells: '<td>' + countryCell(cc, [last[0], "months"]) + '</td><td class="num">' + fmt(last[1], 2) + '%</td><td>' + esc(measure) + '</td><td>' + periodLabel(last[0]) + '</td><td class="num">' + ycell + '</td><td class="num ' + cls(sp.spread) + '">' + signed(sp.spread, 2, "pp") + '</td><td class="src">' + srcText(src) + '</td>'});
+  });
+  pr.sort(function(a, b){ return (b.keys[5] == null ? -1e9 : b.keys[5]) - (a.keys[5] == null ? -1e9 : a.keys[5]); });
+  render("tPolicy", pr, 7); sortable("tPolicy");
 
   // 2. Daily 10-year yields.
   var dr = [];
