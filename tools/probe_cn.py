@@ -99,7 +99,8 @@ def oecd_series(url, filt=None):
     for k, v in groups.items():
         v.sort()
         print(f"   variant {dict(k)}: {len(v)} pts {v[0][0]}..{v[-1][0]}")
-    return max(groups.values(), key=lambda v: (v[-1][0], len(v)))
+    rank = {"M": 3, "Q": 2, "A": 1}
+    return max(groups.items(), key=lambda kv: (rank.get(dict(kv[0]).get("FREQ"), 0), len(kv[1])))[1]
 
 
 O = "https://sdmx.oecd.org/public/rest/data/"
@@ -220,6 +221,21 @@ def main():
                       ("FP.CPI.TOTL.ZG", "CPI annual"), ("PA.NUS.FCRF", "FX annual avg")]:
         run(f"WB {ind}", lambda i=ind: wb(i), what)
 
+
+    print("\n== Quarterly GDP and trade alternatives (v2)")
+    for name, url in [
+        ("OECD QNA growth dataflow", O + "OECD.SDD.NAD,DSD_NAMAIN1@DF_QNA_EXPENDITURE_GROWTH_OECD,1.1/Q..CHN.S1..B1GQ......?startPeriod=2015&format=csvfile"),
+        ("OECD QNA all CHN", O + "OECD.SDD.NAD,DSD_NAMAIN1@DF_QNA,1.1/Q..CHN..........?startPeriod=2024&format=csvfile"),
+        ("OECD QNA no version", O + "OECD.SDD.NAD,DSD_NAMAIN1@DF_QNA/Q..CHN.S1..B1GQ......?startPeriod=2015&format=csvfile"),
+    ]:
+        run(name, lambda u=url: oecd_series(u))
+    for name, url in [
+        ("IMF QNEA CHN GDP", "https://api.imf.org/external/sdmx/3.0/data/dataflow/IMF.STA/QNEA/~/CHN.B1GQ.*.*.Q?c[TIME_PERIOD]=ge:2010-Q1"),
+        ("IMF QNEA CHN all", "https://api.imf.org/external/sdmx/3.0/data/dataflow/IMF.STA/QNEA/~/CHN.*.*.*.Q?c[TIME_PERIOD]=ge:2025-Q1"),
+        ("IMF ITG CHN all", "https://api.imf.org/external/sdmx/3.0/data/dataflow/IMF.STA/ITG/~/CHN.*.*.M?c[TIME_PERIOD]=ge:2024-M01"),
+    ]:
+        run(name, lambda u=url: imf_csv(u))
+    run("BIS WS_CBPOL D.CN (daily)", lambda: bis("D.CN"))
     print("\n== NBS (National Bureau of Statistics of China)")
     for db in ("hgyd", "hgjd"):           # monthly, quarterly
         try:
