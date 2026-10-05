@@ -4,6 +4,7 @@ and how current each series is.
 
 Read-only: writes nothing, imported by nothing, never scheduled.
     FRED_API_KEY=... python3 tools/probe_cn.py > probe_cn.txt
+    python3 tools/probe_cn.py --v3 > probe_cn_v3.txt   (series listing, no key needed)
 Needs outbound access to FRED, OECD, IMF, BIS, World Bank and NBS (not the
 sandbox). Each check prints one summary line; a SUMMARY table closes the run.
 A failure is a result, not an error: the point is to see what exists.
@@ -251,5 +252,53 @@ def main():
         print(f"{st:<6} {name:<34} {n:>5}  {a:>9}..{b:<9} {note}")
 
 
+# ---------- v3: list every distinct series behind a wildcard query ----------
+SKIP_COLS = {"TIME_PERIOD", "OBS_VALUE", "OBS_STATUS", "OBS_CONF", "UNIT_MULT", "DECIMALS",
+             "BASE_PER", "DATAFLOW", "STRUCTURE", "STRUCTURE_ID", "ACTION", "CONF_STATUS",
+             "REF_YEAR_PRICE", "DURABILITY", "STRUCTURE_NAME"}
+
+
+def list_series(name, url, keep=None):
+    """Group a wildcard CSV by every dimension and print each series once."""
+    try:
+        r = get(url, accept="text/csv", timeout=120)
+    except Exception as exc:
+        fail(name, exc)
+        return
+    rows = list(csv.DictReader(io.StringIO(r.text)))
+    print(f"\n-- {name}: {len(rows)} rows; columns {list(rows[0].keys()) if rows else []}")
+    groups = {}
+    for row in rows:
+        if keep and not keep(row):
+            continue
+        k = tuple((c, v) for c, v in row.items() if c not in SKIP_COLS and v not in ("", None))
+        try:
+            groups.setdefault(k, []).append([row["TIME_PERIOD"], float(row["OBS_VALUE"])])
+        except (KeyError, ValueError, TypeError):
+            pass
+    for k, v in sorted(groups.items(), key=lambda kv: -len(kv[1])):
+        v.sort()
+        d = {c: x for c, x in k if c not in ("REF_AREA", "COUNTRY")}
+        print(f"   {len(v):>4} pts {v[0][0]}..{v[-1][0]} last={v[-1][1]:<16} {d}")
+    RESULTS.append((name, "ok" if groups else "EMPTY", sum(len(v) for v in groups.values()), "", "",
+                    f"{len(groups)} distinct series"))
+    time.sleep(1)
+
+
+def main_v3():
+    print(f"China probe v3 (series listing), {time.strftime('%Y-%m-%d %H:%M UTC', time.gmtime())}")
+    list_series("OECD QNA CHN, GDP only, since 1992",
+                O + "OECD.SDD.NAD,DSD_NAMAIN1@DF_QNA,1.1/Q..CHN..........?startPeriod=1992&format=csvfile",
+                keep=lambda r: r.get("TRANSACTION") == "B1GQ")
+    list_series("OECD QNA CHN, every transaction, latest only",
+                O + "OECD.SDD.NAD,DSD_NAMAIN1@DF_QNA,1.1/Q..CHN..........?startPeriod=2026-Q1&format=csvfile")
+    list_series("IMF ITG CHN monthly, since 2010",
+                "https://api.imf.org/external/sdmx/3.0/data/dataflow/IMF.STA/ITG/~/CHN.*.*.M?c[TIME_PERIOD]=ge:2010-M01")
+    list_series("BIS WS_CBPOL CN, metadata", "https://stats.bis.org/api/v2/data/dataflow/BIS/WS_CBPOL/1.0/M.CN?format=csv&detail=full&startPeriod=2026-01")
+    print("\n== SUMMARY")
+    for name, st, n, a, b, note in RESULTS:
+        print(f"{st:<6} {name:<48} {n:>6}  {note}")
+
+
 if __name__ == "__main__":
-    main()
+    main_v3() if "--v3" in sys.argv else main()
