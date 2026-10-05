@@ -1450,6 +1450,94 @@ def rank_rows(ranking, catalogue_by_country):
     return rows, unranked
 
 
+
+# ---------------------------------------------------------------------------
+# "In context" (v1.6.48): a few plain sentences worked out from the series
+# itself, so each page says something no other page on the site says: the
+# change on a year earlier, how unusual the latest reading is, the five-year
+# range, the long-run average for rates and indices, and the country's place
+# in the matching ranking. Every number comes from the points on the page.
+# ---------------------------------------------------------------------------
+THE_COUNTRIES = {"UK", "US", "Netherlands", "Eurozone"}
+PER_YEAR = {"months": 12, "quarters": 4, "years": 1}
+
+def in_country(country):
+    return ("the " if country in THE_COUNTRIES else "") + country
+
+def _year_earlier_point(pts):
+    lp = str(pts[-1][0])
+    m = re.fullmatch(r"(\d{4})(.*)", lp)
+    if not m:
+        return None
+    want = f"{int(m.group(1)) - 1}{m.group(2)}"
+    for p, v in reversed(pts[:-1]):
+        if str(p) == want:
+            return p, v
+        if str(p) < want:
+            return None
+    return None
+
+def _change_words(a, b, unit, key, country):
+    """'rose by +0.4pp' style, without a doubled sign."""
+    if unit_kind(unit) == "fx":
+        if not a:
+            return None
+        pc = (b - a) / a * 100
+        if abs(round(pc, 1)) < 0.05:
+            return "was unchanged"
+        return ("rose" if pc > 0 else "fell") + " by " + _fixed(abs(pc), 1) + "%"
+    d = rounded_delta(b - a, unit, key)
+    if abs(d) < 1e-9:
+        return "was unchanged"
+    return ("rose" if d > 0 else "fell") + " by " + fmt_num(abs(d), unit, key, country, "delta").lstrip("+")
+
+def context_sentences(country, label, key, pts, unit, freq, rank=None):
+    out = []
+    if len(pts) < 3:
+        return out
+    lp, lv = pts[-1]
+    val = lambda v: fmt_num(v, unit, key, country)
+    per = fmt_period_label
+    where = in_country(country)
+    ya = _year_earlier_point(pts) if freq in PER_YEAR and freq != "years" else (pts[-2] if freq == "years" else None)
+    if ya:
+        words = _change_words(ya[1], lv, unit, key, country)
+        if words:
+            span = "over the year to" if freq != "years" else "in"
+            art = "" if label in ACRONYMS else "the "
+            out.append(f"In {where}, {art}{label} {words} {span} {per(lp)}, from {val(ya[1])} in {per(ya[0])}.")
+    prior = pts[:-1]
+    hi = max(v for _, v in prior)
+    lo = min(v for _, v in prior)
+    if lv > hi:
+        out.append(f"That is the highest reading in a record that starts in {per(pts[0][0])}.")
+    elif lv < lo:
+        out.append(f"That is the lowest reading in a record that starts in {per(pts[0][0])}.")
+    else:
+        gap = PER_YEAR.get(freq, 1) * 2
+        up = lv >= pts[-2][1]
+        for i in range(len(prior) - 1, -1, -1):
+            p, v = prior[i]
+            if (up and v > lv) or (not up and v < lv):
+                if len(prior) - i > gap:
+                    out.append(f"It is the {'highest' if up else 'lowest'} reading since {per(p)}.")
+                break
+    win = trailing_years(pts, 5)
+    if len(win) >= 4 and win[0][0] != pts[0][0]:
+        wl = min(win, key=lambda x: x[1]); wh = max(win, key=lambda x: x[1])
+        if wl[1] != wh[1]:
+            out.append(f"Over the past five years it has ranged from {val(wl[1])} in {per(wl[0])} to {val(wh[1])} in {per(wh[0])}.")
+    if unit_kind(unit) in ("pct", "index") and len(pts) >= 20:
+        avg = sum(v for _, v in pts) / len(pts)
+        rel = "above" if lv > avg else "below"
+        if abs(rounded_delta(lv - avg, unit, key)) >= 1e-9:
+            out.append(f"Its average since {per(pts[0][0])} is {val(avg)}, and the latest reading is {rel} that.")
+    if rank:
+        pos, count, title, slug = rank
+        out.append(f'{in_country(country)[0].upper() + in_country(country)[1:]} is {ordinal(pos)} of {count} countries in our <a href="../rankings/{slug}">{esc(title)}</a> ranking.')
+    return out
+
+
 def render_indicator(country, info, entry, rank_info, all_rankings_meta, n_indicators):
     iso2, cslug, alpha2, region = COUNTRIES[country]
     m, key, s, pts, unit = entry["m"], entry["key"], entry["s"], entry["pts"], entry["unit"]
@@ -1554,6 +1642,21 @@ def render_indicator(country, info, entry, rank_info, all_rankings_meta, n_indic
             ("Latest observation", fmt_period_label(latest_p)),
             ("Revision status", "Market price, not revised" if market else "Latest published estimate, subject to revision")]
     defs_html = "".join(f'<div><dt>{esc(k)}</dt><dd>{esc(v)}</dd></div>' for k, v in defs)
+    rk_ctx = None
+    if this_rk:
+        pos = (rank_info or {}).get(this_rk["slug"], {}).get(country)
+        rm = next((r for r in all_rankings_meta if r["slug"] == this_rk["slug"]), None)
+        if pos and rm:
+            rk_ctx = (pos, rm["count"], rm["title"], rm["slug"])
+    ctx = context_sentences(country, meta_label, key, pts, unit, freq, rk_ctx)
+    ctx_items = []
+    for sentence in ctx:
+        parts = re.split(r'(<a href="[^"]*">.*?</a>)', sentence)
+        ctx_items.append("".join(x if x.startswith("<a ") else esc(x) for x in parts))
+    ctx_html = ("" if not ctx_items else
+                f'<section class="ind-section" aria-labelledby="ctxHead">\n    <h2 id="ctxHead">{esc(country)} {esc(title)} in context</h2>\n'
+                f'    <p class="ind-section-sub">Worked out from the published series shown above.</p>\n'
+                + "".join(f"    <p class=\"ind-ctx\">{c}</p>\n" for c in ctx_items) + "  </section>")
     rest = description[len(first_sentence(description)):].strip()
     about_p = f"<p>{esc(rest)}</p>" if rest else ""
     html_out = head_html(page_title, meta_desc, canonical, og_image, jsonld)
@@ -1591,6 +1694,7 @@ def render_indicator(country, info, entry, rank_info, all_rankings_meta, n_indic
     <div class="lockedactions" id="indActions"></div>
     <p class="src">Source: {esc(source_text)}</p>
   </section>
+  {ctx_html}
   <section class="ind-section" aria-labelledby="defHead">
     <h2 id="defHead">How this series is defined</h2>
     <p class="ind-section-sub">Everything you need to check the figure against the source.</p>
@@ -1761,6 +1865,7 @@ EMBED_TEMPLATE = """<!DOCTYPE html>
 <meta charset="UTF-8">
 <meta name="viewport" content="width=device-width, initial-scale=1.0">
 <title>{country_name} {metric_title} - Live | The Economic Atlas</title>
+<meta name="robots" content="noindex">
 <link rel="icon" type="image/png" sizes="32x32" href="../favicon-32.png">
 <style>
   *{{box-sizing:border-box}}
@@ -1897,15 +2002,23 @@ def root_page_listable(fname):
 
 def rewrite_sitemap(urls, today):
     """Rebuild sitemap.xml: every listable root page (existing lastmod and
-    changefreq kept; new pages dated today) plus the generated indicator,
-    embed and ranking URLs. Each <loc> appears exactly once."""
+    changefreq kept; new pages dated today) plus the generated indicator and
+    ranking URLs. Each <loc> appears exactly once. A generated page keeps its
+    previous lastmod unless its content changed this run (v1.6.48), so the
+    dates tell crawlers which pages actually moved."""
     path = os.path.join(ROOT, "sitemap.xml")
-    old = {}
+    old, old_gen = {}, {}
     if os.path.exists(path):
         with open(path, encoding="utf-8") as f:
             for l in f.read().splitlines():
                 m = re.search(r"<loc>([^<]+)</loc>", l)
-                if m and not any(g in m.group(1) for g in SITEMAP_GENERATED):
+                if not m:
+                    continue
+                if any(g in m.group(1) for g in SITEMAP_GENERATED):
+                    lm = re.search(r"<lastmod>([^<]+)</lastmod>", l)
+                    if lm:
+                        old_gen[m.group(1)] = lm.group(1)
+                else:
                     old.setdefault(m.group(1), l)
     statics = []
     for fname in sorted(os.listdir(ROOT)):
@@ -1919,7 +2032,10 @@ def rewrite_sitemap(urls, today):
     for u in urls:
         if u not in seen:
             seen.add(u)
-            new.append(f"  <url><loc>{u}</loc><lastmod>{today}</lastmod><changefreq>daily</changefreq></url>")
+            rel = u[len(SITE_URL) + 1:]
+            rel = os.path.join(rel, "index.html") if rel == "rankings" else rel + ".html"
+            lastmod = today if (rel in CHANGED or u not in old_gen) else old_gen[u]
+            new.append(f"  <url><loc>{u}</loc><lastmod>{lastmod}</lastmod><changefreq>daily</changefreq></url>")
     out = ['<?xml version="1.0" encoding="UTF-8"?>', '<urlset xmlns="http://www.sitemaps.org/schemas/sitemap/0.9">']
     with open(path, "w", encoding="utf-8") as f:
         f.write("\n".join(out + statics + new + ["</urlset>"]) + "\n")
@@ -2103,6 +2219,29 @@ def build_all(sources_all):
     return catalogue_by_country, rank_info, rankings_meta, ranking_pages
 
 
+# What a page says, minus the refresh stamp that changes on every run. Two
+# versions with the same signature are the same page to a reader, so the
+# sitemap keeps its old lastmod; anything else is a real change, dated today.
+REFRESH_STAMP_RE = re.compile(r"Data refreshed \d{4}-\d{2}-\d{2}\.")
+
+def page_signature(text):
+    return REFRESH_STAMP_RE.sub("Data refreshed.", text)
+
+CHANGED = set()
+
+def write_page(rel, text):
+    """Write a generated page; remember it if its content really changed."""
+    path = os.path.join(ROOT, rel)
+    old = None
+    if os.path.exists(path):
+        with open(path, encoding="utf-8") as f:
+            old = f.read()
+    if old is None or page_signature(old) != page_signature(text):
+        CHANGED.add(rel)
+    with open(path, "w", encoding="utf-8") as f:
+        f.write(text)
+
+
 def main():
     sources_all = load_json("data-metric-sources.json")
     for d in ("indicators", "embed", "og", "rankings"):
@@ -2116,8 +2255,7 @@ def main():
         n = len(info["catalogue"])
         for entry in info["catalogue"]:
             page_slug, html_out = render_indicator(country, info, entry, rank_info, rankings_meta, n)
-            with open(os.path.join(ROOT, "indicators", f"{page_slug}.html"), "w", encoding="utf-8") as f:
-                f.write(html_out)
+            write_page(os.path.join("indicators", f"{page_slug}.html"), html_out)
             lp = entry["pts"][-1]
             embed = EMBED_TEMPLATE.format(
                 country_name=esc(country), metric_title=esc(entry["title"]),
@@ -2129,16 +2267,16 @@ def main():
             with open(os.path.join(ROOT, "embed", f"{page_slug}.html"), "w", encoding="utf-8") as f:
                 f.write(embed)
             urls.append(f"{SITE_URL}/indicators/{page_slug}")
-            urls.append(f"{SITE_URL}/embed/{page_slug}")
+            # Embeds are chart widgets for other sites: noindex and out of
+            # the sitemap, so search engines rank the indicator page instead.
             generated += 1
 
     for rk, rows, unranked in ranking_pages:
-        with open(os.path.join(ROOT, "rankings", f"{rk['slug']}.html"), "w", encoding="utf-8") as f:
-            f.write(render_ranking(rk, rows, unranked, rankings_meta, catalogue_by_country))
+        write_page(os.path.join("rankings", f"{rk['slug']}.html"),
+                   render_ranking(rk, rows, unranked, rankings_meta, catalogue_by_country))
         urls.append(f"{SITE_URL}/rankings/{rk['slug']}")
 
-    with open(os.path.join(ROOT, "rankings", "index.html"), "w", encoding="utf-8") as f:
-        f.write(render_rankings_index(ranking_pages, rankings_meta))
+    write_page(os.path.join("rankings", "index.html"), render_rankings_index(ranking_pages, rankings_meta))
     urls.append(f"{SITE_URL}/rankings")
 
     for old, new in LEGACY_RANKING_REDIRECTS.items():
