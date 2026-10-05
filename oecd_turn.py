@@ -1,4 +1,5 @@
-"""Rotate OECD requests across three country groups, one group per hour.
+"""Rotate OECD requests across three country groups, one group per run
+(by GitHub run number since v1.6.44; by clock hour when run locally).
 
 Why. The OECD rate-limits by requests per window, and a single hourly run
 asks for far more than the window allows: in the 20 September 18:51 run the
@@ -68,7 +69,7 @@ class NotThisHour(Exception):
 
 
 def current_group(now: datetime | None = None) -> str:
-    """The group whose OECD requests run this hour.
+    """The group whose OECD requests run in this run.
 
     ``OECD_TURN_GROUP`` overrides the clock, so a specific group can be
     forced for a test or a manual catch-up run; ``OECD_TURN_GROUP=ALL``
@@ -77,6 +78,17 @@ def current_group(now: datetime | None = None) -> str:
     forced = os.environ.get("OECD_TURN_GROUP", "").strip().upper()
     if forced in ORDER or forced == "ALL":
         return forced
+    # One group per RUN, not per clock hour (v1.6.44). A refresh takes about
+    # six minutes, so a run starting at :57 used to change group part-way:
+    # on 4 Oct 2026 fetch_kr ran at 14:59 (group C) but fetch_tr at 15:01
+    # (group A), and Turkey, Poland, Sweden and Austria lost their turn.
+    # GitHub sets GITHUB_RUN_NUMBER identically in every step of a run and
+    # increments it each run, so every script agrees and runs still rotate
+    # A -> B -> C. An explicit ``now`` (tests) or no run number (a local
+    # run) uses the clock as before.
+    run_no = os.environ.get("GITHUB_RUN_NUMBER", "").strip()
+    if now is None and run_no.isdigit():
+        return ORDER[int(run_no) % len(ORDER)]
     now = now or datetime.now(timezone.utc)
     return ORDER[now.hour % len(ORDER)]
 
@@ -104,8 +116,8 @@ def check(script: str | None = None, now: datetime | None = None) -> None:
     if mine is None or serving == "ALL" or mine == serving:
         return
     if not _announced:
-        print(f"  [oecd-turn] this hour serves group {serving}; this script is group "
+        print(f"  [oecd-turn] this run serves group {serving}; this script is group "
               f"{mine}, so its OECD series are kept from their last fetch")
         _announced = True
-    raise NotThisHour(f"OECD turn is group {mine} (this hour: group {serving}); "
+    raise NotThisHour(f"OECD turn is group {mine} (this run: group {serving}); "
                       f"kept previous data, not a failure")
