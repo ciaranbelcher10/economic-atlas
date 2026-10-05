@@ -23,7 +23,7 @@ setTimeout(() => {
   const y = rows("tYields"), dl = rows("tDaily"), o = rows("tOther"), fx = rows("tFx"), fa = rows("tFxA");
   check("no script errors", errors.length === 0, errors.join("; "));
   // 1. period-average yields: exactly the countries carrying bond_yield_10y
-  const files = fs.readdirSync(root).filter(f => /^data(-[a-z]{2})?\.json$/.test(f));
+  const files = fs.readdirSync(root).filter(f => /^data-[a-z]{2}\.json$/.test(f));
   const want = files.filter(f => { const s = load(f).series || {}; return s.bond_yield_10y && (s.bond_yield_10y.points || []).length >= 2; }).length;
   check("yields table has every bond_yield_10y country", y.length === want, `${y.length} vs ${want}`);
   check("yields sorted high to low", y.every((r, i) => i === 0 || parseFloat(y[i-1][1].replace("\u2212","-")) >= parseFloat(r[1].replace("\u2212","-"))));
@@ -74,8 +74,8 @@ setTimeout(() => {
   }
   // 9. policy rates and spread (v1.6.46)
   const pr = rows("tPolicy");
-  const POLICY = {"data.json":"boe_rate","data-us.json":"fed_funds_upper","data-ez.json":"ecb_rate","data-ca.json":"overnight_rate","data-jp.json":"boj_rate"};
-  const NAMES = {"data.json":"UK","data-us.json":"US","data-ez.json":"Eurozone","data-ca.json":"Canada","data-jp.json":"Japan","data-at.json":"Austria","data-de.json":"Germany","data-es.json":"Spain","data-fr.json":"France","data-ie.json":"Ireland","data-it.json":"Italy","data-nl.json":"Netherlands"};
+  const POLICY = {"data-uk.json":"boe_rate","data-us.json":"fed_funds_upper","data-ez.json":"ecb_rate","data-ca.json":"overnight_rate","data-jp.json":"boj_rate"};
+  const NAMES = {"data-uk.json":"UK","data-us.json":"US","data-ez.json":"Eurozone","data-ca.json":"Canada","data-jp.json":"Japan","data-at.json":"Austria","data-de.json":"Germany","data-es.json":"Spain","data-fr.json":"France","data-ie.json":"Ireland","data-it.json":"Italy","data-nl.json":"Netherlands"};
   const EUROF = ["at","de","es","fr","ie","it","nl"].map(c => `data-${c}.json`);
   const pk = f => POLICY[f] || (EUROF.includes(f) ? "ecb_rate" : null);
   const pWant = files.filter(f => { const k = pk(f); const s = load(f).series || {}; return k && s[k] && (s[k].points || []).length; });

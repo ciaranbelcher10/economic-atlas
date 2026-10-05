@@ -90,7 +90,7 @@ function countryPages() {
   return fs.readdirSync(".").filter(f => f.endsWith(".html")).sort().map(f => {
     const s = fs.readFileSync(f, "utf8");
     if (!s.includes("chartPanel(")) return null;
-    // A country page fetches its own series file (data.json, data-xx.json).
+    // A country page fetches its own series file (data-xx.json).
     // Shared pages such as dashboard.html also call chartPanel() and fetch
     // other JSON, so match the series-file shape exactly rather than any
     // data*.json -- otherwise the citation file is read as a country.

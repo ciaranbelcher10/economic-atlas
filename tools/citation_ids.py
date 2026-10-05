@@ -46,7 +46,7 @@ def country_to_script():
     for m in re.finditer(r'(?:"([^"]+)"|([A-Za-z]+))\s*:\s*"(data[a-z\-]*\.json)"', blk):
         name = (m.group(1) or m.group(2)).strip()
         f = m.group(3)
-        out[name] = "fetch_data.py" if f == "data.json" else "fetch_" + f[5:-5] + ".py"
+        out[name] = "fetch_data.py" if f == "data-uk.json" else "fetch_" + f[5:-5] + ".py"
     return out
 
 

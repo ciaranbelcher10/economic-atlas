@@ -47,8 +47,12 @@ def data_files():
     out = git("ls-tree", "--name-only", "HEAD") or ""
     files = []
     for ln in out.splitlines():
+        # UK was data.json until v1.6.47, then data-uk.json; older commits
+        # only have data.json, so read it there and never count UK twice.
         if ln == "data.json":
-            files.append(ln); continue
+            if "data-uk.json" not in out.split():
+                files.append(ln)
+            continue
         if ln.startswith("data-") and ln.endswith(".json") \
            and not ln.startswith("data-calendar-") \
            and not ln.endswith("-trade-partners.json") \

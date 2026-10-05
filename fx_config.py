@@ -102,7 +102,7 @@ def pair_key(home, quote):
 
 
 def data_file(suffix):
-    return "data.json" if suffix == "uk" else f"data-{suffix}.json"
+    return f"data-{suffix}.json"
 
 
 def fx_file(suffix):

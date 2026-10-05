@@ -59,7 +59,7 @@ from datetime import datetime, timezone
 # compare.html / dashboard.html whenever a new country is added --
 # see the "New-country build checklist" for the full wiring list.
 DATA_FILES = {
-    "UK": "data.json", "US": "data-us.json", "Eurozone": "data-ez.json", "Japan": "data-jp.json",
+    "UK": "data-uk.json", "US": "data-us.json", "Eurozone": "data-ez.json", "Japan": "data-jp.json",
     "India": "data-in.json", "Canada": "data-ca.json", "Australia": "data-au.json", "South Korea": "data-kr.json",
     "Israel": "data-il.json", "Mexico": "data-mx.json", "Brazil": "data-br.json", "South Africa": "data-za.json",
     "Morocco": "data-ma.json", "Germany": "data-de.json", "France": "data-fr.json", "Italy": "data-it.json",

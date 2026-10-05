@@ -3280,7 +3280,7 @@ const FX_FETCH=fetch("data-fx-uk.json",{cache: "no-cache"})
   .then(r=>r.ok ? r.json() : null).catch(()=>null);
 const BOND_FETCH=fetch("data-bond-uk.json",{cache: "no-cache"})
   .then(r=>r.ok ? r.json() : null).catch(()=>null);
-fetch("data.json",{cache: "no-cache"})
+fetch("data-uk.json",{cache: "no-cache"})
   .then(r=>{ if(!r.ok) throw new Error(r.status); return r.json(); })
   .then(d=>Promise.all([FX_FETCH,BOND_FETCH]).then(([fx,bd])=>{ FX_DATA=fx; BOND_DAILY=bd; PAGE_DATA=d; rerender(); }))
   .catch(()=>{ PAGE_DATA=sampleData(); rerender(); });
@@ -3670,7 +3670,7 @@ function mpcMinutesUrl(dateIso){
 // with `let` at the top level of the main render script -- classic
 // (non-module) <script> tags share one global lexical scope, so it's
 // visible here even though this runs inside its own IIFE. Guarded against
-// PAGE_DATA not being ready yet (data.json fetch is async and may resolve
+// PAGE_DATA not being ready yet (data-uk.json fetch is async and may resolve
 // after or before this script's own fetch).
 function periodKeyForCompare(dateIso, freq){
   var year = dateIso.slice(0, 4);
@@ -3807,7 +3807,7 @@ fetch("data-uk-mpc-votes.json", {cache: "no-cache"})
   })
   .catch(function(){ /* fallback already rendered */ });
 // The economic-context lookup needs PAGE_DATA (from the main script's own
-// data.json fetch), which resolves independently and isn't guaranteed to
+// data-uk.json fetch), which resolves independently and isn't guaranteed to
 // be ready before this script's own fetch completes. This function is a
 // plain top-level declaration, so -- like PAGE_DATA itself -- it's visible
 // from the main script's rerender() via the shared global scope, letting

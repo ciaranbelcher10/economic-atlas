@@ -568,7 +568,7 @@ def load_json(name):
         return json.load(f)
 
 def data_file_for(iso2):
-    return "data.json" if iso2 == "uk" else f"data-{iso2}.json"
+    return f"data-{iso2}.json"
 
 def clean_points(series):
     return [p for p in (series or {}).get("points", []) if p and p[1] is not None]

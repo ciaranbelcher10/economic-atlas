@@ -345,6 +345,18 @@ def main() -> int:
     # BEFORE the "nothing fetched" bailout below (matching the pattern
     # already used elsewhere) so a run where every series fails still
     # gets rescued by carried-over data rather than giving up entirely.
+    # gdp_nominal is the same FRED GDP series as gdp_level, kept under a
+    # second key that Compare and Dashboard read (resolveRealKey). It used
+    # to come from fetch_data.py's US block; this script is now the only
+    # writer of data-us.json (v1.6.47), so it serves the key itself.
+    if out["series"].get("gdp_level"):
+        _gl = out["series"]["gdp_level"]
+        out["series"]["gdp_nominal"] = {
+            "label": "GDP, current dollars, seasonally adjusted annual rate",
+            "unit": _gl["unit"], "freq": _gl["freq"],
+            "points": [list(p) for p in _gl["points"]]}
+        print(f"ok    gdp_nominal      copy of gdp_level, {len(_gl['points'])} points")
+
     _prev_series = prev_full.get("series", {})
     _guard_verdicts = series_guard.apply_guard(
         out["series"], _prev_series, allow_shrink=ALLOW_SHRINK)

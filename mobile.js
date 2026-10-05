@@ -118,7 +118,7 @@
   }
 
   var TICKER_COUNTRIES = [
-    { file:"data.json",     slug:"uk",         name:"UK",           flag:"\uD83C\uDDEC\uD83C\uDDE7" },
+    { file:"data-uk.json",  slug:"uk",         name:"UK",           flag:"\uD83C\uDDEC\uD83C\uDDE7" },
     { file:"data-de.json",  slug:"germany",    name:"Germany",      flag:"\uD83C\uDDE9\uD83C\uDDEA" },
     { file:"data-jp.json",  slug:"japan",      name:"Japan",        flag:"\uD83C\uDDEF\uD83C\uDDF5" },
     { file:"data-fr.json",  slug:"france",     name:"France",       flag:"\uD83C\uDDEB\uD83C\uDDF7" },

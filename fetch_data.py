@@ -1,7 +1,7 @@
 """Fetch economic series for Economic Atlas.
 
-UK  -> data.json     (ONS + OECD + World Bank + Bank of England; no keys)
-US  -> data-us.json  (FRED + OECD + World Bank; FRED needs a free API key)
+UK  -> data-uk.json  (ONS + OECD + World Bank + Bank of England; no keys)
+US  -> written by fetch_us.py, not here (since v1.6.47)
 
 Run:  python3 fetch_data.py
 The FRED key is read from the FRED_API_KEY environment variable. In GitHub
@@ -143,40 +143,9 @@ def fetch_ons(uris: list[str]) -> tuple[str, list, str | None] | None:
 
 
 # ===========================================================================
-# US — FRED series (IDs verified against fred.stlouisfed.org)
+# FRED helpers (UK FX; the US is built by fetch_us.py, the sole writer of
+# data-us.json since v1.6.47)
 # ===========================================================================
-US_FRED = {
-    # key: (fred_id, freq, label, unit)
-    "gdp_nominal": ("GDP", "quarters",
-                    "GDP, current dollars, seasonally adjusted annual rate", "$bn"),
-    "gdp_real": ("GDPC1", "quarters",
-                 "Real GDP, chained 2017 dollars, SAAR", "$bn"),
-    "gdp_growth": ("A191RL1Q225SBEA", "quarters",
-                   "Real GDP growth, annualised quarter on quarter", "%"),
-    "productivity": ("OPHNFB", "quarters",
-                     "Nonfarm business output per hour, index", "index"),
-    "unemployment": ("UNRATE", "months", "Unemployment rate, SA", "%"),
-    "employment": ("EMRATIO", "months", "Employment-population ratio, SA", "%"),
-    "participation": ("CIVPART", "months",
-                      "Labor force participation rate, SA", "%"),
-    "fed_funds": ("FEDFUNDS", "months", "Effective federal funds rate", "%"),
-    # Target range bounds, daily, reduced to month-end below; see fetch_us.py.
-    "fed_funds_upper": ("DFEDTARU", "months", "Federal funds target range, upper bound (DFEDTARU)", "%"),
-    "fed_funds_lower": ("DFEDTARL", "months", "Federal funds target range, lower bound (DFEDTARL)", "%"),
-    "debt_gdp": ("GFDEGDQ188S", "quarters",
-                 "Federal debt, total public debt as % of GDP", "%"),
-    "deficit": ("MTSDS133FMS", "months",
-                "Federal surplus or deficit (-), monthly, NSA", "$m"),
-    "trade_balance": ("BOPGSTB", "months",
-                      "Trade balance, goods and services, SA", "$m"),
-    "exports": ("BOPTEXP", "months",
-                "Exports of goods and services, SA", "$m"),
-    "imports": ("BOPTIMP", "months",
-                "Imports of goods and services, SA", "$m"),
-    "cpi_index": ("CPIAUCSL", "months", "CPI, all urban consumers, SA", "index"),
-    "cpi_index_nsa": ("CPIAUCNS", "months", "CPI, all urban consumers, NSA", "index"),
-}
-
 FRED_BASE = "https://api.stlouisfed.org/fred/series/observations"
 
 
@@ -504,7 +473,7 @@ def ok_line(key: str, points: list, freq: str) -> None:
 # ===========================================================================
 def build_uk() -> bool:
     print("== United Kingdom ==")
-    previous = load_previous("data.json")
+    previous = load_previous("data-uk.json")
     out = {"updated": stamp(), "sample": False, "series": {}}
     api_key = os.environ.get("FRED_API_KEY", "").strip()
     failures = []
@@ -636,96 +605,11 @@ def build_uk() -> bool:
     except Exception as exc:
         print(f"FAIL  fx_to_eur        {exc}")
 
-    return finalise(out, previous, "data.json", failures)
-
-
-# ===========================================================================
-# US build
-# ===========================================================================
-def build_us() -> bool:
-    print("\n== United States ==")
-    previous = load_previous("data-us.json")
-    out = {"updated": stamp(), "sample": False, "series": {}}
-    failures = []
-    api_key = os.environ.get("FRED_API_KEY", "").strip()
-
-    if not api_key:
-        print("note  FRED_API_KEY not set — skipping FRED series.")
-        print("      Get a free key at fred.stlouisfed.org, then add it as a")
-        print("      GitHub Actions secret named FRED_API_KEY (see README).")
-        failures.extend(k for k in US_FRED if k != "cpi_index")
-    else:
-        for key, (fred_id, freq, label, unit) in US_FRED.items():
-            try:
-                points = fetch_fred(fred_id, freq, api_key)
-                if key in ("fed_funds_upper", "fed_funds_lower"):
-                    points = month_end(points)
-                if not points:
-                    raise ValueError("no observations in response")
-                out["series"][key] = {"label": label, "unit": unit,
-                                      "freq": freq, "points": points}
-                ok_line(key, points, freq)
-            except Exception as exc:
-                failures.append(key)
-                print(f"FAIL  {key:<16} {exc}")
-
-        # Derive CPI rates from the index, then drop the raw index.
-        # 12-month rate and the headline monthly change both come from the
-        # unadjusted index, so a US month on month rate is built the same way
-        # as every other country's on this site. BLS's own headline monthly
-        # print is seasonally adjusted, so that version is kept alongside
-        # under cpi_mom_sa and labelled. Kept identical to fetch_us.py, which
-        # writes the same file after this script.
-        idx = out["series"].pop("cpi_index", None)
-        idx_nsa = out["series"].pop("cpi_index_nsa", None)
-        if idx or idx_nsa:
-            yoy = pct_change(idx_nsa["points"], 12) if idx_nsa else []
-            mom = pct_change(idx_nsa["points"], 1) if idx_nsa else []
-            mom_sa = pct_change(idx["points"], 1) if idx else []
-            if yoy:
-                out["series"]["cpi"] = {
-                    "label": "CPI, all items, YoY, not seasonally adjusted (CPIAUCNS)",
-                    "unit": "%", "freq": "months", "points": yoy}
-                ok_line("cpi", yoy, "months")
-            if mom:
-                out["series"]["cpi_mom"] = {
-                    "label": "CPI, all items, MoM, not seasonally adjusted (CPIAUCNS)",
-                    "unit": "%", "freq": "months", "points": mom}
-                ok_line("cpi_mom", mom, "months")
-            if mom_sa:
-                out["series"]["cpi_mom_sa"] = {
-                    "label": "CPI, all items, MoM, seasonally adjusted (CPIAUCSL)",
-                    "unit": "%", "freq": "months", "points": mom_sa}
-                ok_line("cpi_mom_sa", mom_sa, "months")
-
-    extras = [
-        ("business_confidence", lambda: fetch_oecd_bci("USA"),
-         "Business confidence indicator, LT avg = 100 (OECD BCICP)", "index"),
-        ("fdi", lambda: fetch_worldbank("USA", "BX.KLT.DINV.WD.GD.ZS"),
-         "FDI net inflows, % of GDP (World Bank)", "%"),
-        ("current_account", lambda: fetch_worldbank("USA", "BN.CAB.XOKA.GD.ZS"),
-         "Current account balance, % of GDP (World Bank)", "%"),
-    ]
-    for key, fn, label, unit in extras:
-        try:
-            result = fn()
-            if result is None:
-                raise ValueError("no usable response")
-            freq, points = result
-            out["series"][key] = {"label": label, "unit": unit,
-                                  "freq": freq, "points": points}
-            ok_line(key, points, freq)
-        except Exception as exc:
-            failures.append(key)
-            print(f"FAIL  {key:<16} {exc}")
-
-    return finalise(out, previous, "data-us.json", failures)
+    return finalise(out, previous, "data-uk.json", failures)
 
 
 def main() -> int:
-    uk_ok = build_uk()
-    us_ok = build_us()
-    return 0 if (uk_ok or us_ok) else 1
+    return 0 if build_uk() else 1
 
 
 if __name__ == "__main__":
