@@ -39,13 +39,15 @@
     if(/k$/.test(c)) return 1e3;
     return 1;
   }
+  // ISO-coded units with a display glyph; must match generate_indicator_pages.ISO_GLYPH.
+  var ISO_GLYPH = {CNY: "CN\u00a5"};
   function symbolOf(u, key, country, dollarised){
     var c = cleanUnit(u);
     var m = c.match(/^[^a-zA-Z0-9]+/);
     var sym = m ? m[0] : "";
     if(!m){
       var code = c.match(/^([A-Z]{3})(tn|bn|m|k)?$/);
-      sym = code ? code[1] : "";
+      sym = code ? (ISO_GLYPH[code[1]] || code[1]) : "";
     }
     if(sym === "$" && !dollarised && NATIVE_KEYS[key] && NATIVE_DOLLAR[country]) sym = NATIVE_DOLLAR[country];
     return sym;

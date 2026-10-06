@@ -2315,6 +2315,9 @@ function render(data){
   const pct=v=>v.toFixed(1)+"%", pp=v=>v.toFixed(1)+"pp";
   const idx=v=>v.toFixed(1);
   const SRC_QNA="OECD quarterly national accounts (DF_QNA, T0101)";
+  // "Make it real" swaps gdp_level for the annual World Bank real series, so
+  // the GDP tile and chart must cite that series while the toggle is on.
+  const SRC_GDP = TOGGLE_STATE.real ? "World Bank NY.GDP.MKTP.KN \u00b7 constant prices, annual" : SRC_QNA;
   const SRC_CPI="OECD prices database \u00b7 CPI, all items, YoY";
   const SRC_RATE="BIS central bank policy rates \u00b7 one-year loan prime rate";
   const SRC_TRADE="IMF international trade in goods \u00b7 monthly, in yuan at each month\u2019s rate";
@@ -2331,7 +2334,7 @@ function render(data){
     s.fdi,"line",v=>v+"%",pct,SRC_WB);
   if(gdpAnnual) chartPanel("gdp_level","charts-gdp","GDP",
     "The total value of everything China produces in a year, at current prices, on a rolling four-quarter basis.",
-    gdpAnnual,"line",v=>curFmt(v,s.gdp_level.unit,2),v=>curFmt(v,s.gdp_level.unit,2),SRC_QNA);
+    gdpAnnual,"line",v=>curFmt(v,s.gdp_level.unit,2),v=>curFmt(v,s.gdp_level.unit,2),SRC_GDP);
   if(s.gdp_growth) chartPanel("gdp_growth","charts-gdp","Real GDP growth, quarter on quarter",
     "How much the economy grew or shrank compared with the previous three months, seasonally adjusted.",
     s.gdp_growth,"bar",v=>v+"%",pct,SRC_QNA,undefined,0);
@@ -2376,7 +2379,7 @@ function render(data){
     s.deficit,"bar",v=>v+"%",pct,SRC_FISCAL,undefined,0);
   const hero=document.getElementById("hero");
   if(gdpAnnual) statTile(hero,"gdp_level","GDP (annual)",gdpAnnual,
-    {fmt:v=>curFmt(v,s.gdp_level.unit,2),fmtD:v=>curFmt(v,s.gdp_level.unit,1),upIsGood:true,source:SRC_QNA});
+    {fmt:v=>curFmt(v,s.gdp_level.unit,2),fmtD:v=>curFmt(v,s.gdp_level.unit,1),upIsGood:true,source:SRC_GDP});
   if(s.gdp_growth_yoy) statTile(hero,"gdp_growth_yoy","GDP growth (YoY)",s.gdp_growth_yoy,
     {fmt:pct,fmtD:pp,upIsGood:true,source:SRC_QNA});
   if(s.cpi) statTile(hero,"cpi","CPI inflation",s.cpi,
@@ -2400,7 +2403,7 @@ function render(data){
     {fmt:pct,fmtD:pp,upIsGood:true,source:SRC_WB});
   const tg=document.getElementById("tiles-gdp");
   if(gdpAnnual) statTile(tg,"gdp_level","GDP (annual)",gdpAnnual,
-    {fmt:v=>curFmt(v,s.gdp_level.unit,2),fmtD:v=>curFmt(v,s.gdp_level.unit,1),upIsGood:true,source:SRC_QNA});
+    {fmt:v=>curFmt(v,s.gdp_level.unit,2),fmtD:v=>curFmt(v,s.gdp_level.unit,1),upIsGood:true,source:SRC_GDP});
   if(s.gdp_growth) statTile(tg,"gdp_growth","Growth (QoQ)",s.gdp_growth,
     {fmt:pct,fmtD:pp,upIsGood:true,source:SRC_QNA});
   if(s.gdp_growth_yoy) statTile(tg,"gdp_growth_yoy","Growth (YoY)",s.gdp_growth_yoy,
@@ -2456,9 +2459,14 @@ function scaleOf(unitStr){
   if(/m$/.test(clean)) return 1e6;
   return 1;
 }
+// ISO-coded units with a display glyph. "CNYm" stays the stored unit so the
+// yuan is never confused with the yen in the data; it prints as CN¥.
+const ISO_GLYPH = {CNY:"CN\u00a5"};
 function currencySymbol(unitStr){
   const m = unitStr.match(/^[^a-zA-Z0-9]+/);
-  return m ? m[0] : "";
+  if(m) return m[0];
+  const c = unitStr.match(/^([A-Z]{3})(tn|bn|m|k)?\b/);
+  return c && ISO_GLYPH[c[1]] ? ISO_GLYPH[c[1]] : "";
 }
 function curFmt(rawValue, unitStr, decimals){
   const scale = scaleOf(unitStr);
@@ -2859,7 +2867,7 @@ function applyToggleHighlighting(){
     const realHit = realOn && REAL_AFFECTED_KEYS.includes(key);
     const seriesForKey = rawSeries && rawSeries[key];
     const dollarHit = dollarOn && CURRENCY_KEYS.includes(key) &&
-      seriesForKey && !isAlreadyUSD(seriesForKey.unit, key);
+      seriesForKey && isCurrencyUnit(seriesForKey.unit) && !isAlreadyUSD(seriesForKey.unit, key);
     if(realHit && dollarHit) el.classList.add("fx-both");
     else if(realHit) el.classList.add("fx-real");
     else if(dollarHit) el.classList.add("fx-dollar");

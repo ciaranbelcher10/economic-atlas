@@ -41,7 +41,7 @@ SITE_URL = "https://theeconomicatlas.com"
 # underlying official statistics, which stay with their publishers.
 CREATOR = {"@type": "Organization", "name": "The Economic Atlas", "url": SITE_URL}
 LICENSE = f"{SITE_URL}/terms"
-KIT_VERSION = "6"
+KIT_VERSION = "7"
 
 # country display name -> (data-file code, page slug, alpha-2, region)
 COUNTRIES = {
@@ -380,6 +380,9 @@ def scale_of(u):
             return m
     return 1
 
+# ISO-coded units with a display glyph; must match indicator-kit.js ISO_GLYPH.
+ISO_GLYPH = {"CNY": "CN\u00a5"}
+
 def symbol_of(u, key, country, dollarised=False):
     c = _clean_unit(u)
     m = re.match(r"^[^a-zA-Z0-9]+", c)
@@ -387,7 +390,7 @@ def symbol_of(u, key, country, dollarised=False):
         sym = m.group(0)
     else:
         code = re.match(r"^([A-Z]{3})(tn|bn|m|k)?$", c)
-        sym = code.group(1) if code else ""
+        sym = (ISO_GLYPH.get(code.group(1), code.group(1))) if code else ""
     if sym == "$" and not dollarised and key in NATIVE_KEYS and country in NATIVE_DOLLAR:
         sym = NATIVE_DOLLAR[country]
     return sym
@@ -2048,7 +2051,7 @@ def rewrite_sitemap(urls, today):
 # ranking row of their own (it would be the same series repeated).
 FX_EURO_MEMBERS = {"Austria", "France", "Germany", "Ireland", "Italy", "Netherlands", "Spain"}
 FX_SYMBOL = {"GBP": "\u00a3", "EUR": "\u20ac", "JPY": "\u00a5", "CAD": "C$", "AUD": "A$",
-             "BRL": "R$", "MXN": "MX$", "INR": "\u20b9", "KRW": "\u20a9"}
+             "BRL": "R$", "MXN": "MX$", "INR": "\u20b9", "KRW": "\u20a9", "CNY": "CN\u00a5"}
 
 def fx_symbol(code):
     return FX_SYMBOL.get(code, code + "\u00a0")
