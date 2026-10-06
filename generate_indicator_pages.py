@@ -53,6 +53,7 @@ COUNTRIES = {
     "Brazil":        ("br", "brazil", "BR", "South America"),
     "Canada":        ("ca", "canada", "CA", "North America"),
     "Chile":         ("cl", "chile", "CL", "South America"),
+    "China":         ("cn", "china", "CN", "Asia"),
     "Colombia":      ("co", "colombia", "CO", "South America"),
     "Denmark":       ("dk", "denmark", "DK", "Scandinavia"),
     "Eurozone":      ("ez", "eurozone", "EU", "Europe"),
@@ -108,7 +109,7 @@ METRICS = [
     dict(slug="employment-rate", keys=["employment_rate", "employment"], title="Employment Rate", cat="Labour market", up=True, chart="line"),
     dict(slug="labour-force-participation-rate", keys=["participation_rate", "participation"], title="Labour Force Participation Rate", cat="Labour market", up=True, chart="line"),
     dict(slug="economic-inactivity-rate", keys=["inactivity"], title="Economic Inactivity Rate", cat="Labour market", up=False, chart="line"),
-    dict(slug="interest-rate", keys=["boe_rate", "fed_funds", "ecb_rate", "boj_rate", "overnight_rate"], title="Interest Rate", cat="Interest rates", up=False, chart="line"),
+    dict(slug="interest-rate", keys=["boe_rate", "fed_funds", "ecb_rate", "boj_rate", "overnight_rate", "policy_rate"], title="Interest Rate", cat="Interest rates", up=False, chart="line"),
     dict(slug="10-year-government-bond-yield", keys=["bond_yield_10y"], title="10-Year Government Bond Yield", cat="Interest rates", up=False, chart="line"),
     # Exchange rate against the US dollar, as each source publishes it (no
     # inversion). up is decided per country in metric_up(): see FX_* below.
@@ -644,6 +645,7 @@ HEADER_HTML_BASE = """<script>(function(){
  </div>
  <div class="dcol">
  <p class="dhead">Asia</p>
+ <a href="../china">China</a>
  <a href="../india">India</a>
  <a href="../indonesia">Indonesia</a>
  <a href="../japan">Japan</a>

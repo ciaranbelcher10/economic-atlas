@@ -384,6 +384,7 @@ footer.dash-foot{margin-top:36px; font-size:12.5px; color:var(--ink2); border-to
  </div>
  <div class="dcol">
  <p class="dhead">Asia</p>
+ <a href="china">China</a>
  <a href="india">India</a>
  <a href="indonesia">Indonesia</a>
  <a href="japan">Japan</a>
@@ -3110,7 +3111,7 @@ var FILES = {
   Israel: "data-il.json", Mexico: "data-mx.json", Brazil: "data-br.json", "South Africa": "data-za.json",
   Morocco: "data-ma.json", Germany: "data-de.json", France: "data-fr.json", Italy: "data-it.json",
   Spain: "data-es.json", Netherlands: "data-nl.json", Denmark: "data-dk.json", Ireland: "data-ie.json",
-  Norway: "data-no.json", Chile: "data-cl.json", Colombia: "data-co.json", Turkey: "data-tr.json", Indonesia: "data-id.json", Poland: "data-pl.json", Switzerland: "data-ch.json", Argentina: "data-ar.json", Sweden: "data-se.json", Singapore: "data-sg.json", Austria: "data-at.json", Thailand: "data-th.json"
+  Norway: "data-no.json", Chile: "data-cl.json", Colombia: "data-co.json", Turkey: "data-tr.json", Indonesia: "data-id.json", Poland: "data-pl.json", Switzerland: "data-ch.json", Argentina: "data-ar.json", Sweden: "data-se.json", Singapore: "data-sg.json", Austria: "data-at.json", Thailand: "data-th.json", China: "data-cn.json"
 };
 // Groups every known series key into a category, purely for the "By
 // metric" browse mode -- different countries often use different key
@@ -3130,7 +3131,7 @@ var CATEGORY_OF = {
   trade_balance: "Trade", exports: "Trade", imports: "Trade",
   business_confidence: "Business & investment", fdi: "Business & investment",
   boe_rate: "Rates & yields", fed_funds: "Rates & yields", ecb_rate: "Rates & yields",
-  boj_rate: "Rates & yields", overnight_rate: "Rates & yields", bond_yield_10y: "Rates & yields",
+  boj_rate: "Rates & yields", overnight_rate: "Rates & yields", policy_rate: "Rates & yields", bond_yield_10y: "Rates & yields",
   fx_usd: "Exchange rates", fx_eur: "Exchange rates", fx_gbp: "Exchange rates"
 };
 var CATEGORY_ORDER = ["GDP & growth", "Labour market", "Prices", "Public finances", "Trade", "Business & investment", "Rates & yields", "Exchange rates", "Other"];
@@ -3171,6 +3172,7 @@ var EXPLAINER_OF = {
   ecb_rate: "The European Central Bank's key interest rate, the anchor for borrowing costs across the euro area.",
   boj_rate: "The overnight interbank rate, the closest market measure of the Bank of Japan's policy stance.",
   overnight_rate: "The rate banks charge each other for overnight loans, closely tracks the central bank's target rate.",
+  policy_rate: "The central bank's key interest rate, the anchor for borrowing costs across the economy.",
   fx_usd: "US dollars per unit of the home currency (per 100 or 1,000 units for small-value currencies). A rise means a stronger home currency.",
   fx_eur: "Euros per unit of the home currency. A rise means a stronger home currency.",
   fx_gbp: "Pounds per unit of the home currency. A rise means a stronger home currency.",
@@ -3410,7 +3412,7 @@ var CONCEPT_KEYS = {
   trade_balance: ["trade_balance"], exports: ["exports"], imports: ["imports"],
   business_confidence: ["business_confidence"], productivity: ["productivity"],
   bond_yield_10y: ["bond_yield_10y"],
-  policy_rate: ["boe_rate", "fed_funds", "ecb_rate", "boj_rate", "overnight_rate", "rate"]
+  policy_rate: ["boe_rate", "fed_funds", "ecb_rate", "boj_rate", "overnight_rate", "policy_rate", "rate"]
 };
 var CONCEPT_LABEL = {
   gdp_level: "GDP level", gdp_real: "Real GDP level", gdp_growth: "GDP growth (annual, real)",
@@ -3456,7 +3458,8 @@ Object.keys(CONCEPT_KEYS).forEach(function(concept){
 function conceptForKey(key){ return KEY_TO_CONCEPT[key] || null; }
 var ISO_OF = {UK:"826", US:"840", Eurozone:null, Japan:"392", India:"356", Canada:"124", Australia:"036",
   "South Korea":"410", Israel:"376", Mexico:"484", Brazil:"076", "South Africa":"710", Morocco:"504",
-  Germany:"276", France:"250", Italy:"380", Spain:"724", Netherlands:"528"};
+  Germany:"276", France:"250", Italy:"380", Spain:"724", Netherlands:"528", Denmark:"208", Ireland:"372",
+  Norway:"578", Chile:"152", Colombia:"170", Turkey:"792", Indonesia:"360", Poland:"616", Switzerland:"756", Argentina:"032", Sweden:"752", Singapore:"702", Austria:"040", Thailand:"764", China:"156"};
 function resolveKey(country, concept){
   var candidates = CONCEPT_KEYS[concept];
   if(!candidates) return null;
@@ -4080,7 +4083,7 @@ function isCurrencyUnit(u){
 // single decimal would erase -- 3.75% would otherwise round to "3.8%".
 // Everything else percentage-based (GDP growth, CPI, unemployment,
 // debt/GDP) uses 1 decimal, matching the site's generic pct() helper.
-var TWO_DECIMAL_KEYS = {boe_rate: 1, fed_funds: 1, ecb_rate: 1, boj_rate: 1, overnight_rate: 1, bond_yield_10y: 1};
+var TWO_DECIMAL_KEYS = {boe_rate: 1, fed_funds: 1, ecb_rate: 1, boj_rate: 1, overnight_rate: 1, policy_rate: 1, bond_yield_10y: 1};
 function fmtVal(v, unit, key, country){
   if(!unit) return String(v);
   if(/ per /.test(unit)) return fxFmtValue(v, unit.split(" per ")[0]);   // unit named in the tile title
@@ -5298,7 +5301,7 @@ var REGISTRY_KEY_TO_CODE = {
   Spain: "es", Netherlands: "nl", Denmark: "dk", Ireland: "ie", Norway: "no",
   Chile: "cl", Colombia: "co", Turkey: "tr", Indonesia: "id", Poland: "pl",
   Switzerland: "ch", Argentina: "ar", Sweden: "se", Singapore: "sg", Austria: "at",
-  Thailand: "th"
+  Thailand: "th", China: "cn"
 };
 var CODE_TO_REGISTRY_KEY = {};
 Object.keys(REGISTRY_KEY_TO_CODE).forEach(function(name){ CODE_TO_REGISTRY_KEY[REGISTRY_KEY_TO_CODE[name]] = name; });

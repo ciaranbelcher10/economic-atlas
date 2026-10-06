@@ -20,6 +20,7 @@ H10 = {
     "CHF": ("DEXSZUS", False), "DKK": ("DEXDNUS", False), "INR": ("DEXINUS", False),
     "KRW": ("DEXKOUS", False), "MXN": ("DEXMXUS", False), "NOK": ("DEXNOUS", False),
     "SEK": ("DEXSDUS", False), "SGD": ("DEXSIUS", False), "THB": ("DEXTHUS", False),
+    "CNY": ("DEXCHUS", False),
     "ZAR": ("DEXSFUS", False),
 }
 
@@ -36,7 +37,8 @@ NAME = {"USD": "US dollar", "EUR": "euro", "GBP": "pound", "JPY": "yen", "CAD": 
         "INR": "Indian rupee", "KRW": "South Korean won", "IDR": "Indonesian rupiah", "ILS": "Israeli shekel",
         "ZAR": "South African rand", "CHF": "Swiss franc", "DKK": "Danish krone", "SEK": "Swedish krona",
         "NOK": "Norwegian krone", "PLN": "Polish zloty", "MAD": "Moroccan dirham", "THB": "Thai baht",
-        "ARS": "Argentine peso", "CLP": "Chilean peso", "COP": "Colombian peso", "TRY": "Turkish lira"}
+        "ARS": "Argentine peso", "CLP": "Chilean peso", "COP": "Colombian peso", "TRY": "Turkish lira",
+        "CNY": "Chinese yuan"}
 QUOTE_NAME = {"USD": "US dollars", "EUR": "euros", "GBP": "pounds"}
 
 # Units of home currency per quoted figure, where one unit is worth very little.
@@ -73,6 +75,7 @@ COUNTRY_FX = {
     "Japan": ("JPY", "jp", ["USD"]), "Canada": ("CAD", "ca", ["USD"]), "Australia": ("AUD", "au", ["USD"]),
     "Mexico": ("MXN", "mx", ["USD"]), "Brazil": ("BRL", "br", ["USD"]), "India": ("INR", "in", ["USD"]),
     "South Korea": ("KRW", "kr", ["USD"]), "Singapore": ("SGD", "sg", ["USD"]), "Thailand": ("THB", "th", ["USD"]),
+    "China": ("CNY", "cn", ["USD"]),
     "South Africa": ("ZAR", "za", ["USD"]), "Argentina": ("ARS", "ar", ["USD"]), "Chile": ("CLP", "cl", ["USD"]),
     "Colombia": ("COP", "co", ["USD"]), "Indonesia": ("IDR", "id", ["USD"]), "Israel": ("ILS", "il", ["USD"]),
     "Turkey": ("TRY", "tr", ["USD"]),

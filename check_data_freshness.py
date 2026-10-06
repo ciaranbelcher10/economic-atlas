@@ -44,7 +44,7 @@ import re
 import subprocess
 from datetime import datetime, timezone
 
-# All 32 country data files the visitor-facing pages read. Deliberately
+# All 33 country data files the visitor-facing pages read. Deliberately
 # excludes trade-partner files and the UK-specific breakdown files
 # (MPC votes, spending COFOG, inactivity reasons, age breakdown) --
 # those have their own structure and update cadence, not the simple
@@ -67,7 +67,7 @@ DATA_FILES = {
     "Argentina": "data-ar.json", "Austria": "data-at.json", "Chile": "data-cl.json", "Colombia": "data-co.json",
     "Denmark": "data-dk.json", "Indonesia": "data-id.json", "Ireland": "data-ie.json", "Norway": "data-no.json",
     "Poland": "data-pl.json", "Singapore": "data-sg.json", "Sweden": "data-se.json", "Switzerland": "data-ch.json",
-    "Thailand": "data-th.json", "Turkey": "data-tr.json",
+    "Thailand": "data-th.json", "Turkey": "data-tr.json", "China": "data-cn.json",
 }
 
 # Identical to the JS STALE_DAYS used on every country page, Compare,

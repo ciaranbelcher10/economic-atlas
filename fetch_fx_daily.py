@@ -8,7 +8,7 @@ fx_config.py), so a rise always means a stronger home currency.
 Sources
 -------
 * Federal Reserve H.10 daily noon buying rates, via FRED (FRED_API_KEY),
-  for the 16 currencies it covers. The Fed publishes H.10 weekly, so the
+  for the 17 currencies it covers. The Fed publishes H.10 weekly, so the
   newest daily observation can be up to a week old; the tile says which day.
 * World Bank PA.NUS.FCRF (official rate, annual average) for the 8
   currencies with no free official daily or monthly series. Read from the
