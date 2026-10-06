@@ -75,7 +75,13 @@ heavy = {"fetch_au.py", "fetch_br.py", "fetch_ca.py", "fetch_cl.py", "fetch_co.p
          "fetch_no.py", "fetch_za.py", "fetch_kr.py", "fetch_tr.py"}
 per = {g: sum(1 for s in heavy if ot.GROUPS[s] == g) for g in "ABC"}
 check("heavy OECD countries spread five, five, four", sorted(per.values()) == [4, 5, 5])
-check("all 32 country scripts are mapped", len(ot.GROUPS) == 32)
+# Every country fetch script is mapped (fetch_xx.py plus fetch_data.py and
+# fetch_us.py), however many countries there are. Counting a fixed number
+# broke the moment a country was added (v1.6.49, China).
+import glob as _g, os as _o
+_root = _o.path.dirname(_o.path.dirname(_o.path.abspath(__file__)))
+_scripts = {_o.path.basename(f) for f in _g.glob(_o.path.join(_root, "fetch_??.py"))} | {"fetch_data.py", "fetch_us.py"}
+check("every country fetch script is mapped " + str(sorted(set(ot.GROUPS) ^ _scripts)), set(ot.GROUPS) == _scripts)
 
 # --- overrides --------------------------------------------------------------
 os.environ["OECD_TURN_GROUP"] = "C"

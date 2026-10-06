@@ -273,9 +273,10 @@ def list_series(name, url, keep=None):
             continue
         k = tuple((c, v) for c, v in row.items() if c not in SKIP_COLS and v not in ("", None))
         try:
-            groups.setdefault(k, []).append([row["TIME_PERIOD"], float(row["OBS_VALUE"])])
+            pt = [row["TIME_PERIOD"], float(row["OBS_VALUE"])]
         except (KeyError, ValueError, TypeError):
-            pass
+            continue          # parse first: an all-blank series must not leave an empty group
+        groups.setdefault(k, []).append(pt)
     for k, v in sorted(groups.items(), key=lambda kv: -len(kv[1])):
         v.sort()
         d = {c: x for c, x in k if c not in ("REF_AREA", "COUNTRY")}

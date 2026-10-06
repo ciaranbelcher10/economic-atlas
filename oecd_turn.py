@@ -54,7 +54,7 @@ GROUPS = {
     "fetch_no.py": "C", "fetch_za.py": "C", "fetch_kr.py": "C",
     "fetch_tr.py": "C", "fetch_pl.py": "C", "fetch_se.py": "C",
     "fetch_nl.py": "C", "fetch_at.py": "C", "fetch_ar.py": "C",
-    "fetch_ma.py": "C",
+    "fetch_ma.py": "C", "fetch_cn.py": "C",
 }
 ORDER = ("A", "B", "C")
 
