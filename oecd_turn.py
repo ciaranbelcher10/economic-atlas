@@ -55,6 +55,7 @@ GROUPS = {
     "fetch_tr.py": "C", "fetch_pl.py": "C", "fetch_se.py": "C",
     "fetch_nl.py": "C", "fetch_at.py": "C", "fetch_ar.py": "C",
     "fetch_ma.py": "C", "fetch_cn.py": "C",
+    "fetch_my.py": "C",   # makes no OECD calls (Malaysia is not covered); mapped so the roster test holds
 }
 ORDER = ("A", "B", "C")
 

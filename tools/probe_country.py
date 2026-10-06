@@ -38,6 +38,9 @@ SKIP = {"TIME_PERIOD", "OBS_VALUE", "OBS_STATUS", "OBS_CONF", "UNIT_MULT", "DECI
 NATIONAL = {
     "MY": [
         ("OpenDOSM CPI headline", "https://api.data.gov.my/data-catalogue?id=cpi_headline&limit=5&sort=-date", None),
+        ("OpenDOSM CPI rates", "https://api.data.gov.my/data-catalogue?id=cpi_headline_inflation&limit=5&sort=-date", None),
+        ("OpenDOSM GDP quarterly real SA", "https://api.data.gov.my/data-catalogue?id=gdp_qtr_real_sa&limit=5&sort=-date", None),
+        ("OpenDOSM labour force monthly SA", "https://api.data.gov.my/data-catalogue?id=lfs_month_sa&limit=5&sort=-date", None),
         ("OpenDOSM GDP quarterly real", "https://api.data.gov.my/data-catalogue?id=gdp_qtr_real&limit=5&sort=-date", None),
         ("OpenDOSM GDP quarterly nominal", "https://api.data.gov.my/data-catalogue?id=gdp_qtr_nominal&limit=5&sort=-date", None),
         ("OpenDOSM labour force monthly", "https://api.data.gov.my/data-catalogue?id=lfs_month&limit=5&sort=-date", None),
@@ -87,7 +90,10 @@ def listing(name, url, accept="text/csv", keep=None):
         groups.setdefault(k, []).append(pt)
     print(f"\n-- {name}: {len(groups)} series")
     best = None
-    for k, v in sorted(groups.items(), key=lambda kv: -len(kv[1]))[:40]:
+    # All-items / total rows first (any dimension equal to "_T"), then by length;
+    # the Malaysia probe hid the all-items CPI behind 40 category rows.
+    ordered = sorted(groups.items(), key=lambda kv: ("_T" not in dict(kv[0]).values(), -len(kv[1])))
+    for k, v in ordered[:60]:
         v.sort()
         print(f"   {len(v):>4} pts {v[0][0]}..{v[-1][0]} last={v[-1][1]:<14} {dict(k)}")
         if best is None or v[-1][0] > best[-1][0]:
@@ -216,7 +222,9 @@ def main():
 
     print("\n== BIS")
     listing("BIS policy rate (WS_CBPOL)", f"https://stats.bis.org/api/v2/data/dataflow/BIS/WS_CBPOL/1.0/M.{iso2}?format=csv&detail=full&startPeriod=2024-01")
-    listing("BIS long-term yields? (WS_LONG_CPI is CPI; yields via OECD IRLT)", f"https://stats.bis.org/api/v2/data/dataflow/BIS/WS_LONG_CPI/1.0/M.{iso2}.*?format=csv&startPeriod=2024-01")
+    # Long-run CPI (unit 628 = index, 771 = year-on-year %): an independent
+    # cross-check for the audit, NOT a bond yield. Yields come from OECD IRLT.
+    listing("BIS long-run CPI (WS_LONG_CPI)", f"https://stats.bis.org/api/v2/data/dataflow/BIS/WS_LONG_CPI/1.0/M.{iso2}.*?format=csv&startPeriod=2024-01")
     worldbank(iso3)
     national(iso2)
 

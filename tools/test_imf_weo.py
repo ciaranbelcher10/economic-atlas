@@ -88,7 +88,7 @@ for f in sorted(glob.glob("fetch_*.py")):
     check(not frozen.search(t), f"{f}: no frozen FRED WEO series wired")
 wired = [f for f in sorted(glob.glob("fetch_*.py"))
          if "imf_weo.fetch(" in open(f, encoding="utf-8").read()]
-check(len(wired) == 12, f"{len(wired)} fetch scripts call imf_weo.fetch (11 from v1.6.27, plus fetch_cn.py)")
+check(len(wired) == 13, f"{len(wired)} fetch scripts call imf_weo.fetch (11 from v1.6.27, plus fetch_cn.py and fetch_my.py)")
 
 print(f"\n{fails} failures")
 sys.exit(1 if fails else 0)
