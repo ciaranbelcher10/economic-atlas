@@ -53,7 +53,8 @@ EXPECT = {
 }
 # Jumps over a series' step limit that are real and explained; anything else fails.
 KNOWN_JUMPS = {
-    ("cpi", "2009-06"): "base effect: Malaysia raised fuel prices about 40% in June 2008",
+    ("cpi", "2008-06"): "Malaysia raised fuel prices about 40% in June 2008",
+    ("cpi", "2009-06"): "base effect of the June 2008 fuel price rise dropping out",
 }
 NOT_SERVED = {"bond_yield_10y": "IMF S13BOND does not state its maturity",
               "business_confidence": "no OECD coverage; DOSM's survey is a different measure"}
