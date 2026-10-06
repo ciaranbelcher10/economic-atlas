@@ -4028,18 +4028,16 @@ function scaleOf(unitStr){
   if(/m$/.test(clean)) return 1e6;
   return 1;
 }
+// Units stored as an ISO code ("THBm", "CLPm") print with the currency's
+// usual prefix where one is unambiguous, else the ISO code itself (CHF, DKK,
+// NOK, SEK, PLN, MAD). Must match ISO_GLYPH in generate_indicator_pages.py
+// and indicator-kit.js.
+var ISO_GLYPH = {CNY:"CN\u00a5", THB:"\u0e3f", TRY:"\u20ba", IDR:"Rp", SGD:"S$", ARS:"AR$", CLP:"CLP$", COP:"COL$"};
 function currencySymbol(unitStr){
-  // BUG FIX (Aug 2026): was /^[^a-zA-Z0-9]+/, which returned "" (no
-  // symbol at all) for any 3-letter currency code unit (CLPm, PLNm,
-  // etc) -- meaning Dashboard displayed those countries' currency
-  // figures with no currency indicator whatsoever, e.g. "1.2bn"
-  // instead of "CLP1.2bn". Same root cause as the convertSeriesToUSD
-  // bug already fixed sitewide, but this is a separate function (this
-  // one extracts the symbol for display, the other strips it during
-  // conversion) that was never touched by that fix.
-  var m = unitStr.match(/^([A-Z]{3}|[^a-zA-Z0-9]+)/);
-  if(!m) return "";
-  return m[0] === "CNY" ? "CN\u00a5" : m[0];
+  var m = unitStr.match(/^[^a-zA-Z0-9]+/);
+  if(m) return m[0];
+  var c = unitStr.match(/^([A-Z]{3})(tn|bn|m|k)?(\s|\(|$)/);
+  return c ? (ISO_GLYPH[c[1]] || c[1]) : "";
 }
 // Several countries' raw data unit is a bare "$" even though their own
 // currency isn't the US dollar (FRED/OECD's own unit metadata doesn't

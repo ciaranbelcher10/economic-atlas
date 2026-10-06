@@ -31,7 +31,8 @@ ANNUAL = {"ARS", "CLP", "COP", "IDR", "ILS", "MAD", "PLN", "TRY"}
 
 SYMBOL = {"USD": "$", "EUR": "\u20ac", "GBP": "\u00a3", "JPY": "\u00a5", "CAD": "C$", "AUD": "A$",
           "MXN": "MX$", "BRL": "R$", "SGD": "S$", "INR": "\u20b9", "KRW": "\u20a9", "IDR": "Rp",
-          "ILS": "\u20aa", "ZAR": "R", "CNY": "CN\u00a5"}
+          "ILS": "\u20aa", "ZAR": "R", "CNY": "CN\u00a5",
+          "THB": "\u0e3f", "TRY": "\u20ba", "ARS": "AR$", "CLP": "CLP$", "COP": "COL$"}
 NAME = {"USD": "US dollar", "EUR": "euro", "GBP": "pound", "JPY": "yen", "CAD": "Canadian dollar",
         "AUD": "Australian dollar", "MXN": "Mexican peso", "BRL": "Brazilian real", "SGD": "Singapore dollar",
         "INR": "Indian rupee", "KRW": "South Korean won", "IDR": "Indonesian rupiah", "ILS": "Israeli shekel",

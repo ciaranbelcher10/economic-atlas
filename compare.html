@@ -1920,13 +1920,16 @@ function scaleOf(unitStr){
   if(/m$/.test(clean)) return 1e6;
   return 1;
 }
-// ISO-coded units with a display glyph ("CNYm" prints as CN¥, never ¥).
-var ISO_GLYPH = {CNY:"CN\u00a5"};
+// Units stored as an ISO code ("THBm", "CLPm") print with the currency's
+// usual prefix where one is unambiguous, else the ISO code itself (CHF, DKK,
+// NOK, SEK, PLN, MAD). Must match ISO_GLYPH in generate_indicator_pages.py
+// and indicator-kit.js.
+var ISO_GLYPH = {CNY:"CN\u00a5", THB:"\u0e3f", TRY:"\u20ba", IDR:"Rp", SGD:"S$", ARS:"AR$", CLP:"CLP$", COP:"COL$"};
 function currencySymbol(unitStr){
   var m = unitStr.match(/^[^a-zA-Z0-9]+/);
   if(m) return m[0];
-  var c = unitStr.match(/^([A-Z]{3})(tn|bn|m|k)?\b/);
-  return c && ISO_GLYPH[c[1]] ? ISO_GLYPH[c[1]] : "";
+  var c = unitStr.match(/^([A-Z]{3})(tn|bn|m|k)?(\s|\(|$)/);
+  return c ? (ISO_GLYPH[c[1]] || c[1]) : "";
 }
 function curFmt(rawValue, unitStr, decimals){
   var scale = scaleOf(unitStr);

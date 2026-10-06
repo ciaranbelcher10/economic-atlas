@@ -1636,12 +1636,26 @@ const NAMES={gdp_level:"GDP",gdp_real:"Real GDP",gdp_growth:"GDP growth",
   current_account:"Current account",trade_balance:"Trade balance",exports:"Exports",
   imports:"Imports",business_confidence:"Business confidence",fdi:"FDI"};
 /* ------------------------------- tabs ------------------------------------ */
+/* Long currency figures ("CN\u00a5143.77tn", "\u20a92,605.4tn") can be wider
+   than a tile. Step the font down until the figure fits, never below 60% of
+   its CSS size. Hidden tabs have no width yet, so showSec() runs this again. */
+function fitFigures(){
+  document.querySelectorAll(".sec:not([hidden]) .stat .figure").forEach(f=>{
+    f.style.fontSize="";
+    if(!f.clientWidth) return;
+    const base=parseFloat(getComputedStyle(f).fontSize);
+    let size=base;
+    while(f.scrollWidth>f.clientWidth+1 && size>base*0.6){ size-=1; f.style.fontSize=size+"px"; }
+  });
+}
+if(typeof window.addEventListener==="function") window.addEventListener("resize",()=>{ clearTimeout(window._fitT); window._fitT=setTimeout(fitFigures,120); });
 function showSec(name){
   document.querySelectorAll("nav.cat button").forEach(b=>
     b.classList.toggle("active", b.dataset.sec===name));
   document.querySelectorAll(".sec").forEach(s=>s.hidden=true);
   document.getElementById("sec-"+name).hidden=false;
   history.replaceState(null,"","#"+name);
+  if(typeof fitFigures==="function") fitFigures();
   document.querySelectorAll(".dcol a, .doverview a").forEach(a=>{
     const b=a.getAttribute("href").split("#")[0];
     if(b!=="index") a.setAttribute("href", b+"#"+name);
@@ -2365,6 +2379,7 @@ function render(data){
   renderFxMarkets(document.getElementById("tiles-markets"));
   renderNewDataBanner(data.new_points_meta);
   renderLastUpdated(data.updated);
+  fitFigures();
 }
 /* ---------------------- Dollarise / Make it real ---------------------- */
 let PAGE_DATA = null;
@@ -2388,9 +2403,16 @@ function scaleOf(unitStr){
   if(/m$/.test(clean)) return 1e6;
   return 1;
 }
+// Units stored as an ISO code ("THBm", "CLPm") print with the currency's
+// usual prefix where one is unambiguous, else the ISO code itself (CHF, DKK,
+// NOK, SEK, PLN, MAD). Must match ISO_GLYPH in generate_indicator_pages.py
+// and indicator-kit.js.
+const ISO_GLYPH = {CNY:"CN\u00a5", THB:"\u0e3f", TRY:"\u20ba", IDR:"Rp", SGD:"S$", ARS:"AR$", CLP:"CLP$", COP:"COL$"};
 function currencySymbol(unitStr){
   const m = unitStr.match(/^[^a-zA-Z0-9]+/);
-  return m ? m[0] : "";
+  if(m) return m[0];
+  const c = unitStr.match(/^([A-Z]{3})(tn|bn|m|k)?(\s|\(|$)/);
+  return c ? (ISO_GLYPH[c[1]] || c[1]) : "";
 }
 function curFmt(rawValue, unitStr, decimals){
   const scale = scaleOf(unitStr);
