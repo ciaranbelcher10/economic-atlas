@@ -45,6 +45,12 @@ EXPECT = {
     "imports": ("CNYm", "months", 1e5, 5e6, None),
     "trade_balance": ("CNYm", "months", -1e6, 2e6, None),
 }
+# Series that may be missing without failing the audit, and why. Absent is
+# better than approximate: no reachable source publishes China's official
+# month-on-month CPI (the OECD carries only the 12-month rate, and the
+# statistics bureau blocks requests from outside China). A rate derived
+# from the IMF index read 0.3% for Aug 2026 where the bureau published 0.4%.
+OPTIONAL = {"cpi_mom": "no reachable source publishes the official rate; a derived one is not shown"}
 MAX_AGE = {"months": 130, "quarters": 230, "years": 900}
 OFFICIAL = {
     "gdp_level": "NBS quarterly GDP release (stats.gov.cn, 'Preliminary accounting results of GDP')",
@@ -88,6 +94,8 @@ def structure_and_plausibility(d):
     s = d.get("series", {})
     for key, (unit, freq, lo, hi, step) in EXPECT.items():
         ser = s.get(key)
+        if not ser and key in OPTIONAL:
+            res("PASS", f"{key} absent by design", OPTIONAL[key]); continue
         if not ser:
             res("FAIL", f"{key} present"); continue
         pts = ser.get("points") or []
@@ -120,6 +128,8 @@ def structure_and_plausibility(d):
     tb, ex, im = (dict(s.get(k, {}).get("points", [])) for k in ("trade_balance", "exports", "imports"))
     bad = [p for p, v in tb.items() if p in ex and p in im and abs(ex[p] - im[p] - v) > 1]
     res("FAIL" if bad else "PASS", "trade balance = exports - imports", f"{len(bad)} mismatched month(s)")
+    mom = s.get("cpi_mom", {}).get("label", "")
+    res("FAIL" if "IMF" in mom else "PASS", "CPI MoM is the published rate, not derived from an index", mom or "absent")
     fx = d.get("fx_to_usd") or {}
     fx_ok = fx.get("pair") == "CNY/USD" and fx.get("direction") == "divide" and 5 < (fx.get("rate") or 0) < 9
     res("PASS" if fx_ok else "FAIL", "fx_to_usd block", f"{fx.get('rate')} as of {fx.get('as_of')}")

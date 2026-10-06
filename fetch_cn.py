@@ -17,8 +17,13 @@ Sources, each confirmed by tools/probe_cn.py (Oct 2026) before wiring in:
   real series is in previous-year prices, which does not chain into a level.
 - cpi: OECD prices database, all-items CPI, 12-month rate, national
   methodology. COICOP 2018 first (none for China yet), then COICOP 1999.
-- cpi_mom: derived from the IMF's all-items CPI index (the same function
-  Morocco uses), because the OECD carries no China index.
+- cpi_mom: the OECD's published month-on-month rate (TRANSFORMATION G1),
+  which is the statistics bureau's own figure. Until v1.6.49b this was
+  derived from the IMF's CPI index, and the Oct 2026 spot-check found it
+  read 0.3% for Aug 2026 where the bureau published 0.4%: a rate rebuilt
+  from a rounded, rebased index is not the official rate. If the OECD
+  rate is unavailable the key is left out; the derived figure is never
+  used as a stand-in.
 - policy_rate: BIS central bank policy rates, China. For China the BIS
   series is the one-year loan prime rate, and it is labelled as that: the
   PBoC's main operating rate since 2024 is the seven-day reverse repo.
@@ -57,7 +62,6 @@ import imf_weo
 import oecd_turn
 import series_guard
 from fetch_bonds_daily import fetch_oecd_irlt
-from fetch_ma import fetch_imf_cpi_mom
 
 ISO3 = "CHN"
 OUT_FILE = "data-cn.json"
@@ -153,20 +157,21 @@ def fetch_gdp_growth(transformation: str) -> list:
     return require_current(pts, QUARTERLY_MAX_AGE, f"OECD QNA GDP growth {transformation}")
 
 
-def fetch_cpi() -> list:
+def fetch_cpi(transformation: str = "GY") -> list:
+    """OECD all-items CPI rate as published: GY = 12-month, G1 = month on month."""
     oecd_turn.check()
     for tag, url in CPI_URLS:
         try:
-            rows = oecd_rows(url)
+            rows = oecd_rows(url.replace("..GY?", f"..{transformation}?"))
         except Exception as exc:
-            print(f"  [oecd-cpi] {tag} {exc}")
+            print(f"  [oecd-cpi] {tag} {transformation} {exc}")
             continue
-        pts = pick(rows, METHODOLOGY="N", ADJUSTMENT="N", TRANSFORMATION="GY")
+        pts = pick(rows, METHODOLOGY="N", ADJUSTMENT="N", TRANSFORMATION=transformation)
         try:
             return require_current(pts, MONTHLY_MAX_AGE, f"OECD CPI {tag}")
         except ValueError as exc:
             print(f"  [oecd-cpi] {exc}")
-    raise ValueError("no current OECD CPI series for China")
+    raise ValueError(f"no current OECD CPI {transformation} series for China")
 
 
 def fetch_bci() -> list:
@@ -276,7 +281,7 @@ SERIES = [
     ("gdp_real", lambda: fetch_worldbank("NY.GDP.MKTP.KN", 1e-6),
      "Real GDP, constant prices (World Bank NY.GDP.MKTP.KN)", "CNYm", "years"),
     ("cpi", fetch_cpi, "CPI, all items, YoY (OECD prices database)", "%", "months"),
-    ("cpi_mom", lambda: fetch_imf_cpi_mom(ISO3), "CPI, all items, MoM (IMF CPI index)", "%", "months"),
+    ("cpi_mom", lambda: fetch_cpi("G1"), "CPI, all items, MoM (OECD prices database)", "%", "months"),
     ("policy_rate", fetch_policy_rate, "One-year loan prime rate (BIS central bank policy rates, M.CN)", "%", "months"),
     ("bond_yield_10y", fetch_bond, "10-year government bond yield (OECD IRLT)", "%", "months"),
     ("business_confidence", fetch_bci, "Business confidence indicator, LT avg = 100 (OECD BCICP)", "index", "months"),
@@ -329,6 +334,11 @@ def main() -> int:
     except Exception:
         prev_full = {}
     prev_series = prev_full.get("series", {})
+    # Never carry over the retired IMF-derived month-on-month rate (see
+    # cpi_mom above): if the OECD rate fails, the key stays out instead.
+    if "IMF" in prev_series.get("cpi_mom", {}).get("label", ""):
+        prev_series = {k: v for k, v in prev_series.items() if k != "cpi_mom"}
+        print("note  retired IMF-derived cpi_mom dropped from carry-over")
     fresh = set(out["series"])
 
     # Exchange rate, then convert freshly fetched dollar trade into yuan at

@@ -58,4 +58,7 @@ planted("balance not exports minus imports", lambda d: d["series"]["trade_balanc
 planted("wrong unit", lambda d: d["series"]["exports"].__setitem__("unit", "$m"), "unit")
 planted("internal wording in a label", lambda d: d["series"]["cpi"].__setitem__("label", "CPI (confirmed live)"), "internal wording")
 planted("FX direction flipped", lambda d: d["fx_to_usd"].__setitem__("rate", 0.14), "fx_to_usd block")
+rc, out = audit(dict(clean, series={k: v for k, v in clean["series"].items() if k != "cpi_mom"}))
+check("cpi_mom may be absent", rc == 0 and "cpi_mom absent by design" in out, out[-300:])
+planted("derived MoM label fails", lambda d: d["series"]["cpi_mom"].__setitem__("label", "CPI, all items, MoM (IMF CPI index)"), "not derived")
 print(f"{ok} ok, {bad} failed"); sys.exit(1 if bad else 0)

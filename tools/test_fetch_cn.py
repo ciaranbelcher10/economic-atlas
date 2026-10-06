@@ -10,7 +10,7 @@ from datetime import date
 ROOT = os.path.dirname(os.path.dirname(os.path.abspath(__file__)))
 sys.path.insert(0, ROOT)
 os.environ["OECD_TURN_GROUP"] = "ALL"
-import fetch_cn, fetch_ma, oecd_turn  # noqa: E402
+import fetch_cn, oecd_turn  # noqa: E402
 
 ok = bad = 0
 def check(name, cond, detail=""):
@@ -47,6 +47,7 @@ for i, p in enumerate(Q):
     qna_rows.append(dict(base, ADJUSTMENT="N", UNIT_MEASURE="XDC", PRICE_BASE="Q", TRANSFORMATION="N", TABLE_IDENTIFIER="T0101", OBS_VALUE="1"))
     qna_rows.append(dict(base, TRANSACTION="B1G", ADJUSTMENT="N", UNIT_MEASURE="XDC", PRICE_BASE="V", TRANSFORMATION="N", TABLE_IDENTIFIER="T0101", OBS_VALUE="5"))
 cpi_rows = [dict(REF_AREA="CHN", FREQ="M", METHODOLOGY="N", ADJUSTMENT="N", TRANSFORMATION="GY", TIME_PERIOD=p, OBS_VALUE="0.8") for p in M]
+mom_rows = [dict(REF_AREA="CHN", FREQ="M", METHODOLOGY="N", ADJUSTMENT="N", TRANSFORMATION="G1", TIME_PERIOD=p, OBS_VALUE="0.4") for p in M]
 bci_rows = [dict(REF_AREA="CHN", FREQ="M", MEASURE="BCICP", TIME_PERIOD=p, OBS_VALUE="98.4") for p in M]
 irlt_rows = [dict(REF_AREA="CHN", FREQ="M", MEASURE="IRLT", TIME_PERIOD=p, OBS_VALUE="1.69") for p in M]
 bis_rows = [dict(TIME_PERIOD=p, OBS_VALUE="3.0") for p in M]
@@ -69,12 +70,14 @@ class R:
         if self.status_code >= 400: raise RuntimeError(f"HTTP {self.status_code}")
 
 FAIL = set()
+# a CPI MoM request never goes to the IMF any more
+_real_fail = None
 def fake_get(url, **kw):
     for tag in FAIL:
         if tag in url: return R("", code=503)
     if "DF_QNA" in url: return R(csvtext(qna_rows))
     if "DF_PRICES_C2018" in url: return R("", code=404)
-    if "DF_PRICES_ALL" in url: return R(csvtext(cpi_rows))
+    if "DF_PRICES_ALL" in url: return R(csvtext(mom_rows if "..G1?" in url else cpi_rows))
     if "DF_CLI" in url: return R(csvtext(bci_rows))
     if "DF_FINMARK" in url: return R(csvtext(irlt_rows))
     if "WS_CBPOL" in url: return R(csvtext(bis_rows))
@@ -98,7 +101,7 @@ def run(prev=None):
     try:
         os.chdir(tmp)
         if prev: json.dump(prev, open("data-cn.json", "w"))
-        fetch_cn._QNA = None; fetch_ma._IMF_INDEX_CACHE.clear()
+        fetch_cn._QNA = None
         rc = fetch_cn.main()
         return rc, json.load(open("data-cn.json"))
     finally:
@@ -117,7 +120,8 @@ check("QoQ growth is G1", all(v == 0.9 for _, v in s["gdp_growth"]["points"]))
 check("YoY growth is GY", all(v == 4.3 for _, v in s["gdp_growth_yoy"]["points"]))
 check("real GDP scaled to CNYm", abs(s["gdp_real"]["points"][-1][1] - 134568798.2627) < 1)
 check("CPI fell back to C1999", s["cpi"]["points"][-1][1] == 0.8)
-check("CPI MoM derived from IMF index", len(s["cpi_mom"]["points"]) == 39)
+check("CPI MoM is the published OECD rate", len(s["cpi_mom"]["points"]) == 40 and s["cpi_mom"]["points"][-1][1] == 0.4)
+check("CPI MoM label names the OECD", "OECD" in s["cpi_mom"]["label"] and "IMF" not in s["cpi_mom"]["label"])
 check("policy rate labelled LPR", "loan prime rate" in s["policy_rate"]["label"])
 check("unemployment labelled ILO modelled", "ILO modelled" in s["unemployment"]["label"])
 check("trade converted to CNYm", all(s[k]["unit"] == "CNYm" for k in ("exports", "imports", "trade_balance")))
@@ -145,6 +149,14 @@ check("no FX: trade carried over, still yuan", d4["series"]["exports"] == s["exp
 rc5, d5 = run()
 check("no FX, no history: trade left out", "exports" not in d5["series"])
 FAIL.clear()
+
+
+# the retired IMF-derived rate is never carried over when the OECD rate fails
+old = json.loads(json.dumps(d)); old["series"]["cpi_mom"]["label"] = "CPI, all items, MoM (IMF CPI index)"
+mom_rows_saved = list(mom_rows); mom_rows[:] = [dict(r, TIME_PERIOD="2019-01") for r in mom_rows_saved[:1]]
+rc7, d7 = run(prev=old)
+check("retired IMF MoM never carried over", "cpi_mom" not in d7["series"])
+mom_rows[:] = mom_rows_saved
 
 # off-turn: OECD series carried over, nothing else lost
 os.environ["OECD_TURN_GROUP"] = "A"
