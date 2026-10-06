@@ -82,7 +82,9 @@ def add_growth(rows, sa_qoq):
     return out
 
 
-LFS = [{"date": p + "-01", "u_rate": 3.3, "p_rate": 70.5, "ep_ratio": 68.1, "lf": 17000.0} for p in MON[:-1]]
+LFS = [{"date": p + "-01", "u_rate": 3.3, "p_rate": 70.5 + (2.9 if p >= "2010-12" else 0), "ep_ratio": 68.1, "lf": 17000.0}
+       for p in months("2010-01", END)[:-1]]
+LFS_SA = [{k: v for k, v in r.items() if k != "ep_ratio"} for r in LFS]   # the SA table has no ep_ratio
 TRADE = ([{"date": p + "-01", "exports": 150e9 + i * 1e8, "imports": 130e9 + i * 1e8, "section": "overall"} for i, p in enumerate(MON[:-1])]
          + [{"date": p + "-01", "exports": 4e9, "imports": 5e9, "section": "0"} for p in MON[:-1]])
 BIS_CSV = "TIME_PERIOD,OBS_VALUE\n" + "\n".join(
@@ -123,9 +125,9 @@ def install(datasets, missing=()):
 def base_sets(seasonal=True, sa_table=True, cpi_table=False):
     real = add_growth(gdp_rows(seasonal), sa_qoq=False)
     sets = {"cpi_headline": cpi_rows(), "gdp_qtr_nominal": add_growth(gdp_rows(seasonal), False), "gdp_qtr_real": real,
-            "lfs_month": LFS, "lfs_month_sa": LFS, "trade_sitc_1d": TRADE}
+            "lfs_month": LFS, "lfs_month_sa": LFS_SA, "trade_sitc_1d": TRADE}
     if sa_table:
-        sets["gdp_qtr_real_sa"] = add_growth(gdp_rows(False), sa_qoq=True)
+        sets["gdp_qtr_real_sa"] = gdp_rows(False)          # levels only, as OpenDOSM serves it
     if cpi_table:
         ix = [(r["date"], r["index"]) for r in sets["cpi_headline"] if r["division"] == "overall"]
         rows = []
@@ -177,12 +179,19 @@ check(len(tr["exports"]) == len(MON) - 1, "trade uses the 'overall' section only
 
 with redirect_stdout(io.StringIO()):
     lab, basis = F.fetch_labour()
-check(basis == "sa", "labour prefers the seasonally adjusted table")
+check(basis == {"unemployment": "sa", "participation": "sa", "employment": "nsa"},
+      f"unemployment and participation adjusted, employment ratio unadjusted (not in the SA table): {basis}")
+check(all(p >= "2011-01" for v in lab.values() for p, _ in v), "labour series start after the Dec 2010 survey break")
 install(base_sets(), missing=("lfs_month_sa",))
 with redirect_stdout(io.StringIO()):
     lab, basis = F.fetch_labour()
-check(basis == "nsa" and "not seasonally adjusted" in F.LABOUR_LABEL[("unemployment", basis)],
-      "without the SA table the label says not seasonally adjusted")
+check(set(basis.values()) == {"nsa"} and "not seasonally adjusted" in F.LABOUR_LABEL[("unemployment", basis["unemployment"])],
+      "without the SA table every label says not seasonally adjusted")
+install(base_sets())
+with redirect_stdout(io.StringIO()):
+    g, b = F.fetch_gdp_growth()
+lv = F.pts_from(base_sets()["gdp_qtr_real_sa"], "value", F.quarter_of, series="abs")
+check(b == "sa_derived" and g == F.pct_change(lv, 1), "q/q computed from DOSM's seasonally adjusted levels")
 
 install(base_sets(seasonal=True, sa_table=False))
 with redirect_stdout(io.StringIO()):
@@ -234,6 +243,7 @@ planted = {
     "trade balance mismatch": lambda x: x["series"]["trade_balance"]["points"][-1].__setitem__(1, 1.0),
     "missing series": lambda x: x["series"].pop("participation"),
     "gap in series": lambda x: x["series"]["cpi"]["points"].pop(-5),
+    "unexplained CPI jump": lambda x: x["series"]["cpi"]["points"][-3].__setitem__(1, 9.9),
     "em dash in label": lambda x: x["series"]["cpi"].update(label="CPI \u2014 all items"),
 }
 for name, fault in planted.items():

@@ -12,11 +12,10 @@ taken from the publisher itself wherever it publishes them.
   not seasonally adjusted. The page rolls four quarters into a year.
 - gdp_real: OpenDOSM gdp_qtr_real, series "abs", constant prices, quarterly.
 - gdp_growth_yoy: OpenDOSM gdp_qtr_real, "growth_yoy", as published.
-- gdp_growth: real GDP change on the previous quarter. Taken from the
-  seasonally adjusted dataset (gdp_qtr_real_sa) when OpenDOSM serves it;
-  otherwise the "growth_qoq" of gdp_qtr_real, labelled with whatever basis
-  the data shows (see qoq_basis(): if it equals the change in the raw level,
-  it is not seasonally adjusted and the label says so).
+- gdp_growth: real GDP change on the previous quarter, seasonally adjusted,
+  computed from DOSM's seasonally adjusted real GDP levels (gdp_qtr_real_sa
+  serves levels only). The "growth_qoq" in gdp_qtr_real is the unadjusted
+  change (qoq_basis() proves it) and is only a labelled fallback.
 - cpi / cpi_mom: DOSM's own published rates (cpi_headline_inflation) when
   served. Otherwise derived from DOSM's own all-items index, which is the
   index DOSM computes its rates from, so a derived rate should reproduce
@@ -24,10 +23,10 @@ taken from the publisher itself wherever it publishes them.
   (China's month-on-month rate was dropped because rebuilding it from the
   IMF's rebased index did NOT reproduce the official figure. Different
   case: here the index is the publisher's own.)
-- unemployment / participation / employment: OpenDOSM monthly labour force
-  survey (u_rate, p_rate, ep_ratio). The seasonally adjusted dataset
-  (lfs_month_sa) is used when served, else lfs_month, labelled not
-  seasonally adjusted.
+- unemployment / participation: OpenDOSM lfs_month_sa (seasonally
+  adjusted); employment (ep_ratio): lfs_month, not seasonally adjusted, as
+  the adjusted table does not carry it. All from Jan 2011, after a survey
+  re-basing in Dec 2010 (see LFS_START).
 - exports / imports / trade_balance: OpenDOSM trade_sitc_1d, all sections,
   RM, monthly. Exports FOB, imports CIF, as DOSM reports them. Already in
   ringgit: no currency conversion.
@@ -188,10 +187,23 @@ def qoq_basis(published: list, level: list) -> str:
 
 
 def fetch_gdp_growth() -> tuple[list, str]:
+    """Quarter-on-quarter real growth, seasonally adjusted.
+
+    OpenDOSM's gdp_qtr_real_sa serves DOSM's seasonally adjusted real GDP
+    LEVELS ("abs") only. The q/q rate DOSM headlines is the change in those
+    levels, so it is computed from them to DOSM's one decimal place; the
+    audit checks the result against the levels and Ciaran's spot-check
+    against DOSM's release. The "growth_qoq" in gdp_qtr_real is the change
+    in the UNADJUSTED level (21.1% in 2020-Q3), so it is used only if the
+    adjusted table disappears, and then labelled not seasonally adjusted."""
     try:
-        pts = pts_from(dosm("gdp_qtr_real_sa"), "value", quarter_of, series="growth_qoq")
-        if pts:
-            return require_current(pts, QUARTERLY_MAX_AGE, "OpenDOSM real GDP growth q/q SA"), "sa"
+        rows = dosm("gdp_qtr_real_sa")
+        pub = pts_from(rows, "value", quarter_of, series="growth_qoq")
+        if pub:
+            return require_current(pub, QUARTERLY_MAX_AGE, "OpenDOSM real GDP growth q/q SA"), "sa"
+        lvl = pts_from(rows, "value", quarter_of, series="abs")
+        if len(lvl) >= 8:
+            return require_current(pct_change(lvl, 1), QUARTERLY_MAX_AGE, "OpenDOSM SA real GDP"), "sa_derived"
     except Exception as exc:
         print(f"  [opendosm] gdp_qtr_real_sa unavailable ({exc}); using gdp_qtr_real")
     pts = pts_from(dosm("gdp_qtr_real"), "value", quarter_of, series="growth_qoq")
@@ -223,20 +235,36 @@ def fetch_cpi_rates() -> tuple[list, list, str]:
 
 
 # ---------------------------------------------------------------- labour
-def fetch_labour() -> tuple[dict, str]:
-    for ds, basis in (("lfs_month_sa", "sa"), ("lfs_month", "nsa")):
-        try:
-            rows = dosm(ds)
-        except Exception as exc:
-            print(f"  [opendosm] {ds} unavailable ({exc})")
+LFS_START = "2011-01"
+# The monthly labour series open in 2010 with a break: participation jumps
+# 2.9pp and the employment ratio 2.8pp in Dec 2010 alone, which is a
+# re-basing of the survey, not a change in the labour market (tools/audit_my.py,
+# Oct 2026). The series start after it, so one consistent basis is shown.
+
+
+def fetch_labour() -> tuple[dict, dict]:
+    """(series, basis per key). Unemployment and participation from DOSM's
+    seasonally adjusted table; the employment-to-population ratio is not in
+    that table, so it comes from the unadjusted one and is labelled so."""
+    out, basis = {}, {}
+    try:
+        sa = dosm("lfs_month_sa")
+        for k, f in (("unemployment", "u_rate"), ("participation", "p_rate")):
+            pts = [p for p in pts_from(sa, f) if p[0] >= LFS_START]
+            if pts:
+                out[k], basis[k] = require_current(pts, MONTHLY_MAX_AGE, f"OpenDOSM lfs_month_sa {k}"), "sa"
+    except Exception as exc:
+        print(f"  [opendosm] lfs_month_sa unavailable ({exc})")
+    nsa = dosm("lfs_month")
+    for k, f in (("unemployment", "u_rate"), ("participation", "p_rate"), ("employment", "ep_ratio")):
+        if k in out:
             continue
-        out = {k: pts_from(rows, f) for k, f in (("unemployment", "u_rate"), ("participation", "p_rate"),
-                                                 ("employment", "ep_ratio"))}
-        if all(out.values()):
-            for k, v in out.items():
-                require_current(v, MONTHLY_MAX_AGE, f"OpenDOSM {ds} {k}")
-            return out, basis
-    raise ValueError("no OpenDOSM labour force dataset served")
+        pts = [p for p in pts_from(nsa, f) if p[0] >= LFS_START]
+        if pts:
+            out[k], basis[k] = require_current(pts, MONTHLY_MAX_AGE, f"OpenDOSM lfs_month {k}"), "nsa"
+    if not out:
+        raise ValueError("no OpenDOSM labour force dataset served")
+    return out, basis
 
 
 # ---------------------------------------------------------------- trade
@@ -291,6 +319,7 @@ def fetch_fred(sid: str, key: str) -> list:
 # ---------------------------------------------------------------- labels
 QOQ_LABEL = {
     "sa": "Real GDP growth, change on previous quarter, seasonally adjusted (DOSM, OpenDOSM gdp_qtr_real_sa)",
+    "sa_derived": "Real GDP growth, change on previous quarter, seasonally adjusted, from DOSM's seasonally adjusted real GDP (OpenDOSM gdp_qtr_real_sa)",
     "nsa": "Real GDP growth, change on previous quarter, not seasonally adjusted (DOSM, OpenDOSM gdp_qtr_real)",
 }
 LABOUR_LABEL = {
@@ -369,7 +398,7 @@ def main() -> int:
     try:
         lab, basis = fetch_labour()
         for k, pts in lab.items():
-            put(out, k, pts, LABOUR_LABEL[(k, basis)], "%", "months")
+            put(out, k, pts, LABOUR_LABEL[(k, basis[k])], "%", "months")
     except Exception as exc:
         failures += ["unemployment", "participation", "employment"]
         print(f"FAIL  labour               {exc}")

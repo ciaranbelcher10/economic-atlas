@@ -51,19 +51,23 @@ EXPECT = {
     "current_account": ("%", "years", -15, 25, None),
     "fdi": ("%", "years", -5, 15, None),
 }
+# Jumps over a series' step limit that are real and explained; anything else fails.
+KNOWN_JUMPS = {
+    ("cpi", "2009-06"): "base effect: Malaysia raised fuel prices about 40% in June 2008",
+}
 NOT_SERVED = {"bond_yield_10y": "IMF S13BOND does not state its maturity",
               "business_confidence": "no OECD coverage; DOSM's survey is a different measure"}
 MAX_AGE = {"months": 130, "quarters": 230, "years": 900}
 OFFICIAL = {
     "gdp_level": "DOSM quarterly GDP release (dosm.gov.my), GDP at current prices, RM million",
     "gdp_real": "DOSM quarterly GDP release, GDP at constant prices",
-    "gdp_growth": "DOSM quarterly GDP release, q-o-q (seasonally adjusted if the label says so)",
+    "gdp_growth": "DOSM quarterly GDP release, q-o-q seasonally adjusted (the 'seasonally adjusted' figure, not the raw q-o-q)",
     "gdp_growth_yoy": "DOSM quarterly GDP release, y-o-y (the headline figure)",
     "cpi": "DOSM monthly CPI release, y-o-y",
     "cpi_mom": "DOSM monthly CPI release, m-o-m",
     "policy_rate": "Bank Negara Malaysia Monetary Policy Statement (OPR level)",
-    "unemployment": "DOSM monthly Labour Force Statistics, unemployment rate",
-    "participation": "DOSM monthly Labour Force Statistics, LFPR",
+    "unemployment": "DOSM monthly Labour Force Statistics, unemployment rate (seasonally adjusted)",
+    "participation": "DOSM monthly Labour Force Statistics, LFPR (seasonally adjusted)",
     "employment": "DOSM monthly Labour Force Statistics, employment-to-population ratio",
     "exports": "DOSM monthly Malaysia External Trade Statistics, total exports (RM)",
     "imports": "DOSM monthly Malaysia External Trade Statistics, total imports (RM)",
@@ -130,7 +134,7 @@ def structure_and_plausibility(d):
         if out: problems.append(f"{len(out)} value(s) outside {lo}..{hi}, e.g. {out[-1]}")
         if step:
             jumps = [(pts[i][0], round(pts[i][1] - pts[i - 1][1], 2)) for i in range(1, len(pts))
-                     if abs(pts[i][1] - pts[i - 1][1]) > step]
+                     if abs(pts[i][1] - pts[i - 1][1]) > step and (key, pts[i][0]) not in KNOWN_JUMPS]
             if jumps: problems.append(f"jump over {step} at {jumps[-1]}")
         if len(pts) < {"months": 24, "quarters": 12, "years": 10}[freq]:
             problems.append(f"only {len(pts)} points")
@@ -242,6 +246,15 @@ def cross_checks(d):
         res("PASS" if rows and abs(w[1]) <= 0.15 else "FAIL", "Real GDP YoY: published vs implied by real levels",
             f"{len(rows)} quarters, largest gap {w} pp (tolerance 0.15, rounding)")
 
+    def qoq_derivation():
+        import fetch_my
+        lvl = fetch_my.pts_from(fetch_my.dosm("gdp_qtr_real_sa"), "value", fetch_my.quarter_of, series="abs")
+        der = pct(lvl, 1)
+        rows = [(p, round(v - der[p], 2)) for p, v in s["gdp_growth"]["points"][-16:] if p in der]
+        w = worst(rows)
+        res("PASS" if rows and abs(w[1]) <= 0.05 else "FAIL", "GDP q/q: equals the change in DOSM's seasonally adjusted real GDP",
+            f"{len(rows)} quarters, largest gap {w} pp")
+
     def qoq_label():
         import fetch_my
         basis = fetch_my.qoq_basis(s["gdp_growth"]["points"], s["gdp_real"]["points"])
@@ -260,6 +273,10 @@ def cross_checks(d):
         for r in itg:
             if r.get("UNIT") == "USD" and r.get("OBS_VALUE"):
                 usd[(r.get("INDICATOR"), r["TIME_PERIOD"].replace("-M", "-"))] = float(r["OBS_VALUE"]) / 1e6
+        if not any(re.fullmatch(r"\d{4}-\d{2}", p) for p in hist):
+            res("FAIL", "Trade: DOSM ringgit vs IMF dollars at each month's rate",
+                "could not run: no monthly FX history (FRED key missing, World Bank annual fallback in use)")
+            return
         rows = []
         for k, ind in (("exports", "XG"), ("imports", "MG")):
             for p, v in s[k]["points"][-12:]:
@@ -273,8 +290,10 @@ def cross_checks(d):
         j = get("https://api.bnm.gov.my/public/opr", "application/vnd.BNM.API.v1+json").json()
         bnm = float(j["data"]["new_opr_level"])
         last = s["policy_rate"]["points"][-1]
-        res("PASS" if abs(last[1] - bnm) < 1e-6 else "FAIL", "OPR: latest BIS value vs Bank Negara API",
-            f"site {last}, BNM {bnm} set {j['data']['date']} (a decision after the BIS month explains a gap)")
+        same = abs(last[1] - bnm) < 1e-6
+        res("PASS" if same else "FAIL", "OPR: latest BIS value equals Bank Negara API",
+            f"site {last}, BNM {bnm} set {j['data']['date']}"
+            + ("" if same else "; if BNM's decision is dated after the BIS month, rerun after BIS updates"))
 
     def labour():
         ann = wb("SL.UEM.TOTL.ZS")
@@ -285,8 +304,11 @@ def cross_checks(d):
             if len(ms) == 12:
                 rows.append((y, round(sum(ms) / 12 - ann[y], 2)))
         w = worst(rows)
-        res("PASS" if rows and abs(w[1]) <= 0.6 else "FAIL", "Unemployment: DOSM monthly (annual mean) vs World Bank ILO",
-            f"{len(rows)} years, largest gap {w} pp (tolerance 0.6)")
+        # The World Bank figure is the ILO's MODELLED estimate, not DOSM's survey,
+        # and runs 0.5 to 0.8pp above it (2025: 3.76 vs DOSM 3.0). The check is
+        # for scale and unit errors (0.03 or 30 for 3%), which 1.0pp still catches.
+        res("PASS" if rows and abs(w[1]) <= 1.0 else "FAIL", "Unemployment: DOSM monthly (annual mean) vs World Bank ILO",
+            f"{len(rows)} years: {rows}; largest gap {w} pp (tolerance 1.0: modelled vs surveyed)")
 
     def fx():
         ann = wb("PA.NUS.FCRF")
@@ -311,7 +333,7 @@ def cross_checks(d):
 
     for name, fn in (("CPI index cross-check", cpi_index), ("CPI rate cross-check", cpi_rate),
                      ("CPI derivation check", cpi_derivation), ("GDP cross-check", gdp),
-                     ("real growth check", real_yoy), ("q/q label check", qoq_label), ("trade cross-check", trade),
+                     ("real growth check", real_yoy), ("q/q derivation check", qoq_derivation), ("q/q label check", qoq_label), ("trade cross-check", trade),
                      ("OPR check", opr), ("labour cross-check", labour), ("FX cross-check", fx)):
         run(name, fn)
 
