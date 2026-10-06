@@ -90,5 +90,32 @@ wired = [f for f in sorted(glob.glob("fetch_*.py"))
          if "imf_weo.fetch(" in open(f, encoding="utf-8").read()]
 check(len(wired) == 13, f"{len(wired)} fetch scripts call imf_weo.fetch (11 from v1.6.27, plus fetch_cn.py and fetch_my.py)")
 
+# --- one retry on a server error, none on a client error (v1.7.8) ---------
+import io as _io
+from contextlib import redirect_stdout as _rs
+
+
+class _R:
+    def __init__(self, code):
+        self.status_code = code
+
+    def raise_for_status(self):
+        if self.status_code >= 400:
+            raise RuntimeError(self.status_code)
+
+    def json(self):
+        return {}
+
+
+_real_get, _pause = imf_weo.requests.get, imf_weo.RETRY_PAUSE
+imf_weo.RETRY_PAUSE = 0
+for codes, want in (([500, 500], 2), ([503, 404], 2), ([404], 1)):
+    seq, n = list(codes), [0]
+    imf_weo.requests.get = lambda *a, **k: (n.__setitem__(0, n[0] + 1), _R(seq.pop(0)))[1]
+    with _rs(_io.StringIO()):
+        imf_weo.fetch("MYS", "X")
+    check(n[0] == want, f"status {codes[0]} -> {n[0]} request(s), expected {want}")
+imf_weo.requests.get, imf_weo.RETRY_PAUSE = _real_get, _pause
+
 print(f"\n{fails} failures")
 sys.exit(1 if fails else 0)

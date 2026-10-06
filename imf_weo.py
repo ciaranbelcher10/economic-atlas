@@ -27,12 +27,15 @@ from __future__ import annotations
 
 from datetime import datetime, timezone
 
+import time
+
 import requests
 
 URL = ("https://api.imf.org/external/sdmx/3.0/data/dataflow/IMF.RES/WEO/~/"
        "{iso3}.{indicator}.A?attributes=all&measures=all")
 DEBT = "GGXWDG_NGDP"
 DEFICIT = "GGXCNL_NGDP"
+RETRY_PAUSE = 5   # seconds before the single retry on a 5xx
 MAX_AGE_DAYS = 400
 UA = {"User-Agent": "economic-atlas/0.1", "Accept": "application/json"}
 
@@ -127,9 +130,16 @@ def parse(payload: dict, iso3: str, indicator: str, now: datetime | None = None)
 def fetch(iso3: str, indicator: str):
     """Fetch one country's indicator; returns points or None (logged)."""
     try:
-        r = requests.get(URL.format(iso3=iso3, indicator=indicator),
-                         timeout=90, headers=UA)
-        print(f"  [imf-weo] {iso3} {indicator} status={r.status_code}")
+        # One retry on a server error: the IMF API returns sporadic 500s
+        # (Malaysia, 6 Oct 2026: one indicator per run). Client errors are
+        # not retried; series_guard carries the series over if both fail.
+        for attempt in (1, 2):
+            r = requests.get(URL.format(iso3=iso3, indicator=indicator),
+                             timeout=90, headers=UA)
+            print(f"  [imf-weo] {iso3} {indicator} status={r.status_code}")
+            if r.status_code < 500 or attempt == 2:
+                break
+            time.sleep(RETRY_PAUSE)
         r.raise_for_status()
         pts, info = parse(r.json(), iso3, indicator)
     except Exception as exc:

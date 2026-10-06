@@ -226,6 +226,13 @@ def main():
     sub('country_code: "cn",', f'country_code: "{CODE}",')
     if pk and pk != "policy_rate":
         sub('policy_rate:"interest-rate"', f'{pk}:"interest-rate"')
+    # The template only lists slugs for the series China serves; add the
+    # generator's slugs for the rest of the catalogue (tile_pages_gate checks).
+    extra_slugs = {"employment": "employment-rate", "participation": "labour-force-participation-rate"}
+    m = re.search(r"const INDICATOR_PAGE_SLUGS = \{(.*?)\};", s)
+    add = ", ".join(f'{k}:"{v}"' for k, v in extra_slugs.items() if k in served and not re.search(r"(?<![a-z_])" + k + ":", m.group(1)))
+    if add:
+        s = s[:m.end(1)] + ", " + add + s[m.end(1):]
 
     # ---------- sampleData from the real file ----------
     def anchors(k, step):
@@ -301,8 +308,14 @@ def main():
     def tile(cont, k, label, fmt, up):
         a, d = (x.replace("UNIT", "s.gdp_level.unit" if k == "gdp_level" else f"s.{k}.unit") for x in FMT[fmt])
         series = "gdpAnnual" if k == "gdp_level" else f"s.{k}"
-        return (f'  if({series}) statTile({cont},"{k}",{js(label)},{series},\n'
-                f"    {{fmt:{a},fmtD:{d},upIsGood:{str(up).lower()},source:{srcexpr(k)}}});")
+        # A series with no chart of its own (cpi_mom, cpi_qoq: bases of the CPI
+        # chart) passes a null key, as brazil.html does, so the tile does not try
+        # to scroll to a missing chart; pageKey still links its indicator page.
+        own = CATALOG.get(k, (None,) * 8)[1] is not None or k == pk
+        keyarg = f'"{k}"' if own else "null"
+        extra = "" if own else f'pageKey:"{k}",'
+        return (f'  if({series}) statTile({cont},{keyarg},{js(label)},{series},\n'
+                f"    {{{extra}fmt:{a},fmtD:{d},upIsGood:{str(up).lower()},source:{srcexpr(k)},infoKey:\"{k}\"}});")
     body.append('  const hero=document.getElementById("hero");')
     for cat in HERO_ORDER:
         k = key_of(cat)

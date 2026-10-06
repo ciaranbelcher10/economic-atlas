@@ -22,6 +22,7 @@ H10 = {
     "SEK": ("DEXSDUS", False), "SGD": ("DEXSIUS", False), "THB": ("DEXTHUS", False),
     "CNY": ("DEXCHUS", False),
     "ZAR": ("DEXSFUS", False),
+    "MYR": ("DEXMAUS", False),
 }
 
 # Currencies with no free official daily or monthly series: World Bank
@@ -32,14 +33,15 @@ ANNUAL = {"ARS", "CLP", "COP", "IDR", "ILS", "MAD", "PLN", "TRY"}
 SYMBOL = {"USD": "$", "EUR": "\u20ac", "GBP": "\u00a3", "JPY": "\u00a5", "CAD": "C$", "AUD": "A$",
           "MXN": "MX$", "BRL": "R$", "SGD": "S$", "INR": "\u20b9", "KRW": "\u20a9", "IDR": "Rp",
           "ILS": "\u20aa", "ZAR": "R", "CNY": "CN\u00a5",
-          "THB": "\u0e3f", "TRY": "\u20ba", "ARS": "AR$", "CLP": "CLP$", "COP": "COL$"}
+          "THB": "\u0e3f", "TRY": "\u20ba", "ARS": "AR$", "CLP": "CLP$", "COP": "COL$", "MYR": "RM"}
 NAME = {"USD": "US dollar", "EUR": "euro", "GBP": "pound", "JPY": "yen", "CAD": "Canadian dollar",
         "AUD": "Australian dollar", "MXN": "Mexican peso", "BRL": "Brazilian real", "SGD": "Singapore dollar",
         "INR": "Indian rupee", "KRW": "South Korean won", "IDR": "Indonesian rupiah", "ILS": "Israeli shekel",
         "ZAR": "South African rand", "CHF": "Swiss franc", "DKK": "Danish krone", "SEK": "Swedish krona",
         "NOK": "Norwegian krone", "PLN": "Polish zloty", "MAD": "Moroccan dirham", "THB": "Thai baht",
         "ARS": "Argentine peso", "CLP": "Chilean peso", "COP": "Colombian peso", "TRY": "Turkish lira",
-        "CNY": "Chinese yuan"}
+        "CNY": "Chinese yuan",
+        "MYR": "Malaysian ringgit"}
 QUOTE_NAME = {"USD": "US dollars", "EUR": "euros", "GBP": "pounds"}
 
 # Units of home currency per quoted figure, where one unit is worth very little.
@@ -80,6 +82,7 @@ COUNTRY_FX = {
     "South Africa": ("ZAR", "za", ["USD"]), "Argentina": ("ARS", "ar", ["USD"]), "Chile": ("CLP", "cl", ["USD"]),
     "Colombia": ("COP", "co", ["USD"]), "Indonesia": ("IDR", "id", ["USD"]), "Israel": ("ILS", "il", ["USD"]),
     "Turkey": ("TRY", "tr", ["USD"]),
+    "Malaysia": ("MYR", "my", ["USD"]),
 }
 
 NBSP = "\u00a0"
