@@ -56,6 +56,7 @@ GROUPS = {
     "fetch_nl.py": "C", "fetch_at.py": "C", "fetch_ar.py": "C",
     "fetch_ma.py": "C", "fetch_cn.py": "C",
     "fetch_my.py": "C",   # makes no OECD calls (Malaysia is not covered); mapped so the roster test holds
+    "fetch_nz.py": "C",   # OECD-heavy (CPI, QNA, LFS, IRLT, BCI): C had four heavy countries, now five each
 }
 ORDER = ("A", "B", "C")
 

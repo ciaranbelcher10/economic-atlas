@@ -72,9 +72,9 @@ check("fetch_data.py and fetch_us.py share a group (both write data-us.json)",
 # --- every group is populated, and balanced by OECD weight -----------------
 heavy = {"fetch_au.py", "fetch_br.py", "fetch_ca.py", "fetch_cl.py", "fetch_co.py",
          "fetch_ch.py", "fetch_id.py", "fetch_in.py", "fetch_il.py", "fetch_mx.py",
-         "fetch_no.py", "fetch_za.py", "fetch_kr.py", "fetch_tr.py"}
+         "fetch_no.py", "fetch_za.py", "fetch_kr.py", "fetch_tr.py", "fetch_nz.py"}
 per = {g: sum(1 for s in heavy if ot.GROUPS[s] == g) for g in "ABC"}
-check("heavy OECD countries spread five, five, four", sorted(per.values()) == [4, 5, 5])
+check("heavy OECD countries spread five, five, five", sorted(per.values()) == [5, 5, 5])
 # Every country fetch script is mapped (fetch_xx.py plus fetch_data.py and
 # fetch_us.py), however many countries there are. Counting a fixed number
 # broke the moment a country was added (v1.6.49, China).
