@@ -88,9 +88,16 @@ LFS = [dict(MEASURE="UNE_LF_M", ADJUSTMENT=a, SEX="_T", AGE="Y_GE15", FREQ="Q", 
        for p in Q for a, v in (("Y", 4.5), ("N", 9.9))]
 FIN = [dict(MEASURE=m, TIME_PERIOD=p, OBS_VALUE=v) for p in M for m, v in (("IRLT", 5.0), ("IR3TIB", 3.0))]
 BCI = [dict(MEASURE=m, TIME_PERIOD=p, OBS_VALUE=v) for p in M for m, v in (("BCICP", 100.2), ("CCICP", 97.0))]
-BIS = "TIME_PERIOD,OBS_VALUE\n" + "\n".join(f"{p},{9.0 if p < '1999-03' else 2.5}" for p in M)
+# The monthly BIS series stops a month short; the daily one has the rest
+# (as on 6 Oct 2026, when monthly ended at August and the OCR rose on 2 Sep).
+BIS = "TIME_PERIOD,OBS_VALUE\n" + "\n".join(f"{p},{9.0 if p < '1999-03' else 2.5}" for p in M[:-1])
+_n = _m + 1
+NEXT_M = f"{_n // 12}-{_n % 12 + 1:02d}"     # last month: the daily series reaches it
+BIS_D = "TIME_PERIOD,OBS_VALUE\n" + "\n".join(f"{p}-{d:02d},2.75" for p in (M[-1], NEXT_M) for d in (2, 3, 4))
+# Exports run one month ahead of imports, as the IMF serves them.
 ITG = csv_text([dict(INDICATOR=i, VALUATION=v, UNIT="USD", TIME_PERIOD=p.replace("-", "-M"), OBS_VALUE=x)
-                for p in months("1995-01", END_M) for i, v, x in (("XG", "FOB", 3.0e9), ("MG", "CIF", 3.5e9))])
+                for p in months("1995-01", END_M) for i, v, x in (("XG", "FOB", 3.0e9), ("MG", "CIF", 3.5e9))
+                if not (i == "MG" and p == END_M)])
 FX = {"observations": [{"date": p + "-28", "value": "0.6000"} for p in months("1971-01", END_M)]}
 CPI_INDEX = []
 _ix = 50.0
@@ -120,6 +127,7 @@ def install():
         if "DF_IALFS" in url: return Resp(csv_text(LFS))
         if "DF_FINMARK" in url: return Resp(csv_text(FIN))
         if "DF_CLI" in url: return Resp(csv_text(BCI))
+        if "WS_CBPOL" in url and "D.NZ" in url: return Resp(BIS_D)
         if "WS_CBPOL" in url: return Resp(BIS)
         if "ITG" in url: return Resp(ITG)
         if "worldbank" in url: return Resp(js=[{}, [{"date": str(y), "value": 2.0} for y in range(1990, 2025)]])
@@ -144,6 +152,7 @@ check(lvl[0][1] != 1 and real[0][1] != 2, "QNA picks the SA current-price T0102 
 check(all(v == 4.5 for _, v in une), "unemployment is the seasonally adjusted series")
 check(pr[0][0] == "1999-04" and all(p >= "1999-04" for p, _ in pr), "OCR starts April 1999: no spliced overnight cash rate")
 check(all(round(v, 1) == v for _, v in yoy + qoq), "CPI rates at Stats NZ's one decimal place")
+check(pr[-2:] == [[M[-1], 2.75], [NEXT_M, 2.75]], f"daily BIS series extends the OCR past the monthly one: {pr[-2:]}")
 check(yoy[0][0] == Q[4], "annual CPI rate starts four quarters in")
 check(F.usd_to_nzd([["2026-01", 600.0]], {"2026-01": 0.6}, 0.6) == [["2026-01", 1000.0]],
       "US$ to NZ$ divides by US$ per NZ$")
@@ -184,6 +193,8 @@ want = set(A.EXPECT)
 check(rc == 0 and set(d["series"]) == want, f"full run serves exactly the expected 17: {set(d['series']) ^ want}")
 check(d["fx_to_usd"]["pair"] == "NZD/USD" and d["fx_to_usd"]["direction"] == "multiply", "fx block: US$ per NZ$, multiply")
 check(d["series"]["exports"]["points"][-1][1] == 5000.0, "exports US$3.0bn at 0.60 -> NZ$5,000m")
+check(d["series"]["exports"]["points"][-1][0] == d["series"]["imports"]["points"][-1][0] == d["series"]["trade_balance"]["points"][-1][0],
+      "exports, imports and the balance all end in the same month")
 check(not any(k in nokey["series"] for k in ("exports", "imports", "trade_balance")),
       "no exchange rate: trade left out rather than converted at a wrong rate")
 
@@ -209,6 +220,8 @@ planted = {
     "fraction not percent": lambda x: x["series"]["unemployment"]["points"][-1].__setitem__(1, 0.045),
     "trade balance mismatch": lambda x: x["series"]["trade_balance"]["points"][-1].__setitem__(1, 1.0),
     "gap in series": lambda x: x["series"]["cpi"]["points"].pop(-5),
+    "stale OCR": lambda x: x["series"]["policy_rate"].update(points=x["series"]["policy_rate"]["points"][:-4]),
+    "trade months out of step": lambda x: x["series"]["imports"]["points"].pop(),
 }
 for name, fault in planted.items():
     bad = copy.deepcopy(d)

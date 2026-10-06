@@ -58,10 +58,10 @@ OFFICIAL = {
     "gdp_level": "Stats NZ quarterly GDP release (expenditure measure, current prices, seasonally adjusted)",
     "gdp_real": "Stats NZ quarterly GDP release, production measure, chain-volume",
     "gdp_growth": "Stats NZ quarterly GDP release, q/q seasonally adjusted (the headline figure)",
-    "gdp_growth_yoy": "Stats NZ quarterly GDP release, change on same quarter a year earlier",
+    "gdp_growth_yoy": "Stats NZ quarterly GDP release, 'annual change' (quarter vs same quarter a year earlier; Q2 2026: 2.6%). NOT the '12 months to' annual-average figure (Q2 2026: 1.7%)",
     "cpi": "Stats NZ quarterly CPI release, annual change",
     "cpi_qoq": "Stats NZ quarterly CPI release, quarterly change",
-    "policy_rate": "Reserve Bank of New Zealand monetary policy statement / review (OCR level)",
+    "policy_rate": "Reserve Bank of New Zealand: the OCR in force now (latest decision, e.g. 2.75% from 2 Sep 2026)",
     "bond_yield_10y": "RBNZ wholesale interest rates (B2), 10-year government bond, monthly average",
     "business_confidence": "OECD business confidence indicator (no national equivalent)",
     "unemployment": "Stats NZ Household Labour Force Survey, unemployment rate, seasonally adjusted",
@@ -146,6 +146,17 @@ def structure_and_plausibility(d):
         f"starts {pr[0][0] if pr else None}")
     odd = [(p, v) for p, v in pr if round(v * 100) % 25]
     res("FAIL" if odd else "PASS", "OCR moves in 25bp steps", f"{odd[:2]}")
+    # The OCR must be current: at most one month behind today (BIS's daily
+    # series fills the months its monthly series has not reached yet).
+    if pr:
+        now = datetime.now(timezone.utc)
+        lag = (now.year * 12 + now.month - 1) - period_key(pr[-1][0])
+        res("PASS" if lag <= 1 else "FAIL", "OCR is current (at most one month behind)",
+            f"last month {pr[-1][0]} at {pr[-1][1]}%, {lag} month(s) behind")
+    ex, im = s.get("exports", {}).get("points", []), s.get("imports", {}).get("points", [])
+    if ex and im:
+        res("PASS" if ex[-1][0] == im[-1][0] else "FAIL", "exports and imports end in the same month",
+            f"exports {ex[-1][0]}, imports {im[-1][0]}")
     fx = d.get("fx_to_usd") or {}
     # DEXUSNZ is US$ per NZ$, so the rate is around 0.5 to 0.9 and multiplies.
     fx_ok = fx.get("pair") == "NZD/USD" and fx.get("direction") == "multiply" and 0.35 < (fx.get("rate") or 0) < 1.0

@@ -28,7 +28,8 @@ series_guard carries the previous one over.
   seasonally adjusted, QUARTERLY (the Household Labour Force Survey is
   quarterly).
 - policy_rate: BIS central bank policy rates, M.NZ, the Reserve Bank's
-  official cash rate, from April 1999 only. BIS joins it to the overnight
+  official cash rate, from April 1999 only, extended past BIS's last
+  monthly value with BIS's daily series (see BIS_DAILY_URL). BIS joins it to the overnight
   cash rate before 17 Mar 1999; the series starts at the first full OCR
   month so one measure is shown throughout (the Malaysia rule).
 - bond_yield_10y: OECD long-term interest rate (DF_FINMARK, IRLT), monthly.
@@ -75,6 +76,12 @@ FINMARK_URL = ("https://sdmx.oecd.org/public/rest/data/OECD.SDD.STES,DSD_STES@DF
 BCI_URL = ("https://sdmx.oecd.org/public/rest/data/OECD.SDD.STES,DSD_STES@DF_CLI/"
            "NZL.M.........?format=csvfile&startPeriod=1980-01")
 BIS_URL = "https://stats.bis.org/api/v2/data/dataflow/BIS/WS_CBPOL/1.0/M.NZ?format=csv"
+# BIS's daily series runs ahead of the monthly one: on 6 Oct 2026 the monthly
+# series ended at August (2.5%) though the Reserve Bank had raised the OCR to
+# 2.75% on 2 September. Months after the last monthly value are filled from
+# the daily series (the month's last observation; the current month shows the
+# latest), the same convention as the exchange rate.
+BIS_DAILY_URL = "https://stats.bis.org/api/v2/data/dataflow/BIS/WS_CBPOL/1.0/D.NZ?format=csv&startPeriod={start}"
 ITG_URL = ("https://api.imf.org/external/sdmx/3.0/data/dataflow/IMF.STA/ITG/~/"
            "NZL.*.*.M?c[TIME_PERIOD]=ge:1990-M01")
 WB_URL = "https://api.worldbank.org/v2/country/NZL/indicator/{code}?format=json&per_page=200"
@@ -227,10 +234,35 @@ def fetch_policy_rate() -> list:
                   for row in csv.DictReader(io.StringIO(r.text))
                   if row.get("OBS_VALUE") not in (None, "", "NaN")])
     pts = [p for p in pts if p[0] >= OCR_START]
+    pts = extend_with_daily(pts)
     bad = [p for p in pts if not (0 <= p[1] < 20)]
     if bad:
         raise ValueError(f"BIS policy rate: implausible value {bad[0]}")
     return require_current(pts, MONTHLY_MAX_AGE, "BIS policy rate")
+
+
+def extend_with_daily(monthly: list) -> list:
+    """Append months after the last monthly BIS value from the daily series.
+    Any failure leaves the monthly series as it is."""
+    if not monthly:
+        return monthly
+    last = monthly[-1][0]
+    try:
+        r = requests.get(BIS_DAILY_URL.format(start=last + "-01"), timeout=60, headers=dict(UA, Accept="text/csv"))
+        print(f"  [bis] WS_CBPOL D.NZ status={r.status_code}")
+        r.raise_for_status()
+        by_month = {}
+        for row in sorted(csv.DictReader(io.StringIO(r.text)), key=lambda x: x.get("TIME_PERIOD", "")):
+            v, d = row.get("OBS_VALUE"), row.get("TIME_PERIOD") or ""
+            if v not in (None, "", "NaN") and re.fullmatch(r"\d{4}-\d{2}-\d{2}", d):
+                by_month[d[:7]] = float(v)
+        extra = [[m, v] for m, v in sorted(by_month.items()) if m > last]
+        if extra:
+            print(f"  [bis] daily extends the OCR from {last} to {extra[-1][0]} ({extra[-1][1]}%)")
+        return monthly + extra
+    except Exception as exc:
+        print(f"  [bis] daily OCR unavailable ({exc}); monthly series as is")
+        return monthly
 
 
 def fetch_trade_usd() -> dict:
@@ -381,6 +413,11 @@ def main() -> int:
         if usd:
             fxm, latest = dict(fx), fx[-1][1]
             nz = {k: usd_to_nzd(v, fxm, latest) for k, v in usd.items()}
+            # The IMF often has exports a month before imports. All three
+            # series end at the last month both are published, so the
+            # Trade tiles always describe the same month.
+            common = set(dict(nz["exports"])) & set(dict(nz["imports"]))
+            nz = {k: [p for p in v if p[0] in common] for k, v in nz.items()}
             m = dict(nz["imports"])
             nz["trade_balance"] = [[p, round(v - m[p], 1)] for p, v in nz["exports"] if p in m]
             for k, v in nz.items():
