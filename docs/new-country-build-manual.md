@@ -14,6 +14,77 @@ rediscovering which files need touching.
 
 ---
 
+## Fast path (v1.7.4 onwards): five commands, two judgement steps
+
+Written after China (v1.7.0 to v1.7.3). The mechanical wiring that took
+most of that build, about 45 files edited by hand, is now one idempotent
+script, and a gate checks every country on every surface on every run.
+The rest of this manual is still the reference for *why* each surface
+exists; the sequence below is how a country is actually added now.
+
+| Step | Command | Who decides |
+|---|---|---|
+| 1. Probe | `FRED_API_KEY=... python3 tools/probe_country.py MYS MY "Malaysia" --fx DEXMAUS > probe_my.txt` (Claude Code, not the sandbox) | tool |
+| 2. Choose sources | one source per site key, from the probe's listings | **judgement** |
+| 3. Fetch + audit | `fetch_<code>.py` from `fetch_cn.py`; `tools/audit_<code>.py` from `tools/audit_cn.py`; Ciaran spot-checks against the national releases | **judgement** |
+| 4. Citations | write `data-metric-sources.json["<Name>"]`, every served key, wording matching the fetch labels | **judgement** |
+| 5. Spec | fill `tools/country_specs/<code>.json` (see `my.json`) | tool-checked |
+| 6. Wire | `python3 tools/add_country.py tools/country_specs/<code>.json` | tool |
+| 7. Page | `python3 tools/build_country_page.py tools/country_specs/<code>.json` | tool |
+| 8. Gate | `python3 tools/country_surfaces_gate.py` plus the usual gates and a simulated generation | tool |
+| 9. Workflows | paste the YAML `add_country.py` prints (workflows are never edited by tools) | Ciaran |
+
+`add_country.py --check` reports what it would change without writing.
+Re-running it is safe: a surface that already carries the country is left
+alone, so it doubles as a repair tool.
+
+### What the tools now guarantee (each was a real China-era bug)
+
+* **Every surface, every country.** `country_surfaces_gate.py` treats
+  `generate_indicator_pages.COUNTRIES` as the roster and fails on any page,
+  app map or config that disagrees. Run against the pre-China tree it finds
+  all 23 stale entries that were only spotted by accident: the homepage map
+  without Thailand, Dashboard's `ISO_OF` frozen at 18 countries, and eight
+  mini-maps marking the wrong country "You are here".
+* **No series without a tile and chart, no tile without a series.**
+  `build_country_page.py` writes `render()` from a catalogue, for served keys
+  only, and stops on any served key it has no rule for.
+* **No drift between the (i) panel and the popover file.** The page's
+  `INFO_CONTENT` is copied from `data-metric-sources.json`, never typed.
+* **No invented trade-partner figures.** New pages get an empty fallback; the
+  partner block stays hidden until the Comtrade file exists. (China launched
+  with an illustrative placeholder; that is not repeated.)
+* **No template leftovers.** The page build refuses to write a page that still
+  names China, the yuan, Lunar New Year or the PBoC.
+* **The hero cap.** Tiles with no other home (business confidence, FDI) sit
+  inside the 10-tile hero limit; trade balance and current account live on
+  the Trade tab.
+* **Make it real.** The GDP tile and chart cite the real series while the
+  toggle is on.
+* **Currency.** One `ISO_GLYPH` rule sitewide; the spec's `glyph` is added to
+  every page, the generator, `indicator-kit.js` and `fx_config.py` at once.
+* **Policy rate key.** Store the rate as `policy_rate`; `add_country.py`
+  refuses a key that Compare, ChartMaker or the indicator generator do not read.
+
+### Lessons from China that stay judgement calls
+
+* **Audit derived series against the national release before launch.**
+  China's month-on-month CPI rebuilt from the IMF index came out 0.3 against
+  an official 0.4, and was dropped. Morocco's passed (Oct 2026). A derived
+  rate that cannot be matched to the official one is omitted, not shipped.
+* **Read the series notes for splices.** BIS China is the official one-year
+  lending rate to 19 Aug 2019 and the loan prime rate after: disclose any
+  splice on the page, in the citation and on the methodology page.
+* **Say what the series is not.** LPR is not the PBoC's operating rate; ILO
+  modelled unemployment is not the surveyed rate. Put it in the label.
+* **Unadjusted monthly trade looks jagged.** Disclose seasonality (Lunar New
+  Year for China, Ramadan or Eid where it moves monthly data) in the chart
+  explanation and the Trade tab note, rather than smoothing anything.
+* **Comtrade code 490** (Taiwan, "Other Asia, nes") is excluded by every
+  partner fetcher, consistently.
+
+---
+
 ## 0. Before starting: the two things that can't be fixed later
 
 **Currency regime.** Decide whether the country uses its own currency or the

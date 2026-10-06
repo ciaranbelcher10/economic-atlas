@@ -549,3 +549,24 @@ Fails when an indicator page's `og:image` points at a file missing from
 `generate_og_images.py` built its own catalogue without `add_derived()`.
 Expected: **501 pages, all with a preview image** (513 cards are drawn;
 the extra 12 are for the rankings).
+
+## `add_country.py`, `build_country_page.py`, `country_surfaces_gate.py`, `probe_country.py` (v1.7.4)
+
+The new-country kit, written after China. See the fast path at the top of
+`docs/new-country-build-manual.md`.
+
+* `probe_country.py ISO3 ISO2 "Name" [--fx FREDID]` lists every series each
+  source holds for the country in one run (OECD, IMF, BIS, World Bank, FRED,
+  plus national endpoints listed in its `NATIONAL` table). Needs real network.
+* `add_country.py <spec> [--check]` wires the country into every shared
+  surface; idempotent; prints the workflow YAML to paste by hand.
+* `build_country_page.py <spec>` writes `<slug>.html` from `china.html`, the
+  data file and the citations.
+* `country_surfaces_gate.py` fails if any country in `COUNTRIES` is missing
+  from any surface, or a page's mini-map marks the wrong country. It runs in
+  every deploy prompt from v1.7.4.
+
+Tested end to end with a synthetic country (Testland, from Thailand's data):
+add, re-add (0 changes), build, then every gate plus a full simulated
+generation, all clean. Replaying China onto the pre-China tree reproduces
+v1.7.0's shared-surface wiring with 0 China gaps.
