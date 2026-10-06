@@ -32,7 +32,7 @@ EXPECT = {
     "gdp_growth_yoy": ("%", "quarters", -15, 20, None),
     "cpi": ("%", "quarters", -3, 25, 4.0),
     "cpi_qoq": ("%", "quarters", -3, 10, None),
-    "policy_rate": ("%", "months", 0, 10, 1.0),               # largest OCR move: -0.75 (Mar 2020)
+    "policy_rate": ("%", "months", 0, 10, 1.0),               # moves over 1.0pp must be named in KNOWN_JUMPS
     "bond_yield_10y": ("%", "months", -1, 20, 2.5),
     "business_confidence": ("index", "months", 85, 115, 4.0),
     "unemployment": ("%", "quarters", 2, 12, 1.5),
@@ -44,7 +44,12 @@ EXPECT = {
     "current_account": ("%", "years", -15, 10, None),
     "fdi": ("%", "years", -10, 15, None),
 }
-KNOWN_JUMPS = {}
+KNOWN_JUMPS = {
+    # The Reserve Bank cut the OCR by 150 basis points at each of these
+    # reviews during the global financial crisis (6.5% to 5.0%, then 3.5%).
+    ("policy_rate", "2008-12"): "OCR cut 150bp on 4 Dec 2008",
+    ("policy_rate", "2009-01"): "OCR cut 150bp on 29 Jan 2009",
+}
 NOT_SERVED = {"cpi_mom": "Stats NZ has no monthly CPI; the CPI is quarterly",
               "employment": "no confirmed OECD source yet",
               "participation": "no confirmed OECD source yet"}
