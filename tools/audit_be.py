@@ -219,6 +219,21 @@ def cross_checks(d):
         res("PASS" if rows and abs(w[1]) <= 0.15 else "FAIL", "gdp_growth vs change in real GDP levels",
             f"{len(rows)} quarters, largest gap {w} pp")
 
+    def growth_published():
+        # Eurostat publishes its own q/q rate (one decimal) beside the levels
+        # (v1.7.24). Spot-check of Portugal: news reports said 0.8% for 2026-Q2,
+        # Eurostat's later revision says 0.9%, ours 0.94%. This compares against
+        # the publisher's current figure, so revisions do not raise false alarms.
+        j = get("https://ec.europa.eu/eurostat/api/dissemination/statistics/1.0/data/namq_10_gdp"
+                "?format=JSON&lang=EN&geo=BE&na_item=B1GQ&s_adj=SCA&unit=CLV_PCH_PRE&sinceTimePeriod=2022-Q1").json()
+        idx = {v: k for k, v in j["dimension"]["time"]["category"]["index"].items()}
+        pub = {idx[int(k)]: v for k, v in j["value"].items()}
+        rows = [(p, round(v - pub[p], 2)) for p, v in s["gdp_growth"]["points"][-12:] if p in pub]
+        w = worst(rows)
+        # Eurostat rounds to one decimal, so up to 0.05 is rounding; 0.06 allows float noise.
+        res("PASS" if rows and abs(w[1]) <= 0.06 else "FAIL", "gdp_growth vs Eurostat's published q/q rate",
+            f"{len(rows)} quarters, largest gap {w} pp (tolerance 0.06, Eurostat rounds to 0.1)")
+
     def labour():
         ann = wb("SL.UEM.TOTL.ZS")
         mv = s["unemployment"]["points"]
@@ -271,7 +286,7 @@ def cross_checks(d):
         res("INFO", "Trade balance: Eurostat (US$ at month's rate) vs IMF ITG, US$m",
             f"{rows[-6:]}  (different concepts for a transit hub; read, not scored)")
 
-    for name, fn in (("HICP cross-check", hicp), ("GDP cross-check", gdp), ("growth check", growth),
+    for name, fn in (("HICP cross-check", hicp), ("GDP cross-check", gdp), ("growth check", growth), ("published growth check", growth_published),
                      ("labour cross-check", labour), ("fiscal cross-check", fiscal), ("FX cross-check", fx),
                      ("trade comparison", trade)):
         run(name, fn)
