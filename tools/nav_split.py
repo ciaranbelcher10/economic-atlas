@@ -12,7 +12,8 @@ split() lays it out again. tools/add_country.py calls both around its nav
 insertion, so a new European country lands in the right column.
 
     python3 tools/nav_split.py          # apply to every page and the generator
-    python3 tools/nav_split.py --check  # exit 1 if anything would change
+    python3 tools/nav_split.py --check  # exit 1 if anything would change, including
+                                        # generated indicators/ and rankings/ pages
 """
 from __future__ import annotations
 
@@ -80,9 +81,27 @@ def files():
     return out + ["generate_indicator_pages.py"]
 
 
+def generated():
+    """Pipeline output (never committed): checked, never written."""
+    return [str(Path(p).relative_to(ROOT)) for d in ("indicators", "rankings")
+            for p in sorted(glob.glob(str(ROOT / d / "*.html")))]
+
+
 def main():
     check = "--check" in sys.argv
     changed = []
+    if check:
+        stale = []
+        for rel in generated():
+            t = (ROOT / rel).read_text(encoding="utf-8")
+            new = t
+            for region in SPLIT:
+                new = split(merge(new, region), region)
+            if new != t:
+                stale.append(rel)
+        if stale:
+            print(f"nav split: {len(stale)} generated page(s) not split yet (regenerate: python3 generate_indicator_pages.py), e.g. {stale[0]}")
+            changed += stale
     for rel in files():
         p = ROOT / rel
         t = p.read_text(encoding="utf-8")
