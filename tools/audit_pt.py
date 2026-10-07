@@ -26,7 +26,7 @@ EXPECT = {
     # key: (unit, freq, low, high, max step between periods or None)
     "gdp_level": ("\u20acm", "quarters", 1e4, 2e5, None),
     "gdp_real": ("\u20acm", "quarters", 1e4, 2e5, None),
-    "gdp_growth": ("%", "quarters", -15, 15, None),          # 2020: -12% then +12%
+    "gdp_growth": ("%", "quarters", -20, 20, None),          # Portugal 2020-Q2: -15.05% (COVID lockdown)
     "cpi": ("%", "months", -3, 15, 3.0),
     "cpi_mom": ("%", "months", -5, 6, None),
     "ecb_rate": ("%", "months", -1, 5, 0.8),                 # 75bp hikes in 2022

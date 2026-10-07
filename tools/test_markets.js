@@ -76,7 +76,11 @@ setTimeout(() => {
   const pr = rows("tPolicy");
   const POLICY = {"data-uk.json":"boe_rate","data-us.json":"fed_funds_upper","data-ez.json":"ecb_rate","data-ca.json":"overnight_rate","data-jp.json":"boj_rate","data-nz.json":"policy_rate","data-my.json":"policy_rate","data-cn.json":"policy_rate"};
   const NAMES = {"data-nz.json":"New Zealand","data-my.json":"Malaysia","data-cn.json":"China","data-uk.json":"UK","data-us.json":"US","data-ez.json":"Eurozone","data-ca.json":"Canada","data-jp.json":"Japan","data-at.json":"Austria","data-de.json":"Germany","data-es.json":"Spain","data-fr.json":"France","data-ie.json":"Ireland","data-it.json":"Italy","data-nl.json":"Netherlands"};
-  const EUROF = ["at","de","es","fr","ie","it","nl"].map(c => `data-${c}.json`);
+  // Euro members come from the page's own var EURO (v1.7.20): a hardcoded copy
+  // here hid Belgium's absence from the page at launch.
+  const EUROF = Object.keys(JSON.parse(html.match(/var EURO = (\{[^}]*\});/)[1].replace(/(\w+):/g, '"$1":'))).map(c => `data-${c}.json`);
+  check("every euro-member data file is in var EURO", files.filter(f => { const s = (load(f).series || {}); return s.ecb_rate && !["data-ez.json"].includes(f) && /^data-[a-z]{2}\.json$/.test(f); }).every(f => EUROF.includes(f)),
+        files.filter(f => /^data-[a-z]{2}\.json$/.test(f) && f !== "data-ez.json" && (load(f).series || {}).ecb_rate && !EUROF.includes(f)).join(","));
   const pk = f => POLICY[f] || (EUROF.includes(f) ? "ecb_rate" : null);
   const pWant = files.filter(f => { const k = pk(f); const s = load(f).series || {}; return k && s[k] && (s[k].points || []).length; });
   check("policy table has every stored policy rate", pr.length === pWant.length, `${pr.length} vs ${pWant.length}`);
@@ -88,7 +92,9 @@ setTimeout(() => {
   for (const f of pWant) {
     const s = load(f).series, yp = (s.bond_yield_10y ? s.bond_yield_10y.points : []).filter(p => p[1] != null), pp = s[pk(f)].points.filter(p => p[1] != null);
     const ly = yp[yp.length - 1], same = ly && pp.find(p => p[0] === ly[0]);
-    const row = pr.find(r => r[0] === NAMES[f]);
+    // Names not hardcoded above come from the page's own country map (v1.7.20).
+    const cc = f.slice(5, 7), pm = html.match(new RegExp("[{,]" + cc + ':\\["([^"]+)"'));
+    const row = pr.find(r => r[0] === (NAMES[f] || (pm && pm[1])));
     if (!row) { spreadOk = false; spreadBad.push(f + " no row"); continue; }
     const want = same ? (ly[1] - same[1]) : null;
     if (want == null ? row[5] !== "n/a" : Math.abs(num(row[5]) - want) > 0.006) { spreadOk = false; spreadBad.push(f + " " + row[5]); }

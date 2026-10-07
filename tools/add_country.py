@@ -26,6 +26,7 @@ from __future__ import annotations
 import glob, json, math, re, sys
 from pathlib import Path
 
+sys.path.insert(0, str(Path(__file__).resolve().parent))
 ROOT = Path(__file__).resolve().parent.parent
 REGIONS = ("Europe", "Scandinavia", "North America", "South America", "Asia", "Oceania", "Middle East", "Africa")
 CHANGES: list[str] = []
@@ -115,7 +116,14 @@ def step_generator(s):
 
 
 def nav_insert(text, s, prefix=""):
-    """Insert the country into its region column of the nav, alphabetically."""
+    """Insert the country into its region column of the nav, alphabetically.
+    A region split over two columns (tools/nav_split.py, v1.7.20) is merged
+    first and split again after, so the country lands in the right column."""
+    import nav_split
+    return nav_split.split(_nav_insert_one(nav_split.merge(text, s["region"]), s, prefix), s["region"])
+
+
+def _nav_insert_one(text, s, prefix=""):
     head = f'<p class="dhead">{s["region"]}</p>\n'
     if f'href="{prefix}{s["slug"]}"' in text or head not in text:
         return text
@@ -290,6 +298,15 @@ def step_markets(s):
     # under the Eurozone: no per-member POLICY_KEY row (as Austria, v1.7.18).
     if pk and not s.get("euro_member"):
         new = add_entry(new, "POLICY_KEY", s["code"], json.dumps(pk))
+    if s.get("euro_member"):
+        # Markets lists the euro once (as the Eurozone): members are skipped
+        # through var EURO. Belgium launched without this and showed the euro
+        # twice until v1.7.20.
+        m = re.search(r"var EURO = \{([^}]*)\};", new)
+        if not m:
+            die("markets.html: var EURO not found")
+        codes = sorted(set(x.split(":")[0] for x in m.group(1).split(",") if x) | {s["code"]})
+        new = new[:m.start()] + "var EURO = {" + ",".join(c + ":1" for c in codes) + "};" + new[m.end():]
     wr(rel, t, new, "C/POLICY_KEY (markets.html: review by eye, it is edited by hand by convention)")
     if pk and not s.get("euro_member"):
         rel = "tools/test_markets.js"

@@ -641,6 +641,8 @@ HEADER_HTML_BASE = """<script>(function(){
  <a href="../netherlands">Netherlands</a>
  <a href="../poland">Poland</a>
  <a href="../spain">Spain</a>
+ </div>
+ <div class="dcol dcont">
  <a href="../switzerland">Switzerland</a>
  <a href="../turkey">Turkey</a>
  <a href="../uk">UK</a>
