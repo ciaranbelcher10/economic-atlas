@@ -66,7 +66,7 @@ SECTION_ORDER = ["gdp_level", "gdp_growth", "gdp_growth_yoy", "cpi", "cpi_mom", 
                  "unemployment", "employment", "participation", "employment_rate", "participation_rate", "trade_balance", "exports", "imports",
                  "current_account", "debt_gdp", "deficit", "business_confidence", "fdi"]
 FMT = {"pct": ("pct", "pp"), "pct2": ('v=>v.toFixed(2)+"%"', 'v=>v.toFixed(2)+"pp"'), "idx": ("idx", 'v=>v.toFixed(1)+"pt"'),
-       "cur1": ("v=>curFmt(v,UNIT,1)", "v=>curFmt(v,UNIT,1)"), "cur2": ("v=>curFmt(v,UNIT,2)", "v=>curFmt(v,UNIT,1)")}
+       "cur1": ("v=>curFmt(v,UNIT,1)", "v=>curFmt(v,UNIT,1)"), "cur2": ("v=>curFmt(v,UNIT,1)", "v=>curFmt(v,UNIT,1)")}   # GDP tile 1dp, as every page since v1.7.13
 CHART_FMT = {"pct": ('v=>v+"%"', "pct"), "pct2": ('v=>v+"%"', 'v=>v.toFixed(2)+"%"'), "idx": ("idx", 'v=>idx(v)+" (avg = 100)"'),
              "cur1": ("v=>curFmt(v,UNIT,0)", "v=>curFmt(v,UNIT,1)"), "cur2": ("v=>curFmt(v,UNIT,2)", "v=>curFmt(v,UNIT,2)")}
 LEFTOVER = re.compile(r"\bChina\b|\bChinese\b|\byuan\b|\bCNY\b|data-cn|\"cn\"|Lunar|People's Bank|loan prime", re.I)
