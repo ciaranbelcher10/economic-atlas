@@ -76,7 +76,7 @@ def hicp_yoy(levels: list) -> list:
     for per, val in levels:
         base = by.get(_back_12(per))
         if base:
-            out.append([per, round((val / base - 1) * 100, 2)])
+            out.append([per, round((val / base - 1) * 100, 4)])
     return out
 
 
@@ -95,7 +95,7 @@ def hicp_mom(levels: list) -> list:
     for per, val in levels:
         base = by.get(_back_1(per))
         if base:
-            out.append([per, round((val / base - 1) * 100, 2)])
+            out.append([per, round((val / base - 1) * 100, 4)])
     return out
 
 

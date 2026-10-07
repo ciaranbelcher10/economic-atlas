@@ -302,7 +302,7 @@ def yoy_from_level(points: list, lag: int) -> list:
         base = by_period.get(prev) if prev else None
         if not base:
             continue
-        out.append([per, round((val / base - 1) * 100, 2)])
+        out.append([per, round((val / base - 1) * 100, 4)])
     return out
 
 
@@ -403,7 +403,7 @@ def fetch_oecd_cpi(areas: tuple, freq: str) -> list | None:
             prev = _period_back_n(per, lag)
             base = by_period.get(prev) if prev else None
             if base:
-                out.append([per, round((val / base - 1) * 100, 2)])
+                out.append([per, round((val / base - 1) * 100, 4)])
         return out or None
 
     def parse_groups(text: str, area: str, tag: str) -> dict:

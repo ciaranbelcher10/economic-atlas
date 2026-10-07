@@ -157,7 +157,7 @@ def transform(points: list, kind: str | None) -> list:
         base = by_period.get(prev) if prev else None
         if not base:
             continue
-        out.append([per, round((val / base - 1) * 100, 2)])
+        out.append([per, round((val / base - 1) * 100, 4)])
     return out
 
 

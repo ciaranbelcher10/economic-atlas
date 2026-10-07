@@ -98,7 +98,7 @@ def rate_from_index(points: list) -> list:
         prev = period_back_1(period)
         base = by_period.get(prev) if prev else None
         if base:
-            out.append([period, round((value / base - 1) * 100, 2)])
+            out.append([period, round((value / base - 1) * 100, 4)])
     return out
 
 

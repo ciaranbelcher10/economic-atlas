@@ -264,7 +264,7 @@ def pct_change(points: list, lag: int) -> list:
         prev_per = _period_back_n(per, lag)
         prev = by_period.get(prev_per) if prev_per else None
         if prev:
-            out.append([per, round((val / prev - 1) * 100, 2)])
+            out.append([per, round((val / prev - 1) * 100, 4)])
     return out
 
 
