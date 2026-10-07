@@ -444,10 +444,20 @@ corresponding change in the diff against a fresh clone.
 
 ### Optional, not required for launch
 
-- **Calendar** (`data-calendar-XX.json` + `fetch_calendar_XX.py` +
-  `calendar.html`'s own country list): confirmed optional. As of this
-  writing only 16 of 32 live countries have calendar coverage at all — a
-  country can be fully live everywhere else without it.
+- **Calendar** (v1.7.26): not a launch blocker, but no longer skipped.
+  Every new country gets an explicit calendar decision, recorded in the
+  launch notes, and the work follows within the next releases:
+  - **Euro members**: tag the existing ECB rate decisions
+    (`data-calendar-ez.json`) to the member, so its calendar view shows
+    them. This costs nothing per country once the tagging exists.
+  - **National releases**: `fetch_calendar_XX.py` + `data-calendar-XX.json`
+    + the calendar workflow step, for the central bank decision dates and
+    the statistics office release calendar (GDP, CPI, labour), from an
+    official published schedule only. If none can be fetched reliably,
+    say so in the launch notes rather than hand-entering dates.
+  - Backlog as of 7 Oct 2026: China, Malaysia, New Zealand, Belgium and
+    Portugal have no calendar coverage (Belgium and Portugal do not yet
+    inherit the ECB dates). Picked up after Finland and Greece.
 - Country-specific extras (age breakdown, spending by COFOG category,
   trade-partner breakdowns, MPC-vote-style detail, inactivity-reason
   breakdowns): each of these exists for only a handful of countries (UK

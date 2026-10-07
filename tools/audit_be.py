@@ -250,7 +250,10 @@ def cross_checks(d):
         sys.path.insert(0, ".")
         import imf_weo
         for key, ind in (("debt_gdp", imf_weo.DEBT), ("deficit", imf_weo.DEFICIT)):
-            weo = dict(imf_weo.fetch("BEL", ind))
+            got = imf_weo.fetch("BEL", ind)
+            if not got:
+                raise RuntimeError(f"IMF WEO returned no data for {ind} (source unreachable or rejected)")
+            weo = dict(got)
             ours = dict(s[key]["points"])
             common = sorted(set(weo) & set(ours))[-3:]
             rows = [(y, round(ours[y] - weo[y], 2)) for y in common]

@@ -234,6 +234,24 @@ def fetch_trade() -> dict:
     return out
 
 
+def align_trade(series: dict) -> None:
+    """The IMF often has exports a month before imports. Exports, imports
+    and the balance all end at the last month both are published, so the
+    Trade tiles always describe the same month (as New Zealand does).
+    Runs after series_guard so a trimmed month is not read as a shrink."""
+    ex, im = series.get("exports"), series.get("imports")
+    if not (ex and im):
+        return
+    common = set(dict(ex["points"])) & set(dict(im["points"]))
+    for k in ("exports", "imports", "trade_balance"):
+        s = series.get(k)
+        if s:
+            kept = [p for p in s["points"] if p[0] in common]
+            if len(kept) != len(s["points"]):
+                print(f"  note {k:<20} ends at {kept[-1][0]}, the last month with both exports and imports")
+            s["points"] = kept
+
+
 def fetch_worldbank(code: str, scale: float = 1.0) -> list:
     r = requests.get(WB_URL.format(code=code), timeout=60, headers=UA)
     r.raise_for_status()
@@ -380,6 +398,7 @@ def main() -> int:
                 print(f"FAIL  {tk:<20} no exchange rate this run to convert it; left out")
 
     series_guard.apply_guard(out["series"], prev_series, allow_shrink=ALLOW_SHRINK)
+    align_trade(out["series"])
     if not out.get("fx_to_usd") and prev_full.get("fx_to_usd"):
         out["fx_to_usd"] = prev_full["fx_to_usd"]
         print("CARRIED OVER fx_to_usd from previous run")

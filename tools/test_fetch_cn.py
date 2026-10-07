@@ -133,7 +133,8 @@ check("policy rate labelled LPR", "loan prime rate" in s["policy_rate"]["label"]
 check("unemployment labelled ILO modelled", "ILO modelled" in s["unemployment"]["label"])
 check("trade converted to CNYm", all(s[k]["unit"] == "CNYm" for k in ("exports", "imports", "trade_balance")))
 check("exports at that month's rate", s["exports"]["points"][0][1] == round(300000 * 7.10, 1))
-check("last month at month-end rate", s["exports"]["points"][-1][1] == round(300000 * 7.20, 1))
+check("exports end with imports, a month before the IMF's latest exports", s["exports"]["points"][-1][0] == M[-2])
+check("trade tiles end on the same month end to end", len({s[k]["points"][-1][0] for k in ("exports", "imports", "trade_balance")}) == 1)
 check("balance only where both months exist", s["trade_balance"]["points"][-1][0] == M[-2] and len(s["trade_balance"]["points"]) == 39)
 check("balance = exports - imports", s["trade_balance"]["points"][0][1] == round(100000 * 7.10, 1))
 check("fx block", d["fx_to_usd"]["pair"] == "CNY/USD" and d["fx_to_usd"]["direction"] == "divide" and d["fx_to_usd"]["rate"] == 7.20)
@@ -172,6 +173,18 @@ rc6, d6 = run(prev=d)
 check("off-turn keeps OECD series", all(d6["series"][k] == s[k] for k in ("gdp_level", "cpi", "business_confidence", "bond_yield_10y")))
 check("off-turn still fetches BIS and World Bank", d6["series"]["policy_rate"] == s["policy_rate"] and "unemployment" in d6["series"])
 check("fetch_cn.py is in turn group C", oecd_turn.GROUPS.get("fetch_cn.py") == "C")
+
+# trade tiles end on the same month, including when the guard carries a longer previous exports series
+import fetch_cn as _fc
+ser = {"exports": {"points": [["2026-05", 1.0], ["2026-06", 2.0], ["2026-07", 3.0]]},
+       "imports": {"points": [["2026-05", 0.5], ["2026-06", 1.0]]},
+       "trade_balance": {"points": [["2026-05", 0.5], ["2026-06", 1.0]]}}
+_fc.align_trade(ser)
+check("exports trimmed to the last month with imports", ser["exports"]["points"][-1][0] == "2026-06")
+check("all three trade series end on the same month", len({ser[k]["points"][-1][0] for k in ser}) == 1)
+ser2 = {"exports": {"points": [["2026-06", 2.0]]}}
+_fc.align_trade(ser2)
+check("align_trade leaves exports alone when imports are absent", ser2["exports"]["points"] == [["2026-06", 2.0]])
 
 if _live_hash() != _LIVE_H0:
     bad += 1; print("FAIL live data-cn.json was modified by this test")

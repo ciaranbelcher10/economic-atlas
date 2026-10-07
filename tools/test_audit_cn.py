@@ -57,6 +57,7 @@ planted("LPR off the 5bp grid", lambda d: d["series"]["policy_rate"]["points"][-
 planted("balance not exports minus imports", lambda d: d["series"]["trade_balance"]["points"][-1].__setitem__(1, 1.0), "mismatched")
 planted("wrong unit", lambda d: d["series"]["exports"].__setitem__("unit", "$m"), "unit")
 planted("internal wording in a label", lambda d: d["series"]["cpi"].__setitem__("label", "CPI (confirmed live)"), "internal wording")
+planted("exports a month ahead of imports", lambda d: d["series"]["imports"].__setitem__("points", d["series"]["imports"]["points"][:-1]), "exports and imports end in the same month")
 planted("FX direction flipped", lambda d: d["fx_to_usd"].__setitem__("rate", 0.14), "fx_to_usd block")
 rc, out = audit(dict(clean, series={k: v for k, v in clean["series"].items() if k != "cpi_mom"}))
 check("cpi_mom may be absent", rc == 0 and "cpi_mom absent by design" in out, out[-300:])

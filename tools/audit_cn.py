@@ -128,6 +128,10 @@ def structure_and_plausibility(d):
     tb, ex, im = (dict(s.get(k, {}).get("points", [])) for k in ("trade_balance", "exports", "imports"))
     bad = [p for p, v in tb.items() if p in ex and p in im and abs(ex[p] - im[p] - v) > 1]
     res("FAIL" if bad else "PASS", "trade balance = exports - imports", f"{len(bad)} mismatched month(s)")
+    exp, imp = s.get("exports", {}).get("points", []), s.get("imports", {}).get("points", [])
+    if exp and imp:
+        res("PASS" if exp[-1][0] == imp[-1][0] else "FAIL", "exports and imports end in the same month",
+            f"exports {exp[-1][0]}, imports {imp[-1][0]}")
     mom = s.get("cpi_mom", {}).get("label", "")
     res("FAIL" if "IMF" in mom else "PASS", "CPI MoM is the published rate, not derived from an index", mom or "absent")
     fx = d.get("fx_to_usd") or {}
@@ -159,6 +163,8 @@ def cross_checks(d):
     def cpi():
         import fetch_ma
         idx = dict(fetch_ma.fetch_imf_cpi_index("CHN") or [])
+        if not idx:
+            raise RuntimeError("IMF CPI index returned no data (source unreachable or empty)")
         diffs = []
         for p, v in s["cpi"]["points"][-24:]:
             y, m = int(p[:4]), p[5:]
