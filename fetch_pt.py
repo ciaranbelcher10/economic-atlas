@@ -16,8 +16,9 @@ Sources, one per site key:
 - unemployment: Eurostat une_rt_m via eurostat_unemp.py; FRED
   LRHUTTTTPTM156S (live to 2026-07) is the fallback.
 - participation_rate / employment_rate: OECD 15-64 quarterly via FRED
-  (LRAC64TTPTQ156S, LREM64TTPTQ156S), as every eurozone page. Not in the
-  probe's search listing: the first real run confirms them.
+  (LRAC64TTPTQ156S, LREM64TTPTQ156S), as every eurozone page, served from
+  2009-Q1 only: both step down together that quarter (a population-baseline
+  break; see SERIES_START).
 - cpi / cpi_mom: HICP all items (CP0000PTM086NEST, Eurostat via FRED), the
   measure every eurozone page uses. INE's national CPI differs (3.3% vs
   HICP 3.6% in the probe's latest months); the page says which it shows.
@@ -70,6 +71,13 @@ FRED_SERIES = {
     "cpi": ("CP0000PTM086NEST", "m", "HICP, all items, YoY", "%", "yoy", 1.0),
     "cpi_mom": ("CP0000PTM086NEST", "m", "HICP, all items, MoM", "%", "mom", 1.0),
 }
+
+# Series served only from a break onwards (v1.7.22). The OECD 15-64 rates drop
+# together in 2009-Q1 (employment 67.7 to 63.8, participation 73.8 to 71.3)
+# and then go flat, while the unemployment rate they imply moves normally
+# (8.2% to 10.6%, as Eurostat's monthly series): a population-baseline break,
+# not a fall in jobs. Earlier quarters are not comparable, so they are dropped.
+SERIES_START = {"participation_rate": "2009-Q1", "employment_rate": "2009-Q1"}
 # trade_balance (XTNTVA01PTM667S) deliberately removed from the primary
 # FRED loop above -- confirmed dead (Aug 2026 data-quality sweep): every
 # unit/adjustment variant of this OECD-mirrored series on FRED shows
@@ -424,6 +432,8 @@ def main() -> int:
                 if scale != 1.0:
                     raw = [[p, v * scale] for p, v in raw]
                 points = transform(raw, tf)
+                if name in SERIES_START:
+                    points = [pt for pt in points if pt[0] >= SERIES_START[name]]
                 if not points:
                     raise ValueError("no observations")
                 fr = {"m": "months", "d": "months", "q": "quarters", "a": "years"}[freq]

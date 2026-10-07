@@ -101,6 +101,9 @@ check({"CP0000PTM086NEST", "IRLTLT01PTM156N", "LRAC64TTPTQ156S", "LREM64TTPTQ156
       f"asks FRED for the Portuguese ids: {fred_ids}")
 check("CPMNACSCAB1GQPT" not in fred_ids and "LRHUTTTTPTM156S" not in fred_ids, "Eurostat GDP/unemployment used, FRED copies not fetched")
 check(all("PTM086" in s[k]["label"] for k in ("cpi", "cpi_mom")), "HICP labels name the Portuguese series")
+check(all(s[k]["points"][0][0] == "2009-Q1" for k in ("participation_rate", "employment_rate")),
+      f"labour rates start at the 2009-Q1 break: {[s[k]['points'][0][0] for k in ('participation_rate', 'employment_rate')]}")
+check(s["unemployment"]["points"][0][0] < "2009-01", "unemployment (Eurostat, no break) keeps its full history")
 check(s["ecb_rate"]["points"][-1] == ["2026-10", 2.5], f"ECB rate current: {s['ecb_rate']['points'][-1]}")
 check(s["gdp_growth"]["freq"] == "quarters" and abs(s["gdp_growth"]["points"][-1][1] - round((90000 + 125 * 300) / (90000 + 124 * 300) * 100 - 100, 2)) < 0.01,
       f"gdp_growth derived q/q from real levels: {s['gdp_growth']['points'][-1]}")
@@ -151,7 +154,7 @@ def audit(x):
         A.structure_and_plausibility(x)
     return [r for r in A.RESULTS if r[0] == "FAIL"]
 base = copy.deepcopy(d)
-base["series"]["participation_rate"]["points"] = [[p, 65.0] for p in Q[16:]]
+base["series"]["participation_rate"]["points"] = [[p, 65.0] for p in Q[16:] if p >= "2009-Q1"]
 check(not audit(base), f"clean file passes the audit: {audit(base)}")
 for name, plant in {
     "policy_rate served": lambda x: x["series"].__setitem__("policy_rate", x["series"]["ecb_rate"]),
@@ -164,6 +167,7 @@ for name, plant in {
     "GDP quarters disagree": lambda x: x["series"]["gdp_real"]["points"].pop(),
     "unnamed CPI jump": lambda x: x["series"]["cpi"]["points"][-1].__setitem__(1, 14.0),
     "wrong unit": lambda x: x["series"]["trade_balance"].update(unit="$m"),
+    "labour rate from before the 2009 break": lambda x: x["series"]["employment_rate"]["points"].insert(0, ["2008-Q4", 67.7]),
 }.items():
     x = copy.deepcopy(base); plant(x)
     check(bool(audit(x)), f"audit catches: {name}")

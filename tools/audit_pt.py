@@ -42,6 +42,8 @@ EXPECT = {
 KNOWN_JUMPS = {
     # Named events, never loosened tolerances. Add Portuguese ones only after
     # checking them against INE or the Banco de Portugal.
+    # (The 2009-Q1 step in employment and participation is a series break,
+    # so fetch_pt.py serves those rates from 2009-Q1 rather than naming it.)
     ("ecb_rate", "2009-01"): "ECB cut the deposit rate 100bp (2.0% to 1.0%), effective 21 Jan 2009",
     ("employment_rate", "2020-Q2"): "COVID-19 lockdown, Q2 2020",
     ("participation_rate", "2020-Q2"): "COVID-19 lockdown, Q2 2020",
@@ -156,6 +158,9 @@ def structure_and_plausibility(d):
              and abs((fx.get("rate") or 0) / recent[-1] - 1) < 0.05)
     res("PASS" if fx_ok else "FAIL", "fx_to_usd block (US$ per euro, multiply, not inverted)",
         f"{fx.get('rate')} as of {fx.get('as_of')}; mean since 2015 {round(sum(recent) / len(recent), 3) if recent else None}")
+    for k in ("participation_rate", "employment_rate"):
+        first = (s.get(k, {}).get("points") or [[None]])[0][0]
+        res("PASS" if first == "2009-Q1" else "FAIL", f"{k} starts at the 2009-Q1 break", f"first {first}")
     gl, gr = s.get("gdp_level", {}).get("points", []), s.get("gdp_real", {}).get("points", [])
     if gl and gr:
         res("PASS" if gl[-1][0] == gr[-1][0] else "FAIL", "nominal and real GDP end in the same quarter",
