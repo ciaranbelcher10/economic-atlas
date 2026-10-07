@@ -30,7 +30,9 @@ taken from the publisher itself wherever it publishes them.
 - exports / imports / trade_balance: OpenDOSM trade_sitc_1d, all sections,
   RM, monthly. Exports FOB, imports CIF, as DOSM reports them. Already in
   ringgit: no currency conversion.
-- policy_rate: BIS central bank policy rates, M.MY, from May 2004 only.
+- policy_rate: BIS central bank policy rates, M.MY, from May 2004 only,
+  extended past BIS's last monthly value with BIS's daily series D.MY
+  (bis_daily.py) when the two agree at the join.
   BIS splices three measures (3-month interbank rate 1995-97, 3-month
   intervention rate 1998 to 25 Apr 2004, overnight policy rate since 26 Apr
   2004); the series is cut at the first full OPR month so one measure is
@@ -58,6 +60,7 @@ from datetime import datetime, timezone
 
 import requests
 
+import bis_daily
 import imf_weo
 import series_guard
 
@@ -288,6 +291,7 @@ def fetch_policy_rate() -> list:
                   for row in csv.DictReader(io.StringIO(r.text))
                   if row.get("OBS_VALUE") not in (None, "", "NaN")])
     pts = [p for p in pts if p[0] >= OPR_START]
+    pts = bis_daily.extend(pts, "MY", "OPR")
     bad = [p for p in pts if not (0 <= p[1] < 20)]
     if bad:
         raise ValueError(f"BIS policy rate: implausible value {bad[0]}")

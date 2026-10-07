@@ -29,7 +29,7 @@ series_guard carries the previous one over.
   quarterly).
 - policy_rate: BIS central bank policy rates, M.NZ, the Reserve Bank's
   official cash rate, from April 1999 only, extended past BIS's last
-  monthly value with BIS's daily series (see BIS_DAILY_URL). BIS joins it to the overnight
+  monthly value with BIS's daily series (bis_daily.py). BIS joins it to the overnight
   cash rate before 17 Mar 1999; the series starts at the first full OCR
   month so one measure is shown throughout (the Malaysia rule).
 - bond_yield_10y: OECD long-term interest rate (DF_FINMARK, IRLT), monthly.
@@ -55,6 +55,7 @@ from datetime import datetime, timezone
 
 import requests
 
+import bis_daily
 import imf_weo
 import oecd_prices
 import oecd_turn
@@ -242,27 +243,9 @@ def fetch_policy_rate() -> list:
 
 
 def extend_with_daily(monthly: list) -> list:
-    """Append months after the last monthly BIS value from the daily series.
-    Any failure leaves the monthly series as it is."""
-    if not monthly:
-        return monthly
-    last = monthly[-1][0]
-    try:
-        r = requests.get(BIS_DAILY_URL.format(start=last + "-01"), timeout=60, headers=dict(UA, Accept="text/csv"))
-        print(f"  [bis] WS_CBPOL D.NZ status={r.status_code}")
-        r.raise_for_status()
-        by_month = {}
-        for row in sorted(csv.DictReader(io.StringIO(r.text)), key=lambda x: x.get("TIME_PERIOD", "")):
-            v, d = row.get("OBS_VALUE"), row.get("TIME_PERIOD") or ""
-            if v not in (None, "", "NaN") and re.fullmatch(r"\d{4}-\d{2}-\d{2}", d):
-                by_month[d[:7]] = float(v)
-        extra = [[m, v] for m, v in sorted(by_month.items()) if m > last]
-        if extra:
-            print(f"  [bis] daily extends the OCR from {last} to {extra[-1][0]} ({extra[-1][1]}%)")
-        return monthly + extra
-    except Exception as exc:
-        print(f"  [bis] daily OCR unavailable ({exc}); monthly series as is")
-        return monthly
+    """Months after the last monthly BIS value, from the daily series
+    (shared rule in bis_daily.py since v1.7.13)."""
+    return bis_daily.extend(monthly, "NZ", "OCR")
 
 
 def fetch_trade_usd() -> dict:

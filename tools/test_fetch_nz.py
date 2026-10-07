@@ -93,7 +93,7 @@ BCI = [dict(MEASURE=m, TIME_PERIOD=p, OBS_VALUE=v) for p in M for m, v in (("BCI
 BIS = "TIME_PERIOD,OBS_VALUE\n" + "\n".join(f"{p},{9.0 if p < '1999-03' else 2.5}" for p in M[:-1])
 _n = _m + 1
 NEXT_M = f"{_n // 12}-{_n % 12 + 1:02d}"     # last month: the daily series reaches it
-BIS_D = "TIME_PERIOD,OBS_VALUE\n" + "\n".join(f"{p}-{d:02d},2.75" for p in (M[-1], NEXT_M) for d in (2, 3, 4))
+BIS_D = "TIME_PERIOD,OBS_VALUE\n" + "\n".join(f"{p}-{d:02d},{2.5 if p == M[-2] else 2.75}" for p in (M[-2], M[-1], NEXT_M) for d in (2, 3, 4))
 # Exports run one month ahead of imports, as the IMF serves them.
 ITG = csv_text([dict(INDICATOR=i, VALUATION=v, UNIT="USD", TIME_PERIOD=p.replace("-", "-M"), OBS_VALUE=x)
                 for p in months("1995-01", END_M) for i, v, x in (("XG", "FOB", 3.0e9), ("MG", "CIF", 3.5e9))

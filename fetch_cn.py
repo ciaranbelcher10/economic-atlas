@@ -27,6 +27,9 @@ Sources, each confirmed by tools/probe_cn.py (Oct 2026) before wiring in:
 - policy_rate: BIS central bank policy rates, China. For China the BIS
   series is the one-year loan prime rate, and it is labelled as that: the
   PBoC's main operating rate since 2024 is the seven-day reverse repo.
+  Extended past BIS's last monthly value with BIS's daily series D.CN
+  (bis_daily.py), only when the daily value matches the monthly one at the
+  join, so a different measure is never spliced on.
 - bond_yield_10y: OECD long-term interest rate (IRLT), monthly.
 - exports / imports: IMF international trade in goods, US dollars, monthly;
   exports valued FOB, imports CIF, as China's customs reports them.
@@ -58,6 +61,7 @@ from datetime import datetime, timezone
 
 import requests
 
+import bis_daily
 import imf_weo
 import oecd_turn
 import series_guard
@@ -195,6 +199,7 @@ def fetch_policy_rate() -> list:
     pts = sorted([[row["TIME_PERIOD"], float(row["OBS_VALUE"])]
                   for row in csv.DictReader(io.StringIO(r.text))
                   if row.get("OBS_VALUE") not in (None, "", "NaN")])
+    pts = bis_daily.extend(pts, "CN", "LPR")
     bad = [p for p in pts if not (0 <= p[1] < 20)]
     if bad:
         raise ValueError(f"BIS policy rate: implausible value {bad[0]}")
