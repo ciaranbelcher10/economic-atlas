@@ -460,6 +460,7 @@ def main() -> int:
         tb_points = fetch_eurostat_trade_balance_world()
         if not tb_points:
             raise ValueError("Eurostat world-partner reconstruction returned nothing")
+        tb_points = [[p, round(v, 1)] for p, v in tb_points]   # EXP-IMP leaves float noise (v1.7.17)
         out["series"]["trade_balance"] = {
             "label": "Trade balance, goods, total (Eurostat, world partner, derived EXP-IMP)",
             "unit": "\u20acm", "freq": "months", "points": tb_points}

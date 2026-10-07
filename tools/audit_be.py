@@ -43,6 +43,7 @@ EXPECT = {
 KNOWN_JUMPS = {
     # Named events, never loosened tolerances. Add Belgian ones (e.g. HICP
     # energy swings in 2022-23) only after checking them against Statbel.
+    ("cpi", "2021-08"): "Statbel: HICP 1.4% to 4.7%, temporary, because the 2020 summer sales moved from July to August",
     ("ecb_rate", "2009-01"): "ECB cut the deposit rate 100bp (2.0% to 1.0%), effective 21 Jan 2009",
     ("employment_rate", "2020-Q2"): "COVID-19 lockdown, Q2 2020",
     ("participation_rate", "2020-Q2"): "COVID-19 lockdown, Q2 2020",
@@ -131,7 +132,7 @@ def structure_and_plausibility(d):
         if step:
             jumps = [(pts[i][0], round(pts[i][1] - pts[i - 1][1], 2)) for i in range(1, len(pts))
                      if abs(pts[i][1] - pts[i - 1][1]) > step and (key, pts[i][0]) not in KNOWN_JUMPS]
-            if jumps: problems.append(f"jump over {step} at {jumps[-1]}")
+            if jumps: problems.append(f"{len(jumps)} unnamed jump(s) over {step}: {jumps}")
         if len(pts) < {"months": 24, "quarters": 12, "years": 10}[freq]:
             problems.append(f"only {len(pts)} points")
         if pts and (datetime.now(timezone.utc) - period_end(pts[-1][0])).days > MAX_AGE[freq]:

@@ -66,7 +66,7 @@ def install():
     F.eurostat_unemp.fetch = lambda geo: {} if "eurostat-unemp" in DOWN else {
         "unemployment": {"label": "Unemployment rate, SA (Eurostat une_rt_m)", "unit": "%", "freq": "months",
                          "points": [[p, 5.9] for p in M]}}
-    F.fetch_eurostat_trade_balance_world = lambda: None if "eurostat-trade" in DOWN else [[p, -250.0] for p in M[-120:]]
+    F.fetch_eurostat_trade_balance_world = lambda: None if "eurostat-trade" in DOWN else [[p, 6479.300000000003] for p in M[-120:]]
     F.fetch_oecd_bci = lambda: [[p, 99.2] for p in M]
     F.fetch_eurostat_govfinance = lambda item: [[str(y), 103.9 if item == "GD" else -4.4] for y in range(2000, 2026)]
     F.series_guard.apply_guard = lambda *a, **k: None
@@ -104,6 +104,7 @@ check(all("BEM086" in s[k]["label"] for k in ("cpi", "cpi_mom")), "HICP labels n
 check(s["ecb_rate"]["points"][-1] == ["2026-10", 2.5], f"ECB rate current: {s['ecb_rate']['points'][-1]}")
 check(s["gdp_growth"]["freq"] == "quarters" and abs(s["gdp_growth"]["points"][-1][1] - round((90000 + 125 * 300) / (90000 + 124 * 300) * 100 - 100, 2)) < 0.01,
       f"gdp_growth derived q/q from real levels: {s['gdp_growth']['points'][-1]}")
+check(s["trade_balance"]["points"][-1][1] == 6479.3, "trade balance rounded to 1dp (no float noise)")
 check("Eurostat" in s["trade_balance"]["label"] and s["trade_balance"]["unit"] == "\u20acm", "trade from Eurostat, in euro")
 fx = d["fx_to_usd"]
 check(fx["pair"] == "EUR/USD" and fx["direction"] == "multiply" and fx["rate"] == 1.1259, f"fx block: {fx['pair']} {fx['rate']}")
@@ -161,7 +162,7 @@ for name, plant in {
     "FX latest out of line with history": lambda x: x["fx_to_usd"].update(rate=0.888),
     "Austrian label": lambda x: x["series"]["cpi"].update(label="HICP, all items, YoY (Austria)"),
     "GDP quarters disagree": lambda x: x["series"]["gdp_real"]["points"].pop(),
-    "unnamed CPI jump": lambda x: x["series"]["cpi"]["points"][-1].__setitem__(1, 20.0),
+    "unnamed CPI jump": lambda x: x["series"]["cpi"]["points"][-1].__setitem__(1, 14.0),
     "wrong unit": lambda x: x["series"]["trade_balance"].update(unit="$m"),
 }.items():
     x = copy.deepcopy(base); plant(x)
