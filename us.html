@@ -2161,8 +2161,12 @@ function statTile(el, key, title, series, opts){
   if(el && el.id === "hero" && el.querySelectorAll(":scope > .stat").length >= 10) return;
   const pts=series.points, last=pts[pts.length-1], prev=pts[pts.length-2];
   const d=+(last[1]-prev[1]).toFixed(opts.dDp!=null?opts.dDp:2);
-  const dir=d===0?"flat":((d>0)===opts.upIsGood?"good":"bad");
-  const arrow=d===0?"▬":(d>0?"▲":"▼");
+  // A change that rounds to zero at display precision is shown as flat,
+  // not as a green or red move (v1.7.13).
+  const _flat=d===0||!/[1-9]/.test(String(opts.fmtD(Math.abs(d))).replace(/<[^>]*>/g,""));
+  const dShow=_flat?0:d;
+  const dir=_flat?"flat":((d>0)===opts.upIsGood?"good":"bad");
+  const arrow=_flat?"▬":(d>0?"▲":"▼");
   const led=freshness(series);
   const _lastP=series.points[series.points.length-1][0];
   const _ageDays=(Date.now()-periodEnd(_lastP).getTime())/86400000;
@@ -2208,7 +2212,7 @@ function statTile(el, key, title, series, opts){
       <p class="figure"><span class="led ${led}" title="${ledTitle}" role="img"
         aria-label="${ledTitle}"></span>${opts.fmt(last[1])}</p>
       <p class="delta ${dir}"><span class="arrow" aria-hidden="true">${arrow}</span>
-        ${d>0&&!opts.signed?"+":""}${opts.fmtD(d)} ${opts.vsText||"vs prior"}</p>
+        ${dShow>0&&!opts.signed?"+":""}${opts.fmtD(dShow)} ${opts.vsText||"vs prior"}</p>
       <p class="period">${fmtPeriod(last[0])}</p>
       <p class="source">${opts.source}</p>`;
   el.appendChild(div);
@@ -2587,8 +2591,9 @@ function renderFxMarkets(tm){
   FX_DATA.pairs.forEach(p=>{
     if(!p || !Array.isArray(p.points) || p.points.length<2) return;
     const q=p.quote_symbol, b=p.base_unit;
+    const axDp=fxDp(Math.max(...p.points.map(x=>Math.abs(x[1]))));  // one precision per axis (v1.7.13)
     chartPanel(p.key,"charts-markets",p.title,p.description,
-      {points:p.points,unit:"",freq:p.freq},"line",v=>q+fxNum(v),v=>q+fxNum(v)+" per "+b,p.source);
+      {points:p.points,unit:"",freq:p.freq},"line",v=>q+(v===0?"0":(axDp===0?Math.round(v).toLocaleString("en-GB"):v.toFixed(axDp))),v=>q+fxNum(v)+" per "+b,p.source);
     const daily=Array.isArray(p.daily) && p.daily.length>=2;
     const ts=daily ? {points:p.daily,freq:"days",confirmed_at:p.confirmed_at}
                    : {points:p.points,freq:p.freq,confirmed_at:p.confirmed_at};
@@ -2632,7 +2637,7 @@ function render(data){
     "Money invested into US businesses from abroad each year, as a share of GDP.",
     s.fdi,"line",v=>v+"%",pct,"World Bank · FDI net inflows, % of GDP, annual (IMF balance-of-payments data)");
   if(s.gdp_level) chartPanel("gdp_level","charts-gdp","GDP",
-    "The total value of everything the US economy produces in a year, at current prices.",
+    (TOGGLE_STATE.real&&PAGE_DATA.series.gdp_real?"The total value of everything the US economy produces in a year, in real terms (adjusted for inflation).":"The total value of everything the US economy produces in a year, at current prices."),
     s.gdp_level,"line",v=>curFmt(v,s.gdp_level.unit,0),v=>curFmt(v,s.gdp_level.unit,2),
     "FRED series GDP · nominal, seasonally adjusted annual rate (BEA)",1990);
   if(s.gdp_growth) chartPanel("gdp_growth","charts-gdp","Real GDP growth, quarter on quarter (annualised)",
@@ -2707,7 +2712,7 @@ function render(data){
   /* tiles */
   const hero=document.getElementById("hero");
   if(s.gdp_level) statTile(hero,"gdp_level","GDP (annual rate)",s.gdp_level,
-    {fmt:v=>curFmt(v,s.gdp_level.unit,2),fmtD:v=>curFmt(v,s.gdp_level.unit,0),upIsGood:true,source:"FRED · GDP (BEA), nominal SAAR"});
+    {fmt:v=>curFmt(v,s.gdp_level.unit,1),fmtD:v=>curFmt(v,s.gdp_level.unit,0),upIsGood:true,source:"FRED · GDP (BEA), nominal SAAR"});
   if(s.gdp_growth) statTile(hero,"gdp_growth","GDP growth (QoQ, ann.)",s.gdp_growth,
     {fmt:pct,fmtD:pp,upIsGood:true,source:"FRED · A191RL1Q225SBEA (BEA)"});
   if(s.cpi) statTile(hero,"cpi","CPI inflation",s.cpi,
@@ -2728,7 +2733,7 @@ function render(data){
     {fmt:v=>curFmt(v,s.trade_balance.unit,1),fmtD:v=>curFmt(v,s.trade_balance.unit,1),upIsGood:true,source:"FRED · BOPGSTB (BEA/Census), SA"});
   const tg=document.getElementById("tiles-gdp");
   if(s.gdp_level) statTile(tg,"gdp_level","GDP (annual rate)",s.gdp_level,
-    {fmt:v=>curFmt(v,s.gdp_level.unit,2),fmtD:v=>curFmt(v,s.gdp_level.unit,0),upIsGood:true,source:"FRED · GDP"});
+    {fmt:v=>curFmt(v,s.gdp_level.unit,1),fmtD:v=>curFmt(v,s.gdp_level.unit,0),upIsGood:true,source:"FRED · GDP"});
   if(s.gdp_growth) statTile(tg,"gdp_growth","Growth (QoQ, ann.)",s.gdp_growth,
     {fmt:pct,fmtD:pp,upIsGood:true,source:"FRED · A191RL1Q225SBEA"});
   if(gdpYoY) statTile(tg,null,"Growth (YoY)",gdpYoY,
