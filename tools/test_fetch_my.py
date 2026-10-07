@@ -12,6 +12,13 @@ import copy, io, json, os, sys, tempfile
 from contextlib import redirect_stdout
 from pathlib import Path
 
+# Tripwire (v1.7.15): the test must never touch the live data file.
+import hashlib as _hl
+_LIVE = os.path.join(os.path.dirname(os.path.abspath(__file__)), "..", "data-my.json")
+def _live_hash():
+    return _hl.sha256(open(_LIVE, "rb").read()).hexdigest() if os.path.exists(_LIVE) else None
+_LIVE_H0 = _live_hash()
+
 ROOT = Path(__file__).resolve().parent.parent
 sys.path.insert(0, str(ROOT))
 sys.path.insert(0, str(ROOT / "tools"))
@@ -252,5 +259,6 @@ for name, fault in planted.items():
     rc, fails = audit(bad)
     check(rc == 1 and fails, f"audit catches planted fault: {name}")
 
+check(_live_hash() == _LIVE_H0, "live data-my.json untouched by this test")
 print(f"{N[0]} checks, {len(FAILS)} failures")
 sys.exit(1 if FAILS else 0)

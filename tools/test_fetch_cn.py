@@ -7,6 +7,13 @@ written data-cn.json is checked series by series.
 import csv, io, json, os, shutil, sys, tempfile
 from datetime import date
 
+# Tripwire (v1.7.15): the test must never touch the live data file.
+import hashlib as _hl
+_LIVE = os.path.join(os.path.dirname(os.path.abspath(__file__)), "..", "data-cn.json")
+def _live_hash():
+    return _hl.sha256(open(_LIVE, "rb").read()).hexdigest() if os.path.exists(_LIVE) else None
+_LIVE_H0 = _live_hash()
+
 ROOT = os.path.dirname(os.path.dirname(os.path.abspath(__file__)))
 sys.path.insert(0, ROOT)
 os.environ["OECD_TURN_GROUP"] = "ALL"
@@ -166,5 +173,7 @@ check("off-turn keeps OECD series", all(d6["series"][k] == s[k] for k in ("gdp_l
 check("off-turn still fetches BIS and World Bank", d6["series"]["policy_rate"] == s["policy_rate"] and "unemployment" in d6["series"])
 check("fetch_cn.py is in turn group C", oecd_turn.GROUPS.get("fetch_cn.py") == "C")
 
+if _live_hash() != _LIVE_H0:
+    bad += 1; print("FAIL live data-cn.json was modified by this test")
 print(f"{ok} ok, {bad} failed")
 sys.exit(1 if bad else 0)
