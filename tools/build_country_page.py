@@ -50,6 +50,9 @@ CATALOG = {
     "unemployment": ("labour", "Unemployment rate", "line", "pct", False, None, ["hero", "labour"], "Unemployment"),
     "employment": ("labour", "Employment rate", "line", "pct", True, None, ["labour"], "Employment rate"),
     "participation": ("labour", "Participation rate", "line", "pct", True, None, ["labour"], "Participation rate"),
+    # Eurozone data files name the OECD 15-64 rates this way (v1.7.18, Belgium).
+    "employment_rate": ("labour", "Employment rate, ages 15-64", "line", "pct", True, None, ["labour"], "Employment rate"),
+    "participation_rate": ("labour", "Participation rate, ages 15-64", "line", "pct", True, None, ["labour"], "Participation rate"),
     "trade_balance": ("trade", "Trade balance, goods", "bar", "cur1", True, 0, ["trade"], "Trade balance"),
     "exports": ("trade", "Exports, goods", "line", "cur1", True, None, ["trade"], "Exports"),
     "imports": ("trade", "Imports, goods", "line", "cur1", False, None, ["trade"], "Imports"),
@@ -60,7 +63,7 @@ CATALOG = {
 HERO_ORDER = ["gdp_level", "gdp_growth_yoy", "cpi", "POLICY", "bond_yield_10y", "unemployment",
               "deficit", "debt_gdp", "business_confidence", "fdi"]
 SECTION_ORDER = ["gdp_level", "gdp_growth", "gdp_growth_yoy", "cpi", "cpi_mom", "cpi_qoq", "POLICY", "bond_yield_10y",
-                 "unemployment", "employment", "participation", "trade_balance", "exports", "imports",
+                 "unemployment", "employment", "participation", "employment_rate", "participation_rate", "trade_balance", "exports", "imports",
                  "current_account", "debt_gdp", "deficit", "business_confidence", "fdi"]
 FMT = {"pct": ("pct", "pp"), "pct2": ('v=>v.toFixed(2)+"%"', 'v=>v.toFixed(2)+"pp"'), "idx": ("idx", 'v=>v.toFixed(1)+"pt"'),
        "cur1": ("v=>curFmt(v,UNIT,1)", "v=>curFmt(v,UNIT,1)"), "cur2": ("v=>curFmt(v,UNIT,2)", "v=>curFmt(v,UNIT,1)")}
@@ -114,7 +117,10 @@ def main():
 
     def sub_re(p, r, n=1, flags=re.S):
         nonlocal s
-        new, c = re.subn(p, r, s, flags=flags)
+        # A plain-string replacement is literal text: the sample data of a euro
+        # page carries "\\u20ac", which re would read as an escape (v1.7.18).
+        rep = r if callable(r) else (lambda _m, _r=r: _r)
+        new, c = re.subn(p, rep, s, flags=flags)
         if c != n:
             die(f"template pattern matched {c}x (expected {n}): {p[:70]!r}")
         s = new
@@ -196,14 +202,18 @@ def main():
     # ---------- footer ----------
     provs = []
     blob = " ".join(v.get("source", "") for v in SRC.values())
-    for word, html in (("OECD", 'the <a href="https://www.oecd.org">OECD</a>'), ("IMF", 'the <a href="https://www.imf.org">IMF</a>'),
+    for word, html in (("Eurostat", '<a href="https://ec.europa.eu/eurostat">Eurostat</a>'),
+                       ("OECD", 'the <a href="https://www.oecd.org">OECD</a>'), ("IMF", 'the <a href="https://www.imf.org">IMF</a>'),
                        ("BIS", 'the <a href="https://www.bis.org">Bank for International Settlements</a>'),
                        ("World Bank", 'the <a href="https://data.worldbank.org">World Bank</a>')):
         if word in blob:
             provs.append(html)
     for nat in spec.get("national_sources", []):
         provs.append(f'<a href="{nat["url"]}">{nat["name"]}</a>')
-    provs.append('<a href="https://fred.stlouisfed.org">FRED, Federal Reserve Bank of St. Louis</a> (exchange rates)')
+    # FRED is credited for exchange rates only, unless it also serves data series (eurozone pages).
+    fred_more = any("FRED" in v.get("source", "") for k, v in SRC.items() if not k.startswith("fx_") and k in served)
+    provs.append('<a href="https://fred.stlouisfed.org">FRED, Federal Reserve Bank of St. Louis</a>'
+                 + ("" if fred_more else " (exchange rates)"))
     credits = ", ".join(provs[:-1]) + " and " + provs[-1] if len(provs) > 1 else provs[0]
     sub_re(r" Data: the <a href=\"https://www.oecd.org\">OECD</a>.*?\(exchange rates\)\.",
            " Data: " + credits + ".")
@@ -214,7 +224,8 @@ def main():
              "cpi": "CPI inflation", "cpi_mom": "CPI (m/m)", "cpi_qoq": "CPI (q/q)", "bond_yield_10y": "10-year bond yield",
              "debt_gdp": "Government debt", "deficit": "Gov. deficit", "current_account": "Current account",
              "trade_balance": "Trade balance", "exports": "Exports", "imports": "Imports", "business_confidence": "Business confidence",
-             "fdi": "FDI", "unemployment": "Unemployment", "employment": "Employment rate", "participation": "Participation rate"}
+             "fdi": "FDI", "unemployment": "Unemployment", "employment": "Employment rate", "participation": "Participation rate",
+             "employment_rate": "Employment rate", "participation_rate": "Participation rate"}
     if pk:
         names[pk] = spec.get("policy_rate_name", rate_word[:1].upper() + rate_word[1:])
     sub_re(r"const NAMES=\{.*?\};", "const NAMES={" + ",".join(f"{k}:{js(v)}" for k, v in names.items() if k in served) + "};")
@@ -228,7 +239,8 @@ def main():
         sub('policy_rate:"interest-rate"', f'{pk}:"interest-rate"')
     # The template only lists slugs for the series China serves; add the
     # generator's slugs for the rest of the catalogue (tile_pages_gate checks).
-    extra_slugs = {"employment": "employment-rate", "participation": "labour-force-participation-rate"}
+    extra_slugs = {"employment": "employment-rate", "participation": "labour-force-participation-rate",
+                   "employment_rate": "employment-rate", "participation_rate": "labour-force-participation-rate"}
     m = re.search(r"const INDICATOR_PAGE_SLUGS = \{(.*?)\};", s)
     add = ", ".join(f'{k}:"{v}"' for k, v in extra_slugs.items() if k in served and not re.search(r"(?<![a-z_])" + k + ":", m.group(1)))
     if add:

@@ -354,7 +354,7 @@ footer.cmp-foot{margin-top:36px; font-size:12.5px; color:var(--ink2); border-top
   "@context": "https://schema.org",
   "@type": "Dataset",
   "name": "Country economic rankings and comparisons",
-  "description": "Rankings and side-by-side comparisons of GDP, inflation (CPI), unemployment, government debt, trade balance and central bank policy rates across 35 countries, sourced directly from national statistics offices and central banks and updated automatically.",
+  "description": "Rankings and side-by-side comparisons of GDP, inflation (CPI), unemployment, government debt, trade balance and central bank policy rates across 36 countries, sourced directly from national statistics offices and central banks and updated automatically.",
   "url": "https://theeconomicatlas.com/compare",
   "keywords": ["GDP by country", "GDP ranking", "inflation by country", "inflation ranking", "unemployment by country", "unemployment ranking", "countries by debt", "interest rates by country", "compare countries economy"],
   "creator": {"@type": "Organization", "name": "The Economic Atlas", "url": "https://theeconomicatlas.com"},
@@ -393,6 +393,7 @@ footer.cmp-foot{margin-top:36px; font-size:12.5px; color:var(--ink2); border-top
  <div class="dcol">
  <p class="dhead">Europe</p>
  <a href="austria">Austria</a>
+ <a href="belgium">Belgium</a>
  <a href="eurozone">Eurozone</a>
  <a href="france">France</a>
  <a href="germany">Germany</a>
@@ -1717,7 +1718,7 @@ var FILES = {
   Israel: "data-il.json", Mexico: "data-mx.json", Brazil: "data-br.json", "South Africa": "data-za.json",
   Morocco: "data-ma.json", Germany: "data-de.json", France: "data-fr.json", Italy: "data-it.json",
   Spain: "data-es.json", Netherlands: "data-nl.json", Denmark: "data-dk.json", Ireland: "data-ie.json",
-  Norway: "data-no.json", Chile: "data-cl.json", Colombia: "data-co.json", Turkey: "data-tr.json", Indonesia: "data-id.json", Poland: "data-pl.json", Switzerland: "data-ch.json", Argentina: "data-ar.json", Sweden: "data-se.json", Singapore: "data-sg.json", Austria: "data-at.json", Thailand: "data-th.json", China: "data-cn.json", Malaysia: "data-my.json", "New Zealand": "data-nz.json"
+  Norway: "data-no.json", Chile: "data-cl.json", Colombia: "data-co.json", Turkey: "data-tr.json", Indonesia: "data-id.json", Poland: "data-pl.json", Switzerland: "data-ch.json", Argentina: "data-ar.json", Sweden: "data-se.json", Singapore: "data-sg.json", Austria: "data-at.json", Thailand: "data-th.json", China: "data-cn.json", Malaysia: "data-my.json", "New Zealand": "data-nz.json", Belgium: "data-be.json"
 };
 var ALL_COUNTRIES = Object.keys(FILES);
 function getMaxSelected(){
@@ -1728,7 +1729,7 @@ var COUNTRY_LABEL = {UK:"United Kingdom", US:"United States", Eurozone:"Eurozone
   India:"India", Canada:"Canada", Australia:"Australia", "South Korea":"South Korea", Israel:"Israel",
   Mexico:"Mexico", Brazil:"Brazil", "South Africa":"South Africa", Morocco:"Morocco", Germany:"Germany",
   France:"France", Italy:"Italy", Spain:"Spain", Netherlands:"Netherlands", Denmark:"Denmark", Ireland:"Ireland",
-  Norway:"Norway", Chile:"Chile", Colombia:"Colombia", Turkey:"Turkey", Indonesia:"Indonesia", Poland:"Poland", Switzerland:"Switzerland", Argentina:"Argentina", Sweden:"Sweden", Singapore:"Singapore", Austria:"Austria", Thailand:"Thailand", China:"China", Malaysia:"Malaysia", "New Zealand":"New Zealand"};
+  Norway:"Norway", Chile:"Chile", Colombia:"Colombia", Turkey:"Turkey", Indonesia:"Indonesia", Poland:"Poland", Switzerland:"Switzerland", Argentina:"Argentina", Sweden:"Sweden", Singapore:"Singapore", Austria:"Austria", Thailand:"Thailand", China:"China", Malaysia:"Malaysia", "New Zealand":"New Zealand", Belgium:"Belgium"};
 // Second pass on this palette: the first version was mathematically
 // distinct but read as too muted/drab compared to the site's original
 // character (avg saturation ~0.42 vs the original hand-picked set's
@@ -1742,7 +1743,7 @@ var COUNTRY_LABEL = {UK:"United Kingdom", US:"United States", Eurozone:"Eurozone
 // evenly-hue-spread subset of that full 48 (see COMPARE_PALETTE below
 // for the complete set); minimum pairwise distance across these 32 is
 // 62.7 -- Chile and Switzerland were previously only 16.8 apart.
-var COUNTRY_COLOR = {UK:"#1E4566", US:"#AD1E1E", Eurozone:"#D47353", Japan:"#AD5132", India:"#BB8A4D", Canada:"#AD7B1E", Australia:"#ADA61E", "South Korea":"#D4D453", Israel:"#A5BB4D", Mexico:"#82AD32", Brazil:"#7AD453", "South Africa":"#49AD1E", Morocco:"#1E8F1E", Germany:"#1EAD42", France:"#53D493", Italy:"#1E8F67", Spain:"#1EAD7B", Netherlands:"#32A7AD", Denmark:"#376A80", Ireland:"#1E7BAD", Norway:"#4D74BB", Chile:"#535AD4", Colombia:"#2D2672", Turkey:"#2C1EAD", Indonesia:"#6A32AD", Poland:"#CD53D4", Switzerland:"#891E8F", Argentina:"#AD32AD", Sweden:"#D453A7", Singapore:"#AD1E5E", Austria:"#722648", Thailand:"#D45366", China:"#447226", Malaysia:"#726326", "New Zealand":"#1E49AD"};
+var COUNTRY_COLOR = {UK:"#1E4566", US:"#AD1E1E", Eurozone:"#D47353", Japan:"#AD5132", India:"#BB8A4D", Canada:"#AD7B1E", Australia:"#ADA61E", "South Korea":"#D4D453", Israel:"#A5BB4D", Mexico:"#82AD32", Brazil:"#7AD453", "South Africa":"#49AD1E", Morocco:"#1E8F1E", Germany:"#1EAD42", France:"#53D493", Italy:"#1E8F67", Spain:"#1EAD7B", Netherlands:"#32A7AD", Denmark:"#376A80", Ireland:"#1E7BAD", Norway:"#4D74BB", Chile:"#535AD4", Colombia:"#2D2672", Turkey:"#2C1EAD", Indonesia:"#6A32AD", Poland:"#CD53D4", Switzerland:"#891E8F", Argentina:"#AD32AD", Sweden:"#D453A7", Singapore:"#AD1E5E", Austria:"#722648", Thailand:"#D45366", China:"#447226", Malaysia:"#726326", "New Zealand":"#1E49AD", Belgium:"#80376E"};
 // A separate palette from mako, built for a different job: mako is a
 // sequential gradient (one hue path, dark to light) meant to encode
 // magnitude, so several of its stops sit close together in perceived
@@ -1779,7 +1780,7 @@ function setCountryColorOverride(c, hex){
 var ISO_OF = {UK:"826", US:"840", Eurozone:null, Japan:"392", India:"356", Canada:"124", Australia:"036",
   "South Korea":"410", Israel:"376", Mexico:"484", Brazil:"076", "South Africa":"710", Morocco:"504",
   Germany:"276", France:"250", Italy:"380", Spain:"724", Netherlands:"528", Denmark:"208", Ireland:"372",
-  Norway:"578", Chile:"152", Colombia:"170", Turkey:"792", Indonesia:"360", Poland:"616", Switzerland:"756", Argentina:"032", Sweden:"752", Singapore:"702", Austria:"040", Thailand:"764", China:"156", Malaysia:"458", "New Zealand":"554"};
+  Norway:"578", Chile:"152", Colombia:"170", Turkey:"792", Indonesia:"360", Poland:"616", Switzerland:"756", Argentina:"032", Sweden:"752", Singapore:"702", Austria:"040", Thailand:"764", China:"156", Malaysia:"458", "New Zealand":"554", Belgium:"056"};
 // Regions for the "Geographic" x-axis ordering option. Eurozone is its
 // own aggregate rather than a single place, so it's grouped with
 // "Europe" (where its constituent members also live) rather than given
@@ -1793,7 +1794,7 @@ var REGION_OF = {
   Japan:"Asia", India:"Asia", "South Korea":"Asia", Indonesia:"Asia", Singapore:"Asia", Thailand:"Asia", China:"Asia",
   Australia:"Oceania",
   Israel:"Middle East",
-  "South Africa":"Africa", Morocco:"Africa", Malaysia:"Asia", "New Zealand":"Oceania"
+  "South Africa":"Africa", Morocco:"Africa", Malaysia:"Asia", "New Zealand":"Oceania", Belgium:"Europe"
 };
 var REGION_ORDER = ["Europe", "North America", "South America", "Africa", "Middle East", "Asia", "Oceania"];
 // Canonical cross-country concepts. Almost all map 1:1 onto a series key
@@ -1885,7 +1886,7 @@ var CONCEPT_EXPLAINER = {
   policy_rate: "The central bank's key interest rate, the anchor for borrowing costs across the economy."
 };
 var REGION_GROUPS = [
-  {name: "Europe", countries: ["UK", "Eurozone", "Germany", "France", "Italy", "Spain", "Netherlands", "Ireland", "Poland", "Switzerland", "Austria", "Sweden", "Turkey"]},
+  {name: "Europe", countries: ["UK", "Eurozone", "Germany", "France", "Italy", "Spain", "Netherlands", "Ireland", "Poland", "Switzerland", "Austria", "Sweden", "Turkey", "Belgium"]},
   {name: "Scandinavia", countries: ["Denmark", "Norway"]},
   {name: "North America", countries: ["US", "Canada", "Mexico"]},
   {name: "Asia", countries: ["China", "Japan", "India", "South Korea", "Indonesia", "Singapore", "Thailand", "Malaysia"]},
@@ -2501,6 +2502,23 @@ var SOURCE_MAP = {
     trade_balance: "IMF international trade in goods (ITG) · exports (free on board) less imports (cost, insurance and freight), monthly, converted from US dollars to NZ$ at each month's rate.",
     unemployment: "OECD infra-annual labour statistics (DF_IALFS_UNE_M) · Stats NZ's Household Labour Force Survey, unemployment rate, 15 and over, seasonally adjusted, quarterly.",
   },
+  "Belgium": {
+    bond_yield_10y: "FRED series IRLTLT01BEM156N · OECD, monthly.",
+    business_confidence: "OECD · Business Confidence Indicator (BCICP), amplitude-adjusted, long-term average = 100.",
+    cpi: "FRED series CP0000BEM086NEST · HICP, all items, year on year.",
+    cpi_mom: "Derived from FRED series CP0000BEM086NEST (Eurostat) · HICP, all items, change on the previous month.",
+    debt_gdp: "Eurostat gov_10dd_edpt1 · EDP notification table, general government, % of GDP, annual.",
+    deficit: "Eurostat gov_10dd_edpt1 · EDP notification table, general government, % of GDP, annual.",
+    ecb_rate: "FRED series ECBDFR · end-of-month value.",
+    employment_rate: "FRED series LREM64TTBEQ156S · OECD, ages 15-64, seasonally adjusted, quarterly.",
+    fx_gbp: "Derived from Federal Reserve H.10 series DEXUSEU and DEXUSUK (FRED) on each trading day, end of month; £ per €1 = (US$ per €1) ÷ (US$ per £1).",
+    gdp_growth: "Derived from Eurostat namq_10_gdp (CLV20_MEUR) · real GDP, seasonally and calendar adjusted, quarter-on-quarter.",
+    gdp_level: "Eurostat namq_10_gdp (CP_MEUR) · current prices, seasonally and calendar adjusted, quarterly, shown as a rolling four-quarter sum.",
+    gdp_real: "Eurostat namq_10_gdp (CLV20_MEUR) · chain-linked volumes, 2020 reference year, seasonally and calendar adjusted, quarterly, shown as a rolling four-quarter sum.",
+    participation_rate: "FRED series LRAC64TTBEQ156S · OECD, ages 15-64, seasonally adjusted, quarterly.",
+    trade_balance: "Eurostat · goods trade, total, monthly, not seasonally adjusted (the plain trade value, not Eurostat's seasonally and calendar adjusted variant).",
+    unemployment: "Eurostat une_rt_m · unemployment rate, ILO definition, ages 15 to 74, seasonally adjusted, monthly.",
+  },
 };
 var POLICY_RATE_KEYS = ["boe_rate", "fed_funds", "ecb_rate", "boj_rate", "overnight_rate", "policy_rate", "rate"];
 // Currency change against the US dollar, derived in the browser from the
@@ -2703,7 +2721,7 @@ function fetchWithTimeout(url, ms){
 // Real per-country, per-metric source citations (agency + series code),
 // extracted from each country page's own INFO_CONTENT. Used by each
 // card's info popover so "GDP level" doesn't just show one generic
-// sentence for all 35 countries -- it shows the actual agency and
+// sentence for all 36 countries -- it shows the actual agency and
 // series each selected country's figure comes from. A missing entry
 // (metric not tracked for that country, or added after extraction)
 // falls back gracefully in metricSourceNote() -- never fabricated.
@@ -6169,7 +6187,7 @@ window.EATLAS_COMPARE = {
   // colour-editing experience, not a second implementation. The
   // relevant country list differs by mode: snapshot shows whichever
   // countries currently have a bar, timeseries shows whichever have a
-  // line -- not the full 35-country roster, since only countries
+  // line -- not the full 36-country roster, since only countries
   // actually in THIS chart are relevant to edit here.
   //
   // Each swatch is paired with the country's own name directly next to

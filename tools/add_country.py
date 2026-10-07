@@ -286,10 +286,12 @@ def step_markets(s):
     a, b = obj_span(new, "C")
     if not re.search(r"[{,]\s*" + s["code"] + r"\s*:", new[a:b]):
         new = new[:b - 1] + f',{s["code"]}:["{s["name"]}","{s["slug"]}"]' + new[b - 1:]
-    if pk:
+    # A euro member shows the ECB's rate, which Markets already lists once
+    # under the Eurozone: no per-member POLICY_KEY row (as Austria, v1.7.18).
+    if pk and not s.get("euro_member"):
         new = add_entry(new, "POLICY_KEY", s["code"], json.dumps(pk))
     wr(rel, t, new, "C/POLICY_KEY (markets.html: review by eye, it is edited by hand by convention)")
-    if pk:
+    if pk and not s.get("euro_member"):
         rel = "tools/test_markets.js"
         t = rd(rel)
         new = t
@@ -339,6 +341,15 @@ def step_fx(s):
         new = py_dict_add(new, "SYMBOL", f" {q(cur)}: {q(s['glyph'])}", q(cur) + ":")
     if fx.get("scale", 1) != 1:
         new = py_dict_add(new, "SCALE", f" {q(cur)}: {int(fx['scale'])}", q(cur) + ":")
+    if s.get("euro_member"):
+        if s["currency"] != "EUR":
+            die("euro_member needs currency EUR")
+        new = re.sub(r'(EURO_MEMBERS = \{[^}]*)\}', lambda m: m.group(0) if q(s["name"]) in m.group(1) else m.group(1) + ", " + q(s["name"]) + "}", new, count=1)
+        if not new.count(q(s["name"])):
+            die("could not add to fx_config.EURO_MEMBERS")
+        g = rd("generate_indicator_pages.py")
+        g2 = re.sub(r'(FX_EURO_MEMBERS = \{[^}]*)\}', lambda m: m.group(1) + "}" if q(s["name"]) in m.group(1) else m.group(1) + ", " + q(s["name"]) + "}", g, count=1)
+        wr("generate_indicator_pages.py", g, g2, "FX_EURO_MEMBERS")
     pairs = q(fx.get("pairs", ["USD"]))
     new = py_dict_add(new, "COUNTRY_FX", f'\n    {q(s["name"])}: ({q(cur)}, {q(s["code"])}, {pairs}),\n', q(s["name"]) + ":")
     wr(rel, t, new, "H10 or ANNUAL / NAME / SYMBOL / SCALE / COUNTRY_FX")
