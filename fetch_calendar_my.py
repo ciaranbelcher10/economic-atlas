@@ -52,7 +52,7 @@ DOSM_TITLES = {
     "Producer Price Index": ("ppi", "Producer Price Index"),
 }
 MONTH_LABEL_RE = re.compile(r">(" + "|".join(MONTHS) + r") (20\d\d)<")
-TOKEN_RE = re.compile(r'<span class="([^"]*)">(\d{1,2}) </span>|<p class="h-6 w-full truncate[^"]*">([^<]+)</p>')
+TOKEN_RE = re.compile(r'<span class="([^"]*)">\s*(\d{1,2})\s*</span>|<p class="h-6 w-full truncate[^"]*">([^<]+)</p>')
 
 
 def text(s: str) -> str:
@@ -82,6 +82,11 @@ def parse_bnm(page: str) -> tuple[list[date], list[str]]:
 def parse_dosm(page: str) -> tuple[list[dict], list[str]]:
     """Releases in OpenDOSM's month grid. Dim day numbers belong to the
     neighbouring months: before the 1st, the previous month; after, the next."""
+    # Normalise the way React serves the page: <!-- --> markers inside text
+    # nodes and runs of whitespace (the v1.7.30 fixture had both removed, so
+    # the live page did not match; fixed v1.7.31).
+    page = re.sub(r"<!--.*?-->", "", page, flags=re.S)
+    page = re.sub(r"\s+", " ", page)
     m = MONTH_LABEL_RE.search(html.unescape(page))
     if not m:
         return [], ["no month label (e.g. 'October 2026') found"]

@@ -54,6 +54,11 @@ got = [(e["date"], e["concept"]) for e in ev]
 check(pr == [] and ("2026-10-19", "cpi") in got and ("2026-10-16", "gdp") in got and ("2026-10-09", "jobs") in got, f"OpenDOSM October releases: {got}")
 check(("2026-09-28", "trade") in got and not any(x[0] == "2026-10-28" and x[1] == "trade" and "Aug" in e["name"] for x, e in zip(got, ev)), "dim cells before the 1st belong to September")
 check(not any("Indices" in e["name"] or "Rubber" in e["name"] for e in ev), "unrelated releases (trade indices, rubber) excluded")
+import re as _re
+REACT = _re.sub(r'">(\d{1,2}) </span>', lambda m: '">' + m.group(1) + '<!-- -->\n   </span>', DOSM).replace("</p>", "<!-- --></p>").replace("> <", ">\n  <")
+check(REACT != DOSM and "<!-- -->" in REACT, "React-shaped fixture built (comment markers and newlines put back)")
+ev2, pr2 = M.parse_dosm(REACT)
+check(pr2 == [] and [(e["date"], e["concept"], e["name"]) for e in ev2] == [(e["date"], e["concept"], e["name"]) for e in ev], f"live-shaped markup (React comments, newlines) parses identically: {pr2}")
 _, pr = M.parse_dosm(DOSM.replace("October 2026", "Octobre 2026"))
 check(pr != [], "planted fault caught: OpenDOSM month label missing")
 
