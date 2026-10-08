@@ -46,6 +46,7 @@ GROUPS = {
     "fetch_sg.py": "A", "fetch_data.py": "A", "fetch_us.py": "A",
     "fetch_ez.py": "A", "fetch_jp.py": "A",
     "fetch_be.py": "A",   # one light OECD call (BCI), like Austria; A was the smallest group
+    "fetch_fi.py": "A",   # one light OECD call (BCI), like Belgium; A and B tied at 12, A now 13
     # B
     "fetch_ch.py": "B", "fetch_id.py": "B", "fetch_in.py": "B",
     "fetch_il.py": "B", "fetch_mx.py": "B", "fetch_ie.py": "B",
