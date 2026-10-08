@@ -15,7 +15,8 @@ Served: rate_decision (BNM), cpi, gdp (advance and full GDP), jobs (Labour
 Force Survey), trade (External Trade, headline and full), ppi.
 If one source fails, its previously published upcoming events are carried
 forward (and the log says so); if both fail, or nothing parses, the existing
-file is left untouched. Built v1.7.30.
+file is left untouched. Built v1.7.30; OpenDOSM read from its embedded JSON (cal_pubs) from v1.7.32,
+with the rendered grid as a fallback.
 """
 from __future__ import annotations
 
@@ -121,6 +122,37 @@ def parse_dosm(page: str) -> tuple[list[dict], list[str]]:
     return events, []
 
 
+NEXT_DATA_RE = re.compile(r'<script id="__NEXT_DATA__"[^>]*>(.*?)</script>', re.S)
+
+
+def parse_dosm_json(page: str) -> tuple[list[dict] | None, list[str]]:
+    """Releases from OpenDOSM's embedded page data (pageProps.cal_pubs, a
+    {"YYYY-MM-DD": ["Title: period", ...]} map; v1.7.32). Returns (None, [])
+    when the page carries no such data, so the caller can fall back to the grid."""
+    m = NEXT_DATA_RE.search(page)
+    if not m:
+        return None, []
+    try:
+        cal = json.loads(m.group(1))["props"]["pageProps"]["cal_pubs"]
+    except (ValueError, KeyError, TypeError):
+        return None, []
+    events, problems = [], []
+    for day, titles in cal.items():
+        if not re.fullmatch(r"\d{4}-\d{2}-\d{2}", day):
+            problems.append(f"cal_pubs key is not a date: {day!r}")
+            continue
+        for title in titles:
+            head, _, period = str(title).partition(":")
+            if head.strip() in DOSM_TITLES:
+                concept, name = DOSM_TITLES[head.strip()]
+                events.append({"date": day, "country": "Malaysia", "concept": concept,
+                               "name": f"{name} ({period.strip()})" if period.strip() else name,
+                               "source": DOSM_SRC, "time": None})
+    if not cal:
+        problems.append("cal_pubs is empty")
+    return events, problems
+
+
 def fetch(s, url):
     r = s.get(url, timeout=40)
     if r.status_code == 404:
@@ -171,7 +203,9 @@ def main() -> int:
         page = fetch(s, DOSM_URL)
         if page is None:
             raise ValueError("OpenDOSM calendar returned 404")
-        ev, problems = parse_dosm(page)
+        ev, problems = parse_dosm_json(page)
+        if ev is None:                    # no embedded data: read the rendered grid
+            ev, problems = parse_dosm(page)
         if problems:
             raise ValueError("; ".join(problems))
         fresh = [e for e in ev if e["date"] >= today.isoformat()]

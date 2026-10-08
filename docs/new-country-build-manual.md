@@ -465,9 +465,18 @@ corresponding change in the diff against a fresh clone.
     Not served: China's LPR (a rule, not a published list), PMI.
   - Lessons: probe first (`tools/probe_calendar.py`), build parsers on saved
     real pages, keep trimmed fixtures in `tools/fixtures/calendar/`.
-  - Backlog (8 Oct 2026): New Zealand (Stats NZ main releases load from a
-    script endpoint; RBNZ pages are Cloudflare-blocked and its news feed
-    does not carry the schedule), national releases for euro members.
+  - New Zealand (done v1.7.32): `fetch_calendar_nz.py` reads Stats NZ's
+    official iCal export (release-calendar/calendar-export): CPI, GDP,
+    labour market, merchandise trade, business price indexes. RBNZ OCR
+    dates are not served (site Cloudflare-blocked; feed lacks the schedule).
+    OpenDOSM is read from its embedded JSON (cal_pubs) since v1.7.32.
+  - Bot walls: BNM blocks GitHub's runners (seed locally each November);
+    Stats NZ sits behind Incapsula (watch the first runs). Probe dumps must
+    keep markup exactly as served (v1.7.31 lesson: stripping React comments
+    hid the real structure).
+  - Backlog: national releases for euro members; existing weak calendar
+    scripts (Poland bot wall, Australia/Morocco empty, Canada placeholders,
+    Brazil/Turkey hardcoded).
 - Country-specific extras (age breakdown, spending by COFOG category,
   trade-partner breakdowns, MPC-vote-style detail, inactivity-reason
   breakdowns): each of these exists for only a handful of countries (UK
