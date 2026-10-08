@@ -457,10 +457,17 @@ corresponding change in the diff against a fresh clone.
     the statistics office release calendar (GDP, CPI, labour), from an
     official published schedule only. If none can be fetched reliably,
     say so in the launch notes rather than hand-entering dates.
-  - Backlog (8 Oct 2026): national release calendars for China, Malaysia,
-    New Zealand and every euro member (their statistics offices and, for
-    non-euro countries, central banks). Euro members already show ECB
-    decisions.
+  - China and Malaysia (done v1.7.30): `fetch_calendar_cn.py` (NBS annual
+    table; GDP in Jan/Apr/Jul/Oct, CPI, PPI; every date checked against its
+    stated weekday) and `fetch_calendar_my.py` (BNM MPC schedule, chained
+    November to November; OpenDOSM month grid). Both refuse to write an empty
+    or invalid file; Malaysia carries a failed source's events forward.
+    Not served: China's LPR (a rule, not a published list), PMI.
+  - Lessons: probe first (`tools/probe_calendar.py`), build parsers on saved
+    real pages, keep trimmed fixtures in `tools/fixtures/calendar/`.
+  - Backlog (8 Oct 2026): New Zealand (Stats NZ main releases load from a
+    script endpoint; RBNZ pages are Cloudflare-blocked and its news feed
+    does not carry the schedule), national releases for euro members.
 - Country-specific extras (age breakdown, spending by COFOG category,
   trade-partner breakdowns, MPC-vote-style detail, inactivity-reason
   breakdowns): each of these exists for only a handful of countries (UK
