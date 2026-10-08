@@ -53,6 +53,7 @@ GROUPS = {
     "fetch_th.py": "B", "fetch_de.py": "B", "fetch_fr.py": "B",
     "fetch_it.py": "B", "fetch_es.py": "B",
     "fetch_pt.py": "B",   # one light OECD call (BCI), like Belgium; B was the smallest group
+    "fetch_gr.py": "B",   # one light OECD call (BCI), like Finland; B was the smallest group (12 vs A 13)
     # C
     "fetch_no.py": "C", "fetch_za.py": "C", "fetch_kr.py": "C",
     "fetch_tr.py": "C", "fetch_pl.py": "C", "fetch_se.py": "C",

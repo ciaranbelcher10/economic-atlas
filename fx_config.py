@@ -63,7 +63,7 @@ SERIES_START = {
     "TRY": ("2005", "the new lira of 2005"),
 }
 
-EURO_MEMBERS = {"Austria", "France", "Germany", "Ireland", "Italy", "Netherlands", "Spain", "Belgium", "Portugal", "Finland"}
+EURO_MEMBERS = {"Austria", "France", "Germany", "Ireland", "Italy", "Netherlands", "Spain", "Belgium", "Portugal", "Finland", "Greece"}
 
 # country -> (home currency, data-file suffix, quote currencies in display order)
 COUNTRY_FX = {
@@ -89,6 +89,7 @@ COUNTRY_FX = {
     "Belgium": ("EUR", "be", ["USD", "GBP"]),
     "Portugal": ("EUR", "pt", ["USD", "GBP"]),
     "Finland": ("EUR", "fi", ["USD", "GBP"]),
+    "Greece": ("EUR", "gr", ["USD", "GBP"]),
 }
 
 NBSP = "\u00a0"
