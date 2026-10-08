@@ -447,17 +447,20 @@ corresponding change in the diff against a fresh clone.
 - **Calendar** (v1.7.26): not a launch blocker, but no longer skipped.
   Every new country gets an explicit calendar decision, recorded in the
   launch notes, and the work follows within the next releases:
-  - **Euro members**: tag the existing ECB rate decisions
-    (`data-calendar-ez.json`) to the member, so its calendar view shows
-    them. This costs nothing per country once the tagging exists.
+  - **Euro members** (done v1.7.29): automatic. `add_country.py` adds the
+    member to `calendar.html` ECB_MEMBERS and the Europe picker; tracking a
+    member shows the Eurozone's rate decisions (page and email alerts, both
+    keyed on the same rule; alerts read `fx_config.EURO_MEMBERS`).
+    `tools/test_calendar_euro.py` checks the lists match and the rule holds.
   - **National releases**: `fetch_calendar_XX.py` + `data-calendar-XX.json`
     + the calendar workflow step, for the central bank decision dates and
     the statistics office release calendar (GDP, CPI, labour), from an
     official published schedule only. If none can be fetched reliably,
     say so in the launch notes rather than hand-entering dates.
-  - Backlog as of 7 Oct 2026: China, Malaysia, New Zealand, Belgium and
-    Portugal have no calendar coverage (Belgium and Portugal do not yet
-    inherit the ECB dates). Picked up after Finland and Greece.
+  - Backlog (8 Oct 2026): national release calendars for China, Malaysia,
+    New Zealand and every euro member (their statistics offices and, for
+    non-euro countries, central banks). Euro members already show ECB
+    decisions.
 - Country-specific extras (age breakdown, spending by COFOG category,
   trade-partner breakdowns, MPC-vote-style detail, inactivity-reason
   breakdowns): each of these exists for only a handful of countries (UK

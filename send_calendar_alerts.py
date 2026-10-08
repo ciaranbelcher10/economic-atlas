@@ -51,6 +51,8 @@ import urllib.error
 import urllib.request
 from datetime import date, datetime, timedelta, timezone
 
+from fx_config import EURO_MEMBERS  # stdlib-only module; euro members share the ECB's rate decision
+
 RESEND_API_KEY = os.environ.get("RESEND_API_KEY")
 SUPABASE_URL = "https://skluvrxnuibkordzgtmu.supabase.co"
 SUPABASE_SERVICE_ROLE_KEY = os.environ.get("SUPABASE_SERVICE_ROLE_KEY")
@@ -148,7 +150,10 @@ def matching_upcoming_events(all_events: list[dict], preferences: dict,
             continue
         if not (today <= ev_date <= window_end):
             continue
-        if ev.get("country") not in tracked_countries:
+        country = ev.get("country")
+        if country not in tracked_countries and not (
+                country == "Eurozone" and ev.get("concept") == "rate_decision"
+                and tracked_countries & EURO_MEMBERS):
             continue
         if ev.get("concept") not in tracked_metrics:
             continue

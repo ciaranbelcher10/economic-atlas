@@ -1343,6 +1343,7 @@
 </div>
 <p class="cal-picker-note" style="margin:6px 0 0;">Metric colours every release by data type (GDP, CPI, rate decisions, etc.) so the same kind of release looks the same colour across every country. Country uses each country's own colour, the same ones used in Compare and ChartMaker.</p>
 </div>
+<p class="cal-picker-note" style="margin:10px 0 0;">Euro area members share the European Central Bank's interest rate, so tracking any of them shows the ECB's rate decisions. Their own national statistics releases are not on the calendar yet.</p>
 <div class="cal-picker-grid" id="calPickerGrid"></div>
 <p class="cal-picker-note" style="margin-top:2px;">Not all countries have available data for the calendar yet, so only the ones with real coverage are listed here.</p>
 <h4 style="font-size:11px; font-weight:700; text-transform:uppercase; letter-spacing:.06em; color:var(--ink2); margin:18px 0 8px;">Metrics</h4>
@@ -1519,7 +1520,7 @@ var SHORT_LABEL = {
   trade: "Trade", public_finances: "Public finances"
 };
 
-var COUNTRY_COLOR = {UK:"#1E4566", US:"#AD1E1E", Eurozone:"#D47353", Japan:"#AD5132", India:"#BB8A4D", Canada:"#AD7B1E", Australia:"#ADA61E", "South Korea":"#D4D453", Israel:"#A5BB4D", Mexico:"#82AD32", Brazil:"#7AD453", "South Africa":"#49AD1E", Morocco:"#1E8F1E", Germany:"#1EAD42", France:"#53D493", Italy:"#1E8F67", Spain:"#1EAD7B", Netherlands:"#32A7AD", Denmark:"#376A80", Ireland:"#1E7BAD", Norway:"#4D74BB", Chile:"#535AD4", Colombia:"#2D2672", Turkey:"#2C1EAD", Indonesia:"#6A32AD", Poland:"#CD53D4", Switzerland:"#891E8F", Argentina:"#AD32AD", Sweden:"#D453A7", Singapore:"#AD1E5E", Austria:"#722648", Thailand:"#D45366"};
+var COUNTRY_COLOR = {Belgium:"#80376E", Portugal:"#AD323E", Finland:"#8F4DBB", Greece:"#788F1E", UK:"#1E4566", US:"#AD1E1E", Eurozone:"#D47353", Japan:"#AD5132", India:"#BB8A4D", Canada:"#AD7B1E", Australia:"#ADA61E", "South Korea":"#D4D453", Israel:"#A5BB4D", Mexico:"#82AD32", Brazil:"#7AD453", "South Africa":"#49AD1E", Morocco:"#1E8F1E", Germany:"#1EAD42", France:"#53D493", Italy:"#1E8F67", Spain:"#1EAD7B", Netherlands:"#32A7AD", Denmark:"#376A80", Ireland:"#1E7BAD", Norway:"#4D74BB", Chile:"#535AD4", Colombia:"#2D2672", Turkey:"#2C1EAD", Indonesia:"#6A32AD", Poland:"#CD53D4", Switzerland:"#891E8F", Argentina:"#AD32AD", Sweden:"#D453A7", Singapore:"#AD1E5E", Austria:"#722648", Thailand:"#D45366"};
 // Only the countries that actually have a real event somewhere (either
 // in the hand-verified September data, or a working fetch script that
 // populates later months) -- the other 14 of the 32 tracked on country
@@ -1532,13 +1533,19 @@ var COUNTRY_COLOR = {UK:"#1E4566", US:"#AD1E1E", Eurozone:"#D47353", Japan:"#AD5
 // source. Both move back to the "no data yet, investigating" 14 until
 // a genuine live fetch exists for each (likely needs a headless
 // browser -- see fetch_calendar_au.py / fetch_calendar_ma.py).
+// Euro area members share the ECB's single rate decision (v1.7.29). Tracking
+// any of them shows the Eurozone's rate decisions; other Eurozone events
+// (euro-area HICP, GDP) stay Eurozone-only, since they are not the member's
+// own releases. Must equal fx_config.EURO_MEMBERS (tools/test_calendar_euro.py);
+// tools/add_country.py adds each new euro member here.
+var ECB_MEMBERS = ["Austria","Belgium","Finland","France","Germany","Greece","Ireland","Italy","Netherlands","Portugal","Spain"];
 var COUNTRIES_WITH_DATA = ["Brazil", "Canada", "Chile", "Eurozone",
   "Indonesia", "Israel", "Japan", "Mexico", "Norway", "Poland",
-  "South Africa", "Sweden", "Switzerland", "Turkey", "UK", "US"];
+  "South Africa", "Sweden", "Switzerland", "Turkey", "UK", "US"].concat(ECB_MEMBERS);
 var ALL_COUNTRIES = COUNTRIES_WITH_DATA.slice();
 
 var REGION_GROUPS = [
-  {name: "Europe", countries: ["Austria","Eurozone","France","Germany","Ireland","Italy","Netherlands","Poland","Spain","Switzerland","Turkey","UK","Denmark","Norway","Sweden"]},
+  {name: "Europe", countries: ["Austria","Belgium","Eurozone","Finland","France","Germany","Greece","Ireland","Italy","Netherlands","Poland","Portugal","Spain","Switzerland","Turkey","UK","Denmark","Norway","Sweden"]},
   {name: "North America", countries: ["Canada","Mexico","US"]},
   {name: "Asia", countries: ["India","Indonesia","Japan","Singapore","South Korea","Thailand"]},
   {name: "Oceania", countries: ["Australia"]},
@@ -1676,8 +1683,16 @@ function eventsForDate(iso){
   return evs.filter(function(e){
     if(rateOnly && !e.rate) return false;
     if(trackedMetrics.indexOf(e.concept) === -1) return false;
-    return trackedCountries.indexOf(e.country) !== -1;
+    return calCountryMatch(e);
   });
+}
+
+function calCountryMatch(e){
+  if(trackedCountries.indexOf(e.country) !== -1) return true;
+  // A euro member's own calendar includes the ECB's rate decisions.
+  if(e.country === "Eurozone" && e.concept === "rate_decision")
+    return trackedCountries.some(function(c){ return ECB_MEMBERS.indexOf(c) !== -1; });
+  return false;
 }
 
 function renderCountriesCount(){
@@ -1792,7 +1807,7 @@ function renderLegend(){
   if(calColorMode === "country"){
     var shown = ALL_COUNTRIES.filter(function(c){ return trackedCountries.indexOf(c) !== -1; }).slice(0, 8);
     parts = shown.map(function(c){
-      return "<span><span class='sw' style='background:" + COUNTRY_COLOR[c] + "'></span>" + c + "</span>";
+      return "<span><span class='sw' style='background:" + (COUNTRY_COLOR[c] || "#5A6167") + "'></span>" + c + "</span>";
     });
     if(trackedCountries.length > 8) parts.push("<span>+" + (trackedCountries.length - 8) + " more tracked</span>");
   } else {
@@ -1857,7 +1872,7 @@ function wireCalendarInteractions(){
         row.appendChild(cb);
         var sw = document.createElement("span");
         sw.className = "sw";
-        sw.style.background = COUNTRY_COLOR[c];
+        sw.style.background = COUNTRY_COLOR[c] || "#5A6167";
         row.appendChild(sw);
         row.appendChild(document.createTextNode(c));
         region.appendChild(row);
