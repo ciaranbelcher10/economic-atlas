@@ -122,6 +122,13 @@ jobs:
           python fetch_gr_trade_partners.py 2>&1 | tee -a pipeline_log.txt
         env:
           COMTRADE_API_KEY: ${{ secrets.COMTRADE_API_KEY }}
+      - name: Run fetch_cz_trade_partners.py
+        continue-on-error: true
+        run: |
+          echo ">>> RUNNING fetch_cz_trade_partners.py" >> pipeline_log.txt
+          python fetch_cz_trade_partners.py 2>&1 | tee -a pipeline_log.txt
+        env:
+          COMTRADE_API_KEY: ${{ secrets.COMTRADE_API_KEY }}
       - name: Run fetch_il_trade_partners.py
         continue-on-error: true
         run: |
@@ -220,5 +227,6 @@ jobs:
           git add data-pt-trade-partners.json 2>/dev/null || true
           git add data-fi-trade-partners.json 2>/dev/null || true
           git add data-gr-trade-partners.json 2>/dev/null || true
+          git add data-cz-trade-partners.json 2>/dev/null || true
           git diff --cached --quiet || git commit -m "Refresh trade partner data"
           git push
