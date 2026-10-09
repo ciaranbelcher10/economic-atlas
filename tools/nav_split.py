@@ -1,15 +1,21 @@
-"""Split a long region column of the site nav into two columns (v1.7.20).
+"""Lay out the European columns of the site nav (v1.7.37; replaces the v1.7.20 split).
 
-Europe outgrew one column. The first column keeps the heading and the first
-FIRST links; a headless continuation column takes up to CONT more (one more
-than FIRST, because it has no heading row, so both columns end level).
-Links stay alphabetical across both columns.
+Europe outgrew one column, then two. The nav now shows four European
+columns by sub-region, each alphabetical, and Eurozone sits under Overview:
+
+    Western Europe | Southern Europe | Northern Europe | Central & Eastern Europe
+
+Only the nav changes. Data regions (spec "region", REGION_OF, REGION_GROUPS)
+keep "Europe" and "Scandinavia", so Compare, Rankings and the calendar group
+countries exactly as before.
+
+Every European country page, present or planned, is listed in NAV_GROUPS.
+A European country missing from it stops the run, so a new country can't
+silently land in the wrong column.
 
 The same markup appears in every page and in generate_indicator_pages.py
-(with a "../" prefix), so this works on raw text and is idempotent:
-merge() folds any existing continuation back into the region's list,
-split() lays it out again. tools/add_country.py calls both around its nav
-insertion, so a new European country lands in the right column.
+(with a "../" prefix), so this works on raw text and is idempotent.
+tools/add_country.py calls split() after inserting a link.
 
     python3 tools/nav_split.py          # apply to every page and the generator
     python3 tools/nav_split.py --check  # exit 1 if anything would change, including
@@ -18,62 +24,91 @@ insertion, so a new European country lands in the right column.
 from __future__ import annotations
 
 import glob
+import html
 import re
 import sys
 from pathlib import Path
 
 ROOT = Path(__file__).resolve().parent.parent
-SPLIT = {"Europe": (10, 11)}       # region: (links under the heading, links in the continuation)
-LINK = r' <a href="[^"]*"[^>]*>[^<]+</a>\n'
-CONT_OPEN = ' <div class="dcol dcont">\n'
+NAV_GROUPS = [
+    ("Western Europe", ["austria", "belgium", "france", "germany", "ireland", "luxembourg",
+                        "netherlands", "switzerland", "uk"]),
+    ("Southern Europe", ["cyprus", "greece", "italy", "malta", "portugal", "spain", "turkey"]),
+    ("Northern Europe", ["denmark", "estonia", "finland", "latvia", "lithuania", "norway", "sweden"]),
+    ("Central & Eastern Europe", ["bulgaria", "croatia", "czechia", "hungary", "poland", "romania",
+                                  "slovakia", "slovenia"]),
+]
+MAX_PER_COLUMN = 11
+EUROPE_REGIONS = ("Europe", "Scandinavia")          # data regions whose links live in these columns
+LEGACY_HEADS = {"Europe", "Scandinavia"} | {g for g, _ in NAV_GROUPS}
+SLUG_GROUP = {s: g for g, ss in NAV_GROUPS for s in ss}
+LINK = r' <a href="(?:\.\./)?([a-z]+)"[^>]*>([^<]+)</a>\n'
+PANEL = '<div class="dropdown-panel" id="macroPanel">\n'
+OVERVIEW = re.compile(r' <div class="doverview">\n((?:' + LINK + r')+) </div>\n')
+COLUMN = re.compile(r' <div class="dcol(?: dcont)?">\n(?: <p class="dhead">([^<]+)</p>\n)?((?:' + LINK + r')*) </div>\n')
 
 
-def _block(text, region):
-    """(start, end, links) of the region's column(s): heading through its links
-    plus an immediately following continuation column, if any."""
-    head = f' <p class="dhead">{region}</p>\n'
-    i = text.find(head)
-    if i < 0:
-        return None
-    j = i + len(head)
-    links = []
+def head_html(group):
+    return f' <p class="dhead">{html.escape(group, quote=False)}</p>\n'
+
+
+def group_of(slug):
+    if slug not in SLUG_GROUP:
+        raise SystemExit(f"nav: {slug} is European but not in tools/nav_split.py NAV_GROUPS; add it to a sub-region")
+    return SLUG_GROUP[slug]
+
+
+def _links(block):
+    return [(m.group(0), m.group(1), m.group(2)) for m in re.finditer(LINK, block)]
+
+
+def layout(text):
+    p = text.find(PANEL)
+    if p < 0:
+        return text
+    o = OVERVIEW.match(text, p + len(PANEL))
+    if not o:
+        return text
+    pos = o.end()
+    cols = []
     while True:
-        m = re.match(LINK, text[j:])
+        m = COLUMN.match(text, pos)
         if not m:
             break
-        links.append(m.group(0)); j += m.end()
-    m = re.match(r' </div>\n' + re.escape(CONT_OPEN) + r'((?:' + LINK + r')+) </div>\n', text[j:])
-    if m:
-        links += re.findall(LINK, m.group(1))
-        j += m.end() - len(" </div>\n")   # keep the closing </div> of the last column outside
-    return i, j, links
-
-
-def _key(link):
-    return re.search(r">([^<]+)</a>", link).group(1).lower()
-
-
-def merge(text, region="Europe"):
-    b = _block(text, region)
-    if not b:
+        cols.append((html.unescape(m.group(1)) if m.group(1) else None, m.group(2)))
+        pos = m.end()
+    if not cols:
         return text
-    i, j, links = b
-    return text[:i] + f' <p class="dhead">{region}</p>\n' + "".join(links) + text[j:]
+    over = _links(o.group(1))
+    europe, other_cols = [], []
+    for head, body in cols:
+        if head is None or head in LEGACY_HEADS:      # continuation columns only ever followed Europe
+            europe += _links(body)
+        else:
+            other_cols.append((head, body))
+    eurozone = [l for l in over if l[1] == "eurozone"] + [l for l in europe if l[1] == "eurozone"]
+    over = [l for l in over if l[1] != "eurozone"]
+    europe = [l for l in europe if l[1] != "eurozone"]
+    out = " <div class=\"doverview\">\n" + "".join(l[0] for l in over + eurozone[:1]) + " </div>\n"
+    for g, _ in NAV_GROUPS:
+        members = sorted([l for l in europe if group_of(l[1]) == g], key=lambda l: l[2].lower())
+        if not members:
+            continue
+        if len(members) > MAX_PER_COLUMN:
+            raise SystemExit(f"nav: {g} has {len(members)} links, more than {MAX_PER_COLUMN}")
+        out += ' <div class="dcol">\n' + head_html(g) + "".join(l[0] for l in members) + " </div>\n"
+    for head, body in other_cols:
+        out += f' <div class="dcol">\n <p class="dhead">{html.escape(head, quote=False)}</p>\n{body} </div>\n'
+    return text[:o.start()] + out + text[pos:]
+
+
+# add_country.py API (kept from v1.7.20)
+def merge(text, region="Europe"):
+    return text
 
 
 def split(text, region="Europe"):
-    b = _block(text, region)
-    if not b or region not in SPLIT:
-        return text
-    i, j, links = b
-    first, cont = SPLIT[region]
-    links = sorted(links, key=_key)
-    if len(links) > first + cont:
-        raise SystemExit(f"{region} has {len(links)} links: more than {first} + {cont}; add a third column rule")
-    out = f' <p class="dhead">{region}</p>\n' + "".join(links[:first])
-    if len(links) > first:
-        out += " </div>\n" + CONT_OPEN + "".join(links[first:])
-    return text[:i] + out + text[j:]
+    return layout(text)
 
 
 def files():
@@ -91,28 +126,20 @@ def main():
     check = "--check" in sys.argv
     changed = []
     if check:
-        stale = []
-        for rel in generated():
-            t = (ROOT / rel).read_text(encoding="utf-8")
-            new = t
-            for region in SPLIT:
-                new = split(merge(new, region), region)
-            if new != t:
-                stale.append(rel)
+        stale = [rel for rel in generated()
+                 if layout((ROOT / rel).read_text(encoding="utf-8")) != (ROOT / rel).read_text(encoding="utf-8")]
         if stale:
-            print(f"nav split: {len(stale)} generated page(s) not split yet (regenerate: python3 generate_indicator_pages.py), e.g. {stale[0]}")
+            print(f"nav layout: {len(stale)} generated page(s) not laid out yet (regenerate: python3 generate_indicator_pages.py), e.g. {stale[0]}")
             changed += stale
     for rel in files():
         p = ROOT / rel
         t = p.read_text(encoding="utf-8")
-        new = t
-        for region in SPLIT:
-            new = split(merge(new, region), region)
+        new = layout(t)
         if new != t:
             changed.append(rel)
             if not check:
                 p.write_text(new, encoding="utf-8")
-    print(f"nav split: {len(changed)} file(s) {'would change' if check else 'changed'}")
+    print(f"nav layout: {len(changed)} file(s) {'would change' if check else 'changed'}")
     return 1 if (check and changed) else 0
 
 

@@ -124,7 +124,18 @@ def nav_insert(text, s, prefix=""):
 
 
 def _nav_insert_one(text, s, prefix=""):
+    import nav_split
     head = f'<p class="dhead">{s["region"]}</p>\n'
+    if s["region"] in nav_split.EUROPE_REGIONS:      # nav shows European sub-regions (v1.7.37)
+        g = nav_split.group_of(s["slug"])
+        head = nav_split.head_html(g).lstrip(" ")
+        if head not in text and f'href="{prefix}{s["slug"]}"' not in text:
+            # first country of a sub-region: open its column before Western Europe's neighbours are re-laid out
+            anchor = ' <div class="doverview">'
+            i = text.find(anchor)
+            if i >= 0:
+                j = text.index(" </div>\n", i) + len(" </div>\n")
+                text = text[:j] + ' <div class="dcol">\n ' + head + ' </div>\n' + text[j:]
     if f'href="{prefix}{s["slug"]}"' in text or head not in text:
         return text
     i = text.index(head) + len(head)

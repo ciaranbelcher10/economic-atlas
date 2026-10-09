@@ -226,7 +226,7 @@ def main():
     # ---------- NAMES, label, data files ----------
     names = {"gdp_level": "GDP", "gdp_real": "Real GDP", "gdp_growth": "GDP growth", "gdp_growth_yoy": "GDP growth (y/y)",
              "cpi": "CPI inflation", "cpi_national": "CPI inflation (national)", "cpi_mom": "CPI (m/m)", "cpi_qoq": "CPI (q/q)", "bond_yield_10y": "10-year bond yield",
-             "debt_gdp": "Government debt", "deficit": "Gov. deficit", "current_account": "Current account",
+             "debt_gdp": "Government debt", "deficit": "Gov. balance", "current_account": "Current account",
              "trade_balance": "Trade balance", "exports": "Exports", "imports": "Imports", "business_confidence": "Business confidence",
              "fdi": "FDI", "unemployment": "Unemployment", "employment": "Employment rate", "participation": "Participation rate",
              "employment_rate": "Employment rate", "participation_rate": "Participation rate"}
@@ -379,6 +379,13 @@ def main():
                   f'   Mirrors data-metric-sources.json["{N}"] verbatim (citation_provider.py\n'
                   "   checks the two agree). Regenerate with tools/build_country_page.py. */\n"
                   "const INFO_CONTENT = {\n" + ",\n".join(ent) + "\n};\n") + s[i1:]
+
+    # ---------- exchange-rate page link (v1.7.37) ----------
+    # The template maps China's own pair; every non-euro country links its
+    # US-dollar FX tile to its own /indicators/<slug>-exchange-rate page.
+    cur = spec.get("currency", "")
+    if cur and cur != "EUR" and 'fx_cny_usd:"exchange-rate"' in s:
+        s = s.replace('fx_cny_usd:"exchange-rate"', f'fx_{cur.lower()}_usd:"exchange-rate"')
 
     # ---------- leftover template names ----------
     bad = []

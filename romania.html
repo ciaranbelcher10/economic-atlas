@@ -350,30 +350,40 @@ button.mtoggle.fx-both{background:#2FA463; border-color:#2FA463; color:#fff;}
  <div class="dropdown-panel" id="macroPanel">
  <div class="doverview">
  <a href="index">Overview</a>
+ <a href="eurozone">Eurozone</a>
  </div>
  <div class="dcol">
- <p class="dhead">Europe</p>
+ <p class="dhead">Western Europe</p>
  <a href="austria">Austria</a>
  <a href="belgium">Belgium</a>
- <a href="czechia">Czechia</a>
- <a href="eurozone">Eurozone</a>
- <a href="finland">Finland</a>
  <a href="france">France</a>
  <a href="germany">Germany</a>
- <a href="greece">Greece</a>
- <a href="hungary">Hungary</a>
  <a href="ireland">Ireland</a>
- </div>
- <div class="dcol dcont">
- <a href="italy">Italy</a>
  <a href="netherlands">Netherlands</a>
- <a href="poland">Poland</a>
- <a href="portugal">Portugal</a>
- <a href="romania" class="active">Romania</a>
- <a href="spain">Spain</a>
  <a href="switzerland">Switzerland</a>
- <a href="turkey">Turkey</a>
  <a href="uk">UK</a>
+ </div>
+ <div class="dcol">
+ <p class="dhead">Southern Europe</p>
+ <a href="greece">Greece</a>
+ <a href="italy">Italy</a>
+ <a href="portugal">Portugal</a>
+ <a href="spain">Spain</a>
+ <a href="turkey">Turkey</a>
+ </div>
+ <div class="dcol">
+ <p class="dhead">Northern Europe</p>
+ <a href="denmark">Denmark</a>
+ <a href="finland">Finland</a>
+ <a href="norway">Norway</a>
+ <a href="sweden">Sweden</a>
+ </div>
+ <div class="dcol">
+ <p class="dhead">Central &amp; Eastern Europe</p>
+ <a href="czechia">Czechia</a>
+ <a href="hungary">Hungary</a>
+ <a href="poland">Poland</a>
+ <a href="romania" class="active">Romania</a>
  </div>
  <div class="dcol">
  <p class="dhead">North America</p>
@@ -413,12 +423,6 @@ button.mtoggle.fx-both{background:#2FA463; border-color:#2FA463; color:#fff;}
  <p class="dhead">Africa</p>
  <a href="morocco">Morocco</a>
  <a href="southafrica">South Africa</a>
- </div>
- <div class="dcol">
- <p class="dhead">Scandinavia</p>
- <a href="denmark">Denmark</a>
- <a href="norway">Norway</a>
- <a href="sweden">Sweden</a>
  </div>
  </div>
  </div>
@@ -1758,7 +1762,7 @@ const MAKO={deep:"#2E1E3B", indigo:"#413D7B", blue:"#37659E",
             sea:"#348FA7", teal:"#40B7AD", mint:"#8AD9B1"};
 const LINE=MAKO.blue, BAR_UP=MAKO.sea, BAR_DOWN=MAKO.indigo;
 const MONTHS=["Jan","Feb","Mar","Apr","May","Jun","Jul","Aug","Sep","Oct","Nov","Dec"];
-const NAMES={gdp_level:"GDP",gdp_real:"Real GDP",gdp_growth:"GDP growth",cpi:"HICP inflation",cpi_national:"CPI inflation (INS)",cpi_mom:"HICP (MoM)",bond_yield_10y:"10-year bond yield",debt_gdp:"Government debt",deficit:"Gov. deficit",current_account:"Current account",trade_balance:"Trade balance",exports:"Exports",imports:"Imports",business_confidence:"Business confidence",fdi:"FDI",unemployment:"Unemployment",policy_rate:"NBR policy rate"};
+const NAMES={gdp_level:"GDP",gdp_real:"Real GDP",gdp_growth:"GDP growth",cpi:"HICP inflation",cpi_national:"CPI inflation (INS)",cpi_mom:"HICP (MoM)",bond_yield_10y:"10-year bond yield",debt_gdp:"Government debt",deficit:"Gov. balance",current_account:"Current account",trade_balance:"Trade balance",exports:"Exports",imports:"Imports",business_confidence:"Business confidence",fdi:"FDI",unemployment:"Unemployment",policy_rate:"NBR policy rate"};
 /* ------------------------------- tabs ------------------------------------ */
 function showSec(name){
   document.querySelectorAll("nav.cat button").forEach(b=>
@@ -2187,7 +2191,7 @@ function statTile(el, key, title, series, opts){
   el.appendChild(div);
 }
 // Every metric with its own /indicators/ page for this country (v1.6.1: all of them, not just four).
-const INDICATOR_PAGE_SLUGS = {gdp_growth_yoy:"gdp-annual-growth-rate", trade_intensity:"trade-intensity", cpi_qoq:"inflation-rate-qoq", gdp_level:"gdp", gdp_real:"real-gdp", gdp_growth:"gdp-growth-rate", cpi:"inflation-rate", cpi_mom:"inflation-rate-mom", unemployment:"unemployment-rate", policy_rate:"interest-rate", bond_yield_10y:"10-year-government-bond-yield", trade_balance:"balance-of-trade", exports:"exports", imports:"imports", current_account:"current-account-to-gdp", fdi:"foreign-direct-investment", debt_gdp:"government-debt", deficit:"government-budget", business_confidence:"business-confidence", fx_cny_usd:"exchange-rate", cpi_national:"inflation-rate-national-definition"};
+const INDICATOR_PAGE_SLUGS = {gdp_growth_yoy:"gdp-annual-growth-rate", trade_intensity:"trade-intensity", cpi_qoq:"inflation-rate-qoq", gdp_level:"gdp", gdp_real:"real-gdp", gdp_growth:"gdp-growth-rate", cpi:"inflation-rate", cpi_mom:"inflation-rate-mom", unemployment:"unemployment-rate", policy_rate:"interest-rate", bond_yield_10y:"10-year-government-bond-yield", trade_balance:"balance-of-trade", exports:"exports", imports:"imports", current_account:"current-account-to-gdp", fdi:"foreign-direct-investment", debt_gdp:"government-debt", deficit:"government-budget", business_confidence:"business-confidence", fx_ron_usd:"exchange-rate", cpi_national:"inflation-rate-national-definition"};
 // Keeps only the bases this country actually serves, so the selector never
 // offers something the source cannot support and never appears at all when
 // there is only one basis. Order is preserved: the first survivor is default.
@@ -2314,7 +2318,7 @@ function renderNewDataBanner(meta){
     const mo=String(dt.getUTCMonth()+1).padStart(2,"0");
     const btn=document.createElement("button");
     btn.type="button"; btn.className="newdata-link";
-    btn.textContent=`${COUNTRY_LABEL} ${NAMES[k]||_nameOf(k)} ${dd}/${mo} Update`;
+    btn.textContent=`${COUNTRY_LABEL} ${NAMES[k]||_nameOf(k)} updated ${dt.getUTCDate()} ${MONTHS[dt.getUTCMonth()]}`;  // "8 Oct": unambiguous everywhere (v1.7.37)
     btn.addEventListener("click",()=>{
       const a=ANCHORS[k]; showSec(a.sec);
       setTimeout(()=>a.panelEl.scrollIntoView({behavior:"smooth",block:"start"}),60);
@@ -2390,7 +2394,7 @@ function render(data){
     s.gdp_growth,"bar",v=>v+"%",pct,"Derived from Eurostat namq_10_gdp (CLV20_MNAC)",undefined,0);
   if(s.cpi_national) chartPanel("cpi_national","charts-inflation","CPI inflation, national definition, annual rate",
     "How much consumer prices are rising compared with a year ago, on the National Institute of Statistics's national CPI, the headline figure and the measure the National Bank of Romania targets at 2.5% (plus or minus one point).",
-    s.cpi_national,"line",v=>v+"%",pct,"IMF consumer price index dataset",undefined,0);
+    s.cpi_national,"line",v=>v+"%",pct,"IMF consumer price index dataset (INS national CPI)",undefined,0);
   if(s.cpi) chartPanel("cpi","charts-inflation","HICP inflation, annual rate",
     "How much consumer prices are rising compared with a year ago, on the EU's harmonised index (HICP), shown for comparison with other EU countries. The National Institute of Statistics's headline is the national CPI, shown beside it, which the National Bank of Romania targets at 2.5% (plus or minus one point). The two differ more than in most EU countries because their weights differ.",
     s.cpi,"line",v=>v+"%",pct,"FRED series CP0000ROM086NEST",undefined,0,undefined,
@@ -2435,7 +2439,7 @@ function render(data){
   if(gdpAnnual) statTile(hero,"gdp_level","GDP (annual)",gdpAnnual,
     {fmt:v=>curFmt(v,s.gdp_level.unit,1,true),fmtD:v=>curFmt(v,s.gdp_level.unit,1,true),upIsGood:true,source:SRC_GDP,infoKey:"gdp_level"});
   if(s.cpi_national) statTile(hero,"cpi_national","CPI inflation (INS)",s.cpi_national,
-    {fmt:pct,fmtD:pp,upIsGood:false,source:"IMF consumer price index dataset",infoKey:"cpi_national"});
+    {fmt:pct,fmtD:pp,upIsGood:false,source:"IMF consumer price index dataset (INS national CPI)",infoKey:"cpi_national"});
   if(s.cpi) statTile(hero,"cpi","HICP inflation",s.cpi,
     {fmt:pct,fmtD:pp,upIsGood:false,source:"FRED series CP0000ROM086NEST",infoKey:"cpi"});
   if(s.policy_rate) statTile(hero,"policy_rate","NBR policy rate",s.policy_rate,
@@ -2459,7 +2463,7 @@ function render(data){
     {fmt:pct,fmtD:pp,upIsGood:true,source:"Derived from Eurostat namq_10_gdp (CLV20_MNAC)",infoKey:"gdp_growth"});
   const tinf=document.getElementById("tiles-inflation");
   if(s.cpi_national) statTile(tinf,"cpi_national","CPI inflation (INS)",s.cpi_national,
-    {fmt:pct,fmtD:pp,upIsGood:false,source:"IMF consumer price index dataset",infoKey:"cpi_national"});
+    {fmt:pct,fmtD:pp,upIsGood:false,source:"IMF consumer price index dataset (INS national CPI)",infoKey:"cpi_national"});
   if(s.cpi) statTile(tinf,"cpi","HICP inflation",s.cpi,
     {fmt:pct,fmtD:pp,upIsGood:false,source:"FRED series CP0000ROM086NEST",infoKey:"cpi"});
   if(s.cpi_mom) statTile(tinf,null,"HICP (MoM)",s.cpi_mom,
@@ -2688,7 +2692,7 @@ const INFO_CONTENT = {
   },
   cpi_national: {
     description: "How much consumer prices are rising compared with a year ago, on the National Institute of Statistics's national CPI, the headline figure and the measure the National Bank of Romania targets at 2.5% (plus or minus one point).",
-    source: "IMF consumer price index dataset \u00b7 CPI, national definition, all items, year on year, as published by the National Institute of Statistics, from January 2002. The IMF publishes it about a month after INS, so the latest month here can be one behind INS's release."
+    source: "IMF consumer price index dataset (INS national CPI) \u00b7 CPI, national definition, all items, year on year, as published by the National Institute of Statistics, from January 2002. The IMF publishes it about a month after INS, so the latest month here can be one behind INS's release."
   },
   policy_rate: {
     description: "The monetary policy rate, the National Bank of Romania's main policy rate. Shown from August 2005, when the NBR adopted inflation targeting.",

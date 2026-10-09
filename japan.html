@@ -349,30 +349,40 @@ button.mtoggle.fx-both{background:#2FA463; border-color:#2FA463; color:#fff;}
  <div class="dropdown-panel" id="macroPanel">
  <div class="doverview">
  <a href="index">Overview</a>
+ <a href="eurozone">Eurozone</a>
  </div>
  <div class="dcol">
- <p class="dhead">Europe</p>
+ <p class="dhead">Western Europe</p>
  <a href="austria">Austria</a>
  <a href="belgium">Belgium</a>
- <a href="czechia">Czechia</a>
- <a href="eurozone">Eurozone</a>
- <a href="finland">Finland</a>
  <a href="france">France</a>
  <a href="germany">Germany</a>
- <a href="greece">Greece</a>
- <a href="hungary">Hungary</a>
  <a href="ireland">Ireland</a>
- </div>
- <div class="dcol dcont">
- <a href="italy">Italy</a>
  <a href="netherlands">Netherlands</a>
- <a href="poland">Poland</a>
- <a href="portugal">Portugal</a>
- <a href="romania">Romania</a>
- <a href="spain">Spain</a>
  <a href="switzerland">Switzerland</a>
- <a href="turkey">Turkey</a>
  <a href="uk">UK</a>
+ </div>
+ <div class="dcol">
+ <p class="dhead">Southern Europe</p>
+ <a href="greece">Greece</a>
+ <a href="italy">Italy</a>
+ <a href="portugal">Portugal</a>
+ <a href="spain">Spain</a>
+ <a href="turkey">Turkey</a>
+ </div>
+ <div class="dcol">
+ <p class="dhead">Northern Europe</p>
+ <a href="denmark">Denmark</a>
+ <a href="finland">Finland</a>
+ <a href="norway">Norway</a>
+ <a href="sweden">Sweden</a>
+ </div>
+ <div class="dcol">
+ <p class="dhead">Central &amp; Eastern Europe</p>
+ <a href="czechia">Czechia</a>
+ <a href="hungary">Hungary</a>
+ <a href="poland">Poland</a>
+ <a href="romania">Romania</a>
  </div>
  <div class="dcol">
  <p class="dhead">North America</p>
@@ -412,12 +422,6 @@ button.mtoggle.fx-both{background:#2FA463; border-color:#2FA463; color:#fff;}
  <p class="dhead">Africa</p>
  <a href="morocco">Morocco</a>
  <a href="southafrica">South Africa</a>
- </div>
- <div class="dcol">
- <p class="dhead">Scandinavia</p>
- <a href="denmark">Denmark</a>
- <a href="norway">Norway</a>
- <a href="sweden">Sweden</a>
  </div>
  </div>
  </div>
@@ -1765,7 +1769,7 @@ const LINE=MAKO.blue, BAR_UP=MAKO.sea, BAR_DOWN=MAKO.indigo;
 const MONTHS=["Jan","Feb","Mar","Apr","May","Jun","Jul","Aug","Sep","Oct","Nov","Dec"];
 const NAMES={gdp_level:"GDP",gdp_real:"Real GDP",gdp_growth:"GDP growth",
   unemployment:"Unemployment",cpi:"CPI inflation",cpi_mom:"CPI (month on month)",
-  boj_rate:"Call money rate",debt_gdp:"Government debt",deficit:"Gov. deficit",
+  boj_rate:"Call money rate",debt_gdp:"Government debt",deficit:"Gov. balance",
   current_account:"Current account",trade_balance:"Trade balance",exports:"Exports",
   imports:"Imports",business_confidence:"Business confidence",fdi:"FDI"};
 /* ------------------------------- tabs ------------------------------------ */
@@ -2356,7 +2360,7 @@ function renderNewDataBanner(meta){
     const mo=String(dt.getUTCMonth()+1).padStart(2,"0");
     const btn=document.createElement("button");
     btn.type="button"; btn.className="newdata-link";
-    btn.textContent=`${COUNTRY_LABEL} ${NAMES[k]||_nameOf(k)} ${dd}/${mo} Update`;
+    btn.textContent=`${COUNTRY_LABEL} ${NAMES[k]||_nameOf(k)} updated ${dt.getUTCDate()} ${MONTHS[dt.getUTCMonth()]}`;  // "8 Oct": unambiguous everywhere (v1.7.37)
     btn.addEventListener("click",()=>{
       const a=ANCHORS[k]; showSec(a.sec);
       setTimeout(()=>a.panelEl.scrollIntoView({behavior:"smooth",block:"start"}),60);
@@ -2490,7 +2494,7 @@ function render(data){
     {fmt:pct,fmtD:pp,upIsGood:false,source:"FRED \u00b7 LRHUTTTTJPM156S (OECD)"});
   if(s.current_account) statTile(hero,"current_account","Current account",s.current_account,
     {fmt:pct,fmtD:pp,upIsGood:true,source:"World Bank \u00b7 % of GDP, annual"});
-  if(s.deficit) statTile(hero,"deficit","Gov. deficit (annual)",s.deficit,
+  if(s.deficit) statTile(hero,"deficit","Gov. balance (annual)",s.deficit,
     {fmt:pct,fmtD:pp,upIsGood:true,source:"IMF World Economic Outlook \u00b7 GGXCNL_NGDP, % of GDP"});
   if(s.debt_gdp) statTile(hero,"debt_gdp","Gov. debt (% of GDP)",s.debt_gdp,
     {fmt:pct,fmtD:pp,upIsGood:false,source:"IMF World Economic Outlook \u00b7 GGXWDG_NGDP"});
