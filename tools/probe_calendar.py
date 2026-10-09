@@ -61,6 +61,11 @@ CANDIDATES = [
     ("ro_nbr_home", "https://www.bnr.ro/Home.aspx", ["monetary policy"]),
     ("ro_ins_calendar", "https://insse.ro/cms/en/calendar", ["2026"]),
     ("ro_ins_home", "https://insse.ro/cms/en", ["Calendar"]),
+    # second round (v1.7.35): pages the first probe pointed to
+    ("hu_ksh_catalog", "https://www.ksh.hu/katalogus/", ["script"]),
+    ("ro_nbr_meetings", "https://www.bnr.ro/2506-calendarul-sedintelor-consiliului-de-administratie-pe-probleme-de-politica-monetara", ["2026"]),
+    ("ro_nbr_meetings_en", "https://www.bnr.ro/en/2506-calendarul-sedintelor-consiliului-de-administratie-pe-probleme-de-politica-monetara", ["2026"]),
+    ("ro_ins_calendar_http", "http://www.insse.ro/cms/en/calendar", ["2026"]),
 ]
 
 LINK_RE = re.compile(r'href="([^"#]+)"[^>]*>(.*?)</a>', re.I | re.S)

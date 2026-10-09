@@ -74,8 +74,8 @@ setTimeout(() => {
   }
   // 9. policy rates and spread (v1.6.46)
   const pr = rows("tPolicy");
-  const POLICY = {"data-uk.json":"boe_rate","data-us.json":"fed_funds_upper","data-ez.json":"ecb_rate","data-ca.json":"overnight_rate","data-jp.json":"boj_rate","data-cz.json":"policy_rate","data-nz.json":"policy_rate","data-my.json":"policy_rate","data-cn.json":"policy_rate"};
-  const NAMES = {"data-cz.json":"Czechia","data-nz.json":"New Zealand","data-my.json":"Malaysia","data-cn.json":"China","data-uk.json":"UK","data-us.json":"US","data-ez.json":"Eurozone","data-ca.json":"Canada","data-jp.json":"Japan","data-at.json":"Austria","data-de.json":"Germany","data-es.json":"Spain","data-fr.json":"France","data-ie.json":"Ireland","data-it.json":"Italy","data-nl.json":"Netherlands"};
+  const POLICY = {"data-uk.json":"boe_rate","data-us.json":"fed_funds_upper","data-ez.json":"ecb_rate","data-ca.json":"overnight_rate","data-jp.json":"boj_rate","data-sa.json":"policy_rate","data-ro.json":"policy_rate","data-hu.json":"policy_rate","data-cz.json":"policy_rate","data-pl.json":"policy_rate","data-nz.json":"policy_rate","data-my.json":"policy_rate","data-cn.json":"policy_rate"};
+  const NAMES = {"data-sa.json":"Saudi Arabia","data-ro.json":"Romania","data-hu.json":"Hungary","data-cz.json":"Czechia","data-pl.json":"Poland","data-nz.json":"New Zealand","data-my.json":"Malaysia","data-cn.json":"China","data-uk.json":"UK","data-us.json":"US","data-ez.json":"Eurozone","data-ca.json":"Canada","data-jp.json":"Japan","data-at.json":"Austria","data-de.json":"Germany","data-es.json":"Spain","data-fr.json":"France","data-ie.json":"Ireland","data-it.json":"Italy","data-nl.json":"Netherlands"};
   // Euro members come from the page's own var EURO (v1.7.20): a hardcoded copy
   // here hid Belgium's absence from the page at launch.
   const EUROF = Object.keys(JSON.parse(html.match(/var EURO = (\{[^}]*\});/)[1].replace(/(\w+):/g, '"$1":'))).map(c => `data-${c}.json`);

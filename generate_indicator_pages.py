@@ -45,6 +45,9 @@ KIT_VERSION = "8"
 
 # country display name -> (data-file code, page slug, alpha-2, region)
 COUNTRIES = {
+    "Saudi Arabia":  ("sa", "saudiarabia", "SA", "Middle East"),
+    "Romania":       ("ro", "romania", "RO", "Europe"),
+    "Hungary":       ("hu", "hungary", "HU", "Europe"),
     "Czechia":       ("cz", "czechia", "CZ", "Europe"),
     "Greece":        ("gr", "greece", "GR", "Europe"),
     "Finland":       ("fi", "finland", "FI", "Europe"),
@@ -643,13 +646,15 @@ HEADER_HTML_BASE = """<script>(function(){
  <a href="../france">France</a>
  <a href="../germany">Germany</a>
  <a href="../greece">Greece</a>
+ <a href="../hungary">Hungary</a>
  <a href="../ireland">Ireland</a>
- <a href="../italy">Italy</a>
  </div>
  <div class="dcol dcont">
+ <a href="../italy">Italy</a>
  <a href="../netherlands">Netherlands</a>
  <a href="../poland">Poland</a>
  <a href="../portugal">Portugal</a>
+ <a href="../romania">Romania</a>
  <a href="../spain">Spain</a>
  <a href="../switzerland">Switzerland</a>
  <a href="../turkey">Turkey</a>
@@ -680,6 +685,7 @@ HEADER_HTML_BASE = """<script>(function(){
  <div class="dcol">
  <p class="dhead">Middle East</p>
  <a href="../israel">Israel</a>
+ <a href="../saudiarabia">Saudi Arabia</a>
  </div>
  <div class="dcol">
  <p class="dhead">South America</p>

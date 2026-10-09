@@ -29,7 +29,7 @@ H10 = {
 # Currencies with no free official daily or monthly series: World Bank
 # PA.NUS.FCRF annual average, read from the country's own data file
 # (fx_to_usd, local currency per US$).
-ANNUAL = {"ARS", "CLP", "COP", "IDR", "ILS", "MAD", "PLN", "TRY", "CZK"}
+ANNUAL = {"ARS", "CLP", "COP", "IDR", "ILS", "MAD", "PLN", "TRY", "CZK", "HUF", "RON", "SAR"}
 
 SYMBOL = {"USD": "$", "EUR": "\u20ac", "GBP": "\u00a3", "JPY": "\u00a5", "CAD": "C$", "AUD": "A$",
           "MXN": "MX$", "BRL": "R$", "SGD": "S$", "INR": "\u20b9", "KRW": "\u20a9", "IDR": "Rp",
@@ -44,7 +44,10 @@ NAME = {"USD": "US dollar", "EUR": "euro", "GBP": "pound", "JPY": "yen", "CAD": 
         "CNY": "Chinese yuan",
         "MYR": "Malaysian ringgit",
         "NZD": "New Zealand dollar",
-        "CZK": "Czech koruna"}
+        "CZK": "Czech koruna",
+        "HUF": "Hungarian forint",
+        "RON": "Romanian leu",
+        "SAR": "Saudi riyal"}
 QUOTE_NAME = {"USD": "US dollars", "EUR": "euros", "GBP": "pounds"}
 
 # Units of home currency per quoted figure, where one unit is worth very little.
@@ -92,6 +95,9 @@ COUNTRY_FX = {
     "Finland": ("EUR", "fi", ["USD", "GBP"]),
     "Greece": ("EUR", "gr", ["USD", "GBP"]),
     "Czechia": ("CZK", "cz", ["EUR", "USD"]),
+    "Hungary": ("HUF", "hu", ["EUR", "USD"]),
+    "Romania": ("RON", "ro", ["EUR", "USD"]),
+    "Saudi Arabia": ("SAR", "sa", ["USD"]),
 }
 
 NBSP = "\u00a0"
