@@ -9,7 +9,7 @@ Two official sources, merged (as Malaysia's calendar):
     updated, so they are not used.
   - CZSO: the events API behind csu.gov.cz/calendar-of-events
     (/api/web-externi/udalosti, category rychle-informace = news releases),
-    found in the page's widget bundle on 8 Oct 2026. Public, no token, JSON;
+    found in the page's widget bundle on 8 Oct 2026; query fixed v1.7.34. Public, no token, JSON;
     every news release is at 9:00 a.m. Prague time.
 Served: rate_decision (CNB); cpi (CPI and the CPI flash estimate), gdp
 (preliminary estimate and resources and uses), jobs (rates of employment,
@@ -36,9 +36,13 @@ import requests
 
 OUT = "data-calendar-cz.json"
 CNB_URL = "https://www.cnb.cz/en/about_cnb/bank-board/"
+# Query as tested on 9 Oct 2026: the API now answers 404 to any webKod and to a
+# lower-case kodJazyk (both worked on 8 Oct). kodJazyk=EN (upper case) and
+# kategorieKod=rychle-informace are accepted; the category is checked again per
+# event below, so a reply that ignored the filter would still be read correctly.
 CZSO_URL = ("https://csu.gov.cz/api/web-externi/udalosti?datumOd={start}&pocetDni={days}"
-            "&webKod=produkty,statistika,rychle-informace&kodJazyk=en&kategorieKod=rychle-informace")
-CZSO_DAYS = 120
+            "&kodJazyk=EN&kategorieKod=rychle-informace")
+CZSO_DAYS = 90   # about three months of releases; refreshed hourly
 UA = {"User-Agent": "Mozilla/5.0 (Macintosh; Intel Mac OS X 10_15_7) AppleWebKit/537.36 "
                     "(KHTML, like Gecko) Chrome/124.0 Safari/537.36", "Accept-Language": "en"}
 CNB_SRC = "cnb.cz Bank Board meeting schedule (official)"

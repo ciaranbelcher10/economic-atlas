@@ -135,6 +135,9 @@ check(rc4 == 1 and d4["events"][0]["name"] == "keep", "both down: exits 1, exist
 rc5, d5, _ = run(cnb_ok=False, czso_ok=False)
 check(rc5 == 1 and d5 is None, "both down with no previous file: nothing written")
 
+check(1 <= F.CZSO_DAYS <= 90, f"CZSO window 90 days or less: {F.CZSO_DAYS}")
+check("webKod" not in F.CZSO_URL and "kodJazyk=EN&" in F.CZSO_URL and "kategorieKod=rychle-informace" in F.CZSO_URL,
+      "CZSO query as the API accepts it (9 Oct 2026): no webKod, kodJazyk=EN upper case")
 check(F.__doc__ and "CNB" in F.__doc__ and "CZSO" in F.__doc__ and "no token" in F.__doc__, "docstring names both sources")
 check((hashlib.sha256(LIVE.read_bytes()).hexdigest() if LIVE.exists() else None) == H0, "live data-calendar-cz.json untouched")
 print(f"{OK[0]} ok, {len(BAD)} failed")
