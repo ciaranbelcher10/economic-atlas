@@ -51,7 +51,7 @@ NAME = {"USD": "US dollar", "EUR": "euro", "GBP": "pound", "JPY": "yen", "CAD": 
 QUOTE_NAME = {"USD": "US dollars", "EUR": "euros", "GBP": "pounds"}
 
 # Units of home currency per quoted figure, where one unit is worth very little.
-SCALE = {"JPY": 100, "INR": 100, "THB": 100, "TRY": 100, "KRW": 1000, "ARS": 1000,
+SCALE = {"JPY": 100, "INR": 100, "HUF": 100, "THB": 100, "TRY": 100, "KRW": 1000, "ARS": 1000,
          "CLP": 1000, "COP": 1000, "IDR": 10000}
 
 # Where a currency was redenominated or replaced after hyperinflation, the

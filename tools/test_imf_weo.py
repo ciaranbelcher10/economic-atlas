@@ -88,7 +88,7 @@ for f in sorted(glob.glob("fetch_*.py")):
     check(not frozen.search(t), f"{f}: no frozen FRED WEO series wired")
 wired = [f for f in sorted(glob.glob("fetch_*.py"))
          if "imf_weo.fetch(" in open(f, encoding="utf-8").read()]
-check(len(wired) == 14, f"{len(wired)} fetch scripts call imf_weo.fetch (11 from v1.6.27, plus fetch_cn.py, fetch_my.py and fetch_nz.py)")
+check(len(wired) == 15, f"{len(wired)} fetch scripts call imf_weo.fetch (11 from v1.6.27, plus fetch_cn.py, fetch_my.py, fetch_nz.py and fetch_sa.py)")
 
 # --- one retry on a server error, none on a client error (v1.7.8) ---------
 import io as _io

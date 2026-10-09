@@ -80,7 +80,7 @@
 <link href="https://fonts.googleapis.com/css2?family=Nunito+Sans:wght@400;600;700&display=swap" rel="stylesheet">
 <link rel="icon" type="image/png" sizes="32x32" href="favicon-32.png">
 <link rel="apple-touch-icon" href="apple-touch-icon.png">
-<link rel="stylesheet" href="style.css?v=52">
+<link rel="stylesheet" href="style.css?v=53">
 <style>
 .led{display:inline-block; width:9px; height:9px; border-radius:50%;
   margin-right:9px; vertical-align:middle; position:relative; top:-3px;}
@@ -1979,11 +1979,61 @@ const refLinePlugin = {
   }
 };
 if(typeof Chart !== "undefined") Chart.register(refLinePlugin);
+/* v1.7.36: shared display helpers */
+// Year ticks on whole-year steps (1,2,5,10,20,25,50), placed at the first
+// period of each year, so gaps between labels are always equal.
+function EA_yearTicks(scale, maxN){
+  const labels = (scale.chart && scale.chart.data && scale.chart.data.labels) || [];
+  if(!labels.length) return;
+  const lo = Math.max(0, Math.ceil(scale.min)), hi = Math.min(labels.length-1, Math.floor(scale.max));
+  const starts = [];
+  for(let i=lo;i<=hi;i++){
+    const y = String(labels[i]).slice(0,4);
+    if(!/^\d{4}$/.test(y)) return;
+    if(i===0 || String(labels[i-1]).slice(0,4)!==y) starts.push({i:i, y:+y});
+  }
+  if(starts.length<2) return;
+  const span = starts[starts.length-1].y - starts[0].y;
+  const steps = [1,2,5,10,20,25,50,100];
+  let step = steps.find(s => Math.floor(span/s)+1 <= maxN) || 100;
+  const kept = starts.filter(o => o.y % step === 0);
+  if(kept.length>=2) scale.ticks = kept.map(o => ({value:o.i}));
+}
+// Dollarise note: 5 significant figures, never a raw float.
+function fxRateTxt(r){ return (typeof r==="number" && isFinite(r)) ? String(Number(r.toPrecision(5))) : r; }
+// Tile titles: keep the last word and the (i) icon together, and show
+// rate-of-change tags in their intended case (q/q, y/y, m/m).
+function labelHtml(title, icon){
+  const tag = s => s.replace(/\((QoQ|YoY|MoM)\)/gi, (m,x)=>'(<span class="lc">'+x.charAt(0).toLowerCase()+'/'+x.charAt(2).toLowerCase()+'</span>)');
+  const m = String(title).match(/^([\s\S]*?)(\S+)$/);
+  if(!m || !icon) return tag(String(title)) + (icon||"");
+  return tag(m[1]) + '<span class="nw">' + tag(m[2]) + icon + '</span>';
+}
+// Equal label heights per visual row, so figures line up when one title wraps.
+(function(){
+  if(typeof ResizeObserver==="undefined" || typeof document==="undefined") return;
+  let queued=false;
+  function eq(){
+    queued=false;
+    document.querySelectorAll(".hero").forEach(h=>{
+      if(!h.offsetParent) return;
+      const labels=[...h.querySelectorAll(".stat > .label")];
+      labels.forEach(l=>{ l.style.minHeight=""; });
+      const rows={};
+      labels.forEach(l=>{ const t=l.parentElement.offsetTop; (rows[t]=rows[t]||[]).push(l); });
+      Object.values(rows).forEach(r=>{ const mx=Math.max(...r.map(l=>l.offsetHeight)); r.forEach(l=>{ l.style.minHeight=mx+"px"; }); });
+    });
+  }
+  const ro=new ResizeObserver(()=>{ if(!queued){ queued=true; requestAnimationFrame(eq); } });
+  function watch(){ document.querySelectorAll(".hero").forEach(h=>ro.observe(h)); }
+  if(document.readyState==="loading") document.addEventListener("DOMContentLoaded", watch); else watch();
+})();
 const baseScales=(fmtY)=>({
   x:{grid:{display:false}, border:{color:HAIR},
      ticks:{color:INK2, font:{family:"'Avenir Next','Nunito Sans',sans-serif",size:11.5},
-            maxTicksLimit:7, maxRotation:0,
-            callback(v){ return year(this.getLabelForValue(v)); }}},
+            maxRotation:0, autoSkip:false,
+            callback(v){ return year(this.getLabelForValue(v)); }},
+     afterBuildTicks:s=>EA_yearTicks(s,7)},
   y:{grid:{color:HAIR}, border:{display:false},
      ticks:{color:INK2, font:{family:"'Avenir Next','Nunito Sans',sans-serif",size:11.5},
             maxTicksLimit:6, callback:v=>fmtY(v)}}
@@ -2165,7 +2215,7 @@ function statTile(el, key, title, series, opts){
     : "";
   div.innerHTML=`
       ${_pageLinkHtml}
-      <p class="label">${title}${infoIconHtml(opts.infoKey || key)}</p>
+      <p class="label">${labelHtml(title, infoIconHtml(opts.infoKey || key))}</p>
       <p class="figure"><span class="led ${led}" title="${ledTitle}" role="img"
         aria-label="${ledTitle}"></span>${opts.fmt(last[1])}</p>
       <p class="delta ${dir}"><span class="arrow" aria-hidden="true">${arrow}</span>
@@ -2331,7 +2381,7 @@ let FX_DATA=null;
 function fxNum(v){
   const a=Math.abs(v);
   if(a===0) return "0";
-  return a>=100 ? Math.round(a).toLocaleString("en-GB") : (a>=1 ? a.toFixed(2) : a.toFixed(4));
+  return a>=100 ? Math.round(a).toLocaleString("en-GB") : (a>=1 ? a.toFixed(2) : a.toPrecision(4));
 }
 function fxDp(v){ const a=Math.abs(v); return a>=100 ? 0 : (a>=1 ? 2 : 4); }
 function renderFxMarkets(tm){
@@ -2350,7 +2400,7 @@ function renderFxMarkets(tm){
       {fmt:v=>q+fxNum(v)+'<span class="fxper">per '+b+'</span>',
        // Change as a %: a day's move is often smaller than the rate's last
        // decimal, which printed a real move as "$0.00".
-       fmtD:v=>{const pc=prevV ? v/prevV*100 : 0; return (pc<0?"\u2212":"+")+Math.abs(pc).toFixed(2)+"%";},dDp:8,
+       fmtD:v=>{const pc=prevV ? v/prevV*100 : 0; return (Math.abs(pc)<0.005?"":(pc<0?"\u2212":"+"))+Math.abs(pc).toFixed(2)+"%";},dDp:8,
        upIsGood:true,signed:true,source:p.source_short,
        vsText:daily?"vs prior day":(p.freq==="years"?"vs prior year":"vs prior month")});
   });
@@ -2431,7 +2481,7 @@ function render(data){
     s.deficit,"bar",v=>v+"%",pct,SRC_FISCAL,undefined,0);
   const hero=document.getElementById("hero");
   if(gdpAnnual) statTile(hero,"gdp_level","GDP (annual)",gdpAnnual,
-    {fmt:v=>curFmt(v,s.gdp_level.unit,1),fmtD:v=>curFmt(v,s.gdp_level.unit,1),upIsGood:true,source:SRC_GDP});
+    {fmt:v=>curFmt(v,s.gdp_level.unit,1,true),fmtD:v=>curFmt(v,s.gdp_level.unit,1,true),upIsGood:true,source:SRC_GDP});
   if(s.gdp_growth) statTile(hero,"gdp_growth","GDP growth (YoY)",s.gdp_growth,
     {fmt:pct,fmtD:pp,upIsGood:true,source:"FRED series ESPGDPRQPSMEI \u00b7 OECD"});
   if(s.cpi) statTile(hero,"cpi","CPI inflation",s.cpi,
@@ -2451,10 +2501,10 @@ function render(data){
   if(s.fdi) statTile(hero,"fdi","FDI (net inflows)",s.fdi,
     {fmt:pct,fmtD:pp,upIsGood:true,source:SRC_WB});
   if(s.trade_balance) statTile(hero,"trade_balance","Trade balance",s.trade_balance,
-    {fmt:v=>curFmt(v,s.trade_balance.unit,1),fmtD:v=>curFmt(v,s.trade_balance.unit,1),upIsGood:true,source:SRC_TRADE});
+    {fmt:v=>curFmt(v,s.trade_balance.unit,1,true),fmtD:v=>curFmt(v,s.trade_balance.unit,1,true),upIsGood:true,source:SRC_TRADE});
   const tg=document.getElementById("tiles-gdp");
   if(gdpAnnual) statTile(tg,"gdp_level","GDP (annual)",gdpAnnual,
-    {fmt:v=>curFmt(v,s.gdp_level.unit,1),fmtD:v=>curFmt(v,s.gdp_level.unit,1),upIsGood:true,source:SRC_GDP});
+    {fmt:v=>curFmt(v,s.gdp_level.unit,1,true),fmtD:v=>curFmt(v,s.gdp_level.unit,1,true),upIsGood:true,source:SRC_GDP});
   if(s.gdp_growth) statTile(tg,"gdp_growth","Growth (YoY)",s.gdp_growth,
     {fmt:pct,fmtD:pp,upIsGood:true,source:"FRED series ESPGDPRQPSMEI \u00b7 OECD"});
   if(gdpYoY && !s.gdp_growth) statTile(tg,null,"Growth (YoY)",gdpYoY,
@@ -2478,7 +2528,7 @@ function render(data){
     {fmt:pct,fmtD:pp,upIsGood:true,source:SRC_EMP});
   const tt=document.getElementById("tiles-trade");
   if(s.trade_balance) statTile(tt,"trade_balance","Trade balance",s.trade_balance,
-    {fmt:v=>curFmt(v,s.trade_balance.unit,1),fmtD:v=>curFmt(v,s.trade_balance.unit,1),upIsGood:true,source:SRC_TRADE});
+    {fmt:v=>curFmt(v,s.trade_balance.unit,1,true),fmtD:v=>curFmt(v,s.trade_balance.unit,1,true),upIsGood:true,source:SRC_TRADE});
   if(s.current_account) statTile(tt,"current_account","Current account",s.current_account,
     {fmt:pct,fmtD:pp,upIsGood:true,source:SRC_WB});
   const tp=document.getElementById("tiles-public");
@@ -2533,12 +2583,14 @@ function curFmt(rawValue, unitStr, decimals){
   const a = Math.abs(rawValue) * scale;
   const sign = rawValue<0 ? "\u2212" : "";
   var out;
+  if(a===0) return symbol+"0";
   if(a>=1e12) out = sign+symbol+(a/1e12).toFixed(decimals)+"tn";
   else if(a>=1e9) out = sign+symbol+(a/1e9).toFixed(decimals)+"bn";
   else out = sign+symbol+(a/1e6).toFixed(0)+"m";
   // Same trailing-zero trim already used in the Customise & Export tool's
   // czTrimAxisZeros -- extended here so every consumer of curFmt (chart
   // tooltips, axis ticks, stat tile deltas) gets it too, not just exports.
+  if(arguments[3]) return out;  // tiles keep their decimals (v1.7.36)
   return out.replace(/(\.\d*[1-9])0+(?!\d)|\.0+(?!\d)/, function(m, keep){ return keep || ""; });
 }
 function isCurrencyUnit(u){
@@ -2883,13 +2935,13 @@ function rerender(){
   if(TOGGLE_STATE.dollar && PAGE_DATA.fx_to_usd){
     const fx = PAGE_DATA.fx_to_usd;
     if(fx.history && fx.history.length){
-      notes.push(`Currency figures converted at each period's own ${fx.pair} rate (history: ${fx.history[0][0]} to ${fx.history[fx.history.length-1][0]}; latest ${fx.rate} as of ${fx.as_of})`);
+      notes.push(`Currency figures converted at each period's own ${fx.pair} rate (history: ${fx.history[0][0]} to ${fx.history[fx.history.length-1][0]}; latest ${fxRateTxt(fx.rate)} as of ${fx.as_of})`);
       const anyPreHistory = CURRENCY_KEYS.some(k => s[k] && hasPreHistoryPoints(s[k], fx));
       if(anyPreHistory){
         notes.push(`figures before ${fx.history[0][0]} use the earliest available rate (no genuine historical rate exists further back)`);
       }
     } else {
-      notes.push(`All currency figures converted at ${fx.pair} = ${fx.rate} (as of ${fx.as_of}), a single rate applied across the series because no historical rate history is available for it`);
+      notes.push(`All currency figures converted at ${fx.pair} = ${fxRateTxt(fx.rate)} (as of ${fx.as_of}), a single rate applied across the series because no historical rate history is available for it`);
     }
   } else if(TOGGLE_STATE.dollar){
     notes.push("Exchange rate not available yet: showing original currency");
@@ -3019,7 +3071,9 @@ function computeScales(){
   var minV = d3.min(top, metricValue);
   var maxV = d3.max(top, metricValue);
   colorScale = d3.scaleSequential(function(t){
-    return d3.interpolateRgbBasis(["#DEF5E5","#8AD9B1","#40B7AD","#348FA7","#37659E","#413D7B","#2E1E3B"])(t);
+    return d3.interpolateRgbBasis(document.documentElement.getAttribute("data-theme")==="dark"
+      ? ["#3D6E66","#3F9488","#40B7AD","#5BC6D3","#86B9F2","#B7A8F5","#E6D8FF"]
+      : ["#DEF5E5","#8AD9B1","#40B7AD","#348FA7","#37659E","#413D7B","#2E1E3B"])(t);
   }).domain([minV, maxV]);
   widthScale = d3.scaleLinear().domain([minV, maxV]).range([1.5, 9]);
   // Linear rather than sqrt: sqrt compresses the high end of the range,
