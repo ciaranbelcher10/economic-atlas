@@ -44,9 +44,10 @@ still the genuine test):
   members (e.g. Austria's LRAC64TTATQ156S/LREM64TTATQ156S), reused here
   with the PL code, but not individually re-verified against the live
   API specifically for Poland -- check the first real Actions run log.
-- policy_rate / current_account: still NOT included. No clean live
-  source individually confirmed for either during this build --
-  genuine, disclosed gaps, not guesses.
+- policy_rate: ADDED v1.7.34, the NBP reference rate from BIS WS_CBPOL
+  M.PL (the source used for China, Malaysia, New Zealand and Czechia),
+  extended with BIS's daily series, from February 1998 (POLICY_START).
+- current_account: still NOT included (a disclosed gap).
 - trade_balance: ADDED via the same live Eurostat world-partner
   reconstruction (EXT_ST_27_2020MSBEC, geo=PL) used for Austria, since
   Poland is also an EU member state the same dataset documents support.
@@ -89,6 +90,9 @@ import series_guard
 import eurostat_unemp
 import ecb_irs
 import inflation_sources
+import bis_daily
+import csv
+import io
 
 # Series this script is deliberately allowed to replace with a shorter or
 # lower-frequency one. Without an entry here, series_guard keeps the previous
@@ -543,6 +547,35 @@ WB_URL = ("https://api.worldbank.org/v2/country/POL/indicator/"
           "{code}?format=json&per_page=200")
 
 
+# NBP reference rate (v1.7.34). The reference rate is the NBP's main policy
+# rate from February 1998, when the Monetary Policy Council replaced the
+# earlier intervention rates; earlier BIS values describe a different regime.
+# PROVISIONAL until the BIS M.PL series start and break note are read on a
+# probe (see the v1.7.34 notes).
+POLICY_START = "1998-02"
+BIS_PL_URL = "https://stats.bis.org/api/v2/data/dataflow/BIS/WS_CBPOL/1.0/M.PL?format=csv"
+
+
+def fetch_policy_rate(get=None) -> list:
+    """NBP reference rate, end of month, BIS WS_CBPOL M.PL, extended with BIS's
+    daily series only when the two agree at the join (bis_daily.extend)."""
+    get = get or requests.get
+    r = get(BIS_PL_URL, timeout=60, headers={"User-Agent": "economic-atlas/0.1", "Accept": "text/csv"})
+    print(f"  [bis] WS_CBPOL M.PL status={r.status_code}")
+    r.raise_for_status()
+    pts = sorted([[row["TIME_PERIOD"], float(row["OBS_VALUE"])]
+                  for row in csv.DictReader(io.StringIO(r.text))
+                  if row.get("OBS_VALUE") not in (None, "", "NaN")])
+    pts = bis_daily.extend(pts, "PL", "NBP reference rate")
+    pts = [p for p in pts if p[0] >= POLICY_START]
+    bad = [p for p in pts if not (0 <= p[1] < 30)]
+    if bad:
+        raise ValueError(f"BIS policy rate: implausible value {bad[0]}")
+    if not pts:
+        raise ValueError(f"BIS policy rate: no observations from {POLICY_START}")
+    return pts
+
+
 def fetch_worldbank(code: str) -> list | None:
     r = requests.get(WB_URL.format(code=code), timeout=60,
                      headers={"User-Agent": "economic-atlas/0.1"})
@@ -695,6 +728,8 @@ def main() -> int:
         print(f"FAIL  trade_balance     {exc}")
 
     extras = [
+        ("policy_rate", fetch_policy_rate,
+         "NBP reference rate, end of month (BIS WS_CBPOL M.PL)", "%", "months"),
         ("business_confidence", lambda: fetch_oecd_bci(),
          "Business confidence indicator, LT avg = 100 (OECD BCICP)", "index", "months"),
         ("fdi", lambda: fetch_worldbank("BX.KLT.DINV.WD.GD.ZS"),

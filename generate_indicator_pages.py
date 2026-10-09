@@ -45,6 +45,7 @@ KIT_VERSION = "8"
 
 # country display name -> (data-file code, page slug, alpha-2, region)
 COUNTRIES = {
+    "Czechia":       ("cz", "czechia", "CZ", "Europe"),
     "Greece":        ("gr", "greece", "GR", "Europe"),
     "Finland":       ("fi", "finland", "FI", "Europe"),
     "Portugal":      ("pt", "portugal", "PT", "Europe"),
@@ -636,6 +637,7 @@ HEADER_HTML_BASE = """<script>(function(){
  <p class="dhead">Europe</p>
  <a href="../austria">Austria</a>
  <a href="../belgium">Belgium</a>
+ <a href="../czechia">Czechia</a>
  <a href="../eurozone">Eurozone</a>
  <a href="../finland">Finland</a>
  <a href="../france">France</a>
@@ -643,9 +645,9 @@ HEADER_HTML_BASE = """<script>(function(){
  <a href="../greece">Greece</a>
  <a href="../ireland">Ireland</a>
  <a href="../italy">Italy</a>
- <a href="../netherlands">Netherlands</a>
  </div>
  <div class="dcol dcont">
+ <a href="../netherlands">Netherlands</a>
  <a href="../poland">Poland</a>
  <a href="../portugal">Portugal</a>
  <a href="../spain">Spain</a>

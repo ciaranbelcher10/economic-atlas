@@ -1,7 +1,14 @@
-"""Probe official release-calendar pages for China, Malaysia and New Zealand.
+"""Probe official release-calendar pages (China, Malaysia, New Zealand; Czechia,
+Hungary and Romania added v1.7.33).
 
     python3 tools/probe_calendar.py            # saves pages to ~/probe_cal/, prints a report
-    cd ~ && zip -qr probe_cal.zip probe_cal    # upload probe_cal.zip to Claude
+    python3 tools/probe_calendar.py cz         # only candidates named cz_*, and writes
+                                               # ~/probe_cal_cz.txt: the report plus every
+                                               # page exactly as served (upload that file)
+
+.zip uploads do not reach the chat, so the filtered run writes one text file
+with each page's raw markup unchanged (v1.7.31 lesson: stripped dumps hid
+live markup the parser then broke on).
 
 Read-only: writes nothing inside the repo. Each candidate is an official
 publisher URL; the report shows status, size, whether expected text is
@@ -39,6 +46,21 @@ CANDIDATES = [
     ("opendosm_calendar", "https://open.dosm.gov.my/publications/upcoming", ["2026"]),
     ("nbs_calendar_index", "https://www.stats.gov.cn/english/PressRelease/ReleaseCalendar/", ["Regular Press Release Calendar"]),
     ("nbs_calendar_2026", "https://www.stats.gov.cn/english/PressRelease/ReleaseCalendar/202512/t20251226_1962154.html", ["Consumer Price Index", "Oct"]),
+    # Czechia (v1.7.33). The CNB's Bank Board page lists the year's meetings,
+    # monetary policy ones marked; decisions at 2.30 p.m. Prague time.
+    ("cz_cnb_bank_board", "https://www.cnb.cz/en/about_cnb/bank-board/", ["Bank Board meeting on monetary policy", "2026"]),
+    ("cz_cnb_dates_2027", "https://www.cnb.cz/en/cnb-news/news/Dates-of-the-CNB-Boards-meetings-in-2027", ["monetary policy", "2027"]),
+    ("cz_czso_home", "https://csu.gov.cz/home", ["Calendar"]),
+    ("cz_czso_calendar_old", "https://czso.cz/csu/czso/calendar-of-news-releases", ["News Releases"]),
+    ("cz_czso_calendar_events", "https://csu.gov.cz/calendar-of-events", ["2026"]),
+    # Hungary
+    ("hu_mnb_council", "https://www.mnb.hu/en/monetary-policy/the-monetary-council", ["Monetary Council"]),
+    ("hu_ksh_calendar", "https://www.ksh.hu/release_calendar", ["2026"]),
+    ("hu_ksh_home", "https://www.ksh.hu/?lang=en", ["Calendar"]),
+    # Romania
+    ("ro_nbr_home", "https://www.bnr.ro/Home.aspx", ["monetary policy"]),
+    ("ro_ins_calendar", "https://insse.ro/cms/en/calendar", ["2026"]),
+    ("ro_ins_home", "https://insse.ro/cms/en", ["Calendar"]),
 ]
 
 LINK_RE = re.compile(r'href="([^"#]+)"[^>]*>(.*?)</a>', re.I | re.S)
@@ -47,9 +69,15 @@ LINK_HINT = re.compile(r"calendar|schedule|upcoming|release dates|announcement d
 
 def main():
     OUT.mkdir(exist_ok=True)
+    only = sys.argv[1].lower() if len(sys.argv) > 1 else None
+    todo = [c for c in CANDIDATES if not only or c[0].startswith(only + "_")]
+    if not todo:
+        print(f"no candidates named {only}_*")
+        return 1
+    dump = []
     s = requests.Session()
     s.headers.update(UA)
-    for name, url, markers in CANDIDATES:
+    for name, url, markers in todo:
         try:
             r = s.get(url, timeout=40, allow_redirects=True)
         except requests.RequestException as e:
@@ -58,6 +86,7 @@ def main():
         ext = ".pdf" if "pdf" in r.headers.get("content-type", "") else ".html"
         (OUT / f"{name}{ext}").write_bytes(r.content)
         text = r.text if ext == ".html" else ""
+        dump.append((name, r.url, r.status_code, text if ext == ".html" else "[pdf, see ~/probe_cal]"))
         found = [m for m in markers if m.lower() in text.lower()]
         tag = "ok  " if r.status_code == 200 and len(found) == len(markers) else "WARN"
         print(f"{tag}  {name:<22} {r.status_code} {len(r.content):>8} bytes  final={r.url}")
@@ -70,7 +99,14 @@ def main():
         for l in sorted(set(links))[:12]:
             print(f"      link: {l}")
         print()
-    print(f"Saved pages to {OUT}. Now: cd ~ && zip -qr probe_cal.zip probe_cal  and upload probe_cal.zip")
+    print(f"Saved pages to {OUT}.")
+    if only:
+        path = Path.home() / f"probe_cal_{only}.txt"
+        with open(path, "w", encoding="utf-8") as f:
+            for name, url, code, text in dump:
+                f.write(f"\n===== PAGE {name} {code} {url}\n{text}\n===== END {name}\n")
+        print(f"Wrote {path}: upload that file (pages exactly as served).")
+    return 0
 
 
 if __name__ == "__main__":

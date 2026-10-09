@@ -72,6 +72,7 @@ ALL_CALENDAR_FILES = [
     "data-calendar-cl.json", "data-calendar-ma.json", "data-calendar-id.json",
     "data-calendar-br.json", "data-calendar-tr.json",
     "data-calendar-cn.json", "data-calendar-my.json", "data-calendar-nz.json",
+    "data-calendar-cz.json",
     # Not created by any fetch script yet -- see module docstring's "DATA
     # GAP" section. Included here so it starts working the moment that
     # export exists, without needing this script touched again.
@@ -192,7 +193,7 @@ SITE_FONT = "\"Avenir Next\",\"Avenir\",\"Nunito Sans\",system-ui,sans-serif"
 # calendar fetch scripts, not just the ones with events today, so a
 # newly-added country doesn't silently go unlinked.
 COUNTRY_SLUGS = {
-    "China": "china", "Malaysia": "malaysia", "New Zealand": "newzealand",
+    "China": "china", "Malaysia": "malaysia", "New Zealand": "newzealand", "Czechia": "czechia",
     "UK": "uk", "US": "us", "Eurozone": "eurozone", "Japan": "japan",
     "Canada": "canada", "Australia": "australia", "India": "india",
     "South Korea": "southkorea", "Israel": "israel", "Mexico": "mexico",

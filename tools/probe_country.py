@@ -48,6 +48,20 @@ NATIONAL = {
         ("BNM OPR", "https://api.bnm.gov.my/public/opr", "application/vnd.BNM.API.v1+json"),
         ("BNM exchange rate", "https://api.bnm.gov.my/public/exchange-rate/USD", "application/vnd.BNM.API.v1+json"),
     ],
+    # v1.7.33: first candidates for the next launches; the probe reports what answers.
+    "HU": [
+        ("MNB base rate history page", "https://www.mnb.hu/en/monetary-policy/the-monetary-council/base-rate-history", None),
+        ("KSH STADAT index (English)", "https://www.ksh.hu/stadat_eng", None),
+    ],
+    "RO": [
+        ("BNR daily reference rates (XML)", "https://www.bnr.ro/nbrfxrates.xml", None),
+        ("INS TEMPO online", "http://statistici.insse.ro:8077/tempo-online/", None),
+    ],
+    "SA": [
+        ("GASTAT home (English)", "https://www.stats.gov.sa/en", None),
+        ("GASTAT database portal", "https://database.stats.gov.sa", None),
+        ("SAMA monthly statistics", "https://www.sama.gov.sa/en-US/EconomicReports/Pages/MonthlyStatistics.aspx", None),
+    ],
 }
 
 WB = [("NY.GDP.MKTP.CN", "gdp_level (annual LCU)"), ("NY.GDP.MKTP.KN", "gdp_real (annual LCU)"),
