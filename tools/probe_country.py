@@ -57,6 +57,18 @@ NATIONAL = {
         ("BNR daily reference rates (XML)", "https://www.bnr.ro/nbrfxrates.xml", None),
         ("INS TEMPO online", "http://statistici.insse.ro:8077/tempo-online/", None),
     ],
+    # v1.7.41 Croatia: non-OECD euro member, so the Eurostat stand-ins are probed too.
+    "HR": [
+        ("Eurostat 10y convergence yield", "https://ec.europa.eu/eurostat/api/dissemination/statistics/1.0/data/irt_lt_mcby_m?format=JSON&geo=HR&int_rt=MCBY&sinceTimePeriod=2024-01", None),
+        ("Eurostat LFS employment 15-64", "https://ec.europa.eu/eurostat/api/dissemination/statistics/1.0/data/lfsq_ergan?format=JSON&geo=HR&sex=T&age=Y15-64&citizen=TOTAL&unit=PC&sinceTimePeriod=2024-Q1", None),
+        ("Eurostat LFS activity 15-64", "https://ec.europa.eu/eurostat/api/dissemination/statistics/1.0/data/lfsq_argan?format=JSON&geo=HR&sex=T&age=Y15-64&citizen=TOTAL&unit=PC&sinceTimePeriod=2024-Q1", None),
+        ("Eurostat industry confidence", "https://ec.europa.eu/eurostat/api/dissemination/statistics/1.0/data/ei_bssi_m_r2?format=JSON&geo=HR&indic=BS-ICI&s_adj=SA&unit=BAL&sinceTimePeriod=2024-01", None),
+        ("Eurostat HICP index", "https://ec.europa.eu/eurostat/api/dissemination/statistics/1.0/data/prc_hicp_midx?format=JSON&geo=HR&coicop=CP00&unit=I15&sinceTimePeriod=2024-01", None),
+        ("Eurostat GDP earliest", "https://ec.europa.eu/eurostat/api/dissemination/statistics/1.0/data/namq_10_gdp?format=JSON&geo=HR&na_item=B1GQ&unit=CLV20_MEUR&s_adj=SCA&untilTimePeriod=2001-Q4", None),
+        ("Eurostat unemployment earliest", "https://ec.europa.eu/eurostat/api/dissemination/statistics/1.0/data/une_rt_m?format=JSON&geo=HR&sex=T&age=TOTAL&unit=PC_ACT&s_adj=SA&untilTimePeriod=2002-12", None),
+        ("DZS home (English)", "https://dzs.gov.hr/en", None),
+        ("HNB home (English)", "https://www.hnb.hr/en/home", None),
+    ],
     "SA": [
         ("GASTAT home (English)", "https://www.stats.gov.sa/en", None),
         ("GASTAT database portal", "https://database.stats.gov.sa", None),
