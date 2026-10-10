@@ -14,6 +14,7 @@ keyless series (OECD, World Bank); FRED series are skipped with a notice.
 
 from __future__ import annotations
 
+import redact_stream  # noqa: F401  (v1.7.42: masks api_key= in all output)
 import csv
 import oecd_turn
 import io

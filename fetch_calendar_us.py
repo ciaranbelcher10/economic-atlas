@@ -28,6 +28,7 @@ site's existing convention for every other fetch script.
 
 from __future__ import annotations
 
+import redact_stream  # noqa: F401  (v1.7.42: masks api_key= in all output)
 import json
 import os
 import sys

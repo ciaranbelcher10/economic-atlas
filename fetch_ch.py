@@ -10,6 +10,7 @@ own-currency page at build time) per the v2 country-build framework.
 Switzerland is an OECD member but neither EU nor EEA/EFTA -- and unlike
 Turkey/Indonesia/Poland, it has NO confirmed IMF-WEO general-government
 fiscal series on FRED, and its unemployment series naming migrated away
+import redact_stream  # noqa: F401  (v1.7.42: masks api_key= in all output)
 from the LRHUTTTT family used elsewhere on this site. Both of these were
 only caught by individually verifying every series rather than assuming
 the pattern from prior OECD builds -- see notes below.

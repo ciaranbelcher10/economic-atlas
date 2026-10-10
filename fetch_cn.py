@@ -50,6 +50,7 @@ values are carried over by series_guard, as for every other country.
 """
 from __future__ import annotations
 
+import redact_stream  # noqa: F401  (v1.7.42: masks api_key= in all output)
 import csv
 import io
 import json

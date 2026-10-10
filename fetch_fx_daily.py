@@ -27,6 +27,7 @@ Each pair stores:
            is carried over from the previous file with its old stamp, so its
            freshness light turns amber rather than lying.
 """
+import redact_stream  # noqa: F401  (v1.7.42: masks api_key= in all output)
 import json
 import os
 import sys

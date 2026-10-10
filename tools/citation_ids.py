@@ -195,6 +195,19 @@ def script_ids_for(script, metric):
     return ids
 
 
+def eurostat_fallback_datasets(script, metric):
+    """First-choice Eurostat dataset of EUROSTAT_FALLBACK[metric], if any."""
+    try:
+        src = open(os.path.join(REPO, script), encoding="utf-8").read()
+    except OSError:
+        return []
+    m = re.search(r"^EUROSTAT_FALLBACK = \{(.*?)^\}", src, re.S | re.M)
+    if not m:
+        return []
+    e = re.search(r'"%s":\s*\[\("([a-z0-9_]+)"' % re.escape(metric), m.group(1))
+    return [e.group(1)] if e else []
+
+
 if __name__ == "__main__":
     c2s = country_to_script()
     sources = json.load(open(os.path.join(REPO, "data-metric-sources.json"), encoding="utf-8"))
@@ -240,6 +253,13 @@ if __name__ == "__main__":
             if not cited and any(
                     re.search(r"\bseries " + re.escape(u) + r"\b", citation)
                     for u in used):
+                counts["MATCH"] += 1
+                continue
+            # v1.7.42: non-OECD scripts (fetch_hr.py) list a FRED id that is
+            # expected to 400 and fall back to Eurostat (EUROSTAT_FALLBACK).
+            # A citation naming the first-choice fallback dataset is correct.
+            if not cited and any(d in citation
+                                 for d in eurostat_fallback_datasets(script, metric)):
                 counts["MATCH"] += 1
                 continue
             if not cited:

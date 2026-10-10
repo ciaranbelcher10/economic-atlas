@@ -50,6 +50,10 @@ for(const f of pages){
   check(f+" money zero", E.curFmt(0,"CZKm",0)==="CZK0", E.curFmt(0,"CZKm",0));
   check(f+" money neg zero", E.curFmt(-0,"HUFbn",0)==="HUF0", E.curFmt(-0,"HUFbn",0));
   check(f+" money axis trims", E.curFmt(600000,"CZKm",1)==="CZK600bn", E.curFmt(600000,"CZKm",1));
+  check(f+" money axis half-bn", E.curFmt(-1500,"EURm",0)==="\u2212EUR1.5bn".replace("EUR",E.curFmt(-2000,"EURm",0).replace(/[\u2212\d.bn]/g,"")), E.curFmt(-1500,"EURm",0));
+  { const labs=[-500,-1000,-1500,-2000,-2500,-3000].map(v=>E.curFmt(v,"EURm",0));
+    check(f+" money axis no adjacent dup", labs.every((l,i)=>i===0||l!==labs[i-1]), labs.join("|")); }
+  check(f+" money axis whole bn", E.curFmt(2000,"EURm",0).endsWith("2bn"), E.curFmt(2000,"EURm",0));
   check(f+" money tile keeps", E.curFmt(5.0e6,"HUFm",1,true)==="HUF5.0tn", E.curFmt(5.0e6,"HUFm",1,true));
   check(f+" fx 4 sig figs", E.fxNum(0.0404)==="0.04040" && E.fxNum(0.2505)==="0.2505" && E.fxNum(1.25)==="1.250", [E.fxNum(0.0404),E.fxNum(0.2505),E.fxNum(1.25)]);
   check(f+" fx 4 sig figs above 1", E.fxNum(1.1259)==="1.126" && E.fxNum(0.8508)==="0.8508" && E.fxNum(24.531)==="24.53" && E.fxNum(353.14)==="353", [E.fxNum(1.1259),E.fxNum(24.531),E.fxNum(353.14)]);

@@ -37,6 +37,7 @@ exist. Each one has a Eurostat fallback, tried only if FRED fails:
 
 from __future__ import annotations
 
+import redact_stream  # noqa: F401  (v1.7.42: masks api_key= in all output)
 import re
 import oecd_turn
 import json

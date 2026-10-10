@@ -16,7 +16,7 @@ answered onto the site's series keys so the gaps are explicit.
 """
 from __future__ import annotations
 
-import csv, io, json, os, sys, time
+import csv, io, json, os, signal, sys, time
 from pathlib import Path
 
 import requests
@@ -87,9 +87,32 @@ def get(url, accept=None, timeout=90):
     h = dict(UA)
     if accept:
         h["Accept"] = accept
-    r = requests.get(url, timeout=timeout, headers=h)
+    r = requests.get(url, timeout=(15, timeout), headers=h)
     r.raise_for_status()
     return r
+
+
+class _Deadline(Exception):
+    pass
+
+
+def capped(seconds, name, fn, *args, **kw):
+    """Run fn with a wall-clock cap (v1.7.42): a slow-streaming server can
+    keep a requests read timeout alive indefinitely, which hung the probe
+    after the OECD section. On expiry the call is recorded as TIMEOUT and
+    the probe moves on."""
+    def _alarm(signum, frame):
+        raise _Deadline()
+    old = signal.signal(signal.SIGALRM, _alarm)
+    signal.alarm(seconds)
+    try:
+        return fn(*args, **kw)
+    except _Deadline:
+        print(f"TIMEOUT {name} (>{seconds}s), skipped")
+        record(name, "TIMEOUT", note=f">{seconds}s")
+    finally:
+        signal.alarm(0)
+        signal.signal(signal.SIGALRM, old)
 
 
 def record(name, status, n=0, first="", last="", note=""):
@@ -240,19 +263,19 @@ def main():
     listing("OECD trade in goods (monthly)", O + f"OECD.SDD.TPS,DSD_IMTS@DF_IMTS,1.0/{iso3}.M........?format=csvfile&startPeriod=2022")
 
     print("\n== IMF (wildcard listings)")
-    listing("IMF CPI", IMF + f"CPI/~/{iso3}.*.*.*.M?c[TIME_PERIOD]=ge:2023-M01")
-    listing("IMF ITG (trade in goods)", IMF + f"ITG/~/{iso3}.*.*.M?c[TIME_PERIOD]=ge:2023-M01")
-    listing("IMF QNEA (quarterly national accounts)", IMF + f"QNEA/~/{iso3}.*.*.*.Q?c[TIME_PERIOD]=ge:2023-Q1")
-    listing("IMF MFS_IR (interest rates)", IMF + f"MFS_IR/~/{iso3}.*.M?c[TIME_PERIOD]=ge:2024-M01")
-    imf_weo(iso3)
+    capped(120, "IMF CPI", listing, "IMF CPI", IMF + f"CPI/~/{iso3}.*.*.*.M?c[TIME_PERIOD]=ge:2023-M01")
+    capped(120, "IMF ITG (trade in goods)", listing, "IMF ITG (trade in goods)", IMF + f"ITG/~/{iso3}.*.*.M?c[TIME_PERIOD]=ge:2023-M01")
+    capped(120, "IMF QNEA (quarterly national accounts)", listing, "IMF QNEA (quarterly national accounts)", IMF + f"QNEA/~/{iso3}.*.*.*.Q?c[TIME_PERIOD]=ge:2023-Q1")
+    capped(120, "IMF MFS_IR (interest rates)", listing, "IMF MFS_IR (interest rates)", IMF + f"MFS_IR/~/{iso3}.*.M?c[TIME_PERIOD]=ge:2024-M01")
+    capped(240, "IMF WEO", imf_weo, iso3)
 
     print("\n== BIS")
     listing("BIS policy rate (WS_CBPOL)", f"https://stats.bis.org/api/v2/data/dataflow/BIS/WS_CBPOL/1.0/M.{iso2}?format=csv&detail=full&startPeriod=2024-01")
     # Long-run CPI (unit 628 = index, 771 = year-on-year %): an independent
     # cross-check for the audit, NOT a bond yield. Yields come from OECD IRLT.
     listing("BIS long-run CPI (WS_LONG_CPI)", f"https://stats.bis.org/api/v2/data/dataflow/BIS/WS_LONG_CPI/1.0/M.{iso2}.*?format=csv&startPeriod=2024-01")
-    worldbank(iso3)
-    national(iso2)
+    capped(240, "World Bank", worldbank, iso3)
+    capped(240, "National", national, iso2)
 
     print("\n== SUMMARY")
     for nm, st, n, a, b, note in RESULTS:

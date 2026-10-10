@@ -44,6 +44,7 @@ series_guard carries the previous one over.
 """
 from __future__ import annotations
 
+import redact_stream  # noqa: F401  (v1.7.42: masks api_key= in all output)
 import csv
 import io
 import json

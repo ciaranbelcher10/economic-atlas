@@ -38,6 +38,7 @@ pct], ...] (last three years of trading days), "source", "source_short",
 "confirmed_at"}. A source that fails keeps the previous file untouched, so
 its stamp ages and the tile's light turns amber.
 """
+import redact_stream  # noqa: F401  (v1.7.42: masks api_key= in all output)
 import csv
 import io
 import json

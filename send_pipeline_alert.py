@@ -30,6 +30,7 @@ series a few days into its normal update window) -- only on the two
 genuine-breakage signals above. Exit code is always 0: this is a report,
 not a gate, matching check_data_freshness.py's own convention.
 """
+import redact_stream  # noqa: F401  (v1.7.42: masks api_key= in all output)
 import json
 import os
 import re

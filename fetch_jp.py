@@ -21,6 +21,7 @@ and check the Actions log for "ok  cpi" vs "FAIL  cpi".
 
 from __future__ import annotations
 
+import redact_stream  # noqa: F401  (v1.7.42: masks api_key= in all output)
 import json
 import oecd_turn
 import time
