@@ -44,7 +44,7 @@ import re
 import subprocess
 from datetime import datetime, timezone
 
-# All 43 country data files the visitor-facing pages read. Deliberately
+# All 44 country data files the visitor-facing pages read. Deliberately
 # excludes trade-partner files and the UK-specific breakdown files
 # (MPC votes, spending COFOG, inactivity reasons, age breakdown) --
 # those have their own structure and update cadence, not the simple
@@ -67,7 +67,7 @@ DATA_FILES = {
     "Argentina": "data-ar.json", "Austria": "data-at.json", "Chile": "data-cl.json", "Colombia": "data-co.json",
     "Denmark": "data-dk.json", "Indonesia": "data-id.json", "Ireland": "data-ie.json", "Norway": "data-no.json",
     "Poland": "data-pl.json", "Singapore": "data-sg.json", "Sweden": "data-se.json", "Switzerland": "data-ch.json",
-    "Thailand": "data-th.json", "Turkey": "data-tr.json", "China": "data-cn.json", "Malaysia": "data-my.json", "New Zealand": "data-nz.json", "Belgium": "data-be.json", "Portugal": "data-pt.json", "Finland": "data-fi.json", "Greece": "data-gr.json", "Czechia": "data-cz.json", "Hungary": "data-hu.json", "Romania": "data-ro.json", "Saudi Arabia": "data-sa.json",
+    "Thailand": "data-th.json", "Turkey": "data-tr.json", "China": "data-cn.json", "Malaysia": "data-my.json", "New Zealand": "data-nz.json", "Belgium": "data-be.json", "Portugal": "data-pt.json", "Finland": "data-fi.json", "Greece": "data-gr.json", "Czechia": "data-cz.json", "Hungary": "data-hu.json", "Romania": "data-ro.json", "Saudi Arabia": "data-sa.json", "Slovakia": "data-sk.json",
 }
 
 # Identical to the JS STALE_DAYS used on every country page, Compare,

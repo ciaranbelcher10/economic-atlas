@@ -1,0 +1,626 @@
+"""Fetch Slovakia's economic series and write data-sk.json.
+
+Run:  FRED_API_KEY=yourkey python3 fetch_sk.py
+In GitHub Actions the key comes from the FRED_API_KEY repository secret.
+
+Built v1.7.39 from fetch_pt.py (Portugal, the latest euro-member script).
+Every source below is the Portuguese one with the country code swapped; each
+is UNCONFIRMED for Slovakia until probe_sk.txt and the first real run (this
+docstring is rewritten with what they show). Slovakia adopted the euro on
+1 January 2009: Eurostat serves the whole history in euro (CP_MEUR), so no
+currency conversion is needed;
+fx_to_usd (FRED DEXUSEU) exists only for "Dollarise".
+
+Sources, one per site key:
+- gdp_level / gdp_real: Eurostat namq_10_gdp via eurostat_gdp.py (current
+  prices and chain-linked volumes, SA). FRED CPMNACSCAB1GQSK /
+  CLVMNACSCAB1GQSK are the fallback only.
+- gdp_growth: derived q/q from the real series.
+- unemployment: Eurostat une_rt_m via eurostat_unemp.py; FRED
+  LRHUTTTTSKM156S is the fallback.
+- participation_rate / employment_rate: OECD 15-64 quarterly via FRED
+  (LRAC64TTSKQ156S, LREM64TTSKQ156S), as every eurozone page.
+- cpi / cpi_mom: HICP all items (CP0000SKM086NEST, Eurostat via FRED), the
+  measure every eurozone page uses. The Statistical Office's own CPI
+  differs; whether to add it as cpi_national is decided from the probe.
+- ecb_rate: ECB deposit facility rate (ECBDFR), served from 2009-01 when
+  Slovakia joined the euro (SERIES_START); before that the National Bank of
+  Slovakia set its own rate, which this page does not show.
+- bond_yield_10y: IRLTLT01SKM156N (OECD via FRED), monthly.
+- trade_balance: Eurostat ext_st_27_2020msbec, world partner, EUR.
+- business_confidence: OECD BCICP (REF_AREA SVK), the script's only OECD
+  call, so it sits in a light oecd_turn group.
+- debt_gdp / deficit: Eurostat gov_10dd_edpt1 (EDP notification), geo=SK,
+  which runs a year ahead of the IMF WEO.
+- Not served: current_account / fdi (as every eurozone page but Ireland).
+"""
+
+from __future__ import annotations
+
+import re
+import oecd_turn
+import json
+import os
+import sys
+from datetime import datetime, timezone
+
+import requests
+import series_guard
+import eurostat_gdp
+import eurostat_unemp
+
+# Series this script is deliberately allowed to replace with a shorter or
+# lower-frequency one. Without an entry here, series_guard keeps the previous
+# series whenever the incoming one has less history, coarser frequency, or an
+# older last period, which is what stops a rate-limited partial response from
+# overwriting good data.
+#
+# Add an entry ONLY when intentionally swapping source, and say why, e.g.
+#     ALLOW_SHRINK = {"ppi": "PPIACO -> PPIFID, final demand is the BLS headline"}
+# Remove it once the new series has landed.
+ALLOW_SHRINK = {"unemployment": "v1.6.34: OECD/FRED LRHUTTTT copy -> Eurostat une_rt_m; Eurostat history can start later"}
+
+# key: (fred_id, freq 'm'|'q'|'a', label, unit, transform None|'yoy'|'mom'|'qoq', scale)
+FRED_SERIES = {
+    "ecb_rate": ("ECBDFR", "d", "ECB deposit facility rate", "%", None, 1.0),
+    "gdp_level": ("CPMNACSCAB1GQSK", "q", "Nominal GDP, current prices, SA (Eurostat)", "\u20acm", None, 1.0),
+    "gdp_real": ("CLVMNACSCAB1GQSK", "q", "Real GDP, chain-linked volumes, SA (Eurostat)", "\u20acm", None, 1.0),
+    "unemployment": ("LRHUTTTTSKM156S", "m", "Unemployment rate, 15+, SA (OECD harmonized)", "%", None, 1.0),
+    "participation_rate": ("LRAC64TTSKQ156S", "q", "Labour force participation rate, 15-64, SA", "%", None, 1.0),
+    "employment_rate": ("LREM64TTSKQ156S", "q", "Employment rate, 15-64, SA", "%", None, 1.0),
+    "bond_yield_10y": ("IRLTLT01SKM156N", "m", "10-year government bond yield", "%", None, 1.0),
+    "cpi": ("CP0000SKM086NEST", "m", "HICP, all items, YoY", "%", "yoy", 1.0),
+    "cpi_mom": ("CP0000SKM086NEST", "m", "HICP, all items, MoM", "%", "mom", 1.0),
+}
+
+# Series served only from a given period (v1.7.22 mechanism).
+SERIES_START = {"ecb_rate": "2009-01"}   # euro member from 1 Jan 2009
+# trade_balance (XTNTVA01SKM667S) deliberately removed from the primary
+# FRED loop above -- confirmed dead (Aug 2026 data-quality sweep): every
+# unit/adjustment variant of this OECD-mirrored series on FRED shows
+# "Next Release Date: Not Available" stopped at 2025-12, not just this
+# one series ID. Kept here as a fallback constant only, tried after the
+# new Eurostat live source below, not as the primary path anymore.
+TRADE_BALANCE_FRED_FALLBACK = ("XTNTVA01SKM667S", "m", "Trade balance, goods, $ (OECD via FRED, backup series)", "$m", None, 1e-6)
+
+FRED_URL = ("https://api.stlouisfed.org/fred/series/observations"
+            "?series_id={sid}&api_key={key}&file_type=json"
+            "&observation_start=1970-01-01")
+
+
+def _period_back_n(per, n: int):
+    """The period label n periods earlier, in the period's own unit."""
+    s = str(per)
+    if re.fullmatch(r"\d{4}-\d{2}", s):
+        t = int(s[:4]) * 12 + (int(s[5:]) - 1) - n
+        return "{}-{:02d}".format(t // 12, t % 12 + 1)
+    if re.fullmatch(r"\d{4}-Q[1-4]", s):
+        t = int(s[:4]) * 4 + (int(s[6]) - 1) - n
+        return "{}-Q{}".format(t // 4, t % 4 + 1)
+    if re.fullmatch(r"\d{4}", s):
+        return str(int(s) - n)
+    return None
+
+
+def fred_period(date: str, freq: str) -> str:
+    y, m = date[:4], int(date[5:7])
+    if freq == "a":
+        return y
+    if freq == "q":
+        return f"{y}-Q{(m - 1) // 3 + 1}"
+    return f"{y}-{m:02d}"
+
+
+def fetch_fred(sid: str, freq: str, key: str) -> list:
+    r = requests.get(FRED_URL.format(sid=sid, key=key), timeout=60,
+                     headers={"User-Agent": "economic-atlas/0.1"})
+    r.raise_for_status()
+    points = []
+    for o in r.json().get("observations", []):
+        if o.get("value") in (None, "", "."):
+            continue
+        try:
+            points.append([fred_period(o["date"], freq), float(o["value"])])
+        except (KeyError, ValueError):
+            continue
+    points.sort(key=lambda p: p[0])
+    dedup = {}
+    for p, v in points:
+        dedup[p] = v
+    return sorted([[p, v] for p, v in dedup.items()], key=lambda x: x[0])
+
+
+def _period_back(per, months: int):
+    """The period label `months` earlier. Handles YYYY-MM, YYYY-Qn and YYYY."""
+    s = str(per)
+    if re.fullmatch(r"\d{4}-\d{2}", s):
+        t = int(s[:4]) * 12 + (int(s[5:]) - 1) - months
+        return "{}-{:02d}".format(t // 12, t % 12 + 1)
+    if re.fullmatch(r"\d{4}-Q[1-4]", s):
+        steps = max(1, months // 3)
+        t = int(s[:4]) * 4 + (int(s[6]) - 1) - steps
+        return "{}-Q{}".format(t // 4, t % 4 + 1)
+    if re.fullmatch(r"\d{4}", s):
+        return str(int(s) - max(1, months // 12))
+    return None
+
+
+def transform(points: list, kind: str | None) -> list:
+    """Rate of change matched BY PERIOD rather than by list position.
+
+    This used to index backwards a fixed number of list slots
+    (points[i - 12]), which compares the wrong periods whenever the source
+    series has a hole in it. BLS published no October 2025 CPI during the
+    shutdown, so every US CPI point from November 2025 onward was compared
+    against the month before the one it should have been: August 2026 read
+    3.71 where BLS published 3.4.
+
+    Looking the counterpart up by period label means a gap yields no point
+    rather than a wrong one, which is correct: the rate genuinely is not
+    computable for that period.
+    """
+    if kind not in ("yoy", "mom", "qoq"):
+        return points
+    back = 12 if kind == "yoy" else 1
+    by_period = {p[0]: p[1] for p in points}
+    out = []
+    for per, val in points:
+        prev = _period_back(per, back)
+        base = by_period.get(prev) if prev else None
+        if not base:
+            continue
+        out.append([per, round((val / base - 1) * 100, 4)])
+    return out
+
+
+def gdp_growth_from_level(points: list) -> list:
+    """Period-on-period growth, matched by period rather than list position."""
+    by_period = {p[0]: p[1] for p in points}
+    out = []
+    for per, val in points:
+        prev = _period_back_n(per, 1)
+        base = by_period.get(prev) if prev else None
+        if base:
+            out.append([per, round((val / base - 1) * 100, 4)])
+    return out
+
+
+EUROSTAT_STATS_BASE = "https://ec.europa.eu/eurostat/api/dissemination/statistics/1.0/data"
+
+
+def _parse_jsonstat(text: str, tag: str) -> list | None:
+    import json as jsonlib
+    data = jsonlib.loads(text)
+    if "dimension" not in data or "time" not in data.get("dimension", {}):
+        print(f"  [{tag}] response has no time dimension; top-level keys: "
+              f"{list(data.keys())}")
+        return None
+    for dname, dim in data["dimension"].items():
+        if dname == "time" or not isinstance(dim, dict):
+            continue
+        idx = dim.get("category", {}).get("index", {})
+        if isinstance(idx, dict) and len(idx) > 1:
+            print(f"  [{tag}] dimension {dname!r} has {len(idx)} categories "
+                  f"({list(idx)[:5]}...) -- query is under-filtered, refusing "
+                  f"to parse a multi-series response")
+            return None
+    time_index = data["dimension"]["time"]["category"]["index"]
+    pos_to_period = {v: k for k, v in time_index.items()}
+    value = data.get("value")
+    points = {}
+    if isinstance(value, dict):
+        for pos_str, val in value.items():
+            try:
+                pos = int(pos_str)
+            except ValueError:
+                continue
+            if pos in pos_to_period and val is not None:
+                points[pos_to_period[pos]] = float(val)
+    elif isinstance(value, list):
+        for pos, val in enumerate(value):
+            if val is not None and pos in pos_to_period:
+                points[pos_to_period[pos]] = float(val)
+    if not points:
+        print(f"  [{tag}] parsed JSON-stat but got 0 points; "
+              f"value type={type(value)}, size={data.get('size')}, "
+              f"dim order={data.get('id')}")
+        return None
+    pts = sorted([[p, v] for p, v in points.items()], key=lambda x: x[0])
+    print(f"  [{tag}] SUCCESS: {len(pts)} points, {pts[0][0]} to {pts[-1][0]}")
+    return pts
+
+
+def fetch_eurostat_govfinance(na_item: str) -> list | None:
+    url = (f"{EUROSTAT_STATS_BASE}/gov_10dd_edpt1?format=JSON&lang=EN"
+          f"&geo=SK&sector=S13&unit=PC_GDP&na_item={na_item}"
+          f"&sinceTimePeriod=2000")
+    try:
+        r = requests.get(url, timeout=60,
+                         headers={"User-Agent": "economic-atlas/0.1"})
+        print(f"  [eurostat-gov-{na_item}] SK status={r.status_code}")
+        r.raise_for_status()
+    except Exception as exc:
+        print(f"  [eurostat-gov-{na_item}] SK request failed: {exc}")
+        return None
+    try:
+        return _parse_jsonstat(r.text, f"eurostat-gov-{na_item}-SK")
+    except Exception as exc:
+        print(f"  [eurostat-gov-{na_item}] SK parsing failed: {exc}; "
+              f"first 300 chars: {r.text[:300]!r}")
+        return None
+
+
+def fetch_eurostat_trade_world(stk_flow: str) -> list | None:
+    """Slovakia's monthly total (world-partner) merchandise trade, one
+    flow (EXP or IMP) at a time, from Eurostat's EXT_ST_27_2020MSBEC
+    ("Member States EU27 (from 2020) trade by BEC product group").
+
+    Added Aug 2026 after the FRED/OECD-mirrored trade_balance series
+    (XTNTVA01SKM667S) was confirmed dead across every variant. This
+    dataset was chosen specifically because -- unlike TEIET010/TEIET110
+    (already ruled out; those never support individual member-state geo
+    codes with a world partner, see this file's build notes) -- Eurostat
+    documentation and third-party usage examples (DBnomics, an R
+    filter against this exact dataset) confirm EXT_ST_27_2020MSBEC does
+    expose partner=WORLD at monthly frequency for individual member
+    states, not just EU/EA aggregates.
+
+    NOT independently verified against a live API response from this
+    sandbox (dissemination.ec.europa.eu is outside the network allowlist
+    here) -- confirmed only via documentation and third-party query
+    examples, the same evidentiary bar used for the COICOP2018 CPI fix
+    earlier this session. Treat as unconfirmed until the first real
+    Actions run log shows a genuine SUCCESS line here; if it 404s or
+    returns 0 points, this dataset/dimension combination was wrong and
+    needs re-deriving, not silently patching.
+
+    stk_flow: "EXP" or "IMP". Returns monthly [period, value_million_eur]
+    points, or None if the request/parse fails (caller falls through to
+    the stale FRED series rather than losing the metric entirely).
+    """
+    url = (f"{EUROSTAT_STATS_BASE}/ext_st_27_2020msbec?format=JSON&lang=EN"
+          f"&geo=SK&partner=WORLD&indic_et=TRD_VAL&bclas_bec=TOTAL"
+          f"&stk_flow={stk_flow}&sinceTimePeriod=2015")
+    try:
+        r = requests.get(url, timeout=60,
+                         headers={"User-Agent": "economic-atlas/0.1"})
+        print(f"  [eurostat-trade-world-{stk_flow}] SK status={r.status_code}")
+        r.raise_for_status()
+    except Exception as exc:
+        print(f"  [eurostat-trade-world-{stk_flow}] SK request failed: {exc}")
+        return None
+    try:
+        return _parse_jsonstat(r.text, f"eurostat-trade-world-{stk_flow}-SK")
+    except Exception as exc:
+        print(f"  [eurostat-trade-world-{stk_flow}] SK parsing failed: {exc}; "
+              f"first 300 chars: {r.text[:300]!r}")
+        return None
+
+
+def fetch_eurostat_trade_balance_world() -> list | None:
+    """Trade balance = exports - imports, both from
+    fetch_eurostat_trade_world above, matched by period. Returns None
+    (triggering the FRED fallback) if either flow is unavailable, or if
+    after matching by period there's nothing left to derive a balance
+    from -- a balance built from mismatched periods would be wrong, not
+    just incomplete."""
+    exp = fetch_eurostat_trade_world("EXP")
+    imp = fetch_eurostat_trade_world("IMP")
+    if not exp or not imp:
+        return None
+    imp_by_period = {p: v for p, v in imp}
+    balance = [[p, v - imp_by_period[p]] for p, v in exp if p in imp_by_period]
+    if not balance:
+        print("  [eurostat-trade-world] EXP and IMP returned no overlapping periods")
+        return None
+    balance.sort(key=lambda x: x[0])
+    print(f"  [eurostat-trade-world] balance derived: {len(balance)} points, "
+          f"{balance[0][0]} to {balance[-1][0]}")
+    return balance
+
+
+OECD_BASE = "https://sdmx.oecd.org/public/rest/data/OECD.SDD.STES,DSD_STES@DF_CLI"
+OECD_QUERIES = [
+    f"{OECD_BASE}/SVK.M.BCICP...AA...H?format=csvfile&startPeriod=1990",
+    f"{OECD_BASE}/SVK.M.BCICP......?format=csvfile&startPeriod=1990",
+    f"{OECD_BASE}/all?format=csvfile&startPeriod=1990",
+]
+
+
+def fetch_oecd_bci() -> list | None:
+    oecd_turn.check()  # rotate OECD requests across groups; see oecd_turn.py
+    import csv
+    import io
+    for url in OECD_QUERIES:
+        try:
+            r = requests.get(url, timeout=60,
+                             headers={"User-Agent": "economic-atlas/0.1"})
+            print(f"  [oecd-bci] status={r.status_code}")
+            r.raise_for_status()
+        except Exception as exc:
+            print(f"  [oecd-bci] request failed: {exc}")
+            continue
+        try:
+            rows = {}
+            for row in csv.DictReader(io.StringIO(r.text)):
+                low = {k.upper(): (v or "") for k, v in row.items() if k}
+                if low.get("REF_AREA", "SVK") != "SVK":
+                    continue
+                if low.get("MEASURE", "BCICP") != "BCICP":
+                    continue
+                if (low.get("FREQ") or low.get("FREQUENCY") or "M") != "M":
+                    continue
+                period, value = low.get("TIME_PERIOD", ""), low.get("OBS_VALUE", "")
+                if period and value:
+                    try:
+                        rows[period] = float(value)
+                    except ValueError:
+                        continue
+            if rows:
+                return sorted([[p, v] for p, v in rows.items()], key=lambda x: x[0])
+            print(f"  [oecd-bci] {len(rows)} matching rows after filtering -- no usable data")
+        except Exception as exc:
+            print(f"  [oecd-bci] parsing failed: {exc}")
+            continue
+    return None
+
+
+
+def _fx_rate_for_period(fx_hist, period, fallback):
+    """Exchange rate in effect during `period`, not today's spot rate.
+
+    The OECD "667S" merchandise-trade series are USD-denominated, and are
+    converted to the page's own currency below. Converting every historical
+    point at the LATEST spot rate silently rewrites history: a 1990 trade
+    balance would be expressed at this month's exchange rate. The site's
+    Dollarise feature exists precisely to avoid that, so the pipeline must
+    not reintroduce it. Each point is converted at the rate for its own
+    period instead, falling back to the nearest earlier rate, and only to
+    `fallback` when no history is available at all.
+
+    `fx_hist` is the ascending [[YYYY-MM, rate], ...] list returned by
+    fetch_fred for the daily DEX* series (reduced to one point per month).
+    """
+    if not fx_hist:
+        return fallback
+    if len(period) == 7 and period[4] == "-":
+        key = period
+    elif "Q" in period:
+        y, q = period.split("-Q")
+        key = f"{y}-{int(q) * 3:02d}"
+    else:
+        key = f"{period[:4]}-12"
+    best = None
+    for p, v in fx_hist:
+        if p <= key:
+            best = v
+        else:
+            break
+    return best if best is not None else fx_hist[0][1]
+
+
+def main() -> int:
+    out = {
+        "updated": datetime.now(timezone.utc).strftime("%Y-%m-%dT%H:%M:%SZ"),
+        "sample": False,
+        "series": {},
+    }
+    failures = []
+
+    # gdp_level / gdp_real direct from Eurostat (v1.6.32); FRED's copies
+    # had stopped taking revisions. FRED is used only if Eurostat fails.
+    es_gdp = eurostat_gdp.fetch_levels("SK", "MEUR", "\u20acm")
+    out["series"].update(es_gdp)
+
+    # unemployment direct from Eurostat une_rt_m (v1.6.34); the FRED/OECD
+    # copy is the fallback only.
+    es_unemp = eurostat_unemp.fetch("SK")
+    out["series"].update(es_unemp)
+
+    key = os.environ.get("FRED_API_KEY")
+    if not key:
+        print("WARN  no FRED_API_KEY set — FRED series will be skipped.")
+    else:
+        for name, (sid, freq, label, unit, tf, scale) in FRED_SERIES.items():
+            if name in es_gdp or name in es_unemp:
+                continue
+            try:
+                raw = fetch_fred(sid, freq, key)
+                if scale != 1.0:
+                    raw = [[p, v * scale] for p, v in raw]
+                points = transform(raw, tf)
+                if name in SERIES_START:
+                    points = [sk for sk in points if sk[0] >= SERIES_START[name]]
+                if not points:
+                    raise ValueError("no observations")
+                fr = {"m": "months", "d": "months", "q": "quarters", "a": "years"}[freq]
+                out["series"][name] = {"label": f"{label} ({sid})", "unit": unit,
+                                       "freq": fr, "points": points}
+                print(f"  ok  {name:<16} {len(points):>5} observations "
+                      f"({points[0][0]} to {points[-1][0]}, {fr})")
+            except Exception as exc:
+                failures.append(name)
+                print(f"FAIL  {name:<16} {exc}")
+
+        # gdp_growth: derived from gdp_real (QoQ), since gdp_level has no
+        # individually-confirmed series for Slovakia -- see build notes.
+        if "gdp_real" in out["series"]:
+            try:
+                gpts = out["series"]["gdp_real"]["points"]
+                growth = gdp_growth_from_level(gpts)
+                if growth:
+                    out["series"]["gdp_growth"] = {
+                        "label": f"Real GDP growth, QoQ, SA (derived from {eurostat_gdp.source_tag(out['series']['gdp_real'])})", "unit": "%",
+                        "freq": "quarters", "points": growth}
+                    print(f"  ok  gdp_growth       {len(growth):>5} observations (derived)")
+            except Exception as exc:
+                print(f"FAIL  gdp_growth       {exc}")
+
+    # trade_balance: try the live Eurostat world-partner reconstruction
+    # first (see fetch_eurostat_trade_balance_world docstring) -- pure
+    # Eurostat, so unlike the FRED-sourced series above this runs
+    # regardless of whether FRED_API_KEY is set. Only falls back to the
+    # confirmed-stale FRED series (which does need the key) if Eurostat
+    # fails outright, so the metric still shows *something* rather than
+    # nothing while the new source gets confirmed on a real run.
+    try:
+        tb_points = fetch_eurostat_trade_balance_world()
+        if not tb_points:
+            raise ValueError("Eurostat world-partner reconstruction returned nothing")
+        tb_points = [[p, round(v, 1)] for p, v in tb_points]   # EXP-IMP leaves float noise
+        out["series"]["trade_balance"] = {
+            "label": "Trade balance, goods, total (Eurostat, world partner, derived EXP-IMP)",
+            "unit": "\u20acm", "freq": "months", "points": tb_points}
+        print(f"  ok  trade_balance    {len(tb_points):>5} observations "
+              f"({tb_points[0][0]} to {tb_points[-1][0]}, months, Eurostat)")
+    except Exception as exc:
+        print(f"  [trade_balance] Eurostat path failed ({exc}); "
+              f"falling back to stale FRED series")
+        if not key:
+            failures.append("trade_balance")
+            print("FAIL  trade_balance     no FRED_API_KEY for fallback either")
+        else:
+            try:
+                sid, freq, label, unit, tf, scale = TRADE_BALANCE_FRED_FALLBACK
+                raw = fetch_fred(sid, freq, key)
+                if scale != 1.0:
+                    raw = [[p, v * scale] for p, v in raw]
+                points = transform(raw, tf)
+                if not points:
+                    raise ValueError("no observations")
+                out["series"]["trade_balance"] = {
+                    "label": f"{label} ({sid})", "unit": unit,
+                    "freq": "months", "points": points}
+                print(f"  ok  trade_balance    {len(points):>5} observations "
+                      f"({points[0][0]} to {points[-1][0]}, months, FRED fallback)")
+            except Exception as exc2:
+                failures.append("trade_balance")
+                print(f"FAIL  trade_balance     {exc2}")
+
+    extras = [
+        ("business_confidence", lambda: fetch_oecd_bci(),
+         "Business confidence indicator, LT avg = 100 (OECD BCICP)", "index", "months"),
+        ("debt_gdp", lambda: fetch_eurostat_govfinance("GD"),
+         "General government gross debt, % of GDP (Eurostat)", "%", "years"),
+        ("deficit", lambda: fetch_eurostat_govfinance("B9"),
+         "General government net lending/borrowing, % of GDP (Eurostat)", "%", "years"),
+    ]
+    for name, fn, label, unit, fr in extras:
+        try:
+            points = fn()
+            if not points:
+                raise ValueError("no usable response")
+            out["series"][name] = {"label": label, "unit": unit,
+                                   "freq": fr, "points": points}
+            print(f"  ok  {name:<16} {len(points):>5} observations "
+                  f"({points[0][0]} to {points[-1][0]}, {fr})")
+        except Exception as exc:
+            failures.append(name)
+            print(f"FAIL  {name:<16} {exc}")
+
+    # Slovakia uses the euro, so gdp_level/gdp_real/trade_balance
+    # need no local-currency conversion -- fx_to_usd exists purely so the
+    # Dollarise toggle can convert EUR -> USD when switched on. Mirrors
+    # fetch_de.py's DEXUSEU pattern exactly (this was missing entirely
+    # before -- Dollarise was permanently disabled on this page).
+    try:
+        if key:
+            fx_pts = fetch_fred("DEXUSEU", "d", key)
+            if fx_pts:
+                fx_period, fx_rate = fx_pts[-1]
+                out["fx_to_usd"] = {"pair": "EUR/USD", "rate": fx_rate,
+                                     "as_of": fx_period, "direction": "multiply",
+                                     "history": fx_pts}
+                print(f"  ok  fx_to_usd        1 observation ({fx_period}, {fx_rate}), "
+                      f"history {fx_pts[0][0]} to {fx_period} ({len(fx_pts)} points)")
+
+                # DEXUSEU is USD per EUR. trade_balance above is sourced
+                # from OECD's "667S" family, which is genuinely USD-
+                # denominated regardless of the page's own currency (same
+                # caveat documented in fetch_de.py) -- convert it to EUR
+                # for consistency with every other currency figure on a
+                # Slovak page, rather than leaving it in USD.
+                if "trade_balance" in out["series"]:
+                    ser = out["series"]["trade_balance"]
+                    if ser["unit"].strip().startswith("$"):
+                        ser["points"] = [[p, round(v / _fx_rate_for_period(fx_pts, p, fx_rate), 1)]
+                                          for p, v in ser["points"]]
+                        ser["unit"] = "\u20acm"
+                        ser["label"] = ser["label"].replace(
+                            "Trade balance, goods, $", "Trade balance, goods, total")
+                        ser["label"] += " (OECD via FRED, converted to EUR)"
+                        print(f"  ok  trade_balance    converted $->\u20ac using {fx_rate}")
+            else:
+                print("note  fx_to_usd: no observations returned")
+        else:
+            print("note  fx_to_usd not set (no FRED_API_KEY) -- "
+                  "Dollarise will be unavailable on this page until next run.")
+    except Exception as exc:
+        print(f"FAIL  fx_to_usd        {exc}")
+
+    # Carry forward any series that failed THIS run but succeeded on a
+    # previous run, so a transient failure (e.g. FRED 429 rate-limiting)
+    # doesn't permanently wipe good data from the live page. See the
+    # Switzerland/Chile/Colombia Bug 7 writeup -- applied here to close
+    # the same gap for Slovakia.
+    try:
+        with open("data-sk.json") as f:
+            _prev_for_merge = json.load(f)
+    except Exception:
+        _prev_for_merge = {}
+    _prev_series = _prev_for_merge.get("series", {})
+    _guard_verdicts = series_guard.apply_guard(
+        out["series"], _prev_series, allow_shrink=ALLOW_SHRINK)
+    if not out.get("fx_to_usd") and _prev_for_merge.get("fx_to_usd"):
+        out["fx_to_usd"] = _prev_for_merge["fx_to_usd"]
+        print("CARRIED OVER fx_to_usd from previous run")
+
+    if not out["series"]:
+        print("\nNothing fetched.")
+        return 1
+
+    try:
+        with open("data-sk.json") as f:
+            prev_full = json.load(f)
+    except Exception:
+        prev_full = {}
+    prev_meta = prev_full.get("new_points_meta")
+    migrating = prev_meta is None
+    backdate = prev_full.get("updated")
+    prev_meta = prev_meta or {}
+    now_iso = out["updated"]
+    new_meta = {}
+    for k, v in out["series"].items():
+        period = v["points"][-1][0]
+        prior = prev_meta.get(k)
+        if prior and prior.get("period") == period:
+            new_meta[k] = {"period": period, "first_seen": prior["first_seen"]}
+        elif migrating and backdate:
+            new_meta[k] = {"period": period, "first_seen": backdate}
+        else:
+            new_meta[k] = {"period": period, "first_seen": now_iso}
+    out["new_points_meta"] = new_meta
+
+    def _age_days(iso):
+        try:
+            t = datetime.fromisoformat(iso.replace("Z", "+00:00"))
+            return (datetime.now(timezone.utc) - t).total_seconds() / 86400
+        except Exception:
+            return 999
+
+    out["new_points"] = {k: m["period"] for k, m in new_meta.items()
+                          if _age_days(m["first_seen"]) < 2}
+    if out["new_points"]:
+        print("Fresh (< 2 days old): " + ", ".join(
+            f"{k} ({p})" for k, p in out["new_points"].items()))
+
+    with open("data-sk.json", "w") as f:
+        json.dump(out, f)
+    print(f"\nWrote data-sk.json with {len(out['series'])} series.")
+    if failures:
+        print(f"Missing: {', '.join(failures)} — the page will still render.")
+    return 0
+
+
+if __name__ == "__main__":
+    sys.exit(main())
