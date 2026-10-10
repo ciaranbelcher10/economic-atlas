@@ -461,7 +461,7 @@ def main() -> int:
                 growth = gdp_growth_from_level(gpts)
                 if growth:
                     out["series"]["gdp_growth"] = {
-                        "label": f"Real GDP growth, QoQ, SA (derived from {eurostat_gdp.source_tag(out['series']['gdp_real'])})", "unit": "%",
+                        "label": f"Real GDP growth, QoQ, SCA (derived from {eurostat_gdp.source_tag(out['series']['gdp_real'])})", "unit": "%",
                         "freq": "quarters", "points": growth}
                     print(f"  ok  gdp_growth       {len(growth):>5} observations (derived from real GDP)")
             except Exception as exc:

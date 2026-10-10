@@ -70,8 +70,8 @@ def fetch_levels(geo: str, cur: str, unit_label: str) -> dict:
     """
     out = {}
     spec = {
-        "gdp_level": (f"CP_{cur}", "GDP nominal, current prices, SA"),
-        "gdp_real": (f"{CLV_UNIT}_{cur}", "Real GDP, chain-linked volume, SA"),
+        "gdp_level": (f"CP_{cur}", "GDP nominal, current prices, SCA"),
+        "gdp_real": (f"{CLV_UNIT}_{cur}", "Real GDP, chain-linked volume, SCA"),
     }
     for key, (unit, label) in spec.items():
         pts = fetch(geo, unit)

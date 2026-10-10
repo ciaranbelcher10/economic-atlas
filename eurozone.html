@@ -2046,6 +2046,14 @@ const SEC_OF={"charts-headline":"headline","charts-gdp":"gdp","charts-inflation"
   "charts-labour":"labour","charts-trade":"trade","charts-public":"public","charts-markets":"markets"};
 const ANCHORS={};   /* series key -> {sec, panelEl} */
 let panelId=0;
+/* Tile figures and deltas (v1.7.40): a value that rounds to zero carries
+   no sign ("-0.0%" becomes "0.0%"), and a negative number uses the true
+   minus sign, as currency figures already did. Plain-text only. */
+function tileNum(s){
+  if(typeof s!=="string" || s.indexOf("<")>=0) return s;
+  if(!/[1-9]/.test(s)) s=s.replace(/[-\u2212]/g,"");
+  return s.replace(/(^|[^\w.])-(?=[\d.\u20ac$\u00a3\u00a5])/g,"$1\u2212");
+}
 function statTile(el, key, title, series, opts){
   // Headline section: 10 tiles at most, a hard limit (v1.6.2). Tiles are
   // added in priority order, so anything past the tenth is dropped.
@@ -2101,9 +2109,9 @@ function statTile(el, key, title, series, opts){
       ${_pageLinkHtml}
       <p class="label">${labelHtml(title, infoIconHtml(opts.infoKey || key))}</p>
       <p class="figure"><span class="led ${led}" title="${ledTitle}" role="img"
-        aria-label="${ledTitle}"></span>${opts.fmt(last[1])}</p>
+        aria-label="${ledTitle}"></span>${tileNum(opts.fmt(last[1]))}</p>
       <p class="delta ${dir}"><span class="arrow" aria-hidden="true">${arrow}</span>
-        ${dShow>0&&!opts.signed?"+":""}${opts.fmtD(dShow)} ${opts.vsText||"vs prior"}</p>
+        ${dShow>0&&!opts.signed?"+":""}${tileNum(opts.fmtD(dShow))} ${opts.vsText||"vs prior"}</p>
       <p class="period">${fmtPeriod(last[0])}</p>
       <p class="source">${opts.source}</p>`;
   el.appendChild(div);
@@ -2266,7 +2274,7 @@ let BOND_DAILY=null;   // data-bond-XX.json
 function fxNum(v){
   const a=Math.abs(v);
   if(a===0) return "0";
-  return a>=100 ? Math.round(a).toLocaleString("en-GB") : (a>=1 ? a.toFixed(2) : a.toPrecision(4));
+  return a>=100 ? Math.round(a).toLocaleString("en-GB") : a.toPrecision(4);  // 4 sig figs below 100 (v1.7.40)
 }
 function fxDp(v){ const a=Math.abs(v); return a>=100 ? 0 : (a>=1 ? 2 : 4); }
 function renderFxMarkets(tm){

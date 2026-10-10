@@ -23,8 +23,8 @@ for(const f of pages){
   const src=fs.readFileSync(path.join(root,f),"utf8");
   const ctx={};
   const glyph=(src.match(/const ISO_GLYPH = \{[^\n]*\};/)||["const ISO_GLYPH={};"])[0].replace("const ","var ");
-  const code="var TOGGLE_STATE={dollar:false,real:false}, PAGE_DATA=null;\n"+glyph+"\n"+["EA_yearTicks","fxRateTxt","labelHtml","scaleOf","currencySymbol","curFmt","fxNum"].map(n=>grab(src,n)).filter(Boolean).join("\n");
-  vm.runInNewContext(code+"\nthis.E={EA_yearTicks,fxRateTxt,labelHtml,curFmt,fxNum};",ctx);
+  const code="var TOGGLE_STATE={dollar:false,real:false}, PAGE_DATA=null;\n"+glyph+"\n"+["EA_yearTicks","fxRateTxt","labelHtml","scaleOf","currencySymbol","curFmt","fxNum","tileNum"].map(n=>grab(src,n)).filter(Boolean).join("\n");
+  vm.runInNewContext(code+"\nthis.E={EA_yearTicks,fxRateTxt,labelHtml,curFmt,fxNum,tileNum};",ctx);
   const E=ctx.E;
   check(f+" helpers present", E && E.EA_yearTicks && E.labelHtml && E.fxRateTxt && E.curFmt && E.fxNum);
   // ticks: equal gaps, whole years, at most 7, on first period of a year
@@ -51,7 +51,16 @@ for(const f of pages){
   check(f+" money neg zero", E.curFmt(-0,"HUFbn",0)==="HUF0", E.curFmt(-0,"HUFbn",0));
   check(f+" money axis trims", E.curFmt(600000,"CZKm",1)==="CZK600bn", E.curFmt(600000,"CZKm",1));
   check(f+" money tile keeps", E.curFmt(5.0e6,"HUFm",1,true)==="HUF5.0tn", E.curFmt(5.0e6,"HUFm",1,true));
-  check(f+" fx 4 sig figs", E.fxNum(0.0404)==="0.04040" && E.fxNum(0.2505)==="0.2505" && E.fxNum(1.25)==="1.25", [E.fxNum(0.0404),E.fxNum(0.2505)]);
+  check(f+" fx 4 sig figs", E.fxNum(0.0404)==="0.04040" && E.fxNum(0.2505)==="0.2505" && E.fxNum(1.25)==="1.250", [E.fxNum(0.0404),E.fxNum(0.2505),E.fxNum(1.25)]);
+  check(f+" fx 4 sig figs above 1", E.fxNum(1.1259)==="1.126" && E.fxNum(0.8508)==="0.8508" && E.fxNum(24.531)==="24.53" && E.fxNum(353.14)==="353", [E.fxNum(1.1259),E.fxNum(24.531),E.fxNum(353.14)]);
+  check(f+" tileNum present", typeof E.tileNum==="function");
+  if(E.tileNum){
+    const M="\u2212";
+    check(f+" tile signed zero", E.tileNum("-0.0%")==="0.0%" && E.tileNum(M+"0.00pp")==="0.00pp" && E.tileNum(M+"\u20ac0m")==="\u20ac0m", [E.tileNum("-0.0%")]);
+    check(f+" tile true minus", E.tileNum("-4.5%")===M+"4.5%" && E.tileNum("-0.1pp")===M+"0.1pp" && E.tileNum("$-2.5bn")==="$"+M+"2.5bn", [E.tileNum("-4.5%"),E.tileNum("$-2.5bn")]);
+    check(f+" tile untouched", E.tileNum("+0.8pp")==="+0.8pp" && E.tileNum("0.00%")==="0.00%" && E.tileNum("Q1-2026")==="Q1-2026" && E.tileNum('$1.126<span class="fxper">per \u20ac1</span>')==='$1.126<span class="fxper">per \u20ac1</span>' && E.tileNum(5)===5);
+    check(f+" tile wired", src.includes("${tileNum(opts.fmt(last[1]))}") && src.includes("${tileNum(opts.fmtD(dShow))}"));
+  }
   // tile money calls all keep decimals
   const tileMoney=(src.match(/\{fmt:v=>curFmt\(v,s\.[a-z_]+\.unit,1(,true)?\)/g)||[]);
   check(f+" tile money keeps decimals", tileMoney.every(m=>m.endsWith(",true)")), tileMoney.filter(m=>!m.endsWith(",true)")));

@@ -65,8 +65,8 @@ ALLOW_SHRINK = {"unemployment": "v1.6.34: OECD/FRED LRHUTTTT copy -> Eurostat un
 # key: (fred_id, freq 'm'|'q'|'a', label, unit, transform None|'yoy'|'mom'|'qoq', scale)
 FRED_SERIES = {
     "ecb_rate": ("ECBDFR", "d", "ECB deposit facility rate", "%", None, 1.0),
-    "gdp_level": ("CPMNACSCAB1GQEL", "q", "Nominal GDP, current prices, SA (Eurostat)", "\u20acm", None, 1.0),
-    "gdp_real": ("CLVMNACSCAB1GQEL", "q", "Real GDP, chain-linked volumes, SA (Eurostat)", "\u20acm", None, 1.0),
+    "gdp_level": ("CPMNACSCAB1GQEL", "q", "Nominal GDP, current prices, SCA (Eurostat)", "\u20acm", None, 1.0),
+    "gdp_real": ("CLVMNACSCAB1GQEL", "q", "Real GDP, chain-linked volumes, SCA (Eurostat)", "\u20acm", None, 1.0),
     "unemployment": ("LRHUTTTTGRM156S", "m", "Unemployment rate, 15+, SA (OECD harmonized)", "%", None, 1.0),
     "participation_rate": ("LRAC64TTGRQ156S", "q", "Labour force participation rate, 15-64, SA", "%", None, 1.0),
     "employment_rate": ("LREM64TTGRQ156S", "q", "Employment rate, 15-64, SA", "%", None, 1.0),
@@ -455,7 +455,7 @@ def main() -> int:
                 growth = gdp_growth_from_level(gpts)
                 if growth:
                     out["series"]["gdp_growth"] = {
-                        "label": f"Real GDP growth, QoQ, SA (derived from {eurostat_gdp.source_tag(out['series']['gdp_real'])})", "unit": "%",
+                        "label": f"Real GDP growth, QoQ, SCA (derived from {eurostat_gdp.source_tag(out['series']['gdp_real'])})", "unit": "%",
                         "freq": "quarters", "points": growth}
                     print(f"  ok  gdp_growth       {len(growth):>5} observations (derived)")
             except Exception as exc:

@@ -162,7 +162,7 @@ def main():
 
     # ---------- section notes (spec text, else none) ----------
     notes = spec.get("notes", {})
-    for sec in ("inflation", "labour", "trade", "public", "markets"):
+    for sec in ("gdp", "inflation", "labour", "trade", "public", "markets"):
         m = re.search(r'(<section class="sec" id="sec-' + sec + r'".*?)(</section>)', s, re.S)
         if not m:
             die(f"template has no sec-{sec}")

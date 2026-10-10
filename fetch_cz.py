@@ -70,8 +70,8 @@ ALLOW_SHRINK = {}
 
 # key: (fred_id, freq 'm'|'q'|'a', label, unit, transform None|'yoy'|'mom'|'qoq', scale)
 FRED_SERIES = {
-    "gdp_level": ("CPMNACSCAB1GQCZ", "q", "Nominal GDP, current prices, SA (Eurostat)", "CZKm", None, 1.0),
-    "gdp_real": ("CLVMNACSCAB1GQCZ", "q", "Real GDP, chain-linked volumes, SA (Eurostat)", "CZKm", None, 1.0),
+    "gdp_level": ("CPMNACSCAB1GQCZ", "q", "Nominal GDP, current prices, SCA (Eurostat)", "CZKm", None, 1.0),
+    "gdp_real": ("CLVMNACSCAB1GQCZ", "q", "Real GDP, chain-linked volumes, SCA (Eurostat)", "CZKm", None, 1.0),
     "unemployment": ("LRHUTTTTCZM156S", "m", "Unemployment rate, 15+, SA (OECD harmonized)", "%", None, 1.0),
     "participation_rate": ("LRAC64TTCZQ156S", "q", "Labour force participation rate, 15-64, SA", "%", None, 1.0),
     "employment_rate": ("LREM64TTCZQ156S", "q", "Employment rate, 15-64, SA", "%", None, 1.0),
@@ -371,7 +371,7 @@ def main() -> int:
         growth = gdp_growth_from_level(out["series"]["gdp_real"]["points"])
         if growth:
             out["series"]["gdp_growth"] = {
-                "label": f"Real GDP growth, QoQ, SA (derived from {eurostat_gdp.source_tag(out['series']['gdp_real'])})",
+                "label": f"Real GDP growth, QoQ, SCA (derived from {eurostat_gdp.source_tag(out['series']['gdp_real'])})",
                 "unit": "%", "freq": "quarters", "points": growth}
             print(f"  ok  gdp_growth       {len(growth):>5} observations (derived)")
 
