@@ -1,21 +1,13 @@
-"""Lay out the European columns of the site nav (v1.7.37; replaces the v1.7.20 split).
+"""Lay out the Country Breakdowns nav (v1.7.38; restores the v1.7.20 Europe split).
 
-Europe outgrew one column, then two. The nav now shows four European
-columns by sub-region, each alphabetical, and Eurozone sits under Overview:
+Europe keeps one alphabetical list (Eurozone included): the first FIRST links
+sit under the heading, the rest flow into headless continuation columns of
+CONT links each, so Europe can grow past 21 countries without a new rule.
+Scandinavia keeps its own column. Every region column is ordered by how many
+countries it holds, largest first; ties keep their order.
 
-    Western Europe | Southern Europe | Northern Europe | Central & Eastern Europe
-
-Only the nav changes. Data regions (spec "region", REGION_OF, REGION_GROUPS)
-keep "Europe" and "Scandinavia", so Compare, Rankings and the calendar group
-countries exactly as before.
-
-Every European country page, present or planned, is listed in NAV_GROUPS.
-A European country missing from it stops the run, so a new country can't
-silently land in the wrong column.
-
-The same markup appears in every page and in generate_indicator_pages.py
-(with a "../" prefix), so this works on raw text and is idempotent.
-tools/add_country.py calls split() after inserting a link.
+Undoes the v1.7.37 sub-region columns if it finds them. Works on raw text in
+every page and in generate_indicator_pages.py ("../" prefix); idempotent.
 
     python3 tools/nav_split.py          # apply to every page and the generator
     python3 tools/nav_split.py --check  # exit 1 if anything would change, including
@@ -30,39 +22,20 @@ import sys
 from pathlib import Path
 
 ROOT = Path(__file__).resolve().parent.parent
-NAV_GROUPS = [
-    ("Western Europe", ["austria", "belgium", "france", "germany", "ireland", "luxembourg",
-                        "netherlands", "switzerland", "uk"]),
-    ("Southern Europe", ["cyprus", "greece", "italy", "malta", "portugal", "spain", "turkey"]),
-    ("Northern Europe", ["denmark", "estonia", "finland", "latvia", "lithuania", "norway", "sweden"]),
-    ("Central & Eastern Europe", ["bulgaria", "croatia", "czechia", "hungary", "poland", "romania",
-                                  "slovakia", "slovenia"]),
-]
-MAX_PER_COLUMN = 11
-EUROPE_REGIONS = ("Europe", "Scandinavia")          # data regions whose links live in these columns
-LEGACY_HEADS = {"Europe", "Scandinavia"} | {g for g, _ in NAV_GROUPS}
-SLUG_GROUP = {s: g for g, ss in NAV_GROUPS for s in ss}
+FIRST, CONT = 10, 11          # links under the Europe heading; links per headless continuation column
+SCANDINAVIA = {"denmark", "norway", "sweden"}
+SUBREGION_HEADS = {"Western Europe", "Southern Europe", "Northern Europe", "Central & Eastern Europe"}  # v1.7.37 layout, folded back
 LINK = r' <a href="(?:\.\./)?([a-z]+)"[^>]*>([^<]+)</a>\n'
 PANEL = '<div class="dropdown-panel" id="macroPanel">\n'
 OVERVIEW = re.compile(r' <div class="doverview">\n((?:' + LINK + r')+) </div>\n')
 COLUMN = re.compile(r' <div class="dcol(?: dcont)?">\n(?: <p class="dhead">([^<]+)</p>\n)?((?:' + LINK + r')*) </div>\n')
 
 
-def head_html(group):
-    return f' <p class="dhead">{html.escape(group, quote=False)}</p>\n'
-
-
-def group_of(slug):
-    if slug not in SLUG_GROUP:
-        raise SystemExit(f"nav: {slug} is European but not in tools/nav_split.py NAV_GROUPS; add it to a sub-region")
-    return SLUG_GROUP[slug]
-
-
 def _links(block):
     return [(m.group(0), m.group(1), m.group(2)) for m in re.finditer(LINK, block)]
 
 
-def layout(text):
+def layout(text, split_europe=True):
     p = text.find(PANEL)
     if p < 0:
         return text
@@ -80,31 +53,43 @@ def layout(text):
     if not cols:
         return text
     over = _links(o.group(1))
-    europe, other_cols = [], []
+    europe, scand, others = [], [], []
     for head, body in cols:
-        if head is None or head in LEGACY_HEADS:      # continuation columns only ever followed Europe
+        if head is None or head == "Europe" or head in SUBREGION_HEADS:
             europe += _links(body)
+        elif head == "Scandinavia":
+            scand += _links(body)
+            others.append(("Scandinavia", None))        # keeps its place for tie order
         else:
-            other_cols.append((head, body))
-    eurozone = [l for l in over if l[1] == "eurozone"] + [l for l in europe if l[1] == "eurozone"]
+            others.append((head, _links(body)))
+    europe += [l for l in over if l[1] == "eurozone"]          # Eurozone back in the Europe list
     over = [l for l in over if l[1] != "eurozone"]
-    europe = [l for l in europe if l[1] != "eurozone"]
-    out = " <div class=\"doverview\">\n" + "".join(l[0] for l in over + eurozone[:1]) + " </div>\n"
-    for g, _ in NAV_GROUPS:
-        members = sorted([l for l in europe if group_of(l[1]) == g], key=lambda l: l[2].lower())
-        if not members:
-            continue
-        if len(members) > MAX_PER_COLUMN:
-            raise SystemExit(f"nav: {g} has {len(members)} links, more than {MAX_PER_COLUMN}")
-        out += ' <div class="dcol">\n' + head_html(g) + "".join(l[0] for l in members) + " </div>\n"
-    for head, body in other_cols:
-        out += f' <div class="dcol">\n <p class="dhead">{html.escape(head, quote=False)}</p>\n{body} </div>\n'
+    scand += [l for l in europe if l[1] in SCANDINAVIA]
+    europe = [l for l in europe if l[1] not in SCANDINAVIA]
+    by_name = lambda l: l[2].lower()
+    if scand and not any(h == "Scandinavia" for h, _ in others):
+        others.append(("Scandinavia", None))            # folded out of the v1.7.37 layout: its old place, last
+    groups = [("Europe", sorted(europe, key=by_name))] + [
+        (h, sorted(scand, key=by_name) if h == "Scandinavia" else l) for h, l in others]
+    # Regions with more countries come first (Europe leads); ties keep their current order.
+    groups = [g for _, g in sorted(enumerate(groups), key=lambda ig: (-len(ig[1][1]), ig[0]))]
+    out = " <div class=\"doverview\">\n" + "".join(l[0] for l in over) + " </div>\n"
+    for head, links in groups:
+        h = f' <p class="dhead">{html.escape(head, quote=False)}</p>\n'
+        if head == "Europe" and split_europe:
+            out += ' <div class="dcol">\n' + h + "".join(l[0] for l in links[:FIRST]) + " </div>\n"
+            rest = links[FIRST:]
+            while rest:
+                out += ' <div class="dcol dcont">\n' + "".join(l[0] for l in rest[:CONT]) + " </div>\n"
+                rest = rest[CONT:]
+        else:
+            out += ' <div class="dcol">\n' + h + "".join(l[0] for l in links) + " </div>\n"
     return text[:o.start()] + out + text[pos:]
 
 
-# add_country.py API (kept from v1.7.20)
+# add_country.py API: merge() puts Europe in one column for the insert, split() lays it out again.
 def merge(text, region="Europe"):
-    return text
+    return layout(text, split_europe=False)
 
 
 def split(text, region="Europe"):
