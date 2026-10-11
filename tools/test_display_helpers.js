@@ -23,8 +23,8 @@ for(const f of pages){
   const src=fs.readFileSync(path.join(root,f),"utf8");
   const ctx={};
   const glyph=(src.match(/const ISO_GLYPH = \{[^\n]*\};/)||["const ISO_GLYPH={};"])[0].replace("const ","var ");
-  const code="var TOGGLE_STATE={dollar:false,real:false}, PAGE_DATA=null;\n"+glyph+"\n"+["EA_yearTicks","fxRateTxt","labelHtml","scaleOf","currencySymbol","curFmt","fxNum","tileNum"].map(n=>grab(src,n)).filter(Boolean).join("\n");
-  vm.runInNewContext(code+"\nthis.E={EA_yearTicks,fxRateTxt,labelHtml,curFmt,fxNum,tileNum};",ctx);
+  const code="var TOGGLE_STATE={dollar:false,real:false}, PAGE_DATA=null;\n"+glyph+"\n"+["EA_yearTicks","EA_subTicks","EA_subLabel","fxRateTxt","labelHtml","scaleOf","currencySymbol","curFmt","fxNum","tileNum"].map(n=>grab(src,n)).filter(Boolean).join("\n");
+  vm.runInNewContext(code+"\nthis.E={EA_yearTicks,EA_subLabel,fxRateTxt,labelHtml,curFmt,fxNum,tileNum};",ctx);
   const E=ctx.E;
   check(f+" helpers present", E && E.EA_yearTicks && E.labelHtml && E.fxRateTxt && E.curFmt && E.fxNum);
   // ticks: equal gaps, whole years, at most 7, on first period of a year
@@ -40,7 +40,19 @@ for(const f of pages){
   { const lab=months(2015,2026); const s=mkScale(lab,lab.indexOf("2024-03"),lab.length-1); E.EA_yearTicks(s,7);
     check(f+" ticks zoom", s.ticks.length && lab[s.ticks[0].value]==="2025-01", s.ticks.map(t=>lab[t.value])); }
   // non-year labels left alone
-  { const s=mkScale(["a","b","c"],0,2); s.ticks=[{value:0}]; E.EA_yearTicks(s,7); check(f+" ticks untouched", s.ticks.length===1); }
+  { const s=mkScale(["a","b","c"],0,2); s.ticks=[{value:0}]; E.EA_yearTicks(s,7); check(f+" ticks untouched", s.ticks.length===1 && !s._eaSub); }
+  // v1.7.44: under two year-starts in view -> evenly spaced month/quarter ticks
+  { const lab=months(2026,2026).slice(0,10); const s=mkScale(lab,0,9); E.EA_yearTicks(s,7);
+    const t=s.ticks.map(x=>lab[x.value]);
+    check(f+" sub ticks short series", s._eaSub && t.length>=2 && t.length<=7 && t.join()==="2026-01,2026-03,2026-05,2026-07,2026-09", t); }
+  { const lab=months(2015,2026); const s=mkScale(lab,lab.indexOf("2025-10"),lab.indexOf("2026-10")); E.EA_yearTicks(s,7);
+    const t=s.ticks.map(x=>lab[x.value]);
+    check(f+" sub ticks 1Y zoom", s._eaSub && t.length>=2 && t.length<=7 && t.every(p=>+p.slice(5)%2===1), t); }
+  { const lab=quarters(2026,2026).slice(0,2); const s=mkScale(lab,0,lab.length-1); E.EA_yearTicks(s,7);
+    check(f+" sub ticks quarterly", s._eaSub && s.ticks.length>=2 && s.ticks.length<=7, s.ticks.map(x=>lab[x.value])); }
+  { const lab=months(2015,2026); const s=mkScale(lab,0,lab.length-1); E.EA_yearTicks(s,7); check(f+" year mode clears sub flag", !s._eaSub); }
+  check(f+" sub labels", E.EA_subLabel("2026-03")==="Mar 2026" && E.EA_subLabel("2026-Q2")==="Q2 2026" && E.EA_subLabel("2026-12")==="Dec 2026", [E.EA_subLabel("2026-03"),E.EA_subLabel("2026-Q2")]);
+  check(f+" sub label wired", src.includes("return this._eaSub ? EA_subLabel(this.getLabelForValue(v)) : year(this.getLabelForValue(v));"));
   check(f+" fxRateTxt raw float", E.fxRateTxt(4.47053333333333)==="4.4705", E.fxRateTxt(4.47053333333333));
   check(f+" fxRateTxt keeps", E.fxRateTxt(353.14)==="353.14" && E.fxRateTxt(21.882)==="21.882" && E.fxRateTxt(3.75)==="3.75");
   const icon='<button class="infoBtn">i</button>';

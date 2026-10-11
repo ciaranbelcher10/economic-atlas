@@ -45,6 +45,7 @@ KIT_VERSION = "8"
 
 # country display name -> (data-file code, page slug, alpha-2, region)
 COUNTRIES = {
+    "Lithuania":     ("lt", "lithuania", "LT", "Europe"),
     "Bulgaria":      ("bg", "bulgaria", "BG", "Europe"),
     "Croatia":       ("hr", "croatia", "HR", "Europe"),
     "Slovakia":      ("sk", "slovakia", "SK", "Europe"),
@@ -656,6 +657,7 @@ HEADER_HTML_BASE = """<script>(function(){
  <a href="../hungary">Hungary</a>
  <a href="../ireland">Ireland</a>
  <a href="../italy">Italy</a>
+ <a href="../lithuania">Lithuania</a>
  <a href="../netherlands">Netherlands</a>
  <a href="../poland">Poland</a>
  <a href="../portugal">Portugal</a>
@@ -663,9 +665,9 @@ HEADER_HTML_BASE = """<script>(function(){
  <a href="../slovakia">Slovakia</a>
  <a href="../spain">Spain</a>
  <a href="../switzerland">Switzerland</a>
- <a href="../turkey">Turkey</a>
  </div>
  <div class="dcol dcont">
+ <a href="../turkey">Turkey</a>
  <a href="../uk">UK</a>
  </div>
  <div class="dcol">
@@ -2080,7 +2082,7 @@ def rewrite_sitemap(urls, today):
 # Currencies shared by several tracked economies: the euro area members use
 # the Eurozone's own EUR/USD series, so they get no exchange-rate page or
 # ranking row of their own (it would be the same series repeated).
-FX_EURO_MEMBERS = {"Austria", "France", "Germany", "Ireland", "Italy", "Netherlands", "Spain", "Belgium", "Portugal", "Finland", "Greece", "Slovakia", "Croatia", "Bulgaria"}
+FX_EURO_MEMBERS = {"Austria", "France", "Germany", "Ireland", "Italy", "Netherlands", "Spain", "Belgium", "Portugal", "Finland", "Greece", "Slovakia", "Croatia", "Bulgaria", "Lithuania"}
 FX_SYMBOL = {"GBP": "\u00a3", "EUR": "\u20ac", "JPY": "\u00a5", "CAD": "C$", "AUD": "A$",
              "BRL": "R$", "MXN": "MX$", "INR": "\u20b9", "KRW": "\u20a9", "CNY": "CN\u00a5",
              "THB": "\u0e3f", "TRY": "\u20ba", "IDR": "Rp", "SGD": "S$", "ARS": "AR$", "CLP": "CLP$", "COP": "COL$", "MYR": "RM", "NZD": "NZ$"}
