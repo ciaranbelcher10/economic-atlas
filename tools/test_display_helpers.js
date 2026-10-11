@@ -84,6 +84,20 @@ for(const f of pages){
   check(f+" no raw rate in note", !/latest \$\{fx\.rate\}|= \$\{fx\.rate\} \(as of/.test(src));
   check(f+" ticks wired", src.includes("afterBuildTicks:s=>EA_yearTicks(s,7)") && !src.includes("maxTicksLimit:7"));
   check(f+" label wired", src.includes("${labelHtml(title, infoIconHtml("));
+  // v1.7.45: business-confidence axis snapped to whole steps; policy rates stepped
+  { const cs=grab(src,"centeredIndexScale"); const c2={}; vm.runInNewContext(cs+"\nthis.C=centeredIndexScale;",c2);
+    for(const [vals,name] of [[[89.4,95,101.1,106.2],"lt"],[[98.5,101.2],"tight"],[[60,140],"wide"],[[99.97,100.02],"flat"]]){
+      const r=c2.C(vals); const n=(r.max-r.min)/r.step;
+      check(f+" bci axis "+name+" whole steps", r.step>0 && Number.isInteger(n) && n<=6 && (100-r.min)%r.step===0 && r.max-100===100-r.min, r);
+      check(f+" bci axis "+name+" covers data", vals.every(v=>v>=r.min && v<=r.max), r);
+    }
+    const r=c2.C([89.4,106.2]); check(f+" bci axis lt is 85..115 by 5", r.min===85 && r.max===115 && r.step===5, r);
+    check(f+" bci axis empty", Object.keys(c2.C([])).length===0);
+    check(f+" bci axis wired", src.includes("opts.scales.y.ticks.stepSize = c.step;") && !src.includes("Object.assign(opts.scales.y, centeredIndexScale("));
+    check(f+" policy stepped wired", src.includes('...(EA_STEP_KEYS.has(key) ? {stepped:"before", tension:0} : {tension:0.25})')
+      && /EA_STEP_KEYS = new Set\(\[[^\]]*"ecb_rate"[^\]]*\]\)/.test(src) && /EA_STEP_KEYS = new Set\(\[[^\]]*"policy_rate"/.test(src)
+      && !/EA_STEP_KEYS = new Set\(\[[^\]]*"bond_yield_10y"/.test(src));
+  }
   check(f+" style v53", src.includes("style.css?v=53") && !src.includes("style.css?v=52"));
 }
 console.log(checks+" checks, "+fails+" failures"); process.exit(fails?1:0);
