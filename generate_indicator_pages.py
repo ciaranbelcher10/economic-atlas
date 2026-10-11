@@ -45,6 +45,10 @@ KIT_VERSION = "8"
 
 # country display name -> (data-file code, page slug, alpha-2, region)
 COUNTRIES = {
+    "Cyprus":        ("cy", "cyprus", "CY", "Europe"),
+    "Luxembourg":    ("lu", "luxembourg", "LU", "Europe"),
+    "Slovenia":      ("si", "slovenia", "SI", "Europe"),
+    "Latvia":        ("lv", "latvia", "LV", "Europe"),
     "Estonia":       ("ee", "estonia", "EE", "Europe"),
     "Lithuania":     ("lt", "lithuania", "LT", "Europe"),
     "Bulgaria":      ("bg", "bulgaria", "BG", "Europe"),
@@ -625,12 +629,12 @@ HEADER_HTML_BASE = """<script>(function(){
  <button type="button" class="dropbtn" id="aboutBtn" aria-haspopup="true" aria-expanded="false">About <span class="caret">&#9662;</span></button>
  <div class="dropdown-panel" id="aboutPanel">
  <div class="dcol">
- <a href="../contact">Contact</a>
  <a href="../methodology">Methodology</a>
  </div>
  </div>
  </div>
- <button type="button" class="authbtn" id="authBtn">Log in</button>
+ <a class="item" href="../contact">Contact</a>
+ <button type="button" class="authbtn" id="authBtn">Sign Up</button>
  <button type="button" class="theme-toggle" id="themeToggle" aria-label="Switch to dark mode" title="Switch to dark mode">&#127769;</button>
  </div>
 </div></nav>
@@ -647,27 +651,31 @@ HEADER_HTML_BASE = """<script>(function(){
  <a href="../belgium">Belgium</a>
  <a href="../bulgaria">Bulgaria</a>
  <a href="../croatia">Croatia</a>
+ <a href="../cyprus">Cyprus</a>
  <a href="../czechia">Czechia</a>
  <a href="../estonia">Estonia</a>
  <a href="../eurozone">Eurozone</a>
  <a href="../finland">Finland</a>
  <a href="../france">France</a>
- <a href="../germany">Germany</a>
  </div>
  <div class="dcol dcont">
+ <a href="../germany">Germany</a>
  <a href="../greece">Greece</a>
  <a href="../hungary">Hungary</a>
  <a href="../ireland">Ireland</a>
  <a href="../italy">Italy</a>
+ <a href="../latvia">Latvia</a>
  <a href="../lithuania">Lithuania</a>
+ <a href="../luxembourg">Luxembourg</a>
  <a href="../netherlands">Netherlands</a>
  <a href="../poland">Poland</a>
  <a href="../portugal">Portugal</a>
- <a href="../romania">Romania</a>
- <a href="../slovakia">Slovakia</a>
- <a href="../spain">Spain</a>
  </div>
  <div class="dcol dcont">
+ <a href="../romania">Romania</a>
+ <a href="../slovakia">Slovakia</a>
+ <a href="../slovenia">Slovenia</a>
+ <a href="../spain">Spain</a>
  <a href="../switzerland">Switzerland</a>
  <a href="../turkey">Turkey</a>
  <a href="../uk">UK</a>
@@ -1025,7 +1033,7 @@ HEADER_HTML_BASE = """<script>(function(){
       authBtn.textContent = session.user.email;
       authBtn.classList.add("signed-in");
     } else {
-      authBtn.textContent = "Log in";
+      authBtn.textContent = "Sign Up";
       authBtn.classList.remove("signed-in");
     }
     if(window.EATLAS_DOWNLOAD) window.EATLAS_DOWNLOAD.setAuthState(!!(session && session.user));
@@ -1040,6 +1048,7 @@ HEADER_HTML_BASE = """<script>(function(){
         showSignedInView(session);
       } else {
         showLoginView();
+        setMode("signup");
       }
     });
   });
@@ -2084,7 +2093,7 @@ def rewrite_sitemap(urls, today):
 # Currencies shared by several tracked economies: the euro area members use
 # the Eurozone's own EUR/USD series, so they get no exchange-rate page or
 # ranking row of their own (it would be the same series repeated).
-FX_EURO_MEMBERS = {"Austria", "France", "Germany", "Ireland", "Italy", "Netherlands", "Spain", "Belgium", "Portugal", "Finland", "Greece", "Slovakia", "Croatia", "Bulgaria", "Lithuania", "Estonia"}
+FX_EURO_MEMBERS = {"Austria", "France", "Germany", "Ireland", "Italy", "Netherlands", "Spain", "Belgium", "Portugal", "Finland", "Greece", "Slovakia", "Croatia", "Bulgaria", "Lithuania", "Estonia", "Latvia", "Slovenia", "Luxembourg", "Cyprus"}
 FX_SYMBOL = {"GBP": "\u00a3", "EUR": "\u20ac", "JPY": "\u00a5", "CAD": "C$", "AUD": "A$",
              "BRL": "R$", "MXN": "MX$", "INR": "\u20b9", "KRW": "\u20a9", "CNY": "CN\u00a5",
              "THB": "\u0e3f", "TRY": "\u20ba", "IDR": "Rp", "SGD": "S$", "ARS": "AR$", "CLP": "CLP$", "COP": "COL$", "MYR": "RM", "NZD": "NZ$"}
