@@ -45,6 +45,7 @@ KIT_VERSION = "8"
 
 # country display name -> (data-file code, page slug, alpha-2, region)
 COUNTRIES = {
+    "Malta":         ("mt", "malta", "MT", "Europe"),
     "Cyprus":        ("cy", "cyprus", "CY", "Europe"),
     "Luxembourg":    ("lu", "luxembourg", "LU", "Europe"),
     "Slovenia":      ("si", "slovenia", "SI", "Europe"),
@@ -667,11 +668,12 @@ HEADER_HTML_BASE = """<script>(function(){
  <a href="../latvia">Latvia</a>
  <a href="../lithuania">Lithuania</a>
  <a href="../luxembourg">Luxembourg</a>
+ <a href="../malta">Malta</a>
  <a href="../netherlands">Netherlands</a>
  <a href="../poland">Poland</a>
- <a href="../portugal">Portugal</a>
  </div>
  <div class="dcol dcont">
+ <a href="../portugal">Portugal</a>
  <a href="../romania">Romania</a>
  <a href="../slovakia">Slovakia</a>
  <a href="../slovenia">Slovenia</a>
@@ -810,6 +812,11 @@ HEADER_HTML_BASE = """<script>(function(){
  <div id="authFormView">
  <h2 id="authModalTitle">Log in</h2>
  <p class="auth-modal-sub" id="authModalSub">Welcome back.</p>
+ <div class="auth-login-cta" id="authLoginCta" hidden>
+ <p class="auth-login-lead">Already have an account?</p>
+ <button type="button" class="auth-login-shine" id="authLoginShine">Log in</button>
+ <div class="auth-or"><span>or sign up below</span></div>
+ </div>
  <form id="authForm">
  <div class="auth-field">
  <label for="authEmail">Email</label>
@@ -887,6 +894,8 @@ HEADER_HTML_BASE = """<script>(function(){
   var authSubmitBtn = document.getElementById("authSubmitBtn");
   var authMsg = document.getElementById("authMsg");
   var authToggleRow = document.getElementById("authToggleRow");
+  var authLoginCta = document.getElementById("authLoginCta");
+  document.getElementById("authLoginShine").addEventListener("click", function(){ setMode("login"); });
   var authModalTitle = document.getElementById("authModalTitle");
   var authModalSub = document.getElementById("authModalSub");
   var authFormView = document.getElementById("authFormView");
@@ -975,12 +984,14 @@ HEADER_HTML_BASE = """<script>(function(){
       authSubmitBtn.textContent = "Log in";
       authToggleRow.textContent = "Don't have an account? ";
       authToggleRow.appendChild(wireToggleBtn("Sign up", "signup"));
+      authToggleRow.hidden = false; authLoginCta.hidden = true;
     } else {
       authModalTitle.textContent = "Sign up";
       authModalSub.textContent = "Free, for now, this may change in future.";
       authSubmitBtn.textContent = "Sign up";
       authToggleRow.textContent = "Already have an account? ";
       authToggleRow.appendChild(wireToggleBtn("Log in", "login"));
+      authToggleRow.hidden = true; authLoginCta.hidden = false;
     }
   }
   function showLoginView(){
@@ -1215,7 +1226,7 @@ def head_html(title, desc, canonical, og_image, jsonld, extra_css=""):
 <link rel="preconnect" href="https://fonts.googleapis.com">
 <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
 <link href="https://fonts.googleapis.com/css2?family=Nunito+Sans:wght@400;600;700&display=swap" rel="stylesheet">
-<link rel="stylesheet" href="../style.css?v=53">
+<link rel="stylesheet" href="../style.css?v=54">
 <link rel="stylesheet" href="../mobile.css?v=15">
 <link rel="stylesheet" href="../indicator.css?v={KIT_VERSION}">
 <script type="application/ld+json">
@@ -2093,7 +2104,7 @@ def rewrite_sitemap(urls, today):
 # Currencies shared by several tracked economies: the euro area members use
 # the Eurozone's own EUR/USD series, so they get no exchange-rate page or
 # ranking row of their own (it would be the same series repeated).
-FX_EURO_MEMBERS = {"Austria", "France", "Germany", "Ireland", "Italy", "Netherlands", "Spain", "Belgium", "Portugal", "Finland", "Greece", "Slovakia", "Croatia", "Bulgaria", "Lithuania", "Estonia", "Latvia", "Slovenia", "Luxembourg", "Cyprus"}
+FX_EURO_MEMBERS = {"Austria", "France", "Germany", "Ireland", "Italy", "Netherlands", "Spain", "Belgium", "Portugal", "Finland", "Greece", "Slovakia", "Croatia", "Bulgaria", "Lithuania", "Estonia", "Latvia", "Slovenia", "Luxembourg", "Cyprus", "Malta"}
 FX_SYMBOL = {"GBP": "\u00a3", "EUR": "\u20ac", "JPY": "\u00a5", "CAD": "C$", "AUD": "A$",
              "BRL": "R$", "MXN": "MX$", "INR": "\u20b9", "KRW": "\u20a9", "CNY": "CN\u00a5",
              "THB": "\u0e3f", "TRY": "\u20ba", "IDR": "Rp", "SGD": "S$", "ARS": "AR$", "CLP": "CLP$", "COP": "COL$", "MYR": "RM", "NZD": "NZ$"}

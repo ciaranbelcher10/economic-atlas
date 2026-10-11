@@ -150,6 +150,17 @@ NATIONAL = {
         ("CYSTAT (English)", "https://www.cystat.gov.cy/en", None),
         ("Central Bank of Cyprus (English)", "https://www.centralbank.cy/en", None),
     ],
+    "MT": [
+        ("Eurostat 10y convergence yield", "https://ec.europa.eu/eurostat/api/dissemination/statistics/1.0/data/irt_lt_mcby_m?format=JSON&geo=MT&int_rt=MCBY&sinceTimePeriod=2004-01", None),
+        ("Eurostat LFS employment 15-64 SA", "https://ec.europa.eu/eurostat/api/dissemination/statistics/1.0/data/lfsi_emp_q?format=JSON&geo=MT&sex=T&age=Y15-64&indic_em=EMP_LFS&unit=PC_POP&s_adj=SA&sinceTimePeriod=2024-Q1", None),
+        ("Eurostat LFS activity 15-64 SA", "https://ec.europa.eu/eurostat/api/dissemination/statistics/1.0/data/lfsi_emp_q?format=JSON&geo=MT&sex=T&age=Y15-64&indic_em=ACT&unit=PC_POP&s_adj=SA&sinceTimePeriod=2024-Q1", None),
+        ("Eurostat HICP earliest", "https://ec.europa.eu/eurostat/api/dissemination/statistics/1.0/data/prc_hicp_midx?format=JSON&geo=MT&coicop=CP00&unit=I15&untilTimePeriod=1999-12", None),
+        ("Eurostat GDP earliest", "https://ec.europa.eu/eurostat/api/dissemination/statistics/1.0/data/namq_10_gdp?format=JSON&geo=MT&na_item=B1GQ&unit=CLV20_MEUR&s_adj=SCA&untilTimePeriod=2001-Q4", None),
+        ("Eurostat unemployment earliest", "https://ec.europa.eu/eurostat/api/dissemination/statistics/1.0/data/une_rt_m?format=JSON&geo=MT&sex=T&age=TOTAL&unit=PC_ACT&s_adj=SA&untilTimePeriod=2002-12", None),
+        ("Eurostat debt earliest", "https://ec.europa.eu/eurostat/api/dissemination/statistics/1.0/data/gov_10dd_edpt1?format=JSON&geo=MT&sector=S13&unit=PC_GDP&na_item=GD&untilTimePeriod=2002", None),
+        ("NSO Malta", "https://nso.gov.mt", None),
+        ("Central Bank of Malta", "https://www.centralbankmalta.org", None),
+    ],
     "SA": [
         ("GASTAT home (English)", "https://www.stats.gov.sa/en", None),
         ("GASTAT database portal", "https://database.stats.gov.sa", None),

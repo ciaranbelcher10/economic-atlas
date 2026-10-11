@@ -98,6 +98,6 @@ for(const f of pages){
       && /EA_STEP_KEYS = new Set\(\[[^\]]*"ecb_rate"[^\]]*\]\)/.test(src) && /EA_STEP_KEYS = new Set\(\[[^\]]*"policy_rate"/.test(src)
       && !/EA_STEP_KEYS = new Set\(\[[^\]]*"bond_yield_10y"/.test(src));
   }
-  check(f+" style v53", src.includes("style.css?v=53") && !src.includes("style.css?v=52"));
+  check(f+" style v54", src.includes("style.css?v=54") && !src.includes("style.css?v=53"));
 }
 console.log(checks+" checks, "+fails+" failures"); process.exit(fails?1:0);

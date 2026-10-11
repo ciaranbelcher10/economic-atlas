@@ -81,7 +81,7 @@
 <link href="https://fonts.googleapis.com/css2?family=Nunito+Sans:wght@400;600;700&display=swap" rel="stylesheet">
 <link rel="icon" type="image/png" sizes="32x32" href="favicon-32.png">
 <link rel="apple-touch-icon" href="apple-touch-icon.png">
-<link rel="stylesheet" href="style.css?v=53">
+<link rel="stylesheet" href="style.css?v=54">
 <style>
 .led{display:inline-block; width:9px; height:9px; border-radius:50%;
   margin-right:9px; vertical-align:middle; position:relative; top:-3px;}
@@ -374,11 +374,12 @@ button.mtoggle.fx-both{background:#2FA463; border-color:#2FA463; color:#fff;}
  <a href="latvia">Latvia</a>
  <a href="lithuania">Lithuania</a>
  <a href="luxembourg">Luxembourg</a>
+ <a href="malta">Malta</a>
  <a href="netherlands">Netherlands</a>
  <a href="poland">Poland</a>
- <a href="portugal" class="active">Portugal</a>
  </div>
  <div class="dcol dcont">
+ <a href="portugal" class="active">Portugal</a>
  <a href="romania">Romania</a>
  <a href="slovakia">Slovakia</a>
  <a href="slovenia">Slovenia</a>
@@ -471,6 +472,11 @@ button.mtoggle.fx-both{background:#2FA463; border-color:#2FA463; color:#fff;}
  <div id="authFormView">
  <h2 id="authModalTitle">Log in</h2>
  <p class="auth-modal-sub" id="authModalSub">Welcome back.</p>
+ <div class="auth-login-cta" id="authLoginCta" hidden>
+ <p class="auth-login-lead">Already have an account?</p>
+ <button type="button" class="auth-login-shine" id="authLoginShine">Log in</button>
+ <div class="auth-or"><span>or sign up below</span></div>
+ </div>
  <form id="authForm">
  <div class="auth-field">
  <label for="authEmail">Email</label>
@@ -667,6 +673,8 @@ button.mtoggle.fx-both{background:#2FA463; border-color:#2FA463; color:#fff;}
   var authSubmitBtn = document.getElementById("authSubmitBtn");
   var authMsg = document.getElementById("authMsg");
   var authToggleRow = document.getElementById("authToggleRow");
+  var authLoginCta = document.getElementById("authLoginCta");
+  document.getElementById("authLoginShine").addEventListener("click", function(){ setMode("login"); });
   var authModalTitle = document.getElementById("authModalTitle");
   var authModalSub = document.getElementById("authModalSub");
   var authFormView = document.getElementById("authFormView");
@@ -755,12 +763,14 @@ button.mtoggle.fx-both{background:#2FA463; border-color:#2FA463; color:#fff;}
       authSubmitBtn.textContent = "Log in";
       authToggleRow.textContent = "Don't have an account? ";
       authToggleRow.appendChild(wireToggleBtn("Sign up", "signup"));
+      authToggleRow.hidden = false; authLoginCta.hidden = true;
     } else {
       authModalTitle.textContent = "Sign up";
       authModalSub.textContent = "Free, for now, this may change in future.";
       authSubmitBtn.textContent = "Sign up";
       authToggleRow.textContent = "Already have an account? ";
       authToggleRow.appendChild(wireToggleBtn("Log in", "login"));
+      authToggleRow.hidden = true; authLoginCta.hidden = false;
     }
   }
   function showLoginView(){
@@ -1519,14 +1529,14 @@ document.addEventListener("DOMContentLoaded", function(){
       JP=new Set(["392"]), IN=new Set(["356"]), CA=new Set(["124"]), AU=new Set(["036"]),
       KR=new Set(["410"]), IL=new Set(["376"]), MX=new Set(["484"]), BR=new Set(["076"]),
       ZA=new Set(["710"]), MA=new Set(["504"]), DE=new Set(["276"]), FRc=new Set(["250"]),
-      ITc=new Set(["380"]), ESc=new Set(["724"]), NLc=new Set(["528"]), DK=new Set(["208"]), IEc=new Set(["372"]), NOc=new Set(["578"]), CLc=new Set(["152"]), COc=new Set(["170"]), TRc=new Set(["792"]), IDc=new Set(["360"]), PLc=new Set(["616"]), CHc=new Set(["756"]), ARc=new Set(["032"]), SEc=new Set(["752"]), SGc=new Set(["702"]), ATc=new Set(["040"]), THc=new Set(["764"]), CNc=new Set(["156"]), MYc=new Set(["458"]), NZc=new Set(["554"]), BEc=new Set(["056"]), PTc=new Set(["620"]), FIc=new Set(["246"]), GRc=new Set(["300"]), CZc=new Set(["203"]), HUc=new Set(["348"]), ROc=new Set(["642"]), SAc=new Set(["682"]), SKc=new Set(["703"]), HRc=new Set(["191"]), BGc=new Set(["100"]), LTc=new Set(["440"]), EEc=new Set(["233"]), LVc=new Set(["428"]), SIc=new Set(["705"]), LUc=new Set(["442"]), CYc=new Set(["196"]);
+      ITc=new Set(["380"]), ESc=new Set(["724"]), NLc=new Set(["528"]), DK=new Set(["208"]), IEc=new Set(["372"]), NOc=new Set(["578"]), CLc=new Set(["152"]), COc=new Set(["170"]), TRc=new Set(["792"]), IDc=new Set(["360"]), PLc=new Set(["616"]), CHc=new Set(["756"]), ARc=new Set(["032"]), SEc=new Set(["752"]), SGc=new Set(["702"]), ATc=new Set(["040"]), THc=new Set(["764"]), CNc=new Set(["156"]), MYc=new Set(["458"]), NZc=new Set(["554"]), BEc=new Set(["056"]), PTc=new Set(["620"]), FIc=new Set(["246"]), GRc=new Set(["300"]), CZc=new Set(["203"]), HUc=new Set(["348"]), ROc=new Set(["642"]), SAc=new Set(["682"]), SKc=new Set(["703"]), HRc=new Set(["191"]), BGc=new Set(["100"]), LTc=new Set(["440"]), EEc=new Set(["233"]), LVc=new Set(["428"]), SIc=new Set(["705"]), LUc=new Set(["442"]), CYc=new Set(["196"]), MTc=new Set(["470"]);
   var G7=new Set(["840","826","124","392","250","276","380"]);
   var CURRENT=new Set(["620"]);
   function dest(id){
     return UK.has(id)?"uk":US.has(id)?"us":NLc.has(id)?"netherlands":ESc.has(id)?"spain":ITc.has(id)?"italy":FRc.has(id)?"france":DE.has(id)?"germany":ATc.has(id)?"austria":JP.has(id)?"japan":IN.has(id)?"india":CA.has(id)?"canada"
       :AU.has(id)?"australia":KR.has(id)?"southkorea":IL.has(id)?"israel"
       :MX.has(id)?"mexico":BR.has(id)?"brazil":ZA.has(id)?"southafrica"
-      :MA.has(id)?"morocco":DK.has(id)?"denmark":IEc.has(id)?"ireland":NOc.has(id)?"norway":CLc.has(id)?"chile":COc.has(id)?"colombia":TRc.has(id)?"turkey":IDc.has(id)?"indonesia":PLc.has(id)?"poland":CHc.has(id)?"switzerland":ARc.has(id)?"argentina":SEc.has(id)?"sweden":SGc.has(id)?"singapore":THc.has(id)?"thailand":CNc.has(id)?"china":MYc.has(id)?"malaysia":NZc.has(id)?"newzealand":BEc.has(id)?"belgium":PTc.has(id)?"portugal":FIc.has(id)?"finland":GRc.has(id)?"greece":CZc.has(id)?"czechia":HUc.has(id)?"hungary":ROc.has(id)?"romania":SAc.has(id)?"saudiarabia":SKc.has(id)?"slovakia":HRc.has(id)?"croatia":BGc.has(id)?"bulgaria":LTc.has(id)?"lithuania":EEc.has(id)?"estonia":LVc.has(id)?"latvia":SIc.has(id)?"slovenia":LUc.has(id)?"luxembourg":CYc.has(id)?"cyprus":null;
+      :MA.has(id)?"morocco":DK.has(id)?"denmark":IEc.has(id)?"ireland":NOc.has(id)?"norway":CLc.has(id)?"chile":COc.has(id)?"colombia":TRc.has(id)?"turkey":IDc.has(id)?"indonesia":PLc.has(id)?"poland":CHc.has(id)?"switzerland":ARc.has(id)?"argentina":SEc.has(id)?"sweden":SGc.has(id)?"singapore":THc.has(id)?"thailand":CNc.has(id)?"china":MYc.has(id)?"malaysia":NZc.has(id)?"newzealand":BEc.has(id)?"belgium":PTc.has(id)?"portugal":FIc.has(id)?"finland":GRc.has(id)?"greece":CZc.has(id)?"czechia":HUc.has(id)?"hungary":ROc.has(id)?"romania":SAc.has(id)?"saudiarabia":SKc.has(id)?"slovakia":HRc.has(id)?"croatia":BGc.has(id)?"bulgaria":LTc.has(id)?"lithuania":EEc.has(id)?"estonia":LVc.has(id)?"latvia":SIc.has(id)?"slovenia":LUc.has(id)?"luxembourg":CYc.has(id)?"cyprus":MTc.has(id)?"malta":null;
   }
   /* Same flag lookup and rendering logic as the homepage map -- kept
      identical on purpose so every map on the site behaves the same way. */

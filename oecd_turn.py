@@ -65,6 +65,7 @@ GROUPS = {
     "fetch_si.py": "B",   # one light OECD call (BCI); B was a smallest group (A17/B16/C16), B now 17
     "fetch_lu.py": "C",   # one light OECD call (BCI); C was the smallest group (A17/B17/C16), C now 17
     "fetch_cy.py": "A",   # makes no OECD calls (not an OECD member); A/B/C tied at 17, A now 18
+    "fetch_mt.py": "B",   # makes no OECD calls (not an OECD member); B was a smallest group (A18/B17/C17), B now 18
     "fetch_pt.py": "B",   # one light OECD call (BCI), like Belgium; B was the smallest group
     "fetch_gr.py": "B",   # one light OECD call (BCI), like Finland; B was the smallest group (12 vs A 13)
     # C

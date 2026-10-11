@@ -32,7 +32,7 @@
 <link href="https://fonts.googleapis.com/css2?family=Nunito+Sans:wght@400;600;700&display=swap" rel="stylesheet">
 <link rel="icon" type="image/png" sizes="32x32" href="favicon-32.png">
 <link rel="apple-touch-icon" href="apple-touch-icon.png">
-<link rel="stylesheet" href="style.css?v=53">
+<link rel="stylesheet" href="style.css?v=54">
 <script src="https://cdnjs.cloudflare.com/ajax/libs/Chart.js/4.4.1/chart.umd.min.js"></script>
 <script src="https://cdnjs.cloudflare.com/ajax/libs/hammer.js/2.0.8/hammer.min.js"></script>
 <script src="https://cdnjs.cloudflare.com/ajax/libs/chartjs-plugin-zoom/2.0.1/chartjs-plugin-zoom.min.js"></script>
@@ -383,11 +383,12 @@ footer.dash-foot{margin-top:36px; font-size:12.5px; color:var(--ink2); border-to
  <a href="latvia">Latvia</a>
  <a href="lithuania">Lithuania</a>
  <a href="luxembourg">Luxembourg</a>
+ <a href="malta">Malta</a>
  <a href="netherlands">Netherlands</a>
  <a href="poland">Poland</a>
- <a href="portugal">Portugal</a>
  </div>
  <div class="dcol dcont">
+ <a href="portugal">Portugal</a>
  <a href="romania">Romania</a>
  <a href="slovakia">Slovakia</a>
  <a href="slovenia">Slovenia</a>
@@ -480,6 +481,11 @@ footer.dash-foot{margin-top:36px; font-size:12.5px; color:var(--ink2); border-to
  <div id="authFormView">
  <h2 id="authModalTitle">Log in</h2>
  <p class="auth-modal-sub" id="authModalSub">Welcome back.</p>
+ <div class="auth-login-cta" id="authLoginCta" hidden>
+ <p class="auth-login-lead">Already have an account?</p>
+ <button type="button" class="auth-login-shine" id="authLoginShine">Log in</button>
+ <div class="auth-or"><span>or sign up below</span></div>
+ </div>
  <form id="authForm">
  <div class="auth-field">
  <label for="authEmail">Email</label>
@@ -674,6 +680,8 @@ footer.dash-foot{margin-top:36px; font-size:12.5px; color:var(--ink2); border-to
   var authSubmitBtn = document.getElementById("authSubmitBtn");
   var authMsg = document.getElementById("authMsg");
   var authToggleRow = document.getElementById("authToggleRow");
+  var authLoginCta = document.getElementById("authLoginCta");
+  document.getElementById("authLoginShine").addEventListener("click", function(){ setMode("login"); });
   var authModalTitle = document.getElementById("authModalTitle");
   var authModalSub = document.getElementById("authModalSub");
   var authFormView = document.getElementById("authFormView");
@@ -762,12 +770,14 @@ footer.dash-foot{margin-top:36px; font-size:12.5px; color:var(--ink2); border-to
       authSubmitBtn.textContent = "Log in";
       authToggleRow.textContent = "Don't have an account? ";
       authToggleRow.appendChild(wireToggleBtn("Sign up", "signup"));
+      authToggleRow.hidden = false; authLoginCta.hidden = true;
     } else {
       authModalTitle.textContent = "Sign up";
       authModalSub.textContent = "Free, for now, this may change in future.";
       authSubmitBtn.textContent = "Sign up";
       authToggleRow.textContent = "Already have an account? ";
       authToggleRow.appendChild(wireToggleBtn("Log in", "login"));
+      authToggleRow.hidden = true; authLoginCta.hidden = false;
     }
   }
   function showLoginView(){
@@ -3135,7 +3145,7 @@ var FILES = {
   Israel: "data-il.json", Mexico: "data-mx.json", Brazil: "data-br.json", "South Africa": "data-za.json",
   Morocco: "data-ma.json", Germany: "data-de.json", France: "data-fr.json", Italy: "data-it.json",
   Spain: "data-es.json", Netherlands: "data-nl.json", Denmark: "data-dk.json", Ireland: "data-ie.json",
-  Norway: "data-no.json", Chile: "data-cl.json", Colombia: "data-co.json", Turkey: "data-tr.json", Indonesia: "data-id.json", Poland: "data-pl.json", Switzerland: "data-ch.json", Argentina: "data-ar.json", Sweden: "data-se.json", Singapore: "data-sg.json", Austria: "data-at.json", Thailand: "data-th.json", China: "data-cn.json", Malaysia: "data-my.json", "New Zealand": "data-nz.json", Belgium: "data-be.json", Portugal: "data-pt.json", Finland: "data-fi.json", Greece: "data-gr.json", Czechia: "data-cz.json", Hungary: "data-hu.json", Romania: "data-ro.json", "Saudi Arabia": "data-sa.json", Slovakia: "data-sk.json", Croatia: "data-hr.json", Bulgaria: "data-bg.json", Lithuania: "data-lt.json", Estonia: "data-ee.json", Latvia: "data-lv.json", Slovenia: "data-si.json", Luxembourg: "data-lu.json", Cyprus: "data-cy.json"
+  Norway: "data-no.json", Chile: "data-cl.json", Colombia: "data-co.json", Turkey: "data-tr.json", Indonesia: "data-id.json", Poland: "data-pl.json", Switzerland: "data-ch.json", Argentina: "data-ar.json", Sweden: "data-se.json", Singapore: "data-sg.json", Austria: "data-at.json", Thailand: "data-th.json", China: "data-cn.json", Malaysia: "data-my.json", "New Zealand": "data-nz.json", Belgium: "data-be.json", Portugal: "data-pt.json", Finland: "data-fi.json", Greece: "data-gr.json", Czechia: "data-cz.json", Hungary: "data-hu.json", Romania: "data-ro.json", "Saudi Arabia": "data-sa.json", Slovakia: "data-sk.json", Croatia: "data-hr.json", Bulgaria: "data-bg.json", Lithuania: "data-lt.json", Estonia: "data-ee.json", Latvia: "data-lv.json", Slovenia: "data-si.json", Luxembourg: "data-lu.json", Cyprus: "data-cy.json", Malta: "data-mt.json"
 };
 // Groups every known series key into a category, purely for the "By
 // metric" browse mode -- different countries often use different key
@@ -3483,7 +3493,7 @@ function conceptForKey(key){ return KEY_TO_CONCEPT[key] || null; }
 var ISO_OF = {UK:"826", US:"840", Eurozone:null, Japan:"392", India:"356", Canada:"124", Australia:"036",
   "South Korea":"410", Israel:"376", Mexico:"484", Brazil:"076", "South Africa":"710", Morocco:"504",
   Germany:"276", France:"250", Italy:"380", Spain:"724", Netherlands:"528", Denmark:"208", Ireland:"372",
-  Norway:"578", Chile:"152", Colombia:"170", Turkey:"792", Indonesia:"360", Poland:"616", Switzerland:"756", Argentina:"032", Sweden:"752", Singapore:"702", Austria:"040", Thailand:"764", China:"156", Malaysia:"458", "New Zealand":"554", Belgium:"056", Portugal:"620", Finland:"246", Greece:"300", Czechia:"203", Hungary:"348", Romania:"642", "Saudi Arabia":"682", Slovakia:"703", Croatia:"191", Bulgaria:"100", Lithuania:"440", Estonia:"233", Latvia:"428", Slovenia:"705", Luxembourg:"442", Cyprus:"196"};
+  Norway:"578", Chile:"152", Colombia:"170", Turkey:"792", Indonesia:"360", Poland:"616", Switzerland:"756", Argentina:"032", Sweden:"752", Singapore:"702", Austria:"040", Thailand:"764", China:"156", Malaysia:"458", "New Zealand":"554", Belgium:"056", Portugal:"620", Finland:"246", Greece:"300", Czechia:"203", Hungary:"348", Romania:"642", "Saudi Arabia":"682", Slovakia:"703", Croatia:"191", Bulgaria:"100", Lithuania:"440", Estonia:"233", Latvia:"428", Slovenia:"705", Luxembourg:"442", Cyprus:"196", Malta:"470"};
 function resolveKey(country, concept){
   var candidates = CONCEPT_KEYS[concept];
   if(!candidates) return null;
@@ -5324,7 +5334,7 @@ var REGISTRY_KEY_TO_CODE = {
   Spain: "es", Netherlands: "nl", Denmark: "dk", Ireland: "ie", Norway: "no",
   Chile: "cl", Colombia: "co", Turkey: "tr", Indonesia: "id", Poland: "pl",
   Switzerland: "ch", Argentina: "ar", Sweden: "se", Singapore: "sg", Austria: "at",
-  Thailand: "th", China: "cn", Malaysia: "my", "New Zealand": "nz", Belgium: "be", Portugal: "pt", Finland: "fi", Greece: "gr", Czechia: "cz", Hungary: "hu", Romania: "ro", "Saudi Arabia": "sa", Slovakia: "sk", Croatia: "hr", Bulgaria: "bg", Lithuania: "lt", Estonia: "ee", Latvia: "lv", Slovenia: "si", Luxembourg: "lu", Cyprus: "cy"
+  Thailand: "th", China: "cn", Malaysia: "my", "New Zealand": "nz", Belgium: "be", Portugal: "pt", Finland: "fi", Greece: "gr", Czechia: "cz", Hungary: "hu", Romania: "ro", "Saudi Arabia": "sa", Slovakia: "sk", Croatia: "hr", Bulgaria: "bg", Lithuania: "lt", Estonia: "ee", Latvia: "lv", Slovenia: "si", Luxembourg: "lu", Cyprus: "cy", Malta: "mt"
 };
 var CODE_TO_REGISTRY_KEY = {};
 Object.keys(REGISTRY_KEY_TO_CODE).forEach(function(name){ CODE_TO_REGISTRY_KEY[REGISTRY_KEY_TO_CODE[name]] = name; });

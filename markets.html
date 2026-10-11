@@ -32,7 +32,7 @@
 <link href="https://fonts.googleapis.com/css2?family=Nunito+Sans:wght@400;600;700&display=swap" rel="stylesheet">
 <link rel="icon" type="image/png" sizes="32x32" href="favicon-32.png">
 <link rel="apple-touch-icon" href="apple-touch-icon.png">
-<link rel="stylesheet" href="style.css?v=53">
+<link rel="stylesheet" href="style.css?v=54">
 <link rel="stylesheet" href="mobile.css?v=15">
 </head>
 <body>
@@ -84,11 +84,12 @@
  <a href="latvia">Latvia</a>
  <a href="lithuania">Lithuania</a>
  <a href="luxembourg">Luxembourg</a>
+ <a href="malta">Malta</a>
  <a href="netherlands">Netherlands</a>
  <a href="poland">Poland</a>
- <a href="portugal">Portugal</a>
  </div>
  <div class="dcol dcont">
+ <a href="portugal">Portugal</a>
  <a href="romania">Romania</a>
  <a href="slovakia">Slovakia</a>
  <a href="slovenia">Slovenia</a>
@@ -181,6 +182,11 @@
  <div id="authFormView">
  <h2 id="authModalTitle">Log in</h2>
  <p class="auth-modal-sub" id="authModalSub">Welcome back.</p>
+ <div class="auth-login-cta" id="authLoginCta" hidden>
+ <p class="auth-login-lead">Already have an account?</p>
+ <button type="button" class="auth-login-shine" id="authLoginShine">Log in</button>
+ <div class="auth-or"><span>or sign up below</span></div>
+ </div>
  <form id="authForm">
  <div class="auth-field">
  <label for="authEmail">Email</label>
@@ -362,6 +368,8 @@
   var authSubmitBtn = document.getElementById("authSubmitBtn");
   var authMsg = document.getElementById("authMsg");
   var authToggleRow = document.getElementById("authToggleRow");
+  var authLoginCta = document.getElementById("authLoginCta");
+  document.getElementById("authLoginShine").addEventListener("click", function(){ setMode("login"); });
   var authModalTitle = document.getElementById("authModalTitle");
   var authModalSub = document.getElementById("authModalSub");
   var authFormView = document.getElementById("authFormView");
@@ -450,12 +458,14 @@
       authSubmitBtn.textContent = "Log in";
       authToggleRow.textContent = "Don't have an account? ";
       authToggleRow.appendChild(wireToggleBtn("Sign up", "signup"));
+      authToggleRow.hidden = false; authLoginCta.hidden = true;
     } else {
       authModalTitle.textContent = "Sign up";
       authModalSub.textContent = "Free, for now, this may change in future.";
       authSubmitBtn.textContent = "Sign up";
       authToggleRow.textContent = "Already have an account? ";
       authToggleRow.appendChild(wireToggleBtn("Log in", "login"));
+      authToggleRow.hidden = true; authLoginCta.hidden = false;
     }
   }
   function showLoginView(){
@@ -1288,8 +1298,8 @@ table.mk a{color:inherit; text-decoration:none; border-bottom:1px dotted var(--i
 <script>
 (function(){
 "use strict";
-var C = {uk:["UK","uk"],us:["US","us"],ez:["Eurozone","eurozone"],jp:["Japan","japan"],in:["India","india"],ca:["Canada","canada"],au:["Australia","australia"],kr:["South Korea","southkorea"],il:["Israel","israel"],mx:["Mexico","mexico"],br:["Brazil","brazil"],za:["South Africa","southafrica"],ma:["Morocco","morocco"],de:["Germany","germany"],fr:["France","france"],it:["Italy","italy"],es:["Spain","spain"],nl:["Netherlands","netherlands"],dk:["Denmark","denmark"],ie:["Ireland","ireland"],no:["Norway","norway"],cl:["Chile","chile"],co:["Colombia","colombia"],tr:["Turkey","turkey"],id:["Indonesia","indonesia"],pl:["Poland","poland"],ch:["Switzerland","switzerland"],ar:["Argentina","argentina"],se:["Sweden","sweden"],sg:["Singapore","singapore"],at:["Austria","austria"],th:["Thailand","thailand"],cn:["China","china"],my:["Malaysia","malaysia"],nz:["New Zealand","newzealand"],be:["Belgium","belgium"],pt:["Portugal","portugal"],fi:["Finland","finland"],gr:["Greece","greece"],cz:["Czechia","czechia"],hu:["Hungary","hungary"],ro:["Romania","romania"],sa:["Saudi Arabia","saudiarabia"],sk:["Slovakia","slovakia"],hr:["Croatia","croatia"],bg:["Bulgaria","bulgaria"],lt:["Lithuania","lithuania"],ee:["Estonia","estonia"],lv:["Latvia","latvia"],si:["Slovenia","slovenia"],lu:["Luxembourg","luxembourg"],cy:["Cyprus","cyprus"]};
-var EURO = {at:1,be:1,bg:1,cy:1,de:1,ee:1,es:1,fi:1,fr:1,gr:1,hr:1,ie:1,it:1,lt:1,lu:1,lv:1,nl:1,pt:1,si:1,sk:1};
+var C = {uk:["UK","uk"],us:["US","us"],ez:["Eurozone","eurozone"],jp:["Japan","japan"],in:["India","india"],ca:["Canada","canada"],au:["Australia","australia"],kr:["South Korea","southkorea"],il:["Israel","israel"],mx:["Mexico","mexico"],br:["Brazil","brazil"],za:["South Africa","southafrica"],ma:["Morocco","morocco"],de:["Germany","germany"],fr:["France","france"],it:["Italy","italy"],es:["Spain","spain"],nl:["Netherlands","netherlands"],dk:["Denmark","denmark"],ie:["Ireland","ireland"],no:["Norway","norway"],cl:["Chile","chile"],co:["Colombia","colombia"],tr:["Turkey","turkey"],id:["Indonesia","indonesia"],pl:["Poland","poland"],ch:["Switzerland","switzerland"],ar:["Argentina","argentina"],se:["Sweden","sweden"],sg:["Singapore","singapore"],at:["Austria","austria"],th:["Thailand","thailand"],cn:["China","china"],my:["Malaysia","malaysia"],nz:["New Zealand","newzealand"],be:["Belgium","belgium"],pt:["Portugal","portugal"],fi:["Finland","finland"],gr:["Greece","greece"],cz:["Czechia","czechia"],hu:["Hungary","hungary"],ro:["Romania","romania"],sa:["Saudi Arabia","saudiarabia"],sk:["Slovakia","slovakia"],hr:["Croatia","croatia"],bg:["Bulgaria","bulgaria"],lt:["Lithuania","lithuania"],ee:["Estonia","estonia"],lv:["Latvia","latvia"],si:["Slovenia","slovenia"],lu:["Luxembourg","luxembourg"],cy:["Cyprus","cyprus"],mt:["Malta","malta"]};
+var EURO = {at:1,be:1,bg:1,cy:1,de:1,ee:1,es:1,fi:1,fr:1,gr:1,hr:1,ie:1,it:1,lt:1,lu:1,lv:1,mt:1,nl:1,pt:1,si:1,sk:1};
 var MINUS = "\u2212";
 var POLICY_KEY = {uk:"boe_rate", us:"fed_funds_upper", ez:"ecb_rate", ca:"overnight_rate", jp:"boj_rate", cn:"policy_rate", my:"policy_rate", nz:"policy_rate", cz:"policy_rate", pl:"policy_rate", hu:"policy_rate", ro:"policy_rate", sa:"policy_rate"};
 var MARKET_RATE = {overnight_rate:1, boj_rate:1};
