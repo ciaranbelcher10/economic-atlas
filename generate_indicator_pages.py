@@ -45,6 +45,8 @@ KIT_VERSION = "8"
 
 # country display name -> (data-file code, page slug, alpha-2, region)
 COUNTRIES = {
+    "Egypt":         ("eg", "egypt", "EG", "Africa"),
+    "Nigeria":       ("ng", "nigeria", "NG", "Africa"),
     "Vietnam":       ("vn", "vietnam", "VN", "Asia"),
     "Taiwan":        ("tw", "taiwan", "TW", "Asia"),
     "Philippines":   ("ph", "philippines", "PH", "Asia"),
@@ -405,7 +407,7 @@ def scale_of(u):
 
 # ISO-coded units with a display glyph; must match indicator-kit.js ISO_GLYPH.
 ISO_GLYPH = {"CNY": "CN\u00a5", "THB": "\u0e3f", "TRY": "\u20ba", "IDR": "Rp", "SGD": "S$",
-             "ARS": "AR$", "CLP": "CLP$", "COP": "COL$", "MYR": "RM", "NZD": "NZ$", "PHP": "\u20b1", "TWD": "NT$", "VND": "\u20ab"}
+             "ARS": "AR$", "CLP": "CLP$", "COP": "COL$", "MYR": "RM", "NZD": "NZ$", "PHP": "\u20b1", "TWD": "NT$", "VND": "\u20ab", "NGN": "\u20a6", "EGP": "E\u00a3"}
 
 def symbol_of(u, key, country, dollarised=False):
     c = _clean_unit(u)
@@ -707,6 +709,13 @@ HEADER_HTML_BASE = """<script>(function(){
  <a href="../colombia">Colombia</a>
  </div>
  <div class="dcol">
+ <p class="dhead">Africa</p>
+ <a href="../egypt">Egypt</a>
+ <a href="../morocco">Morocco</a>
+ <a href="../nigeria">Nigeria</a>
+ <a href="../southafrica">South Africa</a>
+ </div>
+ <div class="dcol">
  <p class="dhead">North America</p>
  <a href="../canada">Canada</a>
  <a href="../mexico">Mexico</a>
@@ -727,11 +736,6 @@ HEADER_HTML_BASE = """<script>(function(){
  <p class="dhead">Middle East</p>
  <a href="../israel">Israel</a>
  <a href="../saudiarabia">Saudi Arabia</a>
- </div>
- <div class="dcol">
- <p class="dhead">Africa</p>
- <a href="../morocco">Morocco</a>
- <a href="../southafrica">South Africa</a>
  </div>
  </div>
  </div>
@@ -2113,7 +2117,7 @@ def rewrite_sitemap(urls, today):
 FX_EURO_MEMBERS = {"Austria", "France", "Germany", "Ireland", "Italy", "Netherlands", "Spain", "Belgium", "Portugal", "Finland", "Greece", "Slovakia", "Croatia", "Bulgaria", "Lithuania", "Estonia", "Latvia", "Slovenia", "Luxembourg", "Cyprus", "Malta"}
 FX_SYMBOL = {"GBP": "\u00a3", "EUR": "\u20ac", "JPY": "\u00a5", "CAD": "C$", "AUD": "A$",
              "BRL": "R$", "MXN": "MX$", "INR": "\u20b9", "KRW": "\u20a9", "CNY": "CN\u00a5",
-             "THB": "\u0e3f", "TRY": "\u20ba", "IDR": "Rp", "SGD": "S$", "ARS": "AR$", "CLP": "CLP$", "COP": "COL$", "MYR": "RM", "NZD": "NZ$", "PHP": "\u20b1", "TWD": "NT$", "VND": "\u20ab"}
+             "THB": "\u0e3f", "TRY": "\u20ba", "IDR": "Rp", "SGD": "S$", "ARS": "AR$", "CLP": "CLP$", "COP": "COL$", "MYR": "RM", "NZD": "NZ$", "PHP": "\u20b1", "TWD": "NT$", "VND": "\u20ab", "NGN": "\u20a6", "EGP": "E\u00a3"}
 
 def fx_symbol(code):
     return FX_SYMBOL.get(code, code + "\u00a0")

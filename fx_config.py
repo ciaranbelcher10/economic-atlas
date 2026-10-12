@@ -30,12 +30,12 @@ H10 = {
 # Currencies with no free official daily or monthly series: World Bank
 # PA.NUS.FCRF annual average, read from the country's own data file
 # (fx_to_usd, local currency per US$).
-ANNUAL = {"ARS", "CLP", "COP", "IDR", "ILS", "MAD", "PLN", "TRY", "CZK", "HUF", "RON", "SAR", "PHP", "VND"}
+ANNUAL = {"ARS", "CLP", "COP", "IDR", "ILS", "MAD", "PLN", "TRY", "CZK", "HUF", "RON", "SAR", "PHP", "VND", "NGN", "EGP"}
 
 SYMBOL = {"USD": "$", "EUR": "\u20ac", "GBP": "\u00a3", "JPY": "\u00a5", "CAD": "C$", "AUD": "A$",
           "MXN": "MX$", "BRL": "R$", "SGD": "S$", "INR": "\u20b9", "KRW": "\u20a9", "IDR": "Rp",
           "ILS": "\u20aa", "ZAR": "R", "CNY": "CN\u00a5",
-          "THB": "\u0e3f", "TRY": "\u20ba", "ARS": "AR$", "CLP": "CLP$", "COP": "COL$", "MYR": "RM", "NZD": "NZ$", "PHP": "\u20b1", "TWD": "NT$", "VND": "\u20ab"}
+          "THB": "\u0e3f", "TRY": "\u20ba", "ARS": "AR$", "CLP": "CLP$", "COP": "COL$", "MYR": "RM", "NZD": "NZ$", "PHP": "\u20b1", "TWD": "NT$", "VND": "\u20ab", "NGN": "\u20a6", "EGP": "E\u00a3"}
 NAME = {"USD": "US dollar", "EUR": "euro", "GBP": "pound", "JPY": "yen", "CAD": "Canadian dollar",
         "AUD": "Australian dollar", "MXN": "Mexican peso", "BRL": "Brazilian real", "SGD": "Singapore dollar",
         "INR": "Indian rupee", "KRW": "South Korean won", "IDR": "Indonesian rupiah", "ILS": "Israeli shekel",
@@ -51,12 +51,14 @@ NAME = {"USD": "US dollar", "EUR": "euro", "GBP": "pound", "JPY": "yen", "CAD": 
         "SAR": "Saudi riyal",
         "PHP": "Philippine peso",
         "TWD": "New Taiwan dollar",
-        "VND": "Vietnamese dong"}
+        "VND": "Vietnamese dong",
+        "NGN": "Nigerian naira",
+        "EGP": "Egyptian pound"}
 QUOTE_NAME = {"USD": "US dollars", "EUR": "euros", "GBP": "pounds"}
 
 # Units of home currency per quoted figure, where one unit is worth very little.
 SCALE = {"JPY": 100, "INR": 100, "HUF": 100, "THB": 100, "TRY": 100, "KRW": 1000, "ARS": 1000,
-         "CLP": 1000, "COP": 1000, "IDR": 10000, "PHP": 100, "TWD": 100, "VND": 10000}
+         "CLP": 1000, "COP": 1000, "IDR": 10000, "PHP": 100, "TWD": 100, "VND": 10000, "NGN": 1000, "EGP": 100}
 
 # Where a currency was redenominated or replaced after hyperinflation, the
 # World Bank still reports the whole history in today's units, so the early
@@ -74,6 +76,15 @@ SERIES_START = {
     # US$) are not market rates and pushed the axis to $10,000 per 10,000 dong.
     "VND": ("1989", "the unified exchange rate of the 1989 reform",
             "earlier official rates were not market rates"),
+    # v1.7.53 (run 1 audit, 12 Oct 2026): the naira was fixed until 1986 and
+    # held at 21.9 per US$ from 1994 to 1998 while the market rate was far
+    # weaker; the official and market rates were unified in 1999.
+    "NGN": ("1999", "the unified exchange rate of 1999",
+            "earlier official rates were fixed, not market rates"),
+    # The pound was administratively fixed (0.7 per US$ through the 1980s)
+    # until the rates were unified in 1991.
+    "EGP": ("1991", "the unified exchange rate of 1991",
+            "earlier official rates were fixed, not market rates"),
 }
 
 EURO_MEMBERS = {"Austria", "France", "Germany", "Ireland", "Italy", "Netherlands", "Spain", "Belgium", "Portugal", "Finland", "Greece", "Slovakia", "Croatia", "Bulgaria", "Lithuania", "Estonia", "Latvia", "Slovenia", "Luxembourg", "Cyprus", "Malta"}
@@ -120,6 +131,8 @@ COUNTRY_FX = {
     "Philippines": ("PHP", "ph", ["USD"]),
     "Taiwan": ("TWD", "tw", ["USD"]),
     "Vietnam": ("VND", "vn", ["USD"]),
+    "Nigeria": ("NGN", "ng", ["USD"]),
+    "Egypt": ("EGP", "eg", ["USD"]),
 }
 
 NBSP = "\u00a0"
