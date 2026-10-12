@@ -166,6 +166,27 @@ NATIONAL = {
         ("GASTAT database portal", "https://database.stats.gov.sa", None),
         ("SAMA monthly statistics", "https://www.sama.gov.sa/en-US/EconomicReports/Pages/MonthlyStatistics.aspx", None),
     ],
+    # v1.7.49 batch 5 (non-EU): first candidates; the probe reports what answers.
+    "AE": [
+        ("FCSC home (English)", "https://fcsc.gov.ae/en-us", None),
+        ("Bayanat open data", "https://bayanat.ae/en", None),
+        ("CBUAE home (English)", "https://www.centralbank.ae/en/", None),
+    ],
+    "VN": [
+        ("GSO home (English)", "https://www.gso.gov.vn/en/homepage/", None),
+        ("SBV home", "https://www.sbv.gov.vn", None),
+    ],
+    "PH": [
+        ("PSA OpenSTAT PXWeb API root", "https://openstat.psa.gov.ph/PXWeb/api/v1/en/", None),
+        ("PSA home", "https://psa.gov.ph", None),
+        ("BSP home", "https://www.bsp.gov.ph", None),
+    ],
+    "TW": [
+        ("DGBAS statistics (English)", "https://eng.stat.gov.tw", None),
+        ("DGBAS national statistics database", "https://nstatdb.dgbas.gov.tw", None),
+        ("CBC home (English)", "https://www.cbc.gov.tw/en/", None),
+        ("Taiwan open data portal", "https://data.gov.tw/en", None),
+    ],
 }
 
 WB = [("NY.GDP.MKTP.CN", "gdp_level (annual LCU)"), ("NY.GDP.MKTP.KN", "gdp_real (annual LCU)"),

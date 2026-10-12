@@ -29,12 +29,12 @@ H10 = {
 # Currencies with no free official daily or monthly series: World Bank
 # PA.NUS.FCRF annual average, read from the country's own data file
 # (fx_to_usd, local currency per US$).
-ANNUAL = {"ARS", "CLP", "COP", "IDR", "ILS", "MAD", "PLN", "TRY", "CZK", "HUF", "RON", "SAR"}
+ANNUAL = {"ARS", "CLP", "COP", "IDR", "ILS", "MAD", "PLN", "TRY", "CZK", "HUF", "RON", "SAR", "PHP"}
 
 SYMBOL = {"USD": "$", "EUR": "\u20ac", "GBP": "\u00a3", "JPY": "\u00a5", "CAD": "C$", "AUD": "A$",
           "MXN": "MX$", "BRL": "R$", "SGD": "S$", "INR": "\u20b9", "KRW": "\u20a9", "IDR": "Rp",
           "ILS": "\u20aa", "ZAR": "R", "CNY": "CN\u00a5",
-          "THB": "\u0e3f", "TRY": "\u20ba", "ARS": "AR$", "CLP": "CLP$", "COP": "COL$", "MYR": "RM", "NZD": "NZ$"}
+          "THB": "\u0e3f", "TRY": "\u20ba", "ARS": "AR$", "CLP": "CLP$", "COP": "COL$", "MYR": "RM", "NZD": "NZ$", "PHP": "\u20b1"}
 NAME = {"USD": "US dollar", "EUR": "euro", "GBP": "pound", "JPY": "yen", "CAD": "Canadian dollar",
         "AUD": "Australian dollar", "MXN": "Mexican peso", "BRL": "Brazilian real", "SGD": "Singapore dollar",
         "INR": "Indian rupee", "KRW": "South Korean won", "IDR": "Indonesian rupiah", "ILS": "Israeli shekel",
@@ -47,12 +47,13 @@ NAME = {"USD": "US dollar", "EUR": "euro", "GBP": "pound", "JPY": "yen", "CAD": 
         "CZK": "Czech koruna",
         "HUF": "Hungarian forint",
         "RON": "Romanian leu",
-        "SAR": "Saudi riyal"}
+        "SAR": "Saudi riyal",
+        "PHP": "Philippine peso"}
 QUOTE_NAME = {"USD": "US dollars", "EUR": "euros", "GBP": "pounds"}
 
 # Units of home currency per quoted figure, where one unit is worth very little.
 SCALE = {"JPY": 100, "INR": 100, "HUF": 100, "THB": 100, "TRY": 100, "KRW": 1000, "ARS": 1000,
-         "CLP": 1000, "COP": 1000, "IDR": 10000}
+         "CLP": 1000, "COP": 1000, "IDR": 10000, "PHP": 100}
 
 # Where a currency was redenominated or replaced after hyperinflation, the
 # World Bank still reports the whole history in today's units, so the early
@@ -108,6 +109,7 @@ COUNTRY_FX = {
     "Luxembourg": ("EUR", "lu", ["USD", "GBP"]),
     "Cyprus": ("EUR", "cy", ["USD", "GBP"]),
     "Malta": ("EUR", "mt", ["USD", "GBP"]),
+    "Philippines": ("PHP", "ph", ["USD"]),
 }
 
 NBSP = "\u00a0"

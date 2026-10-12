@@ -45,6 +45,7 @@ KIT_VERSION = "8"
 
 # country display name -> (data-file code, page slug, alpha-2, region)
 COUNTRIES = {
+    "Philippines":   ("ph", "philippines", "PH", "Asia"),
     "Malta":         ("mt", "malta", "MT", "Europe"),
     "Cyprus":        ("cy", "cyprus", "CY", "Europe"),
     "Luxembourg":    ("lu", "luxembourg", "LU", "Europe"),
@@ -402,7 +403,7 @@ def scale_of(u):
 
 # ISO-coded units with a display glyph; must match indicator-kit.js ISO_GLYPH.
 ISO_GLYPH = {"CNY": "CN\u00a5", "THB": "\u0e3f", "TRY": "\u20ba", "IDR": "Rp", "SGD": "S$",
-             "ARS": "AR$", "CLP": "CLP$", "COP": "COL$", "MYR": "RM", "NZD": "NZ$"}
+             "ARS": "AR$", "CLP": "CLP$", "COP": "COL$", "MYR": "RM", "NZD": "NZ$", "PHP": "\u20b1"}
 
 def symbol_of(u, key, country, dollarised=False):
     c = _clean_unit(u)
@@ -689,6 +690,7 @@ HEADER_HTML_BASE = """<script>(function(){
  <a href="../indonesia">Indonesia</a>
  <a href="../japan">Japan</a>
  <a href="../malaysia">Malaysia</a>
+ <a href="../philippines">Philippines</a>
  <a href="../singapore">Singapore</a>
  <a href="../southkorea">South Korea</a>
  <a href="../thailand">Thailand</a>
@@ -2107,7 +2109,7 @@ def rewrite_sitemap(urls, today):
 FX_EURO_MEMBERS = {"Austria", "France", "Germany", "Ireland", "Italy", "Netherlands", "Spain", "Belgium", "Portugal", "Finland", "Greece", "Slovakia", "Croatia", "Bulgaria", "Lithuania", "Estonia", "Latvia", "Slovenia", "Luxembourg", "Cyprus", "Malta"}
 FX_SYMBOL = {"GBP": "\u00a3", "EUR": "\u20ac", "JPY": "\u00a5", "CAD": "C$", "AUD": "A$",
              "BRL": "R$", "MXN": "MX$", "INR": "\u20b9", "KRW": "\u20a9", "CNY": "CN\u00a5",
-             "THB": "\u0e3f", "TRY": "\u20ba", "IDR": "Rp", "SGD": "S$", "ARS": "AR$", "CLP": "CLP$", "COP": "COL$", "MYR": "RM", "NZD": "NZ$"}
+             "THB": "\u0e3f", "TRY": "\u20ba", "IDR": "Rp", "SGD": "S$", "ARS": "AR$", "CLP": "CLP$", "COP": "COL$", "MYR": "RM", "NZD": "NZ$", "PHP": "\u20b1"}
 
 def fx_symbol(code):
     return FX_SYMBOL.get(code, code + "\u00a0")
