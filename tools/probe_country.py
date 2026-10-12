@@ -186,6 +186,21 @@ NATIONAL = {
         ("DGBAS national statistics database", "https://nstatdb.dgbas.gov.tw", None),
         ("CBC home (English)", "https://www.cbc.gov.tw/en/", None),
         ("Taiwan open data portal", "https://data.gov.tw/en", None),
+    ],    # v1.7.53 Nigeria and Egypt: first candidates; the probe reports what answers.
+    "NG": [
+        ("NBS home", "https://nigerianstat.gov.ng", None),
+        ("NBS e-library", "https://nigerianstat.gov.ng/elibrary", None),
+        ("CBN home", "https://www.cbn.gov.ng", None),
+        ("CBN monetary policy rate page", "https://www.cbn.gov.ng/MonetaryPolicy/decisions.html", None),
+        ("CBN exchange rates", "https://www.cbn.gov.ng/rates/ExchRateByCurrency.html", None),
+        ("CBN statistics database", "https://www.cbn.gov.ng/rates/", None),
+    ],
+    "EG": [
+        ("CAPMAS home (English)", "https://www.capmas.gov.eg/HomePage.aspx", None),
+        ("CBE home (English)", "https://www.cbe.org.eg/en", None),
+        ("CBE key policy rates", "https://www.cbe.org.eg/en/monetary-policy", None),
+        ("CBE inflation page", "https://www.cbe.org.eg/en/economic-research/statistics/inflation-rates", None),
+        ("CBE exchange rates", "https://www.cbe.org.eg/en/economic-research/statistics/exchange-rates", None),
     ],
 }
 
