@@ -69,6 +69,11 @@ SERIES_START = {
     "ILS": ("1986", "the new shekel, introduced in 1985"),
     "PLN": ("1995", "the redenominated zloty of 1995"),
     "TRY": ("2005", "the new lira of 2005"),
+    # v1.7.51: Vietnam ran multiple official rates until the March 1989
+    # reform; the World Bank figures for 1983 to 1988 (1.0 to 612 dong per
+    # US$) are not market rates and pushed the axis to $10,000 per 10,000 dong.
+    "VND": ("1989", "the unified exchange rate of the 1989 reform",
+            "earlier official rates were not market rates"),
 }
 
 EURO_MEMBERS = {"Austria", "France", "Germany", "Ireland", "Italy", "Netherlands", "Spain", "Belgium", "Portugal", "Finland", "Greece", "Slovakia", "Croatia", "Bulgaria", "Lithuania", "Estonia", "Latvia", "Slovenia", "Luxembourg", "Cyprus", "Malta"}

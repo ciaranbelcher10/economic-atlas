@@ -2649,6 +2649,10 @@ function currencySymbol(unitStr){
   const c = unitStr.match(/^([A-Z]{3})(tn|bn|m|k)?(\s|\(|$)/);
   return c ? (ISO_GLYPH[c[1]] || c[1]) : "";
 }
+// v1.7.51: group the whole-number part (12847.6 -> 12,847.6) so currencies
+// measured past 1,000tn (VND, IDR, KRW, COP) stay readable. Matches
+// indicator-kit.js and generate_indicator_pages.py.
+function EA_group(s){ return String(s).replace(/^\d+/, function(n){ return n.replace(/\B(?=(\d{3})+(?!\d))/g, ","); }); }
 function curFmt(rawValue, unitStr, decimals){
   const scale = scaleOf(unitStr);
   const symbol = currencySymbol(unitStr);
@@ -2659,7 +2663,7 @@ function curFmt(rawValue, unitStr, decimals){
   // v1.7.42: a 0-decimal request (axis ticks) on a non-whole bn/tn value
   // gets 1 decimal, so a 0.5bn tick step reads 1.5bn, not a duplicate 2bn.
   var _d = function(x){ return (decimals===0 && Math.abs(x-Math.round(x))>1e-9) ? 1 : decimals; };
-  if(a>=1e12) out = sign+symbol+(a/1e12).toFixed(_d(a/1e12))+"tn";
+  if(a>=1e12) out = sign+symbol+EA_group((a/1e12).toFixed(_d(a/1e12)))+"tn";
   else if(a>=1e9) out = sign+symbol+(a/1e9).toFixed(_d(a/1e9))+"bn";
   else out = sign+symbol+(a/1e6).toFixed(0)+"m";
   // Same trailing-zero trim already used in the Customise & Export tool's
@@ -2716,7 +2720,12 @@ function convertSeriesToUSD(series, fx){
   // correct "$m". Now strips either three leading uppercase letters (a
   // currency code) OR a run of non-alphanumeric symbol characters.
   const newUnit = "$"+series.unit.replace(/^(?:[A-Za-z]+(?=(?:m|bn|tn)$)|[^a-zA-Z0-9]+)/,"");
-  return {...series, unit:newUnit, points: series.points.map(([p,v])=>[p, toUSD(v,p)])};
+  // v1.7.51: fx.floor (set by the fetch script, e.g. Vietnam 1989) marks the
+  // first period with a usable market rate. Earlier points are left out of
+  // the dollar view rather than converted at a rate that does not apply.
+  const floorKey = fx.floor ? monthKey(fx.floor) : null;
+  const kept = floorKey===null ? series.points : series.points.filter(([p])=>monthKey(p)===null || monthKey(p)>=floorKey);
+  return {...series, unit:newUnit, points: kept.map(([p,v])=>[p, toUSD(v,p)])};
 }
 /* ------------------ historical FX period-matching lookup ------------------
    fx.history is a sorted array of [period, rate] pairs at MONTHLY
@@ -3006,7 +3015,8 @@ function rerender(){
       notes.push(`Currency figures converted at each period's own ${fx.pair} rate (history: ${fx.history[0][0]} to ${fx.history[fx.history.length-1][0]}; latest ${fxRateTxt(fx.rate)} as of ${fx.as_of})`);
       const anyPreHistory = CURRENCY_KEYS.some(k => s[k] && hasPreHistoryPoints(s[k], fx));
       if(anyPreHistory){
-        notes.push(`figures before ${fx.history[0][0]} use the earliest available rate (no genuine historical rate exists further back)`);
+        notes.push(fx.floor ? `figures before ${fx.floor} are not shown in dollars (no reliable market rate before then)`
+                            : `figures before ${fx.history[0][0]} use the earliest available rate (no genuine historical rate exists further back)`);
       }
     } else {
       notes.push(`All currency figures converted at ${fx.pair} = ${fxRateTxt(fx.rate)} (as of ${fx.as_of}), a single rate applied across the series because no historical rate history is available for it`);

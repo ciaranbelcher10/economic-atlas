@@ -56,7 +56,7 @@ ITG_URL = ("https://api.imf.org/external/sdmx/3.0/data/dataflow/IMF.STA/ITG/~/"
            "TWN.*.*.M?c[TIME_PERIOD]=ge:2000-M01")
 CBC_RATES = "https://www.cbc.gov.tw/public/data/OpenData/WebF1.csv"
 FRED_URL = ("https://api.stlouisfed.org/fred/series/observations?series_id={sid}"
-            "&api_key={key}&file_type=json&observation_start=1990-01-01")
+            "&api_key={key}&file_type=json&observation_start=1983-01-01")
 WB_URL = ""  # Taiwan is not in World Bank data
 SERIES_START = {"policy_rate": "1990-01"}
 

@@ -126,7 +126,8 @@ def build_pair(country, home, quote, u_daily, prev_data):
         start = C.SERIES_START.get(home)
         if start:
             pts = [p for p in pts if p[0] >= start[0]]
-            base["description"] += f" Starts in {start[0]}, with {start[1]}; earlier years are in older currency units."
+            why = start[2] if len(start) > 2 else "earlier years are in older currency units"
+            base["description"] += f" Starts in {start[0]}, with {start[1]}; {why}."
         if len(pts) < 2:
             return None
         if quote == "USD":

@@ -23,7 +23,7 @@ for(const f of pages){
   const src=fs.readFileSync(path.join(root,f),"utf8");
   const ctx={};
   const glyph=(src.match(/const ISO_GLYPH = \{[^\n]*\};/)||["const ISO_GLYPH={};"])[0].replace("const ","var ");
-  const code="var TOGGLE_STATE={dollar:false,real:false}, PAGE_DATA=null;\n"+glyph+"\n"+["EA_yearTicks","EA_subTicks","EA_subLabel","fxRateTxt","labelHtml","scaleOf","currencySymbol","curFmt","fxNum","tileNum"].map(n=>grab(src,n)).filter(Boolean).join("\n");
+  const code="var TOGGLE_STATE={dollar:false,real:false}, PAGE_DATA=null;\n"+glyph+"\n"+["EA_yearTicks","EA_subTicks","EA_subLabel","fxRateTxt","labelHtml","scaleOf","currencySymbol","EA_group","curFmt","fxNum","tileNum"].map(n=>grab(src,n)).filter(Boolean).join("\n");
   vm.runInNewContext(code+"\nthis.E={EA_yearTicks,EA_subLabel,fxRateTxt,labelHtml,curFmt,fxNum,tileNum};",ctx);
   const E=ctx.E;
   check(f+" helpers present", E && E.EA_yearTicks && E.labelHtml && E.fxRateTxt && E.curFmt && E.fxNum);
@@ -66,6 +66,10 @@ for(const f of pages){
   { const labs=[-500,-1000,-1500,-2000,-2500,-3000].map(v=>E.curFmt(v,"EURm",0));
     check(f+" money axis no adjacent dup", labs.every((l,i)=>i===0||l!==labs[i-1]), labs.join("|")); }
   check(f+" money axis whole bn", E.curFmt(2000,"EURm",0).endsWith("2bn"), E.curFmt(2000,"EURm",0));
+  check(f+" money tn grouped", E.curFmt(12847.6e6,"VNDm",1,true)==="\u20ab12,847.6tn", E.curFmt(12847.6e6,"VNDm",1,true));
+  check(f+" money tn axis grouped", E.curFmt(15000e6,"VNDm",0)==="\u20ab15,000tn", E.curFmt(15000e6,"VNDm",0));
+  check(f+" money tn neg grouped", E.curFmt(-1278.2e6,"VNDm",1,true)==="\u2212\u20ab1,278.2tn", E.curFmt(-1278.2e6,"VNDm",1,true));
+  check(f+" money tn small untouched", E.curFmt(25.7e6,"TWDm",1,true)==="NT$25.7tn", E.curFmt(25.7e6,"TWDm",1,true));
   check(f+" money tile keeps", E.curFmt(5.0e6,"HUFm",1,true)==="HUF5.0tn", E.curFmt(5.0e6,"HUFm",1,true));
   check(f+" fx 4 sig figs", E.fxNum(0.0404)==="0.04040" && E.fxNum(0.2505)==="0.2505" && E.fxNum(1.25)==="1.250", [E.fxNum(0.0404),E.fxNum(0.2505),E.fxNum(1.25)]);
   check(f+" fx 4 sig figs above 1", E.fxNum(1.1259)==="1.126" && E.fxNum(0.8508)==="0.8508" && E.fxNum(24.531)==="24.53" && E.fxNum(353.14)==="353", [E.fxNum(1.1259),E.fxNum(24.531),E.fxNum(353.14)]);

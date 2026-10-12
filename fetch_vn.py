@@ -274,7 +274,9 @@ SERIES = [
 def extra(out: dict, prev_full: dict) -> None:
     try:
         fx = fetch_worldbank("PA.NUS.FCRF")
-        out["fx_to_usd"] = {"pair": "VND/USD", "rate": fx[-1][1], "as_of": fx[-1][0], "direction": "divide", "history": fx}
+        out["fx_to_usd"] = {"pair": "VND/USD", "rate": fx[-1][1], "as_of": fx[-1][0], "direction": "divide", "history": fx,
+                           # Dollarise leaves out pre-reform years (fx_config.SERIES_START)
+                           "floor": "1989"}
         print(f"  ok  fx_to_usd            {fx[-1][1]} dong per US$ ({fx[-1][0]}, World Bank PA.NUS.FCRF annual average)")
     except Exception as exc:
         print(f"FAIL  fx_to_usd            {exc}")
