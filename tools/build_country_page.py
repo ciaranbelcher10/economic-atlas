@@ -390,7 +390,9 @@ def main():
     # ---------- leftover template names ----------
     bad = []
     for n, line in enumerate(s.split("\n"), 1):
-        if LEFTOVER.search(line) and not any(a in line for a in ALLOWED_LEFTOVER):
+        # "Republic of China (Taiwan)" is part of Taiwan's central bank's
+        # official name (v1.7.50), not template text.
+        if LEFTOVER.search(line.replace("Republic of China (Taiwan)", "")) and not any(a in line for a in ALLOWED_LEFTOVER):
             bad.append(f"  line {n}: {line.strip()[:110]}")
     if bad and SLUG != T_SLUG:
         die("template text still names China:\n" + "\n".join(bad[:30]))
