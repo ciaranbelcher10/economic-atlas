@@ -404,7 +404,10 @@ jobs:
       - name: Probe Taiwan statistics host (batch 5, temporary)
         continue-on-error: true
         run: |
-          curl -4 -sS -L -m 30 -o /dev/null -w "TAIWAN-PROBE dgbas %{http_code} %{size_download} bytes\n" "http://www.dgbas.gov.tw/public/data/open/Stat/price/PR0101A1M.xml" || echo "TAIWAN-PROBE dgbas unreachable"
+          curl -4 -sS -L -k -m 30 -o /tmp/tw.xml -w "TAIWAN-PROBE dgbas %{http_code} %{size_download} bytes\n" "http://www.dgbas.gov.tw/public/data/open/Stat/price/PR0101A1M.xml" || echo "TAIWAN-PROBE dgbas unreachable"
+          head -c 300 /tmp/tw.xml || true
+          echo
+          echo | openssl s_client -connect www.stat.gov.tw:443 -servername www.stat.gov.tw 2>/dev/null | grep -E "issuer=|Verify return" || true
       - name: Run fetch_boe_mpc.py
         continue-on-error: true
         run: |
