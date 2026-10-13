@@ -36,6 +36,37 @@ SKIP = {"TIME_PERIOD", "OBS_VALUE", "OBS_STATUS", "OBS_CONF", "UNIT_MULT", "DECI
 # Add an entry when scoping a new country; a FAIL here just means "use the
 # international mirror", as it did for China (NBS blocked from outside).
 NATIONAL = {
+    # v1.7.55: next-country candidates (Peru, Iceland, Hong Kong, Kenya, Pakistan).
+    # Read the bodies: a JS shell, WAF or Cloudflare page means dead to automation.
+    "PE": [
+        ("BCRP API CPI Lima index", "https://estadisticas.bcrp.gob.pe/estadisticas/series/api/PN01271PM/json/2025-1/2026-12", None),
+        ("BCRP API reference rate", "https://estadisticas.bcrp.gob.pe/estadisticas/series/api/PD04722MM/json/2025-1/2026-12", None),
+        ("BCRP API real GDP quarterly", "https://estadisticas.bcrp.gob.pe/estadisticas/series/api/PN02507AQ/json/2023-1/2026-4", None),
+        ("BCRP API exports monthly", "https://estadisticas.bcrp.gob.pe/estadisticas/series/api/PN38714BM/json/2025-1/2026-12", None),
+        ("INEI home", "https://www.inei.gob.pe/", None),
+    ],
+    "IS": [
+        ("Statistics Iceland PxWeb API root", "https://px.hagstofa.is/pxen/api/v1/en/", None),
+        ("Central Bank of Iceland home", "https://www.cb.is/", None),
+        ("Eurostat HICP IS", "https://ec.europa.eu/eurostat/api/dissemination/statistics/1.0/data/prc_hicp_manr?format=JSON&geo=IS&coicop=CP00&sinceTimePeriod=2025-01", None),
+        ("Eurostat GDP IS", "https://ec.europa.eu/eurostat/api/dissemination/statistics/1.0/data/namq_10_gdp?format=JSON&geo=IS&unit=CLV20_MNAC&s_adj=SCA&na_item=B1GQ&sinceTimePeriod=2024-Q1", None),
+    ],
+    "HK": [
+        ("C&SD web table API (GDP 310-31001)", "https://www.censtatd.gov.hk/api/get.php?id=310-31001&lang=en&param=N4KlhdQ0QA", None),
+        ("HKMA API base rate / HIBOR", "https://api.hkma.gov.hk/public/market-data-and-statistics/monthly-statistical-bulletin/er-ir/hk-interbank-ir-endperiod?pagesize=5", None),
+        ("HKMA API exchange rates", "https://api.hkma.gov.hk/public/market-data-and-statistics/monthly-statistical-bulletin/er-ir/er-eeri-endperiod?pagesize=5", None),
+        ("data.gov.hk catalogue", "https://data.gov.hk/en-data/api", None),
+    ],
+    "KE": [
+        ("CBK central bank rate page", "https://www.centralbank.go.ke/rates/central-bank-rate/", None),
+        ("CBK forex rates page", "https://www.centralbank.go.ke/rates/forex-exchange-rates/", None),
+        ("KNBS home", "https://www.knbs.or.ke/", None),
+    ],
+    "PK": [
+        ("SBP EasyData home", "https://easydata.sbp.org.pk/", None),
+        ("SBP policy rate page", "https://www.sbp.org.pk/m_policy/index.htm", None),
+        ("PBS price statistics", "https://www.pbs.gov.pk/cpi", None),
+    ],
     "MY": [
         ("OpenDOSM CPI headline", "https://api.data.gov.my/data-catalogue?id=cpi_headline&limit=5&sort=-date", None),
         ("OpenDOSM CPI rates", "https://api.data.gov.my/data-catalogue?id=cpi_headline_inflation&limit=5&sort=-date", None),

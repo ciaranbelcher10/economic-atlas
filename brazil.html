@@ -2708,6 +2708,27 @@ function convertSeriesToUSD(series, fx){
   const kept = floorKey===null ? series.points : series.points.filter(([p])=>monthKey(p)===null || monthKey(p)>=floorKey);
   return {...series, unit:newUnit, points: kept.map(([p,v])=>[p, toUSD(v,p)])};
 }
+/* v1.7.55: real GDP is converted at ONE exchange rate, the average of the
+   series' latest year, not each year's own rate. Constant-price local
+   currency divided by a moving nominal rate turns devaluation into apparent
+   contraction; a single rate keeps real growth exactly as published. */
+function realFxYear(series){
+  const pts = series.points || [];
+  return pts.length ? String(pts[pts.length-1][0]).slice(0,4) : null;
+}
+function convertRealSeriesToUSD(series, fx){
+  const yr = realFxYear(series);
+  const rate = (fx.history && fx.history.length && yr) ? rateForPeriod(yr, fx.history) : fx.rate;
+  const newUnit = "$"+series.unit.replace(/^(?:[A-Za-z]+(?=(?:m|bn|tn)$)|[^a-zA-Z0-9]+)/,"");
+  return {...series, unit:newUnit, real_fx_year:yr,
+          points: series.points.map(([p,v])=>[p, fx.direction==="multiply" ? v*rate : v/rate])};
+}
+/* v1.7.55: points before fx.floor are dropped from the dollar view. */
+function hasPreFloorPoints(series, fx){
+  if(!fx || !fx.floor) return false;
+  const fk = monthKey(String(fx.floor));
+  return series.points.some(([p])=> monthKey(p) !== null && monthKey(p) < fk);
+}
 /* ------------------ historical FX period-matching lookup ------------------
    fx.history is a sorted array of [period, rate] pairs at MONTHLY
    resolution. A data point being converted can be annual ("1980"),
@@ -2918,13 +2939,19 @@ document.addEventListener("click", e=>{
 function buildDisplaySeries(rawSeries){
   const out = {};
   for(const k in rawSeries) out[k]=rawSeries[k];
+  // v1.7.55: is gdp_level about to hold a real series?
+  const realView = !!(TOGGLE_STATE.real && (rawSeries.gdp_real || rawSeries.gdp_real_annual));
   if(TOGGLE_STATE.real && out.gdp_real){
     out.gdp_level = out.gdp_real;
   }
   if(TOGGLE_STATE.dollar && PAGE_DATA.fx_to_usd){
     const fx = PAGE_DATA.fx_to_usd;
     CURRENCY_KEYS.forEach(k=>{
-      if(out[k] && isCurrencyUnit(out[k].unit) && !isAlreadyUSD(out[k].unit, k)) out[k]=convertSeriesToUSD(out[k], fx);
+      if(out[k] && isCurrencyUnit(out[k].unit) && !isAlreadyUSD(out[k].unit, k)){
+        // v1.7.55: real series convert at one rate (see convertRealSeriesToUSD)
+        const isReal = k==="gdp_real" || k==="gdp_real_annual" || (k==="gdp_level" && realView);
+        out[k] = isReal ? convertRealSeriesToUSD(out[k], fx) : convertSeriesToUSD(out[k], fx);
+      }
     });
   }
   return out;
@@ -2981,8 +3008,14 @@ function rerender(){
   if(TOGGLE_STATE.dollar && PAGE_DATA.fx_to_usd){
     const fx = PAGE_DATA.fx_to_usd;
     if(fx.history && fx.history.length){
-      notes.push(`Currency figures converted at each period's own ${fx.pair} rate (history: ${fx.history[0][0]} to ${fx.history[fx.history.length-1][0]}; latest ${fxRateTxt(fx.rate)} as of ${fx.as_of})`);
-      const anyPreHistory = CURRENCY_KEYS.some(k => s[k] && hasPreHistoryPoints(s[k], fx));
+      // v1.7.55: the span starts at the floor when one is set
+      const histStart = (fx.floor && monthKey(String(fx.floor)) > monthKey(fx.history[0][0])) ? String(fx.floor) : fx.history[0][0];
+      notes.push(`Currency figures converted at each period's own ${fx.pair} rate (history: ${histStart} to ${fx.history[fx.history.length-1][0]}; latest ${fxRateTxt(fx.rate)} as of ${fx.as_of})`);
+      const anyPreHistory = CURRENCY_KEYS.some(k => s[k] && (hasPreHistoryPoints(s[k], fx) || hasPreFloorPoints(s[k], fx)));
+      if(TOGGLE_STATE.real && s.gdp_real){
+        const ry = realFxYear(s.gdp_real_annual || s.gdp_real);
+        if(ry) notes.push(`real GDP converted at the ${ry} average rate throughout, so its growth matches the published real growth`);
+      }
       if(anyPreHistory){
         notes.push(fx.floor ? `figures before ${fx.floor} are not shown in dollars (no reliable market rate before then)`
                             : `figures before ${fx.history[0][0]} use the earliest available rate (no genuine historical rate exists further back)`);
