@@ -318,6 +318,34 @@ jobs:
           python fetch_nl_trade_partners.py 2>&1 | tee -a pipeline_log.txt
         env:
           COMTRADE_API_KEY: ${{ secrets.COMTRADE_API_KEY }}
+      - name: Run fetch_pe_trade_partners.py
+        continue-on-error: true
+        run: |
+          echo ">>> RUNNING fetch_pe_trade_partners.py" >> pipeline_log.txt
+          python fetch_pe_trade_partners.py 2>&1 | tee -a pipeline_log.txt
+        env:
+          COMTRADE_API_KEY: ${{ secrets.COMTRADE_API_KEY }}
+      - name: Run fetch_hk_trade_partners.py
+        continue-on-error: true
+        run: |
+          echo ">>> RUNNING fetch_hk_trade_partners.py" >> pipeline_log.txt
+          python fetch_hk_trade_partners.py 2>&1 | tee -a pipeline_log.txt
+        env:
+          COMTRADE_API_KEY: ${{ secrets.COMTRADE_API_KEY }}
+      - name: Run fetch_is_trade_partners.py
+        continue-on-error: true
+        run: |
+          echo ">>> RUNNING fetch_is_trade_partners.py" >> pipeline_log.txt
+          python fetch_is_trade_partners.py 2>&1 | tee -a pipeline_log.txt
+        env:
+          COMTRADE_API_KEY: ${{ secrets.COMTRADE_API_KEY }}
+      - name: Run fetch_pk_trade_partners.py
+        continue-on-error: true
+        run: |
+          echo ">>> RUNNING fetch_pk_trade_partners.py" >> pipeline_log.txt
+          python fetch_pk_trade_partners.py 2>&1 | tee -a pipeline_log.txt
+        env:
+          COMTRADE_API_KEY: ${{ secrets.COMTRADE_API_KEY }}
       - name: Commit updated trade partner data
         run: |
           git config user.name "data-bot"
@@ -364,5 +392,9 @@ jobs:
           git add data-hu-trade-partners.json 2>/dev/null || true
           git add data-ro-trade-partners.json 2>/dev/null || true
           git add data-sa-trade-partners.json 2>/dev/null || true
+          git add data-pe-trade-partners.json 2>/dev/null || true
+          git add data-hk-trade-partners.json 2>/dev/null || true
+          git add data-is-trade-partners.json 2>/dev/null || true
+          git add data-pk-trade-partners.json 2>/dev/null || true
           git diff --cached --quiet || git commit -m "Refresh trade partner data"
           git push
