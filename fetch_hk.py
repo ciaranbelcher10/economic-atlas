@@ -393,6 +393,12 @@ def extra(out: dict, prev_full: dict) -> None:
     if not out.get("fx_to_usd") and prev_full.get("fx_to_usd"):
         out["fx_to_usd"] = prev_full["fx_to_usd"]
         print("CARRIED OVER fx_to_usd from previous run")
+    # v1.7.57: the floor is the first month of the H.10 series. Before
+    # 1981-01 there is no rate here, and the old fallback converted 1973-80
+    # GDP at the January 1981 rate while the HK dollar floated (1974-83).
+    # Those years are now left out of the dollar view, as on every other page.
+    if out.get("fx_to_usd"):
+        out["fx_to_usd"]["floor"] = "1981"
 
 
 def main() -> int:

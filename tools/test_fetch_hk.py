@@ -62,7 +62,8 @@ check(last("cpi") == ["2026-08", 1.7] and last("cpi_mom") == ["2026-08", 0.1], "
 check(last("policy_rate") == ["2026-08", 4.0] and s["policy_rate"]["points"][0][0] == "1998-10", "base rate from Oct 1998")
 check(last("exports") == ["2026-06", round(94335.0 * 7.843252, 1)], "exports converted at BIS average HK$ per US$")
 check(d and d["fx_to_usd"]["rate"] == 7.7712 and d["fx_to_usd"]["as_of"] == "2026-10", "FX month end from FRED DEXHKUS")
-check(d and "floor" not in d["fx_to_usd"], "no FX floor: the link has held since 1983")
+# v1.7.57: floor at the first H.10 month, so 1973-80 GDP is not converted at the 1981 rate
+check(d and d["fx_to_usd"].get("floor") == "1981", "FX floor 1981, the first H.10 month")
 check(not any("oecd" in u for u in net.calls), "no OECD calls")
 
 # a rate outside the link band fails loudly

@@ -90,6 +90,17 @@ SERIES_START = {
     # until the rates were unified in 1991.
     "EGP": ("1991", "the unified exchange rate of 1991",
             "earlier official rates were fixed, not market rates"),
+    # v1.7.57 (live review, 16 Oct 2026): the three World Bank-annual pages
+    # added in v1.7.56 were missing here, so their Markets charts ran back
+    # into older units (Peru: $10,000 per S/1 in 1988) and flattened every
+    # year since. Each start matches the page's own fx_to_usd floor;
+    # tools/fx_floor_gate.py now checks the two agree.
+    "PEN": ("1991", "the sol, introduced in 1991",
+            "earlier years are in intis, restated in today's soles"),
+    "ISK": ("1981", "the new krona of 1981",
+            "earlier years are in old kronur, 100 to one new krona"),
+    "PKR": ("1982", "the managed float of January 1982",
+            "earlier official rates were fixed, not market rates"),
 }
 
 EURO_MEMBERS = {"Austria", "France", "Germany", "Ireland", "Italy", "Netherlands", "Spain", "Belgium", "Portugal", "Finland", "Greece", "Slovakia", "Croatia", "Bulgaria", "Lithuania", "Estonia", "Latvia", "Slovenia", "Luxembourg", "Cyprus", "Malta"}

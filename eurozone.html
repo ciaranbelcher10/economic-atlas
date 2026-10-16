@@ -312,12 +312,14 @@ button.mtoggle.fx-both{background:#2FA463; border-color:#2FA463; color:#fff;}
  <div class="dcol">
  <p class="dhead">Asia</p>
  <a href="china">China</a>
- <a href="pakistan">Pakistan</a>
  <a href="hong-kong">Hong Kong</a>
  <a href="india">India</a>
  <a href="indonesia">Indonesia</a>
  <a href="japan">Japan</a>
  <a href="malaysia">Malaysia</a>
+ </div>
+ <div class="dcol dcont">
+ <a href="pakistan">Pakistan</a>
  <a href="philippines">Philippines</a>
  <a href="singapore">Singapore</a>
  <a href="southkorea">South Korea</a>
@@ -2633,6 +2635,17 @@ function realFxYear(series){
   const pts = series.points || [];
   return pts.length ? String(pts[pts.length-1][0]).slice(0,4) : null;
 }
+/* v1.7.57: the year whose rate rateForPeriod() actually uses for yr. An
+   annual history that ends before yr falls back to its nearest year, and
+   the banner must name that year, not yr. */
+function realFxRateYear(yr, history){
+  if(!yr || !history || !history.length) return yr;
+  if(history.some(([p])=>String(p).slice(0,4)===yr)) return yr;
+  const t = monthKey(yr);
+  let best = history[0], bd = Infinity;
+  for(const h of history){ const d = Math.abs(monthKey(String(h[0])) - t); if(d < bd){ bd = d; best = h; } }
+  return String(best[0]).slice(0,4);
+}
 function convertRealSeriesToUSD(series, fx){
   const yr = realFxYear(series);
   const rate = (fx.history && fx.history.length && yr) ? rateForPeriod(yr, fx.history) : fx.rate;
@@ -2948,7 +2961,7 @@ function rerender(){
       const anyPreHistory = CURRENCY_KEYS.some(k => s[k] && (hasPreHistoryPoints(s[k], fx) || hasPreFloorPoints(s[k], fx)));
       if(TOGGLE_STATE.real && s.gdp_real){
         const ry = realFxYear(s.gdp_real_annual || s.gdp_real);
-        if(ry) notes.push(`real GDP converted at the ${ry} average rate throughout, so its growth matches the published real growth`);
+        if(ry) notes.push(`real GDP converted at the ${realFxRateYear(ry, fx.history)} average rate throughout, so its growth matches the published real growth`);
       }
       if(anyPreHistory){
         notes.push(fx.floor ? `figures before ${fx.floor} are not shown in dollars (no reliable market rate before then)`

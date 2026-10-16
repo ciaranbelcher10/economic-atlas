@@ -79,8 +79,8 @@ def country_checks(d):
     res("PASS" if monthly else "FAIL", "fx_to_usd history is monthly (FRED DEXHKUS, not the World Bank fallback)",
         f"history {hist[0][0] if hist else None}..{hist[-1][0] if hist else None}: run fetch_hk.py with FRED_API_KEY set")
     ok = bool(fx.get("pair") == "HKD/USD" and fx.get("direction") == "divide" and hist
-              and fx.get("rate") == hist[-1][1] and linked and not out and "floor" not in fx)
-    res("PASS" if ok else "FAIL", "fx_to_usd block (HK$ per US$, monthly, divide, inside 7.7-7.9 since 1984, no floor)",
+              and fx.get("rate") == hist[-1][1] and linked and not out and fx.get("floor") == "1981")
+    res("PASS" if ok else "FAIL", "fx_to_usd block (HK$ per US$, monthly, divide, inside 7.7-7.9 since 1984, floor 1981)",
         f"{fx.get('rate')} as of {fx.get('as_of')}; {len(out)} month(s) outside the band {out[:3]}")
     K.one_decimal(d, ("cpi", "cpi_mom", "gdp_growth", "gdp_growth_yoy"))
     s = d["series"]

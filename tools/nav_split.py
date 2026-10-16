@@ -23,9 +23,15 @@ from pathlib import Path
 
 ROOT = Path(__file__).resolve().parent.parent
 FIRST, CONT = 10, 11          # links under the Europe heading; links per headless continuation column
+# v1.7.57: regions laid out over two or more columns, as Europe is:
+# region -> (links under its heading, links per headless continuation column).
+SPLIT = {"Europe": (FIRST, CONT), "Asia": (6, 7)}
 SCANDINAVIA = {"denmark", "norway", "sweden"}
 SUBREGION_HEADS = {"Western Europe", "Southern Europe", "Northern Europe", "Central & Eastern Europe"}  # v1.7.37 layout, folded back
-LINK = r' <a href="(?:\.\./)?([a-z]+)"[^>]*>([^<]+)</a>\n'
+# v1.7.57: [a-z-]+ (was [a-z]+). The hyphenated hong-kong slug stopped the
+# column parser at Asia, so Asia and every region after it were never sorted
+# (Pakistan and Hong Kong sat after China in the live nav).
+LINK = r' <a href="(?:\.\./)?([a-z-]+)"[^>]*>([^<]+)</a>\n'
 PANEL = '<div class="dropdown-panel" id="macroPanel">\n'
 OVERVIEW = re.compile(r' <div class="doverview">\n((?:' + LINK + r')+) </div>\n')
 COLUMN = re.compile(r' <div class="dcol(?: dcont)?">\n(?: <p class="dhead">([^<]+)</p>\n)?((?:' + LINK + r')*) </div>\n')
@@ -54,7 +60,15 @@ def layout(text, split_europe=True):
         return text
     over = _links(o.group(1))
     europe, scand, others = [], [], []
+    last = "Europe"
     for head, body in cols:
+        # v1.7.57: a headless continuation column belongs to the region before
+        # it (Europe or, now, Asia), not always to Europe.
+        if head is None and last not in ("Europe",) + tuple(SUBREGION_HEADS):
+            others[-1] = (others[-1][0], others[-1][1] + _links(body))
+            continue
+        if head is not None:
+            last = head
         if head is None or head == "Europe" or head in SUBREGION_HEADS:
             europe += _links(body)
         elif head == "Scandinavia":
@@ -70,18 +84,19 @@ def layout(text, split_europe=True):
     if scand and not any(h == "Scandinavia" for h, _ in others):
         others.append(("Scandinavia", None))            # folded out of the v1.7.37 layout: its old place, last
     groups = [("Europe", sorted(europe, key=by_name))] + [
-        (h, sorted(scand, key=by_name) if h == "Scandinavia" else l) for h, l in others]
+        (h, sorted(scand if h == "Scandinavia" else l, key=by_name)) for h, l in others]
     # Regions with more countries come first (Europe leads); ties keep their current order.
     groups = [g for _, g in sorted(enumerate(groups), key=lambda ig: (-len(ig[1][1]), ig[0]))]
     out = " <div class=\"doverview\">\n" + "".join(l[0] for l in over) + " </div>\n"
     for head, links in groups:
         h = f' <p class="dhead">{html.escape(head, quote=False)}</p>\n'
-        if head == "Europe" and split_europe:
-            out += ' <div class="dcol">\n' + h + "".join(l[0] for l in links[:FIRST]) + " </div>\n"
-            rest = links[FIRST:]
+        if head in SPLIT and split_europe and len(links) > SPLIT[head][0]:
+            first, cont = SPLIT[head]
+            out += ' <div class="dcol">\n' + h + "".join(l[0] for l in links[:first]) + " </div>\n"
+            rest = links[first:]
             while rest:
-                out += ' <div class="dcol dcont">\n' + "".join(l[0] for l in rest[:CONT]) + " </div>\n"
-                rest = rest[CONT:]
+                out += ' <div class="dcol dcont">\n' + "".join(l[0] for l in rest[:cont]) + " </div>\n"
+                rest = rest[cont:]
         else:
             out += ' <div class="dcol">\n' + h + "".join(l[0] for l in links) + " </div>\n"
     return text[:o.start()] + out + text[pos:]
