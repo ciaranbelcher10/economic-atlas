@@ -71,6 +71,10 @@ GROUPS = {
     "fetch_vn.py": "B",   # makes no OECD calls; B now 19
     "fetch_ng.py": "C",   # makes no OECD calls (not an OECD member); C was the smallest group (A19/B19/C18), C now 19
     "fetch_eg.py": "A",   # makes no OECD calls (not an OECD member); A/B/C tied at 19, A now 20
+    "fetch_is.py": "B",   # OECD-heavy (QNA, LFS, CPI index): B and C were the smallest (A20/B19/C19), B now 20
+    "fetch_pe.py": "C",   # makes no OECD calls (not an OECD member); C was the smallest (A20/B20/C19), C now 20
+    "fetch_hk.py": "A",   # makes no OECD calls (not an OECD member); A/B/C tied at 20, A now 21
+    "fetch_pk.py": "B",   # makes no OECD calls (not an OECD member); B and C were the smallest (A21/B20/C20), B now 21
     "fetch_pt.py": "B",   # one light OECD call (BCI), like Belgium; B was the smallest group
     "fetch_gr.py": "B",   # one light OECD call (BCI), like Finland; B was the smallest group (12 vs A 13)
     # C

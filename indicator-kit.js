@@ -41,7 +41,7 @@
   }
   // ISO-coded units with a display glyph; must match generate_indicator_pages.ISO_GLYPH.
   var ISO_GLYPH = {CNY: "CN\u00a5", THB: "\u0e3f", TRY: "\u20ba", IDR: "Rp", SGD: "S$",
-                   ARS: "AR$", CLP: "CLP$", COP: "COL$", MYR:"RM", NZD:"NZ$", PHP:"\u20b1", TWD:"NT$", VND:"\u20ab", NGN:"\u20a6", EGP:"E\u00a3"};
+                   ARS: "AR$", CLP: "CLP$", COP: "COL$", MYR:"RM", NZD:"NZ$", PHP:"\u20b1", TWD:"NT$", VND:"\u20ab", NGN:"\u20a6", EGP:"E\u00a3", PEN:"S/", HKD:"HK$", PKR:"Rs"};
   function symbolOf(u, key, country, dollarised){
     var c = cleanUnit(u);
     var m = c.match(/^[^a-zA-Z0-9]+/);

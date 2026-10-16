@@ -167,7 +167,8 @@ def step_minimaps(s):
                     k = decl[-1].end()
                     new = new[:k] + f'const {sn} = new Set(["{num}"]);\n' + new[k:]
             if f'"{slug}" :' not in new and f'? "{slug}"' not in new:
-                new = re.sub(r'(\? "[a-z]+") : null;', lambda m: f'{m.group(1)} : {sn}.has(id) ? "{slug}" : null;', new, count=1)
+                # v1.7.56: [a-z-] so a hyphenated slug (hong-kong) at the chain's end still matches
+                new = re.sub(r'(\? "[a-z-]+") : null;', lambda m: f'{m.group(1)} : {sn}.has(id) ? "{slug}" : null;', new, count=1)
         else:
             if "CURRENT=new Set(" not in new:
                 continue
@@ -178,7 +179,7 @@ def step_minimaps(s):
                 h = hits[-1]
                 new = new[:h.end() - 1] + f', {sn}=new Set(["{num}"])' + new[h.end() - 1:]
             if f'?"{slug}"' not in new:
-                new = re.sub(r'(\.has\(id\)\?"[a-z]+"):null', lambda m: f'{m.group(1)}:{sn}.has(id)?"{slug}":null', new, count=1)
+                new = re.sub(r'(\.has\(id\)\?"[a-z-]+"):null', lambda m: f'{m.group(1)}:{sn}.has(id)?"{slug}":null', new, count=1)
         wr(rel, t, new, "mini-map")
 
 

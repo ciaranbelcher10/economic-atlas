@@ -4,7 +4,7 @@
 // Run: node tools/test_real_dollarise.js
 const fs = require("fs"), vm = require("vm"), path = require("path");
 const ROOT = path.resolve(__dirname, "..");
-const PAGES = {egypt:"eg", nigeria:"ng", vietnam:"vn", uk:"uk", poland:"pl", switzerland:"ch", turkey:"tr", argentina:"ar", japan:"jp"};
+const PAGES = {egypt:"eg", nigeria:"ng", vietnam:"vn", uk:"uk", poland:"pl", switzerland:"ch", turkey:"tr", argentina:"ar", japan:"jp", peru:"pe", "hong-kong":"hk", iceland:"is", pakistan:"pk"};
 function grab(src, start, endRe){
   const i = src.indexOf(start); if(i<0) throw new Error("missing "+start);
   const rest = src.slice(i); const m = rest.search(endRe);

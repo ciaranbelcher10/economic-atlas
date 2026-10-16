@@ -45,6 +45,10 @@ KIT_VERSION = "8"
 
 # country display name -> (data-file code, page slug, alpha-2, region)
 COUNTRIES = {
+    "Pakistan":      ("pk", "pakistan", "PK", "Asia"),
+    "Iceland":       ("is", "iceland", "IS", "Europe"),
+    "Hong Kong":     ("hk", "hong-kong", "HK", "Asia"),
+    "Peru":          ("pe", "peru", "PE", "South America"),
     "Egypt":         ("eg", "egypt", "EG", "Africa"),
     "Nigeria":       ("ng", "nigeria", "NG", "Africa"),
     "Vietnam":       ("vn", "vietnam", "VN", "Asia"),
@@ -407,7 +411,7 @@ def scale_of(u):
 
 # ISO-coded units with a display glyph; must match indicator-kit.js ISO_GLYPH.
 ISO_GLYPH = {"CNY": "CN\u00a5", "THB": "\u0e3f", "TRY": "\u20ba", "IDR": "Rp", "SGD": "S$",
-             "ARS": "AR$", "CLP": "CLP$", "COP": "COL$", "MYR": "RM", "NZD": "NZ$", "PHP": "\u20b1", "TWD": "NT$", "VND": "\u20ab", "NGN": "\u20a6", "EGP": "E\u00a3"}
+             "ARS": "AR$", "CLP": "CLP$", "COP": "COL$", "MYR": "RM", "NZD": "NZ$", "PHP": "\u20b1", "TWD": "NT$", "VND": "\u20ab", "NGN": "\u20a6", "EGP": "E\u00a3", "PEN": "S/", "HKD": "HK$", "PKR": "Rs"}
 
 def symbol_of(u, key, country, dollarised=False):
     c = _clean_unit(u)
@@ -668,6 +672,7 @@ HEADER_HTML_BASE = """<script>(function(){
  <a href="../germany">Germany</a>
  <a href="../greece">Greece</a>
  <a href="../hungary">Hungary</a>
+ <a href="../iceland">Iceland</a>
  <a href="../ireland">Ireland</a>
  <a href="../italy">Italy</a>
  <a href="../latvia">Latvia</a>
@@ -675,9 +680,9 @@ HEADER_HTML_BASE = """<script>(function(){
  <a href="../luxembourg">Luxembourg</a>
  <a href="../malta">Malta</a>
  <a href="../netherlands">Netherlands</a>
- <a href="../poland">Poland</a>
  </div>
  <div class="dcol dcont">
+ <a href="../poland">Poland</a>
  <a href="../portugal">Portugal</a>
  <a href="../romania">Romania</a>
  <a href="../slovakia">Slovakia</a>
@@ -690,6 +695,8 @@ HEADER_HTML_BASE = """<script>(function(){
  <div class="dcol">
  <p class="dhead">Asia</p>
  <a href="../china">China</a>
+ <a href="../pakistan">Pakistan</a>
+ <a href="../hong-kong">Hong Kong</a>
  <a href="../india">India</a>
  <a href="../indonesia">Indonesia</a>
  <a href="../japan">Japan</a>
@@ -707,6 +714,7 @@ HEADER_HTML_BASE = """<script>(function(){
  <a href="../brazil">Brazil</a>
  <a href="../chile">Chile</a>
  <a href="../colombia">Colombia</a>
+ <a href="../peru">Peru</a>
  </div>
  <div class="dcol">
  <p class="dhead">Africa</p>
@@ -2117,7 +2125,7 @@ def rewrite_sitemap(urls, today):
 FX_EURO_MEMBERS = {"Austria", "France", "Germany", "Ireland", "Italy", "Netherlands", "Spain", "Belgium", "Portugal", "Finland", "Greece", "Slovakia", "Croatia", "Bulgaria", "Lithuania", "Estonia", "Latvia", "Slovenia", "Luxembourg", "Cyprus", "Malta"}
 FX_SYMBOL = {"GBP": "\u00a3", "EUR": "\u20ac", "JPY": "\u00a5", "CAD": "C$", "AUD": "A$",
              "BRL": "R$", "MXN": "MX$", "INR": "\u20b9", "KRW": "\u20a9", "CNY": "CN\u00a5",
-             "THB": "\u0e3f", "TRY": "\u20ba", "IDR": "Rp", "SGD": "S$", "ARS": "AR$", "CLP": "CLP$", "COP": "COL$", "MYR": "RM", "NZD": "NZ$", "PHP": "\u20b1", "TWD": "NT$", "VND": "\u20ab", "NGN": "\u20a6", "EGP": "E\u00a3"}
+             "THB": "\u0e3f", "TRY": "\u20ba", "IDR": "Rp", "SGD": "S$", "ARS": "AR$", "CLP": "CLP$", "COP": "COL$", "MYR": "RM", "NZD": "NZ$", "PHP": "\u20b1", "TWD": "NT$", "VND": "\u20ab", "NGN": "\u20a6", "EGP": "E\u00a3", "PEN": "S/", "HKD": "HK$", "PKR": "Rs"}
 
 def fx_symbol(code):
     return FX_SYMBOL.get(code, code + "\u00a0")

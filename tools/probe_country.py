@@ -43,6 +43,15 @@ NATIONAL = {
         ("BCRP API reference rate", "https://estadisticas.bcrp.gob.pe/estadisticas/series/api/PD04722MM/json/2025-1/2026-12", None),
         ("BCRP API real GDP quarterly", "https://estadisticas.bcrp.gob.pe/estadisticas/series/api/PN02507AQ/json/2023-1/2026-4", None),
         ("BCRP API exports monthly", "https://estadisticas.bcrp.gob.pe/estadisticas/series/api/PN38714BM/json/2025-1/2026-12", None),
+        # v1.7.56 follow-up: candidate codes from memory. The body's "title"
+        # says what each really is; a 404 or wrong title means a wrong code.
+        ("BCRP FX interbank monthly avg (cand.)", "https://estadisticas.bcrp.gob.pe/estadisticas/series/api/PN01210PM/json/2025-1/2026-12", None),
+        ("BCRP FX interbank monthly avg (cand. 2)", "https://estadisticas.bcrp.gob.pe/estadisticas/series/api/PN01234PM/json/2025-1/2026-12", None),
+        ("BCRP real GDP monthly index (cand.)", "https://estadisticas.bcrp.gob.pe/estadisticas/series/api/PN01770AM/json/2025-1/2026-12", None),
+        ("BCRP real GDP quarterly level (cand.)", "https://estadisticas.bcrp.gob.pe/estadisticas/series/api/PN02516AQ/json/2023-1/2026-4", None),
+        ("BCRP real GDP quarterly level (cand. 2)", "https://estadisticas.bcrp.gob.pe/estadisticas/series/api/PN02526AQ/json/2023-1/2026-4", None),
+        ("BCRP nominal GDP quarterly (cand.)", "https://estadisticas.bcrp.gob.pe/estadisticas/series/api/PN02538AQ/json/2023-1/2026-4", None),
+        ("BCRP imports monthly (cand.)", "https://estadisticas.bcrp.gob.pe/estadisticas/series/api/PN38718BM/json/2025-1/2026-12", None),
         ("INEI home", "https://www.inei.gob.pe/", None),
     ],
     "IS": [
@@ -66,6 +75,10 @@ NATIONAL = {
         ("SBP EasyData home", "https://easydata.sbp.org.pk/", None),
         ("SBP policy rate page", "https://www.sbp.org.pk/m_policy/index.htm", None),
         ("PBS price statistics", "https://www.pbs.gov.pk/cpi", None),
+        # v1.7.56 follow-up: does EasyData serve the policy rate and PKR/USD
+        # without a key? A JSON error naming api_key means a free key is needed.
+        ("SBP EasyData API policy rate", "https://easydata.sbp.org.pk/api/v1/series/TS_GP_IR_SIRPR_AH.SBPOL0030/data?format=json&start_date=2025-01-01", None),
+        ("SBP EasyData API PKR/USD", "https://easydata.sbp.org.pk/api/v1/series/TS_GP_ER_FAERPKR_M.E00220/data?format=json&start_date=2025-01-01", None),
     ],
     "MY": [
         ("OpenDOSM CPI headline", "https://api.data.gov.my/data-catalogue?id=cpi_headline&limit=5&sort=-date", None),
@@ -399,10 +412,18 @@ def national(iso2):
 def main():
     args = [a for a in sys.argv[1:] if not a.startswith("--")]
     if len(args) < 3:
-        sys.exit('usage: probe_country.py ISO3 ISO2 "Name" [--fx FREDID]')
+        sys.exit('usage: probe_country.py ISO3 ISO2 "Name" [--fx FREDID] [--quick]')
     iso3, iso2, name = args[0].upper(), args[1].upper(), args[2]
     fx = sys.argv[sys.argv.index("--fx") + 1] if "--fx" in sys.argv else None
+    quick = "--quick" in sys.argv
     print(f"{name} source probe ({iso3}/{iso2}), {time.strftime('%Y-%m-%d %H:%M UTC', time.gmtime())}")
+
+    if quick:
+        print("(--quick: FX sources and national endpoints only)")
+        fx_sources(iso3, iso2)
+        capped(240, "National", national, iso2)
+        summary()
+        return
 
     print("\n== FRED")
     if fx:
@@ -433,9 +454,23 @@ def main():
     # Long-run CPI (unit 628 = index, 771 = year-on-year %): an independent
     # cross-check for the audit, NOT a bond yield. Yields come from OECD IRLT.
     listing("BIS long-run CPI (WS_LONG_CPI)", f"https://stats.bis.org/api/v2/data/dataflow/BIS/WS_LONG_CPI/1.0/M.{iso2}.*?format=csv&startPeriod=2024-01")
+    fx_sources(iso3, iso2)
     capped(240, "World Bank", worldbank, iso3)
     capped(240, "National", national, iso2)
+    summary()
 
+
+def fx_sources(iso3, iso2):
+    """v1.7.56: monthly FX candidates the first probes never tried. BIS
+    WS_XRU covers most currencies; the IMF ER dataflow is the fallback."""
+    print("\n== FX (monthly)")
+    capped(120, "BIS FX (WS_XRU)", listing, "BIS FX (WS_XRU)",
+           f"https://stats.bis.org/api/v2/data/dataflow/BIS/WS_XRU/1.0/M.{iso2}.*.*?format=csv&startPeriod=2024-01")
+    capped(120, "IMF ER (exchange rates)", listing, "IMF ER (exchange rates)",
+           IMF + f"ER/~/{iso3}.*.*.M?c[TIME_PERIOD]=ge:2024-M01")
+
+
+def summary():
     print("\n== SUMMARY")
     for nm, st, n, a, b, note in RESULTS:
         print(f"{st:<6} {nm:<46} {n:>6}  {a:>10}..{b:<10} {note}")

@@ -89,12 +89,12 @@ def main():
             if n in NO_MAP:
                 break
             if "CURRENT=new Set(" in t:
-                check(f'?"{slug}"' in t, f"{n}: mini-map on {f} does not link to it")
+                check(f'.has(id)?"{slug}"' in t, f"{n}: mini-map on {f} does not link to it")  # v1.7.56: the routing pattern, not a bare string
         if num and f"{slug}.html" in texts:
             cur = re.search(r'CURRENT=new Set\(\["(\d{3})"', texts[f"{slug}.html"])
             check(cur and cur.group(1) == num, f"{n}: {slug}.html mini-map marks {cur.group(1) if cur else None} as 'You are here', expected {num}")
         if n not in NO_MAP:
-            check(f'? "{slug}"' in texts["index.html"], f"{n}: homepage map does not link to it")
+            check(f'.has(id) ? "{slug}"' in texts["index.html"], f"{n}: homepage map does not link to it")
         # the three apps
         for fname, t, maps in (("compare.html", compare, ["FILES", "COUNTRY_LABEL", "COUNTRY_COLOR", "ISO_OF", "REGION_OF", "SOURCE_MAP"]),
                                ("dashboard.html", dash, ["FILES", "ISO_OF", "REGISTRY_KEY_TO_CODE"]),
