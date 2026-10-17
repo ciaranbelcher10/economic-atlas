@@ -25,7 +25,7 @@ ROOT = Path(__file__).resolve().parent.parent
 FIRST, CONT = 10, 11          # links under the Europe heading; links per headless continuation column
 # v1.7.57: regions laid out over two or more columns, as Europe is:
 # region -> (links under its heading, links per headless continuation column).
-SPLIT = {"Europe": (FIRST, CONT), "Asia": (6, 7)}
+SPLIT = {"Europe": (FIRST, CONT), "Asia": (FIRST, CONT)}  # v1.7.58: Asia uses Europe's numbers
 SCANDINAVIA = {"denmark", "norway", "sweden"}
 SUBREGION_HEADS = {"Western Europe", "Southern Europe", "Northern Europe", "Central & Eastern Europe"}  # v1.7.37 layout, folded back
 # v1.7.57: [a-z-]+ (was [a-z]+). The hyphenated hong-kong slug stopped the
