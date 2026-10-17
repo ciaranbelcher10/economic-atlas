@@ -169,11 +169,11 @@ try:
 except Exception:  # pragma: no cover - requests is always installed in CI
     _requests = None
 
-# v1.8.1: default 0 (no waiting). In the first live run (17 Oct, 15:19) both
-# waits (CZ national CPI, SA QNA) were still refused after 20 s + 40 s, so the
-# OECD window is longer than a minute and waiting only slowed the job. The
-# mechanism stays; set OECD_429_BUDGET in the workflow env to re-enable it.
-_BUDGET = float(os.environ.get("OECD_429_BUDGET", "0"))
+# v1.8.2: default back to 120 s. v1.8.1 set 0 after two failed waits in the
+# 15:19 run, but the 15:44 group-B run showed waits recovering Greece and
+# Hungary business confidence, Hungary national CPI and Iceland's CPI index.
+# Set OECD_429_BUDGET=0 in the workflow env to disable.
+_BUDGET = float(os.environ.get("OECD_429_BUDGET", "120"))
 _state = {"spent": 0.0, "dead": False}
 
 
