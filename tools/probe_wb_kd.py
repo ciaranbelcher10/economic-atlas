@@ -109,6 +109,11 @@ def ours_annual(path):
     real = s.get("gdp_real_annual") or s.get("gdp_real")
     if not real:
         return {}, None
+    # v1.8.6: a quarterly gdp_real_annual is a trailing four-quarter sum, so
+    # each year is its Q4 value; summing all four rolling sums (as v1.8.5 did)
+    # blends in the year before and overstated Turkey and Poland 2022 by 2.5pp.
+    if s.get("gdp_real_annual") is real and real.get("freq") == "quarters":
+        return {int(str(p)[:4]): v for p, v in real["points"] if str(p).endswith("Q4")}, real.get("unit")
     by = {}
     for p, v in real["points"]:
         by.setdefault(int(str(p)[:4]), []).append(v)
