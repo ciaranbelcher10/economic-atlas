@@ -169,7 +169,11 @@ try:
 except Exception:  # pragma: no cover - requests is always installed in CI
     _requests = None
 
-_BUDGET = float(os.environ.get("OECD_429_BUDGET", "120"))
+# v1.8.1: default 0 (no waiting). In the first live run (17 Oct, 15:19) both
+# waits (CZ national CPI, SA QNA) were still refused after 20 s + 40 s, so the
+# OECD window is longer than a minute and waiting only slowed the job. The
+# mechanism stays; set OECD_429_BUDGET in the workflow env to re-enable it.
+_BUDGET = float(os.environ.get("OECD_429_BUDGET", "0"))
 _state = {"spent": 0.0, "dead": False}
 
 
@@ -195,7 +199,8 @@ def _wrap(get):
                 return resp
             w = _wait_for(resp, attempt)
             if _state["spent"] + w > _BUDGET:
-                print(f"  [oecd-429] retry budget used ({_state['spent']:.0f}s); not waiting")
+                if _BUDGET > 0:
+                    print(f"  [oecd-429] retry budget used ({_state['spent']:.0f}s); not waiting")
                 _state["dead"] = True
                 return resp
             print(f"  [oecd-429] rate-limited; waiting {w:.0f}s, retry {attempt + 1}/2")

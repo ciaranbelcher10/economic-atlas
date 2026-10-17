@@ -190,6 +190,9 @@ def fetch_gdp_rate(transformation: str) -> list:
 
 # ---------------------------------------------------------------- CPI
 def fetch_cpi_index() -> list:
+    # v1.8.1: as v1.8.0 did for NZ/SA, raise NotThisHour so an off-turn hour logs SKIP,
+    # not "FAIL cpi  OECD CPI index: none".
+    oecd_turn.check()
     ix = oecd_prices.fetch_cpi_index(("ISL",), "M", label="ISL")
     if not ix:
         raise ValueError("OECD CPI index: none")
