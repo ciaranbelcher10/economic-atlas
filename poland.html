@@ -2480,6 +2480,11 @@ function renderFxMarkets(tm){
   if(!FX_DATA || !Array.isArray(FX_DATA.pairs)) return;
   FX_DATA.pairs.forEach(p=>{
     if(!p || !Array.isArray(p.points) || p.points.length<2) return;
+    // v1.7.59: (i) for the FX tile and chart, built from the pair's own text
+    if(typeof INFO_CONTENT === "object" && !INFO_CONTENT[p.key]) INFO_CONTENT[p.key] = {
+      description: p.description,
+      source: p.source || p.source_short || "",
+      dollar: "An exchange rate, not a value in the home currency. \u201cDollarise\u201d has no effect on it."};
     const q=p.quote_symbol, b=p.base_unit;
     const axDp=fxDp(Math.max(...p.points.map(x=>Math.abs(x[1]))));  // one precision per axis (v1.7.13)
     chartPanel(p.key,"charts-markets",p.title,p.description,
