@@ -729,10 +729,11 @@ def main() -> int:
         print("Fresh (< 2 days old): " + ", ".join(
             f"{k} ({p})" for k, p in out["new_points"].items()))
 
-    # v1.8.0: fx_to_usd.floor matches fx_config.SERIES_START, so the Dollarise
-    # view starts where the Markets FX chart does (tools/fx_floor_gate.py).
+    # v1.8.0 set the floor to 2005 to match fx_config.SERIES_START. v1.8.4:
+    # fx_config.DOLLARISE_START["TRY"] (1995) instead; the Markets chart still
+    # starts in 2005. tools/fx_floor_gate.py checks both.
     if out.get("fx_to_usd"):
-        out["fx_to_usd"]["floor"] = "2005"
+        out["fx_to_usd"]["floor"] = "1995"
     with open("data-tr.json", "w") as f:
         json.dump(out, f)
     print(f"\nWrote data-tr.json with {len(out['series'])} series.")

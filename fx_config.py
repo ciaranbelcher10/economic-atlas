@@ -70,6 +70,18 @@ SCALE = {"JPY": 100, "INR": 100, "HUF": 100, "THB": 100, "TRY": 100, "KRW": 1000
 # years run to absurd sizes ($72 trillion per ARS 1,000 in 1963) and flatten
 # everything since. Charts start when the current currency began; the
 # figures themselves are untouched and the chart description says why.
+# v1.8.4: where the Dollarise view can start earlier than the Markets FX chart.
+# Only for a currency whose earlier years the World Bank already restates in
+# today's units, so every converted figure is valid; the Markets chart keeps
+# SERIES_START because the currency's own value in dollars spans orders of
+# magnitude. Turkey: PA.NUS.FCRF and Turkstat's GDP are both in new lira
+# (1 TRY = 1,000,000 old lira) back to 1995, and the lira was a market rate
+# (managed until it floated in February 2001), so 1995 to 2004 convert
+# correctly; a 2005 floor dropped them for chart-scaling reasons only.
+DOLLARISE_START = {
+    "TRY": ("1995", "Turkstat's GDP and the World Bank rate, both restated in new lira"),
+}
+
 SERIES_START = {
     "ARS": ("1992", "the current peso, introduced in 1992"),
     "CLP": ("1976", "the current peso, reintroduced in 1975"),

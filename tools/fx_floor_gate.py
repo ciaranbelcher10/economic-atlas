@@ -28,16 +28,18 @@ def main():
         except Exception:
             continue
         floor = fx.get("floor")
-        start = C.SERIES_START.get(home, (None,))[0]
+        # v1.8.4: a DOLLARISE_START entry overrides SERIES_START for the floor
+        start = (getattr(C, "DOLLARISE_START", {}).get(home) or C.SERIES_START.get(home, (None,)))[0]
         checked += 1
         if floor and str(floor)[:4] != start:
-            bad.append(f"{country}: fx_to_usd.floor {floor} but SERIES_START[{home}] {start}")
+            bad.append(f"{country}: fx_to_usd.floor {floor} but DOLLARISE_START/SERIES_START[{home}] {start}")
         if start and not floor:
             legacy.append(f"{country}: SERIES_START[{home}] {start}, no fx_to_usd.floor (pre-v1.7.51 page)")
         fxf = ROOT / C.fx_file(suffix)
         if floor and fxf.exists():
             for p in json.loads(fxf.read_text()).get("pairs", []):
-                if p.get("points") and str(p["points"][0][0])[:4] < str(floor)[:4]:
+                chart_start = C.SERIES_START.get(home, (str(floor),))[0]
+                if p.get("points") and str(p["points"][0][0])[:4] < chart_start[:4]:
                     stale.append(f"{country} {p['key']} starts {p['points'][0][0]}")
     for b in bad:
         print("FAIL " + b)
