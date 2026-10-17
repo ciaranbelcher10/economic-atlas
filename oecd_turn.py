@@ -150,3 +150,66 @@ def check(script: str | None = None, now: datetime | None = None) -> None:
         _announced = True
     raise NotThisHour(f"OECD turn is group {mine} (this run: group {serving}); "
                       f"kept previous data, not a failure")
+
+
+# ---------------------------------------------------------------- v1.8.0
+# Retry OECD 429s with backoff. The rotation above keeps each hour's OECD load
+# to a third, but the scripts late in a group's hour still hit 429 (16 Oct:
+# Iceland's five OECD series, then HR, LT, SI, GR, HU). A 429 used to fail
+# the series at once. Now a request to sdmx.oecd.org that gets 429 is retried
+# after the server's Retry-After (or 20 s, then 40 s), at most twice. The
+# whole process may spend at most OECD_429_BUDGET seconds (default 120)
+# waiting; once that is used up, or the host has refused twice in a row after
+# waiting, later 429s fail immediately as before, so a host that is shut for
+# the hour cannot stretch the job. Every other host is untouched.
+import time as _time
+
+try:
+    import requests as _requests
+except Exception:  # pragma: no cover - requests is always installed in CI
+    _requests = None
+
+_BUDGET = float(os.environ.get("OECD_429_BUDGET", "120"))
+_state = {"spent": 0.0, "dead": False}
+
+
+def _wait_for(resp, attempt):
+    ra = resp.headers.get("Retry-After", "") if resp is not None else ""
+    try:
+        w = float(ra)
+    except ValueError:
+        w = 20.0 * (2 ** attempt)
+    return max(1.0, min(w, 60.0))
+
+
+def _wrap(get):
+    if getattr(get, "_oecd_429", False):
+        return get
+
+    def get_with_retry(url, *args, **kwargs):
+        resp = get(url, *args, **kwargs)
+        if "sdmx.oecd.org" not in str(url):
+            return resp
+        for attempt in range(2):
+            if getattr(resp, "status_code", None) != 429 or _state["dead"]:
+                return resp
+            w = _wait_for(resp, attempt)
+            if _state["spent"] + w > _BUDGET:
+                print(f"  [oecd-429] retry budget used ({_state['spent']:.0f}s); not waiting")
+                _state["dead"] = True
+                return resp
+            print(f"  [oecd-429] rate-limited; waiting {w:.0f}s, retry {attempt + 1}/2")
+            _time.sleep(w)
+            _state["spent"] += w
+            resp = get(url, *args, **kwargs)
+        if getattr(resp, "status_code", None) == 429:
+            print("  [oecd-429] still refused after two waits; later 429s fail at once")
+            _state["dead"] = True
+        return resp
+
+    get_with_retry._oecd_429 = True
+    return get_with_retry
+
+
+if _requests is not None:
+    _requests.get = _wrap(_requests.get)

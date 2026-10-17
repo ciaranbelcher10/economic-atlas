@@ -840,6 +840,10 @@ def main() -> int:
                     del out["series"][tk]
                     print(f"FAIL  {tk:<16} no exchange rate this run to convert it; left out")
 
+    # v1.8.0: fx_to_usd.floor matches fx_config.SERIES_START, so the Dollarise
+    # view starts where the Markets FX chart does (tools/fx_floor_gate.py).
+    if out.get("fx_to_usd"):
+        out["fx_to_usd"]["floor"] = "1976"
     with open("data-cl.json", "w") as f:
         json.dump(out, f)
     print(f"\nWrote data-cl.json with {len(out['series'])} series.")

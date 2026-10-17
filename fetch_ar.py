@@ -920,6 +920,10 @@ def main() -> int:
         print("Fresh (< 2 days old): " + ", ".join(
             f"{k} ({p})" for k, p in out["new_points"].items()))
 
+    # v1.8.0: fx_to_usd.floor matches fx_config.SERIES_START, so the Dollarise
+    # view starts where the Markets FX chart does (tools/fx_floor_gate.py).
+    if out.get("fx_to_usd"):
+        out["fx_to_usd"]["floor"] = "1992"
     with open("data-ar.json", "w") as f:
         json.dump(out, f)
     print(f"\nWrote data-ar.json with {len(out['series'])} series.")
