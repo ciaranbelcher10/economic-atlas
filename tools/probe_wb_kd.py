@@ -122,37 +122,42 @@ def growth(series):
     return {y: (series[y] / series[y - 1] - 1) * 100 for y in ys if y - 1 in series and series[y - 1]}
 
 
-print(f"{'economy':<14} {'iso':<4} {'KD span':<11} {'n':>3}  {'ours to':>7}  {'growth gap (pp)':>15}  note")
-missing, behind, gaps = [], [], []
-for name, iso, path in ECONOMIES:
-    try:
-        k = kd(iso)
-    except Exception as exc:
-        print(f"{name:<14} {iso:<4} ERROR {exc}")
-        missing.append(name)
-        continue
-    ours, unit = ours_annual(path)
-    ol = max(ours) if ours else None
-    if not k:
-        print(f"{name:<14} {iso:<4} {'none':<11} {0:>3}  {str(ol):>7}")
-        missing.append(name)
-        continue
-    gk, go = growth(k), growth(ours)
-    common = sorted(set(gk) & set(go))
-    worst = max(((abs(gk[y] - go[y]), y) for y in common), default=None)
-    note = []
-    if ol and max(k) < ol:
-        note.append(f"KD ends {ol - max(k)}y before ours")
-        behind.append(name)
-    if worst and worst[0] > 1.0:
-        note.append(f"worst {worst[1]}")
-        gaps.append(name)
-    w = f"{worst[0]:.2f} ({len(common)}y)" if worst else "no overlap"
-    print(f"{name:<14} {iso:<4} {min(k)}-{max(k):<6} {len(k):>3}  {str(ol):>7}  {w:>15}  {'; '.join(note)}")
-    time.sleep(0.3)
+def main():
+    print(f"{'economy':<14} {'iso':<4} {'KD span':<11} {'n':>3}  {'ours to':>7}  {'growth gap (pp)':>15}  note")
+    missing, behind, gaps = [], [], []
+    for name, iso, path in ECONOMIES:
+        try:
+            k = kd(iso)
+        except Exception as exc:
+            print(f"{name:<14} {iso:<4} ERROR {exc}")
+            missing.append(name)
+            continue
+        ours, unit = ours_annual(path)
+        ol = max(ours) if ours else None
+        if not k:
+            print(f"{name:<14} {iso:<4} {'none':<11} {0:>3}  {str(ol):>7}")
+            missing.append(name)
+            continue
+        gk, go = growth(k), growth(ours)
+        common = sorted(set(gk) & set(go))
+        worst = max(((abs(gk[y] - go[y]), y) for y in common), default=None)
+        note = []
+        if ol and max(k) < ol:
+            note.append(f"KD ends {ol - max(k)}y before ours")
+            behind.append(name)
+        if worst and worst[0] > 1.0:
+            note.append(f"worst {worst[1]}")
+            gaps.append(name)
+        w = f"{worst[0]:.2f} ({len(common)}y)" if worst else "no overlap"
+        print(f"{name:<14} {iso:<4} {min(k)}-{max(k):<6} {len(k):>3}  {str(ol):>7}  {w:>15}  {'; '.join(note)}")
+        time.sleep(0.3)
 
-print()
-print(f"no KD series ({len(missing)}): {', '.join(missing) or 'none'}")
-print(f"KD ends before our real series ({len(behind)}): {', '.join(behind) or 'none'}")
-print(f"growth gap over 1pp in some year ({len(gaps)}): {', '.join(gaps) or 'none'}")
-sys.exit(0)
+    print()
+    print(f"no KD series ({len(missing)}): {', '.join(missing) or 'none'}")
+    print(f"KD ends before our real series ({len(behind)}): {', '.join(behind) or 'none'}")
+    print(f"growth gap over 1pp in some year ({len(gaps)}): {', '.join(gaps) or 'none'}")
+    return 0
+
+
+if __name__ == "__main__":
+    sys.exit(main())
