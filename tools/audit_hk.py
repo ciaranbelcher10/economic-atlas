@@ -1,6 +1,6 @@
 """Pre-launch audit of data-hk.json (v1.7.56, full page). GDP from the
-Census and Statistics Department's own table 310-31001, CPI and goods trade
-from the IMF, the base rate from BIS, FX from FRED (the linked rate).
+Census and Statistics Department's own table 310-31001, goods trade from
+C&SD table 410-50001 (v1.8.3), CPI from the IMF, the base rate from BIS, FX from FRED (the linked rate).
 Nothing about Hong Kong is shown to users until this passes on a file
 written by the real pipeline.
 
@@ -12,7 +12,7 @@ Cross-checks, each against a different publisher or an identity:
   GDP         C&SD's published y/y vs the change in the chained level served;
               World Bank annual growth vs four served quarters
   FX          FRED month end inside the link band; vs the BIS monthly average
-  trade       HK$ / BIS rate = the IMF's own US$
+  trade       served months vs C&SD's own press releases (v1.8.3)
 Ranges are first estimates from the 13 Oct 2026 probe; resize only with the
 publisher's figure in a comment. Exit 1 on any FAIL.
 """
@@ -40,7 +40,7 @@ EXPECT = {
     "cpi": ("%", "months", -7, 15, 3.5),
     "cpi_mom": ("%", "months", -5, 5, None),                   # one-off government relief measures move single months
     "policy_rate": ("%", "months", 0, 10, 1.0),                # base rate, from Oct 1998
-    "exports": ("HKDm", "months", 5e4, 1.5e6, None),           # probe: US$94bn (about HK$740bn) in June 2026
+    "exports": ("HKDm", "months", 5e4, 1.5e6, None),           # C&SD: HK$618.4bn in March 2026
     "imports": ("HKDm", "months", 5e4, 1.5e6, None),
     "trade_balance": ("HKDm", "months", -3e5, 1.5e5, None),
     "unemployment": ("%", "years", 0.5, 10, 1.5),              # probe: 2.8% (ILO modelled) in 2025
@@ -102,12 +102,33 @@ def fx_bis_check(d):
         f"{len(got)} months, largest gap {w} % (tolerance 0.5)")
 
 
+# C&SD press releases (HK$ million): 28 Apr 2026 (March 2026, with the
+# March 2025 and February 2026 comparisons in its table 1).
+CSD_RELEASED = {("exports", "2026-03"): 618401, ("imports", "2026-03"): 707484,
+                ("trade_balance", "2026-03"): -89084, ("exports", "2026-02"): 408795,
+                ("exports", "2025-03"): 455534}
+
+
+def trade_vs_release(d):
+    s = d["series"]
+    got = []
+    for (k, per), want in CSD_RELEASED.items():
+        v = dict(s[k]["points"]).get(per)
+        if v is None:
+            res("FAIL", f"trade: {k} {per} not served", f"C&SD published {want}")
+            return
+        got.append((f"{k} {per}", round(v / want * 100 - 100, 2)))
+    w = K.worst(got)
+    res("PASS" if abs(w[1]) <= 1.0 else "FAIL", "trade: served months vs C&SD releases",
+        f"{len(got)} figures, largest gap {w} % (tolerance 1.0, for revisions)")
+
+
 def cross_checks(d):
     K.run("CPI index check", lambda: K.cpi_index_check(d, "HKG"))
     K.run("y/y identity", lambda: K.yoy_identity(d, 0.15))
     K.run("quarters vs World Bank", lambda: K.wb_growth_vs_quarters(d, "HKG", 0.3))
     K.run("FX cross-check", lambda: fx_bis_check(d))
-    K.run("trade check", lambda: K.trade_vs_usd(d, K.itg_usd("HKG"), K.bis_avg("HK", "HKD"), 0.1))
+    K.run("trade check", lambda: trade_vs_release(d))
 
 
 def main(argv):

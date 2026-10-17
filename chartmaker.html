@@ -1967,13 +1967,36 @@ function rateForPeriod(period, history){
   });
   return best[1];
 }
-function toUSDValue(country, rawValue, period){
+function toUSDValue(country, rawValue, period, realYear){
   if(country === "US") return rawValue;
   var fx = FX_RATES[country];
   if(!fx || !fx.rate) return null;
-  var rate = (period && fx.history && fx.history.length) ? rateForPeriod(period, fx.history) : fx.rate;
+  var hist = fx.history && fx.history.length ? fx.history : null;
+  // v1.8.3 (v1.7.55 port from the country pages): real GDP converts at ONE
+  // rate, the average of its own latest year (realYear), so its dollar
+  // growth matches the published real growth.
+  if(realYear){
+    var rr = hist ? rateForPeriod(nearestFxYear(realYear, hist), hist) : fx.rate;
+    if(rr == null) rr = fx.rate;
+    return fx.direction === "multiply" ? rawValue * rr : rawValue / rr;
+  }
+  // Before fx.floor (the first month with a usable market rate) there is
+  // no dollar figure: null, so the point is left out of the dollar view.
+  if(period && fx.floor){
+    var k = monthKey(String(period)), f = monthKey(String(fx.floor));
+    if(k !== null && f !== null && k < f) return null;
+  }
+  var rate = (period && hist) ? rateForPeriod(period, hist) : fx.rate;
   if(rate == null) rate = fx.rate;
   return fx.direction === "multiply" ? rawValue * rate : rawValue / rate;
+}
+// The rate year actually used for yr: yr itself, or the nearest year the
+// history has (an annual history can end before the real series does).
+function nearestFxYear(yr, hist){
+  if(hist.some(function(p){ return String(p[0]).slice(0, 4) === yr; })) return yr;
+  var t = monthKey(yr), best = hist[0], bd = Infinity;
+  hist.forEach(function(p){ var d = Math.abs(monthKey(String(p[0])) - t); if(d < bd){ bd = d; best = p; } });
+  return String(best[0]).slice(0, 4);
 }
 // Countries whose own currency happens to use the $ glyph too (AUD, CAD,
 // MXN, ZAR, BRL) -- their gdp_level/gdp_real are genuinely local-currency
@@ -2383,10 +2406,10 @@ var dollariseForced = false; // true when 2+ genuinely different currencies are 
 // toUSDValue alone -- same rule compare.html follows. Lives here rather
 // than alongside the other FX utilities above because it depends on
 // scaleOf(), which is itself only defined inside this function's scope.
-function toUSDMillions(country, rawValue, unitStr, concept, period){
+function toUSDMillions(country, rawValue, unitStr, concept, period, realYear){
   var normalized = rawValue * (scaleOf(unitStr) / 1e6);
   if(isAlreadyUSDUnit(unitStr, country, concept)) return normalized;
-  return toUSDValue(country, normalized, period);
+  return toUSDValue(country, normalized, period, realYear);
 }
 // Recomputes a single series' displayed .unit/.rawPoints from its
 // untouched .origUnit/.origRawPoints, based on the current Dollarise
@@ -2399,8 +2422,10 @@ function applyDollariseToSeries(s){
     s.rawPoints = s.origRawPoints;
     return;
   }
-  var converted = s.origRawPoints.map(function(p){
-    var usdM = toUSDMillions(s.country, p.y, s.origUnit, s.metric, String(p.x));
+  var pts0 = s.origRawPoints;
+  var realYear = (s.metric === "gdp_real" && pts0.length) ? String(pts0[pts0.length - 1].x).slice(0, 4) : null;
+  var converted = pts0.map(function(p){
+    var usdM = toUSDMillions(s.country, p.y, s.origUnit, s.metric, String(p.x), realYear);
     return usdM == null ? null : { x: p.x, y: usdM };
   }).filter(function(p){ return p != null; });
   s.unit = forceUSDUnit("m");

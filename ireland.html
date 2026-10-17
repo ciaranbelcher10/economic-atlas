@@ -2546,6 +2546,9 @@ function render(data){
       {id:"mom", label:"Month on month", series:s.cpi_mom, srcNote:"HICP, all items, change on the previous month (Eurostat, CP0000IEM086NEST)",
        expl:"How much consumer prices moved compared with the month before. Not the annual rate divided by twelve: it reacts to one-off price changes the annual rate smooths out."}
     ]));
+  if(s.cpi_national) chartPanel("cpi_national","charts-inflation","CPI inflation, national definition, annual rate",
+    "How much consumer prices are rising compared with a year ago, on the Central Statistics Office's own consumer price index, the figure quoted domestically. Unlike the EU-harmonised HICP it includes mortgage interest, so the two diverge when interest rates move.",
+    s.cpi_national,"line",v=>v+"%",pct,"OECD prices database (CSO national CPI)",undefined,0);
   if(s.bond_yield_10y) chartPanel("bond_yield_10y","charts-markets","10-year government bond yield",
     "The yield on 10-year Irish government bonds, a market gauge of inflation and rate expectations. Not the ECB's policy rate.",
     s.bond_yield_10y,"line",v=>v+"%",v=>v.toFixed(2)+"%",SRC_BOND);
@@ -2613,6 +2616,8 @@ function render(data){
     {pageKey:"cpi_mom",fmt:pct,fmtD:pp,upIsGood:false,source:"FRED · HICP, all items, MoM",infoKey:"cpi_mom"});
   if(s.ecb_rate) statTile(tinf,"ecb_rate","ECB deposit rate",s.ecb_rate,
     {fmt:v=>v.toFixed(2)+"%",fmtD:v=>v.toFixed(2)+"pp",upIsGood:false,source:"FRED \u00b7 ECBDFR"});
+  if(s.cpi_national) statTile(tinf,"cpi_national","CPI inflation (CSO)",s.cpi_national,
+    {fmt:pct,fmtD:pp,upIsGood:false,source:"OECD prices database (CSO national CPI)",infoKey:"cpi_national"});
   const tl=document.getElementById("tiles-labour");
   if(s.unemployment) statTile(tl,"unemployment","Unemployment",s.unemployment,
     {fmt:pct,fmtD:pp,upIsGood:false,source:SRC_UNEMP});
@@ -2846,6 +2851,10 @@ function hasPreHistoryPoints(series, fx){
    special case and dropping that caveat from the info popover would be a
    genuine loss of context, not just a paraphrase. */
 const INFO_CONTENT = {
+  cpi_national: {
+    description: "How much consumer prices are rising compared with a year ago, on the Central Statistics Office's own consumer price index, the figure quoted domestically. Unlike the EU-harmonised HICP it includes mortgage interest, so the two diverge when interest rates move.",
+    source: "OECD prices database (CSO national CPI) \u00b7 CPI, national definition, all items, year on year, as published by the Central Statistics Office."
+  },
   gdp_level: {
     description: "The total value of everything produced in Ireland in a year, at current prices, on a rolling four-quarter basis. Irish GDP is significantly affected by multinational corporate activity, most visibly a large single-year jump in 2015, a documented feature of how Irish GDP is measured, not a data error.",
     source: "Eurostat, via FRED (CPMNACNSAB1GQIE nominal / CLVMNACNSAB1GQIE real).",

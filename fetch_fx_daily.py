@@ -134,6 +134,10 @@ def build_pair(country, home, quote, u_daily, prev_data):
             src = (f"World Bank series PA.NUS.FCRF \u00b7 official exchange rate, annual average, "
                    f"shown as {n:,} \u00f7 the published {home} per US$.")
             short = "World Bank \u00b7 PA.NUS.FCRF"
+            if fx.get("bis_from"):
+                src += (f" From {fx['bis_from']}, before the World Bank publishes, the mean of the Bank for "
+                        f"International Settlements' monthly average rates (WS_XRU).")
+                short += " \u00b7 BIS"
         else:
             src = (f"Derived: World Bank PA.NUS.FCRF annual average ({home} per US$) and the annual average of "
                    f"Federal Reserve H.10 {C.H10[quote][0]}, "

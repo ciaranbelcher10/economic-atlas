@@ -2553,6 +2553,9 @@ function render(data){
       {id:"mom", label:"Month on month", series:s.cpi_mom, srcNote:"HICP, all items, change on the previous month (Eurostat, CP0000SEM086NEST)",
        expl:"How much consumer prices moved compared with the month before. Not the annual rate divided by twelve: it reacts to one-off price changes the annual rate smooths out."}
     ]));
+  if(s.cpi_national) chartPanel("cpi_national","charts-inflation","CPI inflation, national definition, annual rate",
+    "How much consumer prices are rising compared with a year ago, on Statistics Sweden's own consumer price index, the headline figure quoted domestically. It includes mortgage interest costs, so it moves with the policy rate; the Riksbank's 2% target is set on CPIF, which holds interest rates fixed.",
+    s.cpi_national,"line",v=>v+"%",pct,"OECD prices database (Statistics Sweden national CPI)",undefined,0);
   if(s.bond_yield_10y) chartPanel("bond_yield_10y","charts-markets","10-year government bond yield",
     "The yield on 10-year Swedish government bonds, a market gauge of inflation and rate expectations. Not the Riksbank's policy rate.",
     s.bond_yield_10y,"line",v=>v+"%",v=>v.toFixed(2)+"%",SRC_BOND);
@@ -2609,6 +2612,8 @@ function render(data){
   // rate shows only that.
   if(s.cpi_mom) statTile(tinf,null,"CPI (MoM)",s.cpi_mom,
     {pageKey:"cpi_mom",fmt:pct,fmtD:pp,upIsGood:false,source:"FRED · HICP, all items, MoM",infoKey:"cpi_mom"});
+  if(s.cpi_national) statTile(tinf,"cpi_national","CPI inflation (SCB)",s.cpi_national,
+    {fmt:pct,fmtD:pp,upIsGood:false,source:"OECD prices database (Statistics Sweden national CPI)",infoKey:"cpi_national"});
   const tl=document.getElementById("tiles-labour");
   if(s.unemployment) statTile(tl,"unemployment","Unemployment",s.unemployment,
     {fmt:pct,fmtD:pp,upIsGood:false,source:SRC_UNEMP});
@@ -2839,6 +2844,10 @@ function hasPreHistoryPoints(series, fx){
    which the dollar note below describes honestly rather than assuming
    one path. */
 const INFO_CONTENT = {
+  cpi_national: {
+    description: "How much consumer prices are rising compared with a year ago, on Statistics Sweden's own consumer price index, the headline figure quoted domestically. It includes mortgage interest costs, so it moves with the policy rate; the Riksbank's 2% target is set on CPIF, which holds interest rates fixed.",
+    source: "OECD prices database (Statistics Sweden national CPI) \u00b7 CPI, national definition, all items, year on year, as published by Statistics Sweden."
+  },
   gdp_level: {
     description: "The total value of everything Sweden produces in a year, at current prices, on a rolling four-quarter basis.",
     source: "FRED series CPMNACSCAB1GQSE \u00b7 Eurostat, seasonally adjusted (falls back to World Bank current US$, annual, only if the live Eurostat SEK series is unavailable on a given run).",

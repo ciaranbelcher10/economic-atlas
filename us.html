@@ -2455,6 +2455,10 @@ function chartPanel(key, containerId, title, expl, series, kind, fmtY, fmtTip, s
    source strings mirror the existing expl/srcNote text already shown
    elsewhere on the page (single source of truth, no drift). */
 const INFO_CONTENT = {
+  cpi_mom_sa: {
+    description: "How much consumer prices moved compared with the month before, with regular seasonal swings removed. This is the headline monthly figure in the BLS release.",
+    source: "FRED series CPIAUCSL \u00b7 CPI for all urban consumers, all items, seasonally adjusted (BLS), change on the previous month."
+  },
   gdp_level: {
     description: "The total value of everything the US economy produces in a year, at current prices, expressed at a seasonally adjusted annual rate.",
     source: "FRED series GDP \u00b7 nominal, seasonally adjusted annual rate (BEA).",
@@ -2798,7 +2802,9 @@ function render(data){
     basesFor([
       {id:"yoy", label:"Year on year", series:s.cpi, srcNote:"Calculated from FRED series CPIAUCNS · all items, NSA (BLS)", expl:"How much consumer prices are rising compared with a year ago. The Fed targets 2% inflation."},
       {id:"mom", label:"Month on month", series:s.cpi_mom, srcNote:"CPI, all items, change on the previous month, not seasonally adjusted (CPIAUCNS)",
-       expl:"How much consumer prices moved compared with the month before. Not the annual rate divided by twelve: it reacts to one-off price changes the annual rate smooths out."}
+       expl:"How much consumer prices moved compared with the month before. Not the annual rate divided by twelve: it reacts to one-off price changes the annual rate smooths out."},
+      {id:"momsa", label:"Month on month, seasonally adjusted", series:s.cpi_mom_sa, srcNote:"CPI, all items, change on the previous month, seasonally adjusted (CPIAUCSL)",
+       expl:"The monthly change with regular seasonal swings removed, the headline monthly figure BLS publishes."}
     ]));
   if(s.core_cpi) chartPanel("core_cpi","charts-inflation","Core CPI, annual rate",
     "Inflation excluding volatile food and energy prices, a cleaner read on underlying price pressure.",
@@ -2889,6 +2895,8 @@ function render(data){
     {fmt:pct,fmtD:pp,upIsGood:false,source:"FRED · CPIAUCNS"});
   if(s.cpi_mom) statTile(tinf,null,"CPI (MoM)",s.cpi_mom,
     {pageKey:"cpi_mom",fmt:pct,fmtD:pp,upIsGood:false,source:"FRED · CPIAUCNS",infoKey:"cpi_mom"});
+  if(s.cpi_mom_sa) statTile(tinf,null,"CPI (MoM, SA)",s.cpi_mom_sa,
+    {pageKey:"cpi_mom_sa",fmt:pct,fmtD:pp,upIsGood:false,source:"FRED · CPIAUCSL",infoKey:"cpi_mom_sa"});
   if(s.ppi) statTile(tinf,"ppi","PPI (YoY)",s.ppi,
     {fmt:pct,fmtD:pp,upIsGood:false,source:"FRED · PPIFID"});
   if(s.pce) statTile(tinf,"pce","PCE (YoY)",s.pce,

@@ -36,6 +36,9 @@ const VERBOSE = process.argv.includes("--verbose");
 // Plumbing the pipeline serves for the pages' own use, never displayed.
 const PLUMBING = new Set([
   "fx_to_usd", "fx_to_usd_history", "cpi_index", "cpi_index_nsa",
+  // v1.8.3: fetch_us.py writes gdp_nominal as an exact copy of gdp_level
+  // (same FRED series GDP), kept for the toggle map above; gdp_level is shown.
+  "gdp_nominal",
 ]);
 
 // "Make it real" swaps a GDP panel to its real-terms series while the panel
@@ -53,7 +56,8 @@ const COMPANIONS = { fed_funds_lower: "fed_funds_upper" };
 
 // Inflation bases: the rule this gate enforces.
 const BASIS_KEYS = new Set(["cpi_mom", "cpi_qoq", "cpih_mom"]);
-const BASIS_LABEL = { cpi_mom: /Month on month/, cpih_mom: /Month on month/, cpi_qoq: /Quarter on quarter/ };
+const BASIS_LABEL = { cpi_mom: /Month on month/, cpih_mom: /Month on month/, cpi_qoq: /Quarter on quarter/,
+  cpi_mom_sa: /Month on month, seasonally adjusted/ };   // v1.8.3 (US)
 
 function load(page) {
   const vc = new VirtualConsole();

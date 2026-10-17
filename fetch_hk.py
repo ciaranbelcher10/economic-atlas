@@ -23,9 +23,17 @@ the first real run and audit. Not an OECD member: no OECD calls.
   from October 1998 (the base rate's first full month), extended past BIS's
   last monthly value with BIS's daily series. Under the Linked Exchange
   Rate System the base rate follows the US federal funds rate.
-- exports / imports / trade_balance: IMF international trade in goods
-  (ITG), US dollars, converted to HK$ at the BIS monthly average rate
-  (WS_XRU M.HK.HKD.A). Hong Kong's exports are mostly re-exports.
+- exports / imports / trade_balance: C&SD table 410-50001 (external
+  merchandise trade aggregate figures), HK$ million, monthly, total exports
+  (domestic exports plus re-exports) and imports, as C&SD publishes them.
+  v1.8.3: replaces IMF ITG US$ converted at the BIS rate. The spot-check
+  of 17 Oct 2026 found the IMF figures 9% to 23% above C&SD's own release
+  in every month compared (March 2026: HK$732bn served against C&SD's
+  HK$618.4bn). The table's series codes are not documented, so each flow
+  is identified by its published values (C&SD release of 28 Apr 2026: total
+  exports HK$618,401m in March 2026, HK$408,795m in February 2026 and
+  HK$455,534m in March 2025; imports HK$707,484m in March 2026), which also
+  proves the right series was read.
 - unemployment: World Bank SL.UEM.TOTL.ZS (ILO modelled estimate), annual.
 - debt_gdp / deficit: IMF World Economic Outlook via imf_weo.py.
 - current_account / fdi: World Bank, annual.
@@ -59,16 +67,20 @@ UA = {"User-Agent": "economic-atlas/0.1 (+https://theeconomicatlas.com)"}
 ALLOW_SHRINK = {}
 MONTHLY_MAX_AGE = 120
 QUARTERLY_MAX_AGE = 230
-TRADE_MAX_AGE = 200          # probe, 13 Oct 2026: ITG to June 2026
+TRADE_MAX_AGE = 100          # C&SD publishes about four weeks after the month
 BASE_RATE_START = "1998-10"  # the HKMA base rate was introduced in September 1998
 
 IMF = "https://api.imf.org/external/sdmx/3.0/data/dataflow/IMF.STA/"
 CPI_YOY_URL = IMF + "CPI/~/HKG.CPI._T.YOY_PCH_PA_PT.M?c[TIME_PERIOD]=ge:2000-M01"
 CPI_MOM_URL = IMF + "CPI/~/HKG.CPI._T.POP_PCH_PA_PT.M?c[TIME_PERIOD]=ge:2000-M01"
-ITG_URL = IMF + "ITG/~/HKG.*.*.M?c[TIME_PERIOD]=ge:1995-M01"
 CSD_GDP_URL = "https://www.censtatd.gov.hk/api/get.php?id=310-31001&lang=en&full_series=1"
+CSD_TRADE_URL = "https://www.censtatd.gov.hk/api/get.php?id=410-50001&lang=en&full_series=1"
+# C&SD release, 28 Apr 2026 (HK$ million): identifies and proves each flow.
+# Exports carry three months because re-exports run within about 1.5% of
+# total exports; the closest series across all three wins.
+CSD_TRADE_ANCHOR = {"exports": {"2026-03": 618401.0, "2026-02": 408795.0, "2025-03": 455534.0},
+                    "imports": {"2026-03": 707484.0}}
 BIS_POLICY_URL = "https://stats.bis.org/api/v2/data/dataflow/BIS/WS_CBPOL/1.0/M.HK?format=csv"
-BIS_FX_AVG_URL = "https://stats.bis.org/api/v2/data/dataflow/BIS/WS_XRU/1.0/M.HK.HKD.A?format=csv"
 FRED_URL = ("https://api.stlouisfed.org/fred/series/observations"
             "?series_id={sid}&api_key={key}&file_type=json&observation_start=1981-01-01")
 WB_URL = "https://api.worldbank.org/v2/country/HKG/indicator/{code}?format=json&per_page=200"
@@ -139,26 +151,6 @@ def monthly(rows: list, match: dict) -> list:
         if re.fullmatch(r"\d{4}-\d{2}", per):
             pts[per] = v
     return sorted([[p, v] for p, v in pts.items()])
-
-
-def trade_from_usd(rows: list, rate: dict, cur: str) -> dict:
-    """IMF ITG US$ flows converted at the month's rate (local per US$).
-    All three series end at the last month with both flows and a rate."""
-    out = {}
-    for key, ind, val in (("exports", "XG", "FOB"), ("imports", "MG", "CIF")):
-        usd = monthly(rows, {"INDICATOR": ind, "VALUATION": val, "UNIT": "USD"})
-        if not usd:
-            have = sorted({(r.get("INDICATOR"), r.get("VALUATION"), r.get("UNIT")) for r in rows})[:12]
-            raise ValueError(f"IMF ITG {ind}/{val}/USD: no rows; available {have}")
-        pts = [[p, round(v / 1e6 * rate[p], 1)] for p, v in usd if p in rate]
-        out[key] = require_current(pts, TRADE_MAX_AGE, f"IMF {ind} (US$ to {cur})")
-    common = set(dict(out["exports"])) & set(dict(out["imports"]))
-    out = {k: [p for p in v if p[0] in common] for k, v in out.items()}
-    m = dict(out["imports"])
-    out["trade_balance"] = [[p, round(v - m[p], 1)] for p, v in out["exports"] if p in m]
-    if not out["trade_balance"]:
-        raise ValueError("IMF trade: no month with both exports and imports")
-    return out
 
 
 def fetch_worldbank(code: str, max_days: int = 900) -> list:
@@ -305,29 +297,61 @@ def fetch_policy_rate() -> list:
     return require_current(pts, MONTHLY_MAX_AGE, "BIS base rate")
 
 
-def fill_single_gaps(rate: dict) -> dict:
-    """A month BIS skips on its own takes the mean of the months either
-    side, named in the log; a run of two or more is left for the audit."""
-    out = dict(rate)
-    keys = sorted(rate)
-    for a, b in zip(keys, keys[1:]):
-        mid = _back(b, 1)
-        if mid != a and _back(mid, 1) == a:
-            out[mid] = round((rate[a] + rate[b]) / 2, 4)
-            print(f"  [bis] WS_XRU M.HK.HKD.A has no {mid}: using the mean of {a} and {b} ({out[mid]})")
-    return out
+def csd_month(per: str) -> str | None:
+    """C&SD monthly periods are YYYYMM: 202603 -> 2026-03."""
+    m = re.fullmatch(r"(\d{4})(0[1-9]|1[0-2])", per)
+    return f"{m.group(1)}-{m.group(2)}" if m else None
+
+
+def csd_trade_rows() -> list:
+    r = requests.get(CSD_TRADE_URL, timeout=90, headers=UA)
+    print(f"  [csd] 410-50001 status={r.status_code}")
+    r.raise_for_status()
+    rows = r.json().get("dataSet") or []
+    if not rows:
+        raise ValueError("C&SD 410-50001: empty dataSet")
+    return rows
 
 
 def fetch_trade() -> dict:
-    r = requests.get(BIS_FX_AVG_URL, timeout=60, headers=dict(UA, Accept="text/csv"))
-    print(f"  [bis] WS_XRU M.HK.HKD.A status={r.status_code}")
-    r.raise_for_status()
-    rate = {row["TIME_PERIOD"]: float(row["OBS_VALUE"]) for row in csv.DictReader(io.StringIO(r.text))
-            if row.get("OBS_VALUE") not in (None, "", "NaN") and re.fullmatch(r"\d{4}-\d{2}", row.get("TIME_PERIOD", ""))}
-    bad = [k for k, v in rate.items() if k >= "1984" and not 7.0 < v < 8.5]
-    if bad:
-        raise ValueError(f"BIS HKD rate: implausible value {bad[0]} {rate[bad[0]]} (the link is 7.75 to 7.85)")
-    return trade_from_usd(imf_csv(ITG_URL, "ITG HKG"), fill_single_gaps(rate), "HK dollars")
+    """Total exports and imports, HK$ million, monthly, from C&SD. Every
+    monthly series in the table is grouped by (sv, svDesc); each flow is the
+    one group whose March 2026 figure is within 1% of the published value."""
+    groups: dict = {}
+    for row in csd_trade_rows():
+        if row.get("freq") not in ("M", None):
+            continue
+        per = csd_month(str(row.get("period", "")))
+        try:
+            v = float(row.get("figure"))
+        except (TypeError, ValueError):
+            continue
+        if per:
+            groups.setdefault((row.get("sv"), row.get("svDesc")), {})[per] = v
+    out = {}
+    for key, anchor in CSD_TRADE_ANCHOR.items():
+        def gap(pts):
+            if not all(p in pts for p in anchor):
+                return None
+            return max(abs(pts[p] / v - 1) for p, v in anchor.items())
+        scored = sorted((gap(pts), g) for g, pts in groups.items() if gap(pts) is not None)
+        hits = [g for e, g in scored if e < 0.005][:1]
+        if not hits:
+            near = [(g, groups[g].get("2026-03")) for _, g in scored[:12]]
+            raise ValueError(f"C&SD 410-50001 {key}: no series within 0.5% of {anchor}; closest {near}")
+        pts = sorted([[p, round(v, 1)] for p, v in groups[hits[0]].items()])
+        print(f"  [csd] {key} = sv {hits[0][0]!r} ({hits[0][1]}), 2026-03 {groups[hits[0]]['2026-03']}")
+        bad = [p for p in pts if p[0] >= "2000" and not 50_000 < p[1] < 1_500_000]
+        if bad:
+            raise ValueError(f"C&SD {key}: implausible month {bad[0]} (HK$ million)")
+        out[key] = require_current(pts, TRADE_MAX_AGE, f"C&SD {key}")
+    common = set(dict(out["exports"])) & set(dict(out["imports"]))
+    out = {k: [p for p in v if p[0] in common] for k, v in out.items()}
+    m = dict(out["imports"])
+    out["trade_balance"] = [[p, round(v - m[p], 1)] for p, v in out["exports"]]
+    if not out["trade_balance"]:
+        raise ValueError("C&SD trade: no month with both exports and imports")
+    return out
 
 
 def fetch_fred_month_end(sid: str, key: str) -> list:
@@ -363,9 +387,9 @@ SERIES = [
     ("policy_rate", fetch_policy_rate,
      "HKMA base rate (BIS central bank policy rates, M.HK, from October 1998)", "%", "months"),
     ("trade", fetch_trade, {
-        "exports": "Exports of goods, including re-exports, FOB, US$ converted to HK$ at the BIS monthly average rate (IMF international trade in goods)",
-        "imports": "Imports of goods, CIF, US$ converted to HK$ at the BIS monthly average rate (IMF international trade in goods)",
-        "trade_balance": "Trade balance, goods, exports less imports, HK$ (IMF ITG, converted at the BIS monthly average rate)",
+        "exports": "Total exports of goods (domestic exports and re-exports), HK$ (C&SD external merchandise trade, table 410-50001)",
+        "imports": "Imports of goods, HK$ (C&SD external merchandise trade, table 410-50001)",
+        "trade_balance": "Visible trade balance, total exports less imports, HK$ (C&SD, table 410-50001)",
     }, "HKDm", "months"),
     ("unemployment", lambda: fetch_worldbank("SL.UEM.TOTL.ZS"),
      "Unemployment rate, ILO modelled estimate, annual (World Bank)", "%", "years"),

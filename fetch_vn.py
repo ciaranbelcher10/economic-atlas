@@ -25,7 +25,11 @@ Not an OECD member: no OECD calls.
 - debt_gdp / deficit: IMF World Economic Outlook via imf_weo.py.
 - current_account / fdi: World Bank, annual.
 - fx_to_usd: World Bank PA.NUS.FCRF, dong per US$, annual average
-  (fx_config.ANNUAL).
+  (fx_config.ANNUAL). v1.8.3: complete years after the World Bank's last
+  one (it had not published 2025 by Oct 2026) are the mean of BIS's twelve
+  monthly averages (WS_XRU M.VN.VND.A), kept annual so the history stays one
+  resolution. Used only while the two sources agree within 2% on the World
+  Bank's latest year; otherwise the extension is skipped and logged.
 Not served: quarterly GDP, policy rate, monthly labour data, bond yield,
 business confidence (no free machine-readable source).
 """
@@ -219,13 +223,50 @@ def fetch_cpi_mom() -> list:
     return require_current(pct_change(cpi_index(), 1), MONTHLY_MAX_AGE, "IMF CPI m/m")
 
 
+_BIS_RATE: dict = {}
+
+
+def bis_monthly_rate() -> dict:
+    """BIS monthly average dong per US$, single gaps filled; read once per run."""
+    if not _BIS_RATE:
+        r = requests.get(BIS_FX_AVG_URL, timeout=60, headers=dict(UA, Accept="text/csv"))
+        print(f"  [bis] WS_XRU M.VN.VND.A status={r.status_code}")
+        r.raise_for_status()
+        rate = {row["TIME_PERIOD"]: float(row["OBS_VALUE"]) for row in csv.DictReader(io.StringIO(r.text))
+                if row.get("OBS_VALUE") not in (None, "", "NaN") and re.fullmatch(r"\d{4}-\d{2}", row.get("TIME_PERIOD", ""))}
+        _BIS_RATE.update(fill_single_gaps(rate))
+    return _BIS_RATE
+
+
 def fetch_trade() -> dict:
-    r = requests.get(BIS_FX_AVG_URL, timeout=60, headers=dict(UA, Accept="text/csv"))
-    print(f"  [bis] WS_XRU M.VN.VND.A status={r.status_code}")
-    r.raise_for_status()
-    rate = {row["TIME_PERIOD"]: float(row["OBS_VALUE"]) for row in csv.DictReader(io.StringIO(r.text))
-            if row.get("OBS_VALUE") not in (None, "", "NaN") and re.fullmatch(r"\d{4}-\d{2}", row.get("TIME_PERIOD", ""))}
-    return trade_from_usd(imf_csv(ITG_URL, "ITG VNM"), fill_single_gaps(rate), "dong")
+    return trade_from_usd(imf_csv(ITG_URL, "ITG VNM"), bis_monthly_rate(), "dong")
+
+
+def extend_fx_with_bis(wb: list, bis: dict) -> list:
+    """Complete calendar years after the World Bank's last, each the mean of
+    BIS's twelve monthly averages. Checked first against the World Bank's
+    own latest year: a gap over 2% means the two are not measuring the same
+    rate, and nothing is added."""
+    if not wb or not bis:
+        return wb
+    last = str(wb[-1][0])
+    def annual(y):
+        ms = [bis.get(f"{y}-{m:02d}") for m in range(1, 13)]
+        return round(sum(ms) / 12, 4) if all(ms) else None
+    check = annual(last)
+    if check is None:
+        print(f"  [bis] fx extension skipped: BIS has no complete {last} to check against the World Bank")
+        return wb
+    gap = check / wb[-1][1] * 100 - 100
+    if abs(gap) > 2:
+        print(f"  [bis] fx extension skipped: BIS {last} mean {check} vs World Bank {wb[-1][1]} ({gap:+.2f}%)")
+        return wb
+    out, y = list(wb), int(last) + 1
+    while (a := annual(y)) is not None:
+        out.append([str(y), a])
+        print(f"  [bis] fx {y}: {a} dong per US$ (mean of BIS monthly averages; {last} check {gap:+.2f}% vs World Bank)")
+        y += 1
+    return out
 
 
 def fill_single_gaps(rate: dict) -> dict:
@@ -274,10 +315,17 @@ SERIES = [
 def extra(out: dict, prev_full: dict) -> None:
     try:
         fx = fetch_worldbank("PA.NUS.FCRF")
+        n_wb = len(fx)
+        try:
+            fx = extend_fx_with_bis(fx, bis_monthly_rate())
+        except Exception as exc:
+            print(f"  [bis] fx extension skipped: {exc}")
         out["fx_to_usd"] = {"pair": "VND/USD", "rate": fx[-1][1], "as_of": fx[-1][0], "direction": "divide", "history": fx,
                            # Dollarise leaves out pre-reform years (fx_config.SERIES_START)
                            "floor": "1989"}
-        print(f"  ok  fx_to_usd            {fx[-1][1]} dong per US$ ({fx[-1][0]}, World Bank PA.NUS.FCRF annual average)")
+        if len(fx) > n_wb:
+            out["fx_to_usd"]["bis_from"] = str(fx[n_wb][0])
+        print(f"  ok  fx_to_usd            {fx[-1][1]} dong per US$ ({fx[-1][0]}, World Bank PA.NUS.FCRF annual average, BIS after the World Bank's last year)")
     except Exception as exc:
         print(f"FAIL  fx_to_usd            {exc}")
     if not out.get("fx_to_usd") and prev_full.get("fx_to_usd"):

@@ -1553,7 +1553,7 @@ footer.dash-foot{margin-top:36px; font-size:12.5px; color:var(--ink2); border-to
  <button type="button" class="savebar-close" id="saveBarClose" aria-label="Dismiss">&times;</button>
  </div>
  <h1 style="margin-bottom:6px;">My Dashboard</h1>
- <p style="color:var(--ink2); font-size:14.5px; margin:8px 0 0;">Pin any metric from any of the 32 tracked countries into one personal view, with a chart on demand for any tile.</p>
+ <p style="color:var(--ink2); font-size:14.5px; margin:8px 0 0;">Pin any metric from any of the 62 tracked economies into one personal view, with a chart on demand for any tile.</p>
  <div class="metric-toggles" aria-label="Display options">
  <button type="button" class="mtoggle" id="makeRealBtn" aria-pressed="false">
  <span class="mtoggle-switch" aria-hidden="true"></span>Make it real
@@ -1561,7 +1561,7 @@ footer.dash-foot{margin-top:36px; font-size:12.5px; color:var(--ink2); border-to
  <button type="button" class="mtoggle" id="dollariseBtn" aria-pressed="false">
  <span class="mtoggle-switch" aria-hidden="true"></span>Dollarise
  </button>
- <span class="mtoggle-note">"Make it real" shows GDP level tiles inflation-adjusted. Dollarise shows currency figures (GDP, debt, trade) in USD, using the same FX rates as each country's own page.</span>
+ <span class="mtoggle-note">"Make it real" shows GDP level tiles inflation-adjusted. Dollarise shows currency figures (GDP, debt, trade) in USD, using the same FX rates as each country's own page: each period at its own rate, and real GDP at its latest year's rate so its growth matches the published figure. Years before a currency had a market rate are left out.</span>
  <span id="mtoggleAnnounce" class="sr-only" role="status" aria-live="polite"></span>
  <button type="button" class="dashexportbtn" id="exportDashboardBtn" style="margin-left:auto;">Export dashboard (PNG)</button>
  </div>
@@ -3584,17 +3584,50 @@ function yearAggregate(country, concept, y){
   if(val == null) return null;
   return {value: val, unit: series.unit};
 }
-function toUSDValue(country, rawValue, period){
+function toUSDValue(country, rawValue, period, concept){
   if(country === "US") return rawValue;
   var fx = FX_RATES[country];
   if(!fx || !fx.rate) return null;
-  var rate = (period && fx.history && fx.history.length) ? rateForPeriod(period, fx.history) : fx.rate;
-  if(rate == null) rate = fx.rate;
+  var rate = usdRateFor(country, concept, period);
+  if(rate === null) return null;   // before the currency's FX floor
   return fx.direction === "multiply" ? rawValue * rate : rawValue / rate;
 }
-function toUSDMillions(country, rawValue, unitStr, period){
+function toUSDMillions(country, rawValue, unitStr, period, concept){
   var normalized = rawValue * (scaleOf(unitStr) / 1e6);
-  return toUSDValue(country, normalized, period);
+  return toUSDValue(country, normalized, period, concept);
+}
+/* v1.8.3 (v1.7.55 port from the country pages). Real GDP converts at ONE
+   rate, the average of its own latest year, so its growth in dollars
+   matches the published real growth; each year's own rate would turn a
+   devaluation into an apparent fall in output. Any other currency figure
+   converts at its own period's rate, and a period before fx.floor (the
+   first month with a usable market rate) has no dollar figure: null. */
+function isRealGDPKey(key){ return key === "gdp_real" || key === "gdp_real_annual"; }
+function realFxYearFor(country, key){
+  var s = REGISTRY[country] && REGISTRY[country][key];
+  if(!s || !s.points || !s.points.length) return null;
+  var yr = String(s.points[s.points.length - 1][0]).slice(0, 4);
+  var fx = FX_RATES[country], h = fx && fx.history;
+  if(!h || !h.length || h.some(function(p){ return String(p[0]).slice(0, 4) === yr; })) return yr;
+  var t = monthKey(yr), best = h[0], bd = Infinity;
+  h.forEach(function(p){ var d = Math.abs(monthKey(String(p[0])) - t); if(d < bd){ bd = d; best = p; } });
+  return String(best[0]).slice(0, 4);
+}
+function usdRateFor(country, key, period){
+  var fx = FX_RATES[country];
+  if(!fx) return null;
+  var hist = fx.history && fx.history.length ? fx.history : null;
+  if(isRealGDPKey(key)){
+    var ry = realFxYearFor(country, key);
+    var rr = (ry && hist) ? rateForPeriod(ry, hist) : fx.rate;
+    return rr == null ? fx.rate : rr;
+  }
+  if(period && fx.floor){
+    var k = monthKey(String(period)), f = monthKey(String(fx.floor));
+    if(k !== null && f !== null && k < f) return null;
+  }
+  var rate = (period && hist) ? rateForPeriod(String(period), hist) : fx.rate;
+  return rate == null ? fx.rate : rate;
 }
 function axisTickLabel(v, concept, forcePercent){
   var decimals = (concept === "policy_rate" || concept === "bond_yield_10y") ? 2 : 1;
@@ -3679,7 +3712,7 @@ function getMapValueForYear(country, concept, y){
   var agg = yearAggregate(country, concept, y);
   if(!agg) return null;
   if(CONCEPT_UNIT[concept] === "currency"){
-    var usdVal = toUSDMillions(country, agg.value, agg.unit, String(y));
+    var usdVal = toUSDMillions(country, agg.value, agg.unit, String(y), concept);
     if(usdVal == null) return null;
     return {value: Math.round(usdVal * 100) / 100, isDelta: false, isCumulative: false, year: y, unit: "currency", rawUnit: "$m"};
   }
@@ -4175,7 +4208,7 @@ var REAL_AFFECTED_KEYS = ["gdp_level"];
 // already-USD protection below.
 var DOLLAR_GLYPH_LOCAL_CURRENCY_COUNTRIES = {Australia:1, Canada:1, Mexico:1, "South Africa":1, Brazil:1};
 function isAlreadyUSD(unit, country, key){
-  if((key === "gdp_level" || key === "gdp_real" || key === "trade_balance" ||
+  if((key === "gdp_level" || key === "gdp_real" || key === "gdp_real_annual" || key === "trade_balance" ||
       key === "exports" || key === "imports") &&
      country && DOLLAR_GLYPH_LOCAL_CURRENCY_COUNTRIES[country]){
     return false;
@@ -4187,26 +4220,28 @@ function toDisplayUnit(value, unit, country, key, period){
   if(!dollarise || !isCurrencyUnit(unit) || isAlreadyUSD(unit, country, key)) return {value: value, unit: unit};
   var fx = FX_RATES[country];
   if(!fx) return {value: value, unit: unit};
-  var rate = (period && fx.history && fx.history.length) ? rateForPeriod(period, fx.history) : fx.rate;
-  if(rate == null) rate = fx.rate;
-  var converted = fx.direction === "multiply" ? value * rate : value / rate;
   // BUG FIX (Aug 2026): was /^[^a-zA-Z0-9]+/, which only stripped a
   // leading symbol -- silently wrong for 3-letter currency codes
   // (CLPm, COPm, PLNm, etc), same bug already found and fixed on every
   // individual country page's convertSeriesToUSD(). Never touched here
   // until now.
   var scaleSuffix = unit.replace(/^(?:[A-Za-z]+(?=(?:m|bn|tn)$)|[^a-zA-Z0-9]+)/, "");
+  var rate = usdRateFor(country, key, period);
+  if(rate === null) return {value: null, unit: "$" + scaleSuffix};
+  var converted = fx.direction === "multiply" ? value * rate : value / rate;
   return {value: converted, unit: "$" + scaleSuffix};
 }
 function toDisplayPoints(pts, unit, country, key){
   if(!dollarise || !isCurrencyUnit(unit) || isAlreadyUSD(unit, country, key)) return pts;
   var fx = FX_RATES[country];
   if(!fx) return pts;
-  return pts.map(function(p){
-    var rate = (fx.history && fx.history.length) ? rateForPeriod(p[0], fx.history) : fx.rate;
-    if(rate == null) rate = fx.rate;
-    return [p[0], fx.direction === "multiply" ? p[1] * rate : p[1] / rate];
+  var out = [];
+  pts.forEach(function(p){
+    var rate = usdRateFor(country, key, p[0]);
+    if(rate === null) return;          // before the FX floor: left out
+    out.push([p[0], fx.direction === "multiply" ? p[1] * rate : p[1] / rate]);
   });
+  return out;
 }
 /* --------------------------------- tiles ----------------------------------- */
 // Saves to whichever dashboard is currently open. Logged out: no-op --
@@ -4620,7 +4655,7 @@ function renderDash(){
   pinned.forEach(function(id){
     var m = tileFromId(id);
     if(!m) return;
-    var disp = toDisplayUnit(m.value, m.series.unit, m.country, m.key, m.period);
+    var disp = toDisplayUnit(m.value, m.series.unit, m.country, m.dataKey || m.key, m.period);
     var led = freshness(m.series);
     var ledTitle = freshnessTitle(m.series);
     // "Did this tile actually get converted?" must be checked the same
@@ -4633,7 +4668,7 @@ function renderDash(){
     // every one of them. This is the exact same mistake already found
     // and fixed once on the country pages themselves (see mexico.html's
     // own applyToggleHighlighting comment) -- ported the fix here too.
-    var actuallyConverted = dollarise && isCurrencyUnit(m.series.unit) && !isAlreadyUSD(m.series.unit, m.country, m.key);
+    var actuallyConverted = dollarise && isCurrencyUnit(m.series.unit) && !isAlreadyUSD(m.series.unit, m.country, m.dataKey || m.key);
     var tile = document.createElement("div");
     tile.className = "tile";
     tile.dataset.id = id;
@@ -4785,7 +4820,7 @@ function applyDashToggleHighlighting(){
     var m = tileFromId(tile.dataset.id);
     tile.classList.remove("fx-real", "fx-dollar", "fx-both");
     if(!m) return;
-    var dollarHit = dollarise && isCurrencyUnit(m.series.unit) && !isAlreadyUSD(m.series.unit, m.country, m.key);
+    var dollarHit = dollarise && isCurrencyUnit(m.series.unit) && !isAlreadyUSD(m.series.unit, m.country, m.dataKey || m.key);
     var realHit = makeItReal && REAL_AFFECTED_KEYS.indexOf(key) !== -1;
     if(realHit && dollarHit) tile.classList.add("fx-both");
     else if(realHit) tile.classList.add("fx-real");
