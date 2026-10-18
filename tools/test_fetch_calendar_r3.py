@@ -161,6 +161,11 @@ check(("2026-01-15", "cpi") in got and ("2026-10-15", "cpi") in got, "CPI and In
 check(("2026-11-23", "gdp") in got and ("2026-12-08", "trade") in got and ("2026-12-15", "jobs") in got, "GDP, trade, jobs mapped")
 check(not any("Price Watch" in e["name"] or "Fare" in e["name"] or "FAAC" in e["name"] or "Allocation" in e["name"] for e in ev), "price watches, fares and FAAC excluded")
 check(not any(e["date"].startswith("1970") for e in ev), "1970 placeholder dropped")
+import contextlib
+_buf = io.StringIO()
+with contextlib.redirect_stdout(_buf):
+    NG.parse(NG_PAGE, "2026-10-18")
+check("Transport Fare Watch" in _buf.getvalue() and "Price Watch" not in _buf.getvalue(), "log note names only upcoming unserved titles (past ones left out)")
 check(NG.parse("<html>nothing</html>")[1] != [], "planted fault caught: no events array")
 check(NG.parse(NG_PAGE.replace("CPI and Inflation Report", "Prices"))[1] != [], "planted fault caught: CPI missing")
 check(C.clean_name("a  socio - economic \u2014 b -- c") == "a socio-economic, b - c", "clean_name rules")

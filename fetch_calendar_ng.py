@@ -3,7 +3,7 @@
 One official source: the National Bureau of Statistics homepage (nigerianstat.gov.ng),
 whose release calendar is a fullcalendar widget fed by an embedded array
 `[{"id":"819","title":"CPI and Inflation Report December 2025","start":"2026-01-15"}, ...]`
-(about 170 entries for 2026 in the probe of 18 Oct 2026; one placeholder is dated 1970).
+(about 170 entries for 2026 in the probe of 18 Oct 2026, plus years of past releases and one placeholder dated 1970; the first Actions run listed 826 titles that are not served, so the log now names only the upcoming ones).
 
 Served: "CPI and Inflation Report ..." (cpi), GDP reports (gdp), foreign trade in goods
 (trade) and labour force / unemployment reports (jobs). Weekly price watches, transport
@@ -40,7 +40,7 @@ def classify(title: str) -> str | None:
     return None
 
 
-def parse(page: str) -> tuple[list[dict], list[str]]:
+def parse(page: str, today: str | None = None) -> tuple[list[dict], list[str]]:
     m = re.search(r'\[\s*\{"id":"\d+","title":', page)
     if not m:
         return [], ["no embedded calendar events array found"]
@@ -55,13 +55,14 @@ def parse(page: str) -> tuple[list[dict], list[str]]:
             continue
         concept = classify(title)
         if concept is None:
-            skipped.append(title)
+            if today is None or day >= today:       # the array also holds years of past releases
+                skipped.append(title)
             continue
         out.append({"date": day, "country": "Nigeria", "concept": concept,
                     "name": clean_name(title), "source": SRC, "time": None})
     if skipped:
         stems = sorted({re.sub(r"\s+(?:\w+ )?20\d\d.*$", "", t) for t in skipped})
-        print(f"note Nigeria: {len(skipped)} events not served, e.g. {stems[:8]}")
+        print(f"note Nigeria: {len(skipped)} upcoming events not served: {stems[:25]}")
     problems = [] if any(e["concept"] == "cpi" for e in out) else ["no CPI and Inflation Report among the events"]
     return out, problems
 
@@ -69,7 +70,7 @@ def parse(page: str) -> tuple[list[dict], list[str]]:
 def fetch_events(s, today: str) -> list[dict]:
     r = s.get(URL, timeout=40)
     r.raise_for_status()
-    ev, problems = parse(r.text)
+    ev, problems = parse(r.text, today)
     if problems:
         raise ValueError("; ".join(problems))
     return ev
