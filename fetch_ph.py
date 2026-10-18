@@ -44,8 +44,11 @@ fails with the variable's values printed.
   same computation reproduces PSA's published rate from 2019 within 0.15pp.
   PSA's older published back series (0012M4ACP27) is not used: run 2 showed
   it leaves a hole before 2019 and breaks at its join with the index.
-- cpi_mom: change on the previous month in PSA's all-items index
-  (0012M4ACP22), not seasonally adjusted, to PSA's one decimal place.
+- cpi_mom: change on the previous month in PSA's all-items index, not
+  seasonally adjusted, to PSA's one decimal place. From February 1994 it uses
+  the same joined index as the y/y rate (back-cast 0012M4ACP28 to December
+  2017, then 0012M4ACP22); the join month must read within +/-2pp or the
+  series falls back to 0012M4ACP22 alone (from February 2018).
 - unemployment / participation: PSA labour force survey rates, both sexes,
   not seasonally adjusted (1B/LFS 0021B3FKEI2), rounded to PSA's published
   one decimal place (the table carries three). The survey was quarterly
@@ -309,7 +312,26 @@ def fetch_cpi() -> list:
 
 def fetch_cpi_mom() -> list:
     ix = px_query(T_CPI_INDEX, CPI_PICKS)
-    return require_current(pct_change(ix, 1), MONTHLY_MAX_AGE, "PSA CPI m/m")
+    try:
+        # v1.8.8: the same joined index the y/y rate uses (back-cast 0012M4ACP28
+        # to Dec 2017, then 0012M4ACP22 from Jan 2018), so m/m runs from Feb 1994
+        # instead of Feb 2018. The join month is checked because a basis break
+        # there would read as a one-month price jump.
+        ix_back = px_query(T_CPI_INDEX_BACK, CPI_PICKS)
+        if not (ix and ix_back):
+            raise ValueError("a CPI index table came back empty")
+        if abs(ix[0][1] / ix_back[-1][1] - 1) > 0.05:
+            raise ValueError(f"CPI index join {ix_back[-1]} -> {ix[0]} is not on one basis")
+        joined = sorted(dict(ix_back + ix).items(), key=lambda x: _key(x[0]))
+        mom = unbroken_tail(pct_change(joined, 1))
+        splice = dict(mom).get(ix[0][0])
+        if splice is None or abs(splice) > 2.0:
+            raise ValueError(f"CPI m/m at the index join ({ix[0][0]}) is {splice}, outside +/-2pp")
+        print(f"  [psa] cpi_mom joined index: {len(mom)} points, {mom[0][0]} to {mom[-1][0]}, join month {splice}")
+    except Exception as exc:
+        print(f"  [psa] cpi_mom joined index unavailable ({exc}); using the 2018-based index only")
+        mom = pct_change(ix, 1)
+    return require_current(mom, MONTHLY_MAX_AGE, "PSA CPI m/m")
 
 
 # ---------------------------------------------------------------- labour
