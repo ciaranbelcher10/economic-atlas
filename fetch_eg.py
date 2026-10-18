@@ -268,9 +268,9 @@ def imf_rate(url: str, tag: str) -> list:
 
 SERIES = [
     ("cpi", lambda: imf_rate(CPI_YOY_URL, "CPI EGY y/y"),
-     "CPI, all items, change on same month a year earlier (IMF CPI, from CAPMAS)", "%", "months"),
+     "CPI, all items, urban areas, change on same month a year earlier (IMF CPI, from CAPMAS)", "%", "months"),
     ("cpi_mom", lambda: imf_rate(CPI_MOM_URL, "CPI EGY m/m"),
-     "CPI, all items, change on previous month, not seasonally adjusted (IMF CPI)", "%", "months"),
+     "CPI, all items, urban areas, change on previous month, not seasonally adjusted (IMF CPI)", "%", "months"),
     ("trade", fetch_trade, {
         "exports": "Exports of goods, FOB, US$ converted to Egyptian pounds at the BIS monthly average rate (IMF international trade in goods)",
         "imports": "Imports of goods, CIF, US$ converted to Egyptian pounds at the BIS monthly average rate (IMF international trade in goods)",
