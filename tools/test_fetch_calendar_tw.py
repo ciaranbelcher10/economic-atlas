@@ -75,9 +75,11 @@ class R:
     def raise_for_status(self):
         if self.status_code >= 400: raise C.requests.HTTPError(str(self.status_code))
 class S:
-    def __init__(self, pages): self.pages, self.headers, self.calls = pages, {}, []
-    def get(self, url, timeout=0):
-        self.calls.append(url)
+    def __init__(self, pages, bad_tls=False): self.pages, self.headers, self.calls, self.bad_tls, self.verifies = pages, {}, [], bad_tls, []
+    def get(self, url, timeout=0, verify=True):
+        self.calls.append(url); self.verifies.append(verify)
+        if self.bad_tls and verify:
+            raise C.requests.exceptions.SSLError("certificate verify failed: unable to get local issuer certificate")
         p = int(url.split("page=")[1].split("&")[0]); v = self.pages.get(p)
         return R(status=404) if v is None else (v if isinstance(v, R) else R(v))
 class FixedDT(datetime):
@@ -96,7 +98,23 @@ try:
     check(len(sess.calls) == 3, f"paging stops when a page adds nothing new: {len(sess.calls)} requests")
     check("not served" in buf.getvalue() and "Manpower Utilization" in buf.getvalue(), "log names the indicators not served")
     check(all(x["date"] >= "2026-10-18" for x in out["events"]), "only upcoming events kept")
+    # missing-intermediate certificate: verified request fails first, then this one host is read unverified
+    sess = S({1: P1, 2: P2, 3: P2}, bad_tls=True); C.requests.Session = lambda: sess
+    buf = io.StringIO()
+    with contextlib.redirect_stdout(buf): rc = T.main()
+    check(rc == 0 and sess.verifies[0] is True and sess.verifies[1] is False and all(v is False for v in sess.verifies[1:]),
+          f"SSL failure: verified attempt first, then unverified for this host only: {sess.verifies}")
+    check(buf.getvalue().count("verification off") == 1, "the log notes the exception exactly once per run")
+    check(json.loads(Path(T.OUT).read_text())["country"] == "Taiwan", "file still written after the fallback")
+    class AlwaysBad(S):
+        def get(self, url, timeout=0, verify=True): raise C.requests.exceptions.SSLError("still bad")
+    C.requests.Session = lambda: AlwaysBad({})
     before = Path(T.OUT).read_text()
+    check(T.main() == 1 and Path(T.OUT).read_text() == before, "SSL error even unverified: file untouched")
+    class Reset(S):
+        def get(self, url, timeout=0, verify=True): raise C.requests.exceptions.ConnectionError("reset")
+    C.requests.Session = lambda: Reset({})
+    check(T.main() == 1 and Path(T.OUT).read_text() == before, "other network errors do not trigger the unverified path")
     C.requests.Session = lambda: S({1: "<html>Incapsula incident</html>"})
     check(T.main() == 1 and Path(T.OUT).read_text() == before, "bot wall: file untouched")
     C.requests.Session = lambda: S({1: R("", 403)})

@@ -27,6 +27,9 @@ import re
 import sys
 from datetime import date
 
+import requests
+import urllib3
+
 from calendar_common import clean_name, run_single
 
 OUT = "data-calendar-tw.json"
@@ -107,10 +110,29 @@ def parse(page: str) -> tuple[list[dict], list[str], list[str]]:
     return events, problems, names
 
 
+# CONFIRMED on the first Actions run (2026-10-18): eng.stat.gov.tw does not send its
+# intermediate certificate, so the runner rejects it ("unable to get local issuer
+# certificate"); every Taiwanese government page in the 18-19 Oct probes needed the same.
+# The site is not self-signed, it is just missing the link to a root that the runner's
+# certificate bundle lacks. Same shape as the MoSPI exception in fetch_in.py: a normal
+# verified request is always tried first, verification is switched off only after that
+# fails with an SSL error, only for this one host (URL above), and the log says so on every
+# run. The page is then accepted only if it parses to the expected calendar structure
+# (a VueData list with 12-month entries and a labor force indicator).
 def fetch_events(s, today: str) -> list[dict]:
     events, seen_names, unserved = [], set(), []
+    verify = True
     for p in range(1, MAX_PAGES + 1):
-        r = s.get(URL.format(p=p), timeout=60)
+        try:
+            r = s.get(URL.format(p=p), timeout=60, verify=verify)
+        except requests.exceptions.SSLError:
+            if not verify:
+                raise
+            verify = False
+            urllib3.disable_warnings(urllib3.exceptions.InsecureRequestWarning)
+            print("note Taiwan: eng.stat.gov.tw certificate chain does not verify on this runner "
+                  "(missing intermediate); reading this one host with verification off")
+            r = s.get(URL.format(p=p), timeout=60, verify=False)
         r.raise_for_status()
         ev, problems, names = parse(r.text)
         if problems:
