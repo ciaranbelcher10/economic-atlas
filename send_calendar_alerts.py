@@ -73,6 +73,7 @@ ALL_CALENDAR_FILES = [
     "data-calendar-br.json", "data-calendar-tr.json",
     "data-calendar-cn.json", "data-calendar-my.json", "data-calendar-nz.json",
     "data-calendar-cz.json", "data-calendar-hu.json",
+    "data-calendar-is.json", "data-calendar-hk.json", "data-calendar-vn.json", "data-calendar-ng.json",
     # Not created by any fetch script yet -- see module docstring's "DATA
     # GAP" section. Included here so it starts working the moment that
     # export exists, without needing this script touched again.
@@ -204,7 +205,8 @@ COUNTRY_SLUGS = {
     "Colombia": "colombia", "Turkey": "turkey", "Indonesia": "indonesia",
     "Poland": "poland", "Switzerland": "switzerland", "Argentina": "argentina",
     "Sweden": "sweden", "Singapore": "singapore", "Austria": "austria",
-    "Thailand": "thailand",
+    "Thailand": "thailand", "Iceland": "iceland", "Hong Kong": "hong-kong",
+    "Vietnam": "vietnam", "Nigeria": "nigeria",
 }
 
 
