@@ -283,7 +283,7 @@ def fetch_eurostat_trade_world(stk_flow: str) -> list | None:
     """
     url = (f"{EUROSTAT_STATS_BASE}/ext_st_27_2020msbec?format=JSON&lang=EN"
           f"&geo=FI&partner=WORLD&indic_et=TRD_VAL&bclas_bec=TOTAL"
-          f"&stk_flow={stk_flow}&sinceTimePeriod=2015")
+          f"&stk_flow={stk_flow}&sinceTimePeriod=2002")
     try:
         r = requests.get(url, timeout=60,
                          headers={"User-Agent": "economic-atlas/0.1"})

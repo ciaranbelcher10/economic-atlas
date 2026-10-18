@@ -215,7 +215,7 @@ def fetch_eurostat_trade_world(stk_flow: str) -> list | None:
     (Eurostat EXT_ST_27_2020MSBEC, the dataset every EU page uses)."""
     return _eurostat(f"{EUROSTAT_STATS_BASE}/ext_st_27_2020msbec?format=JSON&lang=EN"
                      f"&geo=CZ&partner=WORLD&indic_et=TRD_VAL&bclas_bec=TOTAL"
-                     f"&stk_flow={stk_flow}&sinceTimePeriod=2015",
+                     f"&stk_flow={stk_flow}&sinceTimePeriod=2002",
                      f"eurostat-trade-world-{stk_flow}-CZ")
 
 
