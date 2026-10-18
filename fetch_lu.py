@@ -25,7 +25,8 @@ the Estonia page, because FRED's OECD copies drifted from Eurostat there:
 - ecb_rate: ECB deposit facility rate (ECBDFR), served from 1999-01 (SERIES_START);
   a founding member, so the ECB rate covers the whole series; before
   1999 the franc was at par with the Belgian franc.
-- bond_yield_10y: FRED IRLTLT01LUM156N; fallback Eurostat irt_lt_mcby_m
+- bond_yield_10y: FRED IRLTLT01LUM156N; fallback Eurostat irt_lt_mcby_m; since v1.8.11
+  months after FRED's last come from Eurostat when the last 12 overlap within 0.02pp
   (the EMU convergence-criterion 10-year yield), monthly.
 - trade_balance: Eurostat ext_st_27_2020msbec, world partner, EUR.
 - business_confidence: OECD BCICP (REF_AREA LUX), the script's only OECD
@@ -438,6 +439,32 @@ def fetch_eurostat_fallback(name: str):
     return None
 
 
+def extend_with_eurostat(points: list, name: str = "bond_yield_10y",
+                         tol: float = 0.02, window: int = 12) -> list:
+    """v1.8.11: the FRED copy of the OECD yield (IRLTLT01LUM156N) lands about a
+    month after Eurostat's irt_lt_mcby_m, which carries the same EMU convergence
+    criterion yield (the two agreed to 0.005pp over Sep 2025 to Aug 2026). Months
+    after the FRED series' last are appended from Eurostat, but only if the last
+    `window` months overlap within `tol` pp, so a change of basis can never be
+    spliced in silently. Any failure leaves the FRED series untouched."""
+    got = fetch_eurostat_fallback(name)
+    if not got:
+        print(f"  [eurostat-extend] {name}: no Eurostat answer, FRED series kept as is")
+        return points
+    es, have = dict(got[0]), dict(points)
+    overlap = [p for p, _ in points[-window:] if p in es]
+    gap = max((abs(have[p] - es[p]) for p in overlap), default=None)
+    if len(overlap) < 6 or gap is None or gap > tol:
+        print(f"  [eurostat-extend] {name}: overlap check failed ({len(overlap)} months, "
+              f"max gap {gap}); FRED series kept as is")
+        return points
+    extra = [[p, v] for p, v in sorted(es.items()) if p > points[-1][0]]
+    if extra:
+        print(f"  [eurostat-extend] {name}: +{len(extra)} month(s) from Eurostat "
+              f"({extra[0][0]} to {extra[-1][0]}), overlap max gap {gap:.3f}pp over {len(overlap)} months")
+    return points + extra
+
+
 def main() -> int:
     out = {
         "updated": datetime.now(timezone.utc).strftime("%Y-%m-%dT%H:%M:%SZ"),
@@ -490,6 +517,11 @@ def main() -> int:
                 if name in failures:
                     failures.remove(name)
                 print(f"  ok  {name:<16} {len(pts):>5} observations ({pts[0][0]} to {pts[-1][0]}, Eurostat fallback)")
+
+        # v1.8.11: bring the FRED-sourced yield level with Eurostat's latest month.
+        _bond = out["series"].get("bond_yield_10y")
+        if _bond and "IRLTLT01LUM156N" in _bond["label"]:
+            _bond["points"] = extend_with_eurostat(_bond["points"])
 
         # gdp_growth: derived from gdp_real (QoQ), since gdp_level has no
         # individually-confirmed series for Luxembourg -- see build notes.
