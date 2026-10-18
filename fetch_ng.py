@@ -58,6 +58,10 @@ IMF = "https://api.imf.org/external/sdmx/3.0/data/dataflow/IMF.STA/"
 CPI_YOY_URL = IMF + "CPI/~/NGA.CPI._T.YOY_PCH_PA_PT.M?c[TIME_PERIOD]=ge:2000-M01"
 CPI_MOM_URL = IMF + "CPI/~/NGA.CPI._T.POP_PCH_PA_PT.M?c[TIME_PERIOD]=ge:2000-M01"
 POLICY_URL = IMF + "MFS_IR/~/NGA.MFS166_RT_PT_A_PT.M?c[TIME_PERIOD]=ge:2000-M01"
+# v1.8.7: the CBN's own decisions page, the issuing source. The IMF mirror
+# (POLICY_URL) lagged six months and showed 27.0% for Feb to Apr 2026 after
+# the CBN had cut to 26.5% on 24 Feb 2026 (304th MPC); it is now the fallback.
+CBN_DECISIONS_URL = "https://www.cbn.gov.ng/MonetaryPolicy/Decisions.html"
 WB_URL = "https://api.worldbank.org/v2/country/NGA/indicator/{code}?format=json&per_page=200"
 
 # ---------------------------------------------------------------- helpers
@@ -220,12 +224,114 @@ def imf_rate(url: str, tag: str) -> list:
     return require_current(pts, MONTHLY_MAX_AGE, f"IMF {tag}")
 
 
-def fetch_policy_rate() -> list:
+def fetch_policy_rate_imf() -> list:
     pts = [[p, round(v, 2)] for p, v in monthly(imf_csv(POLICY_URL, "MFS_IR NGA MFS166"), {})]
     bad = [p for p in pts if not 0 < p[1] < 60]
     if bad:
         raise ValueError(f"IMF policy rate: implausible value {bad[0]}")
-    return require_current(pts, POLICY_MAX_AGE, "IMF MFS166 policy rate")
+    return pts
+
+
+_MONTHS = {m: i for i, m in enumerate(
+    "january february march april may june july august september october november december".split(), 1)}
+_MON_RE = "|".join(_MONTHS)
+# "September 21-22, 2026", "July 24 and 25, 2023", "18th and 19th July 2022",
+# "21st January 2013", "July, 2020", "February 26-27" (year then from the body).
+_DATE_RE = re.compile(r"\b(%s)\b[^.;:]{0,16}?\b((?:19|20)\d\d)\b" % _MON_RE, re.I)
+_PC = r"(?:per\s*cent|percent|%)"
+# The MPR item runs from the first mention to its first "per cent", plus a
+# following "to X per cent" when the item reads "from A per cent to B per cent".
+# Decimal points ("26.5") rule out stopping at a full stop.
+_MPR_RE = re.compile(r"(?:\bMPR\b|Monetary Policy Rate)(?:(?!%s).){0,140}?%s(?:\s*to\s+\d{1,2}(?:\.\d+)?\s*%s)?"
+                     % (_PC, _PC, _PC), re.I)
+_TO_RE = re.compile(r"\bto\s+(\d{1,2}(?:\.\d+)?)\s*" + _PC, re.I)
+_AT_RE = re.compile(r"\bat\s+(\d{1,2}(?:\.\d+)?)\s*" + _PC, re.I)
+
+
+def parse_cbn_decisions(text: str) -> list:
+    """[(YYYY-MM, rate)] decision months from the CBN decisions page text.
+
+    The page is a run of blocks, each a heading with the meeting date and a
+    numbered list whose MPR item reads "... to X per cent" (a change) or
+    "... at X per cent" (a hold or reset). Blocks with no MPR item are skipped.
+    """
+    text = re.sub(r"<[^>]+>", " ", text)
+    text = re.sub(r"&nbsp;|&#160;", " ", text)
+    text = re.sub(r"\s+", " ", text)
+    blocks = re.split(r"(?=Key Decisions of the Central Bank|\bCommuniqu|\d{3}(?:st|nd|rd|th) MPC Meeting)", text)
+    out = {}
+    for b in blocks:
+        mpr = _MPR_RE.search(b)
+        d = _DATE_RE.search(b)
+        if not mpr or not d:
+            continue
+        sent = mpr.group(0)
+        v = _TO_RE.search(sent) or _AT_RE.search(sent)
+        if not v:
+            continue
+        per = f"{d.group(2)}-{_MONTHS[d.group(1).lower()]:02d}"
+        rate = float(v.group(1))
+        if not 0 < rate < 60:
+            raise ValueError(f"CBN decisions: implausible MPR {rate} for {per}")
+        if per in out and out[per] != rate:
+            raise ValueError(f"CBN decisions: two different rates for {per}: {out[per]}, {rate}")
+        out[per] = rate
+    return sorted(out.items())
+
+
+def merge_policy(cbn: list, imf: list, now: str) -> list:
+    """Month-end rate from the union of both sources' change events.
+
+    Neither source is complete. The CBN page omits some decisions (the 2009
+    cuts, Sep 2010 to Sep 2011, the Nov 2024 rise to 27.5%), and the IMF
+    mirror lags and missed the 24 Feb 2026 cut to 26.5% (it shows 27.0% for
+    Feb to Apr 2026). An event is a month where the IMF value changes, or a
+    CBN decision month; each month takes the latest event, and a CBN decision
+    wins a month both report. Refuses when more than two CBN decisions inside
+    the IMF's range disagree with the IMF value for that month, which is what
+    a garbled parse looks like.
+    """
+    if not imf:
+        raise ValueError("policy rate: no IMF series to merge with")
+    im = dict(imf)
+    late = [(p, v, im[p]) for p, v in cbn if p in im and abs(im[p] - v) > 0.01]
+    if len(late) > 2:
+        raise ValueError(f"CBN decisions disagree with the IMF in {len(late)} months: {late[:4]}")
+    for p, v, w in late:
+        print(f"  [cbn] {p}: CBN decided {v}, IMF shows {w}; using the CBN")
+    events = {}
+    prev = None
+    for p, v in imf:
+        if v != prev:
+            events[p] = v
+        prev = v
+    events.update(dict(cbn))
+    y, m = map(int, imf[0][0].split("-"))
+    ty, tm = map(int, now.split("-"))
+    out, cur = [], None
+    while (y, m) <= (ty, tm):
+        per = f"{y}-{m:02d}"
+        cur = events.get(per, cur)
+        out.append([per, cur])
+        y, m = (y + 1, 1) if m == 12 else (y, m + 1)
+    print(f"  [cbn] {len(cbn)} decisions merged; IMF to {imf[-1][0]}, served to {out[-1][0]}")
+    return out
+
+
+def fetch_policy_rate() -> list:
+    imf = fetch_policy_rate_imf()
+    try:
+        r = requests.get(CBN_DECISIONS_URL, timeout=60, headers=UA)
+        print(f"  [cbn] decisions status={r.status_code} bytes={len(r.content)}")
+        r.raise_for_status()
+        now = datetime.now(timezone.utc).strftime("%Y-%m")
+        pts = merge_policy(parse_cbn_decisions(r.text), imf, now)
+        return require_current(pts, MONTHLY_MAX_AGE, "CBN policy rate")
+    except Exception as exc:
+        # Kept, not hidden: the IMF series still carries a month label, and
+        # the guard keeps the stored series if this too is out of date.
+        print(f"  [cbn] no usable decisions ({exc}); falling back to IMF MFS166")
+        return require_current(imf, POLICY_MAX_AGE, "IMF MFS166 policy rate")
 
 
 SERIES = [
@@ -233,7 +339,7 @@ SERIES = [
      "CPI, all items, change on same month a year earlier (IMF CPI, from Nigeria's National Bureau of Statistics)", "%", "months"),
     ("cpi_mom", lambda: imf_rate(CPI_MOM_URL, "CPI NGA m/m"),
      "CPI, all items, change on previous month, not seasonally adjusted (IMF CPI)", "%", "months"),
-    ("policy_rate", fetch_policy_rate, "Central Bank of Nigeria Monetary Policy Rate, monthly (IMF monetary and financial statistics)", "%", "months"),
+    ("policy_rate", fetch_policy_rate, "Central Bank of Nigeria Monetary Policy Rate, end of month (CBN MPC decisions; IMF monetary and financial statistics before 2008)", "%", "months"),
     ("gdp_level", lambda: wb_scaled("NY.GDP.MKTP.CN"), "GDP, current prices, annual (World Bank)", "NGNm", "years"),
     ("gdp_real", lambda: wb_scaled("NY.GDP.MKTP.KN"), "Real GDP, constant prices, annual (World Bank)", "NGNm", "years"),
     ("gdp_growth", fetch_gdp_growth, "Real GDP growth, change on previous year (World Bank)", "%", "years"),

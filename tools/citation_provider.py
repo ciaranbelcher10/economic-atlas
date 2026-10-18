@@ -89,6 +89,19 @@ def page_sources(html):
 def page_file(country):
     return {"UK": "uk.html", "US": "us.html"}.get(country, country.lower().replace(" ", "") + ".html")
 
+# Explainer drift in the original 32 pages, found in the v9 audit and left for
+# a separate pass. Listed so that any NEW drift stands out; remove an entry
+# once its page and popover text agree. Never add a country added since v1.7.0.
+KNOWN_DESC_DRIFT = {
+    ("Brazil", "gdp_real"), ("Colombia", "employment_rate"), ("Denmark", "cpi_national"),
+    ("India", "unemployment"), ("Ireland", "cpi_national"), ("Japan", "debt_gdp"),
+    ("Poland", "cpi"), ("Poland", "debt_gdp"), ("Singapore", "debt_gdp"),
+    ("Sweden", "cpi_national"), ("Sweden", "trade_balance"), ("Switzerland", "debt_gdp"),
+    ("Thailand", "unemployment"), ("Turkey", "gdp_real"), ("Turkey", "debt_gdp"),
+    ("US", "cpi_mom_sa"),
+}
+
+
 def main():
     show_all = "--all" in sys.argv
     src = open(os.path.join(REPO, "compare.html"), encoding="utf-8").read()
@@ -140,7 +153,14 @@ def main():
     # Each country page's info panel is meant to carry the popover file's
     # text verbatim. Any difference is drift, whoever is right.
     info_rx = re.compile(r'\n  ([a-z_0-9]+): \{\n    description: "(?:[^"\\]|\\.)*",\n    source: "((?:[^"\\]|\\.)*)"')
+    # v1.8.7: the description is a surface too. Until now only `source` was
+    # compared, so Egypt's fiscal-year and Ras El-Hekma notes and Nigeria's
+    # 2023 survey-break note lived on the country page alone while the
+    # popover, Compare and the indicator pages (all fed by the popover file)
+    # showed the shorter text.
+    desc_rx = re.compile(r'\n  ([a-z_0-9]+): \{\n    description: "((?:[^"\\]|\\.)*)"')
     equal = drift = 0
+    d_equal = d_drift = d_known = 0
     for c, metrics in pops.items():
         pf = os.path.join(REPO, page_file(c))
         if not os.path.exists(pf):
@@ -154,6 +174,17 @@ def main():
             else:
                 drift += 1
                 rows.append(f"DRIFT     {c:13} {k:22} page info panel differs from data-metric-sources.json")
+        for m in desc_rx.finditer(open(pf, encoding="utf-8").read()):
+            k = m.group(1)
+            if k not in metrics or "description" not in metrics[k]:
+                continue
+            if json.loads('"' + m.group(2) + '"') == metrics[k]["description"]:
+                d_equal += 1
+            elif (c, k) in KNOWN_DESC_DRIFT:
+                d_known += 1
+            else:
+                d_drift += 1
+                rows.append(f"DESC DRIFT {c:12} {k:22} page explainer differs from data-metric-sources.json")
     # Every infoKey a page references must have a panel behind it, and every
     # panel should be reachable. A tile pointing at a missing panel renders an
     # empty popover; a panel nothing points at is dead weight that drifts
@@ -182,9 +213,10 @@ def main():
     print(f"\n  compared {checked} (country, metric) rows with two or more classifiable surfaces")
     print(f"  MISMATCH      {mism}")
     print(f"  INFO PANEL    {equal} equal to the popover file, {drift} drifted")
+    print(f"  DESCRIPTION   {d_equal} equal, {d_drift} drifted, {d_known} known (KNOWN_DESC_DRIFT, original 32 only)")
     print(f"  INFO KEYS     {orphan_ref} referencing a missing panel, {orphan_panel} panels referenced by nothing")
     print(f"  UNCLASSIFIED  {uncls}  (a surface naming no known provider family; not evidence of a correct citation)")
-    return 1 if (mism or drift or orphan_ref) else 0
+    return 1 if (mism or drift or d_drift or orphan_ref) else 0
 
 if __name__ == "__main__":
     sys.exit(main())

@@ -52,7 +52,7 @@ def country_to_script():
 
 # Identifiers we expect to see: FRED-style uppercase, Eurostat lowercase
 # dataset ids, World Bank dotted indicators, IMF indicator codes.
-ID_RE = re.compile(r"\b(?:GGX[A-Z]+_NGDP|[A-Z][A-Z0-9]*(?:\.[A-Z0-9]+){2,}|[A-Z][A-Z0-9]{5,}|(?:tei|gov|une|nama|namq|prc|ei|sts|ext|bop)[a-z]*_?[a-z0-9_]*\d[a-z0-9_]*|une_rt_[maq]|prc_hicp_minr|DF_IALFS_UNE_M)\b")
+ID_RE = re.compile(r"\b(?:[A-Z]{3}\.[A-Z]+(?:\.[A-Z0-9_]+){2,}|GGX[A-Z]+_NGDP|[A-Z][A-Z0-9]*(?:\.[A-Z0-9]+){2,}|[A-Z][A-Z0-9]{5,}|(?:tei|gov|une|nama|namq|prc|ei|sts|ext|bop)[a-z]*_?[a-z0-9_]*\d[a-z0-9_]*|une_rt_[maq]|prc_hicp_minr|DF_IALFS_UNE_M)\b")
 STOPWORDS = {
     "GDP", "CPI", "HICP", "OECD", "IMF", "BIS", "ONS", "FRED", "EDP", "COICOP",
     "USD", "EUR", "NSA", "PPP", "YoY", "QoQ", "ILO", "WEO", "IFS", "EU", "ECB",
@@ -139,6 +139,38 @@ def foreign_ids_for(script, country):
     return theirs - mine
 
 
+def _const_key(src, const):
+    """SDMX key in a *_URL constant, joining multi-line string pieces."""
+    m = re.search(r"^%s\s*=(.*?)(?=^\S)" % re.escape(const), src, re.M | re.S)
+    if not m:
+        return None
+    joined = "".join(re.findall(r'"([^"]*)"', m.group(1)))
+    k = re.search(r"/~/([A-Z]{3}\.[A-Z]+(?:\.[A-Z0-9_]+){2,})", joined)
+    return k.group(1) if k else None
+
+
+def _func_body(src, name):
+    m = re.search(r"^def %s\(.*?(?=^\S)" % re.escape(name), src, re.M | re.S)
+    return m.group(0) if m else ""
+
+
+def _body_ids(src, name, depth):
+    """Ids a fetch helper uses: World Bank codes, IMF SDMX keys (literal or via
+    a *_URL constant), BCRP codes. Follows `depth` levels of local calls."""
+    body = _func_body(src, name)
+    ids = set(re.findall(r'fetch_worldbank\(\s*"([A-Z0-9.]+)"', body))
+    ids |= set(re.findall(r'/~/([A-Z]{3}\.[A-Z]+(?:\.[A-Z0-9_]+){2,})', body))
+    for const in re.findall(r"\b([A-Z][A-Z_]*_URL)\b", body):
+        k = _const_key(src, const)
+        if k:
+            ids.add(k)
+    if not ids and depth > 0:
+        for call in set(re.findall(r"\b([a-z_][a-z_0-9]*)\(", body)) - {name}:
+            if re.search(r"^def %s\(" % re.escape(call), src, re.M):
+                ids |= _body_ids(src, call, depth - 1)
+    return ids
+
+
 def script_ids_for(script, metric):
     """Every identifier the script associates with this metric."""
     path = os.path.join(REPO, script)
@@ -164,9 +196,32 @@ def script_ids_for(script, metric):
         if m:
             ids.add(m.group(1))
     # IMF WEO fetched directly (imf_weo.py): the indicator code is the id.
-    m = re.search(r'\("%s",\s*lambda:\s*imf_weo\.fetch\("[A-Z]{3}",\s*imf_weo\.(DEBT|DEFICIT)\)' % re.escape(metric), s)
+    # v1.8.7: the first argument is often a variable (ISO3), not a literal.
+    m = re.search(r'\("%s",\s*lambda:\s*imf_weo\.fetch\([^,()]+,\s*imf_weo\.(DEBT|DEFICIT)\)' % re.escape(metric), s)
     if m:
         ids.add({"DEBT": "GGXWDG_NGDP", "DEFICIT": "GGXCNL_NGDP"}[m.group(1)])
+    # v1.8.7: shapes used by the non-OECD pages added since v1.7.0. Each is
+    # an exact helper name, never a catch-all, because many helpers take a
+    # transformation code (G1, GY, SA1, CON, GD, B9) that is not a series id.
+    q = re.escape(metric)
+    for pat in (r'\("%s",\s*lambda:\s*(?:weo|weo_level)\("([A-Z][A-Z0-9_]+)"',   # IMF WEO code
+                r'\("%s",\s*lambda:\s*wb_scaled\("([A-Z0-9.]+)"',                # World Bank code
+                r'\("%s",\s*lambda:\s*fetch_[a-z_]+\("([A-Z]{2}\d{5}[A-Z]{2})"'):  # BCRP series code
+        m = re.search(pat % q, s)
+        if m:
+            ids.add(m.group(1))
+    # IMF SDMX rate fetched through a URL constant: the series key is the id.
+    m = re.search(r'\("%s",\s*lambda:\s*imf_rate\(([A-Z_]+_URL)' % q, s)
+    if m:
+        k = _const_key(s, m.group(1))
+        if k:
+            ids.add(k)
+    # v1.8.7: a bare function registered for the metric, ("cpi", fetch_cpi,
+    # ...). Read the ids out of its body, following one level of helper calls
+    # (fetch_cpi -> cpi_index), and resolve *_URL constants to their keys.
+    m = re.search(r'^\s*\(\"%s\",\s*([a-z_][a-z_0-9]*)\s*,' % q, s, re.M)
+    if m and not ids:
+        ids |= _body_ids(s, m.group(1), depth=1)
     # Quarterly GDP fetched directly from Eurostat (eurostat_gdp.py, v1.6.32):
     # the dataset is the id; the FRED table entries remain only as fallback.
     if "eurostat_gdp.fetch_levels(" in s and metric in ("gdp_level", "gdp_real", "gdp_growth"):
@@ -251,7 +306,9 @@ if __name__ == "__main__":
             # the narrow case: the used id written immediately after the word
             # "series", which is the house citation shape.
             if not cited and any(
-                    re.search(r"\bseries " + re.escape(u) + r"\b", citation)
+                    (re.search(r"\bseries " + re.escape(u) + r"\b", citation)
+                     # v1.8.7: WEO's short codes are cited in brackets, "(NGDP_R)".
+                     or re.search(r"\(" + re.escape(u) + r"\)", citation))
                     for u in used):
                 counts["MATCH"] += 1
                 continue
