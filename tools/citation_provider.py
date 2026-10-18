@@ -92,14 +92,7 @@ def page_file(country):
 # Explainer drift in the original 32 pages, found in the v9 audit and left for
 # a separate pass. Listed so that any NEW drift stands out; remove an entry
 # once its page and popover text agree. Never add a country added since v1.7.0.
-KNOWN_DESC_DRIFT = {
-    ("Brazil", "gdp_real"), ("Colombia", "employment_rate"), ("Denmark", "cpi_national"),
-    ("India", "unemployment"), ("Ireland", "cpi_national"), ("Japan", "debt_gdp"),
-    ("Poland", "cpi"), ("Poland", "debt_gdp"), ("Singapore", "debt_gdp"),
-    ("Sweden", "cpi_national"), ("Sweden", "trade_balance"), ("Switzerland", "debt_gdp"),
-    ("Thailand", "unemployment"), ("Turkey", "gdp_real"), ("Turkey", "debt_gdp"),
-    ("US", "cpi_mom_sa"),
-}
+KNOWN_DESC_DRIFT = set()   # v1.8.13: all 16 reconciled, so any new page/popover wording difference now fails the run
 
 
 def main():
