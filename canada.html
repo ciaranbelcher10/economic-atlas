@@ -2628,7 +2628,7 @@ function render(data){
 /* ---------------------- Dollarise / Make it real ---------------------- */
 let PAGE_DATA = null;
 const TOGGLE_STATE = { real:false, dollar:false };
-const CURRENCY_KEYS = ["gdp_level","gdp_real","net_debt","deficit","trade_balance","exports","imports"];
+const CURRENCY_KEYS = ["gdp_level","gdp_real","net_debt","deficit","debt_interest","trade_balance","exports","imports"];
 const CONTAINER_IDS = ["hero","tiles-gdp","tiles-inflation","tiles-labour","tiles-trade","tiles-public","tiles-markets",
                         "charts-headline","charts-gdp","charts-inflation","charts-labour","charts-trade","charts-public","charts-markets"];
 function scaleOf(unitStr){
@@ -2761,7 +2761,7 @@ function realFxRateYear(yr, history){
 }
 function convertRealSeriesToUSD(series, fx){
   const yr = realFxYear(series);
-  const rate = (fx.history && fx.history.length && yr) ? rateForPeriod(yr, fx.history) : fx.rate;
+  const rate = (fx.history && fx.history.length && yr) ? rateForPeriod(realFxRateYear(yr, fx.history), fx.history) : fx.rate;
   const newUnit = "$"+series.unit.replace(/^(?:[A-Za-z]+(?=(?:m|bn|tn)$)|[^a-zA-Z0-9]+)/,"");
   return {...series, unit:newUnit, real_fx_year:yr,
           points: series.points.map(([p,v])=>[p, fx.direction==="multiply" ? v*rate : v/rate])};

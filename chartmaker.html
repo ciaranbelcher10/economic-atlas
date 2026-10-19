@@ -2128,13 +2128,25 @@ function resolveGDPPoints(reg, concept, country, raw){
   if(GDP_SAAR_COUNTRIES[country]) return raw.points;
   return annualGDP({freq: raw.freq, points: raw.points}).points;
 }
+// v1.9.0: a series is only offered for a metric when its unit fits that metric
+// (same rule as compare.html's unitCompatible). The UK and US publish
+// government borrowing as a currency amount, so it is not offered under
+// "Government deficit, % of GDP" next to other countries' percentages.
+function unitCompatible(concept, series){
+  var want = CONCEPT_UNIT[concept];
+  var u = (series && series.unit) || "";
+  if(want === "%") return u === "%";
+  if(want === "index") return u === "index";
+  if(want === "currency") return u !== "" && u !== "%" && u !== "index";
+  return true;
+}
 function getSeries(country, concept){
   var candidates = CONCEPT_KEYS[concept];
   var reg = REGISTRY[country];
   if(!candidates || !reg) return null;
   for(var i=0;i<candidates.length;i++){
     var raw = reg[candidates[i]];
-    if(raw){
+    if(raw && unitCompatible(concept, raw)){
       var pts = raw.points;
       if(concept === "gdp_level" || concept === "gdp_real"){
         pts = resolveGDPPoints(reg, concept, country, raw);
