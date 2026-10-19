@@ -222,6 +222,13 @@ def script_ids_for(script, metric):
     m = re.search(r'^\s*\(\"%s\",\s*([a-z_][a-z_0-9]*)\s*,' % q, s, re.M)
     if m and not ids:
         ids |= _body_ids(s, m.group(1), depth=1)
+    # v1.8.19: Statistics Iceland PxWeb (fetch_is.py). The table id in PX_TRADE_URL
+    # (UTA06001) is the id; the row codes in PX_ROWS are rows of that table, not series ids.
+    if metric in ("exports", "imports", "trade_balance"):
+        m = re.search(r"^PX_TRADE_URL\s*=\s*\((.*?)\)", s, re.M | re.S)
+        t = re.search(r"\b([A-Z]{3}\d{5})\.px\b", m.group(1)) if m else None
+        if t:
+            ids.add(t.group(1))
     # Quarterly GDP fetched directly from Eurostat (eurostat_gdp.py, v1.6.32):
     # the dataset is the id; the FRED table entries remain only as fallback.
     if "eurostat_gdp.fetch_levels(" in s and metric in ("gdp_level", "gdp_real", "gdp_growth"):

@@ -1,7 +1,8 @@
 """Pre-launch audit of data-is.json (v1.7.56, full page, an OECD member).
 GDP, CPI and unemployment are Statistics Iceland's figures as the OECD
-republishes them, the key rate is from BIS, goods trade from the IMF, FX
-from the World Bank (annual). Nothing about Iceland is shown to users until
+republishes them, the key rate is from BIS, goods trade from Statistics
+Iceland's own table UTA06001 from 2011 (the IMF, converted at the BIS rate,
+before it), FX from the World Bank (annual). Nothing about Iceland is shown to users until
 this passes on a file written by the real pipeline.
 
     python3 tools/audit_is.py                 # data-is.json, with cross-checks
@@ -12,7 +13,9 @@ Cross-checks, each against a different publisher or an identity:
               rates, and vs BIS's independent long-run CPI
   GDP         the OECD's q/q and y/y vs the change in the real level served
   FX          World Bank annual vs the mean of BIS monthly averages
-  trade       krónur / BIS rate = the IMF's own US$
+  trade       2011 on: every served month equals Statistics Iceland's UTA06001
+              (an independent pull, not fetch_is); before 2011: krónur / BIS rate
+              = the IMF's own US$
 Ranges are first estimates from the 13 Oct 2026 probe; resize only with the
 publisher's figure in a comment. Exit 1 on any FAIL. Note the OECD answers
 only in fetch_is.py's oecd_turn hour; the audit itself calls the OECD once.
@@ -48,10 +51,12 @@ EXPECT = {
     "current_account": ("%", "years", -30, 15, None),          # 2006-08 near -20%
     "fdi": ("%", "years", -150, 150, None),                    # holding-company flows swing wildly
 }
-# Run 4 (13 Oct 2026): months where the IMF's imports equal its exports
-# exactly (a copied figure) are left out by fetch_is.drop_mirrored.
-KNOWN_GAPS = {(k, p): "the IMF's imports equal its exports exactly: a copied figure, left out"
-              for k in ("exports", "imports", "trade_balance") for p in ("2013-03", "2013-04", "2026-01")}
+# v1.8.19: no known gaps. 2013-03, 2013-04 and 2026-01 were once left out as "copied IMF figures";
+# Statistics Iceland shows real, unequal exports and imports in all three, and they are served.
+KNOWN_GAPS = {}
+PX_URL = ("https://px.hagstofa.is/pxen/api/v1/en/Efnahagur/utanrikisverslun/"
+          "1_voruvidskipti/01_voruskipti/UTA06001.px")
+SI_START = "2011-01"
 KNOWN_JUMPS = {
     # Run 2 (13 Oct 2026): 2.9 (Jun) -> 4.5 (Jul), then 4.7, 4.9, 5.1, 5.5 to
     # November: a level shift that held, not a one-month survey blip.
@@ -66,7 +71,7 @@ OFFICIAL = {
     "gdp_growth": "Statistics Iceland, SA q/q", "gdp_growth_yoy": "Statistics Iceland, y/y",
     "cpi": "Statistics Iceland monthly CPI release, y/y", "cpi_mom": "Statistics Iceland CPI, m/m",
     "unemployment": "Statistics Iceland labour force survey, SA", "policy_rate": "Central Bank of Iceland key rate",
-    "exports": "Statistics Iceland external trade (ISK; IMF US$ converted here)", "imports": "Statistics Iceland external trade",
+    "exports": "Statistics Iceland external trade UTA06001 (ISK, from 2011; IMF US$ converted before)", "imports": "Statistics Iceland external trade UTA06001",
     "trade_balance": "Statistics Iceland balance", "debt_gdp": "IMF WEO", "deficit": "IMF WEO",
     "current_account": "World Bank", "fdi": "World Bank",
 }
@@ -119,13 +124,70 @@ def qoq_identity(d, tol):
         f"{len(got)} quarters, largest gap {w} pp (tolerance {tol})")
 
 
+def issuer_trade():
+    """Statistics Iceland UTA06001 pulled independently of fetch_is: rows chosen by their text."""
+    import requests
+    meta = requests.get(PX_URL, timeout=60, headers=K.UA).json()
+    tv = next(v for v in meta["variables"] if v.get("time"))
+    pv = next(v for v in meta["variables"] if not v.get("time"))
+    want = {"exports": "exports fob, total", "imports": "imports cif, total"}
+    codes = {k: next(c for c, t in zip(pv["values"], pv["valueTexts"]) if t.strip().lower() == txt) for k, txt in want.items()}
+    q = {"query": [{"code": pv["code"], "selection": {"filter": "item", "values": list(codes.values())}},
+                   {"code": tv["code"], "selection": {"filter": "item", "values": tv["values"]}}],
+         "response": {"format": "json-stat2"}}
+    js = requests.post(PX_URL, json=q, timeout=120, headers=K.UA).json()
+    n = len(tv["values"])
+    out = {}
+    for row, key in enumerate(codes):
+        out[key] = {tv["values"][j].replace("M", "-"): js["value"][row * n + j] for j in range(n)
+                    if js["value"][row * n + j] is not None}
+    return out
+
+
+def tail_vs_issuer(d):
+    src, rows, missing = issuer_trade(), [], []
+    for key in ("exports", "imports"):
+        for p, v in d["series"][key]["points"]:
+            if p >= SI_START:
+                if p in src[key]:
+                    rows.append((key, p, round(v - src[key][p], 2)))
+                else:
+                    missing.append((key, p))
+    bad = [r for r in rows if abs(r[2]) > 0.05]
+    last = max(src["exports"])
+    served = d["series"]["exports"]["points"][-1][0]
+    res("PASS" if rows and not bad and not missing else "FAIL",
+        "Trade 2011 on: every served month equals Statistics Iceland's UTA06001 (krónur million)",
+        f"{len(rows)} months compared, {len(bad)} differ (largest {K.worst(rows)}), {len(missing)} not at the issuer")
+    res("PASS" if served >= last or K.back(last, 1) == served else "FAIL",
+        "Trade ends at the issuer's last month (or one before it)", f"served to {served}, issuer to {last}")
+
+
+def head_vs_imf(d):
+    """Before 2011 the series is the IMF's US$ at BIS's monthly average rate."""
+    rate = K.bis_avg("IS", "ISK")
+    usd = {}
+    for r in K.csv_rows(K.IMF + f"ITG/~/ISL.*.*.M?c[TIME_PERIOD]=ge:2006-M01"):
+        if r.get("UNIT") == "USD" and r.get("OBS_VALUE") and (r.get("INDICATOR"), r.get("VALUATION")) in (("XG", "FOB"), ("MG", "CIF")):
+            usd[(r["INDICATOR"], r["TIME_PERIOD"].replace("-M", "-"))] = float(r["OBS_VALUE"]) / 1e6
+    rows = []
+    for key, ind in (("exports", "XG"), ("imports", "MG")):
+        for p, v in d["series"][key]["points"]:
+            if p < SI_START and (ind, p) in usd and p in rate:
+                rows.append((key, p, round(v / rate[p] / usd[(ind, p)] * 100 - 100, 4)))
+    w = K.worst(rows)
+    res("PASS" if rows and abs(w[2]) <= 0.01 else "FAIL", "Trade before 2011: krónur / BIS rate = the IMF's own US$",
+        f"{len(rows)} comparisons, largest gap {w} % (tolerance 0.01)")
+
+
 def cross_checks(d):
     K.run("OECD CPI check", lambda: oecd_cpi_check(d))
     K.run("BIS CPI check", lambda: bis_cpi_check(d))
     K.run("q/q identity", lambda: qoq_identity(d, 0.15))
     K.run("y/y identity", lambda: K.yoy_identity(d, 0.15))
     K.run("FX cross-check", lambda: K.fx_vs_bis(d, K.bis_avg("IS", "ISK")))
-    K.run("trade check", lambda: K.trade_vs_usd(d, K.itg_usd("ISL"), K.bis_avg("IS", "ISK"), 0.1))
+    K.run("trade 2011 on vs the issuer", lambda: tail_vs_issuer(d))
+    K.run("trade before 2011 vs the IMF", lambda: head_vs_imf(d))
 
 
 def main(argv):

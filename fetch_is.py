@@ -32,9 +32,22 @@ series_guard carries the previous one over.
   BIS splices three earlier measures before 21 May 2014, and the series
   starts at the first full month of the current one (the Malaysia rule).
   Extended past BIS's last monthly value with BIS's daily series.
-- exports / imports / trade_balance: IMF international trade in goods
-  (ITG), US dollars, converted to krónur at the BIS monthly average rate
-  (WS_XRU M.IS.ISK.A). The OECD trade dataflow does not answer for Iceland.
+- exports / imports / trade_balance (v1.8.19): Statistics Iceland's own
+  external trade table UTA06001 (PxWeb: exports FOB total, imports CIF
+  total, balance of trade; krónur, monthly, from January 2011, published
+  about a month after the reference month). Before 2011 Statistics Iceland's
+  monthly goods tables carry no export or import levels, so January 2006 to
+  December 2010 stays on the IMF international trade in goods (ITG), US
+  dollars converted to krónur at the BIS monthly average rate (WS_XRU
+  M.IS.ISK.A). The two parts join at January 2011 and the label says so.
+  Why the issuer: the IMF mirror ran four months behind, dropped three real
+  months (2013-03, 2013-04, 2026-01: imports and exports differ at source by
+  a few krónur million) as "copied figures", and sat 3 to 19% off the
+  issuer in some months (June 2021 imports). Probe of 19 Oct 2026 over 182
+  overlapping months: exports 1.1% mean absolute gap, imports 0.3%. The
+  splice is refused if the IMF-derived krónur differ from the issuer by
+  more than SPLICE_MAX_MEAN_GAP on average (a unit or definition slip).
+  The OECD trade dataflow does not answer for Iceland.
 - debt_gdp / deficit: IMF World Economic Outlook via imf_weo.py.
 - current_account / fdi: World Bank, annual.
 - fx_to_usd: World Bank PA.NUS.FCRF, krónur per US$, annual average
@@ -47,6 +60,7 @@ from __future__ import annotations
 import redact_stream  # noqa: F401  (v1.7.42: masks api_key= in all output)
 import csv
 import io
+import itertools
 import json
 import re
 import sys
@@ -64,12 +78,7 @@ import series_guard
 ISO3 = "ISL"
 OUT_FILE = "data-is.json"
 UA = {"User-Agent": "economic-atlas/0.1 (+https://theeconomicatlas.com)"}
-ALLOW_SHRINK = {
-    # v1.7.56 run 4: months with copied IMF figures left out (drop_mirrored)
-    "exports": "months where the IMF's imports equal its exports exactly are left out",
-    "imports": "months where the IMF's imports equal its exports exactly are left out",
-    "trade_balance": "months where the IMF's imports equal its exports exactly are left out",
-}
+ALLOW_SHRINK = {}   # v1.8.19: nothing may shrink; the three months once left out as "copied" are now served
 
 QNA_URL = ("https://sdmx.oecd.org/public/rest/data/OECD.SDD.NAD,DSD_NAMAIN1@DF_QNA,1.1/"
            "Q..ISL..........?format=csvfile&startPeriod=1995-Q1")
@@ -80,12 +89,21 @@ BIS_FX_AVG_URL = "https://stats.bis.org/api/v2/data/dataflow/BIS/WS_XRU/1.0/M.IS
 ITG_URL = ("https://api.imf.org/external/sdmx/3.0/data/dataflow/IMF.STA/ITG/~/"
            "ISL.*.*.M?c[TIME_PERIOD]=ge:1995-M01")
 WB_URL = "https://api.worldbank.org/v2/country/ISL/indicator/{code}?format=json&per_page=200"
+PX_TRADE_URL = ("https://px.hagstofa.is/pxen/api/v1/en/Efnahagur/utanrikisverslun/"
+                "1_voruvidskipti/01_voruskipti/UTA06001.px")
+# row code and the exact text it must carry (a changed table fails loudly instead of serving the wrong row)
+PX_ROWS = {"exports": ("XFRETTVx0", "Exports fob, total"),
+           "imports": ("MNFLKM0", "Imports cif, total"),
+           "balance": ("M_X_00", "Balance of trade")}
+SI_START = "2011-01"          # first month of UTA06001; the IMF-derived months stop the month before
+SPLICE_MAX_MEAN_GAP = 5.0     # % mean absolute gap, IMF-derived krónur vs the issuer (observed 1.1 exports, 0.3 imports)
+BALANCE_TOLERANCE = 0.25      # ISK million: exports - imports vs the table's own balance (observed 0.1)
 KEY_RATE_START = "2014-06"   # first full month of the term deposit rate (from 21 May 2014)
 OECD_PAUSE = 2
 
 MONTHLY_MAX_AGE = 120
 QUARTERLY_MAX_AGE = 230
-TRADE_MAX_AGE = 200       # probe, 13 Oct 2026: ITG imports to May 2026
+TRADE_MAX_AGE = 200       # probe, 19 Oct 2026: UTA06001 to Sep 2026 (the IMF mirror stopped at May 2026)
 
 
 # ---------------------------------------------------------------- helpers
@@ -284,17 +302,122 @@ def fetch_bis_fx_avg() -> dict:
     return rate
 
 
-def drop_mirrored(usd: dict) -> dict:
-    """Leaves out months where the IMF's imports equal its exports exactly.
-    Run 1 (13 Oct 2026): January 2026, March 2013 and April 2013 carried
-    identical figures for both flows (a balance of exactly zero), the
-    import figure a copy of the export one. Named in the log; the audit
-    checks no such month is served."""
-    x, m = dict(usd["exports"]), dict(usd["imports"])
-    bad = sorted(p for p in x if p in m and x[p] == m[p])
-    for p in bad:
-        print(f"  [imf-itg] ISL {p}: imports equal exports exactly ({x[p]} US$m), left out as a copied figure")
-    return {k: [q for q in v if q[0] not in bad] for k, v in usd.items()}
+def _px_codes(dim: dict) -> list:
+    idx = dim["category"]["index"]
+    if isinstance(idx, dict):
+        return [c for c, _ in sorted(idx.items(), key=lambda kv: kv[1])]
+    return list(idx)
+
+
+def parse_px(js: dict, prod_id: str, time_id: str) -> dict:
+    """json-stat2 reply -> {row code: {"YYYY-MM": value}}; empty cells are skipped."""
+    ids, sizes = js["id"], js["size"]
+    cats = [_px_codes(js["dimension"][i]) for i in ids]
+    if [len(c) for c in cats] != list(sizes) or len(js["value"]) != len(list(itertools.product(*cats))):
+        raise ValueError("Statistics Iceland reply: dimension sizes do not match the value list")
+    ip, it = ids.index(prod_id), ids.index(time_id)
+    out: dict = {}
+    for combo, v in zip(itertools.product(*cats), js["value"]):
+        if v is None:
+            continue
+        m = re.fullmatch(r"(\d{4})M(\d{2})", combo[it])
+        if not m:
+            raise ValueError(f"Statistics Iceland reply: unexpected month code {combo[it]!r}")
+        out.setdefault(combo[ip], {})[f"{m.group(1)}-{m.group(2)}"] = float(v)
+    return out
+
+
+def fetch_trade_si() -> dict:
+    """Statistics Iceland UTA06001, krónur million: exports FOB, imports CIF, balance, monthly."""
+    r = requests.get(PX_TRADE_URL, timeout=60, headers=UA)
+    print(f"  [statice] UTA06001 layout status={r.status_code}")
+    r.raise_for_status()
+    meta = r.json()
+    tv = [v for v in meta["variables"] if v.get("time")]
+    pv = [v for v in meta["variables"] if not v.get("time")]
+    if len(tv) != 1 or len(pv) != 1:
+        raise ValueError("UTA06001 layout changed: expected one product and one month variable")
+    tv, pv = tv[0], pv[0]
+    texts = dict(zip(pv["values"], pv["valueTexts"]))
+    for key, (code, text) in PX_ROWS.items():
+        if texts.get(code, "").strip().lower() != text.lower():
+            raise ValueError(f"UTA06001 row {code} reads {texts.get(code)!r}, expected {text!r}")
+    query = [{"code": pv["code"], "selection": {"filter": "item", "values": [c for c, _ in PX_ROWS.values()]}},
+             {"code": tv["code"], "selection": {"filter": "item", "values": tv["values"]}}]
+    r = requests.post(PX_TRADE_URL, json={"query": query, "response": {"format": "json-stat2"}},
+                      timeout=120, headers=UA)
+    print(f"  [statice] UTA06001 data status={r.status_code}")
+    r.raise_for_status()
+    rows = parse_px(r.json(), pv["code"], tv["code"])
+    got = {key: sorted(rows.get(code, {}).items()) for key, (code, _) in PX_ROWS.items()}
+    for key, pts in got.items():
+        if not pts:
+            raise ValueError(f"UTA06001 {key}: no observations")
+        if pts[0][0] > SI_START:
+            raise ValueError(f"UTA06001 {key} starts {pts[0][0]}, after {SI_START}: the join would leave a gap")
+        if any(v <= 0 for _, v in pts if key != "balance"):
+            raise ValueError(f"UTA06001 {key}: non-positive level")
+    ex, im, bal = (dict(got[k]) for k in ("exports", "imports", "balance"))
+    bad = [p for p in bal if p in ex and p in im and abs(ex[p] - im[p] - bal[p]) > BALANCE_TOLERANCE]
+    if bad:
+        raise ValueError(f"UTA06001: exports less imports differs from the table's own balance in {len(bad)} month(s), e.g. {bad[0]}")
+    recent = sorted(v for _, v in got["exports"][-12:])
+    if not 1e4 <= recent[len(recent) // 2] <= 3e5:
+        raise ValueError(f"UTA06001 exports: recent median {recent[len(recent) // 2]} is outside ISK 10bn to 300bn a month (unit change?)")
+    out = {}
+    for key in ("exports", "imports", "balance"):
+        out[key] = require_current([[p, v] for p, v in got[key]], TRADE_MAX_AGE, f"Statistics Iceland {key}")
+        print(f"  [statice] {key}: {len(out[key])} months, {out[key][0][0]} to {out[key][-1][0]}")
+    return out
+
+
+def overlap_check(usd: dict, rate: dict, si: dict) -> dict:
+    """IMF-derived krónur against the issuer over every month both cover.
+    Refuses the splice when they disagree on average by more than
+    SPLICE_MAX_MEAN_GAP %: that is a unit or definition slip, not revision noise."""
+    stats = {}
+    for key in ("exports", "imports"):
+        imf, src = dict(usd_to_isk(usd[key], rate)), dict(si[key])
+        gaps = [abs(imf[p] / src[p] - 1) * 100 for p in src if p in imf and src[p]]
+        if not gaps:
+            raise ValueError(f"no month in common between the IMF and Statistics Iceland {key}")
+        mean = sum(gaps) / len(gaps)
+        stats[key] = (len(gaps), round(mean, 2), round(max(gaps), 1))
+        print(f"  [splice] {key}: IMF-derived vs Statistics Iceland over {len(gaps)} months, "
+              f"mean gap {mean:.2f}%, largest {max(gaps):.1f}%")
+        if mean > SPLICE_MAX_MEAN_GAP:
+            raise ValueError(f"{key}: IMF-derived krónur sit {mean:.1f}% from Statistics Iceland on average "
+                             f"(limit {SPLICE_MAX_MEAN_GAP}%); refusing to join the two")
+    return stats
+
+
+def build_trade(si: dict, prev_full: dict) -> dict:
+    """Pre-2011 months from the IMF (or, if the IMF is down, from the previous run), 2011 on from the issuer."""
+    try:
+        usd, rate = fetch_trade_usd(), fetch_bis_fx_avg()
+    except Exception as exc:
+        usd = rate = None
+        print(f"NOTE  trade history before {SI_START}: IMF or BIS unavailable ({exc}); "
+              f"using the months stored by the previous run")
+    if usd:
+        overlap_check(usd, rate, si)               # raises: nothing is joined to an issuer series that fails it
+        isk = {k: usd_to_isk(v, rate) for k, v in usd.items()}
+        head = {k: [q for q in v if q[0] < SI_START] for k, v in isk.items()}
+    else:
+        prev = (prev_full or {}).get("series", {})
+        head = {k: [q for q in (prev.get(k, {}).get("points") or []) if q[0] < SI_START]
+                for k in ("exports", "imports")}
+    common = set(dict(head["exports"])) & set(dict(head["imports"]))
+    head = {k: [q for q in v if q[0] in common] for k, v in head.items()}
+    if not head["exports"]:
+        raise ValueError(f"no trade history before {SI_START} from the IMF or from the previous run")
+    out = {k: head[k] + [q for q in si[k] if q[0] >= SI_START] for k in ("exports", "imports")}
+    # All series end at the last month both flows are published, so the Trade tiles describe one month.
+    common = set(dict(out["exports"])) & set(dict(out["imports"]))
+    out = {k: [q for q in v if q[0] in common] for k, v in out.items()}
+    m = dict(out["imports"])
+    out["trade_balance"] = [[p, round(v - m[p], 1)] for p, v in out["exports"] if p in m]
+    return out
 
 
 def usd_to_isk(points: list, rate: dict) -> list:
@@ -329,9 +452,9 @@ CPI_LABEL = {
     "cpi_mom": "CPI, all items, change on previous month, not seasonally adjusted, from Statistics Iceland's all-items index (via OECD)",
 }
 TRADE_LABEL = {
-    "exports": "Exports of goods, FOB, US$ converted to krónur at the BIS monthly average rate (IMF international trade in goods)",
-    "imports": "Imports of goods, CIF, US$ converted to krónur at the BIS monthly average rate (IMF international trade in goods)",
-    "trade_balance": "Trade balance, goods, exports FOB less imports CIF, krónur (IMF ITG, converted at the BIS monthly average rate)",
+    "exports": "Exports of goods, FOB, krónur (Statistics Iceland external trade from January 2011; 2006 to 2010 from the IMF's US$ figures converted at the BIS monthly average rate)",
+    "imports": "Imports of goods, CIF, krónur (Statistics Iceland external trade from January 2011; 2006 to 2010 from the IMF's US$ figures converted at the BIS monthly average rate)",
+    "trade_balance": "Trade balance, goods, exports FOB less imports CIF, krónur (Statistics Iceland from January 2011; 2006 to 2010 from the IMF's US$ figures converted at the BIS monthly average rate)",
 }
 
 
@@ -384,24 +507,18 @@ def main() -> int:
         out["fx_to_usd"] = prev_full["fx_to_usd"]
         print("CARRIED OVER fx_to_usd from previous run")
 
-    # Trade is converted at BIS's monthly average rate; without it, trade
-    # is left out (and carried over) rather than converted at a wrong rate.
-    usd = attempt("trade", fetch_trade_usd)
-    rate = attempt("trade", fetch_bis_fx_avg) if usd else None
-    if usd and rate:
-        isk = {k: usd_to_isk(v, rate) for k, v in drop_mirrored(usd).items()}
-        # All three series end at the last month both flows are published,
-        # so the Trade tiles always describe the same month.
-        common = set(dict(isk["exports"])) & set(dict(isk["imports"]))
-        isk = {k: [p for p in v if p[0] in common] for k, v in isk.items()}
-        m = dict(isk["imports"])
-        isk["trade_balance"] = [[p, round(v - m[p], 1)] for p, v in isk["exports"] if p in m]
+    # Trade (v1.8.19): Statistics Iceland from 2011, the IMF's US$ (converted at BIS's monthly
+    # average rate) before it. If the issuer fails, or the join fails its check, trade is left out
+    # and carried over, never half-replaced.
+    si = attempt("trade", fetch_trade_si)
+    isk = attempt("trade", lambda: build_trade(si, prev_full)) if si else None
+    if isk:
         if isk["trade_balance"]:
             for k, v in isk.items():
                 put(out, k, v, TRADE_LABEL[k], "ISKm", "months")
         else:
             failures.append("trade")
-            print("FAIL  trade                no month with exports, imports and a BIS rate")
+            print("FAIL  trade                no month with exports and imports")
 
     series_guard.apply_guard(out["series"], prev_full.get("series", {}), allow_shrink=ALLOW_SHRINK)
     if not out["series"]:

@@ -1,9 +1,9 @@
 #!/usr/bin/env python3
 """READ-ONLY probe: Statistics Iceland (PxWeb) monthly goods trade vs data-is.json.
 
-Why: the Iceland fetcher drops IMF ITG months where imports equal exports
-exactly (drop_mirrored): 2013-03, 2013-04 and 2026-01. Those months are blank
-on the charts. The issuing office may hold real figures for them, and may also
+Why (resolved in v1.8.19, kept for reference): the Iceland fetcher used to drop
+IMF ITG months where imports equal exports exactly (2013-03, 2013-04, 2026-01).
+This probe showed those months are real at Statistics Iceland (table UTA06001). The issuing office may hold real figures for them, and may also
 start well before our 2006-01.
 
 Nothing is written to the repo. Run it from the repo root on a machine with
@@ -52,12 +52,16 @@ def discover(path="", depth=0, maxdepth=4):
         print(f"{'  ' * depth}[error {path}: {e}]")
         return
     for n in nodes:
-        full = f"{path}/{n['id']}".lstrip("/")
+        nid = n.get("id") or n.get("dbid")
+        if not nid:
+            print(f"{'  ' * depth}[skipping node without id: {n}]")
+            continue
+        full = f"{path}/{nid}".lstrip("/")
         text = n.get("text", "")
         if n.get("type") == "t":
-            if KEYWORDS.search(text) or KEYWORDS.search(n["id"]):
+            if KEYWORDS.search(text) or KEYWORDS.search(nid):
                 print(f"TABLE {full}\n      {text}")
-        elif depth < maxdepth and (depth < 1 or KEYWORDS.search(text) or KEYWORDS.search(n["id"])
+        elif depth < maxdepth and (depth < 1 or KEYWORDS.search(text) or KEYWORDS.search(nid)
                                    or re.search(r"econom|efnahag|utanr", full, re.I)):
             discover(full, depth + 1, maxdepth)
 
@@ -118,7 +122,11 @@ def fetch(path, selects, months):
     js = r.json()
     dims, ids, sizes = js["dimension"], js["id"], js["size"]
     labels = [list(dims[i]["category"]["label"].values()) for i in ids]
-    stored = json.load(open("data-is.json", encoding="utf-8"))["series"]
+    try:
+        stored = json.load(open("data-is.json", encoding="utf-8"))["series"]
+    except FileNotFoundError:
+        print("(data-is.json not found here, skipping the stored-value comparison)")
+        stored = {"exports": {"points": []}, "imports": {"points": []}}
     exp = dict(map(tuple, stored["exports"]["points"]))
     imp = dict(map(tuple, stored["imports"]["points"]))
     idx = 0
