@@ -1,0 +1,81 @@
+Page hooks removed with the onboarding tour in v1.9.1, verbatim.
+
+1. Footer "Take the tour" button (one per page):
+
+  index.html:
+' <span id="tourReplayWrap">· <button type="button" id="tourReplayLink">Take the tour</button></span>'
+
+  uk.html:
+'\n <span id="tourReplayWrap">· <button type="button" id="tourReplayLink">Take the tour</button></span>'
+
+  compare.html:
+' <span id="tourReplayWrap">&middot; <button type="button" id="tourReplayLink">Take the tour</button></span>'
+
+  dashboard.html:
+' <span id="tourReplayWrap">&middot; <button type="button" id="tourReplayLink">Take the tour</button></span>'
+
+  methodology.html:
+' <span id="tourReplayWrap">&middot; <button type="button" id="tourReplayLink">Take the tour</button></span>'
+
+2. Banner rule (identical on all five pages). It was replaced by:
+      banners.forEach(function(el){ el.hidden = loggedIn; });
+
+Original:
+      // Real screenshots showed this banner stacking on top of the
+      // onboarding tour's own tooltip, alongside the cookie banner --
+      // a separate bug from the mobile-notice-banner-vs-tour issue
+      // fixed elsewhere, since this banner system (alertBanner,
+      // trialBanner) is a different code path entirely. Same fix
+      // philosophy: don't reveal a banner while the tour currently has
+      // a box on screen.
+      var tourActive = !!document.querySelector(".tour-box");
+      banners.forEach(function(el){ el.hidden = loggedIn || tourActive; });
+
+3. uk.html window exposures (only the tour engine used them):
+window.openChartModal = openChartModal; // exposed so the tour engine (separate script tag) can open a specific chart's modal programmatically, e.g. if a visitor clicks "Next" without actually clicking Expand, the tour still needs the modal open to point at what it's describing
+window.closeChartModal = closeChartModal;
+window.ANCHORS = ANCHORS; // exposed so the tour engine (a separate script tag) can resolve a real chart panel by key, rather than guessing at auto-generated element IDs
+
+4. compare.html window.EATLAS_COMPARE: members only the tour used:
+  toggleCountry: toggleCountry,
+  addMetric: addMetric,
+  openCountryModal: openCountryModal,
+  closeCountryModal: closeCountryModal,
+
+and the original comment heading the object:
+window.EATLAS_COMPARE = {
+  // toggleCountry/addMetric/openCountryModal/closeCountryModal are
+  // private to this closure -- the tour engine runs in a separate
+  // <script> block and has no way to call them directly (confirmed
+  // live previously via a real "toggleCountry is not defined" console
+  // error). This exposes safe, namespaced entry points instead,
+  // matching the existing EATLAS_PREFS/EATLAS_ACCOUNT convention
+  // already used elsewhere on this page.
+  //
+  // getCardSortMode/setCardSortMode/sortRowsByMode/refreshOneCard were
+  // added here for the exact same reason and hit the exact same class
+  // of bug: the Customise & Export modal (window.EATLAS_OPEN_CUSTOMIZE_
+  // SNAPSHOT) lives in ITS OWN separate <script> block further down the
+  // page, and calling these directly (without the window.EATLAS_COMPARE
+  // prefix) threw "getCardSortMode is not defined" the moment the
+  // button was clicked -- silently, since nothing caught it, which is
+  // why the modal appeared to simply not open at all rather than
+  // showing an error.
+
+5. dashboard.html window.EATLAS_DASH original comment (ensurePinned itself is kept: tools/test_dashboard_inflation.js uses it):
+  // pinned/savePinned/renderDash are private to this closure -- the
+  // tour engine runs in a separate <script> block and has no way to
+  // call them directly (this was the exact cause of the tour "freezing"
+  // on Dashboard: an onEnter that called these bare threw an uncaught
+  // ReferenceError, which aborted renderStepWhenReady before it ever
+  // reached renderStep()'s removeBox() call -- so the previous step's
+  // box just stayed on screen forever, looking exactly like a stuck
+  // tour rather than a crash). ensurePinned wraps the push/save/render
+  // sequence atomically, matching the idempotent pattern already used
+  // elsewhere (only pins if not already present).
+
+6. Comments removed from data attributes (the attributes themselves are kept):
+  compare.html   item.dataset.key = k; // lets the tour engine target a specific metric reliably, rather than matching on label text
+  compare.html   item.dataset.country = c; // lets the tour engine target a specific country reliably
+  dashboard.html b.dataset.metric = concept; // lets the tour engine target a specific map metric reliably
+  dashboard.html div.dataset.key = it.key; div.dataset.country = it.country; // lets the tour engine target a specific metric reliably, rather than matching on label text
