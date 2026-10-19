@@ -1210,6 +1210,14 @@
    on top of it (see e.g. uk.html) -- both classes together, exactly as
    the real toggle does, not a new combination invented for this page. ---- */
 button.mtoggle.fx-dollar{background:var(--blue); border-color:var(--blue); color:#fff;}
+/* ---- toggle-affected highlighting, the same colours the Dashboard and the country pages use:
+   yellow = "Make it real" changed this series, blue = "Dollarise" converted it, green = both.
+   Border-color and box-shadow only, never background (a themed background rule can win with !important). ---- */
+button.mtoggle.fx-real{background:#E3B341; border-color:#E3B341; color:#171B1E;}
+button.mtoggle.fx-both{background:#2FA463; border-color:#2FA463; color:#fff;}
+.cm-seriesitem.fx-real{ border-color:#E3B341 !important; box-shadow:0 0 0 2px rgba(227,179,65,.35); }
+.cm-seriesitem.fx-dollar{ border-color:var(--blue) !important; box-shadow:0 0 0 2px rgba(71,150,206,.35); }
+.cm-seriesitem.fx-both{ border-color:#2FA463 !important; box-shadow:0 0 0 2px rgba(47,164,99,.35); }
 /* ---- reused base patterns from compare.html (picker, modal, chart-modal) ---- */
 .picker-region{margin-bottom:16px;}
 .picker-region:last-child{margin-bottom:4px;}
@@ -1426,10 +1434,14 @@ button.mtoggle.fx-dollar{background:var(--blue); border-color:var(--blue); color
  </div>
  <p id="cmChartTypeNote" style="font-size:11px; color:var(--ink2); margin:-8px 0 14px; line-height:1.4; display:none;">Bar shows each metric's latest value in the selected date range, one bar per metric: a snapshot rather than a chart over time.</p>
  <div class="metric-toggles" style="margin:0 0 14px;" aria-label="Display options">
+ <button type="button" class="mtoggle" id="makeRealToggle" aria-label="Make it real: show GDP level as real, inflation-adjusted GDP" aria-pressed="false">
+ <span class="mtoggle-switch" aria-hidden="true"></span>Make it real
+ </button>
  <button type="button" class="mtoggle" id="dollariseToggle" aria-label="Dollarise: convert currency series to US dollars" aria-pressed="false">
  <span class="mtoggle-switch" aria-hidden="true"></span>Dollarise
  </button>
- <span class="mtoggle-note" id="dollariseNote"></span>
+ <span class="mtoggle-note" id="mtoggleNote"></span>
+ <span id="mtoggleAnnounce" class="sr-only" role="status" aria-live="polite"></span>
  </div>
  <div class="ctl-panel">
  <h3>Metrics</h3>
@@ -2394,9 +2406,20 @@ var annotSeq = 0;
 var MAX_ANNOTATIONS = 6;
 
 var series = [];
-var TOGGLE_STATE = { dollar: false };
-var userDollarPreference = false; // the person's own choice, used only when NOT forced
+// Display toggles, matching the country pages and the Dashboard:
+//  - "Make it real" swaps a GDP level series for real (chain-linked volume) GDP and changes
+//    nothing else.
+//  - "Dollarise" converts currency series to US dollars at each period's own rate; real GDP
+//    converts at ONE rate (its latest year's average) so its dollar growth stays the published
+//    real growth.
+// The person's own choices (userRealPreference, userDollarPreference) are kept apart from what
+// is applied (TOGGLE_STATE): Dollarise can be forced on (different currencies need a common
+// unit) or have nothing to do (the US's own figures are already dollars).
+var TOGGLE_STATE = { real: false, dollar: false };
+var userDollarPreference = false;
+var userRealPreference = false;
 var dollariseForced = false; // true when 2+ genuinely different currencies are on the chart
+var dollariseNoOp = false;   // true when every currency series is the US's own
 // Normalises both scale (m/bn/tn) AND currency to a common USD-millions
 // basis -- ChartMaker mixes countries that report the same metric in
 // genuinely different native scales (UK/India in millions, US/Japan in
@@ -2411,75 +2434,186 @@ function toUSDMillions(country, rawValue, unitStr, concept, period, realYear){
   if(isAlreadyUSDUnit(unitStr, country, concept)) return normalized;
   return toUSDValue(country, normalized, period, realYear);
 }
-// Recomputes a single series' displayed .unit/.rawPoints from its
-// untouched .origUnit/.origRawPoints, based on the current Dollarise
-// state -- never mutates the original fetched data, same pattern as
-// country pages' buildDisplaySeries()/convertSeriesToUSD().
-function applyDollariseToSeries(s){
-  var isCurrency = CONCEPT_UNIT[s.metric] === "currency";
-  if(!TOGGLE_STATE.dollar || !isCurrency){
-    s.unit = s.origUnit;
-    s.rawPoints = s.origRawPoints;
-    return;
+function isCurrencySeries(s){ return CONCEPT_UNIT[s.metric] === "currency"; }
+// Whether Dollarise is a free choice, a requirement, or has nothing to do. Pure, so a saved
+// chart's thumbnail decides exactly as the live chart does. items: [{country, metric}].
+//  - forced: 2+ currency series from countries with DIFFERENT native currencies (UK and US):
+//    converting is the only way the chart means anything.
+//  - noOp: only the US's own series, which are already dollars.
+function dollarBasis(items, preference){
+  var currencies = {}, count = 0, onlyUS = true;
+  items.forEach(function(it){
+    if(CONCEPT_UNIT[it.metric] !== "currency") return;
+    count++;
+    currencies[COUNTRY_CURRENCY[it.country] || it.country] = true;
+    if(it.country !== "US") onlyUS = false;
+  });
+  var forced = Object.keys(currencies).length >= 2;
+  var noOp = count > 0 && onlyUS;
+  return { forced: forced, noOp: noOp, dollar: forced ? true : (noOp ? false : !!preference) };
+}
+// What a series shows under the two toggles, from its untouched nominal data. Pure (reads
+// REGISTRY/FX_RATES only), never mutates the fetched points: same pattern as the country
+// pages' buildDisplaySeries()/convertSeriesToUSD().
+function computeDisplay(country, metric, nomUnit, nomPts, real, dollar){
+  var out = { unit: nomUnit, pts: nomPts, realView: false, converted: false, inUSD: false,
+              realYear: null, droppedBeforeFloor: false, usedEarliestRate: false };
+  var baseUnit = nomUnit, basePts = nomPts;
+  if(real && metric === "gdp_level"){
+    var rs = getSeries(country, "gdp_real");
+    if(rs){
+      baseUnit = rs.unit;
+      basePts = rs.points.map(function(p){ return {x:p[0], y:p[1]}; });
+      out.realView = true;
+    }
   }
-  var pts0 = s.origRawPoints;
-  var realYear = (s.metric === "gdp_real" && pts0.length) ? String(pts0[pts0.length - 1].x).slice(0, 4) : null;
-  var converted = pts0.map(function(p){
-    var usdM = toUSDMillions(s.country, p.y, s.origUnit, s.metric, String(p.x), realYear);
-    return usdM == null ? null : { x: p.x, y: usdM };
-  }).filter(function(p){ return p != null; });
-  s.unit = forceUSDUnit("m");
-  s.rawPoints = converted;
+  out.unit = baseUnit; out.pts = basePts;
+  if(!dollar || CONCEPT_UNIT[metric] !== "currency") return out;
+  var realYear = ((out.realView || metric === "gdp_real") && basePts.length) ? String(basePts[basePts.length - 1].x).slice(0, 4) : null;
+  var fx = FX_RATES[country];
+  var floorKey = (fx && fx.floor) ? monthKey(String(fx.floor)) : null;
+  var histKey = (fx && fx.history && fx.history.length) ? monthKey(String(fx.history[0][0])) : null;
+  var already = isAlreadyUSDUnit(baseUnit, country, metric);
+  var kept = [];
+  basePts.forEach(function(p){
+    var usdM = toUSDMillions(country, p.y, baseUnit, metric, String(p.x), realYear);
+    if(usdM == null){ out.droppedBeforeFloor = true; return; }
+    if(!already && !realYear && histKey !== null && monthKey(String(p.x)) < histKey) out.usedEarliestRate = true;
+    kept.push({ x: p.x, y: usdM });
+  });
+  out.pts = kept; out.unit = forceUSDUnit("m"); out.inUSD = true;
+  out.converted = !already; out.realYear = realYear;
+  return out;
 }
-function applyDollariseToAll(){
-  series.forEach(applyDollariseToSeries);
+function applyDisplayToSeries(s){
+  var d = computeDisplay(s.country, s.metric, s.origUnit, s.origRawPoints, TOGGLE_STATE.real, TOGGLE_STATE.dollar);
+  s.unit = d.unit; s.rawPoints = d.pts;
+  s.realView = d.realView; s.converted = d.converted; s.inUSD = d.inUSD; s.display = d;
 }
-// Decides whether Dollarise is a free choice or a requirement, then
-// applies it. A single country -- or several countries that genuinely
-// share a native currency, e.g. two Eurozone members -- are already on
-// a common footing, so the button stays a normal manual toggle there.
-// Once 2+ currency-type series come from countries with DIFFERENT
-// native currencies (e.g. UK and US), converting to USD stops being a
-// preference and becomes the only way the chart means anything, so it's
-// forced on and the button is disabled rather than shown as an active
-// choice -- same pattern the country pages use for "Already in US
-// dollars" (see uk.html's own toggleDollar disabled state).
-function refreshDollariseState(){
-  var currencies = {};
+function applyDisplayToAll(){
+  series.forEach(applyDisplayToSeries);
+}
+function fxRateText(r){ return String(+Number(r).toPrecision(6)); }
+// The note under the toggles, built the way the country pages build theirs: what was converted,
+// at which rates, and what was left out.
+function buildToggleNote(){
+  var parts = [], real = [], conv = [], countries = {}, floorDrop = false, earliest = false, realYear = null;
   series.forEach(function(s){
-    if(CONCEPT_UNIT[s.metric] === "currency"){
-      currencies[COUNTRY_CURRENCY[s.country] || s.country] = true;
+    var d = s.display;
+    if(!d) return;
+    if(d.realView) real.push(s);
+    if(d.converted){
+      conv.push(s); countries[s.country] = true;
+      if(d.droppedBeforeFloor) floorDrop = true;
+      if(d.usedEarliestRate) earliest = true;
+      if(d.realYear && !realYear) realYear = d.realYear;
     }
   });
-  dollariseForced = Object.keys(currencies).length >= 2;
-  TOGGLE_STATE.dollar = dollariseForced ? true : userDollarPreference;
-  var btn = document.getElementById("dollariseToggle");
-  var note = document.getElementById("dollariseNote");
-  if(btn){
-    btn.disabled = dollariseForced;
-    if(dollariseForced) btn.setAttribute("aria-disabled", "true");
-    else btn.removeAttribute("aria-disabled");
-    // Forced conversion still happens, but the button itself shows as
-    // OFF/neutral rather than an active toggle -- it isn't a choice the
-    // person is making here, so it shouldn't look like one.
-    var showOn = !dollariseForced && TOGGLE_STATE.dollar;
-    btn.classList.toggle("on", showOn);
-    btn.classList.toggle("fx-dollar", showOn);
-    btn.setAttribute("aria-pressed", String(showOn));
+  var cList = Object.keys(countries);
+  var fx = cList.length === 1 ? FX_RATES[cList[0]] : null;
+  if(dollariseForced){
+    parts.push("Converted to US dollars automatically, comparing different currencies needs a common unit");
   }
-  if(note){
-    note.textContent = dollariseForced
-      ? "Converted to US dollars automatically, comparing different currencies needs a common unit. Market exchange rates, not purchasing power parity (PPP)."
-      : "";
+  if(conv.length){
+    if(fx && fx.history && fx.history.length){
+      var histStart = (fx.floor && monthKey(String(fx.floor)) > monthKey(String(fx.history[0][0]))) ? String(fx.floor) : String(fx.history[0][0]);
+      parts.push("Currency figures converted at each period's own " + fx.pair + " rate (history: " + histStart + " to " + fx.history[fx.history.length - 1][0] + "; latest " + fxRateText(fx.rate) + " as of " + fx.as_of + ")");
+    } else if(fx && fx.rate){
+      parts.push("All currency figures converted at " + fx.pair + " = " + fxRateText(fx.rate) + " (as of " + fx.as_of + "), a single rate applied across the series because no historical rate history is available for it");
+    } else {
+      parts.push("Currency figures converted at each period's own exchange rate");
+    }
+    if(realYear){
+      parts.push(fx && fx.history
+        ? "real GDP converted at the " + nearestFxYear(realYear, fx.history) + " average rate throughout, so its growth matches the published real growth"
+        : "real GDP converted at one rate per country (its latest year's average), so its growth matches the published real growth");
+    }
+    if(floorDrop){
+      parts.push(fx && fx.floor
+        ? "figures before " + fx.floor + " are not shown in dollars (no reliable market rate before then)"
+        : "early figures are not shown in dollars where no reliable market rate exists");
+    } else if(earliest){
+      parts.push(fx && fx.history
+        ? "figures before " + fx.history[0][0] + " use the earliest available rate (no genuine historical rate exists further back)"
+        : "figures before a currency's rate history begins use its earliest available rate");
+    }
+    // Market rates, not PPP: worth saying wherever a dollar figure is shown.
+    parts.push("market exchange rates, not purchasing power parity (PPP)");
   }
-  applyDollariseToAll();
+  if(real.length) parts.push("GDP shown in real terms (chained volume / constant prices)");
+  return parts.join(" \u00b7 ");
 }
-document.getElementById("dollariseToggle").addEventListener("click", function(){
-  if(dollariseForced) return; // disabled anyway, but guard in case
-  userDollarPreference = !userDollarPreference;
-  refreshDollariseState();
+// Announces the new on/off state through the visually hidden live region, as the country pages
+// do: aria-pressed alone is not announced for a change made by mouse click.
+function announceToggle(which, on){
+  var el = document.getElementById("mtoggleAnnounce");
+  if(!el) return;
+  el.textContent = (which === "real" ? "Make it real" : "Dollarise") + ": " + (on ? "on" : "off");
+}
+function updateToggleUI(){
+  var realBtn = document.getElementById("makeRealToggle");
+  var dollarBtn = document.getElementById("dollariseToggle");
+  var note = document.getElementById("mtoggleNote");
+  var locked = dollariseForced || dollariseNoOp;
+  var dollarShownOn = !locked && TOGGLE_STATE.dollar;
+  [realBtn, dollarBtn].forEach(function(b){ if(b) b.classList.remove("fx-real", "fx-dollar", "fx-both"); });
+  if(realBtn){
+    realBtn.classList.toggle("on", TOGGLE_STATE.real);
+    realBtn.setAttribute("aria-pressed", String(TOGGLE_STATE.real));
+  }
+  if(dollarBtn){
+    // disabled mirrors the "disabled" class: the class alone was only visual on the country pages.
+    dollarBtn.disabled = locked;
+    dollarBtn.classList.toggle("disabled", locked);
+    if(locked) dollarBtn.setAttribute("aria-disabled", "true");
+    else dollarBtn.removeAttribute("aria-disabled");
+    dollarBtn.title = dollariseNoOp ? "Already in US dollars"
+                    : (dollariseForced ? "Needed to compare different currencies" : "");
+    // A forced conversion still happens, but the button shows as OFF and neutral: it is not a
+    // choice the person is making here, so it should not look like one.
+    dollarBtn.classList.toggle("on", dollarShownOn);
+    dollarBtn.setAttribute("aria-pressed", String(dollarShownOn));
+  }
+  if(TOGGLE_STATE.real && TOGGLE_STATE.dollar){
+    if(realBtn) realBtn.classList.add("fx-both");
+    if(dollarBtn && dollarShownOn) dollarBtn.classList.add("fx-both");
+  } else {
+    if(TOGGLE_STATE.real && realBtn) realBtn.classList.add("fx-real");
+    if(dollarShownOn && dollarBtn) dollarBtn.classList.add("fx-dollar");
+  }
+  if(note) note.textContent = buildToggleNote();
+}
+// Recomputes what every series shows and refreshes the buttons and note. Called whenever the
+// series list changes (add, remove, switch measure, open a saved chart) and when a toggle is clicked.
+function refreshToggleState(){
+  var basis = dollarBasis(series, userDollarPreference);
+  dollariseForced = basis.forced;
+  dollariseNoOp = basis.noOp;
+  TOGGLE_STATE.real = userRealPreference;
+  TOGGLE_STATE.dollar = basis.dollar;
+  applyDisplayToAll();
+  updateToggleUI();
+}
+function onToggleChanged(which, on){
+  refreshToggleState();
+  announceToggle(which, on);
+  // Different series, units and magnitudes are on screen now: everything built from them
+  // (axis title, tick step, list, colours, date range) is rebuilt, as for an added series.
   syncAutoYAxisTitle();
+  resetYTickStepIdx();
+  renderSeriesList();
+  renderColorsPanel();
+  populateDateRange();
   renderChart();
+}
+document.getElementById("makeRealToggle").addEventListener("click", function(){
+  userRealPreference = !userRealPreference;
+  onToggleChanged("real", userRealPreference);
+});
+document.getElementById("dollariseToggle").addEventListener("click", function(){
+  if(dollariseForced || dollariseNoOp) return; // disabled anyway, but guard in case
+  userDollarPreference = !userDollarPreference;
+  onToggleChanged("dollar", userDollarPreference);
 });
 var annotations = [];
 var chart = null;
@@ -2790,7 +2924,7 @@ function addSeries(country, metric){
     unit: s.unit, label: s.label, color: "#1E4566", manualColor: false, customLabel: null,
     rawPoints: pts, origUnit: s.unit, origRawPoints: pts
   });
-  refreshDollariseState();
+  refreshToggleState();
   assignColors();
   syncAutoYAxisTitle();
   resetYTickStepIdx();
@@ -2802,7 +2936,7 @@ function addSeries(country, metric){
 }
 function removeSeries(id){
   series = series.filter(function(s){ return s.id !== id; });
-  refreshDollariseState();
+  refreshToggleState();
   assignColors();
   syncAutoYAxisTitle();
   syncBarLegendTitle();
@@ -2812,7 +2946,10 @@ function removeSeries(id){
   populateDateRange();
   renderChart();
 }
-function defaultSeriesLabel(s){ return s.country + ", " + conceptLabelFor(s.country, s.metric); }
+// What the series actually shows: "Make it real" turns a GDP level series into real GDP, so it is
+// named that, and a series drawn in dollars says so, the way the Dashboard marks converted figures.
+function displayMetric(s){ return s.realView ? "gdp_real" : s.metric; }
+function defaultSeriesLabel(s){ return s.country + ", " + conceptLabelFor(s.country, displayMetric(s)) + (s.inUSD ? " (USD)" : ""); }
 function seriesLabel(s){ return s.customLabel || defaultSeriesLabel(s); }
 // Colour logic, per your brief:
 // - Comparing the SAME metric across MULTIPLE countries -> each series
@@ -2880,7 +3017,7 @@ function switchSeriesMetric(s, metric, userChose){
   s.unit = src.unit; s.origUnit = src.unit; s.label = src.label;
   s.rawPoints = pts; s.origRawPoints = pts;
   if(userChose) s.measureLocked = true;   // an explicit pick is not overridden
-  refreshDollariseState();
+  refreshToggleState();
   syncAutoYAxisTitle();
   resetYTickStepIdx();
   renderSeriesList();
@@ -2931,6 +3068,11 @@ function renderSeriesList(){
   seriesListEl.innerHTML = "";
   series.forEach(function(s){
     var li = document.createElement("li"); li.className = "cm-seriesitem";
+    // Same rule as the Dashboard's tiles: yellow if Make it real swapped it, blue if Dollarise
+    // actually converted it (an already-dollar series is not "converted"), green if both.
+    if(s.realView && s.converted) li.className += " fx-both";
+    else if(s.realView) li.className += " fx-real";
+    else if(s.converted) li.className += " fx-dollar";
     var lbl = document.createElement("div"); lbl.className = "cm-lbl";
     // Editable title -- defaults to "Country -- Metric" but can be
     // renamed freely; the custom text then drives the legend, the Line
@@ -3224,13 +3366,54 @@ toPeriodSel.addEventListener("change", function(){ syncBarLegendTitle(); renderC
 /* ---- chart style control wiring ---- */
 document.getElementById("cmChartTitle").addEventListener("input", function(e){ style.chartTitle = e.target.value; renderChart(); });
 var yAxisTitleTouched = false;
-var UNIT_AXIS_LABEL = { "%": "%", pp: "Percentage points", index: "Index", currency: "Value" };
+var UNIT_AXIS_LABEL = { "%": "%", pp: "Percentage points", index: "Index" };
+var CURRENCY_NAME = {
+  USD:"US dollars", GBP:"Pounds sterling", EUR:"Euros", JPY:"Japanese yen", INR:"Indian rupees", CAD:"Canadian dollars",
+  AUD:"Australian dollars", KRW:"South Korean won", ILS:"Israeli shekels", MXN:"Mexican pesos", BRL:"Brazilian reais",
+  ZAR:"South African rand", MAD:"Moroccan dirhams", DKK:"Danish kroner", NOK:"Norwegian kroner", CLP:"Chilean pesos",
+  COP:"Colombian pesos", TRY:"Turkish lira", IDR:"Indonesian rupiah", PLN:"Polish zloty", CHF:"Swiss francs",
+  ARS:"Argentine pesos", SEK:"Swedish kronor", SGD:"Singapore dollars", THB:"Thai baht", CNY:"Chinese yuan",
+  MYR:"Malaysian ringgit", NZD:"New Zealand dollars", CZK:"Czech koruna", HUF:"Hungarian forint", RON:"Romanian leu",
+  SAR:"Saudi riyals", ISK:"Icelandic krona", PHP:"Philippine pesos", TWD:"New Taiwan dollars", VND:"Vietnamese dong",
+  NGN:"Nigerian naira", EGP:"Egyptian pounds", PEN:"Peruvian soles", HKD:"Hong Kong dollars", PKR:"Pakistani rupees"
+};
+// Name the currency a currency axis is in. Ticks carry a symbol, but "$" alone cannot tell US,
+// Canadian and Australian dollars apart, so the title says it in words. Empty when the axis mixes
+// currencies (nothing true to say) or is not a currency axis.
+function currencyAxisTitle(){
+  var codes = {}, any = false;
+  series.forEach(function(s){
+    if(!isCurrencySeries(s)) return;
+    any = true;
+    // By the unit actually drawn: Switzerland's nominal GDP is already in dollars (World Bank), so its
+    // axis is dollars, not francs, until "Make it real" swaps it to the franc series.
+    codes[(s.inUSD || isAlreadyUSDUnit(s.unit, s.country, s.metric)) ? "USD" : (COUNTRY_CURRENCY[s.country] || "?")] = true;
+  });
+  var keys = Object.keys(codes);
+  return (any && keys.length === 1 && CURRENCY_NAME[keys[0]]) || "";
+}
+// Countries whose own currency also uses a "$" or a bare "R": the country pages print C$, A$, MX$,
+// R$ and R for them, so a native chart here must not show an ambiguous "$".
+var NATIVE_DOLLAR_SYMBOL = { Canada: "C$", Australia: "A$", Mexico: "MX$", Brazil: "R$", "South Africa": "R" };
+function nativeSymbolOverride(){
+  var sym = null, ok = true;
+  series.forEach(function(s){
+    if(!isCurrencySeries(s)) return;
+    var o = s.inUSD ? null : NATIVE_DOLLAR_SYMBOL[s.country];
+    if(!o){ ok = false; return; }
+    if(sym === null) sym = o; else if(sym !== o) ok = false;
+  });
+  return ok ? sym : null;
+}
 function syncAutoYAxisTitle(){
   if(yAxisTitleTouched || !series.length) return;
   // The units actually drawn, not the recorded ones: a chart of GDP shown
   // year on year is labelled "%", not "£m".
   var unitKeys = effectiveUnits();
-  var text = unitKeys.length === 1 ? (UNIT_AXIS_LABEL[unitKeys[0]] || "") : "";
+  var text = "";
+  if(unitKeys.length === 1){
+    text = UNIT_AXIS_LABEL[unitKeys[0]] || (series.every(function(s){ return isCurrencySeries(s) && s.transform === "raw"; }) ? currencyAxisTitle() : "");
+  }
   style.yAxisTitle = text;
   document.getElementById("cmYAxisTitle").value = text;
 }
@@ -4117,9 +4300,9 @@ function currencySymbol(unitStr){
 // measured past 1,000tn (VND, IDR, KRW, COP) stay readable. Matches
 // indicator-kit.js and generate_indicator_pages.py.
 function EA_group(s){ return String(s).replace(/^\d+/, function(n){ return n.replace(/\B(?=(\d{3})+(?!\d))/g, ","); }); }
-function curFmt(rawValue, unitStr, decimals){
+function curFmt(rawValue, unitStr, decimals, symbolOverride){
   var scale = scaleOf(unitStr);
-  var symbol = currencySymbol(unitStr);
+  var symbol = symbolOverride || currencySymbol(unitStr);
   var a = Math.abs(rawValue) * scale;
   var sign = rawValue < 0 ? "\u2212" : "";
   if(a >= 1e12) return sign + symbol + EA_group((a/1e12).toFixed(decimals)) + "tn";
@@ -4155,7 +4338,8 @@ function buildFmtY(){
     // Currency unit -- the real recorded unit string (e.g. "\u00a3m", "$m"),
     // not a guessed default, so the symbol and scale are always correct
     // for whichever country's own currency this actually is.
-    return function(v){ return curFmt(v, unit, 2); };
+    var nativeSym = nativeSymbolOverride();
+    return function(v){ return curFmt(v, unit, 2, nativeSym); };
   }
   // Genuinely mixed units sharing one axis (e.g. a % metric overlaid
   // with a currency metric) -- ChartMaker allows this since overlaying
@@ -4194,14 +4378,19 @@ function buildCombinedSrcNote(){
   if(!series.length) return fallback;
   var seen = {};
   var parts = [];
+  var converted = false;
   series.forEach(function(s){
-    var key = s.country + "|" + s.metric;
+    // A series swapped to real GDP cites the real series' source, not the nominal one's.
+    var concept = displayMetric(s);
+    if(s.converted) converted = true;
+    var key = s.country + "|" + concept;
     if(seen[key]) return;
     seen[key] = true;
-    var short = shortSourceNote(s.country, s.metric);
+    var short = shortSourceNote(s.country, concept);
     if(short) parts.push(s.country + ": " + short);
   });
-  return parts.length ? parts.join("; ") : fallback;
+  // Compare's wording for a converted chart.
+  return parts.length ? parts.join("; ") + (converted ? " (converted to USD)" : "") : fallback;
 }
 
 function buildCzmState(){
@@ -4657,15 +4846,19 @@ function sbReady(){ return !!(window.sb && window.EATLAS_PREFS && window.EATLAS_
 function renderThumb(container, item){
   var savedSeriesList = SERIES_LIST, savedCzmState = czmState, savedUnifiedDates = UNIFIED_DATES;
   try{
+    var snap = item.snapshot || {};
+    // The same toggles the chart was saved with, decided by the same rules as the live chart.
+    var thumbDollar = dollarBasis(item.seriesSpec, !!snap.dollar).dollar;
+    var units = {};
     var thumbSeries = item.seriesSpec.map(function(ss){
       var sd = getSeries(ss.country, ss.metric);
       if(!sd) return null;
-      var pts = applyTransform(sd.points.map(function(p){ return {x:p[0], y:p[1]}; }), ss.transform || "raw");
-      return { country: ss.country + ", " + (conceptLabelFor(ss.country, ss.metric) || ss.metric), color: ss.color || SWATCH_PALETTE[0], points: pts.map(function(p){ return [p.x, p.y]; }) };
+      var d = computeDisplay(ss.country, ss.metric, sd.unit, sd.points.map(function(p){ return {x:p[0], y:p[1]}; }), !!snap.real, thumbDollar);
+      units[d.unit] = true;
+      var pts = applyTransform(d.pts, ss.transform || "raw");
+      return { country: ss.country + ", " + (conceptLabelFor(ss.country, d.realView ? "gdp_real" : ss.metric) || ss.metric) + (d.inUSD ? " (USD)" : ""), color: ss.color || SWATCH_PALETTE[0], points: pts.map(function(p){ return [p.x, p.y]; }) };
     }).filter(Boolean);
     if(!thumbSeries.length) return;
-    var snap = item.snapshot || {};
-    var units = {}; item.seriesSpec.forEach(function(ss){ var sd = getSeries(ss.country, ss.metric); if(sd) units[sd.unit] = true; });
     var unitKeys = Object.keys(units);
     var fmtY = (unitKeys.length === 1 && unitKeys[0] === "%") ? function(v){ return v.toFixed(1) + "%"; } : function(v){ return v.toFixed(1); };
     var from = item.from_period || (thumbSeries[0].points[0] && thumbSeries[0].points[0][0]);
@@ -4865,8 +5058,11 @@ function loadSavedChart(row){
     series.push({ id:"s"+(++seriesSeq), country:ss.country, metric:ss.metric, transform:ss.transform||"raw", unit:s.unit, label:s.label, color: ss.color || COUNTRY_COLOR[ss.country] || "#1E4566", manualColor: !!ss.manualColor, customLabel: ss.customLabel || null, rawPoints:pts, origUnit:s.unit, origRawPoints:pts });
     colorIdx++;
   });
-  userDollarPreference = false;
-  refreshDollariseState();
+  // The person's own choices travel with a saved chart (older charts have none: both off). Forced
+  // conversion is not saved, it is worked out again from the series.
+  userDollarPreference = !!(row.snapshot && row.snapshot.dollar);
+  userRealPreference = !!(row.snapshot && row.snapshot.real);
+  refreshToggleState();
   if(row.snapshot){
     var snap = row.snapshot;
     style.chartTitle = snap.chartTitle || ""; document.getElementById("cmChartTitle").value = style.chartTitle;
@@ -4958,7 +5154,8 @@ saveConfirmBtn.addEventListener("click", function(){
         refLine: style.refLine, centerAroundRef: style.centerAroundRef, thresholdShadeBars: style.thresholdShadeBars, logScale: style.logScale, chartType: chartType,
         yStartMode: style.yStartMode, yStartValue: style.yStartValue,
         yTickStepIdx: yTickStepIdx, xTicks: style.xTicks, xLabelAngle: style.xLabelAngle,
-        sortMode: style.sortMode
+        sortMode: style.sortMode,
+        real: userRealPreference, dollar: userDollarPreference
       }
     }
   };
