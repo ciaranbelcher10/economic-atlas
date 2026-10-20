@@ -23,13 +23,13 @@
 })();</script>
 <meta name="viewport" content="width=device-width, initial-scale=1">
 <title>United Kingdom Economy: GDP, Inflation &amp; Unemployment Data | The Economic Atlas</title>
-<meta name="description" content="Live UK GDP, UK inflation rate, UK unemployment rate, interest rates, trade balance and public finances, official statistics, checked hourly.">
+<meta name="description" content="Live UK GDP, UK inflation rate, UK unemployment rate, interest rates, trade balance and public finances, official statistics, updated automatically.">
 <script type="application/ld+json">
 {
   "@context": "https://schema.org",
   "@type": "Dataset",
   "name": "United Kingdom economic data",
-  "description": "Live UK GDP, UK inflation rate, UK unemployment rate, interest rates, trade balance and public finances , official statistics, checked hourly.",
+  "description": "Live UK GDP, UK inflation rate, UK unemployment rate, interest rates, trade balance and public finances , official statistics, updated automatically.",
   "url": "https://theeconomicatlas.com/uk",
   "keywords": [
     "United Kingdom GDP",
@@ -65,15 +65,15 @@
 <meta property="og:type" content="website">
 <meta property="og:site_name" content="The Economic Atlas">
 <meta property="og:title" content="United Kingdom Economy: GDP, Inflation &amp; Unemployment Data">
-<meta property="og:description" content="Live UK GDP, UK inflation rate, UK unemployment rate, interest rates, trade balance and public finances, official statistics, checked hourly.">
+<meta property="og:description" content="Live UK GDP, UK inflation rate, UK unemployment rate, interest rates, trade balance and public finances, official statistics, updated automatically.">
 <meta property="og:url" content="https://theeconomicatlas.com/uk">
 <meta property="og:image" content="https://theeconomicatlas.com/og-image.png">
 <meta property="og:image:width" content="1200">
 <meta property="og:image:height" content="630">
-<meta property="og:image:alt" content="The Economic Atlas, official economic data, checked hourly, no commentary.">
+<meta property="og:image:alt" content="The Economic Atlas, official economic data, updated automatically, no commentary.">
 <meta name="twitter:card" content="summary_large_image">
 <meta name="twitter:title" content="United Kingdom Economy: GDP, Inflation &amp; Unemployment Data">
-<meta name="twitter:description" content="Live UK GDP, UK inflation rate, UK unemployment rate, interest rates, trade balance and public finances, official statistics, checked hourly.">
+<meta name="twitter:description" content="Live UK GDP, UK inflation rate, UK unemployment rate, interest rates, trade balance and public finances, official statistics, updated automatically.">
 <meta name="twitter:image" content="https://theeconomicatlas.com/og-image.png">
 <link rel="canonical" href="https://theeconomicatlas.com/uk">
 <link rel="preconnect" href="https://fonts.googleapis.com">
@@ -2004,6 +2004,16 @@ function fmtPeriod(p){
   if(/^\d{4}-Q\d$/.test(p)) return p.slice(5)+" "+p.slice(0,4);
   return p;
 }
+// v1.9.5: the ONS's Labour Force Survey rates are rolling three-month averages, and its data feed
+// labels each by its MIDDLE month ("2026-07" is June to August 2026). Tiles show them the way the
+// ONS publishes them and compare with the previous non-overlapping three months, as the ONS does.
+const ROLLING_3M_MID = {unemployment:1, employment:1, inactivity:1, unemployment_1624:1};
+function fmtRolling3m(p){
+  const y=+p.slice(0,4), m=+p.slice(5,7), s=new Date(y, m-2, 1), e=new Date(y, m, 1);
+  const a=MONTHS[s.getMonth()], b=MONTHS[e.getMonth()];
+  return s.getFullYear()===e.getFullYear() ? a+"\u2013"+b+" "+e.getFullYear()
+                                           : a+" "+s.getFullYear()+"\u2013"+b+" "+e.getFullYear();
+}
 const year = p => p.slice(0,4);
 function periodEnd(p){
   if(/^\d{4}-\d{2}-\d{2}$/.test(p)) return new Date(+p.slice(0,4), +p.slice(5,7)-1, +p.slice(8));
@@ -2346,7 +2356,10 @@ function statTile(el, key, title, series, opts){
   // Headline section: 10 tiles at most, a hard limit (v1.6.2). Tiles are
   // added in priority order, so anything past the tenth is dropped.
   if(el && el.id === "hero" && el.querySelectorAll(":scope > .stat").length >= 10) return;
-  const pts=series.points, last=pts[pts.length-1], prev=pts[pts.length-2];
+  const _roll=!!ROLLING_3M_MID[key] && series.freq==="months" && series.points.length>=4;
+  const _fmtP=p=>_roll?fmtRolling3m(p):fmtPeriod(p);
+  const pts=series.points, last=pts[pts.length-1], prev=pts[pts.length-(_roll?4:2)];
+  if(_roll && !opts.vsText) opts=Object.assign({}, opts, {vsText:"vs previous 3 months"});
   const d=+(last[1]-prev[1]).toFixed(opts.dDp!=null?opts.dDp:2);
   // A change that rounds to zero at display precision is shown as flat,
   // not as a green or red move (v1.7.13).
@@ -2363,12 +2376,12 @@ function statTile(el, key, title, series, opts){
   if(_ch!==null){
     // Says what was actually checked, and when -- not a guess from the date.
     ledTitle=led==="green"
-      ?"Matches the latest release ("+fmtPeriod(_lastP)+"), checked "+_ago(_ch)
-      :"Couldn't refresh from the source for "+_ago(_ch).replace(" ago","")+"; showing the last figure confirmed ("+fmtPeriod(_lastP)+")";
+      ?"Matches the latest release ("+_fmtP(_lastP)+"), checked "+_ago(_ch)
+      :"Couldn't refresh from the source for "+_ago(_ch).replace(" ago","")+"; showing the last figure confirmed ("+_fmtP(_lastP)+")";
   } else {
     ledTitle=led==="green"?"Updated on schedule":
       (_ageDays>(STALE_MULT[series.freq]||3)*(STALE_DAYS[series.freq]||90)
-        ?"Latest published figure: "+fmtPeriod(_lastP)+". No newer observation has been released."
+        ?"Latest published figure: "+_fmtP(_lastP)+". No newer observation has been released."
         :"Awaiting next release");
   }
   if(series.next) ledTitle+=" · next release "+series.next;
@@ -2400,7 +2413,7 @@ function statTile(el, key, title, series, opts){
         aria-label="${ledTitle}"></span>${tileNum(opts.fmt(last[1]))}</p>
       <p class="delta ${dir}"><span class="arrow" aria-hidden="true">${arrow}</span>
         ${dShow>0&&!opts.signed?"+":""}${tileNum(opts.fmtD(dShow))} ${opts.vsText||"vs prior"}</p>
-      <p class="period">${fmtPeriod(last[0])}</p>
+      <p class="period">${_fmtP(last[0])}</p>
       <p class="source">${opts.source}</p>`;
   el.appendChild(div);
 }

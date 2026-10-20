@@ -134,7 +134,7 @@ def main():
                            ("bond_yield_10y", "10-year bond yield"), ("unemployment", "unemployment rate"),
                            ("exports", "exports"), ("imports", "imports"), ("trade_balance", "trade balance"),
                            ("debt_gdp", "government debt")) if k and k in served]
-    desc = spec.get("seo_description") or ("Live " + ", ".join(have[:-1]) + " and " + have[-1] + ", official statistics, checked hourly.")
+    desc = spec.get("seo_description") or ("Live " + ", ".join(have[:-1]) + " and " + have[-1] + ", official statistics, updated automatically.")
     title = spec.get("seo_title") or f"{N} Economy: GDP, Inflation, Interest Rate &amp; Trade Data"
     sub_re(r"<title>China Economy:[^<]*</title>", f"<title>{title} | The Economic Atlas</title>")
     for tag in ('meta name="description"', 'meta property="og:description"', 'meta name="twitter:description"'):

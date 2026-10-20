@@ -24,7 +24,16 @@
 const fs = require("fs"), path = require("path");
 const ROOT = process.env.ATLAS_ROOT ? path.resolve(process.env.ATLAS_ROOT) : path.resolve(__dirname, "..");
 const NM = (process.env.NODE_PATH || "/tmp/node_modules").split(path.delimiter)[0] + "/";
-const {JSDOM, VirtualConsole, ResourceLoader} = require("jsdom");
+// Load jsdom from NODE_PATH, never from a stray ./node_modules: Node checks the repo's own node_modules
+// first, and a leftover jsdom 30 there (no ResourceLoader) once crashed this gate with a cryptic TypeError.
+let jsdomDir;
+jsdomDir = path.join(NM, "jsdom");   // exactly this folder: no climbing up the tree, no ./node_modules
+if (!fs.existsSync(path.join(jsdomDir, "package.json"))) { console.error(`invariants_gate: jsdom not found in ${NM}. Run: cd /tmp && npm i jsdom@24 (and the libraries listed above).`); process.exit(2); }
+const jsdomVersion = JSON.parse(fs.readFileSync(path.join(jsdomDir, "package.json"), "utf8")).version;
+if (!/^24\./.test(jsdomVersion)) {
+  console.error(`invariants_gate: jsdom 24 needed, found ${jsdomVersion} at ${jsdomDir}. Run: cd /tmp && npm i jsdom@24`); process.exit(2);
+}
+const {JSDOM, VirtualConsole, ResourceLoader} = require(jsdomDir);
 let checks = 0, failures = 0;
 const ok = (c, m) => { checks++; if (!c) { failures++; console.log("  FAIL  " + m); } };
 const read = f => fs.readFileSync(path.join(ROOT, f), "utf8");
@@ -79,6 +88,14 @@ for (const f of fs.readdirSync(ROOT).filter(f => /\.html$/.test(f) && !/^(404|ma
   const re = /\b(\d{1,3})\+?\s+(?:[a-z-]+\s+){0,2}(countries|economies|country pages|individual pages)\b/gi;
   let m;
   while ((m = re.exec(s))) ok(Number(m[1]) === N, `${f}: says "${m[0]}" but there are ${N} country pages`);
+  // v1.9.5: the schedule has gaps, so no page promises an hourly check (markets.html is excluded from bulk edits)
+  const h = /checked hourly|checks hourly|hourly against|updated hourly|from source every hour/i.exec(s);
+  ok(!h, `${f}: claims "${h ? h[0] : ""}"`);
+}
+for (const src of ["generate_indicator_pages.py", "tools/build_country_page.py"]) {
+  const t = read(src).split("\n").filter(l => !/^\s*#/.test(l) && !/^\s*(Runs|"""|Run)/.test(l)).join("\n");
+  const h = /checked hourly|hourly against/i.exec(t);
+  ok(!h, `${src}: generated copy claims "${h ? h[0] : ""}"`);
 }
 
 // ---------------------------------------------------------------- RENDERED
@@ -101,24 +118,28 @@ function visibleText(d) {
   }
   return out.join(" ");
 }
-(async () => {
-  for (const p of (only ? [only] : countryPages)) {
-    const code = (read(p).match(/fetch\("data-([a-z]{2})\.json"/) || [])[1];
-    const own = new Set(Object.values(JSON.parse(read(`data-${code}.json`)).series || {}).map(s => (s.unit || "")[0]).filter(g => GLYPH[g]));
-    const vc = new VirtualConsole(), errs = [];
-    vc.on("jsdomError", e => errs.push(String(e.message || e).split("\n")[0]));
-    const dom = new JSDOM(read(p), {runScripts: "dangerously", resources: new Loader(), url: "https://example.test/" + p, virtualConsole: vc, pretendToBeVisual: true,
+function render(p, transform) {
+  const vc = new VirtualConsole(), errs = [];
+  vc.on("jsdomError", e => errs.push(String(e.message || e).split("\n")[0]));
+  const dom = new JSDOM(read(p), {runScripts: "dangerously", resources: new Loader(), url: "https://example.test/" + p, virtualConsole: vc, pretendToBeVisual: true,
       beforeParse(w) {
         w.fetch = (u) => { u = String(u);
           if (/countries-110m\.json/.test(u)) return Promise.resolve({ok: true, json: () => Promise.resolve(JSON.parse(fs.readFileSync(NM + "world-atlas/countries-110m.json")))});
           const f = path.join(ROOT, u.replace(/^https:\/\/example\.test\//, "").split("?")[0]);
           if (/^https?:/.test(u) || !fs.existsSync(f)) return Promise.resolve({ok: false, status: 404, json: () => Promise.reject(new Error("404"))});
-          const t = fs.readFileSync(f, "utf8"); return Promise.resolve({ok: true, status: 200, json: () => Promise.resolve(JSON.parse(t)), text: () => Promise.resolve(t)}); };
+          let t = fs.readFileSync(f, "utf8"); if (transform) t = transform(path.basename(f), t); return Promise.resolve({ok: true, status: 200, json: () => Promise.resolve(JSON.parse(t)), text: () => Promise.resolve(t)}); };
         w.matchMedia = () => ({matches: false, addListener() {}, removeListener() {}, addEventListener() {}, removeEventListener() {}});
         w.scrollTo = () => {}; w.HTMLCanvasElement.prototype.getContext = () => null;
         w.ResizeObserver = class { observe() {} unobserve() {} disconnect() {} };
         w.IntersectionObserver = class { observe() {} unobserve() {} disconnect() {} };
       }});
+  return Promise.resolve({dom, errs});
+}
+(async () => {
+  for (const p of (only ? [only] : countryPages)) {
+    const code = (read(p).match(/fetch\("data-([a-z]{2})\.json"/) || [])[1];
+    const own = new Set(Object.values(JSON.parse(read(`data-${code}.json`)).series || {}).map(s => (s.unit || "")[0]).filter(g => GLYPH[g]));
+    const {dom, errs} = await render(p);
     await new Promise(r => setTimeout(r, 2500));
     const d = dom.window.document, text = visibleText(d);
     const lf = d.getElementById("loadFail");
@@ -131,6 +152,30 @@ function visibleText(d) {
       if (own.has(g) || !hit) { checks++; continue; }
       const i = hit.index;
       ok(false, `${p}: shows ${g} but its data uses no ${GLYPH[g]} series: "...${text.slice(Math.max(0, i - 60), i + 30).replace(/\s+/g, " ")}..."`);
+    }
+    if (p === "uk.html") {
+      // v1.9.5: the ONS's rolling three-month labour figures read as the ONS publishes them ("Jun\u2013Aug 2026"),
+      // compared with the previous non-overlapping three months, never as a single middle month.
+      const lfs = [...d.querySelectorAll(".stat")].filter(e => /^\s*\u2197?\s*(Unemployment|Employment|Inactivity)/.test(e.textContent));
+      ok(lfs.length >= 4, `uk.html: expected at least 4 rolling labour tiles, found ${lfs.length}`);
+      for (const e of lfs) {
+        const per = (e.querySelector(".period") || {}).textContent || "", vs = (e.querySelector(".delta") || {}).textContent || "";
+        ok(/^[A-Z][a-z]{2}( \d{4})?\u2013[A-Z][a-z]{2} \d{4}$/.test(per.trim()), `uk.html: labour tile shows period "${per.trim()}", not a three-month window`);
+        ok(/vs previous 3 months/.test(vs), `uk.html: labour tile compares "${vs.trim()}", not the previous three months`);
+      }
+      const up = JSON.parse(read("data-uk.json")).series.unemployment.points, want = +(up[up.length - 1][1] - up[up.length - 4][1]).toFixed(1);
+      const t = lfs.find(e => /^\s*\u2197?\s*Unemployment\s*\u24d8?\s*\d/.test(e.textContent) || /^\s*\u2197?\s*Unemployment(?!,)/.test(e.textContent));
+      const got = t ? parseFloat(((t.querySelector(".delta") || {}).textContent || "").replace(/\u2212/g, "-").replace(/[^0-9.+-]/g, " ").trim().split(/\s+/)[0]) : NaN;
+      ok(t && Math.abs(Math.abs(got) - Math.abs(want)) < 1e-9, `uk.html: unemployment change shows ${got}, expected ${want} (latest minus three months earlier)`);
+      // The live data may give the same answer either way (it did in Oct 2026), so render once more with the
+      // overlapping window (one month back) moved by a full point: only the right comparison stays at `want`.
+      const doc = await render(p, (name, txt) => { if (name !== "data-uk.json") return txt;
+        const j = JSON.parse(txt), pts = j.series.unemployment.points; pts[pts.length - 2][1] += 1; return JSON.stringify(j); });
+      await new Promise(r => setTimeout(r, 2500));
+      const t2 = [...doc.dom.window.document.querySelectorAll(".stat")].find(e => /^\s*\u2197?\s*Unemployment(?!,)/.test(e.textContent));
+      const got2 = t2 ? parseFloat(((t2.querySelector(".delta") || {}).textContent || "").replace(/\u2212/g, "-").replace(/[^0-9.+-]/g, " ").trim().split(/\s+/)[0]) : NaN;
+      ok(t2 && Math.abs(Math.abs(got2) - Math.abs(want)) < 1e-9, `uk.html: with the overlapping window changed, the unemployment change moved to ${got2} (expected ${want}): it is not comparing with three months earlier`);
+      doc.dom.window.close();
     }
     dom.window.close();
   }

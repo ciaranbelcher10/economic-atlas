@@ -283,7 +283,15 @@ Needs `cd /tmp && npm i jsdom@24 d3@7.8.5 chart.js@4.4.1 topojson@3.0.2 hammerjs
   stays hidden, no visible "NaN", "undefined", "Infinity" or "null", and no currency sign (£ € ¥ ₩ ₪ ₹) the
   page's own data doesn't use (CN¥ and E£ style signs are other currencies and do not count).
 
-Expected: **62 data files, 62 country pages, 0 failures**. Exit code 1 on any failure.
+- **No hourly promise** (v1.9.5): no hand-written page, nor the copy the page generator or builder writes,
+  claims an hourly check (the schedule has gaps). `markets.html` is excluded, as from all bulk edits.
+- **UK rolling labour figures** (v1.9.5): the unemployment, employment, inactivity and 16-24 tiles show the
+  ONS's three-month window ("Jun–Aug 2026") and compare with the previous non-overlapping three months. The
+  page is rendered a second time with the overlapping window doctored, so the comparison is proven, not assumed.
+- It loads jsdom from `NODE_PATH` only and stops with a plain message if that isn't jsdom 24 (a stray
+  `./node_modules/jsdom` 30 once crashed it with a cryptic `TypeError`).
+
+Expected: **62 data files, 62 country pages, 0 failures**. Exit code 1 on any failure, 2 if jsdom is missing or wrong.
 
 ## `html_gate.py` — structural gate over every published page
 

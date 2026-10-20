@@ -191,8 +191,8 @@ CORE_METRICS = {m["keys"][0]: (m["slug"], m["title"]) for m in METRICS}
 RANKINGS = [
     dict(slug="gdp-by-country", metric="gdp", title="GDP by Country", col="GDP (US$)", usd=True, flow=True,
          lede="The size of every economy we track over the last completed year, converted to US dollars at that year's average exchange rate. Those are market exchange rates, not purchasing power parity (PPP), so this ranks what each economy is worth in dollars rather than what its output buys at home."),
-    dict(slug="gdp-growth-rate-by-country", metric="gdp-growth-rate", title="GDP Growth Rate by Country", col="Growth, quarter on quarter", flow=True, from_real=True,
-         lede="How fast each economy grew or shrank in the final quarter of the last completed year, compared with the quarter before. Every row is computed the same way, from the country's seasonally adjusted real GDP, so the figures can be compared directly even where a country's own headline uses a different measure."),
+    dict(slug="gdp-growth-rate-by-country", metric="gdp-growth-rate", title="GDP Growth Rate by Country", col="Growth, quarter on quarter", flow=True, from_real=True, common_quarter=True,
+         lede="How fast each economy grew or shrank in the latest quarter that most countries have published, compared with the quarter before. Every row is computed the same way, from the country's seasonally adjusted real GDP, so the figures can be compared directly even where a country's own headline uses a different measure."),
     dict(slug="inflation-rate-by-country", metric="inflation-rate", title="Inflation Rate by Country", col="Inflation, year on year",
          lede="How fast consumer prices are rising in each economy, compared with a year earlier, on each country's headline measure."),
     dict(slug="unemployment-rate-by-country", metric="unemployment-rate", title="Unemployment Rate by Country", col="Unemployment rate",
@@ -1361,8 +1361,8 @@ def _prev_quarter(p):
     return f"{y - 1}-Q4" if q == 1 else f"{y}-Q{q - 1}"
 
 
-def _real_qoq_row(country, info, Y):
-    """Ranking row for quarter-on-quarter real GDP growth in Y-Q4, or a
+def _real_qoq_row(country, info, Y, target=None):
+    """Ranking row for quarter-on-quarter real GDP growth in `target` (default Y-Q4), or a
     string saying why the country is not ranked ("" = say nothing)."""
     rs = info["data"].get("series", {}).get("gdp_real")
     if not rs:
@@ -1377,7 +1377,8 @@ def _real_qoq_row(country, info, Y):
         if (gs.get("freq") == "quarters" and "QoQ" in glab and "annualis" not in glab.lower()
                 and adjustment_of(f"{glab} {gsrc}", "gdp_growth", "quarters") == "Seasonally adjusted"):
             g = {p: v for p, v in clean_points(gs)}
-            target = f"{Y}-Q4"
+            target = target or f"{Y}-Q4"
+            TY = int(target[:4])
             if target not in g:
                 return f"no {fmt_period_label(target)} figure yet, latest is {fmt_period_label(max(g))}"
             prev_p = _prev_quarter(target)
@@ -1389,7 +1390,7 @@ def _real_qoq_row(country, info, Y):
                         change=dlt if dlt is not None else 0.0,
                         change_str=(fmt_num(dlt, "%", "gdp_growth", country, "delta") if dlt and abs(dlt) > 1e-9 else ("No change" if dlt is not None else "n/a")),
                         period=target, prev_period=prev_p,
-                        spark=[(p, v) for p, v in sorted(g.items()) if p <= target and int(p[:4]) > Y - 5])
+                        spark=[(p, v) for p, v in sorted(g.items()) if p <= target and int(p[:4]) > TY - 5])
         how = {"years": "annually", "months": "monthly"}.get(freq, freq)
         return f"real GDP is published {how}, not quarterly"
     src = info["sources"].get("gdp_real", {}).get("source", "")
@@ -1400,14 +1401,15 @@ def _real_qoq_row(country, info, Y):
     def qg(p):
         q = _prev_quarter(p)
         return (d[p] / d[q] - 1) * 100 if p in d and q in d and d[q] else None
-    target = f"{Y}-Q4"
+    target = target or f"{Y}-Q4"
+    TY = int(target[:4])
     val = qg(target)
     if val is None:
         latest = max(d) if d else None
         return f"no {fmt_period_label(target)} figure yet" + (f", latest is {fmt_period_label(latest)}" if latest else "")
     prev_p = _prev_quarter(target)
     prev = qg(prev_p)
-    spark = [(p, round(qg(p), 2)) for p in sorted(d) if p <= target and int(p[:4]) > Y - 5 and qg(p) is not None]
+    spark = [(p, round(qg(p), 2)) for p in sorted(d) if p <= target and int(p[:4]) > TY - 5 and qg(p) is not None]
     src_pub, src_series = short_source(src)
     val = round(val, 2)
     dlt = rounded_delta(val - prev, "%", "gdp_growth") if prev is not None else None
@@ -1418,11 +1420,35 @@ def _real_qoq_row(country, info, Y):
                 period=target, spark=spark, prev_period=prev_p)
 
 
+GROWTH_COVERAGE = 0.75   # share of eligible countries that must have published a quarter before it is ranked
+
+
+def growth_target_quarter(catalogue_by_country, Y):
+    """v1.9.5: the newest quarter that at least GROWTH_COVERAGE of the countries
+    with a usable growth series have published, so the growth ranking is as
+    recent as it can be while every row still covers the same quarter.
+    Falls back to Y-Q4 (the old rule) if no quarter qualifies."""
+    today = date.today()
+    q, y = (today.month - 1) // 3 + 1, today.year
+    cands = []
+    for _ in range(8):
+        cands.append(f"{y}-Q{q}")
+        q, y = (q - 1, y) if q > 1 else (4, y - 1)
+    have = {c: {t for t in cands if isinstance(_real_qoq_row(c, info, Y, t), dict)}
+            for c, info in catalogue_by_country.items()}
+    eligible = sum(1 for v in have.values() if v)
+    for t in cands:
+        if eligible and sum(1 for v in have.values() if t in v) >= GROWTH_COVERAGE * eligible:
+            return t
+    return f"{Y}-Q4"
+
+
 def rank_rows(ranking, catalogue_by_country):
     """Rows for one ranking: (ranked rows sorted high to low, unranked notes)."""
     m = METRIC_BY_SLUG[ranking["metric"]]
     rows, unranked = [], []
     Y = flow_year()
+    gq = growth_target_quarter(catalogue_by_country, Y) if ranking.get("common_quarter") else None
     for country, info in catalogue_by_country.items():
         entry = info["by_slug"].get(m["slug"])
         if ranking.get("from_real"):
@@ -1431,7 +1457,7 @@ def rank_rows(ranking, catalogue_by_country):
             # growth from gdp_real. Each country's own gdp_growth series
             # mixes measures (QoQ, QoQ annualised, YoY, annual), so it is
             # not used here.
-            row = _real_qoq_row(country, info, Y)
+            row = _real_qoq_row(country, info, Y, gq)
             if isinstance(row, str):
                 if row:
                     unranked.append((country, row))
@@ -1685,7 +1711,7 @@ def render_indicator(country, info, entry, rank_info, all_rankings_meta, n_indic
     rk_grid = rank_grid(all_rankings_meta, this_rk["slug"] if this_rk else None, country, rank_info)
     n_label = f"{n_indicators} live indicators" if n_indicators > 1 else "Live indicators"
     cta = glow_cta(f"../{cslug}", f"Explore the full {country} economy",
-                   f"{n_label} on one dashboard, from growth and prices to jobs, trade and public finances. Checked hourly against official sources.")
+                   f"{n_label} on one dashboard, from growth and prices to jobs, trade and public finances. Updated automatically from official sources.")
 
     meta_label = lower_keep_acronyms(re.sub(r"\s*\([^)]*\)", "", title).strip())
     page_title = f"{country} {title}: {latest_str} ({fmt_period_label(latest_p)}) | The Economic Atlas"
@@ -1871,6 +1897,12 @@ def render_ranking(ranking, rows, unranked, all_rankings_meta, catalogue_by_coun
         note_txt = (f"Every figure is {Y}'s average rate against {Y - 1}'s, the last two completed years, so every currency "
                     "is measured over the same period. Change shows how much faster or slower the move was than the year before, "
                     "in percentage points. Click any column to sort.")
+    elif ranking.get("common_quarter") and rows:
+        _q = fmt_period_label(rows[0]["period"])
+        head_txt = f"{len(rows)} countries, {_q}"
+        note_txt = (f"Every figure is for {_q}, the latest quarter that most countries have published, so every country "
+                    "is measured over the same quarter. Countries that have not published it yet are listed below the table. "
+                    "Click any column to sort.")
     elif ranking.get("flow"):
         head_txt = f"{len(rows)} countries, {Y}"
         note_txt = (f"Every figure is for {Y}, the last completed year. A year still in progress is never shown for a flow, "
@@ -2040,7 +2072,7 @@ def render_rankings_index(ranking_pages, rankings_meta):
     html_out += f"""<main class="ind-wrap rk-wrap">
   <header class="ind-head">
     <h1>Economic Rankings by Country</h1>
-    <p class="ind-lede">Every country we track, ranked side by side on the measures that can be compared like for like. Rates and stocks show each country's latest reading; flows such as GDP show the last completed year. Checked hourly against official sources.</p>
+    <p class="ind-lede">Every country we track, ranked side by side on the measures that can be compared like for like. Rates and stocks show each country's latest reading; flows such as GDP show the last completed year. Updated automatically from official sources.</p>
   </header>
   <div style="height:26px"></div>
   <div class="rkx-grid">{''.join(cards)}</div>
