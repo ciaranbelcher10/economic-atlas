@@ -1651,7 +1651,8 @@ document.addEventListener("DOMContentLoaded", function(){
 <header class="page with-map">
  <div class="head-text">
  <p class="eyebrow"><span class="dot" aria-hidden="true"></span>Official statistics</p>
- <h1>Japan <span id="sampleBadge" class="badge"></span></h1>
+ <h1>Japan</h1>
+<div id="loadFail" role="alert" hidden style="margin:12px 0 0; padding:12px 16px; max-width:640px; border:1px solid var(--hair); border-radius:10px; background:var(--panel); color:var(--ink); font-size:14px; line-height:1.5;">We couldn’t load the latest figures for this page, so no charts are shown. Please refresh the page to try again.</div>
  </div>
 <div class="mini-mapwrap" id="miniMapWrap" tabindex="0" role="img"
  aria-label="Small world map. Hover or tap to enlarge, then select a country to jump to its page, keeping the current section.">
@@ -1717,11 +1718,9 @@ document.addEventListener("DOMContentLoaded", function(){
  <div class="hero mini" id="tiles-trade"></div>
  <p class="lightskey compact" aria-label="Key to freshness lights"><span><span class="led green" aria-hidden="true"></span>&nbsp;matches latest release</span><span><span class="led orange" aria-hidden="true"></span>&nbsp;not refreshed recently</span></p>
  <div class="grid" id="charts-trade"></div>
- <div class="tpm-head"><h3>Japan goods trade: top partners</h3></div>
+ <div id="tpmBlock"><div class="tpm-head"><h3>Japan goods trade: top partners</h3></div>
  <p class="tpm-scopenote"><strong>Goods trade only.</strong> Services aren't covered by this data source and aren't shown here, so relationships that lean heavily on services may be understated.</p>
- <div class="tpm-banner" id="tpmBanner"><span class="dot2" aria-hidden="true"></span>
- <span id="tpmBannerText">Illustrative data: approximate 2025 goods-trade shares, shown as a placeholder. Live bilateral figures are not published for this country yet.</span></div>
- <nav class="viztoggle">
+  <nav class="viztoggle">
  <button type="button" class="vtbtn" data-view="geo">Geographic</button>
  <button type="button" class="vtbtn active" data-view="radial">Radial</button>
  <div class="spacer"></div>
@@ -1754,13 +1753,14 @@ document.addEventListener("DOMContentLoaded", function(){
  <div class="tpm-right">
  <div class="tpm-ranking">
  <h4 id="tpmRankTitle">Goods trade: top partners</h4>
- <p class="tpm-ranksubtitle" id="tpmRankSubtitle">Illustrative 2025 figures, &pound;bn</p>
+ <p class="tpm-ranksubtitle" id="tpmRankSubtitle"></p>
  <ol class="tpm-ranklist" id="tpmRankList"></ol>
  <button type="button" class="tpm-rankmore" id="tpmRankMore" hidden>Show all partners</button>
  </div>
  </div>
  </div>
- <p class="tpm-covnote" id="tpmCovnote">Illustrative fallback shows 14 major partners. Once live, every partner UN Comtrade has data for is fetched: the radial view shows the top 20 by value, the map shows the top 50, and the ranking list can be expanded to show the top 50 too.</p>
+ <p class="tpm-covnote" id="tpmCovnote"></p>
+</div>
 </section>
 <section class="sec" id="sec-public" hidden>
  <div class="hero mini" id="tiles-public"></div>
@@ -1909,92 +1909,7 @@ function yoyGDP(gdpReal){
   return {label:"Real GDP growth, year on year", unit:"%", freq: gdpReal.freq || "quarters", points:out, confirmed_at:gdpReal.confirmed_at};
 }
 /* --------------- fallback sample data (until fetch_data.py) -------------- */
-function interp(keys, periods){
-  const kIdx = keys.map(k=>periods.indexOf(k[0]));
-  const pts=[];
-  for(let s=0;s<keys.length-1;s++){
-    const a=kIdx[s], b=kIdx[s+1]; if(a<0||b<0) continue;
-    for(let i=a;i<=b;i++){
-      const t=(i-a)/(b-a||1);
-      const wob=Math.sin(i*2.1)*0.05*(Math.abs(keys[s+1][1]-keys[s][1])+0.4);
-      pts[i]=[periods[i], +(keys[s][1]+(keys[s+1][1]-keys[s][1])*t+wob).toFixed(2)];
-    }
-  }
-  return pts.filter(Boolean);
-}
-function monthsBetween(a,b){
-  const out=[]; let [y,m]=a.split("-").map(Number); const [Y,M]=b.split("-").map(Number);
-  while(y<Y||(y===Y&&m<=M)){ out.push(y+"-"+String(m).padStart(2,"0")); m++; if(m>12){m=1;y++;} }
-  return out;
-}
-function quartersBetween(a,b){
-  const out=[]; let [y,q]=[+a.slice(0,4),+a.slice(6)]; const [Y,Q]=[+b.slice(0,4),+b.slice(6)];
-  while(y<Y||(y===Y&&q<=Q)){ out.push(y+"-Q"+q); q++; if(q>4){q=1;y++;} }
-  return out;
-}
 const yearsBetween=(a,b)=>Array.from({length:b-a+1},(_,i)=>String(a+i));
-function sampleData(){
-  const mCpi=monthsBetween("1994-01","2026-05"), mU=monthsBetween("1994-01","2026-05");
-  const mR=monthsBetween("1994-01","2026-06"), mTr=monthsBetween("1999-01","2026-04");
-  const qAll=quartersBetween("1994-Q1","2026-Q1"), qG=quartersBetween("1998-Q1","2026-Q1");
-  const gdpG=qG.map((p,i)=>[p,+(0.3+0.4*Math.sin(i*1.7)).toFixed(1)]);
-  const put=(p,v)=>{const i=qG.indexOf(p); if(i>=0) gdpG[i]=[p,v];};
-  put("2008-Q4",-2.4); put("2009-Q1",-4.8); put("2011-Q1",-1.4); put("2014-Q2",-1.9);
-  put("2019-Q4",-1.9); put("2020-Q2",-7.9); put("2020-Q3",5.6); put("2024-Q1",-0.6);
-  const cpiMoM=mCpi.map((p,i)=>[p,+(0.05+0.2*Math.sin(i*2.3)).toFixed(1)]);
-  const S=(label,unit,freq,points)=>({label,unit,freq,points});
-  return { updated:new Date().toISOString(), sample:true,
-    new_points_meta:{cpi:{period:"2026-05",first_seen:new Date(Date.now()-36*3600000).toISOString()}},
-    series:{
-    gdp_level:S("GDP nominal SAAR","\u00a5bn","quarters",interp(
-      [["1994-Q1",495000],["1997-Q2",533000],["2009-Q1",490000],["2012-Q4",495000],
-       ["2019-Q4",557000],["2020-Q2",528000],["2023-Q2",591000],["2026-Q1",630000]],qAll)),
-    gdp_real:S("Real GDP SAAR","\u00a5bn","quarters",interp(
-      [["1994-Q1",447000],["2008-Q1",520000],["2009-Q1",495000],["2019-Q4",557000],
-       ["2020-Q2",518000],["2023-Q2",560000],["2026-Q1",575000]],qAll)),
-    gdp_growth:S("Real GDP growth QoQ","%","quarters",gdpG),
-    cpi:S("CPI YoY","%","months",interp(
-      [["1994-06",0.5],["1997-10",2.5],["1999-09",-0.3],["2008-07",2.3],["2009-10",-2.5],
-       ["2014-05",3.7],["2016-08",-0.5],["2020-12",-1.2],["2023-01",4.3],["2024-06",2.8],
-       ["2026-05",3.0]],mCpi)),
-    cpi_mom:S("CPI MoM","%","months",cpiMoM),
-    unemployment:S("Unemployment","%","months",interp(
-      [["1994-01",2.9],["2002-08",5.5],["2007-07",3.6],["2009-07",5.5],["2019-12",2.2],
-       ["2020-10",3.1],["2024-01",2.4],["2026-05",2.4]],mU)),
-    boj_rate:S("Call money rate","%","months",interp(
-      [["1994-01",2.2],["1995-09",0.45],["1999-03",0.03],["2006-08",0.25],["2008-11",0.3],
-       ["2010-10",0.09],["2016-02",-0.05],["2024-03",0.08],["2024-08",0.25],["2025-01",0.48],
-       ["2026-06",0.75]],mR)),
-    bond_yield_10y:S("10-year government bond yield (JGB)","%","months",interp(
-      [["1994-01",4.3],["1995-09",2.8],["1999-03",1.7],["2003-06",0.6],["2006-08",1.7],
-       ["2008-11",1.4],["2010-10",0.9],["2013-04",0.6],["2016-02",-0.05],["2020-03",0.0],
-       ["2023-08",0.6],["2024-08",1.0],["2025-01",1.2],["2026-06",1.5]],mR)),
-    debt_gdp:S("Gov. gross debt % GDP","%","years",interp(
-      [["1980",47],["1995",92],["2005",176],["2013",232],["2020",259],["2023",250]],
-      yearsBetween(1980,2023))),
-    deficit:S("Gov. net lending % GDP","%","years",interp(
-      [["1995",-4.6],["2007",-2.1],["2009",-9.8],["2019",-3.0],["2020",-9.1],
-       ["2023",-4.2]],yearsBetween(1995,2023))),
-    current_account:S("Current account % GDP","%","years",interp(
-      [["1994",2.7],["2007",4.7],["2011",2.1],["2014",0.8],["2017",4.1],["2022",1.9],
-       ["2024",4.8]],yearsBetween(1994,2024))),
-    business_confidence:S("Business confidence","index","months",interp(
-      [["2009-02",96.0],["2013-12",101.0],["2018-01",100.7],["2020-04",97.2],["2021-09",100.4],
-       ["2023-05",99.6],["2026-05",100.3]],monthsBetween("2009-02","2026-05"))),
-    trade_balance:S("Trade balance, goods","$m","months",interp(
-      [["1999-01",9000],["2008-07",-5000],["2010-06",6000],["2013-06",-9000],
-       ["2020-05",2000],["2022-09",-20000],["2024-06",-3000],["2026-04",3000]],mTr)),
-    exports:S("Exports, goods","$m","months",interp(
-      [["1999-01",35000],["2008-07",65000],["2009-02",33000],["2012-03",70000],
-       ["2020-05",44000],["2022-09",75000],["2026-04",66000]],mTr)),
-    imports:S("Imports, goods","$m","months",interp(
-      [["1999-01",26000],["2008-08",70000],["2012-03",73000],["2020-05",42000],
-       ["2022-09",95000],["2026-04",63000]],mTr)),
-    fdi:S("FDI net inflows % GDP","%","years",interp(
-      [["1996",0.05],["2008",0.5],["2016",0.8],["2020",1.2],["2024",0.4]],
-      yearsBetween(1996,2024))),
-  }};
-}
 /* ------------------------------- charts ---------------------------------- */
 const refLinePlugin = {
   id: "refLine",
@@ -2502,7 +2417,6 @@ function render(data){
   // page load from data-jp.json), which is what "new data each time"
   // means in practice for a static-data key like this.
   window.EATLAS_SERIES = s;
-  if(data.sample){const sb=document.getElementById("sampleBadge");sb.textContent="Illustrative figures: the live data feed did not load, so this page is showing placeholder shapes, not published statistics. Refresh in a moment.";sb.classList.add("show");}
   const gdpAnnual = s.gdp_level || null;   /* Japanese GDP is already at annual rates */
   const gdpYoY = s.gdp_real ? yoyGDP(s.gdp_real) : null;
   const pct=v=>v.toFixed(1)+"%", pp=v=>v.toFixed(1)+"pp";
@@ -3144,35 +3058,18 @@ const BOND_FETCH=fetch("data-bond-jp.json",{cache: "no-cache"})
 fetch("data-jp.json",{cache: "no-cache"})
   .then(r=>{ if(!r.ok) throw new Error(r.status); return r.json(); })
   .then(d=>Promise.all([FX_FETCH,BOND_FETCH]).then(([fx,bd])=>{ FX_DATA=fx; BOND_DAILY=bd; PAGE_DATA=d; rerender(); }))
-  .catch(()=>{ PAGE_DATA=sampleData(); rerender(); });
+  .catch(err=>{
+    // No stand-in figures: if the data cannot be loaded or drawn, say so plainly.
+    console.error(err);
+    const lf=document.getElementById("loadFail"); if(lf) lf.hidden=false;
+  });
 </script>
 <script>
 (function(){
 "use strict";
-// Illustrative fallback only, used if the live Comtrade fetch fails or
-// COMTRADE_API_KEY isn't set yet. See tpmBanner for the live/fallback text.
-// Illustrative fallback only, used if the live Comtrade fetch fails or
-// COMTRADE_API_KEY isn't set yet. Export/import splits here are invented
-// but plausible (e.g. UK goods deficit with China/Germany, surplus with
-// Ireland/UAE), not derived from any real source, purely to make the
-// Total/Exports/Imports toggle demonstrate something sensible before live
-// data loads. See tpmBanner for the live/fallback indicator.
-var FALLBACK_PARTNERS = [
-  {name:"United States", code:"840", region:"Americas",   total:58.4, exports:28.0, imports:30.4, totalShare:14.6, exportShare:21.9, importShare:19.3},
-  {name:"Germany",       code:"276", region:"Europe",     total:33.2, exports:12.0, imports:21.2, totalShare:8.3,  exportShare:9.4,  importShare:13.4},
-  {name:"China",         code:"156", region:"Asia",       total:31.5, exports:8.0,  imports:23.5, totalShare:7.9,  exportShare:6.3,  importShare:14.9},
-  {name:"Netherlands",   code:"528", region:"Europe",     total:28.9, exports:15.0, imports:13.9, totalShare:7.2,  exportShare:11.7, importShare:8.8},
-  {name:"France",        code:"250", region:"Europe",     total:21.6, exports:10.0, imports:11.6, totalShare:5.4,  exportShare:7.8,  importShare:7.3},
-  {name:"Ireland",       code:"372", region:"Europe",     total:19.8, exports:12.0, imports:7.8,  totalShare:4.9,  exportShare:9.4,  importShare:4.9},
-  {name:"Switzerland",   code:"756", region:"Europe",     total:16.4, exports:9.0,  imports:7.4,  totalShare:4.1,  exportShare:7.0,  importShare:4.7},
-  {name:"Belgium",       code:"056", region:"Europe",     total:14.2, exports:7.0,  imports:7.2,  totalShare:3.5,  exportShare:5.5,  importShare:4.6},
-  {name:"Spain",         code:"724", region:"Europe",     total:12.8, exports:6.0,  imports:6.8,  totalShare:3.2,  exportShare:4.7,  importShare:4.3},
-  {name:"Italy",         code:"380", region:"Europe",     total:12.1, exports:5.0,  imports:7.1,  totalShare:3.0,  exportShare:3.9,  importShare:4.5},
-  {name:"Norway",        code:"578", region:"Europe",     total:11.3, exports:2.0,  imports:9.3,  totalShare:2.8,  exportShare:1.6,  importShare:5.9},
-  {name:"India",         code:"356", region:"Asia",       total:9.6,  exports:5.0,  imports:4.6,  totalShare:2.4,  exportShare:3.9,  importShare:2.9},
-  {name:"United Arab Emirates", code:"784", region:"Middle East", total:8.7, exports:6.0, imports:2.7, totalShare:2.2, exportShare:4.7, importShare:1.7},
-  {name:"South Korea",  code:"410", region:"Asia",        total:7.4,  exports:3.0,  imports:4.4,  totalShare:1.8,  exportShare:2.3,  importShare:2.8}
-];
+// No fallback figures: nothing invented. Until data-jp-trade-partners.json exists
+// (UN Comtrade, update-trade-data.yml) the partner block says "Not yet available".
+var FALLBACK_PARTNERS = [];
 var UK_ID = "392"; // Japan
 var PARTNERS = FALLBACK_PARTNERS;
 var CURRENCY_SYMBOL = "$"; // FALLBACK_PARTNERS values are authored in USD billions (matching UN Comtrade's own convention), same as every other country's fallback trade data -- not Japan's own currency
@@ -3451,7 +3348,12 @@ Promise.all([
 ]).then(function(results){
   var world = results[0];
   var livePayload = results[1];
-  applyLivePartners(livePayload);
+  if(!applyLivePartners(livePayload)){
+    var tb = document.getElementById("tpmBlock");
+    if(tb) tb.innerHTML = "<div class=\"tpm-head\"><h3>Japan goods trade: top partners</h3></div>"
+      + "<p style=\"color:var(--ink2); margin:8px 0 26px;\">Not yet available for Japan.</p>";
+    dataReady = true; return;
+  }
   computeScales();
   renderRanking();
   drawGeo(world);

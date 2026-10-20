@@ -1644,7 +1644,8 @@ document.addEventListener("DOMContentLoaded", function(){
 <header class="page with-map">
  <div class="head-text">
  <p class="eyebrow"><span class="dot" aria-hidden="true"></span>Official statistics</p>
- <h1>Malaysia <span id="sampleBadge" class="badge"></span></h1>
+ <h1>Malaysia</h1>
+<div id="loadFail" role="alert" hidden style="margin:12px 0 0; padding:12px 16px; max-width:640px; border:1px solid var(--hair); border-radius:10px; background:var(--panel); color:var(--ink); font-size:14px; line-height:1.5;">We couldn’t load the latest figures for this page, so no charts are shown. Please refresh the page to try again.</div>
  </div>
 <div class="mini-mapwrap" id="miniMapWrap" tabindex="0" role="img"
  aria-label="Small world map. Hover or tap to enlarge, then select a country to jump to its page, keeping the current section.">
@@ -1714,9 +1715,7 @@ document.addEventListener("DOMContentLoaded", function(){
  <p class="secnote">Goods trade as DOSM reports it, in ringgit: exports valued free on board, imports including cost, insurance and freight.</p>
  <div id="tpmBlock"><div class="tpm-head"><h3>Malaysia goods trade: top partners</h3></div>
  <p class="tpm-scopenote"><strong>Goods trade only.</strong> Services aren't covered by this data source and aren't shown here, so relationships that lean heavily on services may be understated.</p>
- <div class="tpm-banner" id="tpmBanner"><span class="dot2" aria-hidden="true"></span>
- <span id="tpmBannerText">Illustrative data: approximate 2024 goods-trade values, shown as a placeholder. Live bilateral figures are not published for this country yet.</span></div>
- <nav class="viztoggle">
+  <nav class="viztoggle">
  <button type="button" class="vtbtn" data-view="geo">Geographic</button>
  <button type="button" class="vtbtn active" data-view="radial">Radial</button>
  <div class="spacer"></div>
@@ -1749,13 +1748,13 @@ document.addEventListener("DOMContentLoaded", function(){
  <div class="tpm-right">
  <div class="tpm-ranking">
  <h4 id="tpmRankTitle">Goods trade: top partners</h4>
- <p class="tpm-ranksubtitle" id="tpmRankSubtitle">Illustrative 2024 figures, US$bn</p>
+ <p class="tpm-ranksubtitle" id="tpmRankSubtitle"></p>
  <ol class="tpm-ranklist" id="tpmRankList"></ol>
  <button type="button" class="tpm-rankmore" id="tpmRankMore" hidden>Show all partners</button>
  </div>
  </div>
  </div>
- <p class="tpm-covnote" id="tpmCovnote">Illustrative fallback shows 13 major partners. Once live, every partner UN Comtrade has data for is fetched: the radial view shows the top 20 by value, the map shows the top 50, and the ranking list can be expanded to show the top 50 too.</p>
+ <p class="tpm-covnote" id="tpmCovnote"></p>
 </div>
 </section>
 <section class="sec" id="sec-public" hidden>
@@ -1887,72 +1886,7 @@ function yoyGDP(gdpReal){
   return {label:"Real GDP growth, year on year", unit:"%", freq: gdpReal.freq || "quarters", points:out, confirmed_at:gdpReal.confirmed_at};
 }
 /* --------------- fallback sample data (until fetch_data.py) -------------- */
-function interp(keys, periods){
-  const kIdx = keys.map(k=>periods.indexOf(k[0]));
-  const pts=[];
-  for(let s=0;s<keys.length-1;s++){
-    const a=kIdx[s], b=kIdx[s+1]; if(a<0||b<0) continue;
-    for(let i=a;i<=b;i++){
-      const t=(i-a)/(b-a||1);
-      const wob=Math.sin(i*2.1)*0.05*(Math.abs(keys[s+1][1]-keys[s][1])+0.4);
-      pts[i]=[periods[i], +(keys[s][1]+(keys[s+1][1]-keys[s][1])*t+wob).toFixed(2)];
-    }
-  }
-  return pts.filter(Boolean);
-}
-function monthsBetween(a,b){
-  const out=[]; let [y,m]=a.split("-").map(Number); const [Y,M]=b.split("-").map(Number);
-  while(y<Y||(y===Y&&m<=M)){ out.push(y+"-"+String(m).padStart(2,"0")); m++; if(m>12){m=1;y++;} }
-  return out;
-}
-function quartersBetween(a,b){
-  const out=[]; let [y,q]=[+a.slice(0,4),+a.slice(6)]; const [Y,Q]=[+b.slice(0,4),+b.slice(6)];
-  while(y<Y||(y===Y&&q<=Q)){ out.push(y+"-Q"+q); q++; if(q>4){q=1;y++;} }
-  return out;
-}
 const yearsBetween=(a,b)=>Array.from({length:b-a+1},(_,i)=>String(a+i));
-function sampleData(){
-  // Shapes anchored on the real data-my.json at build time, so a failed
-  // fetch shows Malaysia-shaped placeholders rather than another country's.
-  const S=(label,unit,freq,points)=>({label,unit,freq,points});
-  return { updated:new Date().toISOString(), sample:true,
-    series:{
-    cpi:S("CPI, all items, YoY, as published (DOSM, OpenDOSM cpi_headline_inflation)","%","months",interp(
-      [["1981-01", 8.2], ["1982-01", 7.6], ["1983-01", 5.1], ["1984-01", 4.1], ["1985-01", 0.0], ["1986-01", 1.2], ["1987-01", 0.6], ["1988-01", 1.3], ["1989-01", 3.4], ["1990-01", 2.7], ["1991-01", 3.6], ["1992-01", 4.3], ["1993-01", 4.5], ["1994-01", 3.8], ["1995-01", 3.5], ["1996-01", 3.4], ["1997-01", 3.1], ["1998-01", 3.4], ["1999-01", 5.2], ["2000-01", 1.6], ["2001-01", 1.5], ["2002-01", 1.1], ["2003-01", 3.9], ["2004-01", -0.5], ["2005-01", 1.6], ["2006-01", 3.2], ["2007-01", 3.2], ["2008-01", 2.3], ["2009-01", 3.9], ["2010-01", 1.4], ["2011-01", 2.4], ["2012-01", 2.7], ["2013-01", 1.3], ["2014-01", 3.4], ["2015-01", 1.0], ["2016-01", 3.5], ["2017-01", 3.1], ["2018-01", 2.7], ["2019-01", -0.7], ["2020-01", 1.6], ["2021-01", -0.2], ["2022-01", 2.3], ["2023-01", 3.7], ["2024-01", 1.5], ["2025-01", 1.7], ["2026-01", 1.6], ["2026-08", 1.9]],monthsBetween("1981-01","2026-08"))),
-    cpi_mom:S("CPI, all items, MoM, as published (DOSM, OpenDOSM cpi_headline_inflation)","%","months",interp(
-      [["1980-02", 0.5], ["1981-02", 1.1], ["1982-02", 0.6], ["1983-02", -0.4], ["1984-02", 1.2], ["1985-02", 0.2], ["1986-02", 0.2], ["1987-02", 0.0], ["1988-02", 0.2], ["1989-02", 0.0], ["1990-02", 0.5], ["1991-02", 0.3], ["1992-02", 0.5], ["1993-02", 0.3], ["1994-02", 0.9], ["1995-02", 0.6], ["1996-02", 0.7], ["1997-02", 0.6], ["1998-02", 1.5], ["1999-02", 0.1], ["2000-02", 0.1], ["2001-02", 0.1], ["2002-02", 0.2], ["2003-02", 0.1], ["2004-02", 0.1], ["2005-02", 0.1], ["2006-02", 0.1], ["2007-02", 0.0], ["2008-02", 0.3], ["2009-02", 0.2], ["2010-02", 0.0], ["2011-02", 0.5], ["2012-02", 0.0], ["2013-02", 0.2], ["2014-02", 0.3], ["2015-02", -0.6], ["2016-02", 0.0], ["2017-02", 1.3], ["2018-02", 0.0], ["2019-02", 0.2], ["2020-02", 0.0], ["2021-02", 0.3], ["2022-02", 0.2], ["2023-02", 0.2], ["2024-02", 0.5], ["2025-02", 0.4], ["2026-02", 0.2], ["2026-08", 0.3]],monthsBetween("1980-02","2026-08"))),
-    current_account:S("Current account balance, % of GDP (World Bank)","%","years",interp(
-      [["1974", -5.6698], ["1977", 3.4014], ["1980", -1.0861], ["1983", -11.4744], ["1986", -0.366], ["1989", 0.8096], ["1992", -3.663], ["1995", -9.7441], ["1998", 13.2035], ["2001", 7.8536], ["2004", 12.0878], ["2007", 15.3811], ["2010", 10.0557], ["2013", 3.4661], ["2016", 2.3677], ["2019", 3.5039], ["2022", 3.1235], ["2024", 1.6934]],yearsBetween(1974,2024))),
-    debt_gdp:S("General government gross debt, % of GDP (IMF WEO)","%","years",interp(
-      [["1990", 74.129], ["1993", 51.134], ["1996", 32.769], ["1999", 34.363], ["2002", 39.532], ["2005", 40.778], ["2008", 39.361], ["2011", 51.898], ["2014", 55.373], ["2017", 54.395], ["2020", 67.693], ["2023", 69.712], ["2024", 69.839]],yearsBetween(1990,2024))),
-    deficit:S("General government net lending/borrowing, % of GDP (IMF WEO)","%","years",interp(
-      [["1990", 0.149], ["1993", 3.44], ["1996", 3.27], ["1999", -3.003], ["2002", -3.96], ["2005", -2.833], ["2008", -3.405], ["2011", -3.568], ["2014", -2.628], ["2017", -2.412], ["2020", -4.902], ["2023", -4.113], ["2024", -3.447]],yearsBetween(1990,2024))),
-    employment:S("Employment-to-population ratio, not seasonally adjusted (DOSM, OpenDOSM lfs_month)","%","months",interp(
-      [["2011-01", 62.9], ["2012-01", 63.7], ["2013-01", 63.6], ["2014-01", 65.7], ["2015-01", 65.5], ["2016-01", 65.4], ["2017-01", 65.4], ["2018-01", 65.9], ["2019-01", 66.3], ["2020-01", 66.7], ["2021-01", 65.2], ["2022-01", 66.2], ["2023-01", 67.3], ["2024-01", 68.1], ["2025-01", 68.4], ["2026-01", 68.8], ["2026-07", 68.8]],monthsBetween("2011-01","2026-07"))),
-    exports:S("Exports of goods, FOB (DOSM external trade, OpenDOSM trade_sitc_1d)","MYRm","months",interp(
-      [["2000-01", 25431.4], ["2001-01", 28054.9], ["2002-01", 27316.9], ["2003-01", 31622.1], ["2004-01", 35316.1], ["2005-01", 39205.8], ["2006-01", 43199.8], ["2007-01", 47982.1], ["2008-01", 53180.8], ["2009-01", 37002.6], ["2010-01", 52527.1], ["2011-01", 54683.0], ["2012-01", 55113.8], ["2013-01", 57080.0], ["2014-01", 64053.5], ["2015-01", 62971.4], ["2016-01", 61850.8], ["2017-01", 70309.4], ["2018-01", 83252.4], ["2019-01", 86340.8], ["2020-01", 84288.4], ["2021-01", 89676.8], ["2022-01", 111060.0], ["2023-01", 112665.5], ["2024-01", 122410.5], ["2025-01", 122814.0], ["2026-01", 146827.7], ["2026-07", 193598.3]],monthsBetween("2000-01","2026-07"))),
-    fdi:S("FDI net inflows, % of GDP (World Bank)","%","years",interp(
-      [["1970", 2.4326], ["1973", 2.2446], ["1976", 3.4502], ["1979", 2.7033], ["1982", 5.2125], ["1985", 2.2267], ["1988", 2.0396], ["1991", 8.1363], ["1994", 5.8296], ["1997", 5.1362], ["2000", 4.0384], ["2003", 2.9209], ["2006", 4.7272], ["2009", 0.0567], ["2012", 2.8291], ["2015", 3.2709], ["2018", 2.3146], ["2021", 5.4163], ["2024", 3.6931]],yearsBetween(1970,2024))),
-    gdp_growth:S("Real GDP growth, change on previous quarter, seasonally adjusted, from DOSM's seasonally adjusted real GDP (OpenDOSM gdp_qtr_real_sa)","%","quarters",interp(
-      [["2015-Q2", 1.4], ["2016-Q2", 1.3], ["2017-Q2", 1.5], ["2018-Q2", 1.4], ["2019-Q2", 2.6], ["2020-Q2", -14.7], ["2021-Q2", -0.3], ["2022-Q2", 3.6], ["2023-Q2", 0.3], ["2024-Q2", 1.8], ["2025-Q2", 1.9], ["2026-Q2", 2.5]],quartersBetween("2015-Q2","2026-Q2"))),
-    gdp_growth_yoy:S("Real GDP growth, change on same quarter a year earlier (DOSM, OpenDOSM gdp_qtr_real)","%","quarters",interp(
-      [["2016-Q1", 4.3], ["2017-Q1", 5.6], ["2018-Q1", 5.3], ["2019-Q1", 4.7], ["2020-Q1", 0.7], ["2021-Q1", -0.2], ["2022-Q1", 5.1], ["2023-Q1", 5.7], ["2024-Q1", 4.2], ["2025-Q1", 4.4], ["2026-Q1", 5.4], ["2026-Q2", 6.0]],quartersBetween("2016-Q1","2026-Q2"))),
-    gdp_level:S("GDP, current prices, not seasonally adjusted (DOSM, OpenDOSM gdp_qtr_nominal)","MYRm","quarters",interp(
-      [["2015-Q1", 281643.0], ["2016-Q1", 295016.0], ["2017-Q1", 328713.0], ["2018-Q1", 346709.0], ["2019-Q1", 362512.0], ["2020-Q1", 367259.0], ["2021-Q1", 371269.906], ["2022-Q1", 423145.054], ["2023-Q1", 444749.487], ["2024-Q1", 465269.482], ["2025-Q1", 485106.586], ["2026-Q1", 513325.792], ["2026-Q2", 544006.033]],quartersBetween("2015-Q1","2026-Q2"))),
-    gdp_real:S("Real GDP, constant prices (DOSM, OpenDOSM gdp_qtr_real)","MYRm","quarters",interp(
-      [["2015-Q1", 282255.0], ["2016-Q1", 294329.0], ["2017-Q1", 310744.0], ["2018-Q1", 327096.0], ["2019-Q1", 342373.0], ["2020-Q1", 344690.0], ["2021-Q1", 343912.379], ["2022-Q1", 361334.789], ["2023-Q1", 381841.342], ["2024-Q1", 397764.525], ["2025-Q1", 415440.954], ["2026-Q1", 437670.264], ["2026-Q2", 445896.454]],quartersBetween("2015-Q1","2026-Q2"))),
-    imports:S("Imports of goods, CIF (DOSM external trade, OpenDOSM trade_sitc_1d)","MYRm","months",interp(
-      [["2000-01", 20823.3], ["2001-01", 25014.3], ["2002-01", 23032.9], ["2003-01", 24541.8], ["2004-01", 28518.2], ["2005-01", 31245.8], ["2006-01", 34170.4], ["2007-01", 40337.8], ["2008-01", 43209.4], ["2009-01", 30070.5], ["2010-01", 39445.9], ["2011-01", 44904.0], ["2012-01", 46299.4], ["2013-01", 53724.6], ["2014-01", 57609.5], ["2015-01", 54641.3], ["2016-01", 56455.2], ["2017-01", 65439.6], ["2018-01", 73201.3], ["2019-01", 73921.7], ["2020-01", 72249.9], ["2021-01", 73057.7], ["2022-01", 92822.5], ["2023-01", 94508.3], ["2024-01", 112238.0], ["2025-01", 119155.1], ["2026-01", 124869.2], ["2026-07", 171138.4]],monthsBetween("2000-01","2026-07"))),
-    participation:S("Labour force participation rate, seasonally adjusted (DOSM, OpenDOSM lfs_month_sa)","%","months",interp(
-      [["2011-01", 64.8], ["2012-01", 65.5], ["2013-01", 65.6], ["2014-01", 67.8], ["2015-01", 67.6], ["2016-01", 67.7], ["2017-01", 67.7], ["2018-01", 68.2], ["2019-01", 68.5], ["2020-01", 68.8], ["2021-01", 68.4], ["2022-01", 68.9], ["2023-01", 69.7], ["2024-01", 70.5], ["2025-01", 70.6], ["2026-01", 70.9], ["2026-07", 70.9]],monthsBetween("2011-01","2026-07"))),
-    policy_rate:S("Overnight policy rate (BIS central bank policy rates, M.MY, from May 2004)","%","months",interp(
-      [["2004-05", 2.7], ["2005-05", 2.7], ["2006-05", 3.5], ["2007-05", 3.5], ["2008-05", 3.5], ["2009-05", 2.0], ["2010-05", 2.5], ["2011-05", 3.0], ["2012-05", 3.0], ["2013-05", 3.0], ["2014-05", 3.0], ["2015-05", 3.25], ["2016-05", 3.25], ["2017-05", 3.0], ["2018-05", 3.25], ["2019-05", 3.0], ["2020-05", 2.0], ["2021-05", 1.75], ["2022-05", 2.0], ["2023-05", 3.0], ["2024-05", 3.0], ["2025-05", 3.0], ["2026-05", 2.75], ["2026-08", 2.75]],monthsBetween("2004-05","2026-08"))),
-    trade_balance:S("Trade balance, goods, exports FOB less imports CIF (DOSM external trade)","MYRm","months",interp(
-      [["2000-01", 4608.1], ["2001-01", 3040.6], ["2002-01", 4284.0], ["2003-01", 7080.3], ["2004-01", 6797.9], ["2005-01", 7960.0], ["2006-01", 9029.4], ["2007-01", 7644.3], ["2008-01", 9971.4], ["2009-01", 6932.1], ["2010-01", 13081.2], ["2011-01", 9779.0], ["2012-01", 8814.4], ["2013-01", 3355.4], ["2014-01", 6444.0], ["2015-01", 8330.1], ["2016-01", 5395.6], ["2017-01", 4869.8], ["2018-01", 10051.1], ["2019-01", 12419.1], ["2020-01", 12038.5], ["2021-01", 16619.1], ["2022-01", 18237.5], ["2023-01", 18157.2], ["2024-01", 10172.5], ["2025-01", 3658.9], ["2026-01", 21958.5], ["2026-07", 22459.9]],monthsBetween("2000-01","2026-07"))),
-    unemployment:S("Unemployment rate, seasonally adjusted (DOSM labour force survey, OpenDOSM lfs_month_sa)","%","months",interp(
-      [["2011-01", 3.1], ["2012-01", 2.9], ["2013-01", 3.2], ["2014-01", 3.1], ["2015-01", 3.0], ["2016-01", 3.3], ["2017-01", 3.3], ["2018-01", 3.3], ["2019-01", 3.2], ["2020-01", 3.3], ["2021-01", 4.9], ["2022-01", 4.2], ["2023-01", 3.6], ["2024-01", 3.3], ["2025-01", 3.1], ["2026-01", 3.0], ["2026-07", 3.0]],monthsBetween("2011-01","2026-07"))),
-  }};
-}
 /* ------------------------------- charts ---------------------------------- */
 const refLinePlugin = {
   id: "refLine",
@@ -2459,7 +2393,6 @@ function render(data){
   // page load from data-my.json), which is what "new data each time"
   // means in practice for a static-data key like this.
   window.EATLAS_SERIES = s;
-  if(data.sample){const sb=document.getElementById("sampleBadge");sb.textContent="Illustrative figures: the live data feed did not load, so this page is showing placeholder shapes, not published statistics. Refresh in a moment.";sb.classList.add("show");}
   const gdpAnnual = s.gdp_level ? annualGDP(s.gdp_level) : null;
   const pct=v=>v.toFixed(1)+"%", pp=v=>v.toFixed(1)+"pp";
   const idx=v=>v.toFixed(1);
@@ -3099,13 +3032,17 @@ const FX_FETCH=fetch("data-fx-my.json",{cache: "no-cache"})
 fetch("data-my.json",{cache: "no-cache"})
   .then(r=>{ if(!r.ok) throw new Error(r.status); return r.json(); })
   .then(d=>FX_FETCH.then(fx=>{ FX_DATA=fx; PAGE_DATA=d; rerender(); }))
-  .catch(()=>{ PAGE_DATA=sampleData(); rerender(); });
+  .catch(err=>{
+    // No stand-in figures: if the data cannot be loaded or drawn, say so plainly.
+    console.error(err);
+    const lf=document.getElementById("loadFail"); if(lf) lf.hidden=false;
+  });
 </script>
 <script>
 (function(){
 "use strict";
 // No fallback figures: nothing invented. Until data-my-trade-partners.json exists
-// (UN Comtrade, update-trade-data.yml) the partner block is hidden.
+// (UN Comtrade, update-trade-data.yml) the partner block says "Not yet available".
 var FALLBACK_PARTNERS = [];
 var UK_ID = "458"; // Malaysia
 var PARTNERS = FALLBACK_PARTNERS;
@@ -3385,11 +3322,12 @@ Promise.all([
 ]).then(function(results){
   var world = results[0];
   var livePayload = results[1];
-  if(!livePayload && !FALLBACK_PARTNERS.length){
-    var tb = document.getElementById("tpmBlock"); if(tb) tb.hidden = true;
+  if(!applyLivePartners(livePayload)){
+    var tb = document.getElementById("tpmBlock");
+    if(tb) tb.innerHTML = "<div class=\"tpm-head\"><h3>Malaysia goods trade: top partners</h3></div>"
+      + "<p style=\"color:var(--ink2); margin:8px 0 26px;\">Not yet available for Malaysia.</p>";
     dataReady = true; return;
   }
-  applyLivePartners(livePayload);
   computeScales();
   renderRanking();
   drawGeo(world);

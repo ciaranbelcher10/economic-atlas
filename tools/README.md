@@ -241,32 +241,28 @@ Pay attention to both directions. Behaviour falling short of a promise is a
 defect; behaviour exceeding a stale description is also a defect, because the
 documentation is wrong and the site is underselling itself.
 
-## `sampledata_gate.js` — execute every country page's `sampleData()`
+## `sampledata_gate.js`: no invented figures on any page (v1.9.2)
 
 ```
-node tools/sampledata_gate.js
+NODE_PATH=/tmp/node_modules node tools/sampledata_gate.js
 ```
 
-Runs each country page's `sampleData()` under a stubbed DOM and asserts every
-series is non-empty and every point numeric and finite. `node --check` is
-blind to runtime errors like a deleted variable initialisation; this is not.
+Until v1.9.1 this gate ran each country page's `sampleData()` fallback, which drew
+invented figures under real series codes whenever a data file failed to load. The
+fallback was removed in v1.9.2 and the gate now enforces the opposite. For every
+country page: no `sampleData()`, exactly one hidden `#loadFail` notice that the data
+fetch's `.catch` reveals, and no "illustrative" wording (uk.html is allowed exactly
+the count of its four known approximate modules, `KNOWN_UK`; lower it as each is
+resolved). For every trade-partner module: an empty `FALLBACK_PARTNERS`, no
+placeholder banner or captions, a `#tpmBlock` wrapper with a "Not yet available for
+<name>" branch, the page's own code on the radial hub, and the country's ISO numeric
+code as the map's home (`UK_ID`).
 
-Expected: **32 of 32 clean, 431 series, 72,576 points, 0 nulls**, plus
-`fixture series also served 404`, `fixture-only 27`, `SERVED BUT NOT ASSERTED
-HERE 10`. Exit code 1 on any failure. Run it before every package.
+It also checks behaviour: each page is loaded in jsdom with every `data-*.json`
+fetch failing, and the "couldn't load" notice must appear. Needs jsdom
+(`cd /tmp && npm i jsdom@24`). Takes about 35 seconds.
 
-Read those last three lines every time. `sampleData()` is the offline fixture,
-not the data the page serves, so a clean pass does not mean the served data is
-sound. Ten served series are absent from the fixture and therefore asserted by
-nothing here: `gdp_growth_yoy` (Chile, Colombia), `gdp_level_annual` and
-`gdp_real_annual` (Poland, Turkey), `gdp_real` (Singapore, Thailand),
-`gdp_real_annual` (Switzerland) and `gdp_nominal` (US). Nulls are counted
-separately rather than folded into "points asserted finite", because a null
-passes the check without ever being asserted.
-
-The page blocks are `"use strict"`, so function declarations do not leak to
-`globalThis` and `sampleData` has to be captured from inside the eval scope.
-It returns `{updated, sample, series:{...}}`, not a bare series map.
+Expected: **62 country pages, 923 checks, 0 failures**. Exit code 1 on any failure.
 
 ## `html_gate.py` — structural gate over every published page
 

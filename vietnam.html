@@ -1644,7 +1644,8 @@ document.addEventListener("DOMContentLoaded", function(){
 <header class="page with-map">
  <div class="head-text">
  <p class="eyebrow"><span class="dot" aria-hidden="true"></span>Official statistics</p>
- <h1>Vietnam <span id="sampleBadge" class="badge"></span></h1>
+ <h1>Vietnam</h1>
+<div id="loadFail" role="alert" hidden style="margin:12px 0 0; padding:12px 16px; max-width:640px; border:1px solid var(--hair); border-radius:10px; background:var(--panel); color:var(--ink); font-size:14px; line-height:1.5;">We couldn’t load the latest figures for this page, so no charts are shown. Please refresh the page to try again.</div>
  </div>
 <div class="mini-mapwrap" id="miniMapWrap" tabindex="0" role="img"
  aria-label="Small world map. Hover or tap to enlarge, then select a country to jump to its page, keeping the current section.">
@@ -1714,9 +1715,7 @@ document.addEventListener("DOMContentLoaded", function(){
  <p class="secnote">Goods trade is Vietnam's monthly customs data as the IMF republishes it, in US dollars, converted to dong at each month's average exchange rate from the Bank for International Settlements. The Bank for International Settlements has no rate for August 2025, so that month uses the average of the July and September rates. Exports are valued free on board, imports including cost, insurance and freight.</p>
  <div id="tpmBlock"><div class="tpm-head"><h3>Vietnam goods trade: top partners</h3></div>
  <p class="tpm-scopenote"><strong>Goods trade only.</strong> Services aren't covered by this data source and aren't shown here, so relationships that lean heavily on services may be understated.</p>
- <div class="tpm-banner" id="tpmBanner"><span class="dot2" aria-hidden="true"></span>
- <span id="tpmBannerText">Illustrative data: approximate 2024 goods-trade values, shown as a placeholder. Live bilateral figures are not published for this country yet.</span></div>
- <nav class="viztoggle">
+  <nav class="viztoggle">
  <button type="button" class="vtbtn" data-view="geo">Geographic</button>
  <button type="button" class="vtbtn active" data-view="radial">Radial</button>
  <div class="spacer"></div>
@@ -1749,13 +1748,13 @@ document.addEventListener("DOMContentLoaded", function(){
  <div class="tpm-right">
  <div class="tpm-ranking">
  <h4 id="tpmRankTitle">Goods trade: top partners</h4>
- <p class="tpm-ranksubtitle" id="tpmRankSubtitle">Illustrative 2024 figures, US$bn</p>
+ <p class="tpm-ranksubtitle" id="tpmRankSubtitle"></p>
  <ol class="tpm-ranklist" id="tpmRankList"></ol>
  <button type="button" class="tpm-rankmore" id="tpmRankMore" hidden>Show all partners</button>
  </div>
  </div>
  </div>
- <p class="tpm-covnote" id="tpmCovnote">Illustrative fallback shows 13 major partners. Once live, every partner UN Comtrade has data for is fetched: the radial view shows the top 20 by value, the map shows the top 50, and the ranking list can be expanded to show the top 50 too.</p>
+ <p class="tpm-covnote" id="tpmCovnote"></p>
 </div>
 </section>
 <section class="sec" id="sec-public" hidden>
@@ -1887,64 +1886,7 @@ function yoyGDP(gdpReal){
   return {label:"Real GDP growth, year on year", unit:"%", freq: gdpReal.freq || "quarters", points:out, confirmed_at:gdpReal.confirmed_at};
 }
 /* --------------- fallback sample data (until fetch_data.py) -------------- */
-function interp(keys, periods){
-  const kIdx = keys.map(k=>periods.indexOf(k[0]));
-  const pts=[];
-  for(let s=0;s<keys.length-1;s++){
-    const a=kIdx[s], b=kIdx[s+1]; if(a<0||b<0) continue;
-    for(let i=a;i<=b;i++){
-      const t=(i-a)/(b-a||1);
-      const wob=Math.sin(i*2.1)*0.05*(Math.abs(keys[s+1][1]-keys[s][1])+0.4);
-      pts[i]=[periods[i], +(keys[s][1]+(keys[s+1][1]-keys[s][1])*t+wob).toFixed(2)];
-    }
-  }
-  return pts.filter(Boolean);
-}
-function monthsBetween(a,b){
-  const out=[]; let [y,m]=a.split("-").map(Number); const [Y,M]=b.split("-").map(Number);
-  while(y<Y||(y===Y&&m<=M)){ out.push(y+"-"+String(m).padStart(2,"0")); m++; if(m>12){m=1;y++;} }
-  return out;
-}
-function quartersBetween(a,b){
-  const out=[]; let [y,q]=[+a.slice(0,4),+a.slice(6)]; const [Y,Q]=[+b.slice(0,4),+b.slice(6)];
-  while(y<Y||(y===Y&&q<=Q)){ out.push(y+"-Q"+q); q++; if(q>4){q=1;y++;} }
-  return out;
-}
 const yearsBetween=(a,b)=>Array.from({length:b-a+1},(_,i)=>String(a+i));
-function sampleData(){
-  // Shapes anchored on the real data-vn.json at build time, so a failed
-  // fetch shows Vietnam-shaped placeholders rather than another country's.
-  const S=(label,unit,freq,points)=>({label,unit,freq,points});
-  return { updated:new Date().toISOString(), sample:true,
-    series:{
-    cpi:S("CPI, all items, change on same month a year earlier (IMF CPI, from Vietnam's statistics office)","%","months",interp(
-      [["2006-01", 8.8], ["2007-01", 6.5], ["2008-01", 14.1], ["2009-01", 17.5], ["2010-01", 7.6], ["2011-01", 12.2], ["2012-01", 17.3], ["2013-01", 7.1], ["2014-01", 5.4], ["2015-01", 0.9], ["2016-01", 0.8], ["2017-01", 5.2], ["2018-01", 2.6], ["2019-01", 2.6], ["2020-01", 6.4], ["2021-01", -1.0], ["2022-01", 1.9], ["2023-01", 4.9], ["2024-01", 3.4], ["2025-01", 3.6], ["2026-01", 2.5], ["2026-07", 4.5]],monthsBetween("2006-01","2026-07"))),
-    cpi_mom:S("CPI, all items, change on previous month, not seasonally adjusted (IMF CPI)","%","months",interp(
-      [["2005-02", 2.5], ["2006-02", 2.1], ["2007-02", 2.2], ["2008-02", 3.6], ["2009-02", 1.2], ["2010-02", 2.0], ["2011-02", 2.1], ["2012-02", 1.4], ["2013-02", 1.3], ["2014-02", 0.6], ["2015-02", -0.0], ["2016-02", 0.4], ["2017-02", 0.2], ["2018-02", 0.7], ["2019-02", 0.8], ["2020-02", -0.2], ["2021-02", 1.5], ["2022-02", 1.0], ["2023-02", 0.4], ["2024-02", 1.0], ["2025-02", 0.3], ["2026-02", 1.1], ["2026-07", -0.1]],monthsBetween("2005-02","2026-07"))),
-    current_account:S("Current account balance, % of GDP (World Bank)","%","years",interp(
-      [["1996", -8.1922], ["1999", 4.1034], ["2002", -1.7226], ["2005", -0.972], ["2008", -10.918], ["2011", 0.1367], ["2014", 4.009], ["2017", -0.5861], ["2020", 4.3449], ["2023", 5.9458], ["2025", 6.4378]],yearsBetween(1996,2025))),
-    debt_gdp:S("General government gross debt, % of GDP (IMF WEO)","%","years",interp(
-      [["2000", 24.755], ["2003", 29.835], ["2006", 30.248], ["2009", 36.17], ["2012", 38.33], ["2015", 46.117], ["2018", 43.798], ["2021", 39.237], ["2024", 31.163]],yearsBetween(2000,2024))),
-    deficit:S("General government net lending/borrowing, % of GDP (IMF WEO)","%","years",interp(
-      [["1998", -0.099], ["2001", -2.192], ["2004", -0.15], ["2007", -1.739], ["2010", -2.251], ["2013", -5.964], ["2016", -3.164], ["2019", -0.397], ["2022", 0.671], ["2024", -1.535]],yearsBetween(1998,2024))),
-    exports:S("Exports of goods, FOB, US$ converted to dong at the BIS monthly average rate (IMF international trade in goods)","VNDm","months",interp(
-      [["2006-01", 48791136.0], ["2007-01", 61609996.0], ["2008-01", 80697144.0], ["2009-01", 64938698.0], ["2010-01", 91158221.0], ["2011-01", 139339520.0], ["2012-01", 146483324.0], ["2013-01", 240646712.0], ["2014-01", 247299216.0], ["2015-01", 289578924.0], ["2016-01", 297971402.5], ["2017-01", 319722258.8], ["2018-01", 454398339.4], ["2019-01", 506897078.1], ["2020-01", 426246284.3], ["2021-01", 660353117.0], ["2022-01", 735984790.3], ["2023-01", 558111418.3], ["2024-01", 828831261.7], ["2025-01", 807690822.9], ["2026-01", 1084856353.7], ["2026-06", 1278226515.1]],monthsBetween("2006-01","2026-06"))),
-    fdi:S("FDI net inflows, % of GDP (World Bank)","%","years",interp(
-      [["1985", -0.0006], ["1988", 0.0302], ["1991", 3.9028], ["1994", 11.9395], ["1997", 8.2701], ["2000", 4.1639], ["2003", 3.666], ["2006", 3.616], ["2009", 7.1688], ["2012", 4.2783], ["2015", 4.9319], ["2018", 4.9983], ["2021", 4.2731], ["2024", 4.2345], ["2025", 4.2724]],yearsBetween(1985,2025))),
-    gdp_growth:S("Real GDP growth, change on previous year (World Bank)","%","years",interp(
-      [["1985", 3.8], ["1988", 5.1], ["1991", 6.0], ["1994", 8.8], ["1997", 8.2], ["2000", 6.8], ["2003", 6.9], ["2006", 7.0], ["2009", 5.4], ["2012", 5.5], ["2015", 7.0], ["2018", 7.5], ["2021", 2.6], ["2024", 7.0], ["2025", 8.0]],yearsBetween(1985,2025))),
-    gdp_level:S("GDP, current prices, annual (World Bank)","VNDm","years",interp(
-      [["1985", 117000.0], ["1988", 15420000.0], ["1991", 76707000.0], ["1994", 178534000.0], ["1997", 313623000.0], ["2000", 441646000.0], ["2003", 613443000.0], ["2006", 1061565000.0], ["2009", 1809149000.0], ["2012", 4073762290.0], ["2015", 5191323730.0], ["2018", 7009042130.0], ["2021", 8487475600.0], ["2024", 11510328920.8], ["2025", 12847571216.0]],yearsBetween(1985,2025))),
-    gdp_real:S("Real GDP, constant prices, annual (World Bank)","VNDm","years",interp(
-      [["1984", 530956366.5], ["1987", 586839059.3], ["1990", 696199404.6], ["1993", 866181915.9], ["1996", 1129138871.5], ["1999", 1353236805.6], ["2002", 1631575777.7], ["2005", 2017139745.4], ["2008", 2442627601.2], ["2011", 2915553940.0], ["2014", 3455392130.0], ["2017", 4217874760.0], ["2020", 5005755650.0], ["2023", 5849273650.0], ["2025", 6763098165.8]],yearsBetween(1984,2025))),
-    imports:S("Imports of goods, CIF, US$ converted to dong at the BIS monthly average rate (IMF international trade in goods)","VNDm","months",interp(
-      [["2006-01", 42740016.0], ["2007-01", 70266875.0], ["2008-01", 119684928.0], ["2009-01", 57996741.0], ["2010-01", 108758342.0], ["2011-01", 155696768.0], ["2012-01", 145837656.0], ["2013-01", 220526864.0], ["2014-01", 208088112.0], ["2015-01", 302740628.0], ["2016-01", 279812298.4], ["2017-01", 290211140.5], ["2018-01", 452179685.1], ["2019-01", 492729644.1], ["2020-01", 433728353.2], ["2021-01", 612366979.0], ["2022-01", 698166750.8], ["2023-01", 542768311.3], ["2024-01", 739997933.4], ["2025-01", 731567502.1], ["2026-01", 1129667276.0], ["2026-06", 1344796880.2]],monthsBetween("2006-01","2026-06"))),
-    trade_balance:S("Trade balance, goods, exports less imports, dong (IMF ITG, converted at the BIS monthly average rate)","VNDm","months",interp(
-      [["2006-01", 6051120.0], ["2007-01", -8656879.0], ["2008-01", -38987784.0], ["2009-01", 6941957.0], ["2010-01", -17600121.0], ["2011-01", -16357248.0], ["2012-01", 645668.0], ["2013-01", 20119848.0], ["2014-01", 39211104.0], ["2015-01", -13161704.0], ["2016-01", 18159104.1], ["2017-01", 29511118.3], ["2018-01", 2218654.3], ["2019-01", 14167434.0], ["2020-01", -7482068.9], ["2021-01", 47986138.0], ["2022-01", 37818039.5], ["2023-01", 15343107.0], ["2024-01", 88833328.3], ["2025-01", 76123320.8], ["2026-01", -44810922.3], ["2026-06", -66570365.1]],monthsBetween("2006-01","2026-06"))),
-    unemployment:S("Unemployment rate, ILO modelled estimate, annual (World Bank)","%","years",interp(
-      [["1991", 2.14], ["1994", 1.972], ["1997", 2.87], ["2000", 2.26], ["2003", 2.25], ["2006", 2.046], ["2009", 1.737], ["2012", 1.027], ["2015", 1.848], ["2018", 1.161], ["2021", 2.383], ["2024", 1.602], ["2025", 1.523]],yearsBetween(1991,2025))),
-  }};
-}
 /* ------------------------------- charts ---------------------------------- */
 const refLinePlugin = {
   id: "refLine",
@@ -2451,7 +2393,6 @@ function render(data){
   // page load from data-vn.json), which is what "new data each time"
   // means in practice for a static-data key like this.
   window.EATLAS_SERIES = s;
-  if(data.sample){const sb=document.getElementById("sampleBadge");sb.textContent="Illustrative figures: the live data feed did not load, so this page is showing placeholder shapes, not published statistics. Refresh in a moment.";sb.classList.add("show");}
   const gdpAnnual = s.gdp_level ? annualGDP(s.gdp_level) : null;
   const pct=v=>v.toFixed(1)+"%", pp=v=>v.toFixed(1)+"pp";
   const idx=v=>v.toFixed(1);
@@ -3050,13 +2991,17 @@ const FX_FETCH=fetch("data-fx-vn.json",{cache: "no-cache"})
 fetch("data-vn.json",{cache: "no-cache"})
   .then(r=>{ if(!r.ok) throw new Error(r.status); return r.json(); })
   .then(d=>FX_FETCH.then(fx=>{ FX_DATA=fx; PAGE_DATA=d; rerender(); }))
-  .catch(()=>{ PAGE_DATA=sampleData(); rerender(); });
+  .catch(err=>{
+    // No stand-in figures: if the data cannot be loaded or drawn, say so plainly.
+    console.error(err);
+    const lf=document.getElementById("loadFail"); if(lf) lf.hidden=false;
+  });
 </script>
 <script>
 (function(){
 "use strict";
 // No fallback figures: nothing invented. Until data-vn-trade-partners.json exists
-// (UN Comtrade, update-trade-data.yml) the partner block is hidden.
+// (UN Comtrade, update-trade-data.yml) the partner block says "Not yet available".
 var FALLBACK_PARTNERS = [];
 var UK_ID = "704"; // Vietnam
 var PARTNERS = FALLBACK_PARTNERS;
@@ -3336,11 +3281,12 @@ Promise.all([
 ]).then(function(results){
   var world = results[0];
   var livePayload = results[1];
-  if(!livePayload && !FALLBACK_PARTNERS.length){
-    var tb = document.getElementById("tpmBlock"); if(tb) tb.hidden = true;
+  if(!applyLivePartners(livePayload)){
+    var tb = document.getElementById("tpmBlock");
+    if(tb) tb.innerHTML = "<div class=\"tpm-head\"><h3>Vietnam goods trade: top partners</h3></div>"
+      + "<p style=\"color:var(--ink2); margin:8px 0 26px;\">Not yet available for Vietnam.</p>";
     dataReady = true; return;
   }
-  applyLivePartners(livePayload);
   computeScales();
   renderRanking();
   drawGeo(world);

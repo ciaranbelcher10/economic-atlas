@@ -1644,7 +1644,8 @@ document.addEventListener("DOMContentLoaded", function(){
 <header class="page with-map">
  <div class="head-text">
  <p class="eyebrow"><span class="dot" aria-hidden="true"></span>Official statistics</p>
- <h1>Nigeria <span id="sampleBadge" class="badge"></span></h1>
+ <h1>Nigeria</h1>
+<div id="loadFail" role="alert" hidden style="margin:12px 0 0; padding:12px 16px; max-width:640px; border:1px solid var(--hair); border-radius:10px; background:var(--panel); color:var(--ink); font-size:14px; line-height:1.5;">We couldn’t load the latest figures for this page, so no charts are shown. Please refresh the page to try again.</div>
  </div>
 <div class="mini-mapwrap" id="miniMapWrap" tabindex="0" role="img"
  aria-label="Small world map. Hover or tap to enlarge, then select a country to jump to its page, keeping the current section.">
@@ -1714,9 +1715,7 @@ document.addEventListener("DOMContentLoaded", function(){
  <p class="secnote">There is no monthly goods trade series on this page: the IMF does not republish Nigeria's monthly trade data, and the National Bureau of Statistics publishes it only as reports. Where UN Comtrade holds Nigeria's annual figures, the trading partners below show them, in US dollars.</p>
  <div id="tpmBlock"><div class="tpm-head"><h3>Nigeria goods trade: top partners</h3></div>
  <p class="tpm-scopenote"><strong>Goods trade only.</strong> Services aren't covered by this data source and aren't shown here, so relationships that lean heavily on services may be understated.</p>
- <div class="tpm-banner" id="tpmBanner"><span class="dot2" aria-hidden="true"></span>
- <span id="tpmBannerText">Illustrative data: approximate 2024 goods-trade values, shown as a placeholder. Live bilateral figures are not published for this country yet.</span></div>
- <nav class="viztoggle">
+  <nav class="viztoggle">
  <button type="button" class="vtbtn" data-view="geo">Geographic</button>
  <button type="button" class="vtbtn active" data-view="radial">Radial</button>
  <div class="spacer"></div>
@@ -1749,13 +1748,13 @@ document.addEventListener("DOMContentLoaded", function(){
  <div class="tpm-right">
  <div class="tpm-ranking">
  <h4 id="tpmRankTitle">Goods trade: top partners</h4>
- <p class="tpm-ranksubtitle" id="tpmRankSubtitle">Illustrative 2024 figures, US$bn</p>
+ <p class="tpm-ranksubtitle" id="tpmRankSubtitle"></p>
  <ol class="tpm-ranklist" id="tpmRankList"></ol>
  <button type="button" class="tpm-rankmore" id="tpmRankMore" hidden>Show all partners</button>
  </div>
  </div>
  </div>
- <p class="tpm-covnote" id="tpmCovnote">Illustrative fallback shows 13 major partners. Once live, every partner UN Comtrade has data for is fetched: the radial view shows the top 20 by value, the map shows the top 50, and the ranking list can be expanded to show the top 50 too.</p>
+ <p class="tpm-covnote" id="tpmCovnote"></p>
 </div>
 </section>
 <section class="sec" id="sec-public" hidden>
@@ -1887,60 +1886,7 @@ function yoyGDP(gdpReal){
   return {label:"Real GDP growth, year on year", unit:"%", freq: gdpReal.freq || "quarters", points:out, confirmed_at:gdpReal.confirmed_at};
 }
 /* --------------- fallback sample data (until fetch_data.py) -------------- */
-function interp(keys, periods){
-  const kIdx = keys.map(k=>periods.indexOf(k[0]));
-  const pts=[];
-  for(let s=0;s<keys.length-1;s++){
-    const a=kIdx[s], b=kIdx[s+1]; if(a<0||b<0) continue;
-    for(let i=a;i<=b;i++){
-      const t=(i-a)/(b-a||1);
-      const wob=Math.sin(i*2.1)*0.05*(Math.abs(keys[s+1][1]-keys[s][1])+0.4);
-      pts[i]=[periods[i], +(keys[s][1]+(keys[s+1][1]-keys[s][1])*t+wob).toFixed(2)];
-    }
-  }
-  return pts.filter(Boolean);
-}
-function monthsBetween(a,b){
-  const out=[]; let [y,m]=a.split("-").map(Number); const [Y,M]=b.split("-").map(Number);
-  while(y<Y||(y===Y&&m<=M)){ out.push(y+"-"+String(m).padStart(2,"0")); m++; if(m>12){m=1;y++;} }
-  return out;
-}
-function quartersBetween(a,b){
-  const out=[]; let [y,q]=[+a.slice(0,4),+a.slice(6)]; const [Y,Q]=[+b.slice(0,4),+b.slice(6)];
-  while(y<Y||(y===Y&&q<=Q)){ out.push(y+"-Q"+q); q++; if(q>4){q=1;y++;} }
-  return out;
-}
 const yearsBetween=(a,b)=>Array.from({length:b-a+1},(_,i)=>String(a+i));
-function sampleData(){
-  // Shapes anchored on the real data-ng.json at build time, so a failed
-  // fetch shows Nigeria-shaped placeholders rather than another country's.
-  const S=(label,unit,freq,points)=>({label,unit,freq,points});
-  return { updated:new Date().toISOString(), sample:true,
-    series:{
-    cpi:S("CPI, all items, change on same month a year earlier (IMF CPI, from Nigeria's National Bureau of Statistics)","%","months",interp(
-      [["2006-01", 10.7], ["2007-01", 8.0], ["2008-01", 8.6], ["2009-01", 14.0], ["2010-01", 14.4], ["2011-01", 12.1], ["2012-01", 12.6], ["2013-01", 9.0], ["2014-01", 8.0], ["2015-01", 8.2], ["2016-01", 9.6], ["2017-01", 18.7], ["2018-01", 15.1], ["2019-01", 11.4], ["2020-01", 12.1], ["2021-01", 16.5], ["2022-01", 15.6], ["2023-01", 21.8], ["2024-01", 29.9], ["2025-01", 27.6], ["2026-01", 15.1], ["2026-08", 15.4]],monthsBetween("2006-01","2026-08"))),
-    cpi_mom:S("CPI, all items, change on previous month, not seasonally adjusted (IMF CPI)","%","months",interp(
-      [["2005-02", 1.5], ["2006-02", 1.6], ["2007-02", 0.8], ["2008-02", 0.3], ["2009-02", 0.7], ["2010-02", 1.9], ["2011-02", 1.0], ["2012-02", 0.3], ["2013-02", 0.7], ["2014-02", 0.5], ["2015-02", 0.7], ["2016-02", 2.3], ["2017-02", 1.5], ["2018-02", 0.8], ["2019-02", 0.7], ["2020-02", 0.8], ["2021-02", 1.5], ["2022-02", 1.6], ["2023-02", 1.7], ["2024-02", 3.1], ["2025-02", 2.0], ["2026-02", 2.0], ["2026-08", 0.7]],monthsBetween("2005-02","2026-08"))),
-    current_account:S("Current account balance, % of GDP (World Bank)","%","years",interp(
-      [["1977", -2.8194], ["1980", 8.0645], ["1983", -4.4614], ["1986", 0.3848], ["1989", 2.476], ["1992", 4.3562], ["1995", -0.5693], ["1998", -0.5536], ["2001", 3.3685], ["2004", 12.4042], ["2007", 9.9361], ["2010", 3.5726], ["2013", 3.6624], ["2016", 1.2547], ["2019", -2.048], ["2022", 0.1574], ["2025", 4.8278]],yearsBetween(1977,2025))),
-    debt_gdp:S("General government gross debt, % of GDP (IMF WEO)","%","years",interp(
-      [["1990", 50.903], ["1993", 50.436], ["1996", 17.9], ["1999", 46.114], ["2002", 30.724], ["2005", 13.45], ["2008", 5.167], ["2011", 12.378], ["2014", 15.765], ["2017", 18.005], ["2020", 25.723], ["2023", 36.336], ["2024", 39.333]],yearsBetween(1990,2024))),
-    deficit:S("General government net lending/borrowing, % of GDP (IMF WEO)","%","years",interp(
-      [["1990", -0.477], ["1993", -6.075], ["1996", 3.372], ["1999", -1.391], ["2002", 0.953], ["2005", 3.485], ["2008", 4.045], ["2011", 0.307], ["2014", -1.725], ["2017", -3.845], ["2020", -4.026], ["2023", -3.125], ["2024", -1.272]],yearsBetween(1990,2024))),
-    fdi:S("FDI net inflows, % of GDP (World Bank)","%","years",interp(
-      [["1970", 1.634], ["1973", 2.46], ["1976", 0.9337], ["1979", 0.6551], ["1982", 0.3016], ["1985", 0.6585], ["1988", 0.7627], ["1991", 1.1967], ["1994", 2.4369], ["1997", 0.2338], ["2000", 1.6483], ["2003", 1.9146], ["2006", 2.0358], ["2009", 2.9002], ["2012", 1.5238], ["2015", 0.6215], ["2018", 0.1838], ["2021", 0.5439], ["2024", 0.6398], ["2025", 1.3774]],yearsBetween(1970,2025))),
-    gdp_growth:S("Real GDP growth, change on previous year (World Bank)","%","years",interp(
-      [["1961", 0.2], ["1964", 5.0], ["1967", -15.7], ["1970", 25.0], ["1973", 5.4], ["1976", 9.0], ["1979", 6.8], ["1982", -6.8], ["1985", 5.9], ["1988", 7.3], ["1991", 0.4], ["1994", -1.8], ["1997", 2.9], ["2000", 5.0], ["2003", 7.3], ["2006", 6.1], ["2009", 8.0], ["2012", 4.2], ["2015", 2.7], ["2018", 1.9], ["2021", 1.1], ["2024", 4.1], ["2025", 4.0]],yearsBetween(1961,2025))),
-    gdp_level:S("GDP, current prices, annual (World Bank)","NGNm","years",interp(
-      [["1960", 2997.3], ["1963", 3689.7], ["1966", 4547.8], ["1969", 4738.8], ["1972", 11034.7], ["1975", 22945.4], ["1978", 36053.0], ["1981", 139310.5], ["1984", 165854.2], ["1987", 244680.2], ["1990", 494643.7], ["1993", 1257174.9], ["1996", 4086065.2], ["1999", 5482354.3], ["2002", 11501450.4], ["2005", 23121879.0], ["2008", 39954211.9], ["2011", 63134734.9], ["2014", 90136984.7], ["2017", 114899249.9], ["2020", 213636372.1], ["2023", 314023587.9], ["2025", 441535409.8]],yearsBetween(1960,2025))),
-    gdp_real:S("Real GDP, constant prices, annual (World Bank)","NGNm","years",interp(
-      [["1960", 26393626.0], ["1963", 29890883.1], ["1966", 31504525.9], ["1969", 32556106.9], ["1972", 48055915.8], ["1975", 53356829.3], ["1978", 58130760.4], ["1981", 56179843.6], ["1984", 46117804.0], ["1987", 50438577.3], ["1990", 61674981.9], ["1993", 63444524.6], ["1996", 64859659.2], ["1999", 68888074.2], ["2002", 88370403.4], ["2005", 110311303.4], ["2008", 133142627.8], ["2011", 163605119.7], ["2014", 193379567.0], ["2017", 196873592.2], ["2020", 192028406.0], ["2023", 209260019.2], ["2025", 226519398.4]],yearsBetween(1960,2025))),
-    policy_rate:S("Central Bank of Nigeria Monetary Policy Rate, end of month (CBN MPC decisions; IMF monetary and financial statistics before 2008)","%","months",interp(
-      [["2007-01", 10.0], ["2008-01", 9.5], ["2009-01", 9.75], ["2010-01", 6.0], ["2011-01", 6.5], ["2012-01", 12.0], ["2013-01", 12.0], ["2014-01", 12.0], ["2015-01", 13.0], ["2016-01", 11.0], ["2017-01", 14.0], ["2018-01", 14.0], ["2019-01", 14.0], ["2020-01", 13.5], ["2021-01", 11.5], ["2022-01", 11.5], ["2023-01", 17.5], ["2024-01", 18.75], ["2025-01", 27.5], ["2026-01", 27.0], ["2026-04", 27.0]],monthsBetween("2007-01","2026-04"))),
-    unemployment:S("Unemployment rate, ILO modelled estimate, annual (World Bank)","%","years",interp(
-      [["1991", 3.831], ["1994", 4.064], ["1997", 3.964], ["2000", 3.953], ["2003", 3.637], ["2006", 3.749], ["2009", 3.763], ["2012", 3.761], ["2015", 4.134], ["2018", 5.069], ["2021", 5.404], ["2024", 3.045], ["2025", 3.064]],yearsBetween(1991,2025))),
-  }};
-}
 /* ------------------------------- charts ---------------------------------- */
 const refLinePlugin = {
   id: "refLine",
@@ -2447,7 +2393,6 @@ function render(data){
   // page load from data-ng.json), which is what "new data each time"
   // means in practice for a static-data key like this.
   window.EATLAS_SERIES = s;
-  if(data.sample){const sb=document.getElementById("sampleBadge");sb.textContent="Illustrative figures: the live data feed did not load, so this page is showing placeholder shapes, not published statistics. Refresh in a moment.";sb.classList.add("show");}
   const gdpAnnual = s.gdp_level ? annualGDP(s.gdp_level) : null;
   const pct=v=>v.toFixed(1)+"%", pp=v=>v.toFixed(1)+"pp";
   const idx=v=>v.toFixed(1);
@@ -3027,13 +2972,17 @@ const FX_FETCH=fetch("data-fx-ng.json",{cache: "no-cache"})
 fetch("data-ng.json",{cache: "no-cache"})
   .then(r=>{ if(!r.ok) throw new Error(r.status); return r.json(); })
   .then(d=>FX_FETCH.then(fx=>{ FX_DATA=fx; PAGE_DATA=d; rerender(); }))
-  .catch(()=>{ PAGE_DATA=sampleData(); rerender(); });
+  .catch(err=>{
+    // No stand-in figures: if the data cannot be loaded or drawn, say so plainly.
+    console.error(err);
+    const lf=document.getElementById("loadFail"); if(lf) lf.hidden=false;
+  });
 </script>
 <script>
 (function(){
 "use strict";
 // No fallback figures: nothing invented. Until data-ng-trade-partners.json exists
-// (UN Comtrade, update-trade-data.yml) the partner block is hidden.
+// (UN Comtrade, update-trade-data.yml) the partner block says "Not yet available".
 var FALLBACK_PARTNERS = [];
 var UK_ID = "566"; // Nigeria
 var PARTNERS = FALLBACK_PARTNERS;
@@ -3313,11 +3262,12 @@ Promise.all([
 ]).then(function(results){
   var world = results[0];
   var livePayload = results[1];
-  if(!livePayload && !FALLBACK_PARTNERS.length){
-    var tb = document.getElementById("tpmBlock"); if(tb) tb.hidden = true;
+  if(!applyLivePartners(livePayload)){
+    var tb = document.getElementById("tpmBlock");
+    if(tb) tb.innerHTML = "<div class=\"tpm-head\"><h3>Nigeria goods trade: top partners</h3></div>"
+      + "<p style=\"color:var(--ink2); margin:8px 0 26px;\">Not yet available for Nigeria.</p>";
     dataReady = true; return;
   }
-  applyLivePartners(livePayload);
   computeScales();
   renderRanking();
   drawGeo(world);

@@ -1643,7 +1643,8 @@ document.addEventListener("DOMContentLoaded", function(){
 <header class="page with-map">
  <div class="head-text">
  <p class="eyebrow"><span class="dot" aria-hidden="true"></span>Official statistics</p>
- <h1>Singapore <span id="sampleBadge" class="badge"></span></h1>
+ <h1>Singapore</h1>
+<div id="loadFail" role="alert" hidden style="margin:12px 0 0; padding:12px 16px; max-width:640px; border:1px solid var(--hair); border-radius:10px; background:var(--panel); color:var(--ink); font-size:14px; line-height:1.5;">We couldn’t load the latest figures for this page, so no charts are shown. Please refresh the page to try again.</div>
  </div>
 <div class="mini-mapwrap" id="miniMapWrap" tabindex="0" role="img"
  aria-label="Small world map. Hover or tap to enlarge, then select a country to jump to its page, keeping the current section.">
@@ -1710,11 +1711,9 @@ document.addEventListener("DOMContentLoaded", function(){
  <div class="hero mini" id="tiles-trade"></div>
  <p class="lightskey compact" aria-label="Key to freshness lights"><span><span class="led green" aria-hidden="true"></span>&nbsp;matches latest release</span><span><span class="led orange" aria-hidden="true"></span>&nbsp;not refreshed recently</span></p>
  <div class="grid" id="charts-trade"></div>
- <div class="tpm-head"><h3>Singapore goods trade: top partners</h3></div>
+ <div id="tpmBlock"><div class="tpm-head"><h3>Singapore goods trade: top partners</h3></div>
  <p class="tpm-scopenote"><strong>Goods trade only.</strong> Services aren't covered by this data source and aren't shown here, so relationships that lean heavily on services may be understated.</p>
- <div class="tpm-banner" id="tpmBanner"><span class="dot2" aria-hidden="true"></span>
- <span id="tpmBannerText">Illustrative data: approximate 2025 goods-trade shares, shown as a placeholder. Live bilateral figures are not published for this country yet.</span></div>
- <nav class="viztoggle">
+  <nav class="viztoggle">
  <button type="button" class="vtbtn" data-view="geo">Geographic</button>
  <button type="button" class="vtbtn active" data-view="radial">Radial</button>
  <div class="spacer"></div>
@@ -1747,13 +1746,14 @@ document.addEventListener("DOMContentLoaded", function(){
  <div class="tpm-right">
  <div class="tpm-ranking">
  <h4 id="tpmRankTitle">Goods trade: top partners</h4>
- <p class="tpm-ranksubtitle" id="tpmRankSubtitle">Illustrative 2025 figures, &pound;bn</p>
+ <p class="tpm-ranksubtitle" id="tpmRankSubtitle"></p>
  <ol class="tpm-ranklist" id="tpmRankList"></ol>
  <button type="button" class="tpm-rankmore" id="tpmRankMore" hidden>Show all partners</button>
  </div>
  </div>
  </div>
- <p class="tpm-covnote" id="tpmCovnote">Illustrative fallback shows 14 major partners. Once live, every partner UN Comtrade has data for is fetched: the radial view shows the top 20 by value, the map shows the top 50, and the ranking list can be expanded to show the top 50 too.</p>
+ <p class="tpm-covnote" id="tpmCovnote"></p>
+</div>
 </section>
 <section class="sec" id="sec-public" hidden>
  <div class="hero mini" id="tiles-public"></div>
@@ -1903,84 +1903,7 @@ function yoyGDP(gdpReal){
   return {label:"Real GDP growth, year on year", unit:"%", freq: gdpReal.freq || "quarters", points:out, confirmed_at:gdpReal.confirmed_at};
 }
 /* --------------- fallback sample data (until fetch_data.py) -------------- */
-function interp(keys, periods){
-  const kIdx = keys.map(k=>periods.indexOf(k[0]));
-  const pts=[];
-  for(let s=0;s<keys.length-1;s++){
-    const a=kIdx[s], b=kIdx[s+1]; if(a<0||b<0) continue;
-    for(let i=a;i<=b;i++){
-      const t=(i-a)/(b-a||1);
-      const wob=Math.sin(i*2.1)*0.05*(Math.abs(keys[s+1][1]-keys[s][1])+0.4);
-      pts[i]=[periods[i], +(keys[s][1]+(keys[s+1][1]-keys[s][1])*t+wob).toFixed(2)];
-    }
-  }
-  return pts.filter(Boolean);
-}
-function monthsBetween(a,b){
-  const out=[]; let [y,m]=a.split("-").map(Number); const [Y,M]=b.split("-").map(Number);
-  while(y<Y||(y===Y&&m<=M)){ out.push(y+"-"+String(m).padStart(2,"0")); m++; if(m>12){m=1;y++;} }
-  return out;
-}
-function quartersBetween(a,b){
-  const out=[]; let [y,q]=[+a.slice(0,4),+a.slice(6)]; const [Y,Q]=[+b.slice(0,4),+b.slice(6)];
-  while(y<Y||(y===Y&&q<=Q)){ out.push(y+"-Q"+q); q++; if(q>4){q=1;y++;} }
-  return out;
-}
 const yearsBetween=(a,b)=>Array.from({length:b-a+1},(_,i)=>String(a+i));
-function sampleData(){
-  // Illustrative-but-reasoned figures (per the site's standing new-country
-  // workflow), NOT real fetched data yet -- to be reconciled once
-  // fetch_sg.py actually runs. Anchored to Singapore's genuinely
-  // distinctive, well-documented profile: exceptionally low unemployment
-  // (typically 2-3%, among the lowest in the world, per real published
-  // figures), a persistently large current-account surplus (as a major
-  // financial and trade hub, this is structural, not cyclical), and real
-  // GDP growth data that is only genuinely available ANNUALLY from a
-  // verified live source (IMF Asia-Pacific REO), not quarterly like most
-  // other pages here -- a real data-availability constraint, disclosed
-  // rather than papered over with a fabricated quarterly series. No
-  // policy-rate, general-government fiscal deficit, or labour-force-
-  // participation series is included here at all -- verified searches
-  // found no live source for any of the three (see the footer's
-  // disclosed-gaps note), so there is nothing to illustrate rather than
-  // something faked.
-  const mR=monthsBetween("1996-01","2026-06");
-  const qTr=quartersBetween("1996-Q1","2026-Q1");
-  const S=(label,unit,freq,points)=>({label,unit,freq,points});
-  return { updated:new Date().toISOString(), sample:true,
-    new_points_meta:{gdp_level:{period:"2024",first_seen:new Date(Date.now()-36*3600000).toISOString()}},
-    series:{
-    gdp_level:S("GDP, current US$ (illustrative)","$m","years",interp(
-      [["1996",93000],["2001",90000],["2008",193000],["2013",307000],
-       ["2019",374000],["2020",345000],["2023",501000],["2024",530000]],yearsBetween(1996,2024))),
-    gdp_growth:S("Real GDP growth, annual (illustrative)","%","years",interp(
-      [["1996",8.2],["1998",-1.4],["2001",-1.1],["2003",4.5],["2008",1.8],
-       ["2009",-0.6],["2010",15.2],["2015",3.0],["2019",1.3],["2020",-3.9],
-       ["2021",9.7],["2022",3.8],["2023",1.1],["2024",4.4],["2026",1.8]],yearsBetween(1996,2026))),
-    cpi:S("CPI, all items, YoY (illustrative)","%","months",interp(
-      [["1996-01",2.0],["2001-05",1.0],["2008-08",6.7],["2011-01",5.5],["2015-01",-0.3],
-       ["2020-05",-0.7],["2021-12",4.0],["2022-09",7.5],["2023-06",4.5],["2024-06",2.4],
-       ["2025-06",1.4],["2026-06",1.2]],mR)),
-    unemployment:S("Unemployment, total labour force (illustrative)","%","years",interp(
-      [["1996",2.0],["2001",2.7],["2003",4.0],["2008",2.2],["2009",3.0],
-       ["2013",1.9],["2019",2.3],["2020",3.0],["2022",2.1],["2024",1.9],["2025",2.0]],yearsBetween(1996,2025))),
-    debt_gdp:S("Central government gross debt % GDP (illustrative)","%","years",interp(
-      [["1996",71.0],["2001",84.0],["2008",97.0],["2013",99.0],["2019",126.0],
-       ["2020",147.0],["2022",130.0],["2024",117.0]],yearsBetween(1996,2024))),
-    current_account:S("Current account % GDP (illustrative)","%","years",interp(
-      [["1996",15.0],["2001",13.0],["2008",14.5],["2013",17.5],["2019",16.0],
-       ["2020",17.6],["2022",18.5],["2024",17.3],["2025",17.0]],yearsBetween(1996,2025))),
-    business_confidence:S("Business confidence (illustrative)","index","months",interp(
-      [["2009-02",89.0],["2013-12",100.5],["2018-08",101.5],["2020-04",82.0],
-       ["2021-09",103.5],["2023-10",97.5],["2024-06",101.0],["2026-05",100.4]],monthsBetween("2009-02","2026-05"))),
-    trade_balance:S("Trade balance, goods (illustrative)","$m","quarters",interp(
-      [["1996-Q1",1800],["2002-Q3",4600],["2008-Q3",6200],["2015-Q2",9800],
-       ["2020-Q2",14500],["2022-Q3",11200],["2024-Q2",16800],["2026-Q1",15900]],qTr)),
-    fdi:S("FDI net inflows % GDP (illustrative)","%","years",interp(
-      [["1996",13.0],["2008",9.5],["2016",23.0],["2020",17.0],["2025",20.0]],
-      yearsBetween(1996,2025))),
-  }};
-}
 /* ------------------------------- charts ---------------------------------- */
 const refLinePlugin = {
   id: "refLine",
@@ -2510,7 +2433,6 @@ function render(data){
   // page load from data-sg.json), which is what "new data each time"
   // means in practice for a static-data key like this.
   window.EATLAS_SERIES = s;
-  if(data.sample){const sb=document.getElementById("sampleBadge");sb.textContent="Illustrative figures: the live data feed did not load, so this page is showing placeholder shapes, not published statistics. Refresh in a moment.";sb.classList.add("show");}
   const gdpAnnual = s.gdp_level ? s.gdp_level : null;   /* NOTE: gdp_level is now normally the live World Bank SGD linked series, falling back to World Bank USD only if that fetch fails this run (see SRC_GDP_LEVEL_CURRENT below for how the citation tracks this). Already annual -- no quarterly-to-annual rollup needed, unlike the IMF IFS quarterly series used on some other pages. */
   const gdpYoY = s.gdp_real ? yoyGDP(s.gdp_real) : null;
   const pct=v=>v.toFixed(1)+"%", pp=v=>v.toFixed(1)+"pp";
@@ -3117,33 +3039,18 @@ const BOND_FETCH=fetch("data-bond-sg.json",{cache: "no-cache"})
 fetch("data-sg.json",{cache: "no-cache"})
   .then(r=>{ if(!r.ok) throw new Error(r.status); return r.json(); })
   .then(d=>Promise.all([FX_FETCH,BOND_FETCH]).then(([fx,bd])=>{ FX_DATA=fx; BOND_DAILY=bd; PAGE_DATA=d; rerender(); }))
-  .catch(()=>{ PAGE_DATA=sampleData(); rerender(); });
+  .catch(err=>{
+    // No stand-in figures: if the data cannot be loaded or drawn, say so plainly.
+    console.error(err);
+    const lf=document.getElementById("loadFail"); if(lf) lf.hidden=false;
+  });
 </script>
 <script>
 (function(){
 "use strict";
-// Illustrative fallback only, used if the live Comtrade fetch fails or
-// COMTRADE_API_KEY isn't set yet. See tpmBanner for the live/fallback text.
-// Reasoned specifically for Singapore's real trade profile: as a major
-// entrepot/trans-shipment hub, China, Malaysia and the US dominate, with
-// Hong Kong and Indonesia reflecting genuine regional re-export flows --
-// not an inherited copy of another country's partner list.
-var FALLBACK_PARTNERS = [
-  {name:"China",         code:"156", region:"Asia",       total:135.0, exports:65.0, imports:70.0, totalShare:12.9, exportShare:12.6, importShare:13.2},
-  {name:"Malaysia",      code:"458", region:"Asia",       total:98.0,  exports:52.0, imports:46.0, totalShare:9.4,  exportShare:10.1, importShare:8.7},
-  {name:"United States", code:"840", region:"Americas",   total:92.0,  exports:48.0, imports:44.0, totalShare:8.8,  exportShare:9.3,  importShare:8.3},
-  {name:"Hong Kong",     code:"344", region:"Asia",       total:65.0,  exports:48.0, imports:17.0, totalShare:6.2,  exportShare:9.3,  importShare:3.2},
-  {name:"Taiwan",        code:"158", region:"Asia",       total:58.0,  exports:26.0, imports:32.0, totalShare:5.6,  exportShare:5.0,  importShare:6.0},
-  {name:"Indonesia",     code:"360", region:"Asia",       total:55.0,  exports:30.0, imports:25.0, totalShare:5.3,  exportShare:5.8,  importShare:4.7},
-  {name:"South Korea",   code:"410", region:"Asia",       total:42.0,  exports:20.0, imports:22.0, totalShare:4.0,  exportShare:3.9,  importShare:4.1},
-  {name:"Japan",         code:"392", region:"Asia",       total:38.0,  exports:18.0, imports:20.0, totalShare:3.6,  exportShare:3.5,  importShare:3.8},
-  {name:"Thailand",      code:"764", region:"Asia",       total:32.0,  exports:17.0, imports:15.0, totalShare:3.1,  exportShare:3.3,  importShare:2.8},
-  {name:"India",         code:"356", region:"Asia",       total:30.0,  exports:19.0, imports:11.0, totalShare:2.9,  exportShare:3.7,  importShare:2.1},
-  {name:"Vietnam",       code:"704", region:"Asia",       total:24.0,  exports:14.0, imports:10.0, totalShare:2.3,  exportShare:2.7,  importShare:1.9},
-  {name:"Philippines",   code:"608", region:"Asia",       total:18.0,  exports:11.0, imports:7.0,  totalShare:1.7,  exportShare:2.1,  importShare:1.3},
-  {name:"Australia",     code:"036", region:"Oceania",    total:16.0,  exports:8.0,  imports:8.0,  totalShare:1.5,  exportShare:1.6,  importShare:1.5},
-  {name:"Saudi Arabia",  code:"682", region:"Middle East", total:14.0, exports:4.0,  imports:10.0, totalShare:1.3,  exportShare:0.8,  importShare:1.9}
-];
+// No fallback figures: nothing invented. Until data-sg-trade-partners.json exists
+// (UN Comtrade, update-trade-data.yml) the partner block says "Not yet available".
+var FALLBACK_PARTNERS = [];
 var UK_ID = "702"; // Singapore
 var PARTNERS = FALLBACK_PARTNERS;
 var CURRENCY_SYMBOL = "$"; // FALLBACK_PARTNERS values are authored in USD billions (matching UN Comtrade's own convention), same as every other country's fallback trade data -- not Singapore's own currency
@@ -3375,7 +3282,7 @@ function renderRadial(){
   });
   var hub = svg.append("g").attr("class", "radial-hub");
   hub.append("circle").attr("cx", cx).attr("cy", cy).attr("r", hubR);
-  hub.append("text").attr("x", cx).attr("y", cy + 5).text("DK");
+  hub.append("text").attr("x", cx).attr("y", cy + 5).text("SG");
   function highlightAll(code, on){
     spokes.selectAll("path").classed("dim", function(p){ return on && p.code !== code; });
     nodesG.selectAll(".radial-node").classed("dim", function(p){ return on && p.code !== code; });
@@ -3422,7 +3329,12 @@ Promise.all([
 ]).then(function(results){
   var world = results[0];
   var livePayload = results[1];
-  applyLivePartners(livePayload);
+  if(!applyLivePartners(livePayload)){
+    var tb = document.getElementById("tpmBlock");
+    if(tb) tb.innerHTML = "<div class=\"tpm-head\"><h3>Singapore goods trade: top partners</h3></div>"
+      + "<p style=\"color:var(--ink2); margin:8px 0 26px;\">Not yet available for Singapore.</p>";
+    dataReady = true; return;
+  }
   computeScales();
   renderRanking();
   drawGeo(world);

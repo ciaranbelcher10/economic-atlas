@@ -15,10 +15,10 @@ switch). Everything country-specific is regenerated, never hand-edited:
     (i) panel and the popover can never drift (citation_provider.py checks).
   * Chart explanations reuse the same citation descriptions. Tile and chart
     source lines are the citation text up to its first " \u00b7 ".
-  * sampleData(): anchored on the real data file, so a failed fetch shows
-    this country's shapes, not another's.
+  * No stand-in figures anywhere (v1.9.2). If the data file fails to load or
+    draw, the page shows its "couldn't load" notice (#loadFail) and no charts.
   * Trade-partner fallback is EMPTY: no invented figures. Until the live
-    Comtrade file exists the partner block stays hidden.
+    Comtrade file exists the partner block says "Not yet available for <name>".
 
 Lessons from China baked in: the hero holds at most 10 tiles, so the order
 below puts tiles with no other home (business confidence, FDI) inside the
@@ -158,7 +158,7 @@ def main():
         die(f"{N} is not in the template's nav: run tools/add_country.py first")
     sub(f' <a href="{SLUG}">{N}</a>\n', f' <a href="{SLUG}" class="active">{N}</a>\n')
     sub('var CURRENT=new Set(["156"]);', f'var CURRENT=new Set(["{NUM}"]);')
-    sub("<h1>China <span", f"<h1>{N} <span")
+    sub("<h1>China</h1>", f"<h1>{N}</h1>")
 
     # ---------- section notes (spec text, else none) ----------
     notes = spec.get("notes", {})
@@ -178,14 +178,13 @@ def main():
                 block += f' <p class="secnote">{notes[sec]}</p>\n'
         s = s[:m.start(1)] + block + s[m.start(2):]
 
-    # ---------- trade partners: empty fallback, block hidden until live ----------
-    sub_re(r'<div class="tpm-head"><h3>China goods trade: top partners</h3></div>',
-           f'<div id="tpmBlock"><div class="tpm-head"><h3>{N} goods trade: top partners</h3></div>')
-    m = re.search(r'(<div id="tpmBlock">.*?)(\n</section>)', s, re.S)
-    s = s[:m.end(1)] + "\n</div>" + s[m.end(1):]
-    sub_re(r"// Illustrative fallback only.*?var FALLBACK_PARTNERS = \[.*?\];\n",
-           "// No fallback figures: nothing invented. Until data-" + CODE + "-trade-partners.json exists\n"
-           "// (UN Comtrade, update-trade-data.yml) the partner block is hidden.\nvar FALLBACK_PARTNERS = [];\n")
+    # ---------- trade partners: no invented figures, "Not yet available" until live ----------
+    sub('<div class="tpm-head"><h3>China goods trade: top partners</h3></div>',
+        f'<div class="tpm-head"><h3>{N} goods trade: top partners</h3></div>')
+    sub("// No fallback figures: nothing invented. Until data-cn-trade-partners.json exists",
+        f"// No fallback figures: nothing invented. Until data-{CODE}-trade-partners.json exists")
+    sub('<h3>China goods trade: top partners</h3></div>"\n', f'<h3>{N} goods trade: top partners</h3></div>"\n')
+    sub("Not yet available for China.</p>", f"Not yet available for {N}.</p>")
     sub('var UK_ID = "156"; // China', f'var UK_ID = "{NUM}"; // {N}')
     sub('return currentMetric === "exports" ? "China goods exports"', f'return currentMetric === "exports" ? "{N} goods exports"')
     sub(': currentMetric === "imports" ? "China goods imports"', f': currentMetric === "imports" ? "{N} goods imports"')
@@ -193,13 +192,6 @@ def main():
     sub('.text("CN");', f'.text("{spec["iso2"]}");')
     sub("partners UN Comtrade reports China goods trade", f"partners UN Comtrade reports {N} goods trade")
     sub('fetch("data-cn-trade-partners.json"', f'fetch("data-{CODE}-trade-partners.json"')
-    sub("""  var livePayload = results[1];
-  applyLivePartners(livePayload);""", """  var livePayload = results[1];
-  if(!livePayload && !FALLBACK_PARTNERS.length){
-    var tb = document.getElementById("tpmBlock"); if(tb) tb.hidden = true;
-    dataReady = true; return;
-  }
-  applyLivePartners(livePayload);""")
     sub("not China's own currency", f"not {N}'s own currency")
 
     # ---------- footer ----------
@@ -251,31 +243,6 @@ def main():
     if add:
         s = s[:m.end(1)] + ", " + add + s[m.end(1):]
 
-    # ---------- sampleData from the real file ----------
-    def anchors(k, step):
-        p = [x for x in data[k]["points"] if x[1] is not None]
-        pick = p[::step]
-        if pick[-1] != p[-1]:
-            pick.append(p[-1])
-        return pick
-
-    def periods(k):
-        a, b, f = data[k]["points"][0][0], data[k]["points"][-1][0], data[k].get("freq")
-        return {"months": f'monthsBetween("{a}","{b}")', "quarters": f'quartersBetween("{a}","{b}")'}.get(f, f"yearsBetween({a},{b})")
-
-    lines = ["function sampleData(){",
-             f"  // Shapes anchored on the real data-{CODE}.json at build time, so a failed",
-             f"  // fetch shows {N}-shaped placeholders rather than another country's.",
-             "  const S=(label,unit,freq,points)=>({label,unit,freq,points});",
-             "  return { updated:new Date().toISOString(), sample:true,",
-             "    series:{"]
-    for k in sorted(served):
-        d = data[k]
-        step = {"months": 12, "quarters": 4}.get(d.get("freq"), 3)
-        lines.append(f'    {k}:S({js(d.get("label", k))},{js(d.get("unit", ""))},{js(d.get("freq", "years"))},interp(\n'
-                     f"      {js(anchors(k, step))},{periods(k)})),")
-    lines += ["  }};", "}"]
-    sub_re(r"function sampleData\(\)\{.*?\n  \}\};\n\}\n", "\n".join(lines) + "\n")
 
     # ---------- render() ----------
     def key_of(cat):

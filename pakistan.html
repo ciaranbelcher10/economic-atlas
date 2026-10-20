@@ -1644,7 +1644,8 @@ document.addEventListener("DOMContentLoaded", function(){
 <header class="page with-map">
  <div class="head-text">
  <p class="eyebrow"><span class="dot" aria-hidden="true"></span>Official statistics</p>
- <h1>Pakistan <span id="sampleBadge" class="badge"></span></h1>
+ <h1>Pakistan</h1>
+<div id="loadFail" role="alert" hidden style="margin:12px 0 0; padding:12px 16px; max-width:640px; border:1px solid var(--hair); border-radius:10px; background:var(--panel); color:var(--ink); font-size:14px; line-height:1.5;">We couldn’t load the latest figures for this page, so no charts are shown. Please refresh the page to try again.</div>
  </div>
 <div class="mini-mapwrap" id="miniMapWrap" tabindex="0" role="img"
  aria-label="Small world map. Hover or tap to enlarge, then select a country to jump to its page, keeping the current section.">
@@ -1714,9 +1715,7 @@ document.addEventListener("DOMContentLoaded", function(){
  <p class="secnote">Goods trade is Pakistan's monthly data as the IMF republishes it, in rupees, as Pakistan reports it, shown from July 2022: the IMF's series has no figures for November 2021 to June 2022. Exports are valued free on board, imports including cost, insurance and freight. The IMF publishes it some months after the month it covers.</p>
  <div id="tpmBlock"><div class="tpm-head"><h3>Pakistan goods trade: top partners</h3></div>
  <p class="tpm-scopenote"><strong>Goods trade only.</strong> Services aren't covered by this data source and aren't shown here, so relationships that lean heavily on services may be understated.</p>
- <div class="tpm-banner" id="tpmBanner"><span class="dot2" aria-hidden="true"></span>
- <span id="tpmBannerText">Illustrative data: approximate 2024 goods-trade values, shown as a placeholder. Live bilateral figures are not published for this country yet.</span></div>
- <nav class="viztoggle">
+  <nav class="viztoggle">
  <button type="button" class="vtbtn" data-view="geo">Geographic</button>
  <button type="button" class="vtbtn active" data-view="radial">Radial</button>
  <div class="spacer"></div>
@@ -1749,13 +1748,13 @@ document.addEventListener("DOMContentLoaded", function(){
  <div class="tpm-right">
  <div class="tpm-ranking">
  <h4 id="tpmRankTitle">Goods trade: top partners</h4>
- <p class="tpm-ranksubtitle" id="tpmRankSubtitle">Illustrative 2024 figures, US$bn</p>
+ <p class="tpm-ranksubtitle" id="tpmRankSubtitle"></p>
  <ol class="tpm-ranklist" id="tpmRankList"></ol>
  <button type="button" class="tpm-rankmore" id="tpmRankMore" hidden>Show all partners</button>
  </div>
  </div>
  </div>
- <p class="tpm-covnote" id="tpmCovnote">Illustrative fallback shows 13 major partners. Once live, every partner UN Comtrade has data for is fetched: the radial view shows the top 20 by value, the map shows the top 50, and the ranking list can be expanded to show the top 50 too.</p>
+ <p class="tpm-covnote" id="tpmCovnote"></p>
 </div>
 </section>
 <section class="sec" id="sec-public" hidden>
@@ -1887,64 +1886,7 @@ function yoyGDP(gdpReal){
   return {label:"Real GDP growth, year on year", unit:"%", freq: gdpReal.freq || "quarters", points:out, confirmed_at:gdpReal.confirmed_at};
 }
 /* --------------- fallback sample data (until fetch_data.py) -------------- */
-function interp(keys, periods){
-  const kIdx = keys.map(k=>periods.indexOf(k[0]));
-  const pts=[];
-  for(let s=0;s<keys.length-1;s++){
-    const a=kIdx[s], b=kIdx[s+1]; if(a<0||b<0) continue;
-    for(let i=a;i<=b;i++){
-      const t=(i-a)/(b-a||1);
-      const wob=Math.sin(i*2.1)*0.05*(Math.abs(keys[s+1][1]-keys[s][1])+0.4);
-      pts[i]=[periods[i], +(keys[s][1]+(keys[s+1][1]-keys[s][1])*t+wob).toFixed(2)];
-    }
-  }
-  return pts.filter(Boolean);
-}
-function monthsBetween(a,b){
-  const out=[]; let [y,m]=a.split("-").map(Number); const [Y,M]=b.split("-").map(Number);
-  while(y<Y||(y===Y&&m<=M)){ out.push(y+"-"+String(m).padStart(2,"0")); m++; if(m>12){m=1;y++;} }
-  return out;
-}
-function quartersBetween(a,b){
-  const out=[]; let [y,q]=[+a.slice(0,4),+a.slice(6)]; const [Y,Q]=[+b.slice(0,4),+b.slice(6)];
-  while(y<Y||(y===Y&&q<=Q)){ out.push(y+"-Q"+q); q++; if(q>4){q=1;y++;} }
-  return out;
-}
 const yearsBetween=(a,b)=>Array.from({length:b-a+1},(_,i)=>String(a+i));
-function sampleData(){
-  // Shapes anchored on the real data-pk.json at build time, so a failed
-  // fetch shows Pakistan-shaped placeholders rather than another country's.
-  const S=(label,unit,freq,points)=>({label,unit,freq,points});
-  return { updated:new Date().toISOString(), sample:true,
-    series:{
-    cpi:S("CPI, all items, change on same month a year earlier (IMF CPI, from the Pakistan Bureau of Statistics)","%","months",interp(
-      [["2009-07", 9.0], ["2010-07", 12.4], ["2011-07", 12.4], ["2012-07", 9.6], ["2013-07", 8.3], ["2014-07", 7.9], ["2015-07", 1.8], ["2016-07", 4.2], ["2017-07", 2.9], ["2018-07", 5.8], ["2019-07", 10.3], ["2020-07", 9.3], ["2021-07", 8.4], ["2022-07", 24.9], ["2023-07", 28.3], ["2024-07", 11.1], ["2025-07", 4.1], ["2026-07", 9.2], ["2026-09", 10.3]],monthsBetween("2009-07","2026-09"))),
-    cpi_mom:S("CPI, all items, change on previous month, not seasonally adjusted (IMF CPI)","%","months",interp(
-      [["2008-08", 1.8], ["2009-08", 1.8], ["2010-08", 2.2], ["2011-08", 1.4], ["2012-08", 0.9], ["2013-08", 1.2], ["2014-08", 0.3], ["2015-08", 0.3], ["2016-08", -0.3], ["2017-08", 0.2], ["2018-08", 0.2], ["2019-08", 1.6], ["2020-08", 0.6], ["2021-08", 0.6], ["2022-08", 2.4], ["2023-08", 1.7], ["2024-08", 0.4], ["2025-08", -0.6], ["2026-08", 1.2], ["2026-09", 1.3]],monthsBetween("2008-08","2026-09"))),
-    current_account:S("Current account balance, % of GDP (World Bank)","%","years",interp(
-      [["1976", -5.6956], ["1979", -5.6434], ["1982", -2.5863], ["1985", -3.4265], ["1988", -3.6969], ["1991", -2.7757], ["1994", -3.4653], ["1997", -2.7415], ["2000", -0.0854], ["2003", 3.1796], ["2006", -4.1681], ["2009", -2.1317], ["2012", -0.9364], ["2015", -0.9344], ["2018", -5.2956], ["2021", -3.5244], ["2024", 0.1249], ["2025", -0.11]],yearsBetween(1976,2025))),
-    debt_gdp:S("General government gross debt, % of GDP (IMF WEO)","%","years",interp(
-      [["1994", 58.531], ["1997", 52.775], ["2000", 61.673], ["2003", 56.326], ["2006", 46.189], ["2009", 54.569], ["2012", 58.364], ["2015", 59.063], ["2018", 66.321], ["2021", 74.749], ["2024", 70.28], ["2025", 72.767]],yearsBetween(1994,2025))),
-    deficit:S("General government net lending/borrowing, % of GDP (IMF WEO)","%","years",interp(
-      [["1993", -5.526], ["1996", -4.333], ["1999", -3.069], ["2002", -2.637], ["2005", -2.287], ["2008", -5.938], ["2011", -6.234], ["2014", -4.369], ["2017", -5.171], ["2020", -7.032], ["2023", -7.756], ["2025", -5.366]],yearsBetween(1993,2025))),
-    exports:S("Exports of goods, FOB, rupees (IMF international trade in goods, as Pakistan reports them)","PKRm","months",interp(
-      [["2022-07", 493785.9], ["2023-07", 580119.0], ["2024-07", 642271.7], ["2025-07", 762577.6], ["2026-06", 624158.6]],monthsBetween("2022-07","2026-06"))),
-    fdi:S("FDI net inflows, % of GDP (World Bank)","%","years",interp(
-      [["1970", 0.2294], ["1973", -0.0627], ["1976", 0.0624], ["1979", 0.2959], ["1982", 0.2077], ["1985", 0.4219], ["1988", 0.4847], ["1991", 0.5664], ["1994", 0.8051], ["1997", 1.1472], ["2000", 0.3096], ["2003", 0.4752], ["2006", 2.6398], ["2009", 1.248], ["2012", 0.3435], ["2015", 0.5577], ["2018", 0.4877], ["2021", 0.616], ["2024", 0.7169], ["2025", 0.4547]],yearsBetween(1970,2025))),
-    gdp_growth:S("Real GDP growth, change on previous year (World Bank)","%","years",interp(
-      [["1961", 6.0], ["1964", 7.6], ["1967", 5.4], ["1970", 11.4], ["1973", 7.1], ["1976", 5.2], ["1979", 3.8], ["1982", 6.5], ["1985", 7.6], ["1988", 7.6], ["1991", 5.1], ["1994", 3.7], ["1997", 1.0], ["2000", 4.3], ["2003", 5.4], ["2006", 6.1], ["2009", 3.5], ["2012", 3.0], ["2015", 4.2], ["2018", 6.2], ["2021", 6.5], ["2024", 3.1], ["2025", 3.7]],yearsBetween(1961,2025))),
-    gdp_level:S("GDP, current prices, annual (World Bank)","PKRm","years",interp(
-      [["1960", 17854.0], ["1963", 22052.0], ["1966", 31244.0], ["1969", 41349.0], ["1972", 54673.0], ["1975", 111183.0], ["1978", 176334.0], ["1981", 278196.0], ["1984", 419802.0], ["1987", 572479.0], ["1990", 855943.0], ["1993", 1341629.0], ["1996", 2120173.0], ["1999", 2938379.0], ["2002", 6030117.0], ["2005", 8619231.8], ["2008", 12647136.8], ["2011", 19731030.4], ["2014", 27952815.4], ["2017", 35552819.0], ["2020", 47540409.0], ["2023", 83650830.0], ["2025", 113807399.2]],yearsBetween(1960,2025))),
-    gdp_real:S("Real GDP, constant prices, annual (World Bank)","PKRm","years",interp(
-      [["1960", 1936984.5], ["1963", 2331364.3], ["1966", 2929476.3], ["1969", 3493393.1], ["1972", 3940023.7], ["1975", 4551637.1], ["1978", 5375714.9], ["1981", 6634499.0], ["1984", 7929628.0], ["1987", 9581814.3], ["1990", 11306522.5], ["1993", 13019068.1], ["1996", 14862922.6], ["1999", 15960110.9], ["2002", 17695155.2], ["2005", 21574957.4], ["2008", 24404330.1], ["2011", 26317933.8], ["2014", 29463694.6], ["2017", 34175628.0], ["2020", 36710346.0], ["2023", 40799934.0], ["2025", 43612749.3]],yearsBetween(1960,2025))),
-    imports:S("Imports of goods, CIF, rupees (IMF international trade in goods, as Pakistan reports them)","PKRm","months",interp(
-      [["2022-07", 1093124.0], ["2023-07", 1037166.0], ["2024-07", 1173702.9], ["2025-07", 1658965.6], ["2026-06", 1922981.7]],monthsBetween("2022-07","2026-06"))),
-    trade_balance:S("Trade balance, goods, exports less imports, rupees (IMF international trade in goods)","PKRm","months",interp(
-      [["2022-07", -599338.1], ["2023-07", -457047.0], ["2024-07", -531431.2], ["2025-07", -896388.0], ["2026-06", -1298823.1]],monthsBetween("2022-07","2026-06"))),
-    unemployment:S("Unemployment rate, ILO modelled estimate, annual, from 2012 (World Bank)","%","years",interp(
-      [["2012", 3.667], ["2015", 3.566], ["2018", 4.083], ["2021", 6.338], ["2024", 5.492], ["2025", 5.42]],yearsBetween(2012,2025))),
-  }};
-}
 /* ------------------------------- charts ---------------------------------- */
 const refLinePlugin = {
   id: "refLine",
@@ -2451,7 +2393,6 @@ function render(data){
   // page load from data-pk.json), which is what "new data each time"
   // means in practice for a static-data key like this.
   window.EATLAS_SERIES = s;
-  if(data.sample){const sb=document.getElementById("sampleBadge");sb.textContent="Illustrative figures: the live data feed did not load, so this page is showing placeholder shapes, not published statistics. Refresh in a moment.";sb.classList.add("show");}
   const gdpAnnual = s.gdp_level ? annualGDP(s.gdp_level) : null;
   const pct=v=>v.toFixed(1)+"%", pp=v=>v.toFixed(1)+"pp";
   const idx=v=>v.toFixed(1);
@@ -3050,13 +2991,17 @@ const FX_FETCH=fetch("data-fx-pk.json",{cache: "no-cache"})
 fetch("data-pk.json",{cache: "no-cache"})
   .then(r=>{ if(!r.ok) throw new Error(r.status); return r.json(); })
   .then(d=>FX_FETCH.then(fx=>{ FX_DATA=fx; PAGE_DATA=d; rerender(); }))
-  .catch(()=>{ PAGE_DATA=sampleData(); rerender(); });
+  .catch(err=>{
+    // No stand-in figures: if the data cannot be loaded or drawn, say so plainly.
+    console.error(err);
+    const lf=document.getElementById("loadFail"); if(lf) lf.hidden=false;
+  });
 </script>
 <script>
 (function(){
 "use strict";
 // No fallback figures: nothing invented. Until data-pk-trade-partners.json exists
-// (UN Comtrade, update-trade-data.yml) the partner block is hidden.
+// (UN Comtrade, update-trade-data.yml) the partner block says "Not yet available".
 var FALLBACK_PARTNERS = [];
 var UK_ID = "586"; // Pakistan
 var PARTNERS = FALLBACK_PARTNERS;
@@ -3336,11 +3281,12 @@ Promise.all([
 ]).then(function(results){
   var world = results[0];
   var livePayload = results[1];
-  if(!livePayload && !FALLBACK_PARTNERS.length){
-    var tb = document.getElementById("tpmBlock"); if(tb) tb.hidden = true;
+  if(!applyLivePartners(livePayload)){
+    var tb = document.getElementById("tpmBlock");
+    if(tb) tb.innerHTML = "<div class=\"tpm-head\"><h3>Pakistan goods trade: top partners</h3></div>"
+      + "<p style=\"color:var(--ink2); margin:8px 0 26px;\">Not yet available for Pakistan.</p>";
     dataReady = true; return;
   }
-  applyLivePartners(livePayload);
   computeScales();
   renderRanking();
   drawGeo(world);

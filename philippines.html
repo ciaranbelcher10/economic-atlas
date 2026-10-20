@@ -1644,7 +1644,8 @@ document.addEventListener("DOMContentLoaded", function(){
 <header class="page with-map">
  <div class="head-text">
  <p class="eyebrow"><span class="dot" aria-hidden="true"></span>Official statistics</p>
- <h1>Philippines <span id="sampleBadge" class="badge"></span></h1>
+ <h1>Philippines</h1>
+<div id="loadFail" role="alert" hidden style="margin:12px 0 0; padding:12px 16px; max-width:640px; border:1px solid var(--hair); border-radius:10px; background:var(--panel); color:var(--ink); font-size:14px; line-height:1.5;">We couldn’t load the latest figures for this page, so no charts are shown. Please refresh the page to try again.</div>
  </div>
 <div class="mini-mapwrap" id="miniMapWrap" tabindex="0" role="img"
  aria-label="Small world map. Hover or tap to enlarge, then select a country to jump to its page, keeping the current section.">
@@ -1714,9 +1715,7 @@ document.addEventListener("DOMContentLoaded", function(){
  <p class="secnote">Goods trade is PSA's monthly data as the IMF republishes it. PSA reports trade in US dollars; each month is converted to pesos at that month's average exchange rate from the Bank for International Settlements. Exports are valued free on board, imports including cost, insurance and freight. The Philippines runs a goods deficit almost every month.</p>
  <div id="tpmBlock"><div class="tpm-head"><h3>Philippines goods trade: top partners</h3></div>
  <p class="tpm-scopenote"><strong>Goods trade only.</strong> Services aren't covered by this data source and aren't shown here, so relationships that lean heavily on services may be understated.</p>
- <div class="tpm-banner" id="tpmBanner"><span class="dot2" aria-hidden="true"></span>
- <span id="tpmBannerText">Illustrative data: approximate 2024 goods-trade values, shown as a placeholder. Live bilateral figures are not published for this country yet.</span></div>
- <nav class="viztoggle">
+  <nav class="viztoggle">
  <button type="button" class="vtbtn" data-view="geo">Geographic</button>
  <button type="button" class="vtbtn active" data-view="radial">Radial</button>
  <div class="spacer"></div>
@@ -1749,13 +1748,13 @@ document.addEventListener("DOMContentLoaded", function(){
  <div class="tpm-right">
  <div class="tpm-ranking">
  <h4 id="tpmRankTitle">Goods trade: top partners</h4>
- <p class="tpm-ranksubtitle" id="tpmRankSubtitle">Illustrative 2024 figures, US$bn</p>
+ <p class="tpm-ranksubtitle" id="tpmRankSubtitle"></p>
  <ol class="tpm-ranklist" id="tpmRankList"></ol>
  <button type="button" class="tpm-rankmore" id="tpmRankMore" hidden>Show all partners</button>
  </div>
  </div>
  </div>
- <p class="tpm-covnote" id="tpmCovnote">Illustrative fallback shows 13 major partners. Once live, every partner UN Comtrade has data for is fetched: the radial view shows the top 20 by value, the map shows the top 50, and the ranking list can be expanded to show the top 50 too.</p>
+ <p class="tpm-covnote" id="tpmCovnote"></p>
 </div>
 </section>
 <section class="sec" id="sec-public" hidden>
@@ -1887,72 +1886,7 @@ function yoyGDP(gdpReal){
   return {label:"Real GDP growth, year on year", unit:"%", freq: gdpReal.freq || "quarters", points:out, confirmed_at:gdpReal.confirmed_at};
 }
 /* --------------- fallback sample data (until fetch_data.py) -------------- */
-function interp(keys, periods){
-  const kIdx = keys.map(k=>periods.indexOf(k[0]));
-  const pts=[];
-  for(let s=0;s<keys.length-1;s++){
-    const a=kIdx[s], b=kIdx[s+1]; if(a<0||b<0) continue;
-    for(let i=a;i<=b;i++){
-      const t=(i-a)/(b-a||1);
-      const wob=Math.sin(i*2.1)*0.05*(Math.abs(keys[s+1][1]-keys[s][1])+0.4);
-      pts[i]=[periods[i], +(keys[s][1]+(keys[s+1][1]-keys[s][1])*t+wob).toFixed(2)];
-    }
-  }
-  return pts.filter(Boolean);
-}
-function monthsBetween(a,b){
-  const out=[]; let [y,m]=a.split("-").map(Number); const [Y,M]=b.split("-").map(Number);
-  while(y<Y||(y===Y&&m<=M)){ out.push(y+"-"+String(m).padStart(2,"0")); m++; if(m>12){m=1;y++;} }
-  return out;
-}
-function quartersBetween(a,b){
-  const out=[]; let [y,q]=[+a.slice(0,4),+a.slice(6)]; const [Y,Q]=[+b.slice(0,4),+b.slice(6)];
-  while(y<Y||(y===Y&&q<=Q)){ out.push(y+"-Q"+q); q++; if(q>4){q=1;y++;} }
-  return out;
-}
 const yearsBetween=(a,b)=>Array.from({length:b-a+1},(_,i)=>String(a+i));
-function sampleData(){
-  // Shapes anchored on the real data-ph.json at build time, so a failed
-  // fetch shows Philippines-shaped placeholders rather than another country's.
-  const S=(label,unit,freq,points)=>({label,unit,freq,points});
-  return { updated:new Date().toISOString(), sample:true,
-    series:{
-    cpi:S("CPI, all income households, all items, change on same month a year earlier, 2018=100 (PSA, OpenSTAT)","%","months",interp(
-      [["1995-01", 6.1], ["1996-01", 9.5], ["1997-01", 5.4], ["1998-01", 6.6], ["1999-01", 10.7], ["2000-01", 5.5], ["2001-01", 5.8], ["2002-01", 3.3], ["2003-01", 1.7], ["2004-01", 3.1], ["2005-01", 7.3], ["2006-01", 5.9], ["2007-01", 3.8], ["2008-01", 4.6], ["2009-01", 7.1], ["2010-01", 3.9], ["2011-01", 4.0], ["2012-01", 4.1], ["2013-01", 2.8], ["2014-01", 3.7], ["2015-01", 1.5], ["2016-01", 0.7], ["2017-01", 2.5], ["2018-01", 3.4], ["2019-01", 4.4], ["2020-01", 3.0], ["2021-01", 3.7], ["2022-01", 3.0], ["2023-01", 8.7], ["2024-01", 2.8], ["2025-01", 2.9], ["2026-01", 2.0], ["2026-09", 7.2]],monthsBetween("1995-01","2026-09"))),
-    cpi_mom:S("CPI, all items, change on previous month, not seasonally adjusted, from PSA's all-items index (OpenSTAT)","%","months",interp(
-      [["2018-02", 0.7], ["2019-02", 0.1], ["2020-02", -0.4], ["2021-02", 0.1], ["2022-02", 0.1], ["2023-02", 0.0], ["2024-02", 0.6], ["2025-02", -0.2], ["2026-02", 0.2], ["2026-09", 1.0]],monthsBetween("2018-02","2026-09"))),
-    current_account:S("Current account balance, % of GDP (World Bank)","%","years",interp(
-      [["1977", -3.3837], ["1980", -5.1672], ["1983", -7.3386], ["1986", 2.8011], ["1989", -3.0012], ["1992", -1.655], ["1995", -2.3392], ["1998", 2.0754], ["2001", -2.2174], ["2004", 1.7105], ["2007", 5.175], ["2010", 3.4454], ["2013", 4.0096], ["2016", -0.3763], ["2019", -0.8086], ["2022", -4.5161], ["2025", -3.4596]],yearsBetween(1977,2025))),
-    debt_gdp:S("General government gross debt, % of GDP (IMF WEO)","%","years",interp(
-      [["1993", 73.874], ["1996", 53.074], ["1999", 54.218], ["2002", 65.184], ["2005", 64.674], ["2008", 50.01], ["2011", 45.434], ["2014", 40.299], ["2017", 38.13], ["2020", 51.644], ["2023", 56.484], ["2024", 56.627]],yearsBetween(1993,2024))),
-    deficit:S("General government net lending/borrowing, % of GDP (IMF WEO)","%","years",interp(
-      [["1989", -1.638], ["1992", -0.434], ["1995", -0.016], ["1998", -1.309], ["2001", -3.494], ["2004", -2.807], ["2007", -0.285], ["2010", -2.254], ["2013", 0.369], ["2016", -0.745], ["2019", -1.503], ["2022", -5.481], ["2024", -4.437]],yearsBetween(1989,2024))),
-    employment:S("Employment-to-population ratio, not seasonally adjusted, computed from PSA's participation and employment rates (PSA labour force survey)","%","months",interp(
-      [["2021-01", 55.2], ["2022-01", 56.7], ["2023-01", 61.4], ["2024-01", 58.4], ["2025-01", 61.1], ["2026-01", 58.7], ["2026-08", 60.6]],monthsBetween("2021-01","2026-08"))),
-    exports:S("Exports of goods, FOB, US$ converted to pesos at the BIS monthly average rate (IMF international trade in goods, from PSA)","PHPm","months",interp(
-      [["2006-01", 185627.6], ["2007-01", 195174.9], ["2008-01", 172715.7], ["2009-01", 118366.9], ["2010-01", 164773.1], ["2011-01", 177001.2], ["2012-01", 179598.4], ["2013-01", 183799.8], ["2014-01", 196120.8], ["2015-01", 194140.1], ["2016-01", 202410.6], ["2017-01", 278414.9], ["2018-01", 286193.4], ["2019-01", 277643.4], ["2020-01", 294977.2], ["2021-01", 266609.5], ["2022-01", 309927.8], ["2023-01", 298884.9], ["2024-01", 332645.8], ["2025-01", 372151.8], ["2026-01", 422808.4], ["2026-06", 536631.2]],monthsBetween("2006-01","2026-06"))),
-    fdi:S("FDI net inflows, % of GDP (World Bank)","%","years",interp(
-      [["1970", -0.0138], ["1973", 0.5196], ["1976", 0.792], ["1979", 0.0224], ["1982", 0.0379], ["1985", 0.0343], ["1988", 2.1691], ["1991", 1.0505], ["1994", 2.1747], ["1997", 1.2985], ["2000", 1.7772], ["2003", 0.5653], ["2006", 2.1209], ["2009", 1.1732], ["2012", 1.2276], ["2015", 1.8402], ["2018", 2.8683], ["2021", 3.0408], ["2024", 2.0357], ["2025", 1.6675]],yearsBetween(1970,2025))),
-    gdp_growth:S("Real GDP growth, change on previous quarter, seasonally adjusted (PSA, OpenSTAT)","%","quarters",interp(
-      [["2000-Q2", 0.2], ["2001-Q2", 1.1], ["2002-Q2", 1.1], ["2003-Q2", 0.4], ["2004-Q2", 0.5], ["2005-Q2", 0.8], ["2006-Q2", 1.3], ["2007-Q2", 1.6], ["2008-Q2", 2.3], ["2009-Q2", 2.6], ["2010-Q2", 2.2], ["2011-Q2", 1.2], ["2012-Q2", 1.3], ["2013-Q2", 0.8], ["2014-Q2", 1.4], ["2015-Q2", 2.0], ["2016-Q2", 1.9], ["2017-Q2", 2.3], ["2018-Q2", 2.3], ["2019-Q2", 2.2], ["2020-Q2", -14.6], ["2021-Q2", 1.2], ["2022-Q2", 1.8], ["2023-Q2", 0.5], ["2024-Q2", 1.0], ["2025-Q2", 0.8], ["2026-Q2", 0.6]],quartersBetween("2000-Q2","2026-Q2"))),
-    gdp_growth_yoy:S("Real GDP growth, change on same quarter a year earlier, not seasonally adjusted (PSA quarterly national accounts; PSA's headline)","%","quarters",interp(
-      [["2001-Q1", 2.4], ["2002-Q1", 3.9], ["2003-Q1", 4.6], ["2004-Q1", 7.2], ["2005-Q1", 5.0], ["2006-Q1", 4.5], ["2007-Q1", 6.2], ["2008-Q1", 4.2], ["2009-Q1", 1.1], ["2010-Q1", 8.1], ["2011-Q1", 4.8], ["2012-Q1", 6.0], ["2013-Q1", 7.6], ["2014-Q1", 5.7], ["2015-Q1", 5.2], ["2016-Q1", 6.9], ["2017-Q1", 6.4], ["2018-Q1", 6.5], ["2019-Q1", 5.9], ["2020-Q1", -0.7], ["2021-Q1", -3.8], ["2022-Q1", 8.1], ["2023-Q1", 6.4], ["2024-Q1", 5.9], ["2025-Q1", 5.4], ["2026-Q1", 2.8], ["2026-Q2", 2.3]],quartersBetween("2001-Q1","2026-Q2"))),
-    gdp_level:S("GDP, current prices, not seasonally adjusted (PSA quarterly national accounts, OpenSTAT)","PHPm","quarters",interp(
-      [["2000-Q1", 850396.0], ["2001-Q1", 925936.0], ["2002-Q1", 1006579.0], ["2003-Q1", 1091333.0], ["2004-Q1", 1223639.0], ["2005-Q1", 1354481.0], ["2006-Q1", 1496799.0], ["2007-Q1", 1651799.0], ["2008-Q1", 1795699.0], ["2009-Q1", 1899600.0], ["2010-Q1", 2151614.0], ["2011-Q1", 2351209.0], ["2012-Q1", 2539542.0], ["2013-Q1", 2772721.0], ["2014-Q1", 3035915.0], ["2015-Q1", 3204277.0], ["2016-Q1", 3437650.0], ["2017-Q1", 3745533.0], ["2018-Q1", 4101138.0], ["2019-Q1", 4426077.0], ["2020-Q1", 4449141.0], ["2021-Q1", 4374072.0], ["2022-Q1", 4928798.0], ["2023-Q1", 5614956.0], ["2024-Q1", 6120078.0], ["2025-Q1", 6583459.0], ["2026-Q1", 6935870.0], ["2026-Q2", 7483456.0]],quartersBetween("2000-Q1","2026-Q2"))),
-    gdp_real:S("Real GDP, constant 2018 prices, seasonally adjusted (PSA seasonally adjusted national accounts, OpenSTAT)","PHPm","quarters",interp(
-      [["2000-Q1", 1730282.0], ["2001-Q1", 1771854.0], ["2002-Q1", 1837319.0], ["2003-Q1", 1923654.0], ["2004-Q1", 2058380.0], ["2005-Q1", 2159883.0], ["2006-Q1", 2264554.0], ["2007-Q1", 2406391.0], ["2008-Q1", 2501082.0], ["2009-Q1", 2530602.0], ["2010-Q1", 2733104.0], ["2011-Q1", 2857585.0], ["2012-Q1", 3024479.0], ["2013-Q1", 3260569.0], ["2014-Q1", 3455016.0], ["2015-Q1", 3644153.0], ["2016-Q1", 3909427.0], ["2017-Q1", 4175289.0], ["2018-Q1", 4451278.0], ["2019-Q1", 4721760.0], ["2020-Q1", 4722822.0], ["2021-Q1", 4521323.0], ["2022-Q1", 4851305.0], ["2023-Q1", 5153424.0], ["2024-Q1", 5450200.0], ["2025-Q1", 5751977.0], ["2026-Q1", 5910271.0], ["2026-Q2", 5943307.0]],quartersBetween("2000-Q1","2026-Q2"))),
-    imports:S("Imports of goods, CIF, US$ converted to pesos at the BIS monthly average rate (IMF international trade in goods, from PSA)","PHPm","months",interp(
-      [["2006-01", 204594.9], ["2007-01", 199917.4], ["2008-01", 215374.2], ["2009-01", 163396.2], ["2010-01", 210811.9], ["2011-01", 247324.0], ["2012-01", 237272.0], ["2013-01", 205990.9], ["2014-01", 282725.4], ["2015-01", 267171.0], ["2016-01", 347055.3], ["2017-01", 418818.0], ["2018-01", 474517.0], ["2019-01", 530162.6], ["2020-01", 517024.1], ["2021-01", 427415.3], ["2022-01", 571693.5], ["2023-01", 645019.9], ["2024-01", 610280.2], ["2025-01", 710190.2], ["2026-01", 717880.6], ["2026-06", 880620.8]],monthsBetween("2006-01","2026-06"))),
-    participation:S("Labour force participation rate, not seasonally adjusted (PSA labour force survey, OpenSTAT)","%","months",interp(
-      [["2021-01", 60.5], ["2022-01", 60.5], ["2023-01", 64.5], ["2024-01", 61.1], ["2025-01", 63.9], ["2026-01", 62.3], ["2026-08", 64.0]],monthsBetween("2021-01","2026-08"))),
-    policy_rate:S("BSP target reverse repurchase rate, end of month (BIS central bank policy rates, M.PH)","%","months",interp(
-      [["2002-01", 7.5], ["2003-01", 7.0], ["2004-01", 6.75], ["2005-01", 6.75], ["2006-01", 7.5], ["2007-01", 7.5], ["2008-01", 5.0], ["2009-01", 5.0], ["2010-01", 4.0], ["2011-01", 4.0], ["2012-01", 4.25], ["2013-01", 3.5], ["2014-01", 3.5], ["2015-01", 4.0], ["2016-01", 4.0], ["2017-01", 3.0], ["2018-01", 3.0], ["2019-01", 4.75], ["2020-01", 4.0], ["2021-01", 2.0], ["2022-01", 2.0], ["2023-01", 5.5], ["2024-01", 6.5], ["2025-01", 5.75], ["2026-01", 4.5], ["2026-10", 5.0]],monthsBetween("2002-01","2026-10"))),
-    trade_balance:S("Trade balance, goods, exports FOB less imports CIF, pesos (IMF ITG, converted at the BIS monthly average rate)","PHPm","months",interp(
-      [["2006-01", -18967.3], ["2007-01", -4742.5], ["2008-01", -42658.5], ["2009-01", -45029.3], ["2010-01", -46038.8], ["2011-01", -70322.8], ["2012-01", -57673.6], ["2013-01", -22191.1], ["2014-01", -86604.6], ["2015-01", -73030.9], ["2016-01", -144644.7], ["2017-01", -140403.1], ["2018-01", -188323.6], ["2019-01", -252519.2], ["2020-01", -222046.9], ["2021-01", -160805.8], ["2022-01", -261765.7], ["2023-01", -346135.0], ["2024-01", -277634.4], ["2025-01", -338038.4], ["2026-01", -295072.2], ["2026-06", -343989.6]],monthsBetween("2006-01","2026-06"))),
-    unemployment:S("Unemployment rate, not seasonally adjusted (PSA labour force survey, OpenSTAT)","%","months",interp(
-      [["2021-01", 8.8], ["2022-01", 6.4], ["2023-01", 4.8], ["2024-01", 4.5], ["2025-01", 4.3], ["2026-01", 5.8], ["2026-08", 5.3]],monthsBetween("2021-01","2026-08"))),
-  }};
-}
 /* ------------------------------- charts ---------------------------------- */
 const refLinePlugin = {
   id: "refLine",
@@ -2459,7 +2393,6 @@ function render(data){
   // page load from data-ph.json), which is what "new data each time"
   // means in practice for a static-data key like this.
   window.EATLAS_SERIES = s;
-  if(data.sample){const sb=document.getElementById("sampleBadge");sb.textContent="Illustrative figures: the live data feed did not load, so this page is showing placeholder shapes, not published statistics. Refresh in a moment.";sb.classList.add("show");}
   const gdpAnnual = s.gdp_level ? annualGDP(s.gdp_level) : null;
   const pct=v=>v.toFixed(1)+"%", pp=v=>v.toFixed(1)+"pp";
   const idx=v=>v.toFixed(1);
@@ -3099,13 +3032,17 @@ const FX_FETCH=fetch("data-fx-ph.json",{cache: "no-cache"})
 fetch("data-ph.json",{cache: "no-cache"})
   .then(r=>{ if(!r.ok) throw new Error(r.status); return r.json(); })
   .then(d=>FX_FETCH.then(fx=>{ FX_DATA=fx; PAGE_DATA=d; rerender(); }))
-  .catch(()=>{ PAGE_DATA=sampleData(); rerender(); });
+  .catch(err=>{
+    // No stand-in figures: if the data cannot be loaded or drawn, say so plainly.
+    console.error(err);
+    const lf=document.getElementById("loadFail"); if(lf) lf.hidden=false;
+  });
 </script>
 <script>
 (function(){
 "use strict";
 // No fallback figures: nothing invented. Until data-ph-trade-partners.json exists
-// (UN Comtrade, update-trade-data.yml) the partner block is hidden.
+// (UN Comtrade, update-trade-data.yml) the partner block says "Not yet available".
 var FALLBACK_PARTNERS = [];
 var UK_ID = "608"; // Philippines
 var PARTNERS = FALLBACK_PARTNERS;
@@ -3385,11 +3322,12 @@ Promise.all([
 ]).then(function(results){
   var world = results[0];
   var livePayload = results[1];
-  if(!livePayload && !FALLBACK_PARTNERS.length){
-    var tb = document.getElementById("tpmBlock"); if(tb) tb.hidden = true;
+  if(!applyLivePartners(livePayload)){
+    var tb = document.getElementById("tpmBlock");
+    if(tb) tb.innerHTML = "<div class=\"tpm-head\"><h3>Philippines goods trade: top partners</h3></div>"
+      + "<p style=\"color:var(--ink2); margin:8px 0 26px;\">Not yet available for Philippines.</p>";
     dataReady = true; return;
   }
-  applyLivePartners(livePayload);
   computeScales();
   renderRanking();
   drawGeo(world);

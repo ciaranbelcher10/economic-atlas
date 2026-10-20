@@ -1643,7 +1643,8 @@ document.addEventListener("DOMContentLoaded", function(){
 <header class="page with-map">
  <div class="head-text">
  <p class="eyebrow"><span class="dot" aria-hidden="true"></span>Official statistics</p>
- <h1>Turkey <span id="sampleBadge" class="badge"></span></h1>
+ <h1>Turkey</h1>
+<div id="loadFail" role="alert" hidden style="margin:12px 0 0; padding:12px 16px; max-width:640px; border:1px solid var(--hair); border-radius:10px; background:var(--panel); color:var(--ink); font-size:14px; line-height:1.5;">We couldn’t load the latest figures for this page, so no charts are shown. Please refresh the page to try again.</div>
  </div>
 <div class="mini-mapwrap" id="miniMapWrap" tabindex="0" role="img"
  aria-label="Small world map. Hover or tap to enlarge, then select a country to jump to its page, keeping the current section.">
@@ -1710,11 +1711,9 @@ document.addEventListener("DOMContentLoaded", function(){
  <div class="hero mini" id="tiles-trade"></div>
  <p class="lightskey compact" aria-label="Key to freshness lights"><span><span class="led green" aria-hidden="true"></span>&nbsp;matches latest release</span><span><span class="led orange" aria-hidden="true"></span>&nbsp;not refreshed recently</span></p>
  <div class="grid" id="charts-trade"></div>
- <div class="tpm-head"><h3>Turkey goods trade: top partners</h3></div>
+ <div id="tpmBlock"><div class="tpm-head"><h3>Turkey goods trade: top partners</h3></div>
  <p class="tpm-scopenote"><strong>Goods trade only.</strong> Services aren't covered by this data source and aren't shown here, so relationships that lean heavily on services may be understated.</p>
- <div class="tpm-banner" id="tpmBanner"><span class="dot2" aria-hidden="true"></span>
- <span id="tpmBannerText">Illustrative data: approximate 2025 goods-trade shares, shown as a placeholder. Live bilateral figures are not published for this country yet.</span></div>
- <nav class="viztoggle">
+  <nav class="viztoggle">
  <button type="button" class="vtbtn" data-view="geo">Geographic</button>
  <button type="button" class="vtbtn active" data-view="radial">Radial</button>
  <div class="spacer"></div>
@@ -1747,13 +1746,14 @@ document.addEventListener("DOMContentLoaded", function(){
  <div class="tpm-right">
  <div class="tpm-ranking">
  <h4 id="tpmRankTitle">Goods trade: top partners</h4>
- <p class="tpm-ranksubtitle" id="tpmRankSubtitle">Illustrative 2025 figures, &pound;bn</p>
+ <p class="tpm-ranksubtitle" id="tpmRankSubtitle"></p>
  <ol class="tpm-ranklist" id="tpmRankList"></ol>
  <button type="button" class="tpm-rankmore" id="tpmRankMore" hidden>Show all partners</button>
  </div>
  </div>
  </div>
- <p class="tpm-covnote" id="tpmCovnote">Illustrative fallback shows 14 major partners. Once live, every partner UN Comtrade has data for is fetched: the radial view shows the top 20 by value, the map shows the top 50, and the ranking list can be expanded to show the top 50 too.</p>
+ <p class="tpm-covnote" id="tpmCovnote"></p>
+</div>
 </section>
 <section class="sec" id="sec-public" hidden>
  <div class="hero mini" id="tiles-public"></div>
@@ -1904,92 +1904,7 @@ function yoyGDP(gdpReal){
   return {label:"Real GDP growth, year on year", unit:"%", freq: gdpReal.freq || "quarters", points:out, confirmed_at:gdpReal.confirmed_at};
 }
 /* --------------- fallback sample data (until fetch_data.py) -------------- */
-function interp(keys, periods){
-  const kIdx = keys.map(k=>periods.indexOf(k[0]));
-  const pts=[];
-  for(let s=0;s<keys.length-1;s++){
-    const a=kIdx[s], b=kIdx[s+1]; if(a<0||b<0) continue;
-    for(let i=a;i<=b;i++){
-      const t=(i-a)/(b-a||1);
-      const wob=Math.sin(i*2.1)*0.05*(Math.abs(keys[s+1][1]-keys[s][1])+0.4);
-      pts[i]=[periods[i], +(keys[s][1]+(keys[s+1][1]-keys[s][1])*t+wob).toFixed(2)];
-    }
-  }
-  return pts.filter(Boolean);
-}
-function monthsBetween(a,b){
-  const out=[]; let [y,m]=a.split("-").map(Number); const [Y,M]=b.split("-").map(Number);
-  while(y<Y||(y===Y&&m<=M)){ out.push(y+"-"+String(m).padStart(2,"0")); m++; if(m>12){m=1;y++;} }
-  return out;
-}
-function quartersBetween(a,b){
-  const out=[]; let [y,q]=[+a.slice(0,4),+a.slice(6)]; const [Y,Q]=[+b.slice(0,4),+b.slice(6)];
-  while(y<Y||(y===Y&&q<=Q)){ out.push(y+"-Q"+q); q++; if(q>4){q=1;y++;} }
-  return out;
-}
 const yearsBetween=(a,b)=>Array.from({length:b-a+1},(_,i)=>String(a+i));
-function sampleData(){
-  // Illustrative-but-reasoned figures (per the site's standing new-country
-  // workflow), NOT real fetched data yet -- to be reconciled once
-  // fetch_tr.py actually runs. Anchored to Turkey's genuinely distinctive,
-  // well-documented recent profile: exceptionally high and volatile
-  // inflation from 2021-2024 (peaking near 85% YoY in late 2022, still
-  // above 30% in early 2026 per real published figures), a lira that has
-  // depreciated sharply against the dollar throughout, unemployment that
-  // has actually IMPROVED in recent years (from ~12% in 2021 to ~8% by
-  // 2025, per the real OECD/FRED figures already verified for this
-  // build), and government debt that remains comparatively moderate by
-  // international standards (~29% of GDP in 2023, per real IMF-WEO
-  // figures already verified) despite the inflation and currency turmoil.
-  // No policy-rate, 10-year-bond-yield, or current-account series is
-  // included here at all -- verified searches found no live source for
-  // any of the three (see the footer's disclosed-gaps note), so there is
-  // nothing to illustrate rather than something faked.
-  const mR=monthsBetween("1996-01","2026-06");
-  const qAll=quartersBetween("2005-Q1","2026-Q1"), qG=quartersBetween("1999-Q1","2026-Q1");
-  const qTr=quartersBetween("1996-Q1","2026-Q1");
-  const gdpG=qG.map((p,i)=>[p,+(1.2+2.2*Math.sin(i*1.05)).toFixed(1)]);
-  const put=(p,v)=>{const i=qG.indexOf(p); if(i>=0) gdpG[i]=[p,v];};
-  put("2001-Q1",-8.0); put("2008-Q4",-7.0); put("2009-Q1",-14.6); put("2020-Q2",-10.3);
-  put("2020-Q3",15.4); put("2023-Q1",-0.1); put("2026-Q1",2.1);
-  const S=(label,unit,freq,points)=>({label,unit,freq,points});
-  return { updated:new Date().toISOString(), sample:true,
-    new_points_meta:{gdp_level:{period:"2024",first_seen:new Date(Date.now()-36*3600000).toISOString()}},
-    series:{
-    gdp_level:S("GDP, current US$ (illustrative)","$m","years",interp(
-      [["1996",184000],["2003",311000],["2008",764000],["2013",957000],
-       ["2018",797000],["2020",720000],["2022",906000],["2023",1108000],["2024",1344000]],yearsBetween(1996,2024))),
-    gdp_real:S("Real GDP, constant national prices (illustrative)","$m (2021 prices)","years",interp(
-      [["1996",1450000],["2008",2100000],["2013",2550000],["2019",2650000],
-       ["2020",2620000],["2022",2900000],["2023",3010000]],yearsBetween(1996,2023))),
-    gdp_growth:S("Real GDP growth, YoY (illustrative)","%","quarters",gdpG),
-    cpi:S("CPI, all items, YoY (illustrative)","%","months",interp(
-      [["1996-01",78.9],["2001-05",65.0],["2004-01",10.6],["2010-01",8.2],["2015-01",7.2],
-       ["2018-10",25.2],["2020-05",11.4],["2021-12",36.1],["2022-10",85.5],["2023-06",38.2],
-       ["2024-05",75.5],["2025-06",35.1],["2026-06",30.9]],mR)),
-    unemployment:S("Unemployment, 15+, SA (illustrative)","%","quarters",interp(
-      [["2005-Q1",10.8],["2009-Q4",13.7],["2013-Q4",9.5],["2019-Q4",13.4],
-       ["2021-Q1",12.0],["2022-Q4",10.2],["2023-Q4",9.1],["2024-Q4",8.7],["2026-Q1",8.2]],qAll)),
-    participation_rate:S("Labour force participation, 15-64, SA (illustrative)","%","quarters",interp(
-      [["2005-Q1",47.0],["2013-Q1",50.5],["2019-Q4",53.5],["2021-Q1",52.0],
-       ["2023-Q2",55.5],["2026-Q1",60.2]],qAll)),
-    debt_gdp:S("General government gross debt % GDP (illustrative)","%","years",interp(
-      [["1996",42.3],["2001",74.0],["2008",39.7],["2013",31.5],["2019",32.4],
-       ["2020",39.4],["2021",40.4],["2022",30.8],["2023",29.3]],yearsBetween(1996,2023))),
-    deficit:S("Gov. net lending/borrowing % GDP (illustrative)","%","years",interp(
-      [["1996",-8.0],["2001",-11.9],["2008",-2.6],["2013",-1.0],["2019",-2.9],
-       ["2020",-3.4],["2022",-0.9],["2023",-5.2]],yearsBetween(1996,2023))),
-    business_confidence:S("Business confidence (illustrative)","index","months",interp(
-      [["2009-02",85.0],["2013-12",103.5],["2018-08",92.0],["2020-04",88.0],
-       ["2021-09",101.5],["2023-05",96.0],["2026-05",99.2]],monthsBetween("2009-02","2026-05"))),
-    trade_balance:S("Trade balance, goods (illustrative)","$m","quarters",interp(
-      [["1996-Q1",-2200],["2008-Q3",-13500],["2012-Q1",-15800],["2015-Q2",-9200],
-       ["2020-Q2",-6500],["2022-Q3",-22400],["2024-Q2",-11800],["2026-Q1",-10200]],qTr)),
-    fdi:S("FDI net inflows % GDP (illustrative)","%","years",interp(
-      [["1996",0.5],["2008",2.7],["2016",1.4],["2020",0.6],["2025",1.0]],
-      yearsBetween(1996,2025))),
-  }};
-}
 /* ------------------------------- charts ---------------------------------- */
 const refLinePlugin = {
   id: "refLine",
@@ -2496,7 +2411,6 @@ function render(data){
   // page load from data-tr.json), which is what "new data each time"
   // means in practice for a static-data key like this.
   window.EATLAS_SERIES = s;
-  if(data.sample){const sb=document.getElementById("sampleBadge");sb.textContent="Illustrative figures: the live data feed did not load, so this page is showing placeholder shapes, not published statistics. Refresh in a moment.";sb.classList.add("show");}
   const gdpAnnual = s.gdp_level ? s.gdp_level : null;   /* NOTE: gdp_level here is already the trailing-4-quarter-sum "annual" series where available (see buildDisplaySeries()) -- gdp_level/gdp_real themselves are genuine per-quarter flows, not annualized, so the raw quarterly figure would understate true annual GDP by ~4x. Falls back to the raw World Bank USD annual series if the live TRY quarterly data (and therefore the derived annual sum) isn't available this run. */
   const gdpYoY = s.gdp_real ? yoyGDP(s.gdp_real) : null;
   const pct=v=>v.toFixed(1)+"%", pp=v=>v.toFixed(1)+"pp";
@@ -3158,34 +3072,18 @@ const FX_FETCH=fetch("data-fx-tr.json",{cache: "no-cache"})
 fetch("data-tr.json",{cache: "no-cache"})
   .then(r=>{ if(!r.ok) throw new Error(r.status); return r.json(); })
   .then(d=>FX_FETCH.then(fx=>{ FX_DATA=fx; PAGE_DATA=d; rerender(); }))
-  .catch(()=>{ PAGE_DATA=sampleData(); rerender(); });
+  .catch(err=>{
+    // No stand-in figures: if the data cannot be loaded or drawn, say so plainly.
+    console.error(err);
+    const lf=document.getElementById("loadFail"); if(lf) lf.hidden=false;
+  });
 </script>
 <script>
 (function(){
 "use strict";
-// Illustrative fallback only, used if the live Comtrade fetch fails or
-// COMTRADE_API_KEY isn't set yet. See tpmBanner for the live/fallback text.
-// Reasoned specifically for Turkey's real trade profile: Germany and the
-// EU are the largest export markets (customs union with the EU since
-// 1995), Russia is a major but heavily import-skewed partner (energy),
-// and Iraq is a significant export destination -- not an inherited copy
-// of another country's partner list.
-var FALLBACK_PARTNERS = [
-  {name:"Germany",       code:"276", region:"Europe",     total:41.2, exports:22.0, imports:19.2, totalShare:10.8, exportShare:14.9, importShare:8.1},
-  {name:"Russia",        code:"643", region:"Europe",     total:38.6, exports:7.0,  imports:31.6, totalShare:10.1, exportShare:4.7,  importShare:13.4},
-  {name:"China",         code:"156", region:"Asia",       total:36.4, exports:4.0,  imports:32.4, totalShare:9.5,  exportShare:2.7,  importShare:13.7},
-  {name:"United States",         code:"840", region:"Americas",   total:28.1, exports:16.0, imports:12.1, totalShare:7.3,  exportShare:10.8, importShare:5.1},
-  {name:"Iraq",          code:"368", region:"Middle East", total:16.3, exports:14.5, imports:1.8,  totalShare:4.3,  exportShare:9.8,  importShare:0.8},
-  {name:"Italy",         code:"380", region:"Europe",     total:20.8, exports:11.0, imports:9.8,  totalShare:5.4,  exportShare:7.4,  importShare:4.1},
-  {name:"United Kingdom", code:"826", region:"Europe",    total:19.4, exports:13.0, imports:6.4,  totalShare:5.1,  exportShare:8.8,  importShare:2.7},
-  {name:"Netherlands",   code:"528", region:"Europe",     total:11.9, exports:6.5,  imports:5.4,  totalShare:3.1,  exportShare:4.4,  importShare:2.3},
-  {name:"France",        code:"250", region:"Europe",     total:14.7, exports:8.0,  imports:6.7,  totalShare:3.8,  exportShare:5.4,  importShare:2.8},
-  {name:"Spain",         code:"724", region:"Europe",     total:13.2, exports:7.5,  imports:5.7,  totalShare:3.4,  exportShare:5.1,  importShare:2.4},
-  {name:"South Korea",   code:"410", region:"Asia",       total:9.8,  exports:1.5,  imports:8.3,  totalShare:2.6,  exportShare:1.0,  importShare:3.5},
-  {name:"India",         code:"356", region:"Asia",       total:9.1,  exports:2.5,  imports:6.6,  totalShare:2.4,  exportShare:1.7,  importShare:2.8},
-  {name:"United Arab Emirates", code:"784", region:"Middle East", total:12.6, exports:7.0, imports:5.6, totalShare:3.3, exportShare:4.7, importShare:2.4},
-  {name:"Egypt",         code:"818", region:"Middle East", total:8.2, exports:6.5, imports:1.7,  totalShare:2.1,  exportShare:4.4,  importShare:0.7}
-];
+// No fallback figures: nothing invented. Until data-tr-trade-partners.json exists
+// (UN Comtrade, update-trade-data.yml) the partner block says "Not yet available".
+var FALLBACK_PARTNERS = [];
 var UK_ID = "792"; // Turkey
 var PARTNERS = FALLBACK_PARTNERS;
 var CURRENCY_SYMBOL = "$"; // FALLBACK_PARTNERS values are authored in USD billions (matching UN Comtrade's own convention), same as every other country's fallback trade data -- not Turkey's own currency
@@ -3417,7 +3315,7 @@ function renderRadial(){
   });
   var hub = svg.append("g").attr("class", "radial-hub");
   hub.append("circle").attr("cx", cx).attr("cy", cy).attr("r", hubR);
-  hub.append("text").attr("x", cx).attr("y", cy + 5).text("DK");
+  hub.append("text").attr("x", cx).attr("y", cy + 5).text("TR");
   function highlightAll(code, on){
     spokes.selectAll("path").classed("dim", function(p){ return on && p.code !== code; });
     nodesG.selectAll(".radial-node").classed("dim", function(p){ return on && p.code !== code; });
@@ -3464,7 +3362,12 @@ Promise.all([
 ]).then(function(results){
   var world = results[0];
   var livePayload = results[1];
-  applyLivePartners(livePayload);
+  if(!applyLivePartners(livePayload)){
+    var tb = document.getElementById("tpmBlock");
+    if(tb) tb.innerHTML = "<div class=\"tpm-head\"><h3>Turkey goods trade: top partners</h3></div>"
+      + "<p style=\"color:var(--ink2); margin:8px 0 26px;\">Not yet available for Turkey.</p>";
+    dataReady = true; return;
+  }
   computeScales();
   renderRanking();
   drawGeo(world);

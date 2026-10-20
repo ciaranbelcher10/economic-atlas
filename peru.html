@@ -1644,7 +1644,8 @@ document.addEventListener("DOMContentLoaded", function(){
 <header class="page with-map">
  <div class="head-text">
  <p class="eyebrow"><span class="dot" aria-hidden="true"></span>Official statistics</p>
- <h1>Peru <span id="sampleBadge" class="badge"></span></h1>
+ <h1>Peru</h1>
+<div id="loadFail" role="alert" hidden style="margin:12px 0 0; padding:12px 16px; max-width:640px; border:1px solid var(--hair); border-radius:10px; background:var(--panel); color:var(--ink); font-size:14px; line-height:1.5;">We couldn’t load the latest figures for this page, so no charts are shown. Please refresh the page to try again.</div>
  </div>
 <div class="mini-mapwrap" id="miniMapWrap" tabindex="0" role="img"
  aria-label="Small world map. Hover or tap to enlarge, then select a country to jump to its page, keeping the current section.">
@@ -1714,9 +1715,7 @@ document.addEventListener("DOMContentLoaded", function(){
  <p class="secnote">Goods trade is the Central Reserve Bank of Peru's monthly trade balance, in US dollars, converted to soles at each month's average exchange rate from the Bank for International Settlements. Both exports and imports are valued free on board.</p>
  <div id="tpmBlock"><div class="tpm-head"><h3>Peru goods trade: top partners</h3></div>
  <p class="tpm-scopenote"><strong>Goods trade only.</strong> Services aren't covered by this data source and aren't shown here, so relationships that lean heavily on services may be understated.</p>
- <div class="tpm-banner" id="tpmBanner"><span class="dot2" aria-hidden="true"></span>
- <span id="tpmBannerText">Illustrative data: approximate 2024 goods-trade values, shown as a placeholder. Live bilateral figures are not published for this country yet.</span></div>
- <nav class="viztoggle">
+  <nav class="viztoggle">
  <button type="button" class="vtbtn" data-view="geo">Geographic</button>
  <button type="button" class="vtbtn active" data-view="radial">Radial</button>
  <div class="spacer"></div>
@@ -1749,13 +1748,13 @@ document.addEventListener("DOMContentLoaded", function(){
  <div class="tpm-right">
  <div class="tpm-ranking">
  <h4 id="tpmRankTitle">Goods trade: top partners</h4>
- <p class="tpm-ranksubtitle" id="tpmRankSubtitle">Illustrative 2024 figures, US$bn</p>
+ <p class="tpm-ranksubtitle" id="tpmRankSubtitle"></p>
  <ol class="tpm-ranklist" id="tpmRankList"></ol>
  <button type="button" class="tpm-rankmore" id="tpmRankMore" hidden>Show all partners</button>
  </div>
  </div>
  </div>
- <p class="tpm-covnote" id="tpmCovnote">Illustrative fallback shows 13 major partners. Once live, every partner UN Comtrade has data for is fetched: the radial view shows the top 20 by value, the map shows the top 50, and the ranking list can be expanded to show the top 50 too.</p>
+ <p class="tpm-covnote" id="tpmCovnote"></p>
 </div>
 </section>
 <section class="sec" id="sec-public" hidden>
@@ -1887,68 +1886,7 @@ function yoyGDP(gdpReal){
   return {label:"Real GDP growth, year on year", unit:"%", freq: gdpReal.freq || "quarters", points:out, confirmed_at:gdpReal.confirmed_at};
 }
 /* --------------- fallback sample data (until fetch_data.py) -------------- */
-function interp(keys, periods){
-  const kIdx = keys.map(k=>periods.indexOf(k[0]));
-  const pts=[];
-  for(let s=0;s<keys.length-1;s++){
-    const a=kIdx[s], b=kIdx[s+1]; if(a<0||b<0) continue;
-    for(let i=a;i<=b;i++){
-      const t=(i-a)/(b-a||1);
-      const wob=Math.sin(i*2.1)*0.05*(Math.abs(keys[s+1][1]-keys[s][1])+0.4);
-      pts[i]=[periods[i], +(keys[s][1]+(keys[s+1][1]-keys[s][1])*t+wob).toFixed(2)];
-    }
-  }
-  return pts.filter(Boolean);
-}
-function monthsBetween(a,b){
-  const out=[]; let [y,m]=a.split("-").map(Number); const [Y,M]=b.split("-").map(Number);
-  while(y<Y||(y===Y&&m<=M)){ out.push(y+"-"+String(m).padStart(2,"0")); m++; if(m>12){m=1;y++;} }
-  return out;
-}
-function quartersBetween(a,b){
-  const out=[]; let [y,q]=[+a.slice(0,4),+a.slice(6)]; const [Y,Q]=[+b.slice(0,4),+b.slice(6)];
-  while(y<Y||(y===Y&&q<=Q)){ out.push(y+"-Q"+q); q++; if(q>4){q=1;y++;} }
-  return out;
-}
 const yearsBetween=(a,b)=>Array.from({length:b-a+1},(_,i)=>String(a+i));
-function sampleData(){
-  // Shapes anchored on the real data-pe.json at build time, so a failed
-  // fetch shows Peru-shaped placeholders rather than another country's.
-  const S=(label,unit,freq,points)=>({label,unit,freq,points});
-  return { updated:new Date().toISOString(), sample:true,
-    series:{
-    cpi:S("CPI, all items, Metropolitan Lima, change on same month a year earlier (BCRP, PN01273PM, from INEI)","%","months",interp(
-      [["1995-01", 13.7], ["1996-01", 11.2], ["1997-01", 11.0], ["1998-01", 6.9], ["1999-01", 5.1], ["2000-01", 3.8], ["2001-01", 3.9], ["2002-01", -0.8], ["2003-01", 2.3], ["2004-01", 2.8], ["2005-01", 3.0], ["2006-01", 1.9], ["2007-01", 0.6], ["2008-01", 4.1], ["2009-01", 6.5], ["2010-01", 0.4], ["2011-01", 2.2], ["2012-01", 4.2], ["2013-01", 2.9], ["2014-01", 3.1], ["2015-01", 3.1], ["2016-01", 4.6], ["2017-01", 3.1], ["2018-01", 1.3], ["2019-01", 2.1], ["2020-01", 1.9], ["2021-01", 2.7], ["2022-01", 5.7], ["2023-01", 8.7], ["2024-01", 3.0], ["2025-01", 1.9], ["2026-01", 1.7], ["2026-09", 4.5]],monthsBetween("1995-01","2026-09"))),
-    cpi_mom:S("CPI, all items, Metropolitan Lima, change on previous month, not seasonally adjusted (BCRP, PN01271PM)","%","months",interp(
-      [["1995-01", 0.4], ["1996-01", 1.2], ["1997-01", 0.5], ["1998-01", 0.9], ["1999-01", 0.0], ["2000-01", 0.1], ["2001-01", 0.2], ["2002-01", -0.5], ["2003-01", 0.2], ["2004-01", 0.5], ["2005-01", 0.1], ["2006-01", 0.5], ["2007-01", 0.0], ["2008-01", 0.2], ["2009-01", 0.1], ["2010-01", 0.3], ["2011-01", 0.4], ["2012-01", -0.1], ["2013-01", 0.1], ["2014-01", 0.3], ["2015-01", 0.2], ["2016-01", 0.4], ["2017-01", 0.2], ["2018-01", 0.1], ["2019-01", 0.1], ["2020-01", 0.1], ["2021-01", 0.7], ["2022-01", 0.0], ["2023-01", 0.2], ["2024-01", 0.0], ["2025-01", -0.1], ["2026-01", 0.1], ["2026-09", 0.1]],monthsBetween("1995-01","2026-09"))),
-    current_account:S("Current account balance, % of GDP (World Bank)","%","years",interp(
-      [["1977", -6.3438], ["1980", -0.5574], ["1983", -5.0273], ["1986", -6.3746], ["1989", -2.5354], ["1992", -5.2438], ["1995", -8.6744], ["1998", -6.0106], ["2001", -2.3118], ["2004", 0.0289], ["2007", 1.4293], ["2010", -2.4161], ["2013", -4.8547], ["2016", -2.4213], ["2019", -0.7279], ["2022", -4.0868], ["2025", 3.585]],yearsBetween(1977,2025))),
-    debt_gdp:S("General government gross debt, % of GDP (IMF WEO)","%","years",interp(
-      [["2000", 44.909], ["2003", 49.376], ["2006", 34.94], ["2009", 28.18], ["2012", 20.662], ["2015", 23.688], ["2018", 25.688], ["2021", 35.526], ["2024", 32.065], ["2025", 30.145]],yearsBetween(2000,2025))),
-    deficit:S("General government net lending/borrowing, % of GDP (IMF WEO)","%","years",interp(
-      [["2000", -2.116], ["2003", -1.622], ["2006", 2.029], ["2009", -1.479], ["2012", 2.073], ["2015", -2.02], ["2018", -1.944], ["2021", -2.489], ["2024", -3.529], ["2025", -2.354]],yearsBetween(2000,2025))),
-    exports:S("Exports of goods, FOB, US$ converted to soles at the BIS monthly average rate (BCRP trade balance, PN38714BM)","PENm","months",interp(
-      [["1996-01", 1033.6], ["1997-01", 1463.6], ["1998-01", 1139.7], ["1999-01", 1715.2], ["2000-01", 1927.0], ["2001-01", 1939.7], ["2002-01", 1796.9], ["2003-01", 2436.1], ["2004-01", 3052.1], ["2005-01", 4131.5], ["2006-01", 4854.7], ["2007-01", 5579.6], ["2008-01", 7529.7], ["2009-01", 5138.6], ["2010-01", 6967.2], ["2011-01", 8262.1], ["2012-01", 10849.2], ["2013-01", 8915.7], ["2014-01", 8901.6], ["2015-01", 8483.0], ["2016-01", 8507.8], ["2017-01", 11012.3], ["2018-01", 13166.5], ["2019-01", 13185.8], ["2020-01", 12967.3], ["2021-01", 16341.0], ["2022-01", 21405.8], ["2023-01", 18558.4], ["2024-01", 20250.8], ["2025-01", 26785.0], ["2026-01", 33323.8], ["2026-08", 36381.3]],monthsBetween("1996-01","2026-08"))),
-    fdi:S("FDI net inflows, % of GDP (World Bank)","%","years",interp(
-      [["1970", -0.1878], ["1973", 0.8698], ["1976", 0.4456], ["1979", 0.445], ["1982", 0.2202], ["1985", 0.0066], ["1988", 0.1684], ["1991", -0.0204], ["1994", 7.3285], ["1997", 3.679], ["2000", 1.5648], ["2003", 2.2731], ["2006", 3.9107], ["2009", 5.3224], ["2012", 7.3617], ["2015", 3.9032], ["2018", 2.7823], ["2021", 3.1546], ["2024", 2.2978], ["2025", 3.0918]],yearsBetween(1970,2025))),
-    gdp_growth:S("Real GDP growth, change on previous year (World Bank)","%","years",interp(
-      [["1961", 7.3], ["1964", 6.5], ["1967", 3.9], ["1970", 3.4], ["1973", 6.3], ["1976", 1.4], ["1979", 4.1], ["1982", -0.2], ["1985", 2.1], ["1988", -9.4], ["1991", 2.2], ["1994", 12.3], ["1997", 6.5], ["2000", 2.7], ["2003", 4.2], ["2006", 7.5], ["2009", 1.1], ["2012", 6.1], ["2015", 3.3], ["2018", 4.0], ["2021", 13.4], ["2024", 3.5], ["2025", 3.4]],yearsBetween(1961,2025))),
-    gdp_growth_yoy:S("Real GDP growth, change on same quarter a year earlier, as published (BCRP, PN02507AQ)","%","quarters",interp(
-      [["1980-Q1", 5.3], ["1981-Q1", 7.3], ["1982-Q1", 3.7], ["1983-Q1", -10.0], ["1984-Q1", -2.6], ["1985-Q1", 11.0], ["1986-Q1", -3.1], ["1987-Q1", 16.6], ["1988-Q1", -1.3], ["1989-Q1", -19.9], ["1990-Q1", 14.9], ["1991-Q1", -10.3], ["1992-Q1", 6.2], ["1993-Q1", -0.2], ["1994-Q1", 12.8], ["1995-Q1", 9.0], ["1996-Q1", 1.3], ["1997-Q1", 5.2], ["1998-Q1", 2.2], ["1999-Q1", -0.5], ["2000-Q1", 6.8], ["2001-Q1", -5.3], ["2002-Q1", 6.5], ["2003-Q1", 5.6], ["2004-Q1", 4.6], ["2005-Q1", 5.6], ["2006-Q1", 8.3], ["2007-Q1", 5.3], ["2008-Q1", 10.1], ["2009-Q1", 2.6], ["2010-Q1", 5.5], ["2011-Q1", 8.4], ["2012-Q1", 6.1], ["2013-Q1", 5.0], ["2014-Q1", 5.0], ["2015-Q1", 1.9], ["2016-Q1", 4.5], ["2017-Q1", 2.3], ["2018-Q1", 3.2], ["2019-Q1", 2.4], ["2020-Q1", -3.6], ["2021-Q1", 4.2], ["2022-Q1", 3.9], ["2023-Q1", -0.0], ["2024-Q1", 1.5], ["2025-Q1", 4.0], ["2026-Q1", 3.6], ["2026-Q2", 2.6]],quartersBetween("1980-Q1","2026-Q2"))),
-    gdp_level:S("GDP, current prices, annual, from 1991 (World Bank)","PENm","years",interp(
-      [["1991", 26714.2], ["1994", 98579.0], ["1997", 154905.0], ["2000", 180584.0], ["2003", 204337.0], ["2006", 290271.0], ["2009", 363943.0], ["2012", 508131.0], ["2015", 604416.0], ["2018", 731588.0], ["2021", 878581.0], ["2024", 1095204.0], ["2025", 1194448.0]],yearsBetween(1991,2025))),
-    gdp_real:S("Real GDP, millions of soles at 2007 prices, not seasonally adjusted (BCRP, PN02538AQ)","PENm","quarters",interp(
-      [["1980-Q1", 36357.5], ["1981-Q1", 39025.9], ["1982-Q1", 40474.8], ["1983-Q1", 36438.1], ["1984-Q1", 35508.4], ["1985-Q1", 39428.5], ["1986-Q1", 38202.4], ["1987-Q1", 44533.4], ["1988-Q1", 43968.8], ["1989-Q1", 35208.3], ["1990-Q1", 40440.5], ["1991-Q1", 36289.7], ["1992-Q1", 38553.9], ["1993-Q1", 38458.8], ["1994-Q1", 43373.7], ["1995-Q1", 47280.5], ["1996-Q1", 47884.6], ["1997-Q1", 50364.9], ["1998-Q1", 51486.9], ["1999-Q1", 51214.6], ["2000-Q1", 54674.8], ["2001-Q1", 51760.4], ["2002-Q1", 55137.7], ["2003-Q1", 58249.3], ["2004-Q1", 60913.8], ["2005-Q1", 64340.9], ["2006-Q1", 69670.8], ["2007-Q1", 73354.1], ["2008-Q1", 80796.3], ["2009-Q1", 82892.2], ["2010-Q1", 87436.7], ["2011-Q1", 94793.5], ["2012-Q1", 100586.0], ["2013-Q1", 105593.4], ["2014-Q1", 110825.9], ["2015-Q1", 112965.8], ["2016-Q1", 118025.3], ["2017-Q1", 120720.8], ["2018-Q1", 124544.0], ["2019-Q1", 127532.9], ["2020-Q1", 122974.6], ["2021-Q1", 128175.7], ["2022-Q1", 133215.6], ["2023-Q1", 133188.3], ["2024-Q1", 135172.4], ["2025-Q1", 140592.2], ["2026-Q1", 145603.6], ["2026-Q2", 153715.3]],quartersBetween("1980-Q1","2026-Q2"))),
-    imports:S("Imports of goods, FOB, US$ converted to soles at the BIS monthly average rate (BCRP trade balance, PN38718BM)","PENm","months",interp(
-      [["1996-01", 1476.1], ["1997-01", 1890.8], ["1998-01", 1881.8], ["1999-01", 1612.2], ["2000-01", 2055.1], ["2001-01", 2084.0], ["2002-01", 2032.7], ["2003-01", 2480.4], ["2004-01", 2403.0], ["2005-01", 3000.4], ["2006-01", 3629.9], ["2007-01", 4591.7], ["2008-01", 6458.0], ["2009-01", 5585.1], ["2010-01", 5926.5], ["2011-01", 7564.4], ["2012-01", 8845.9], ["2013-01", 10064.8], ["2014-01", 10800.3], ["2015-01", 9777.9], ["2016-01", 10242.7], ["2017-01", 9916.6], ["2018-01", 10955.9], ["2019-01", 11651.8], ["2020-01", 11974.3], ["2021-01", 11943.7], ["2022-01", 16773.4], ["2023-01", 14110.8], ["2024-01", 14540.3], ["2025-01", 18666.3], ["2026-01", 17709.3], ["2026-08", 20524.2]],monthsBetween("1996-01","2026-08"))),
-    policy_rate:S("BCRP reference rate (BIS central bank policy rates, M.PE, from September 2003)","%","months",interp(
-      [["2003-09", 2.75], ["2004-09", 2.75], ["2005-09", 3.0], ["2006-09", 4.5], ["2007-09", 5.0], ["2008-09", 6.5], ["2009-09", 1.25], ["2010-09", 3.0], ["2011-09", 4.25], ["2012-09", 4.25], ["2013-09", 4.25], ["2014-09", 3.5], ["2015-09", 3.5], ["2016-09", 4.25], ["2017-09", 3.5], ["2018-09", 2.75], ["2019-09", 2.5], ["2020-09", 0.25], ["2021-09", 1.0], ["2022-09", 6.75], ["2023-09", 7.5], ["2024-09", 5.25], ["2025-09", 4.25], ["2026-09", 4.25], ["2026-10", 4.25]],monthsBetween("2003-09","2026-10"))),
-    trade_balance:S("Trade balance, goods, exports less imports, both FOB, soles (BCRP, converted at the BIS monthly average rate)","PENm","months",interp(
-      [["1996-01", -442.5], ["1997-01", -427.2], ["1998-01", -742.1], ["1999-01", 103.0], ["2000-01", -128.1], ["2001-01", -144.3], ["2002-01", -235.8], ["2003-01", -44.3], ["2004-01", 649.1], ["2005-01", 1131.1], ["2006-01", 1224.8], ["2007-01", 987.9], ["2008-01", 1071.7], ["2009-01", -446.5], ["2010-01", 1040.7], ["2011-01", 697.7], ["2012-01", 2003.3], ["2013-01", -1149.1], ["2014-01", -1898.7], ["2015-01", -1294.9], ["2016-01", -1734.9], ["2017-01", 1095.7], ["2018-01", 2210.6], ["2019-01", 1534.0], ["2020-01", 993.0], ["2021-01", 4397.3], ["2022-01", 4632.4], ["2023-01", 4447.6], ["2024-01", 5710.5], ["2025-01", 8118.7], ["2026-01", 15614.5], ["2026-08", 15857.1]],monthsBetween("1996-01","2026-08"))),
-    unemployment:S("Unemployment rate, ILO modelled estimate, annual (World Bank)","%","years",interp(
-      [["1991", 4.926], ["1994", 4.491], ["1997", 4.762], ["2000", 4.959], ["2003", 4.15], ["2006", 4.17], ["2009", 3.96], ["2012", 3.238], ["2015", 3.272], ["2018", 3.492], ["2021", 5.097], ["2024", 5.199], ["2025", 5.117]],yearsBetween(1991,2025))),
-  }};
-}
 /* ------------------------------- charts ---------------------------------- */
 const refLinePlugin = {
   id: "refLine",
@@ -2455,7 +2393,6 @@ function render(data){
   // page load from data-pe.json), which is what "new data each time"
   // means in practice for a static-data key like this.
   window.EATLAS_SERIES = s;
-  if(data.sample){const sb=document.getElementById("sampleBadge");sb.textContent="Illustrative figures: the live data feed did not load, so this page is showing placeholder shapes, not published statistics. Refresh in a moment.";sb.classList.add("show");}
   const gdpAnnual = s.gdp_level ? annualGDP(s.gdp_level) : null;
   const pct=v=>v.toFixed(1)+"%", pp=v=>v.toFixed(1)+"pp";
   const idx=v=>v.toFixed(1);
@@ -3077,13 +3014,17 @@ const FX_FETCH=fetch("data-fx-pe.json",{cache: "no-cache"})
 fetch("data-pe.json",{cache: "no-cache"})
   .then(r=>{ if(!r.ok) throw new Error(r.status); return r.json(); })
   .then(d=>FX_FETCH.then(fx=>{ FX_DATA=fx; PAGE_DATA=d; rerender(); }))
-  .catch(()=>{ PAGE_DATA=sampleData(); rerender(); });
+  .catch(err=>{
+    // No stand-in figures: if the data cannot be loaded or drawn, say so plainly.
+    console.error(err);
+    const lf=document.getElementById("loadFail"); if(lf) lf.hidden=false;
+  });
 </script>
 <script>
 (function(){
 "use strict";
 // No fallback figures: nothing invented. Until data-pe-trade-partners.json exists
-// (UN Comtrade, update-trade-data.yml) the partner block is hidden.
+// (UN Comtrade, update-trade-data.yml) the partner block says "Not yet available".
 var FALLBACK_PARTNERS = [];
 var UK_ID = "604"; // Peru
 var PARTNERS = FALLBACK_PARTNERS;
@@ -3363,11 +3304,12 @@ Promise.all([
 ]).then(function(results){
   var world = results[0];
   var livePayload = results[1];
-  if(!livePayload && !FALLBACK_PARTNERS.length){
-    var tb = document.getElementById("tpmBlock"); if(tb) tb.hidden = true;
+  if(!applyLivePartners(livePayload)){
+    var tb = document.getElementById("tpmBlock");
+    if(tb) tb.innerHTML = "<div class=\"tpm-head\"><h3>Peru goods trade: top partners</h3></div>"
+      + "<p style=\"color:var(--ink2); margin:8px 0 26px;\">Not yet available for Peru.</p>";
     dataReady = true; return;
   }
-  applyLivePartners(livePayload);
   computeScales();
   renderRanking();
   drawGeo(world);

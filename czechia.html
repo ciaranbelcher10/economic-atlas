@@ -1644,7 +1644,8 @@ document.addEventListener("DOMContentLoaded", function(){
 <header class="page with-map">
  <div class="head-text">
  <p class="eyebrow"><span class="dot" aria-hidden="true"></span>Official statistics</p>
- <h1>Czechia <span id="sampleBadge" class="badge"></span></h1>
+ <h1>Czechia</h1>
+<div id="loadFail" role="alert" hidden style="margin:12px 0 0; padding:12px 16px; max-width:640px; border:1px solid var(--hair); border-radius:10px; background:var(--panel); color:var(--ink); font-size:14px; line-height:1.5;">We couldn’t load the latest figures for this page, so no charts are shown. Please refresh the page to try again.</div>
  </div>
 <div class="mini-mapwrap" id="miniMapWrap" tabindex="0" role="img"
  aria-label="Small world map. Hover or tap to enlarge, then select a country to jump to its page, keeping the current section.">
@@ -1714,9 +1715,7 @@ document.addEventListener("DOMContentLoaded", function(){
  <p class="secnote">Goods trade is Eurostat's monthly total with the rest of the world, converted from euros to koruna at each month's ECB reference rate, so figures differ slightly from the Czech Statistical Office's own, which follow the change of ownership of goods. All three series end at the latest month for which both exports and imports are published.</p>
  <div id="tpmBlock"><div class="tpm-head"><h3>Czechia goods trade: top partners</h3></div>
  <p class="tpm-scopenote"><strong>Goods trade only.</strong> Services aren't covered by this data source and aren't shown here, so relationships that lean heavily on services may be understated.</p>
- <div class="tpm-banner" id="tpmBanner"><span class="dot2" aria-hidden="true"></span>
- <span id="tpmBannerText">Illustrative data: approximate 2024 goods-trade values, shown as a placeholder. Live bilateral figures are not published for this country yet.</span></div>
- <nav class="viztoggle">
+  <nav class="viztoggle">
  <button type="button" class="vtbtn" data-view="geo">Geographic</button>
  <button type="button" class="vtbtn active" data-view="radial">Radial</button>
  <div class="spacer"></div>
@@ -1749,13 +1748,13 @@ document.addEventListener("DOMContentLoaded", function(){
  <div class="tpm-right">
  <div class="tpm-ranking">
  <h4 id="tpmRankTitle">Goods trade: top partners</h4>
- <p class="tpm-ranksubtitle" id="tpmRankSubtitle">Illustrative 2024 figures, US$bn</p>
+ <p class="tpm-ranksubtitle" id="tpmRankSubtitle"></p>
  <ol class="tpm-ranklist" id="tpmRankList"></ol>
  <button type="button" class="tpm-rankmore" id="tpmRankMore" hidden>Show all partners</button>
  </div>
  </div>
  </div>
- <p class="tpm-covnote" id="tpmCovnote">Illustrative fallback shows 13 major partners. Once live, every partner UN Comtrade has data for is fetched: the radial view shows the top 20 by value, the map shows the top 50, and the ranking list can be expanded to show the top 50 too.</p>
+ <p class="tpm-covnote" id="tpmCovnote"></p>
 </div>
 </section>
 <section class="sec" id="sec-public" hidden>
@@ -1887,76 +1886,7 @@ function yoyGDP(gdpReal){
   return {label:"Real GDP growth, year on year", unit:"%", freq: gdpReal.freq || "quarters", points:out, confirmed_at:gdpReal.confirmed_at};
 }
 /* --------------- fallback sample data (until fetch_data.py) -------------- */
-function interp(keys, periods){
-  const kIdx = keys.map(k=>periods.indexOf(k[0]));
-  const pts=[];
-  for(let s=0;s<keys.length-1;s++){
-    const a=kIdx[s], b=kIdx[s+1]; if(a<0||b<0) continue;
-    for(let i=a;i<=b;i++){
-      const t=(i-a)/(b-a||1);
-      const wob=Math.sin(i*2.1)*0.05*(Math.abs(keys[s+1][1]-keys[s][1])+0.4);
-      pts[i]=[periods[i], +(keys[s][1]+(keys[s+1][1]-keys[s][1])*t+wob).toFixed(2)];
-    }
-  }
-  return pts.filter(Boolean);
-}
-function monthsBetween(a,b){
-  const out=[]; let [y,m]=a.split("-").map(Number); const [Y,M]=b.split("-").map(Number);
-  while(y<Y||(y===Y&&m<=M)){ out.push(y+"-"+String(m).padStart(2,"0")); m++; if(m>12){m=1;y++;} }
-  return out;
-}
-function quartersBetween(a,b){
-  const out=[]; let [y,q]=[+a.slice(0,4),+a.slice(6)]; const [Y,Q]=[+b.slice(0,4),+b.slice(6)];
-  while(y<Y||(y===Y&&q<=Q)){ out.push(y+"-Q"+q); q++; if(q>4){q=1;y++;} }
-  return out;
-}
 const yearsBetween=(a,b)=>Array.from({length:b-a+1},(_,i)=>String(a+i));
-function sampleData(){
-  // Shapes anchored on the real data-cz.json at build time, so a failed
-  // fetch shows Czechia-shaped placeholders rather than another country's.
-  const S=(label,unit,freq,points)=>({label,unit,freq,points});
-  return { updated:new Date().toISOString(), sample:true,
-    series:{
-    bond_yield_10y:S("10-year government bond yield, monthly average (ECB IRS M.CZ.L.L40.CI.0000.CZK.N.Z)","%","months",interp(
-      [["2001-01", 6.82], ["2002-01", 5.32], ["2003-01", 4.1], ["2004-01", 4.68], ["2005-01", 3.91], ["2006-01", 3.39], ["2007-01", 3.94], ["2008-01", 4.56], ["2009-01", 4.21], ["2010-01", 4.28], ["2011-01", 3.98], ["2012-01", 3.39], ["2013-01", 1.96], ["2014-01", 2.43], ["2015-01", 0.35], ["2016-01", 0.62], ["2017-01", 0.47], ["2018-01", 1.77], ["2019-01", 1.85], ["2020-01", 1.62], ["2021-01", 1.28], ["2022-01", 3.12], ["2023-01", 4.47], ["2024-01", 3.88], ["2025-01", 4.2], ["2026-01", 4.46], ["2026-08", 4.91]],monthsBetween("2001-01","2026-08"))),
-    business_confidence:S("Business confidence indicator, LT avg = 100 (OECD BCICP)","index","months",interp(
-      [["1993-02", 95.32513], ["1994-02", 96.90019], ["1995-02", 101.5671], ["1996-02", 99.35174], ["1997-02", 100.1064], ["1998-02", 101.5022], ["1999-02", 95.14801], ["2000-02", 102.1877], ["2001-02", 101.4652], ["2002-02", 100.196], ["2003-02", 101.0632], ["2004-02", 101.5172], ["2005-02", 101.7655], ["2006-02", 102.0365], ["2007-02", 102.9983], ["2008-02", 103.1049], ["2009-02", 93.408], ["2010-02", 98.82508], ["2011-02", 101.6994], ["2012-02", 99.67959], ["2013-02", 98.36739], ["2014-02", 100.2373], ["2015-02", 100.5393], ["2016-02", 100.6215], ["2017-02", 100.7453], ["2018-02", 100.6974], ["2019-02", 99.92547], ["2020-02", 98.00076], ["2021-02", 99.60745], ["2022-02", 100.0711], ["2023-02", 99.17511], ["2024-02", 98.1145], ["2025-02", 98.96571], ["2026-02", 98.99683], ["2026-09", 99.2088]],monthsBetween("1993-02","2026-09"))),
-    cpi:S("HICP, all items, YoY (Eurostat, CP0000CZM086NEST)","%","months",interp(
-      [["1997-01", 7.1915], ["1998-01", 12.0966], ["1999-01", 3.0605], ["2000-01", 3.3876], ["2001-01", 4.0851], ["2002-01", 3.3729], ["2003-01", -0.6921], ["2004-01", 2.051], ["2005-01", 1.5024], ["2006-01", 2.4029], ["2007-01", 1.2953], ["2008-01", 7.8762], ["2009-01", 1.4259], ["2010-01", 0.271], ["2011-01", 1.9088], ["2012-01", 3.8455], ["2013-01", 1.9473], ["2014-01", 0.2975], ["2015-01", -0.0937], ["2016-01", 0.5469], ["2017-01", 2.331], ["2018-01", 2.0349], ["2019-01", 1.9497], ["2020-01", 3.781], ["2021-01", 2.1944], ["2022-01", 8.7268], ["2023-01", 19.0784], ["2024-01", 2.6579], ["2025-01", 2.9412], ["2026-01", 1.2274], ["2026-08", 1.5392]],monthsBetween("1997-01","2026-08"))),
-    cpi_mom:S("HICP, all items, MoM (Eurostat, CP0000CZM086NEST)","%","months",interp(
-      [["1996-02", 0.5176], ["1997-02", 0.305], ["1998-02", 0.5894], ["1999-02", 0.0], ["2000-02", 0.1489], ["2001-02", 0.0204], ["2002-02", 0.0791], ["2003-02", 0.1792], ["2004-02", 0.0976], ["2005-02", 0.0], ["2006-02", 0.0], ["2007-02", 0.278], ["2008-02", 0.1031], ["2009-02", 0.0508], ["2010-02", 0.0676], ["2011-02", 0.116], ["2012-02", 0.2075], ["2013-02", 0.0], ["2014-02", 0.0156], ["2015-02", 0.0938], ["2016-02", 0.0622], ["2017-02", 0.3645], ["2018-02", -0.0744], ["2019-02", 0.2774], ["2020-02", 0.3376], ["2021-02", 0.1514], ["2022-02", 1.304], ["2023-02", 0.7655], ["2024-02", 0.3728], ["2025-02", 0.1811], ["2026-02", -0.0795], ["2026-08", 0.2943]],monthsBetween("1996-02","2026-08"))),
-    cpi_national:S("CPI, national definition, all items, YoY (OECD live prices system)","%","months",interp(
-      [["2015-01", 0.0], ["2016-01", 0.4672897], ["2017-01", 2.170543], ["2018-01", 2.276176], ["2019-01", 2.373887], ["2020-01", 3.623188], ["2021-01", 2.237762], ["2022-01", 9.849522], ["2023-01", 17.55915], ["2024-01", 2.224576], ["2025-01", 2.901554], ["2026-01", 1.611279], ["2026-08", 1.886792]],monthsBetween("2015-01","2026-08"))),
-    current_account:S("Current account balance, % of GDP (World Bank BN.CAB.XOKA.GD.ZS)","%","years",interp(
-      [["1993", 1.1330967168381], ["1996", -6.08746771318312], ["1999", -2.23483455253069], ["2002", -5.16274750389644], ["2005", -2.0469317715426], ["2008", -1.86377838067906], ["2011", -2.1691537824734], ["2014", 0.217020094001342], ["2017", 1.35301705500193], ["2020", 1.7852008079583], ["2023", -0.125406557037842], ["2025", 0.624791974567142]],yearsBetween(1993,2025))),
-    debt_gdp:S("General government gross debt, % of GDP (Eurostat)","%","years",interp(
-      [["2000", 16.9], ["2003", 28.1], ["2006", 27.6], ["2009", 33.4], ["2012", 43.8], ["2015", 39.5], ["2018", 31.7], ["2021", 40.7], ["2024", 43.3], ["2025", 44.3]],yearsBetween(2000,2025))),
-    deficit:S("General government net lending/borrowing, % of GDP (Eurostat)","%","years",interp(
-      [["2000", -3.5], ["2003", -6.9], ["2006", -2.2], ["2009", -5.5], ["2012", -3.9], ["2015", -0.7], ["2018", 0.9], ["2021", -5.0], ["2024", -2.0], ["2025", -2.1]],yearsBetween(2000,2025))),
-    employment_rate:S("Employment rate, 15-64, SA (LREM64TTCZQ156S)","%","quarters",interp(
-      [["1998-Q1", 67.95014], ["1999-Q1", 66.12798], ["2000-Q1", 65.03928], ["2001-Q1", 65.2596], ["2002-Q1", 65.16294], ["2003-Q1", 65.28738], ["2004-Q1", 64.05292], ["2005-Q1", 64.46118], ["2006-Q1", 65.10559], ["2007-Q1", 65.84854], ["2008-Q1", 66.48099], ["2009-Q1", 65.94535], ["2010-Q1", 64.59703], ["2011-Q1", 65.44787], ["2012-Q1", 66.01653], ["2013-Q1", 67.25884], ["2014-Q1", 68.41877], ["2015-Q1", 69.72984], ["2016-Q1", 71.36856], ["2017-Q1", 73.0675], ["2018-Q1", 74.49908], ["2019-Q1", 75.27106], ["2020-Q1", 75.07239], ["2021-Q1", 73.96396], ["2022-Q1", 75.37974], ["2023-Q1", 74.90215], ["2024-Q1", 75.37753], ["2025-Q1", 75.8747], ["2026-Q1", 75.90449], ["2026-Q2", 76.07881]],quartersBetween("1998-Q1","2026-Q2"))),
-    exports:S("Exports, goods (Eurostat, world partner, converted from euro at each month's ECB reference rate)","CZKm","months",interp(
-      [["2015-01", 299080.3], ["2016-01", 317871.8], ["2017-01", 350550.3], ["2018-01", 368627.8], ["2019-01", 381491.2], ["2020-01", 381244.6], ["2021-01", 379249.3], ["2022-01", 427592.1], ["2023-01", 487526.0], ["2024-01", 481928.8], ["2025-01", 521356.3], ["2026-01", 489396.4], ["2026-07", 533627.3]],monthsBetween("2015-01","2026-07"))),
-    fdi:S("Foreign direct investment, net inflows, % of GDP (World Bank BX.KLT.DINV.WD.GD.ZS)","%","years",interp(
-      [["1993", 1.58976558645161], ["1996", 2.11680269383607], ["1999", 9.62483232120859], ["2002", 10.2854716819753], ["2005", 10.0027291342114], ["2008", 3.72734017480649], ["2011", 1.80994155301699], ["2014", 3.83510153423089], ["2017", 5.07066240955503], ["2020", 3.39114066226469], ["2023", 3.4462419046487], ["2025", 2.68622429295406]],yearsBetween(1993,2025))),
-    gdp_growth:S("Real GDP growth, QoQ, SA (derived from Eurostat namq_10_gdp, CLV20_MNAC)","%","quarters",interp(
-      [["1995-Q2", 1.9135], ["1996-Q2", 0.7303], ["1997-Q2", -0.4028], ["1998-Q2", 0.3379], ["1999-Q2", 0.2768], ["2000-Q2", 1.1446], ["2001-Q2", 0.2219], ["2002-Q2", 0.4611], ["2003-Q2", 0.9296], ["2004-Q2", 1.1923], ["2005-Q2", 1.1514], ["2006-Q2", 2.048], ["2007-Q2", 0.7924], ["2008-Q2", 0.5636], ["2009-Q2", -0.4741], ["2010-Q2", 1.2715], ["2011-Q2", 0.5026], ["2012-Q2", -0.5803], ["2013-Q2", 0.3872], ["2014-Q2", 0.9289], ["2015-Q2", 1.398], ["2016-Q2", 0.3031], ["2017-Q2", 3.0227], ["2018-Q2", 0.5887], ["2019-Q2", 0.7048], ["2020-Q2", -8.5498], ["2021-Q2", 1.4366], ["2022-Q2", 0.3065], ["2023-Q2", 0.3991], ["2024-Q2", 0.2846], ["2025-Q2", 0.577], ["2026-Q2", 0.2805]],quartersBetween("1995-Q2","2026-Q2"))),
-    gdp_level:S("GDP nominal, current prices, SA (Eurostat namq_10_gdp, CP_MNAC)","CZKm","quarters",interp(
-      [["1995-Q1", 379573.0], ["1996-Q1", 443373.0], ["1997-Q1", 480379.0], ["1998-Q1", 526243.0], ["1999-Q1", 550248.0], ["2000-Q1", 582307.0], ["2001-Q1", 629769.0], ["2002-Q1", 666921.0], ["2003-Q1", 696549.0], ["2004-Q1", 748169.0], ["2005-Q1", 807571.0], ["2006-Q1", 854018.0], ["2007-Q1", 946438.0], ["2008-Q1", 999886.0], ["2009-Q1", 996452.0], ["2010-Q1", 991609.0], ["2011-Q1", 1013117.0], ["2012-Q1", 1028912.0], ["2013-Q1", 1025891.0], ["2014-Q1", 1069749.0], ["2015-Q1", 1141440.0], ["2016-Q1", 1198971.0], ["2017-Q1", 1251410.0], ["2018-Q1", 1344730.0], ["2019-Q1", 1442167.0], ["2020-Q1", 1473136.0], ["2021-Q1", 1510775.0], ["2022-Q1", 1698363.0], ["2023-Q1", 1886436.0], ["2024-Q1", 1980451.0], ["2025-Q1", 2092155.0], ["2026-Q1", 2196784.0], ["2026-Q2", 2224059.0]],quartersBetween("1995-Q1","2026-Q2"))),
-    gdp_real:S("Real GDP, chain-linked volume, SA (Eurostat namq_10_gdp, CLV20_MNAC)","CZKm","quarters",interp(
-      [["1995-Q1", 818444.0], ["1996-Q1", 865118.0], ["1997-Q1", 872180.0], ["1998-Q1", 861274.0], ["1999-Q1", 864859.0], ["2000-Q1", 897581.0], ["2001-Q1", 933170.0], ["2002-Q1", 944936.0], ["2003-Q1", 969893.0], ["2004-Q1", 1006550.0], ["2005-Q1", 1071088.0], ["2006-Q1", 1140560.0], ["2007-Q1", 1213630.0], ["2008-Q1", 1262698.0], ["2009-Q1", 1206196.0], ["2010-Q1", 1214742.0], ["2011-Q1", 1250973.0], ["2012-Q1", 1256209.0], ["2013-Q1", 1237629.0], ["2014-Q1", 1257495.0], ["2015-Q1", 1317561.0], ["2016-Q1", 1360496.0], ["2017-Q1", 1408751.0], ["2018-Q1", 1473512.0], ["2019-Q1", 1525281.0], ["2020-Q1", 1501798.0], ["2021-Q1", 1483852.0], ["2022-Q1", 1555375.0], ["2023-Q1", 1559126.0], ["2024-Q1", 1568305.0], ["2025-Q1", 1606995.0], ["2026-Q1", 1640529.0], ["2026-Q2", 1645131.0]],quartersBetween("1995-Q1","2026-Q2"))),
-    imports:S("Imports, goods (Eurostat, world partner, converted from euro at each month's ECB reference rate)","CZKm","months",interp(
-      [["2015-01", 265994.2], ["2016-01", 268953.5], ["2017-01", 303257.6], ["2018-01", 331276.6], ["2019-01", 345319.5], ["2020-01", 341424.1], ["2021-01", 327859.3], ["2022-01", 399060.0], ["2023-01", 431504.4], ["2024-01", 436684.0], ["2025-01", 466324.1], ["2026-01", 431563.4], ["2026-07", 507672.3]],monthsBetween("2015-01","2026-07"))),
-    participation_rate:S("Labour force participation rate, 15-64, SA (LRAC64TTCZQ156S)","%","quarters",interp(
-      [["1998-Q1", 72.07727], ["1999-Q1", 71.99997], ["2000-Q1", 71.7231], ["2001-Q1", 71.21799], ["2002-Q1", 70.42384], ["2003-Q1", 70.48076], ["2004-Q1", 69.98322], ["2005-Q1", 70.16629], ["2006-Q1", 70.6353], ["2007-Q1", 69.98233], ["2008-Q1", 69.62498], ["2009-Q1", 69.869], ["2010-Q1", 70.0965], ["2011-Q1", 70.35979], ["2012-Q1", 70.90462], ["2013-Q1", 72.53384], ["2014-Q1", 73.27863], ["2015-Q1", 74.05805], ["2016-Q1", 74.55862], ["2017-Q1", 75.62782], ["2018-Q1", 76.29239], ["2019-Q1", 76.79013], ["2020-Q1", 76.54839], ["2021-Q1", 76.49388], ["2022-Q1", 77.24604], ["2023-Q1", 76.86914], ["2024-Q1", 77.48845], ["2025-Q1", 77.85956], ["2026-Q1", 78.33289], ["2026-Q2", 78.55923]],quartersBetween("1998-Q1","2026-Q2"))),
-    policy_rate:S("CNB two-week repo rate, end of month (BIS WS_CBPOL M.CZ)","%","months",interp(
-      [["1998-01", 14.75], ["1999-01", 8.0], ["2000-01", 5.25], ["2001-01", 5.25], ["2002-01", 4.5], ["2003-01", 2.5], ["2004-01", 2.0], ["2005-01", 2.25], ["2006-01", 2.0], ["2007-01", 2.5], ["2008-01", 3.5], ["2009-01", 2.25], ["2010-01", 1.0], ["2011-01", 0.75], ["2012-01", 0.75], ["2013-01", 0.05], ["2014-01", 0.05], ["2015-01", 0.05], ["2016-01", 0.05], ["2017-01", 0.05], ["2018-01", 0.5], ["2019-01", 1.75], ["2020-01", 2.0], ["2021-01", 0.25], ["2022-01", 3.75], ["2023-01", 7.0], ["2024-01", 6.75], ["2025-01", 4.0], ["2026-01", 3.5], ["2026-10", 3.75]],monthsBetween("1998-01","2026-10"))),
-    trade_balance:S("Trade balance, goods (Eurostat, world partner, converted from euro at each month's ECB reference rate, exports less imports)","CZKm","months",interp(
-      [["2015-01", 33086.1], ["2016-01", 48918.3], ["2017-01", 47292.7], ["2018-01", 37351.2], ["2019-01", 36171.7], ["2020-01", 39820.5], ["2021-01", 51390.0], ["2022-01", 28532.1], ["2023-01", 56021.6], ["2024-01", 45244.8], ["2025-01", 55032.2], ["2026-01", 57833.0], ["2026-07", 25955.0]],monthsBetween("2015-01","2026-07"))),
-    unemployment:S("Unemployment rate, SA (Eurostat une_rt_m)","%","months",interp(
-      [["1993-01", 4.5], ["1994-01", 4.2], ["1995-01", 4.2], ["1996-01", 3.9], ["1997-01", 4.3], ["1998-01", 5.7], ["1999-01", 7.8], ["2000-01", 9.2], ["2001-01", 8.3], ["2002-01", 7.4], ["2003-01", 7.2], ["2004-01", 8.3], ["2005-01", 8.3], ["2006-01", 7.9], ["2007-01", 6.1], ["2008-01", 4.6], ["2009-01", 5.3], ["2010-01", 7.8], ["2011-01", 7.0], ["2012-01", 6.6], ["2013-01", 6.8], ["2014-01", 6.5], ["2015-01", 5.7], ["2016-01", 4.3], ["2017-01", 3.4], ["2018-01", 2.6], ["2019-01", 2.0], ["2020-01", 2.0], ["2021-01", 3.3], ["2022-01", 2.3], ["2023-01", 2.5], ["2024-01", 3.0], ["2025-01", 2.5], ["2026-01", 3.2], ["2026-08", 3.2]],monthsBetween("1993-01","2026-08"))),
-  }};
-}
 /* ------------------------------- charts ---------------------------------- */
 const refLinePlugin = {
   id: "refLine",
@@ -2463,7 +2393,6 @@ function render(data){
   // page load from data-cz.json), which is what "new data each time"
   // means in practice for a static-data key like this.
   window.EATLAS_SERIES = s;
-  if(data.sample){const sb=document.getElementById("sampleBadge");sb.textContent="Illustrative figures: the live data feed did not load, so this page is showing placeholder shapes, not published statistics. Refresh in a moment.";sb.classList.add("show");}
   const gdpAnnual = s.gdp_level ? annualGDP(s.gdp_level) : null;
   const pct=v=>v.toFixed(1)+"%", pp=v=>v.toFixed(1)+"pp";
   const idx=v=>v.toFixed(1);
@@ -3123,13 +3052,17 @@ const FX_FETCH=fetch("data-fx-cz.json",{cache: "no-cache"})
 fetch("data-cz.json",{cache: "no-cache"})
   .then(r=>{ if(!r.ok) throw new Error(r.status); return r.json(); })
   .then(d=>FX_FETCH.then(fx=>{ FX_DATA=fx; PAGE_DATA=d; rerender(); }))
-  .catch(()=>{ PAGE_DATA=sampleData(); rerender(); });
+  .catch(err=>{
+    // No stand-in figures: if the data cannot be loaded or drawn, say so plainly.
+    console.error(err);
+    const lf=document.getElementById("loadFail"); if(lf) lf.hidden=false;
+  });
 </script>
 <script>
 (function(){
 "use strict";
 // No fallback figures: nothing invented. Until data-cz-trade-partners.json exists
-// (UN Comtrade, update-trade-data.yml) the partner block is hidden.
+// (UN Comtrade, update-trade-data.yml) the partner block says "Not yet available".
 var FALLBACK_PARTNERS = [];
 var UK_ID = "203"; // Czechia
 var PARTNERS = FALLBACK_PARTNERS;
@@ -3409,11 +3342,12 @@ Promise.all([
 ]).then(function(results){
   var world = results[0];
   var livePayload = results[1];
-  if(!livePayload && !FALLBACK_PARTNERS.length){
-    var tb = document.getElementById("tpmBlock"); if(tb) tb.hidden = true;
+  if(!applyLivePartners(livePayload)){
+    var tb = document.getElementById("tpmBlock");
+    if(tb) tb.innerHTML = "<div class=\"tpm-head\"><h3>Czechia goods trade: top partners</h3></div>"
+      + "<p style=\"color:var(--ink2); margin:8px 0 26px;\">Not yet available for Czechia.</p>";
     dataReady = true; return;
   }
-  applyLivePartners(livePayload);
   computeScales();
   renderRanking();
   drawGeo(world);

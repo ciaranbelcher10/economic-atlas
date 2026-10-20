@@ -1644,7 +1644,8 @@ document.addEventListener("DOMContentLoaded", function(){
 <header class="page with-map">
  <div class="head-text">
  <p class="eyebrow"><span class="dot" aria-hidden="true"></span>Official statistics</p>
- <h1>Morocco <span id="sampleBadge" class="badge"></span></h1>
+ <h1>Morocco</h1>
+<div id="loadFail" role="alert" hidden style="margin:12px 0 0; padding:12px 16px; max-width:640px; border:1px solid var(--hair); border-radius:10px; background:var(--panel); color:var(--ink); font-size:14px; line-height:1.5;">We couldn’t load the latest figures for this page, so no charts are shown. Please refresh the page to try again.</div>
  </div>
 <div class="mini-mapwrap" id="miniMapWrap" tabindex="0" role="img"
  aria-label="Small world map. Hover or tap to enlarge, then select a country to jump to its page, keeping the current section.">
@@ -1712,11 +1713,9 @@ document.addEventListener("DOMContentLoaded", function(){
  <p class="lightskey compact" aria-label="Key to freshness lights"><span><span class="led green" aria-hidden="true"></span>&nbsp;matches latest release</span><span><span class="led orange" aria-hidden="true"></span>&nbsp;not refreshed recently</span></p>
  <div class="grid" id="charts-trade"></div>
  <p class="secnote">No live goods trade balance series (or individual exports/imports) is available for Morocco yet, a known gap, not shown here rather than estimated. Current account, below, is the only trade-related live series currently available for Morocco.</p>
- <div class="tpm-head"><h3>Morocco goods trade: top partners</h3></div>
+ <div id="tpmBlock"><div class="tpm-head"><h3>Morocco goods trade: top partners</h3></div>
  <p class="tpm-scopenote"><strong>Goods trade only.</strong> Services aren't covered by this data source and aren't shown here, so relationships that lean heavily on services may be understated.</p>
- <div class="tpm-banner" id="tpmBanner"><span class="dot2" aria-hidden="true"></span>
- <span id="tpmBannerText">Illustrative data: approximate 2025 goods-trade shares, shown as a placeholder. Live bilateral figures are not published for this country yet.</span></div>
- <nav class="viztoggle">
+  <nav class="viztoggle">
  <button type="button" class="vtbtn" data-view="geo">Geographic</button>
  <button type="button" class="vtbtn active" data-view="radial">Radial</button>
  <div class="spacer"></div>
@@ -1749,13 +1748,14 @@ document.addEventListener("DOMContentLoaded", function(){
  <div class="tpm-right">
  <div class="tpm-ranking">
  <h4 id="tpmRankTitle">Goods trade: top partners</h4>
- <p class="tpm-ranksubtitle" id="tpmRankSubtitle">Illustrative 2025 figures, &pound;bn</p>
+ <p class="tpm-ranksubtitle" id="tpmRankSubtitle"></p>
  <ol class="tpm-ranklist" id="tpmRankList"></ol>
  <button type="button" class="tpm-rankmore" id="tpmRankMore" hidden>Show all partners</button>
  </div>
  </div>
  </div>
- <p class="tpm-covnote" id="tpmCovnote">Illustrative fallback shows 14 major partners. Once live, every partner UN Comtrade has data for is fetched: the radial view shows the top 20 by value, the map shows the top 50, and the ranking list can be expanded to show the top 50 too.</p>
+ <p class="tpm-covnote" id="tpmCovnote"></p>
+</div>
 </section>
 <section class="sec" id="sec-public" hidden>
  <div class="hero mini" id="tiles-public"></div>
@@ -1914,71 +1914,7 @@ function yoyGDP(gdpReal){
   return {label:"Real GDP growth, year on year", unit:"%", freq: gdpReal.freq || "quarters", points:out, confirmed_at:gdpReal.confirmed_at};
 }
 /* --------------- fallback sample data (until fetch_data.py) -------------- */
-function interp(keys, periods){
-  const kIdx = keys.map(k=>periods.indexOf(k[0]));
-  const pts=[];
-  for(let s=0;s<keys.length-1;s++){
-    const a=kIdx[s], b=kIdx[s+1]; if(a<0||b<0) continue;
-    for(let i=a;i<=b;i++){
-      const t=(i-a)/(b-a||1);
-      const wob=Math.sin(i*2.1)*0.05*(Math.abs(keys[s+1][1]-keys[s][1])+0.4);
-      pts[i]=[periods[i], +(keys[s][1]+(keys[s+1][1]-keys[s][1])*t+wob).toFixed(2)];
-    }
-  }
-  return pts.filter(Boolean);
-}
-function monthsBetween(a,b){
-  const out=[]; let [y,m]=a.split("-").map(Number); const [Y,M]=b.split("-").map(Number);
-  while(y<Y||(y===Y&&m<=M)){ out.push(y+"-"+String(m).padStart(2,"0")); m++; if(m>12){m=1;y++;} }
-  return out;
-}
-function quartersBetween(a,b){
-  const out=[]; let [y,q]=[+a.slice(0,4),+a.slice(6)]; const [Y,Q]=[+b.slice(0,4),+b.slice(6)];
-  while(y<Y||(y===Y&&q<=Q)){ out.push(y+"-Q"+q); q++; if(q>4){q=1;y++;} }
-  return out;
-}
 const yearsBetween=(a,b)=>Array.from({length:b-a+1},(_,i)=>String(a+i));
-function sampleData(){
-  const mR=monthsBetween("1996-01","2026-06");
-  const qAll=quartersBetween("1996-Q1","2026-Q1"), qG=quartersBetween("1999-Q1","2026-Q1");
-  const qTr=quartersBetween("1996-Q1","2026-Q1");
-  const S=(label,unit,freq,points)=>({label,unit,freq,points});
-  return { updated:new Date().toISOString(), sample:true,
-    new_points_meta:{gdp_level:{period:"2025",first_seen:new Date(Date.now()-36*3600000).toISOString()}},
-    series:{
-    gdp_level:S("GDP, nominal, current US$ (World Bank, annual, illustrative)","$","years",interp(
-      [["1996",35000000000],["2000",38000000000],["2008",90000000000],["2013",110000000000],
-       ["2019",120000000000],["2020",114000000000],["2023",145000000000],["2025",165000000000]],yearsBetween(1996,2025))),
-    gdp_real:S("GDP, real, constant 2015 US$ (World Bank, annual, illustrative)","$","years",interp(
-      [["1996",55000000000],["2008",90000000000],["2013",105000000000],["2019",120000000000],
-       ["2020",112000000000],["2023",128000000000],["2025",135000000000]],yearsBetween(1996,2025))),
-    cpi:S("CPI, all items, YoY","%","months",interp(
-      [["1996-01",3.5],["2000-01",1.0],["2008-08",5.0],["2011-08",1.5],
-       ["2016-01",1.0],["2020-05",0.5],["2022-08",8.0],["2023-06",5.0],
-       ["2024-12",1.0],["2026-06",1.7]],mR)),
-    unemployment:S("Unemployment, % of total labor force (World Bank, annual, illustrative)","%","years",interp(
-      [["1996",16.0],["2000",13.6],["2008",9.6],["2013",9.2],["2019",9.2],
-       ["2020",11.9],["2023",13.0],["2025",13.3]],yearsBetween(1996,2025))),
-    debt_gdp:S("General government debt % GDP","%","years",interp(
-      [["1996",65],["2000",68],["2008",47],["2013",61],["2019",65],
-       ["2020",76],["2023",69]],yearsBetween(1996,2023))),
-    deficit:S("Gov. net lending/borrowing % GDP","%","years",interp(
-      [["1996",-3.0],["2000",-5.0],["2008",0.4],["2013",-5.2],["2019",-4.1],
-       ["2020",-7.6],["2023",-4.3]],yearsBetween(1996,2023))),
-    current_account:S("Current account % GDP","%","years",interp(
-      [["1996",-3.5],["2000",-1.4],["2008",-5.2],["2013",-7.6],["2019",-3.4],
-       ["2020",-1.2],["2023",-0.6],["2025",-2.0]],yearsBetween(1996,2025))),
-    business_confidence:S("Business confidence","index","months",interp(
-      [["2009-02",92.0],["2013-12",99.0],["2018-01",96.0],["2020-04",80.0],
-       ["2021-09",99.5],["2023-11",95.0],["2026-05",97.8]],monthsBetween("2009-02","2026-05"))),
-    trade_balance:S("Trade balance, goods","$m","quarters",interp(
-      [["1996-Q1",-1500],["2008-Q3",-4000],["2012-Q1",-4500],["2015-Q2",-3500],
-       ["2020-Q2",-2000],["2022-Q3",-6500],["2024-Q2",-5000],["2026-Q1",-5200]],qTr)),
-    fdi:S("FDI net inflows % GDP","%","years",interp(
-      [["1996",0.5],["2008",2.7],["2016",2.9],["2020",1.1],["2025",2.0]],
-      yearsBetween(1996,2025))),
-  }};
-}
 /* ------------------------------- charts ---------------------------------- */
 const refLinePlugin = {
   id: "refLine",
@@ -2508,7 +2444,6 @@ function render(data){
   // page load from data-ma.json), which is what "new data each time"
   // means in practice for a static-data key like this.
   window.EATLAS_SERIES = s;
-  if(data.sample){const sb=document.getElementById("sampleBadge");sb.textContent="Illustrative figures: the live data feed did not load, so this page is showing placeholder shapes, not published statistics. Refresh in a moment.";sb.classList.add("show");}
   const gdpAnnual = s.gdp_level ? annualGDP(s.gdp_level) : null;   /* annualGDP() passes annual data through unchanged -- gdp_level is now World Bank annual MAD (not a quarterly level), so no rollup actually happens here, but the call is harmless and future-proof if the source ever changes back to quarterly. */
   const gdpYoY = s.gdp_real ? yoyGDP(s.gdp_real) : null;   /* gdp_real now exists (Aug 2026 fix, see fetch_ma.py) -- this was always null before, since gdp_real never existed for Morocco at all. */
   const pct=v=>v.toFixed(1)+"%", pp=v=>v.toFixed(1)+"pp";
@@ -3137,35 +3072,18 @@ const BOND_FETCH=fetch("data-bond-ma.json",{cache: "no-cache"})
 fetch("data-ma.json",{cache: "no-cache"})
   .then(r=>{ if(!r.ok) throw new Error(r.status); return r.json(); })
   .then(d=>Promise.all([FX_FETCH,BOND_FETCH]).then(([fx,bd])=>{ FX_DATA=fx; BOND_DAILY=bd; PAGE_DATA=d; rerender(); }))
-  .catch(()=>{ PAGE_DATA=sampleData(); rerender(); });
+  .catch(err=>{
+    // No stand-in figures: if the data cannot be loaded or drawn, say so plainly.
+    console.error(err);
+    const lf=document.getElementById("loadFail"); if(lf) lf.hidden=false;
+  });
 </script>
 <script>
 (function(){
 "use strict";
-// Illustrative fallback only, used if the live Comtrade fetch fails or
-// COMTRADE_API_KEY isn't set yet. See tpmBanner for the live/fallback text.
-// Illustrative fallback only, used if the live Comtrade fetch fails or
-// COMTRADE_API_KEY isn't set yet. Export/import splits here are invented
-// but plausible (e.g. UK goods deficit with China/Germany, surplus with
-// Ireland/UAE), not derived from any real source, purely to make the
-// Total/Exports/Imports toggle demonstrate something sensible before live
-// data loads. See tpmBanner for the live/fallback indicator.
-var FALLBACK_PARTNERS = [
-  {name:"United States", code:"840", region:"Americas",   total:58.4, exports:28.0, imports:30.4, totalShare:14.6, exportShare:21.9, importShare:19.3},
-  {name:"Germany",       code:"276", region:"Europe",     total:33.2, exports:12.0, imports:21.2, totalShare:8.3,  exportShare:9.4,  importShare:13.4},
-  {name:"China",         code:"156", region:"Asia",       total:31.5, exports:8.0,  imports:23.5, totalShare:7.9,  exportShare:6.3,  importShare:14.9},
-  {name:"Netherlands",   code:"528", region:"Europe",     total:28.9, exports:15.0, imports:13.9, totalShare:7.2,  exportShare:11.7, importShare:8.8},
-  {name:"France",        code:"250", region:"Europe",     total:21.6, exports:10.0, imports:11.6, totalShare:5.4,  exportShare:7.8,  importShare:7.3},
-  {name:"Ireland",       code:"372", region:"Europe",     total:19.8, exports:12.0, imports:7.8,  totalShare:4.9,  exportShare:9.4,  importShare:4.9},
-  {name:"Switzerland",   code:"756", region:"Europe",     total:16.4, exports:9.0,  imports:7.4,  totalShare:4.1,  exportShare:7.0,  importShare:4.7},
-  {name:"Belgium",       code:"056", region:"Europe",     total:14.2, exports:7.0,  imports:7.2,  totalShare:3.5,  exportShare:5.5,  importShare:4.6},
-  {name:"Spain",         code:"724", region:"Europe",     total:12.8, exports:6.0,  imports:6.8,  totalShare:3.2,  exportShare:4.7,  importShare:4.3},
-  {name:"Italy",         code:"380", region:"Europe",     total:12.1, exports:5.0,  imports:7.1,  totalShare:3.0,  exportShare:3.9,  importShare:4.5},
-  {name:"Norway",        code:"578", region:"Europe",     total:11.3, exports:2.0,  imports:9.3,  totalShare:2.8,  exportShare:1.6,  importShare:5.9},
-  {name:"India",         code:"356", region:"Asia",       total:9.6,  exports:5.0,  imports:4.6,  totalShare:2.4,  exportShare:3.9,  importShare:2.9},
-  {name:"United Arab Emirates", code:"784", region:"Middle East", total:8.7, exports:6.0, imports:2.7, totalShare:2.2, exportShare:4.7, importShare:1.7},
-  {name:"Morocco",  code:"504", region:"Africa", total:1.5,  exports:0.7,  imports:0.9,  totalShare:0.4,  exportShare:0.5,  importShare:0.6}
-];
+// No fallback figures: nothing invented. Until data-ma-trade-partners.json exists
+// (UN Comtrade, update-trade-data.yml) the partner block says "Not yet available".
+var FALLBACK_PARTNERS = [];
 var UK_ID = "504"; // Morocco
 var PARTNERS = FALLBACK_PARTNERS;
 var CURRENCY_SYMBOL = "$"; // FALLBACK_PARTNERS values are authored in USD billions (matching UN Comtrade's own convention), same as every other country's fallback trade data -- not Morocco's own currency
@@ -3444,7 +3362,12 @@ Promise.all([
 ]).then(function(results){
   var world = results[0];
   var livePayload = results[1];
-  applyLivePartners(livePayload);
+  if(!applyLivePartners(livePayload)){
+    var tb = document.getElementById("tpmBlock");
+    if(tb) tb.innerHTML = "<div class=\"tpm-head\"><h3>Morocco goods trade: top partners</h3></div>"
+      + "<p style=\"color:var(--ink2); margin:8px 0 26px;\">Not yet available for Morocco.</p>";
+    dataReady = true; return;
+  }
   computeScales();
   renderRanking();
   drawGeo(world);

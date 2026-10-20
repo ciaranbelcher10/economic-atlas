@@ -1572,7 +1572,8 @@ document.addEventListener("DOMContentLoaded", function(){
 <header class="page with-map">
  <div class="head-text">
  <p class="eyebrow"><span class="dot" aria-hidden="true"></span>Official statistics</p>
- <h1>Eurozone <span id="sampleBadge" class="badge"></span></h1>
+ <h1>Eurozone</h1>
+<div id="loadFail" role="alert" hidden style="margin:12px 0 0; padding:12px 16px; max-width:640px; border:1px solid var(--hair); border-radius:10px; background:var(--panel); color:var(--ink); font-size:14px; line-height:1.5;">We couldn’t load the latest figures for this page, so no charts are shown. Please refresh the page to try again.</div>
  </div>
 <div class="mini-mapwrap" id="miniMapWrap" tabindex="0" role="img"
  aria-label="Small world map. Hover or tap to enlarge, then select a country to jump to its page, keeping the current section.">
@@ -1787,92 +1788,7 @@ function yoyGDP(gdpReal){
   return {label:"Real GDP growth, year on year", unit:"%", freq: gdpReal.freq || "quarters", points:out, confirmed_at:gdpReal.confirmed_at};
 }
 /* --------------- fallback sample data (until fetch_data.py) -------------- */
-function interp(keys, periods){
-  const kIdx = keys.map(k=>periods.indexOf(k[0]));
-  const pts=[];
-  for(let s=0;s<keys.length-1;s++){
-    const a=kIdx[s], b=kIdx[s+1]; if(a<0||b<0) continue;
-    for(let i=a;i<=b;i++){
-      const t=(i-a)/(b-a||1);
-      const wob=Math.sin(i*2.1)*0.05*(Math.abs(keys[s+1][1]-keys[s][1])+0.4);
-      pts[i]=[periods[i], +(keys[s][1]+(keys[s+1][1]-keys[s][1])*t+wob).toFixed(2)];
-    }
-  }
-  return pts.filter(Boolean);
-}
-function monthsBetween(a,b){
-  const out=[]; let [y,m]=a.split("-").map(Number); const [Y,M]=b.split("-").map(Number);
-  while(y<Y||(y===Y&&m<=M)){ out.push(y+"-"+String(m).padStart(2,"0")); m++; if(m>12){m=1;y++;} }
-  return out;
-}
-function quartersBetween(a,b){
-  const out=[]; let [y,q]=[+a.slice(0,4),+a.slice(6)]; const [Y,Q]=[+b.slice(0,4),+b.slice(6)];
-  while(y<Y||(y===Y&&q<=Q)){ out.push(y+"-Q"+q); q++; if(q>4){q=1;y++;} }
-  return out;
-}
 const yearsBetween=(a,b)=>Array.from({length:b-a+1},(_,i)=>String(a+i));
-function sampleData(){
-  const mCpi=monthsBetween("1997-01","2026-05"), mU=monthsBetween("1998-01","2026-04");
-  const mR=monthsBetween("1999-01","2026-06"), mTr=monthsBetween("1999-01","2026-04");
-  const qAll=quartersBetween("1995-Q1","2026-Q1"), qG=quartersBetween("1998-Q1","2026-Q1");
-  const gdpG=qG.map((p,i)=>[p,+(0.4+0.35*Math.sin(i*1.7)).toFixed(1)]);
-  const put=(p,v)=>{const i=qG.indexOf(p); if(i>=0) gdpG[i]=[p,v];};
-  put("2008-Q4",-1.8); put("2009-Q1",-3.1); put("2020-Q1",-3.5); put("2020-Q2",-11.5);
-  put("2020-Q3",12.6); put("2021-Q1",-0.2);
-  const cpiMoM=mCpi.map((p,i)=>[p,+(0.15+0.25*Math.sin(i*2.3)).toFixed(1)]);
-  const S=(label,unit,freq,points)=>({label,unit,freq,points});
-  return { updated:new Date().toISOString(), sample:true,
-    new_points_meta:{cpi:{period:"2026-05",first_seen:new Date(Date.now()-36*3600000).toISOString()}},
-    series:{
-    gdp_level:S("GDP nominal","\u20acm","quarters",interp(
-      [["1995-Q1",1420000],["2000-Q1",1740000],["2008-Q3",2400000],["2009-Q2",2330000],
-       ["2019-Q4",3010000],["2020-Q2",2610000],["2023-Q2",3630000],["2026-Q1",3950000]],qAll)),
-    gdp_real:S("Real GDP","\u20acm","quarters",interp(
-      [["1995-Q1",1900000],["2008-Q1",2540000],["2009-Q2",2390000],["2019-Q4",2920000],
-       ["2020-Q2",2500000],["2023-Q1",2960000],["2026-Q1",3080000]],qAll)),
-    gdp_growth:S("Real GDP growth QoQ","%","quarters",gdpG),
-    cpi:S("HICP YoY","%","months",interp(
-      [["1997-06",1.5],["2001-05",3.1],["2008-07",4.1],["2009-07",-0.7],["2011-11",3.0],
-       ["2015-01",-0.6],["2018-10",2.3],["2020-12",-0.3],["2022-10",10.6],["2023-11",2.4],
-       ["2024-09",1.7],["2026-05",2.1]],mCpi)),
-    cpi_mom:S("HICP MoM","%","months",cpiMoM),
-    unemployment:S("Unemployment","%","months",interp(
-      [["1998-01",10.7],["2001-03",8.1],["2008-03",7.3],["2013-04",12.1],["2019-12",7.4],
-       ["2020-08",8.6],["2023-06",6.5],["2026-04",6.3]],mU)),
-    ecb_rate:S("ECB deposit rate","%","months",interp(
-      [["1999-01",2.0],["2000-10",3.75],["2003-06",1.0],["2008-07",3.25],["2009-05",0.25],
-       ["2012-07",0.0],["2014-06",-0.1],["2016-03",-0.4],["2019-09",-0.5],["2022-06",-0.5],
-       ["2022-09",0.75],["2023-09",4.0],["2024-06",3.75],["2025-06",2.0],["2026-06",2.0]],mR)),
-    bond_yield_10y:S("10-year government benchmark bond yield, euro area","%","months",interp(
-      [["1999-01",3.9],["2000-10",5.4],["2003-06",4.1],["2008-07",4.5],["2009-05",3.9],
-       ["2012-07",4.8],["2014-06",2.2],["2016-03",0.8],["2019-09",0.1],["2022-06",1.9],
-       ["2022-09",2.5],["2023-09",3.4],["2024-06",3.0],["2025-06",2.9],["2026-06",2.8]],mR)),
-    debt_gdp:S("Gov. gross debt % GDP","%","years",interp(
-      [["1995",72],["2007",66],["2014",94],["2019",84],["2020",97],["2023",89],["2024",88]],
-      yearsBetween(1995,2024))),
-    deficit:S("Gov. net lending % GDP","%","years",interp(
-      [["1995",-7.2],["2000",-0.5],["2007",-0.6],["2009",-6.2],["2018",-0.4],["2020",-7.0],
-       ["2022",-3.6],["2024",-3.1]],yearsBetween(1995,2024))),
-    current_account:S("Current account % GDP","%","years",interp(
-      [["1997",0.9],["2008",-1.6],["2016",3.2],["2020",1.6],["2022",-0.7],["2024",2.7]],
-      yearsBetween(1997,2024))),
-    business_confidence:S("Business confidence","index","months",interp(
-      [["2010-01",100.2],["2012-08",98.5],["2017-12",101.4],["2020-04",96.5],["2021-06",102.0],
-       ["2023-07",99.2],["2026-05",100.2]],monthsBetween("2010-01","2026-05"))),
-    trade_balance:S("Trade balance, goods","$m","months",interp(
-      [["1999-01",4000],["2008-08",-6000],["2016-06",25000],["2020-05",8000],
-       ["2022-08",-40000],["2024-06",16000],["2026-04",14000]],mTr)),
-    exports:S("Exports, goods","$m","months",interp(
-      [["1999-01",80000],["2008-07",190000],["2016-06",185000],["2020-05",130000],
-       ["2022-08",230000],["2026-04",262000]],mTr)),
-    imports:S("Imports, goods","$m","months",interp(
-      [["1999-01",76000],["2008-07",196000],["2016-06",160000],["2020-05",122000],
-       ["2022-08",270000],["2026-04",248000]],mTr)),
-    fdi:S("FDI net inflows % GDP","%","years",interp(
-      [["1997",1.5],["2000",10.0],["2005",2.5],["2016",7.0],["2020",1.5],["2022",1.0],
-       ["2024",0.7]],yearsBetween(1997,2024))),
-  }};
-}
 /* ------------------------------- charts ---------------------------------- */
 const refLinePlugin = {
   id: "refLine",
@@ -2402,7 +2318,6 @@ function render(data){
   // page load from data-ez.json), which is what "new data each time"
   // means in practice for a static-data key like this.
   window.EATLAS_SERIES = s;
-  if(data.sample){const sb=document.getElementById("sampleBadge");sb.textContent="Illustrative figures: the live data feed did not load, so this page is showing placeholder shapes, not published statistics. Refresh in a moment.";sb.classList.add("show");}
   const gdpAnnual = s.gdp_level ? annualGDP(s.gdp_level) : null;
   const gdpYoY = s.gdp_real ? yoyGDP(s.gdp_real) : null;
   const pct=v=>v.toFixed(1)+"%", pp=v=>v.toFixed(1)+"pp";
@@ -3043,7 +2958,11 @@ const BOND_FETCH=fetch("data-bond-ez.json",{cache: "no-cache"})
 fetch("data-ez.json",{cache: "no-cache"})
   .then(r=>{ if(!r.ok) throw new Error(r.status); return r.json(); })
   .then(d=>Promise.all([FX_FETCH,BOND_FETCH]).then(([fx,bd])=>{ FX_DATA=fx; BOND_DAILY=bd; PAGE_DATA=d; rerender(); }))
-  .catch(()=>{ PAGE_DATA=sampleData(); rerender(); });
+  .catch(err=>{
+    // No stand-in figures: if the data cannot be loaded or drawn, say so plainly.
+    console.error(err);
+    const lf=document.getElementById("loadFail"); if(lf) lf.hidden=false;
+  });
 </script>
 <div class="chart-modal" id="chartModal" hidden>
  <div class="chart-modal-backdrop" id="chartModalBackdrop"></div>

@@ -1651,7 +1651,8 @@ document.addEventListener("DOMContentLoaded", function(){
 <header class="page with-map">
  <div class="head-text">
  <p class="eyebrow"><span class="dot" aria-hidden="true"></span>Official statistics</p>
- <h1>United States <span id="sampleBadge" class="badge"></span></h1>
+ <h1>United States</h1>
+<div id="loadFail" role="alert" hidden style="margin:12px 0 0; padding:12px 16px; max-width:640px; border:1px solid var(--hair); border-radius:10px; background:var(--panel); color:var(--ink); font-size:14px; line-height:1.5;">We couldn’t load the latest figures for this page, so no charts are shown. Please refresh the page to try again.</div>
  </div>
 <div class="mini-mapwrap" id="miniMapWrap" tabindex="0" role="img"
  aria-label="Small world map. Hover or tap to enlarge, then select a country to jump to its page, keeping the current section.">
@@ -1717,11 +1718,9 @@ document.addEventListener("DOMContentLoaded", function(){
  <div class="hero mini" id="tiles-trade"></div>
  <p class="lightskey compact" aria-label="Key to freshness lights"><span><span class="led green" aria-hidden="true"></span>&nbsp;matches latest release</span><span><span class="led orange" aria-hidden="true"></span>&nbsp;not refreshed recently</span></p>
  <div class="grid" id="charts-trade"></div>
- <div class="tpm-head"><h3>US goods trade: top partners</h3></div>
+ <div id="tpmBlock"><div class="tpm-head"><h3>US goods trade: top partners</h3></div>
  <p class="tpm-scopenote"><strong>Goods trade only.</strong> Services aren't covered by this data source and aren't shown here, so relationships that lean heavily on services may be understated.</p>
- <div class="tpm-banner" id="tpmBanner"><span class="dot2" aria-hidden="true"></span>
- <span id="tpmBannerText">Illustrative data: approximate 2025 goods-trade shares, shown as a placeholder. Live bilateral figures are not published for this country yet.</span></div>
- <nav class="viztoggle">
+  <nav class="viztoggle">
  <button type="button" class="vtbtn" data-view="geo">Geographic</button>
  <button type="button" class="vtbtn active" data-view="radial">Radial</button>
  <div class="spacer"></div>
@@ -1754,13 +1753,14 @@ document.addEventListener("DOMContentLoaded", function(){
  <div class="tpm-right">
  <div class="tpm-ranking">
  <h4 id="tpmRankTitle">Goods trade: top partners</h4>
- <p class="tpm-ranksubtitle" id="tpmRankSubtitle">Illustrative 2025 figures, &pound;bn</p>
+ <p class="tpm-ranksubtitle" id="tpmRankSubtitle"></p>
  <ol class="tpm-ranklist" id="tpmRankList"></ol>
  <button type="button" class="tpm-rankmore" id="tpmRankMore" hidden>Show all partners</button>
  </div>
  </div>
  </div>
- <p class="tpm-covnote" id="tpmCovnote">Illustrative fallback shows 14 major partners. Once live, every partner UN Comtrade has data for is fetched: the radial view shows the top 20 by value, the map shows the top 50, and the ranking list can be expanded to show the top 50 too.</p>
+ <p class="tpm-covnote" id="tpmCovnote"></p>
+</div>
 </section>
 <section class="sec" id="sec-public" hidden>
  <div class="hero mini" id="tiles-public"></div>
@@ -1918,132 +1918,7 @@ function tradeIntensity(exp, imp, gdp){
   return out.length?{label:"Trade intensity",unit:"%",freq:"years",points:out,confirmed_at}:null;
 }
 /* --------------- fallback sample data (until fetch_data.py) -------------- */
-function interp(keys, periods){
-  const kIdx = keys.map(k=>periods.indexOf(k[0]));
-  const pts=[];
-  for(let s=0;s<keys.length-1;s++){
-    const a=kIdx[s], b=kIdx[s+1]; if(a<0||b<0) continue;
-    for(let i=a;i<=b;i++){
-      const t=(i-a)/(b-a||1);
-      const wob=Math.sin(i*2.1)*0.05*(Math.abs(keys[s+1][1]-keys[s][1])+0.4);
-      pts[i]=[periods[i], +(keys[s][1]+(keys[s+1][1]-keys[s][1])*t+wob).toFixed(2)];
-    }
-  }
-  return pts.filter(Boolean);
-}
-function monthsBetween(a,b){
-  const out=[]; let [y,m]=a.split("-").map(Number); const [Y,M]=b.split("-").map(Number);
-  while(y<Y||(y===Y&&m<=M)){ out.push(y+"-"+String(m).padStart(2,"0")); m++; if(m>12){m=1;y++;} }
-  return out;
-}
-function quartersBetween(a,b){
-  const out=[]; let [y,q]=[+a.slice(0,4),+a.slice(6)]; const [Y,Q]=[+b.slice(0,4),+b.slice(6)];
-  while(y<Y||(y===Y&&q<=Q)){ out.push(y+"-Q"+q); q++; if(q>4){q=1;y++;} }
-  return out;
-}
 const yearsBetween=(a,b)=>Array.from({length:b-a+1},(_,i)=>String(a+i));
-function sampleData(){
-  const mCpi=monthsBetween("1990-01","2026-05"), mU=monthsBetween("1990-01","2026-06");
-  const mTr=monthsBetween("1992-01","2026-04"), mDef=monthsBetween("2000-01","2026-05");
-  const qAll=quartersBetween("1990-Q1","2026-Q1"), qG=quartersBetween("1998-Q1","2026-Q1");
-  const gdpG=qG.map((p,i)=>[p,+(2.4+1.6*Math.sin(i*1.7)).toFixed(1)]);
-  const put=(p,v)=>{const i=qG.indexOf(p); if(i>=0) gdpG[i]=[p,v];};
-  put("2008-Q3",-2.1); put("2008-Q4",-8.5); put("2009-Q1",-4.5);
-  put("2020-Q1",-5.3); put("2020-Q2",-28.1); put("2020-Q3",34.8); put("2022-Q1",-1.6);
-  const cpiMoM=mCpi.map((p,i)=>[p,+(0.2+0.25*Math.sin(i*2.3)).toFixed(1)]);
-  const S=(label,unit,freq,points)=>({label,unit,freq,points});
-  return { updated:new Date().toISOString(), sample:true,
-    new_points_meta:{cpi:{period:"2026-05",first_seen:new Date(Date.now()-36*3600000).toISOString()}},
-    series:{
-    gdp_level:S("GDP, nominal SAAR (GDP)","$bn","quarters",interp(
-      [["1990-Q1",5963],["1995-Q1",7639],["2000-Q1",10285],["2008-Q3",14770],
-       ["2009-Q2",14478],["2019-Q4",21540],["2020-Q2",19913],["2022-Q4",26400],
-       ["2026-Q1",30800]],qAll)),
-    gdp_real:S("Real GDP (GDPC1)","$bn","quarters",interp(
-      [["1990-Q1",9365],["2000-Q1",13878],["2008-Q3",16581],["2009-Q2",15982],
-       ["2019-Q4",20700],["2020-Q2",17700],["2022-Q4",21990],["2026-Q1",23900]],qAll)),
-    gdp_growth:S("Real GDP growth QoQ ann. (A191RL1Q225SBEA)","%","quarters",gdpG),
-    productivity:S("Output per hour (OPHNFB)","index","quarters",interp(
-      [["1990-Q1",62],["2000-Q1",74],["2010-Q1",94],["2019-Q4",104],
-       ["2020-Q2",110],["2023-Q1",111],["2026-Q1",117]],qAll)),
-    unemployment:S("Unemployment (UNRATE)","%","months",interp(
-      [["1990-01",5.4],["1992-06",7.8],["2000-04",3.8],["2003-06",6.3],["2007-05",4.4],
-       ["2009-10",10.0],["2015-06",5.3],["2019-09",3.5],["2020-04",14.8],
-       ["2023-04",3.4],["2026-06",4.4]],mU)),
-    employment:S("Employment-population (EMRATIO)","%","months",interp(
-      [["1990-01",62.8],["2000-04",64.7],["2003-09",62.0],["2007-01",63.3],["2009-12",58.3],
-       ["2015-01",59.3],["2020-02",61.1],["2020-04",51.3],["2023-06",60.3],["2026-06",59.9]],mU)),
-    participation:S("Participation (CIVPART)","%","months",interp(
-      [["1990-01",66.5],["2000-01",67.3],["2007-01",66.2],["2015-09",62.4],
-       ["2020-02",63.3],["2020-04",60.1],["2023-08",62.7],["2026-06",62.3]],mU)),
-    cpi:S("CPI YoY (CPIAUCNS)","%","months",interp(
-      [["1990-10",6.3],["1998-03",1.4],["2000-06",3.7],["2008-07",5.6],["2009-07",-2.1],
-       ["2011-09",3.9],["2015-01",-0.1],["2018-07",2.9],["2020-05",0.1],["2022-06",9.1],
-       ["2023-06",3.0],["2024-09",2.4],["2026-05",2.8]],mCpi)),
-    core_cpi:S("Core CPI YoY (CPILFENS)","%","months",interp(
-      [["1990-10",5.3],["1995-06",3.0],["2003-11",1.1],["2008-07",2.5],["2010-10",0.6],
-       ["2016-01",2.2],["2020-05",1.2],["2022-09",6.6],["2024-06",3.3],["2026-05",3.0]],mCpi)),
-    cpi_mom:S("CPI MoM (CPIAUCNS)","%","months",cpiMoM),
-    // Sample/fallback only, overwritten by the real fetch (fetch_us.py
-    // -> data-us.json, series PPIFID). PPIFID (Final Demand, NSA) only
-    // exists from Nov 2009 (base=100), so anchors start there rather
-    // than extending back to 1990 like the old PPIACO-based sample did.
-    // Anchor points computed directly from FRED's own published PPIFID
-    // index levels, not guessed: the 2022 peak and the 2026 energy-shock
-    // reading (May 2026, +5.92% YoY) both match BLS's own headline
-    // "12 months ended" figures for their respective months.
-    ppi:S("PPI YoY, final demand (PPIFID)","%","months",interp(
-      [["2011-08",4.4],["2015-09",-1.1],["2018-07",3.4],["2020-05",-1.1],
-       ["2022-06",11.2],["2023-06",0.3],["2024-09",2.1],["2026-05",5.92]],mCpi)),
-    // Sample/fallback only, overwritten by the real fetch (fetch_us.py
-    // -> data-us.json, series PCEPI). PCE typically runs a bit below
-    // CPI historically (broader basket, substitution-adjusted) --
-    // anchors reasoned accordingly, including the actual ~7.1% PCE
-    // peak in mid-2022 rather than reusing CPI's higher peak.
-    pce:S("PCE YoY (PCEPI)","%","months",interp(
-      [["1990-10",5.2],["2000-06",2.3],["2008-07",4.5],["2009-07",-0.5],
-       ["2011-09",2.9],["2015-01",0.2],["2018-07",2.3],["2020-05",0.5],
-       ["2022-06",7.0],["2023-06",3.0],["2024-09",2.1],["2026-05",2.3]],mCpi)),
-    fed_funds:S("Fed funds (FEDFUNDS)","%","months",interp(
-      [["1990-01",8.2],["1993-01",3.0],["2000-07",6.5],["2003-07",1.0],["2007-07",5.26],
-       ["2009-01",0.15],["2015-11",0.12],["2019-04",2.42],["2020-04",0.05],["2022-03",0.2],
-       ["2023-08",5.33],["2024-12",4.48],["2026-06",3.9]],mU)),
-    bond_yield_10y:S("10-year government bond yield","%","months",interp(
-      [["1990-01",8.2],["1993-01",5.9],["2000-07",6.0],["2003-07",3.8],["2007-07",5.0],
-       ["2009-01",2.5],["2015-11",2.2],["2019-04",2.5],["2020-04",0.7],["2022-03",2.1],
-       ["2023-08",4.2],["2024-12",4.4],["2026-06",4.2]],mU)),
-    debt_gdp:S("Federal debt % GDP (GFDEGDQ188S)","%","quarters",interp(
-      [["1990-Q1",54],["2000-Q1",57],["2008-Q3",67],["2012-Q2",99],["2019-Q4",106],
-       ["2020-Q2",132],["2023-Q2",119],["2026-Q1",124]],qAll)),
-    deficit:S("Federal surplus/deficit (MTSDS133FMS)","$m","months",interp(
-      [["2000-01",30000],["2003-02",-95000],["2009-02",-192000],["2015-01",-90000],
-       ["2019-02",-234000],["2020-04",-738000],["2022-04",308000],["2024-02",-296000],
-       ["2026-04",210000],["2026-05",-316000]],mDef)),
-    current_account:S("Current account % GDP (World Bank)","%","years",interp(
-      [["1991",0.0],["1999",-3.0],["2006",-5.9],["2009",-2.6],["2013",-2.0],
-       ["2020",-2.8],["2022",-3.9],["2024",-3.9]],yearsBetween(1991,2024))),
-    business_confidence:S("Business confidence (OECD BCICP)","index","months",interp(
-      [["2010-01",100.5],["2014-06",100.9],["2016-02",98.6],["2019-01",100.6],["2020-04",96.8],
-       ["2021-05",101.9],["2022-12",98.4],["2024-06",99.8],["2026-05",100.1]],monthsBetween("2010-01","2026-05"))),
-    trade_balance:S("Trade balance (BOPGSTB)","$m","months",interp(
-      [["1992-01",-3000],["2000-06",-30000],["2006-08",-60000],["2009-05",-26000],
-       ["2018-12",-50000],["2020-06",-67000],["2022-03",-95000],["2025-03",-138000],
-       ["2026-04",-60200]],mTr)),
-    exports:S("Exports (BOPTEXP)","$m","months",interp(
-      [["1992-01",50000],["2000-06",89000],["2008-07",155000],["2009-04",120000],
-       ["2014-10",197000],["2020-05",145000],["2022-12",250000],["2026-04",289000]],mTr)),
-    imports:S("Imports (BOPTIMP)","$m","months",interp(
-      [["1992-01",53000],["2000-06",119000],["2008-07",215000],["2009-05",146000],
-       ["2014-10",240000],["2020-05",199000],["2022-03",340000],["2025-03",419000],
-       ["2026-04",350000]],mTr)),
-    net_debt:S("Federal debt $m (GFDEBTN)","$m","quarters",interp(
-      [["1990-Q1",3052000],["2000-Q1",5674000],["2008-Q3",10025000],["2012-Q2",15856000],
-       ["2019-Q4",23201000],["2020-Q2",26477000],["2023-Q2",32332000],["2026-Q1",38500000]],qAll)),
-    fdi:S("FDI net inflows % GDP (World Bank)","%","years",interp(
-      [["1990",0.8],["2000",3.4],["2005",1.1],["2008",2.3],["2015",2.8],
-       ["2021",2.0],["2024",1.2]],yearsBetween(1990,2024))),
-  }};
-}
 /* ------------------------------- charts ---------------------------------- */
 const refLinePlugin = {
   id: "refLine",
@@ -2763,7 +2638,6 @@ function render(data){
   // page load from data-us.json), which is what "new data each time"
   // means in practice for a static-data key like this.
   window.EATLAS_SERIES = s;
-  if(data.sample){const sb=document.getElementById("sampleBadge");sb.textContent="Illustrative figures: the live data feed did not load, so this page is showing placeholder shapes, not published statistics. Refresh in a moment.";sb.classList.add("show");}
   const gdpYoY = s.gdp_real ? yoyGDP(s.gdp_real) : null;
   /* Trade intensity is pinned to the raw nominal series (8.3.0): "Make it
      real" has no real-terms exports/imports to pair with a real-GDP
@@ -3177,35 +3051,18 @@ const BOND_FETCH=fetch("data-bond-us.json",{cache: "no-cache"})
 fetch("data-us.json",{cache: "no-cache"})
   .then(r=>{ if(!r.ok) throw new Error(r.status); return r.json(); })
   .then(d=>Promise.all([FX_FETCH,BOND_FETCH]).then(([fx,bd])=>{ FX_DATA=fx; BOND_DAILY=bd; PAGE_DATA=d; rerender(); }))
-  .catch(()=>{ PAGE_DATA=sampleData(); rerender(); });
+  .catch(err=>{
+    // No stand-in figures: if the data cannot be loaded or drawn, say so plainly.
+    console.error(err);
+    const lf=document.getElementById("loadFail"); if(lf) lf.hidden=false;
+  });
 </script>
 <script>
 (function(){
 "use strict";
-// Illustrative fallback only, used if the live Comtrade fetch fails or
-// COMTRADE_API_KEY isn't set yet. See tpmBanner for the live/fallback text.
-// Illustrative fallback only, used if the live Comtrade fetch fails or
-// COMTRADE_API_KEY isn't set yet. Export/import splits here are invented
-// but plausible (e.g. UK goods deficit with China/Germany, surplus with
-// Ireland/UAE), not derived from any real source, purely to make the
-// Total/Exports/Imports toggle demonstrate something sensible before live
-// data loads. See tpmBanner for the live/fallback indicator.
-var FALLBACK_PARTNERS = [
-  {name:"United States", code:"840", region:"Americas",   total:58.4, exports:28.0, imports:30.4, totalShare:14.6, exportShare:21.9, importShare:19.3},
-  {name:"Germany",       code:"276", region:"Europe",     total:33.2, exports:12.0, imports:21.2, totalShare:8.3,  exportShare:9.4,  importShare:13.4},
-  {name:"China",         code:"156", region:"Asia",       total:31.5, exports:8.0,  imports:23.5, totalShare:7.9,  exportShare:6.3,  importShare:14.9},
-  {name:"Netherlands",   code:"528", region:"Europe",     total:28.9, exports:15.0, imports:13.9, totalShare:7.2,  exportShare:11.7, importShare:8.8},
-  {name:"France",        code:"250", region:"Europe",     total:21.6, exports:10.0, imports:11.6, totalShare:5.4,  exportShare:7.8,  importShare:7.3},
-  {name:"Ireland",       code:"372", region:"Europe",     total:19.8, exports:12.0, imports:7.8,  totalShare:4.9,  exportShare:9.4,  importShare:4.9},
-  {name:"Switzerland",   code:"756", region:"Europe",     total:16.4, exports:9.0,  imports:7.4,  totalShare:4.1,  exportShare:7.0,  importShare:4.7},
-  {name:"Belgium",       code:"056", region:"Europe",     total:14.2, exports:7.0,  imports:7.2,  totalShare:3.5,  exportShare:5.5,  importShare:4.6},
-  {name:"Spain",         code:"724", region:"Europe",     total:12.8, exports:6.0,  imports:6.8,  totalShare:3.2,  exportShare:4.7,  importShare:4.3},
-  {name:"Italy",         code:"380", region:"Europe",     total:12.1, exports:5.0,  imports:7.1,  totalShare:3.0,  exportShare:3.9,  importShare:4.5},
-  {name:"Norway",        code:"578", region:"Europe",     total:11.3, exports:2.0,  imports:9.3,  totalShare:2.8,  exportShare:1.6,  importShare:5.9},
-  {name:"India",         code:"356", region:"Asia",       total:9.6,  exports:5.0,  imports:4.6,  totalShare:2.4,  exportShare:3.9,  importShare:2.9},
-  {name:"United Arab Emirates", code:"784", region:"Middle East", total:8.7, exports:6.0, imports:2.7, totalShare:2.2, exportShare:4.7, importShare:1.7},
-  {name:"South Korea",  code:"410", region:"Asia",        total:7.4,  exports:3.0,  imports:4.4,  totalShare:1.8,  exportShare:2.3,  importShare:2.8}
-];
+// No fallback figures: nothing invented. Until data-us-trade-partners.json exists
+// (UN Comtrade, update-trade-data.yml) the partner block says "Not yet available".
+var FALLBACK_PARTNERS = [];
 var UK_ID = "840"; // US
 var PARTNERS = FALLBACK_PARTNERS;
 var CURRENCY_SYMBOL = "$"; // FALLBACK_PARTNERS values are authored in USD billions (matching UN Comtrade's own convention), same as every other country's fallback trade data -- not Us's own currency
@@ -3484,7 +3341,12 @@ Promise.all([
 ]).then(function(results){
   var world = results[0];
   var livePayload = results[1];
-  applyLivePartners(livePayload);
+  if(!applyLivePartners(livePayload)){
+    var tb = document.getElementById("tpmBlock");
+    if(tb) tb.innerHTML = "<div class=\"tpm-head\"><h3>US goods trade: top partners</h3></div>"
+      + "<p style=\"color:var(--ink2); margin:8px 0 26px;\">Not yet available for US.</p>";
+    dataReady = true; return;
+  }
   computeScales();
   renderRanking();
   drawGeo(world);

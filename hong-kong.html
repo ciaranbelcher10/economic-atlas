@@ -1644,7 +1644,8 @@ document.addEventListener("DOMContentLoaded", function(){
 <header class="page with-map">
  <div class="head-text">
  <p class="eyebrow"><span class="dot" aria-hidden="true"></span>Official statistics</p>
- <h1>Hong Kong <span id="sampleBadge" class="badge"></span></h1>
+ <h1>Hong Kong</h1>
+<div id="loadFail" role="alert" hidden style="margin:12px 0 0; padding:12px 16px; max-width:640px; border:1px solid var(--hair); border-radius:10px; background:var(--panel); color:var(--ink); font-size:14px; line-height:1.5;">We couldn’t load the latest figures for this page, so no charts are shown. Please refresh the page to try again.</div>
  </div>
 <div class="mini-mapwrap" id="miniMapWrap" tabindex="0" role="img"
  aria-label="Small world map. Hover or tap to enlarge, then select a country to jump to its page, keeping the current section.">
@@ -1714,9 +1715,7 @@ document.addEventListener("DOMContentLoaded", function(){
  <p class="secnote">Goods trade is Hong Kong's monthly data as the IMF republishes it, in US dollars, converted to Hong Kong dollars at each month's average exchange rate from the Bank for International Settlements. Most of Hong Kong's exports are re-exports of goods made elsewhere. Exports are valued free on board, imports including cost, insurance and freight.</p>
  <div id="tpmBlock"><div class="tpm-head"><h3>Hong Kong goods trade: top partners</h3></div>
  <p class="tpm-scopenote"><strong>Goods trade only.</strong> Services aren't covered by this data source and aren't shown here, so relationships that lean heavily on services may be understated.</p>
- <div class="tpm-banner" id="tpmBanner"><span class="dot2" aria-hidden="true"></span>
- <span id="tpmBannerText">Illustrative data: approximate 2024 goods-trade values, shown as a placeholder. Live bilateral figures are not published for this country yet.</span></div>
- <nav class="viztoggle">
+  <nav class="viztoggle">
  <button type="button" class="vtbtn" data-view="geo">Geographic</button>
  <button type="button" class="vtbtn active" data-view="radial">Radial</button>
  <div class="spacer"></div>
@@ -1749,13 +1748,13 @@ document.addEventListener("DOMContentLoaded", function(){
  <div class="tpm-right">
  <div class="tpm-ranking">
  <h4 id="tpmRankTitle">Goods trade: top partners</h4>
- <p class="tpm-ranksubtitle" id="tpmRankSubtitle">Illustrative 2024 figures, US$bn</p>
+ <p class="tpm-ranksubtitle" id="tpmRankSubtitle"></p>
  <ol class="tpm-ranklist" id="tpmRankList"></ol>
  <button type="button" class="tpm-rankmore" id="tpmRankMore" hidden>Show all partners</button>
  </div>
  </div>
  </div>
- <p class="tpm-covnote" id="tpmCovnote">Illustrative fallback shows 13 major partners. Once live, every partner UN Comtrade has data for is fetched: the radial view shows the top 20 by value, the map shows the top 50, and the ranking list can be expanded to show the top 50 too.</p>
+ <p class="tpm-covnote" id="tpmCovnote"></p>
 </div>
 </section>
 <section class="sec" id="sec-public" hidden>
@@ -1887,68 +1886,7 @@ function yoyGDP(gdpReal){
   return {label:"Real GDP growth, year on year", unit:"%", freq: gdpReal.freq || "quarters", points:out, confirmed_at:gdpReal.confirmed_at};
 }
 /* --------------- fallback sample data (until fetch_data.py) -------------- */
-function interp(keys, periods){
-  const kIdx = keys.map(k=>periods.indexOf(k[0]));
-  const pts=[];
-  for(let s=0;s<keys.length-1;s++){
-    const a=kIdx[s], b=kIdx[s+1]; if(a<0||b<0) continue;
-    for(let i=a;i<=b;i++){
-      const t=(i-a)/(b-a||1);
-      const wob=Math.sin(i*2.1)*0.05*(Math.abs(keys[s+1][1]-keys[s][1])+0.4);
-      pts[i]=[periods[i], +(keys[s][1]+(keys[s+1][1]-keys[s][1])*t+wob).toFixed(2)];
-    }
-  }
-  return pts.filter(Boolean);
-}
-function monthsBetween(a,b){
-  const out=[]; let [y,m]=a.split("-").map(Number); const [Y,M]=b.split("-").map(Number);
-  while(y<Y||(y===Y&&m<=M)){ out.push(y+"-"+String(m).padStart(2,"0")); m++; if(m>12){m=1;y++;} }
-  return out;
-}
-function quartersBetween(a,b){
-  const out=[]; let [y,q]=[+a.slice(0,4),+a.slice(6)]; const [Y,Q]=[+b.slice(0,4),+b.slice(6)];
-  while(y<Y||(y===Y&&q<=Q)){ out.push(y+"-Q"+q); q++; if(q>4){q=1;y++;} }
-  return out;
-}
 const yearsBetween=(a,b)=>Array.from({length:b-a+1},(_,i)=>String(a+i));
-function sampleData(){
-  // Shapes anchored on the real data-hk.json at build time, so a failed
-  // fetch shows Hong Kong-shaped placeholders rather than another country's.
-  const S=(label,unit,freq,points)=>({label,unit,freq,points});
-  return { updated:new Date().toISOString(), sample:true,
-    series:{
-    cpi:S("Composite CPI, all items, change on same month a year earlier (IMF CPI, from C&SD)","%","months",interp(
-      [["2005-10", 1.2], ["2006-10", 2.1], ["2007-10", 3.1], ["2008-10", 1.9], ["2009-10", 2.5], ["2010-10", 2.5], ["2011-10", 5.7], ["2012-10", 3.8], ["2013-10", 4.4], ["2014-10", 5.1], ["2015-10", 2.2], ["2016-10", 1.2], ["2017-10", 1.6], ["2018-10", 2.6], ["2019-10", 3.3], ["2020-10", -0.4], ["2021-10", 1.8], ["2022-10", 1.8], ["2023-10", 2.8], ["2024-10", 1.3], ["2025-10", 1.2], ["2026-08", 1.7]],monthsBetween("2005-10","2026-08"))),
-    cpi_mom:S("Composite CPI, all items, change on previous month, not seasonally adjusted (IMF CPI)","%","months",interp(
-      [["2004-11", 0.2], ["2005-11", 0.2], ["2006-11", 0.1], ["2007-11", 0.6], ["2008-11", 1.7], ["2009-11", 0.0], ["2010-11", 0.3], ["2011-11", 0.3], ["2012-11", 0.2], ["2013-11", 0.2], ["2014-11", 0.2], ["2015-11", 0.2], ["2016-11", 0.3], ["2017-11", 0.3], ["2018-11", 0.2], ["2019-11", 0.1], ["2020-11", 0.1], ["2021-11", 0.2], ["2022-11", 0.2], ["2023-11", -0.1], ["2024-11", 0.0], ["2025-11", 0.0], ["2026-08", 0.1]],monthsBetween("2004-11","2026-08"))),
-    current_account:S("Current account balance, % of GDP (World Bank)","%","years",interp(
-      [["1998", 1.6991], ["2001", 6.1342], ["2004", 9.9481], ["2007", 13.0222], ["2010", 7.0033], ["2013", 1.52], ["2016", 3.9544], ["2019", 5.8537], ["2022", 10.1817], ["2025", 12.2453]],yearsBetween(1998,2025))),
-    debt_gdp:S("General government gross debt, % of GDP (IMF WEO)","%","years",interp(
-      [["2004", 1.925], ["2007", 1.19], ["2010", 0.618], ["2013", 0.517], ["2016", 0.059], ["2019", 0.267], ["2022", 4.276], ["2025", 12.069]],yearsBetween(2004,2025))),
-    deficit:S("General government net lending/borrowing, % of GDP (IMF WEO)","%","years",interp(
-      [["1981", 2.8], ["1984", 0.896], ["1987", 3.041], ["1990", 0.642], ["1993", 1.99], ["1996", 2.02], ["1999", 0.762], ["2002", -4.773], ["2005", 0.971], ["2008", 0.247], ["2011", 3.77], ["2014", 3.592], ["2017", 5.493], ["2020", -9.229], ["2023", -5.654], ["2025", -4.546]],yearsBetween(1981,2025))),
-    exports:S("Total exports of goods (domestic exports and re-exports), HK$ (C&SD external merchandise trade, table 410-50001)","HKDm","months",interp(
-      [["2006-01", 193770.5], ["2007-01", 209096.2], ["2008-01", 245164.5], ["2009-01", 192519.5], ["2010-01", 229126.6], ["2011-01", 288661.0], ["2012-01", 275420.3], ["2013-01", 330958.7], ["2014-01", 339103.7], ["2015-01", 339457.4], ["2016-01", 316238.3], ["2017-01", 314290.2], ["2018-01", 377871.1], ["2019-01", 372424.5], ["2020-01", 284497.4], ["2021-01", 403387.7], ["2022-01", 476015.4], ["2023-01", 304428.1], ["2024-01", 434259.1], ["2025-01", 429911.7], ["2026-01", 573683.3], ["2026-06", 739352.8]],monthsBetween("2006-01","2026-06"))),
-    fdi:S("FDI net inflows, % of GDP (World Bank)","%","years",interp(
-      [["1970", 1.3108], ["1973", 3.3782], ["1976", 1.9832], ["1979", 2.8769], ["1982", 3.8303], ["1985", -0.7485], ["1988", 8.3389], ["1991", 1.1475], ["1994", 5.7638], ["1997", 6.4099], ["2000", 41.0649], ["2003", 11.505], ["2006", 23.2008], ["2009", 25.3568], ["2012", 28.5144], ["2015", 58.5184], ["2018", 26.8255], ["2021", 37.1838], ["2024", 30.8106], ["2025", 28.3131]],yearsBetween(1970,2025))),
-    gdp_growth:S("Real GDP growth, change on previous quarter, seasonally adjusted (C&SD, table 310-31001)","%","quarters",interp(
-      [["1990-Q1", 1.2], ["1991-Q1", 1.6], ["1992-Q1", 1.1], ["1993-Q1", 1.4], ["1994-Q1", 2.2], ["1995-Q1", 0.7], ["1996-Q1", 1.6], ["1997-Q1", 1.5], ["1998-Q1", -2.4], ["1999-Q1", 1.0], ["2000-Q1", 3.0], ["2001-Q1", -0.3], ["2002-Q1", 0.1], ["2003-Q1", -0.1], ["2004-Q1", 2.9], ["2005-Q1", 1.1], ["2006-Q1", 2.2], ["2007-Q1", 1.4], ["2008-Q1", 1.4], ["2009-Q1", -3.4], ["2010-Q1", 1.9], ["2011-Q1", 2.7], ["2012-Q1", 0.2], ["2013-Q1", 0.8], ["2014-Q1", 0.9], ["2015-Q1", 0.6], ["2016-Q1", -0.3], ["2017-Q1", 0.6], ["2018-Q1", 1.4], ["2019-Q1", 0.7], ["2020-Q1", -4.8], ["2021-Q1", 6.6], ["2022-Q1", -3.7], ["2023-Q1", 2.2], ["2024-Q1", 0.6], ["2025-Q1", 1.1], ["2026-Q1", 2.9], ["2026-Q2", -0.6]],quartersBetween("1990-Q1","2026-Q2"))),
-    gdp_growth_yoy:S("Real GDP growth, change on same quarter a year earlier (C&SD, table 310-31001)","%","quarters",interp(
-      [["1974-Q1", 6.2], ["1975-Q1", -4.5], ["1976-Q1", 17.4], ["1977-Q1", 10.8], ["1978-Q1", 11.0], ["1979-Q1", 7.8], ["1980-Q1", 6.7], ["1981-Q1", 10.8], ["1982-Q1", 5.8], ["1983-Q1", 0.5], ["1984-Q1", 12.5], ["1985-Q1", 6.0], ["1986-Q1", 0.6], ["1987-Q1", 13.2], ["1988-Q1", 9.7], ["1989-Q1", 6.9], ["1990-Q1", 0.9], ["1991-Q1", 6.1], ["1992-Q1", 6.3], ["1993-Q1", 6.4], ["1994-Q1", 7.9], ["1995-Q1", 3.9], ["1996-Q1", 2.5], ["1997-Q1", 5.9], ["1998-Q1", -2.7], ["1999-Q1", -3.0], ["2000-Q1", 10.7], ["2001-Q1", 2.0], ["2002-Q1", -0.6], ["2003-Q1", 3.9], ["2004-Q1", 7.9], ["2005-Q1", 6.4], ["2006-Q1", 9.0], ["2007-Q1", 5.9], ["2008-Q1", 7.0], ["2009-Q1", -7.8], ["2010-Q1", 7.9], ["2011-Q1", 7.6], ["2012-Q1", 0.8], ["2013-Q1", 3.4], ["2014-Q1", 3.0], ["2015-Q1", 2.4], ["2016-Q1", 1.1], ["2017-Q1", 4.5], ["2018-Q1", 4.5], ["2019-Q1", 0.3], ["2020-Q1", -9.4], ["2021-Q1", 8.2], ["2022-Q1", -4.0], ["2023-Q1", 2.7], ["2024-Q1", 2.9], ["2025-Q1", 3.2], ["2026-Q1", 5.9], ["2026-Q2", 4.3]],quartersBetween("1974-Q1","2026-Q2"))),
-    gdp_level:S("GDP, current market prices, not seasonally adjusted (C&SD, table 310-31001)","HKDm","quarters",interp(
-      [["1973-Q1", 9697.0], ["1974-Q1", 11664.0], ["1975-Q1", 11914.0], ["1976-Q1", 14890.0], ["1977-Q1", 17492.0], ["1978-Q1", 20310.0], ["1979-Q1", 24852.0], ["1980-Q1", 31753.0], ["1981-Q1", 39376.0], ["1982-Q1", 45698.0], ["1983-Q1", 48061.0], ["1984-Q1", 58936.0], ["1985-Q1", 67354.0], ["1986-Q1", 70571.0], ["1987-Q1", 86263.0], ["1988-Q1", 102429.0], ["1989-Q1", 120455.0], ["1990-Q1", 133562.0], ["1991-Q1", 152222.0], ["1992-Q1", 180376.0], ["1993-Q1", 209714.0], ["1994-Q1", 241043.0], ["1995-Q1", 258819.0], ["1996-Q1", 279132.0], ["1997-Q1", 314111.0], ["1998-Q1", 316887.0], ["1999-Q1", 300174.0], ["2000-Q1", 321039.0], ["2001-Q1", 318843.0], ["2002-Q1", 308313.0], ["2003-Q1", 304457.0], ["2004-Q1", 313811.0], ["2005-Q1", 327783.0], ["2006-Q1", 355347.0], ["2007-Q1", 381839.0], ["2008-Q1", 418762.0], ["2009-Q1", 389033.0], ["2010-Q1", 422783.0], ["2011-Q1", 463467.0], ["2012-Q1", 483654.0], ["2013-Q1", 509631.0], ["2014-Q1", 535907.0], ["2015-Q1", 572160.0], ["2016-Q1", 590572.0], ["2017-Q1", 631450.0], ["2018-Q1", 684576.0], ["2019-Q1", 702601.0], ["2020-Q1", 654083.0], ["2021-Q1", 705090.0], ["2022-Q1", 684815.0], ["2023-Q1", 718402.0], ["2024-Q1", 768374.0], ["2025-Q1", 801353.0], ["2026-Q1", 846523.0], ["2026-Q2", 842406.0]],quartersBetween("1973-Q1","2026-Q2"))),
-    gdp_real:S("Real GDP, chained (2024) dollars, not seasonally adjusted (C&SD, table 310-31001)","HKDm","quarters",interp(
-      [["1973-Q1", 83082.0], ["1974-Q1", 88197.0], ["1975-Q1", 84194.0], ["1976-Q1", 98875.0], ["1977-Q1", 109545.0], ["1978-Q1", 121649.0], ["1979-Q1", 131183.0], ["1980-Q1", 139991.0], ["1981-Q1", 155058.0], ["1982-Q1", 163981.0], ["1983-Q1", 164880.0], ["1984-Q1", 185465.0], ["1985-Q1", 196561.0], ["1986-Q1", 197701.0], ["1987-Q1", 223703.0], ["1988-Q1", 245394.0], ["1989-Q1", 262215.0], ["1990-Q1", 264578.0], ["1991-Q1", 280638.0], ["1992-Q1", 298237.0], ["1993-Q1", 317238.0], ["1994-Q1", 342312.0], ["1995-Q1", 355591.0], ["1996-Q1", 364392.0], ["1997-Q1", 385725.0], ["1998-Q1", 375421.0], ["1999-Q1", 363989.0], ["2000-Q1", 402858.0], ["2001-Q1", 411116.0], ["2002-Q1", 408726.0], ["2003-Q1", 424557.0], ["2004-Q1", 458132.0], ["2005-Q1", 487344.0], ["2006-Q1", 531221.0], ["2007-Q1", 562425.0], ["2008-Q1", 601994.0], ["2009-Q1", 555251.0], ["2010-Q1", 599276.0], ["2011-Q1", 644853.0], ["2012-Q1", 650072.0], ["2013-Q1", 672429.0], ["2014-Q1", 692345.0], ["2015-Q1", 708639.0], ["2016-Q1", 716781.0], ["2017-Q1", 748762.0], ["2018-Q1", 782631.0], ["2019-Q1", 785008.0], ["2020-Q1", 711536.0], ["2021-Q1", 770164.0], ["2022-Q1", 739556.0], ["2023-Q1", 759210.0], ["2024-Q1", 781585.0], ["2025-Q1", 806905.0], ["2026-Q1", 854226.0], ["2026-Q2", 824319.0]],quartersBetween("1973-Q1","2026-Q2"))),
-    imports:S("Imports of goods, HK$ (C&SD external merchandise trade, table 410-50001)","HKDm","months",interp(
-      [["2006-01", 186031.8], ["2007-01", 213027.4], ["2008-01", 249581.8], ["2009-01", 184669.8], ["2010-01", 254548.1], ["2011-01", 311037.4], ["2012-01", 289099.7], ["2013-01", 364298.0], ["2014-01", 392361.4], ["2015-01", 374858.5], ["2016-01", 330494.7], ["2017-01", 326917.9], ["2018-01", 406819.0], ["2019-01", 370393.4], ["2020-01", 314982.8], ["2021-01", 424677.8], ["2022-01", 472906.2], ["2023-01", 343161.9], ["2024-01", 440317.2], ["2025-01", 431663.4], ["2026-01", 614001.3], ["2026-06", 855794.9]],monthsBetween("2006-01","2026-06"))),
-    policy_rate:S("HKMA base rate (BIS central bank policy rates, M.HK, from October 1998)","%","months",interp(
-      [["1998-10", 6.6], ["1999-10", 6.75], ["2000-10", 8.0], ["2001-10", 4.0], ["2002-10", 3.25], ["2003-10", 2.5], ["2004-10", 3.25], ["2005-10", 5.25], ["2006-10", 6.75], ["2007-10", 6.25], ["2008-10", 1.5], ["2009-10", 0.5], ["2010-10", 0.5], ["2011-10", 0.5], ["2012-10", 0.5], ["2013-10", 0.5], ["2014-10", 0.5], ["2015-10", 0.5], ["2016-10", 0.75], ["2017-10", 1.5], ["2018-10", 2.5], ["2019-10", 2.0], ["2020-10", 0.5], ["2021-10", 0.5], ["2022-10", 3.5], ["2023-10", 5.75], ["2024-10", 5.25], ["2025-10", 4.25], ["2026-09", 4.25]],monthsBetween("1998-10","2026-09"))),
-    trade_balance:S("Visible trade balance, total exports less imports, HK$ (C&SD, table 410-50001)","HKDm","months",interp(
-      [["2006-01", 7738.7], ["2007-01", -3931.2], ["2008-01", -4417.3], ["2009-01", 7849.7], ["2010-01", -25421.5], ["2011-01", -22376.4], ["2012-01", -13679.4], ["2013-01", -33339.3], ["2014-01", -53257.7], ["2015-01", -35401.1], ["2016-01", -14256.4], ["2017-01", -12627.7], ["2018-01", -28947.9], ["2019-01", 2031.1], ["2020-01", -30485.4], ["2021-01", -21290.1], ["2022-01", 3109.2], ["2023-01", -38733.8], ["2024-01", -6058.1], ["2025-01", -1751.7], ["2026-01", -40318.0], ["2026-06", -116442.1]],monthsBetween("2006-01","2026-06"))),
-    unemployment:S("Unemployment rate, ILO modelled estimate, annual (World Bank)","%","years",interp(
-      [["1991", 1.8], ["1994", 1.9], ["1997", 2.22], ["2000", 4.92], ["2003", 7.86], ["2006", 4.77], ["2009", 5.26], ["2012", 3.285], ["2015", 3.314], ["2018", 2.805], ["2021", 5.174], ["2024", 2.988], ["2025", 2.799]],yearsBetween(1991,2025))),
-  }};
-}
 /* ------------------------------- charts ---------------------------------- */
 const refLinePlugin = {
   id: "refLine",
@@ -2455,7 +2393,6 @@ function render(data){
   // page load from data-hk.json), which is what "new data each time"
   // means in practice for a static-data key like this.
   window.EATLAS_SERIES = s;
-  if(data.sample){const sb=document.getElementById("sampleBadge");sb.textContent="Illustrative figures: the live data feed did not load, so this page is showing placeholder shapes, not published statistics. Refresh in a moment.";sb.classList.add("show");}
   const gdpAnnual = s.gdp_level ? annualGDP(s.gdp_level) : null;
   const pct=v=>v.toFixed(1)+"%", pp=v=>v.toFixed(1)+"pp";
   const idx=v=>v.toFixed(1);
@@ -3077,13 +3014,17 @@ const FX_FETCH=fetch("data-fx-hk.json",{cache: "no-cache"})
 fetch("data-hk.json",{cache: "no-cache"})
   .then(r=>{ if(!r.ok) throw new Error(r.status); return r.json(); })
   .then(d=>FX_FETCH.then(fx=>{ FX_DATA=fx; PAGE_DATA=d; rerender(); }))
-  .catch(()=>{ PAGE_DATA=sampleData(); rerender(); });
+  .catch(err=>{
+    // No stand-in figures: if the data cannot be loaded or drawn, say so plainly.
+    console.error(err);
+    const lf=document.getElementById("loadFail"); if(lf) lf.hidden=false;
+  });
 </script>
 <script>
 (function(){
 "use strict";
 // No fallback figures: nothing invented. Until data-hk-trade-partners.json exists
-// (UN Comtrade, update-trade-data.yml) the partner block is hidden.
+// (UN Comtrade, update-trade-data.yml) the partner block says "Not yet available".
 var FALLBACK_PARTNERS = [];
 var UK_ID = "344"; // Hong Kong
 var PARTNERS = FALLBACK_PARTNERS;
@@ -3363,11 +3304,12 @@ Promise.all([
 ]).then(function(results){
   var world = results[0];
   var livePayload = results[1];
-  if(!livePayload && !FALLBACK_PARTNERS.length){
-    var tb = document.getElementById("tpmBlock"); if(tb) tb.hidden = true;
+  if(!applyLivePartners(livePayload)){
+    var tb = document.getElementById("tpmBlock");
+    if(tb) tb.innerHTML = "<div class=\"tpm-head\"><h3>Hong Kong goods trade: top partners</h3></div>"
+      + "<p style=\"color:var(--ink2); margin:8px 0 26px;\">Not yet available for Hong Kong.</p>";
     dataReady = true; return;
   }
-  applyLivePartners(livePayload);
   computeScales();
   renderRanking();
   drawGeo(world);
