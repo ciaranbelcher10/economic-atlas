@@ -251,9 +251,9 @@ Until v1.9.1 this gate ran each country page's `sampleData()` fallback, which dr
 invented figures under real series codes whenever a data file failed to load. The
 fallback was removed in v1.9.2 and the gate now enforces the opposite. For every
 country page: no `sampleData()`, exactly one hidden `#loadFail` notice that the data
-fetch's `.catch` reveals, and no "illustrative" wording (uk.html is allowed exactly
-the count of its four known approximate modules, `KNOWN_UK`; lower it as each is
-resolved). For every trade-partner module: an empty `FALLBACK_PARTNERS`, no
+fetch's `.catch` reveals, and no "illustrative" wording anywhere. uk.html's four
+extra modules (MPC votes, age grid, inactivity reasons, spending) must carry no
+fallback lists and, with their files unavailable, each must say it couldn't be loaded. For every trade-partner module: an empty `FALLBACK_PARTNERS`, no
 placeholder banner or captions, a `#tpmBlock` wrapper with a "Not yet available for
 <name>" branch, the page's own code on the radial hub, and the country's ISO numeric
 code as the map's home (`UK_ID`).
@@ -262,7 +262,7 @@ It also checks behaviour: each page is loaded in jsdom with every `data-*.json`
 fetch failing, and the "couldn't load" notice must appear. Needs jsdom
 (`cd /tmp && npm i jsdom@24`). Takes about 35 seconds.
 
-Expected: **62 country pages, 923 checks, 0 failures**. Exit code 1 on any failure.
+Expected: **62 country pages, 932 checks, 0 failures**. Exit code 1 on any failure.
 
 ## `html_gate.py` — structural gate over every published page
 

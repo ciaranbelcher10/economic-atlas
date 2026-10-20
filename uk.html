@@ -1847,8 +1847,6 @@ document.addEventListener("DOMContentLoaded", function(){
  <p class="lightskey compact" aria-label="Key to freshness lights"><span><span class="led green" aria-hidden="true"></span>&nbsp;matches latest release</span><span><span class="led orange" aria-hidden="true"></span>&nbsp;not refreshed recently</span></p>
  <div class="grid" id="charts-inflation"></div>
  <div class="mpc-head"><h3>Bank Rate decisions: MPC vote record</h3></div>
- <div class="mpc-banner" id="mpcBanner"><span class="dot2" aria-hidden="true"></span>
- <span id="mpcBannerText">Illustrative: compiled from published BoE decisions, not yet on an automated fetch.</span></div>
  <div class="mpc-latest" id="mpcLatest"></div>
  <div class="mpc-history" id="mpcHistory"></div>
  <button type="button" class="mpc-showmore" id="mpcShowMore" hidden>Show more meetings</button>
@@ -1862,11 +1860,8 @@ document.addEventListener("DOMContentLoaded", function(){
  <p class="secsub2">Unemployment and inactivity vary enormously by age: youth unemployment in particular runs at roughly triple the all-ages rate.</p>
  <div class="agegrid" id="ageGrid"></div>
  <div class="depth-head"><h3>Why people are economically inactive</h3></div>
- <div class="depth-banner" id="inacBanner"><span class="dot2" aria-hidden="true"></span>
- <span id="inacBannerText">Illustrative: approximate reasons for inactivity, not a live feed.</span></div>
  <div class="reasonbar" id="reasonBar" role="img" aria-label="Reasons for economic inactivity"></div>
  <div class="reasonlegend" id="reasonLegend"></div>
- <p class="secnote">On the roadmap: unemployment and inactivity broken down further by age group, once a fuller ONS series (A05 SA) is sourced.</p>
 </section>
 <section class="sec" id="sec-trade" hidden>
  <div class="hero mini" id="tiles-trade"></div>
@@ -1923,8 +1918,6 @@ document.addEventListener("DOMContentLoaded", function(){
  <div class="depth-head"><h3>The debt in context</h3></div>
  <div class="statrow" id="debtStatRow"></div>
  <div class="depth-head"><h3>Where public money goes</h3></div>
- <div class="depth-banner" id="cofogBanner"><span class="dot2" aria-hidden="true"></span>
- <span id="cofogBannerText">Illustrative: approximate spending shares, not a live feed.</span></div>
  <div class="cofog-toggle" id="cofogToggle">
  <button type="button" class="cofogtbtn active" data-mode="total">% of total spending</button>
  <button type="button" class="cofogtbtn" data-mode="gdp">% of GDP</button>
@@ -3733,16 +3726,6 @@ document.querySelectorAll(".mtbtn").forEach(function(btn){
 <script>
 (function(){
 "use strict";
-// Fallback: real published BoE decisions (not fabricated), used only if
-// the live fetch fails or hasn't run yet. See mpcBanner for which state
-// is currently showing.
-var FALLBACK_MEETINGS = [
-  {date:"2026-06-17", decision_rate:3.75, previous_rate:3.75, hold:7, hike:2, cut:0, total_votes:9},
-  {date:"2026-04-29", decision_rate:3.75, previous_rate:3.75, hold:8, hike:1, cut:0, total_votes:9},
-  {date:"2026-03-18", decision_rate:3.75, previous_rate:3.75, hold:9, hike:0, cut:0, total_votes:9},
-  {date:"2026-02-04", decision_rate:3.75, previous_rate:3.75, hold:5, hike:0, cut:4, total_votes:9},
-  {date:"2025-12-17", decision_rate:3.75, previous_rate:4.00, hold:4, hike:0, cut:5, total_votes:9}
-];
 function fmtDate(iso){
   var d = new Date(iso + "T00:00:00Z");
   return d.toLocaleDateString("en-GB", {day:"numeric", month:"short", year:"numeric", timeZone:"UTC"});
@@ -3885,7 +3868,6 @@ function renderMPCHistory(){
     }
   }
 }
-renderMPC(FALLBACK_MEETINGS);
 document.getElementById("mpcShowMore").addEventListener("click", function(){
   mpcExpanded = !mpcExpanded;
   renderMPCHistory();
@@ -3893,14 +3875,14 @@ document.getElementById("mpcShowMore").addEventListener("click", function(){
 fetch("data-uk-mpc-votes.json", {cache: "no-cache"})
   .then(function(r){ if(!r.ok) throw new Error(r.status); return r.json(); })
   .then(function(payload){
-    if(!payload || !Array.isArray(payload.meetings) || !payload.meetings.length) return;
+    if(!payload || !Array.isArray(payload.meetings) || !payload.meetings.length) throw new Error("no meetings");
     renderMPC(payload.meetings);
-    var banner = document.getElementById("mpcBanner");
-    var bannerText = document.getElementById("mpcBannerText");
-    if(banner) banner.style.display = "none";
-    if(bannerText) bannerText.textContent = "";
   })
-  .catch(function(){ /* fallback already rendered */ });
+  .catch(function(){
+    // No stand-in record: say plainly that it could not be loaded.
+    var el = document.getElementById("mpcLatest");
+    if(el) el.innerHTML = "<p class=\"secnote\">The MPC vote record couldn\u2019t be loaded just now. Please refresh the page to try again.</p>";
+  });
 // The economic-context lookup needs PAGE_DATA (from the main script's own
 // data-uk.json fetch), which resolves independently and isn't guaranteed to
 // be ready before this script's own fetch completes. This function is a
@@ -5374,48 +5356,6 @@ window.refreshMPCContext = refreshMPCContext;
 <script>
 (function(){
 "use strict";
-/* -------------------------------- By age group --------------------------- */
-// 16-24 unemployment is real (ONS MGWY, already fetched). Everything else
-// in this grid is illustrative -- no confirmed ONS series sourced yet for
-// 25-49/50-64/65+ breakdowns, or for 16-24's inactivity rate specifically
-// (only its unemployment rate has a confirmed series so far). The 39.8%
-// figure for 16-24 inactivity is real but not live-fetched -- a fixed
-// reference point from published Commons Library research, not invented.
-var AGE_BANDS = [
-  {band: "16\u201324", seriesKey: "unemployment_1624", illustrativeInactivity: 39.8, inactivityIsReal: true},
-  {band: "25\u201349", illustrativeUnemployment: 3.2, illustrativeInactivity: 14},
-  {band: "50\u201364", illustrativeUnemployment: 3.5, illustrativeInactivity: 27},
-  {band: "65+", noUnemployment: true, illustrativeInactivity: 89}
-];
-function renderAgeGrid(){
-  var el = document.getElementById("ageGrid");
-  if(!el) return;
-  var hasPageData = typeof PAGE_DATA !== "undefined" && PAGE_DATA && PAGE_DATA.series;
-  el.innerHTML = AGE_BANDS.map(function(b){
-    var uVal, uTag, isCardApprox;
-    if(b.noUnemployment){
-      uVal = "n/a"; uTag = ""; isCardApprox = true;
-    } else if(b.seriesKey && hasPageData && PAGE_DATA.series[b.seriesKey]){
-      var pts = PAGE_DATA.series[b.seriesKey].points;
-      uVal = pts[pts.length - 1][1].toFixed(1) + "%";
-      uTag = "<span class=\"tag real\">REAL</span>";
-      isCardApprox = false;
-    } else {
-      uVal = "~" + (b.illustrativeUnemployment != null ? b.illustrativeUnemployment : "?") + "%";
-      uTag = "<span class=\"tag approx\">APPROX</span>";
-      isCardApprox = true;
-    }
-    var iVal = b.illustrativeInactivity + "%";
-    var iTag = b.inactivityIsReal ? "" : " (illustrative)";
-    return "<div class=\"agecard" + (isCardApprox ? " approx" : "") + "\">"
-      + "<p class=\"band\">" + b.band + "</p>"
-      + "<p class=\"u\">" + uVal + uTag + "</p>"
-      + "<p class=\"ulabel\">" + (b.noUnemployment ? "not economically active by default" : "unemployment rate") + "</p>"
-      + "<p class=\"i\">" + iVal + "</p>"
-      + "<p class=\"ilabel\">inactivity rate" + iTag + "</p>"
-      + "</div>";
-  }).join("");
-}
 /* ------------------------------ Debt in context --------------------------- */
 function renderDebtStatRow(){
   var el = document.getElementById("debtStatRow");
@@ -5443,7 +5383,6 @@ function renderDebtStatRow(){
   if(html) el.innerHTML = html;
 }
 function refreshDepthPass(){
-  renderAgeGrid();
   renderDebtStatRow();
 }
 window.refreshDepthPass = refreshDepthPass;
@@ -5455,9 +5394,8 @@ refreshDepthPass();
 // wording and all). Two of those eight -- "Aged 16 and over" and
 // "Aged 16-64" -- are aggregate totals, not narrow bands, so they're
 // deliberately left out of REAL_AGE_ORDER below rather than shown as if
-// they were peers of "18-24" etc. If the fetch fails or the file doesn't
-// exist yet, the illustrative AGE_BANDS grid above stays as-is -- this
-// only overwrites it once real data is confirmed present.
+// they were peers of "18-24" etc. If the fetch fails or the file has no
+// recognisable bands, the grid says so: there are no stand-in figures.
 var REAL_AGE_ORDER = ["16-17", "18-24", "25-34", "35-49", "50-64", "65+"];
 function normalizeAgeBandLabel(raw){
   return String(raw).replace(/^Aged?\s+/i, "").trim();
@@ -5483,30 +5421,25 @@ function renderAgeGridReal(ageBands){
       + "<p class=\"ilabel\">inactivity rate</p>"
       + "</div>";
   });
-  if(!cards.length) return; // nothing recognisable -- leave the illustrative fallback in place
+  if(!cards.length) throw new Error("no recognisable age bands");
   el.innerHTML = cards.join("");
 }
 fetch("data-uk-age-breakdown.json", {cache: "no-cache"})
   .then(function(r){ if(!r.ok) throw new Error(r.status); return r.json(); })
   .then(function(payload){
-    if(!payload || !payload.age_bands) return;
+    if(!payload || !payload.age_bands) throw new Error("no age bands");
     renderAgeGridReal(payload.age_bands);
   })
-  .catch(function(){ /* fallback already rendered */ });
+  .catch(function(){
+    var el = document.getElementById("ageGrid");
+    if(el) el.innerHTML = "<p class=\"secnote\" style=\"grid-column:1/-1;\">The age breakdown couldn\u2019t be loaded just now. Please refresh the page to try again.</p>";
+  });
 /* ---------------------- Why people are inactive ------------------------ */
 var REASON_LABELS_DISPLAY = {
   long_term_sick: "Long-term/temporary sickness", student: "Student",
   looking_after_family: "Looking after family/home", retired: "Retired", other: "Other"
 };
 var REASON_COLORS = ["#413D7B", "#37659E", "#348FA7", "#40B7AD", "#8AD9B1"];
-// Fallback: real published ONS figures (INAC01 SA, Q4 2025), not invented.
-var REASON_FALLBACK = [
-  {key: "long_term_sick", share_pct: 33.0},
-  {key: "student", share_pct: 26.8},
-  {key: "looking_after_family", share_pct: 17.1},
-  {key: "retired", share_pct: 11.3},
-  {key: "other", share_pct: 11.8}
-];
 function renderReasonBar(reasons){
   var bar = document.getElementById("reasonBar");
   var legend = document.getElementById("reasonLegend");
@@ -5523,16 +5456,17 @@ function renderReasonBar(reasons){
     return "<span><i style=\"background:" + REASON_COLORS[i % REASON_COLORS.length] + ";\"></i>" + label + "</span>";
   }).join("");
 }
-renderReasonBar(REASON_FALLBACK);
 fetch("data-uk-inactivity-reasons.json", {cache: "no-cache"})
   .then(function(r){ if(!r.ok) throw new Error(r.status); return r.json(); })
   .then(function(payload){
-    if(!payload || !Array.isArray(payload.reasons) || !payload.reasons.length) return;
+    if(!payload || !Array.isArray(payload.reasons) || !payload.reasons.length) throw new Error("no reasons");
     renderReasonBar(payload.reasons);
-    var banner = document.getElementById("inacBanner");
-    if(banner) banner.hidden = true;
   })
-  .catch(function(){ /* fallback already rendered */ });
+  .catch(function(){
+    var bar = document.getElementById("reasonBar"), legend = document.getElementById("reasonLegend");
+    if(bar) bar.hidden = true;
+    if(legend) legend.innerHTML = "<p class=\"secnote\">The breakdown of reasons for inactivity couldn\u2019t be loaded just now. Please refresh the page to try again.</p>";
+  });
 /* -------------------------- Where money goes ---------------------------- */
 var COFOG_LABELS_DISPLAY = {
   general_public_services: "General public services", defence: "Defence",
@@ -5543,22 +5477,6 @@ var COFOG_LABELS_DISPLAY = {
 };
 var COFOG_COLORS = ["#2E1E3B", "#413D7B", "#37659E", "#348FA7", "#40B7AD", "#8AD9B1", "#DEF5E5",
                      "#A9C9E0", "#C9B8DB", "#E8C9A0", "#D97D6C"];
-// Fallback: illustrative only, order of categories matches well-documented
-// reality (social protection largest, then health, education, debt
-// interest as a top-4 item) but exact percentages are placeholders.
-var COFOG_FALLBACK = [
-  {key: "social_protection", value: 300000},
-  {key: "health", value: 215000},
-  {key: "education", value: 108000},
-  {key: "debt_interest", value: 88000},
-  {key: "economic_affairs", value: 55000},
-  {key: "general_public_services", value: 49000},
-  {key: "defence", value: 46000},
-  {key: "public_order_safety", value: 38000},
-  {key: "housing_community", value: 20000},
-  {key: "recreation_culture", value: 16000},
-  {key: "environmental_protection", value: 14000}
-];
 var cofogChart = null;
 var cofogCurrentCategories = null;
 var cofogCurrentYear = null;
@@ -5630,11 +5548,10 @@ document.addEventListener("DOMContentLoaded", function(){
     });
   });
 });
-renderCofogPie(COFOG_FALLBACK, null);
 fetch("data-uk-spending-cofog.json", {cache: "no-cache"})
   .then(function(r){ if(!r.ok) throw new Error(r.status); return r.json(); })
   .then(function(payload){
-    if(!payload || !Array.isArray(payload.categories) || !payload.categories.length) return;
+    if(!payload || !Array.isArray(payload.categories) || !payload.categories.length) throw new Error("no categories");
     var categories = payload.categories.map(function(c){ return {key: c.key, value: c.value_gbp_m}; });
     // Add debt interest as an 11th slice if we have real fetched data for
     // it -- COFOG's own classification doesn't include debt interest as a
@@ -5647,13 +5564,16 @@ fetch("data-uk-spending-cofog.json", {cache: "no-cache"})
       categories.push({key: "debt_interest", value: annualTotal});
     }
     renderCofogPie(categories, payload.year);
-    var banner = document.getElementById("cofogBanner");
-    if(banner) banner.hidden = true;
     var secnote = document.getElementById("cofogSecnote");
     if(secnote) secnote.textContent = "Annual data (" + (payload.year || "latest available year")
       + "), published with a real lag behind the current date, not comparable in freshness to the monthly/quarterly series above. Debt interest is added from the site's own monthly series (last 12 months), since COFOG classifies it separately from functional spending categories. \"% of GDP\" uses that year's annual nominal GDP (ONS YBHA, four quarters summed).";
   })
-  .catch(function(){ /* fallback already rendered */ });
+  .catch(function(){
+    var t = document.getElementById("cofogToggle"), lay = document.querySelector(".cofog-layout"), note = document.getElementById("cofogSecnote");
+    if(t) t.hidden = true;
+    if(lay) lay.hidden = true;
+    if(note) note.textContent = "The spending breakdown couldn\u2019t be loaded just now. Please refresh the page to try again.";
+  });
 })();
 </script>
 <script>
