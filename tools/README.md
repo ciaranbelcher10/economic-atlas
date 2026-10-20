@@ -264,6 +264,27 @@ fetch failing, and the "couldn't load" notice must appear. Needs jsdom
 
 Expected: **62 country pages, 932 checks, 0 failures**. Exit code 1 on any failure.
 
+## `invariants_gate.js`: things that must always be true (v1.9.4)
+
+```
+NODE_PATH=/tmp/node_modules node tools/invariants_gate.js            # everything, about 3 minutes
+NODE_PATH=/tmp/node_modules node tools/invariants_gate.js --page uk.html   # data + copy checks, one rendered page
+```
+
+Needs `cd /tmp && npm i jsdom@24 d3@7.8.5 chart.js@4.4.1 topojson@3.0.2 hammerjs@2.0.8 chartjs-plugin-zoom@2.0.1 world-atlas@2`.
+
+- **Data**, every `data-XX.json`: no empty series, every point a finite number, `sample` never true, and every
+  currency series in the country's own currency (its `fx_to_usd` pair) or US dollars. A third currency is
+  allowed only through `THIRD_CURRENCY`, with a reason; an entry that no longer applies also fails.
+  Today's one entry is Poland's trade balance (Eurostat, euros): an open item to re-source in złoty or dollars.
+- **Copy**, every hand-written page (visible text, meta tags, JSON-LD): every "N countries / economies /
+  country pages / individual pages" claim equals the number of country pages.
+- **Rendered**, every country page in jsdom with its real data and chart libraries: the couldn't-load notice
+  stays hidden, no visible "NaN", "undefined", "Infinity" or "null", and no currency sign (£ € ¥ ₩ ₪ ₹) the
+  page's own data doesn't use (CN¥ and E£ style signs are other currencies and do not count).
+
+Expected: **62 data files, 62 country pages, 0 failures**. Exit code 1 on any failure.
+
 ## `html_gate.py` — structural gate over every published page
 
 ```

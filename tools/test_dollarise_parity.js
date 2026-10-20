@@ -54,18 +54,25 @@ const read = f => fs.readFileSync(path.join(ROOT, f), "utf8");
 
 const cmpSrc = read("compare.html"), dashSrc = read("dashboard.html"), cmSrc = read("chartmaker.html");
 const FILES = vm.runInNewContext("(" + cmpSrc.match(/var FILES\s*=\s*(\{[\s\S]*?\});/)[1] + ")");
+const HELPER = src => grab(src, "var CURRENCY_GLYPH_CODE", /\n/) + "\n" + fn(src, "foreignCurrencyOf");
 const glyphOf = src => grab(src, "var DOLLAR_GLYPH_LOCAL_CURRENCY_COUNTRIES", /;/) + ";"; // each page's OWN list
 
 const C = load(cmpSrc, ["monthKey", "rateForPeriod", "scaleOf", "isAlreadyUSDUnit", "isBeforeFxFloor", "realFxYearFor", "toUSDValue", "toUSDMillions", "unitCompatible"],
-  glyphOf(cmpSrc) + varLit(cmpSrc, "CONCEPT_UNIT") + "var FX_RATES = {}, REGISTRY = {}; function resolveKey(c, k){ return REGISTRY[c] && REGISTRY[c][k] ? k : null; }" +
+  HELPER(cmpSrc) + glyphOf(cmpSrc) + varLit(cmpSrc, "CONCEPT_UNIT") + "var FX_RATES = {}, REGISTRY = {}; function resolveKey(c, k){ return REGISTRY[c] && REGISTRY[c][k] ? k : null; }" +
   "this.setData = function(f, r){ FX_RATES = f; REGISTRY = r; };");
 const D = load(dashSrc, ["monthKey", "rateForPeriod", "scaleOf", "isRealGDPKey", "realFxYearFor", "usdRateFor", "toUSDValue", "toDisplayPoints", "isCurrencyUnit", "isAlreadyUSD"],
-  glyphOf(dashSrc) + "var FX_RATES = {}, REGISTRY = {}, dollarise = true;" + "this.setData = function(f, r){ FX_RATES = f; REGISTRY = r; };");
+  HELPER(dashSrc) + glyphOf(dashSrc) + "var FX_RATES = {}, REGISTRY = {}, dollarise = true;" + "this.setData = function(f, r){ FX_RATES = f; REGISTRY = r; };");
 const M = load(cmSrc, ["monthKey", "rateForPeriod", "nearestFxYear", "scaleOf", "isAlreadyUSDUnit", "toUSDValue", "toUSDMillions", "forceUSDUnit", "computeDisplay", "unitCompatible"],
-  glyphOf(cmSrc) + varLit(cmSrc, "CONCEPT_UNIT") + "var FX_RATES = {}, REGISTRY = {}; function getSeries(){ return null; }" +
+  HELPER(cmSrc) + glyphOf(cmSrc) + varLit(cmSrc, "CONCEPT_UNIT") + "var FX_RATES = {}, REGISTRY = {}; function getSeries(){ return null; }" +
   "this.setData = function(f){ FX_RATES = f; };");
 
 ok(norm0(fn(cmpSrc, "unitCompatible")) === norm0(fn(cmSrc, "unitCompatible")), "ChartMaker's unitCompatible differs from Compare's");
+
+/* the third-currency helper must be the same text on every surface and every country page */
+const helperRef = norm0(HELPER(read("uk.html")));
+for(const f of fs.readdirSync(ROOT).filter(f => /\.html$/.test(f) && read(f).includes("function foreignCurrencyOf(")))
+  ok(norm0(HELPER(read(f))) === helperRef, `${f}: foreignCurrencyOf differs from uk.html's`);
+for(const f of ["compare.html", "dashboard.html", "chartmaker.html"]) ok(read(f).includes("function foreignCurrencyOf("), `${f}: no foreignCurrencyOf`);
 
 /* country pages: one per data file */
 const pages = fs.readdirSync(ROOT).filter(f => /\.html$/.test(f) && read(f).includes("function convertSeriesToUSD(") && f !== "us.html");
@@ -85,13 +92,14 @@ function pageCtx(p, data){
   const nso = (src.match(/^const NATIVE_SYMBOL_OVERRIDE\s*=\s*[^;\n]*;/m) || [""])[0];
   const code = [
     nso,
+    grab(src, "var CURRENCY_GLYPH_CODE", /\n/),
     grab(src, "const CURRENCY_KEYS", /\n/),
-    ...["scaleOf", "isCurrencyUnit", "isAlreadyUSD", "monthKey", "rateForPeriod", "convertSeriesToUSD", "realFxYear", "realFxRateYear", "convertRealSeriesToUSD"].map(n => fn(src, n)),
+    ...["scaleOf", "isCurrencyUnit", "isAlreadyUSD", "monthKey", "rateForPeriod", "convertSeriesToUSD", "realFxYear", "realFxRateYear", "convertRealSeriesToUSD", "foreignCurrencyOf"].map(n => fn(src, n)),
   ].join("\n");
   const ctx = {PAGE_DATA: data, console};
   vm.createContext(ctx);
   vm.runInContext(code + "\nthis.CURRENCY_KEYS=CURRENCY_KEYS;this.scaleOf=scaleOf;this.isCurrencyUnit=isCurrencyUnit;this.isAlreadyUSD=isAlreadyUSD;" +
-    "this.convertSeriesToUSD=convertSeriesToUSD;this.convertRealSeriesToUSD=convertRealSeriesToUSD;", ctx);
+    "this.convertSeriesToUSD=convertSeriesToUSD;this.convertRealSeriesToUSD=convertRealSeriesToUSD;this.foreignCurrencyOf=foreignCurrencyOf;", ctx);
   ctx.hasNativeOverride = !!nso;
   return ctx;
 }
@@ -112,7 +120,7 @@ for(const [country, file] of Object.entries(FILES)){
   jobs.push({country, file, page: pageFor[file], data});
 }
 jobs.push(SYNTH);
-let tested = 0;
+let tested = 0; const foreignSeen = [];
 for(const {country, page: p, data} of jobs){
   const fx = data.fx_to_usd, s = data.series || {};
   const P = pageCtx(p, data);
@@ -127,12 +135,18 @@ for(const {country, page: p, data} of jobs){
     // gdp_level_annual / gdp_real_annual only ever reach the screen as the "GDP (Annual)" card, i.e. in
     // gdp_level's place, so the pages convert them under the gdp_level rules (real view: one rate)
     const pageKey = /_annual$/.test(key) ? "gdp_level" : key;
-    const pageConverts = P.CURRENCY_KEYS.includes(pageKey) && !P.isAlreadyUSD(raw.unit, pageKey);
+    // v1.9.4: a series in a third currency (not the country's own, not USD) is never converted:
+    // the page shows it as published and no other surface may produce a dollar figure for it.
+    const foreign = P.foreignCurrencyOf(raw.unit, fx);
+    const pageConverts = P.CURRENCY_KEYS.includes(pageKey) && !P.isAlreadyUSD(raw.unit, pageKey) && !foreign;
     // expected dollar value per period, in the series' own scale; null = left out (before the floor)
     let exp;
     if(pageConverts){
       const conv = isReal ? P.convertRealSeriesToUSD(raw, fx) : P.convertSeriesToUSD(raw, fx);
       exp = new Map(conv.points.map(q => [q[0], q[1]]));
+    } else if(foreign){
+      exp = new Map();   // no surface may show a dollar figure for it
+      foreignSeen.push(`${country} ${key} (${foreign})`);
     } else {
       exp = new Map(raw.points.map(q => [q[0], q[1]]));
     }
@@ -209,6 +223,7 @@ ok(offeredChecks > 1000, `only ${offeredChecks} ChartMaker offer checks ran`);
 
 const withData = Object.keys(FILES).filter(c => c !== "US").length;
 ok(tested - 1 + skipped.length === withData, `covered ${tested} + skipped ${skipped.length} != ${withData} countries`);
+console.log(`third-currency series left as published: ${foreignSeen.join(", ") || "none"}`);
 console.log(`${tested - 1} countries + 1 synthetic edge case, ${checks} checks (Compare ${perSurface.compare}, Dashboard ${perSurface.dashboard}, ChartMaker ${perSurface.chartmaker} points), ${failures} failures` +
   (skipped.length ? `, skipped: ${skipped.join(", ")}` : ""));
 process.exit(failures ? 1 : 0);

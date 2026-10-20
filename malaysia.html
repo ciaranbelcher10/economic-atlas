@@ -2600,6 +2600,17 @@ function isAlreadyUSD(u, key){
   const clean = u.replace(/\s*\([^)]*\)\s*$/, '').trim();
   return clean.charAt(0) === "$";
 }
+// v1.9.4: a series published in a third currency (neither the country's own, from its FX pair,
+// nor US dollars; e.g. Poland's Eurostat trade balance in euros) has no matching rate here, so it is
+// never converted to dollars. Returns that currency's code, or null when the series can be converted.
+var CURRENCY_GLYPH_CODE = {"\u00a3":"GBP", "\u20ac":"EUR", "\u00a5":"JPY", "\u20a9":"KRW", "\u20aa":"ILS", "\u20b9":"INR"};
+function foreignCurrencyOf(unit, fx){
+  var own = fx && fx.pair ? String(fx.pair).split("/")[0] : null;
+  if(!own || !unit) return null;
+  var u = String(unit), m = u.match(/^([A-Z]{3})(m|bn|tn)?$/);
+  var code = m ? m[1] : (CURRENCY_GLYPH_CODE[u.charAt(0)] || null);
+  return code && code !== own && code !== "USD" ? code : null;
+}
 function convertSeriesToUSD(series, fx){
   // Historical FX matching (same fix as UK/US rollout, Aug 2026): looks up
   // each point's own contemporaneous rate from fx.history (monthly
@@ -2890,7 +2901,7 @@ function buildDisplaySeries(rawSeries){
   if(TOGGLE_STATE.dollar && PAGE_DATA.fx_to_usd){
     const fx = PAGE_DATA.fx_to_usd;
     CURRENCY_KEYS.forEach(k=>{
-      if(out[k] && isCurrencyUnit(out[k].unit) && !isAlreadyUSD(out[k].unit, k)){
+      if(out[k] && isCurrencyUnit(out[k].unit) && !isAlreadyUSD(out[k].unit, k) && !foreignCurrencyOf(out[k].unit, fx)){
         // v1.7.55: real series convert at one rate (see convertRealSeriesToUSD)
         const isReal = k==="gdp_real" || k==="gdp_real_annual" || (k==="gdp_level" && realView);
         out[k] = isReal ? convertRealSeriesToUSD(out[k], fx) : convertSeriesToUSD(out[k], fx);
@@ -2973,6 +2984,10 @@ function rerender(){
   // since the two answer different questions (v1.6.5).
   if(TOGGLE_STATE.dollar && PAGE_DATA.fx_to_usd){
     notes.push("market exchange rates, not purchasing power parity (PPP)");
+    CURRENCY_KEYS.forEach(k=>{
+      const c = s[k] && foreignCurrencyOf(s[k].unit, PAGE_DATA.fx_to_usd);
+      if(c) notes.push(`${k.replace(/_/g, " ")} is published in ${c}, so it is shown as published, not in US dollars`);
+    });
   }
   if(TOGGLE_STATE.real) notes.push("GDP shown in real terms (chained volume / constant prices)");
   note.textContent = notes.join(" · ");
@@ -3011,7 +3026,8 @@ function applyToggleHighlighting(){
     const realHit = realOn && REAL_AFFECTED_KEYS.includes(key);
     const seriesForKey = rawSeries && rawSeries[key];
     const dollarHit = dollarOn && CURRENCY_KEYS.includes(key) &&
-      seriesForKey && isCurrencyUnit(seriesForKey.unit) && !isAlreadyUSD(seriesForKey.unit, key);
+      seriesForKey && isCurrencyUnit(seriesForKey.unit) && !isAlreadyUSD(seriesForKey.unit, key) &&
+      !foreignCurrencyOf(seriesForKey.unit, PAGE_DATA && PAGE_DATA.fx_to_usd);
     if(realHit && dollarHit) el.classList.add("fx-both");
     else if(realHit) el.classList.add("fx-real");
     else if(dollarHit) el.classList.add("fx-dollar");

@@ -40,13 +40,13 @@ const FILES = vm.runInNewContext("(" + cmSrc.match(/var FILES\s*=\s*(\{[\s\S]*?\
 const SOURCE_MAP = JSON.parse(fs.readFileSync(path.join(ROOT, "data-metric-sources.json"), "utf8"));
 
 const names = ["monthKey", "rateForPeriod", "nearestFxYear", "toUSDValue", "scaleOf", "isAlreadyUSDUnit", "forceUSDUnit",
-  "toUSDMillions", "computeDisplay", "dollarBasis", "displayMetric", "citationText", "getSourceNote", "shortSourceNote", "buildCombinedSrcNote"];
+  "toUSDMillions", "computeDisplay", "dollarBasis", "displayMetric", "citationText", "getSourceNote", "shortSourceNote", "buildCombinedSrcNote", "foreignCurrencyOf"];
 const vars = ["CONCEPT_UNIT", "COUNTRY_CURRENCY", "DOLLAR_GLYPH_LOCAL_CURRENCY_COUNTRIES", "CURRENCY_NAME", "NATIVE_DOLLAR_SYMBOL"];
 const cm = { console };
 vm.createContext(cm);
 vm.runInContext(
   "var FX_RATES = {}, REGISTRY = {}, series = [], SOURCE_MAP = {}, POLICY_RATE_KEYS = [];\n" +
-  vars.map(v => varLit(cmSrc, v)).join("\n") + "\n" +
+  vars.map(v => varLit(cmSrc, v)).join("\n") + "\n" + (src => (src.match(/var CURRENCY_GLYPH_CODE[^\n]*/) || [""])[0])(cmSrc) + "\n" +
   varLit(cmSrc, "SOURCE_ALT_KEYS") + "\n" +
   names.map(n => fn(cmSrc, n)).join("\n") + "\n" +
   // the page's getSeries reads REGISTRY[country][concept] and rolls quarterly GDP up; the logic under test only
@@ -60,7 +60,8 @@ vm.runInContext(
 const D = { console }; vm.createContext(D);
 vm.runInContext(
   "var FX_RATES = {}, REGISTRY = {}, dollarise = true, DOLLAR_GLYPH_LOCAL_CURRENCY_COUNTRIES = {Australia:1, Canada:1, Mexico:1, \"South Africa\":1, Brazil:1};\n" +
-  ["monthKey", "rateForPeriod", "isRealGDPKey", "realFxYearFor", "usdRateFor", "toUSDValue", "toDisplayPoints", "isCurrencyUnit", "isAlreadyUSD"].map(n => fn(dashSrc, n)).join("\n") + "\n" +
+  (src => (src.match(/var CURRENCY_GLYPH_CODE[^\n]*/) || [""])[0])(dashSrc) + "\n" +
+  ["monthKey", "rateForPeriod", "isRealGDPKey", "realFxYearFor", "usdRateFor", "toUSDValue", "toDisplayPoints", "isCurrencyUnit", "isAlreadyUSD", "foreignCurrencyOf"].map(n => fn(dashSrc, n)).join("\n") + "\n" +
   "this.setData = function(f, r){ FX_RATES = f; REGISTRY = r; };\nthis.toDisplayPoints = toDisplayPoints;", D);
 
 cm.setSources(SOURCE_MAP);

@@ -32,8 +32,8 @@ const C = load("compare.html", ["monthKey", "rateForPeriod", "toUSDValue", "isBe
   "var FX_RATES = {}, REGISTRY = {}; function resolveKey(c, k){ return REGISTRY[c] && REGISTRY[c][k] ? k : null; }" +
   "this.setData = function(f, r){ FX_RATES = f; REGISTRY = r; };");
 const D = load("dashboard.html", ["monthKey", "rateForPeriod", "isRealGDPKey", "realFxYearFor", "usdRateFor",
-  "toUSDValue", "toDisplayPoints", "isCurrencyUnit", "isAlreadyUSD"],
-  "var FX_RATES = {}, REGISTRY = {}, dollarise = true, DOLLAR_GLYPH_LOCAL_CURRENCY_COUNTRIES = {Australia:1, Canada:1, Mexico:1, \"South Africa\":1, Brazil:1};" +
+  "toUSDValue", "toDisplayPoints", "isCurrencyUnit", "isAlreadyUSD", "foreignCurrencyOf"],
+  (src => (src.match(/var CURRENCY_GLYPH_CODE[^\n]*/) || [""])[0])(fs.readFileSync(path.join(ROOT, "dashboard.html"), "utf8")) + "\n" + "var FX_RATES = {}, REGISTRY = {}, dollarise = true, DOLLAR_GLYPH_LOCAL_CURRENCY_COUNTRIES = {Australia:1, Canada:1, Mexico:1, \"South Africa\":1, Brazil:1};" +
   "this.setData = function(f, r){ FX_RATES = f; REGISTRY = r; };");
 const M = load("chartmaker.html", ["monthKey", "rateForPeriod", "nearestFxYear", "toUSDValue"],
   "var FX_RATES = {}; this.setData = function(f){ FX_RATES = f; };");
