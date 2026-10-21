@@ -512,6 +512,24 @@ def usd_unit(u):
 def fmt_value(v, unit, key="", country=""):
     return fmt_num(v, unit, key, country, "value")
 
+# v1.9.7: the ONS's Labour Force Survey rates are rolling three-month averages labelled by their
+# MIDDLE month ("2026-07" is June to August 2026). Shown as the ONS publishes them and compared with
+# the previous non-overlapping three months, as on the country page (v1.9.5).
+ROLLING_3M_MID = {("UK", "unemployment"), ("UK", "employment"), ("UK", "inactivity"), ("UK", "unemployment_1624")}
+
+
+def is_rolling3m(country, key):
+    return (country, key) in ROLLING_3M_MID
+
+
+def fmt_rolling3m(period):
+    y, m = int(str(period)[:4]), int(str(period)[5:7])
+    sy, sm = (y, m - 1) if m > 1 else (y - 1, 12)
+    ey, em = (y, m + 1) if m < 12 else (y + 1, 1)
+    a, b = MONTH_NAMES[sm - 1], MONTH_NAMES[em - 1]
+    return f"{a}\u2013{b} {ey}" if sy == ey else f"{a} {sy}\u2013{b} {ey}"
+
+
 def fmt_period_label(period):
     period = str(period or "")
     m = re.match(r"^(\d{4})-(\d{2})$", period)
@@ -1603,7 +1621,7 @@ def context_sentences(country, label, key, pts, unit, freq, rank=None):
         return out
     lp, lv = pts[-1]
     val = lambda v: fmt_num(v, unit, key, country)
-    per = fmt_period_label
+    per = fmt_rolling3m if (is_rolling3m(country, key) and freq == "months") else fmt_period_label
     where = in_country(country)
     ya = _year_earlier_point(pts) if freq in PER_YEAR and freq != "years" else (pts[-2] if freq == "years" else None)
     if ya:
@@ -1659,6 +1677,10 @@ def render_indicator(country, info, entry, rank_info, all_rankings_meta, n_indic
 
     latest_p, latest_v = pts[-1]
     prev_p, prev_v = pts[-2]
+    roll = is_rolling3m(country, key) and freq == "months" and len(pts) >= 4
+    if roll:
+        prev_p, prev_v = pts[-4]
+    plab = fmt_rolling3m if roll else fmt_period_label
     latest_str = fmt_num(latest_v, unit, key, country)
     d = rounded_delta(latest_v - prev_v, unit, key)
     flat = abs(d) < 1e-9
@@ -1670,7 +1692,7 @@ def render_indicator(country, info, entry, rank_info, all_rankings_meta, n_indic
         pc = (latest_v - prev_v) / prev_v * 100
         dstr = ("\u2212" if pc < 0 else "+") + _fixed(abs(pc), 2) + "%"
     fresh = is_fresh(latest_p, freq)
-    led_title = f"Latest release: {fmt_period_label(latest_p)}" if fresh else f"Awaiting next release. Last data: {fmt_period_label(latest_p)}"
+    led_title = f"Latest release: {plab(latest_p)}" if fresh else f"Awaiting next release. Last data: {plab(latest_p)}"
     updated = (info["data"].get("updated") or "")[:10]
 
     # Dollarise / Make it real: GDP only, as on the country pages.
@@ -1704,7 +1726,7 @@ def render_indicator(country, info, entry, rank_info, all_rankings_meta, n_indic
         lp, lv = e["pts"][-1]
         tiles.append(f'<a href="{cslug}-{e["m"]["slug"]}"><span class="r-name">{esc(e["title"])}</span>'
                      f'<span class="r-val">{esc(fmt_num(lv, e["unit"], e["key"], country))}</span>'
-                     f'<span class="r-per">{esc(fmt_period_label(lp))}</span></a>')
+                     f'<span class="r-per">{esc((fmt_rolling3m if is_rolling3m(country, e["key"]) else fmt_period_label)(lp))}</span></a>')
     related_html = "\n".join(tiles)
 
     this_rk = RANKING_BY_METRIC.get(m["slug"])
@@ -1714,8 +1736,8 @@ def render_indicator(country, info, entry, rank_info, all_rankings_meta, n_indic
                    f"{n_label} on one dashboard, from growth and prices to jobs, trade and public finances. Updated automatically from official sources.")
 
     meta_label = lower_keep_acronyms(re.sub(r"\s*\([^)]*\)", "", title).strip())
-    page_title = f"{country} {title}: {latest_str} ({fmt_period_label(latest_p)}) | The Economic Atlas"
-    meta_desc = f"{country} {meta_label} was {latest_str} in {fmt_period_label(latest_p)}. {first_sentence(description)} Live chart and full history from {fmt_period_label(pts[0][0])}."
+    page_title = f"{country} {title}: {latest_str} ({plab(latest_p)}) | The Economic Atlas"
+    meta_desc = f"{country} {meta_label} was {latest_str} in {plab(latest_p)}. {first_sentence(description)} Live chart and full history from {fmt_period_label(pts[0][0])}."
     if len(meta_desc) > 300:
         meta_desc = meta_desc[:297] + "..."
     jsonld = json.dumps({
@@ -1745,7 +1767,7 @@ def render_indicator(country, info, entry, rank_info, all_rankings_meta, n_indic
     defs = [("Source", src_pub or source_text), ("Series", src_series or "See the citation below"),
             ("Frequency", FREQ_WORD.get(freq, "")), ("Unit", _clean_unit(unit) or "index"),
             ("Seasonal adjustment", adj or ("Not applicable: a market price" if market else "Not stated in the source citation")),
-            ("Latest observation", fmt_period_label(latest_p)),
+            ("Latest observation", plab(latest_p)),
             ("Revision status", "Market price, not revised" if market else "Latest published estimate, subject to revision")]
     defs_html = "".join(f'<div><dt>{esc(k)}</dt><dd>{esc(v)}</dd></div>' for k, v in defs)
     rk_ctx = None
@@ -1779,8 +1801,8 @@ def render_indicator(country, info, entry, rank_info, all_rankings_meta, n_indic
   <div class="ind-stat">
     <p class="ind-figure"><span class="led {'green' if fresh else 'orange'}" id="indLed" title="{esc(led_title)}" role="img" aria-label="{esc(led_title)}"></span><span id="indFigure">{esc(latest_str)}</span></p>
     <div class="ind-meta">
-      <p class="ind-delta {ddir}" id="indDelta"><span aria-hidden="true">{arrow}</span> {esc(dstr)} <span class="ind-delta-vs">vs {esc(fmt_period_label(prev_p))}</span></p>
-      <p class="ind-when"><strong id="indPeriod">{esc(fmt_period_label(latest_p))}</strong> &middot; {esc(FREQ_WORD.get(freq, ''))} data</p>
+      <p class="ind-delta {ddir}" id="indDelta"><span aria-hidden="true">{arrow}</span> {esc(dstr)} <span class="ind-delta-vs">vs {esc(plab(prev_p))}</span></p>
+      <p class="ind-when"><strong id="indPeriod">{esc(plab(latest_p))}</strong> &middot; {esc("Three-month average" if roll else FREQ_WORD.get(freq, '') + " data")}</p>
       {window_html}
       {adj_html}
     </div>
@@ -1795,8 +1817,8 @@ def render_indicator(country, info, entry, rank_info, all_rankings_meta, n_indic
         <button type="button" data-range="max" class="active" aria-pressed="true">Max</button><button type="button" data-range="10" aria-pressed="false">10Y</button><button type="button" data-range="5" aria-pressed="false">5Y</button><button type="button" data-range="1" aria-pressed="false">1Y</button>
       </div>
     </div>
-    <p class="range" id="indRange">{esc(fmt_period_label(pts[0][0]))} to {esc(fmt_period_label(latest_p))}</p>
-    <div class="ind-chart"><canvas id="indChart" role="img" aria-label="{esc(country)} {esc(title)}, {esc(fmt_period_label(pts[0][0]))} to {esc(fmt_period_label(latest_p))}"></canvas></div>
+    <p class="range" id="indRange">{esc(fmt_period_label(pts[0][0]))} to {esc(plab(latest_p))}</p>
+    <div class="ind-chart"><canvas id="indChart" role="img" aria-label="{esc(country)} {esc(title)}, {esc(fmt_period_label(pts[0][0]))} to {esc(plab(latest_p))}"></canvas></div>
     <div class="lockedactions" id="indActions"></div>
     <p class="src">Source: {esc(source_text)}</p>
   </section>
@@ -1860,7 +1882,7 @@ def render_ranking(ranking, rows, unranked, all_rankings_meta, catalogue_by_coun
             f'<td class="country"><a href="../indicators/{cslug}-{m["slug"]}">{esc(c)}</a><span class="rk-region">{esc(COUNTRIES[c][3])}</span></td>'
             f'<td class="num val{cls}">{esc(r["value_str"])}<span class="rk-bar"><span class="{"neg" if r["value"] < 0 else ""}" style="width:{width:.1f}%"></span></span></td>'
             f'<td class="num chg"{chg_title}>{esc(r["change_str"])}</td>'
-            f'<td class="num">{led}{esc(fmt_period_label(r["period"]))}<span class="measuretag">{esc(tag)}</span></td>'
+            f'<td class="num">{led}{esc((fmt_rolling3m if is_rolling3m(r["country"], r.get("key")) and r.get("freq") == "months" else fmt_period_label)(r["period"]))}<span class="measuretag">{esc(tag)}</span></td>'
             f'<td class="trend">{sparkline_svg(r["spark"])}</td>'
             f'<td class="src">{esc(r["src_pub"])}<span class="src-series">{esc(r["src_series"])}</span></td>'
             f'</tr>')
@@ -2373,7 +2395,7 @@ def main():
             embed = EMBED_TEMPLATE.format(
                 country_name=esc(country), metric_title=esc(entry["title"]),
                 latest_str=esc(fmt_num(lp[1], entry["unit"], entry["key"], country)),
-                latest_period=esc(fmt_period_label(lp[0])), indicator_url=f"{SITE_URL}/indicators/{page_slug}",
+                latest_period=esc((fmt_rolling3m if is_rolling3m(country, entry["key"]) else fmt_period_label)(lp[0])), indicator_url=f"{SITE_URL}/indicators/{page_slug}",
                 kit_version=KIT_VERSION,
                 cfg=json.dumps(dict(dataUrl=f"../{data_file_for(iso2)}", key=entry["key"], unit=entry["unit"], country=country,
                                     annualise=bool(entry["m"].get("ann")), gdpRaw=country in GDP_RAW_COUNTRIES), ensure_ascii=False))
