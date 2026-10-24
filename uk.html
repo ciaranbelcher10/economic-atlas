@@ -2525,7 +2525,7 @@ const COUNTRY_LABEL="UK";
 const _KEY_NAMES={cpi_mom:"Inflation (m/m)",cpi_qoq:"Inflation (q/q)",cpi_mom_sa:"Inflation (m/m, SA)",
   cpih_mom:"CPIH inflation (m/m)",cpi_national:"National CPI",gdp_growth_yoy:"GDP growth (y/y)",
   gdp_level_annual:"GDP (annual)",gdp_real_annual:"Real GDP (annual)",gdp_nominal:"Nominal GDP",
-  unemployment_1624:"Youth unemployment (16\u201324)",debt_interest:"Debt interest",
+  unemployment_1624:"Youth unemployment (16\u201324)",debt_interest:"Debt interest",current_account_q:"Current account (quarterly)",
   bond_yield_10y:"10-year bond yield",fed_funds_upper:"Fed funds rate (upper)",fed_funds_lower:"Fed funds rate (lower)"};
 function _nameOf(k){
   if(_KEY_NAMES[k]) return _KEY_NAMES[k];
@@ -2708,6 +2708,9 @@ function render(data){
   if(s.current_account) chartPanel("current_account","charts-trade","Current account",
     "The UK's overall balance with the rest of the world (trade plus investment income) as a share of GDP.",
     s.current_account,"line",v=>v+"%",pct,"ONS series AA6H · % of GDP, annual (Pink Book)",undefined,0);
+  if(s.current_account_q) chartPanel("current_account_q","charts-trade","Current account, quarterly",
+    "The same balance as the annual chart, reported each quarter, so it shows recent moves well before the annual figure arrives.",
+    s.current_account_q,"line",v=>v+"%",pct,"ONS series AA6H (PNBP) · % of GDP, quarterly",undefined,0);
   if(s.exports) chartPanel("exports","charts-trade","Exports",
     "The value of goods and services the UK sells to the rest of the world each month.",
     s.exports,"line",v=>curFmt(v,s.exports.unit,0),v=>curFmt(v,s.exports.unit,1),"ONS series IKBH (MRET) · goods and services, current prices, SA");
@@ -2911,6 +2914,11 @@ const INFO_CONTENT = {
   current_account: {
     description: "The UK's overall balance with the rest of the world, trade in goods and services plus net investment income, as a share of GDP.",
     source: "ONS series AA6H \u00b7 % of GDP, annual (from the UK Balance of Payments \u201cPink Book\u201d).",
+    dollar: "Already expressed as a % of GDP, currency-agnostic. \u201cDollarise\u201d has no effect on this figure."
+  },
+  current_account_q: {
+    description: "The UK's overall balance with the rest of the world, trade in goods and services plus net investment income, as a share of GDP, each quarter.",
+    source: "ONS series AA6H (PNBP, Balance of Payments) \u00b7 % of GDP, quarterly.",
     dollar: "Already expressed as a % of GDP, currency-agnostic. \u201cDollarise\u201d has no effect on this figure."
   },
   trade_balance: {

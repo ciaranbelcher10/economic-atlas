@@ -86,6 +86,11 @@ UK_SERIES = {
     "current_account": (["/economy/nationalaccounts/balanceofpayments/timeseries/aa6h/bop",
                          "/economy/nationalaccounts/balanceofpayments/timeseries/aa6h/pb"],
                         "Current account balance, % of GDP (AA6H)", "%"),
+    # Quarterly sibling of current_account, for the UK page only. Rankings,
+    # Compare and the indicator page keep the annual series above (they only
+    # rank a completed year); no other page reads this key.
+    "current_account_q": (["/economy/nationalaccounts/balanceofpayments/timeseries/aa6h/pnbp"],
+                          "Current account balance, % of GDP, quarterly (AA6H)", "%"),
     "trade_balance": (["/economy/nationalaccounts/balanceofpayments/timeseries/ikbj/mret"],
                       "Total trade balance, goods and services, SA (IKBJ)", "£m"),
     "exports": (["/economy/nationalaccounts/balanceofpayments/timeseries/ikbh/mret"],
