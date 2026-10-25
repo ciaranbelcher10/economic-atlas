@@ -52,6 +52,7 @@ from __future__ import annotations
 import redact_stream  # noqa: F401  (v1.7.42: masks api_key= in all output)
 import re
 import oecd_turn
+import gdp_overlay
 import oecd_prices
 import json
 import time
@@ -171,6 +172,31 @@ def transform(points: list, kind: str | None) -> list:
             continue
         out.append([per, round((val / base - 1) * 100, 4)])
     return out
+
+
+# v1.9.9: the OECD's quarterly national accounts carry the same national figures a quarter sooner than
+# IMF IFS via FRED. They replace the IFS values from a validated window onward (see gdp_overlay.py); if
+# any check fails, or it is not this script's OECD turn, the IFS series is left exactly as fetched.
+GDP_OVERLAY = {
+    "gdp_real": dict(TRANSACTION="B1GQ", PRICE_BASE="Q", ADJUSTMENT="Y", TRANSFORMATION="N", UNIT_MEASURE="XDC"),
+    "gdp_level": dict(TRANSACTION="B1GQ", PRICE_BASE="V", ADJUSTMENT="Y", TRANSFORMATION="N", UNIT_MEASURE="XDC"),
+}
+
+
+def overlay_gdp(series: dict) -> None:
+    try:
+        rows = gdp_overlay.qna_rows("ZAF")
+        for key, sel in GDP_OVERLAY.items():
+            gdp_overlay.apply_overlay(series, key, rows, sel)
+    except oecd_turn.NotThisHour as exc:
+        print(f"SKIP  gdp OECD overlay  {exc}")
+    except Exception as exc:
+        print(f"WARN  gdp OECD overlay  {exc} (IFS series kept)")
+
+
+def _growth_label(label: str, series: dict) -> str:
+    """The derived growth series inherits the overlay note from the real GDP series it is derived from."""
+    return gdp_overlay.relabel(label) if gdp_overlay.RELABEL in series["gdp_real"]["label"] else label
 
 
 def gdp_growth_from_level(points: list) -> list:
@@ -521,6 +547,8 @@ def main() -> int:
                 failures.append(name)
                 print(f"FAIL  {name:<16} {exc}")
 
+        overlay_gdp(out["series"])
+
         # gdp_growth is derived from the REAL (constant-price) GDP series,
         # not the nominal level. Deriving it from the nominal level gave a
         # growth rate that still had the GDP deflator in it, while every
@@ -531,7 +559,7 @@ def main() -> int:
                 growth = gdp_growth_from_level(gpts)
                 if growth:
                     out["series"]["gdp_growth"] = {
-                        "label": "Real GDP growth, QoQ, SA (derived from NGDPRSAXDCZAQ)", "unit": "%",
+                        "label": _growth_label("Real GDP growth, QoQ, SA (derived from NGDPRSAXDCZAQ)", out["series"]), "unit": "%",
                         "freq": "quarters", "points": growth}
                     print(f"  ok  gdp_growth       {len(growth):>5} observations (derived from real GDP)")
             except Exception as exc:
