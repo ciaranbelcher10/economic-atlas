@@ -113,7 +113,11 @@ import series_guard
 # Add an entry ONLY when intentionally swapping source, and say why, e.g.
 #     ALLOW_SHRINK = {"ppi": "PPIACO -> PPIFID, final demand is the BLS headline"}
 # Remove it once the new series has landed.
-ALLOW_SHRINK = {"gdp_growth": "v1.6.33: QoQ -> YoY from NSA real GDP, four fewer points at the start"}
+# v1.9.11: the v1.6.33 entry for gdp_growth (QoQ -> YoY, four fewer points at the start) is removed. It had
+# long since served its purpose, and while it stood the guard could not hold Argentina's growth on a run
+# where the OECD overlay is off its turn: growth was re-derived from the IFS-only real series, one quarter
+# behind, and replaced the newer one, so growth lagged real GDP on two runs in three.
+ALLOW_SHRINK = {}
 
 # key: (fred_id, freq 'm'|'q'|'a', label, unit, transform None|'yoy'|'mom'|'qoq', scale)
 FRED_SERIES = {

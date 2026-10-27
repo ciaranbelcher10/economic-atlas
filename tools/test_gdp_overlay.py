@@ -17,6 +17,7 @@ ROOT = Path(__file__).resolve().parent.parent
 sys.path.insert(0, str(ROOT))
 import gdp_overlay as go  # noqa: E402
 import oecd_turn  # noqa: E402
+import series_guard  # noqa: E402
 import fetch_ar  # noqa: E402
 import fetch_za  # noqa: E402
 
@@ -278,6 +279,36 @@ def growth_label_follows_real_series():
         check(mod._growth_label(lab, plain) == lab, f"{mod.__name__}: growth label must be unchanged without an overlay")
         check(go.RELABEL in mod._growth_label(lab, over) and mod._growth_label(lab, over).startswith(lab[:-1]),
               f"{mod.__name__}: growth label must carry the overlay note when the real series does")
+
+
+@case
+def guard_holds_growth_when_a_run_comes_back_a_quarter_behind():
+    """Production, 27 Oct 2026: on a run outside the OECD turn, growth is re-derived from the IFS-only real series,
+    which ends a quarter before the stored OECD-extended one. series_guard must keep the stored growth, for both
+    countries, so growth never lags real GDP. (Argentina's fetcher used to exempt gdp_growth: it did not hold.)"""
+    cases = ((fetch_za, ZA_REAL, OECD_NEW["ZA_REAL"], fetch_za.gdp_growth_from_level),
+             (fetch_ar, AR_REAL, OECD_NEW["AR_REAL"], lambda pts: fetch_ar.yoy_from_level(pts, 4)))
+    for mod, real, new, growth in cases:
+        ext, rep = go.overlay(real, cand_for(real, new))
+        assert rep["applied"], rep
+        prev = {"gdp_real": {"label": "r", "unit": "x", "freq": "quarters", "points": [list(p) for p in ext]},
+                "gdp_growth": {"label": "g", "unit": "%", "freq": "quarters", "points": growth(ext)}}
+        out = {"gdp_real": {"label": "r", "unit": "x", "freq": "quarters", "points": [list(p) for p in real]},
+               "gdp_growth": {"label": "g", "unit": "%", "freq": "quarters", "points": growth([list(p) for p in real])}}
+        check(out["gdp_growth"]["points"][-1][0] == "2026-Q1" and prev["gdp_growth"]["points"][-1][0] == "2026-Q2",
+              f"{mod.__name__}: test setup wrong")
+        with mock.patch.object(series_guard, "_age_days", return_value=120):
+            series_guard.apply_guard(out, prev, allow_shrink=mod.ALLOW_SHRINK, log=None)
+        check(out["gdp_growth"]["points"] == prev["gdp_growth"]["points"],
+              f"{mod.__name__}: guard let growth fall back to {out['gdp_growth']['points'][-1]} "
+              f"(stored ends {prev['gdp_growth']['points'][-1][0]}); ALLOW_SHRINK={mod.ALLOW_SHRINK}")
+        check(out["gdp_real"]["points"] == prev["gdp_real"]["points"], f"{mod.__name__}: guard let real GDP fall back")
+        # and an on-turn run, which reaches 2026-Q2 again, is accepted as an update
+        out2 = {k: {**v, "points": [list(p) for p in v["points"]]} for k, v in prev.items()}
+        with mock.patch.object(series_guard, "_age_days", return_value=120):
+            verdicts = series_guard.apply_guard(out2, prev, allow_shrink=mod.ALLOW_SHRINK, log=None)
+        check(out2["gdp_growth"]["points"] == prev["gdp_growth"]["points"] and verdicts["gdp_growth"][0] != "kept",
+              f"{mod.__name__}: an equal series must be accepted: {verdicts.get('gdp_growth')}")
 
 
 print("test_gdp_overlay:", "FAILED" if fails else "ok", f"({len(fails)} failures)")
