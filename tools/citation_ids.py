@@ -304,6 +304,16 @@ if __name__ == "__main__":
                              ",".join(sorted(stray)), ",".join(sorted(used))))
                 continue
             if not used:
+                # v1.9.12: a metric asked of Eurostat FIRST, with no FRED_SERIES entry (only an
+                # EUROSTAT_FALLBACK one): the first-choice dataset is its id, and the citation must name it.
+                ds = eurostat_fallback_datasets(script, metric)
+                if ds:
+                    if any(d in citation for d in ds):
+                        counts["MATCH"] += 1
+                    else:
+                        counts["UNCITED"] += 1
+                        rows.append(("UNCITED", country, metric, "", ",".join(ds)))
+                    continue
                 counts["NO-ID"] += 1
                 continue
             # ID_RE needs six characters, so short FRED codes (GDP, GDPC1,

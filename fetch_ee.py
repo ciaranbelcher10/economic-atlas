@@ -31,7 +31,8 @@ labour rates are taken from Eurostat directly (EUROSTAT_FIRST):
   Estonia joined the euro (SERIES_START); before that the kroon ran on a
   currency board (8 per DM from June 1992, then the euro), so Eesti Pank
   set no policy rate of its own.
-- bond_yield_10y: FRED IRLTLT01EEM156N; fallback Eurostat irt_lt_mcby_m
+- bond_yield_10y: Eurostat irt_lt_mcby_m, asked first (FRED's IRLTLT01EEM156N answers HTTP 400
+  and is no longer asked, v1.9.12); the series is
   (the EMU convergence-criterion 10-year yield), monthly, from 2020-06:
   Estonia had no 10-year government bond before its June 2020 issue.
 - trade_balance: Eurostat ext_st_27_2020msbec, world partner, EUR.
@@ -69,13 +70,15 @@ ALLOW_SHRINK = {"unemployment": "v1.6.34: OECD/FRED LRHUTTTT copy -> Eurostat un
                 "employment_rate": "v1.7.45: FRED LREM64TTEEQ156S (2000-Q1) -> Eurostat lfsi_emp_q SA (2009-Q1), the publisher's figures",
                 "participation_rate": "v1.7.45: FRED LRAC64TTEEQ156S (2000-Q1) -> Eurostat lfsi_emp_q SA (2009-Q1), the publisher's figures"}
 
+# v1.9.12: bond_yield_10y is NOT listed here. FRED answers HTTP 400 for
+# IRLTLT01EEM156N on every run and Eurostat then supplied the series each
+# time, so they are asked of Eurostat directly (EUROSTAT_FALLBACK below).
 # key: (fred_id, freq 'm'|'q'|'a', label, unit, transform None|'yoy'|'mom'|'qoq', scale)
 FRED_SERIES = {
     "ecb_rate": ("ECBDFR", "d", "ECB deposit facility rate", "%", None, 1.0),
     "gdp_level": ("CPMNACSCAB1GQEE", "q", "Nominal GDP, current prices, SCA (Eurostat)", "\u20acm", None, 1.0),
     "gdp_real": ("CLVMNACSCAB1GQEE", "q", "Real GDP, chain-linked volumes, SCA (Eurostat)", "\u20acm", None, 1.0),
     "unemployment": ("LRHUTTTTEEM156S", "m", "Unemployment rate, 15+, SA (OECD harmonized)", "%", None, 1.0),
-    "bond_yield_10y": ("IRLTLT01EEM156N", "m", "10-year government bond yield", "%", None, 1.0),
     "cpi": ("CP0000EEM086NEST", "m", "HICP, all items, YoY", "%", "yoy", 1.0),
     "cpi_mom": ("CP0000EEM086NEST", "m", "HICP, all items, MoM", "%", "mom", 1.0),
 }
@@ -412,7 +415,8 @@ def _fx_rate_for_period(fx_hist, period, fallback):
 
 
 # Eurostat stand-ins for the OECD-derived FRED series, kept from the Bulgaria
-# template. Tried only for keys whose FRED fetch failed this run.
+# template. Asked first for every key here that has no FRED_SERIES entry
+# (v1.9.12), and after FRED for any other key whose FRED fetch failed.
 EUROSTAT_FALLBACK = {
     "bond_yield_10y": [("irt_lt_mcby_m", "&geo=EE&int_rt=MCBY", "months",
                         "10-year government bond yield, EMU convergence criterion (Eurostat irt_lt_mcby_m)")],
@@ -497,6 +501,8 @@ def main() -> int:
                 if name in failures:
                     failures.remove(name)
                 print(f"  ok  {name:<16} {len(pts):>5} observations ({pts[0][0]} to {pts[-1][0]}, Eurostat fallback)")
+            elif name not in failures:
+                failures.append(name)      # an Eurostat outage stays visible as Missing
 
         # gdp_growth: derived from gdp_real (QoQ), since gdp_level has no
         # individually-confirmed series for Estonia -- see build notes.

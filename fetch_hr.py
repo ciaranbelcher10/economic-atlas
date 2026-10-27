@@ -11,22 +11,24 @@ serves the whole history in euro (CP_MEUR), so no currency conversion is
 needed; fx_to_usd (FRED DEXUSEU) exists only for "Dollarise".
 
 Croatia is not an OECD member, so the OECD-derived FRED copies may not
-exist. Each one has a Eurostat fallback, tried only if FRED fails:
+exist (FRED answers HTTP 400 for them). Eurostat is asked first for each such series (v1.9.12):
 
 - gdp_level / gdp_real: Eurostat namq_10_gdp via eurostat_gdp.py (SCA).
   FRED CPMNACSCAB1GQHR / CLVMNACSCAB1GQHR are the fallback only.
 - gdp_growth: derived q/q from the real series.
 - unemployment: Eurostat une_rt_m via eurostat_unemp.py; FRED
   LRHUTTTTHRM156S is the fallback.
-- participation_rate / employment_rate: FRED LRAC64TTHRQ156S /
-  LREM64TTHRQ156S; fallback Eurostat lfsq_argan / lfsq_ergan (15-64, NSA).
+- participation_rate / employment_rate: Eurostat lfsi_emp_q (15-64, SA, from 2009-Q1);
+  lfsq_argan / lfsq_ergan (NSA) only if that query fails. FRED's LRAC64TTHRQ156S /
+  LREM64TTHRQ156S answer HTTP 400 and are no longer asked (v1.9.12).
 - cpi / cpi_mom: HICP all items (CP0000HRM086NEST, Eurostat via FRED).
   The Croatian Bureau of Statistics' national CPI differs; whether to add it
   is decided from the probe.
 - ecb_rate: ECB deposit facility rate (ECBDFR), served from 2023-01 when
   Croatia joined the euro (SERIES_START); before that the Croatian National
   Bank ran its own policy, which this page does not show.
-- bond_yield_10y: FRED IRLTLT01HRM156N; fallback Eurostat irt_lt_mcby_m
+- bond_yield_10y: Eurostat irt_lt_mcby_m, asked first (FRED's IRLTLT01HRM156N answers HTTP 400
+  and is no longer asked, v1.9.12); the series is
   (the EMU convergence-criterion 10-year yield), monthly.
 - trade_balance: Eurostat ext_st_27_2020msbec, world partner, EUR.
 - business_confidence: OECD BCICP (REF_AREA HRV), the script's only OECD
@@ -63,15 +65,15 @@ ALLOW_SHRINK = {"unemployment": "v1.6.34: OECD/FRED LRHUTTTT copy -> Eurostat un
                 "employment_rate": "v1.7.41: unadjusted lfsq_ergan (2002-) -> seasonally adjusted lfsi_emp_q (2009-); tourism seasonality",
                 "participation_rate": "v1.7.41: unadjusted lfsq_argan (2002-) -> seasonally adjusted lfsi_emp_q (2009-); tourism seasonality"}
 
+# v1.9.12: bond_yield_10y, participation_rate and employment_rate are NOT listed here. FRED answers HTTP 400 for
+# IRLTLT01HRM156N, LRAC64TTHRQ156S and LREM64TTHRQ156S on every run and Eurostat then supplied the series each
+# time, so they are asked of Eurostat directly (EUROSTAT_FALLBACK below).
 # key: (fred_id, freq 'm'|'q'|'a', label, unit, transform None|'yoy'|'mom'|'qoq', scale)
 FRED_SERIES = {
     "ecb_rate": ("ECBDFR", "d", "ECB deposit facility rate", "%", None, 1.0),
     "gdp_level": ("CPMNACSCAB1GQHR", "q", "Nominal GDP, current prices, SCA (Eurostat)", "\u20acm", None, 1.0),
     "gdp_real": ("CLVMNACSCAB1GQHR", "q", "Real GDP, chain-linked volumes, SCA (Eurostat)", "\u20acm", None, 1.0),
     "unemployment": ("LRHUTTTTHRM156S", "m", "Unemployment rate, 15+, SA (OECD harmonized)", "%", None, 1.0),
-    "participation_rate": ("LRAC64TTHRQ156S", "q", "Labour force participation rate, 15-64, SA", "%", None, 1.0),
-    "employment_rate": ("LREM64TTHRQ156S", "q", "Employment rate, 15-64, SA", "%", None, 1.0),
-    "bond_yield_10y": ("IRLTLT01HRM156N", "m", "10-year government bond yield", "%", None, 1.0),
     "cpi": ("CP0000HRM086NEST", "m", "HICP, all items, YoY", "%", "yoy", 1.0),
     "cpi_mom": ("CP0000HRM086NEST", "m", "HICP, all items, MoM", "%", "mom", 1.0),
 }
@@ -408,7 +410,8 @@ def _fx_rate_for_period(fx_hist, period, fallback):
 
 
 # Eurostat stand-ins for OECD-derived FRED series Croatia may not have
-# (non-member). Tried only for keys whose FRED fetch failed this run.
+# (non-member). Asked first for every key here that has no FRED_SERIES entry
+# (v1.9.12), and after FRED for any other key whose FRED fetch failed.
 EUROSTAT_FALLBACK = {
     "bond_yield_10y": [("irt_lt_mcby_m", "&geo=HR&int_rt=MCBY", "months",
                         "10-year government bond yield, EMU convergence criterion (Eurostat irt_lt_mcby_m)")],
@@ -485,13 +488,17 @@ def main() -> int:
                 failures.append(name)
                 print(f"FAIL  {name:<16} {_redact(exc)}")
 
-        for name in [n for n in EUROSTAT_FALLBACK if n in failures]:
+        # Keys with no FRED entry (v1.9.12) always come from Eurostat first.
+        for name in [n for n in EUROSTAT_FALLBACK if n in failures or n not in FRED_SERIES]:
             got = fetch_eurostat_fallback(name)
             if got:
                 pts, fr, lab = got
                 out["series"][name] = {"label": lab, "unit": "%", "freq": fr, "points": pts}
-                failures.remove(name)
+                if name in failures:
+                    failures.remove(name)
                 print(f"  ok  {name:<16} {len(pts):>5} observations ({pts[0][0]} to {pts[-1][0]}, Eurostat fallback)")
+            elif name not in failures:
+                failures.append(name)      # an Eurostat outage stays visible as Missing
 
         # gdp_growth: derived from gdp_real (QoQ), since gdp_level has no
         # individually-confirmed series for Croatia -- see build notes.

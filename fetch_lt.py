@@ -12,22 +12,23 @@ needed; fx_to_usd (FRED DEXUSEU) exists only for "Dollarise".
 
 Lithuania has been an OECD member since 2018, but FRED has no OECD copies of
 its labour-force rates or 10-year yield (LRAC64TTLTQ156S, LREM64TTLTQ156S,
-IRLTLT01LTM156N all return 400), so those come from the Eurostat fallbacks:
+IRLTLT01LTM156N all return 400), so those are fetched from Eurostat directly (v1.9.12):
 
 - gdp_level / gdp_real: Eurostat namq_10_gdp via eurostat_gdp.py (SCA).
   FRED CPMNACSCAB1GQLT / CLVMNACSCAB1GQLT are the fallback only.
 - gdp_growth: derived q/q from the real series.
 - unemployment: Eurostat une_rt_m via eurostat_unemp.py; FRED
   LRHUTTTTLTM156S is the fallback.
-- participation_rate / employment_rate: FRED LRAC64TTLTQ156S /
-  LREM64TTLTQ156S; served from Eurostat lfsi_emp_q (15-64, SA, from 2009-Q1).
+- participation_rate / employment_rate: served from Eurostat lfsi_emp_q (15-64, SA, from
+  2009-Q1). FRED's LRAC64TTLTQ156S / LREM64TTLTQ156S return 400 and are no longer asked (v1.9.12).
 - cpi / cpi_mom: HICP all items (CP0000LTM086NEST, Eurostat via FRED).
   The State Data Agency's national CPI differs; whether to add it
   is decided from the probe.
 - ecb_rate: ECB deposit facility rate (ECBDFR), served from 2015-01 when
   Lithuania joined the euro (SERIES_START); before that the litas ran on a
   currency board, so the Bank of Lithuania set no policy rate of its own.
-- bond_yield_10y: FRED IRLTLT01LTM156N; fallback Eurostat irt_lt_mcby_m
+- bond_yield_10y: Eurostat irt_lt_mcby_m, asked first (FRED's IRLTLT01LTM156N answers HTTP 400
+  and is no longer asked, v1.9.12); the series is
   (the EMU convergence-criterion 10-year yield), monthly.
 - trade_balance: Eurostat ext_st_27_2020msbec, world partner, EUR.
 - business_confidence: OECD BCICP (REF_AREA LTU), the script's only OECD
@@ -62,15 +63,15 @@ import eurostat_unemp
 # Remove it once the new series has landed.
 ALLOW_SHRINK = {"unemployment": "v1.6.34: OECD/FRED LRHUTTTT copy -> Eurostat une_rt_m; Eurostat history can start later"}
 
+# v1.9.12: bond_yield_10y, participation_rate and employment_rate are NOT listed here. FRED answers HTTP 400 for
+# IRLTLT01LTM156N, LRAC64TTLTQ156S and LREM64TTLTQ156S on every run and Eurostat then supplied the series each
+# time, so they are asked of Eurostat directly (EUROSTAT_FALLBACK below).
 # key: (fred_id, freq 'm'|'q'|'a', label, unit, transform None|'yoy'|'mom'|'qoq', scale)
 FRED_SERIES = {
     "ecb_rate": ("ECBDFR", "d", "ECB deposit facility rate", "%", None, 1.0),
     "gdp_level": ("CPMNACSCAB1GQLT", "q", "Nominal GDP, current prices, SCA (Eurostat)", "\u20acm", None, 1.0),
     "gdp_real": ("CLVMNACSCAB1GQLT", "q", "Real GDP, chain-linked volumes, SCA (Eurostat)", "\u20acm", None, 1.0),
     "unemployment": ("LRHUTTTTLTM156S", "m", "Unemployment rate, 15+, SA (OECD harmonized)", "%", None, 1.0),
-    "participation_rate": ("LRAC64TTLTQ156S", "q", "Labour force participation rate, 15-64, SA", "%", None, 1.0),
-    "employment_rate": ("LREM64TTLTQ156S", "q", "Employment rate, 15-64, SA", "%", None, 1.0),
-    "bond_yield_10y": ("IRLTLT01LTM156N", "m", "10-year government bond yield", "%", None, 1.0),
     "cpi": ("CP0000LTM086NEST", "m", "HICP, all items, YoY", "%", "yoy", 1.0),
     "cpi_mom": ("CP0000LTM086NEST", "m", "HICP, all items, MoM", "%", "mom", 1.0),
 }
@@ -407,7 +408,8 @@ def _fx_rate_for_period(fx_hist, period, fallback):
 
 
 # Eurostat stand-ins for the OECD-derived FRED series, kept from the Bulgaria
-# template. Tried only for keys whose FRED fetch failed this run.
+# template. Asked first for every key here that has no FRED_SERIES entry
+# (v1.9.12), and after FRED for any other key whose FRED fetch failed.
 EUROSTAT_FALLBACK = {
     "bond_yield_10y": [("irt_lt_mcby_m", "&geo=LT&int_rt=MCBY", "months",
                         "10-year government bond yield, EMU convergence criterion (Eurostat irt_lt_mcby_m)")],
@@ -483,13 +485,17 @@ def main() -> int:
                 failures.append(name)
                 print(f"FAIL  {name:<16} {_redact(exc)}")
 
-        for name in [n for n in EUROSTAT_FALLBACK if n in failures]:
+        # Keys with no FRED entry (v1.9.12) always come from Eurostat first.
+        for name in [n for n in EUROSTAT_FALLBACK if n in failures or n not in FRED_SERIES]:
             got = fetch_eurostat_fallback(name)
             if got:
                 pts, fr, lab = got
                 out["series"][name] = {"label": lab, "unit": "%", "freq": fr, "points": pts}
-                failures.remove(name)
+                if name in failures:
+                    failures.remove(name)
                 print(f"  ok  {name:<16} {len(pts):>5} observations ({pts[0][0]} to {pts[-1][0]}, Eurostat fallback)")
+            elif name not in failures:
+                failures.append(name)      # an Eurostat outage stays visible as Missing
 
         # gdp_growth: derived from gdp_real (QoQ), since gdp_level has no
         # individually-confirmed series for Lithuania -- see build notes.
