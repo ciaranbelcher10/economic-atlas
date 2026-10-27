@@ -40,6 +40,7 @@ OECD_PAUSE = 2
 WINDOW = 8          # overlapping quarters that must agree
 MIN_OVERLAP = 6     # fewer than this and there is nothing to validate against
 TOLERANCE = 0.01    # 1%
+DUP_TOLERANCE = 1e-5  # relative: the same figure published in two OECD tables, rounded differently
 RELABEL = "latest quarters from OECD QNA"
 _QPAT = re.compile(r"^(\d{4})-Q([1-4])$")
 
@@ -57,9 +58,12 @@ def qna_rows(iso: str) -> list:
 def select(rows: list, **want) -> dict:
     """{quarter: value} for the rows matching every column=value in `want`.
 
-    Raises if one quarter carries two different values: the selector then does not pin down one
-    series, and picking either would be a guess."""
-    out: dict = {}
+    The OECD publishes some series in more than one table (South Africa: TABLE_IDENTIFIER T0101 and
+    T0102), and the two copies differ only by rounding in the last decimal, e.g. 1048271.7 against
+    1048271.6. Values within DUP_TOLERANCE of each other are the same figure, and the LOWER one is
+    kept so the result does not depend on row order. Values further apart than that mean the
+    selector does not pin down one series, and picking either would be a guess, so this raises."""
+    seen: dict = {}
     for row in rows:
         if not all((row.get(k) or "") == v for k, v in want.items()):
             continue
@@ -70,9 +74,14 @@ def select(rows: list, **want) -> dict:
         per = (row.get("TIME_PERIOD") or "").strip()
         if not _QPAT.match(per):
             continue
-        if per in out and abs(out[per] - v) > 1e-9 * max(1.0, abs(v)):
-            raise ValueError(f"OECD selector is ambiguous: two values for {per} ({out[per]} and {v})")
-        out[per] = v
+        seen.setdefault(per, []).append(v)
+    out: dict = {}
+    for per, vs in seen.items():
+        lo, hi = min(vs), max(vs)
+        if hi - lo > DUP_TOLERANCE * max(1.0, abs(hi)):
+            raise ValueError(f"OECD selector is ambiguous: {per} has values {lo} and {hi}, "
+                             f"further apart than rounding")
+        out[per] = lo
     return out
 
 

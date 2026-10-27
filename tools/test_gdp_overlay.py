@@ -143,6 +143,23 @@ def select_precision_and_ambiguity():
     check(go.select(dup_same, **SEL)["2026-Q2"] == 2.0, "identical duplicate rows are harmless")
     check(go.select([dict(SEL, TIME_PERIOD="2026-M05", OBS_VALUE="1")], **SEL) == {}, "non-quarterly periods ignored")
 
+    # Production, 25 Oct 2026: South Africa's series sits in two OECD tables (T0101, T0102) whose copies differ
+    # by rounding in the last decimal. That is the same figure, not a conflict; the lower value is kept, and the
+    # answer must not depend on row order.
+    rnd = [dict(SEL, TIME_PERIOD="2012-Q2", OBS_VALUE="1048271.7", TABLE_IDENTIFIER="T0102"),
+           dict(SEL, TIME_PERIOD="2012-Q2", OBS_VALUE="1048271.6", TABLE_IDENTIFIER="T0101")]
+    check(go.select(rnd, **SEL) == {"2012-Q2": 1048271.6}, f"two tables, last-decimal rounding: {go.select(rnd, **SEL)}")
+    check(go.select(list(reversed(rnd)), **SEL) == {"2012-Q2": 1048271.6}, "result must not depend on row order")
+    inside = [dict(SEL, TIME_PERIOD="2012-Q2", OBS_VALUE="1048271.7"), dict(SEL, TIME_PERIOD="2012-Q2", OBS_VALUE="1048280.0")]
+    check(go.select(inside, **SEL) == {"2012-Q2": 1048271.7}, "a difference just inside the rounding tolerance is the same figure")
+    for far_v in ("1048283.0", "1058754.4"):    # just outside the tolerance, and 1% apart: real conflicts
+        far = [dict(SEL, TIME_PERIOD="2012-Q2", OBS_VALUE="1048271.7"), dict(SEL, TIME_PERIOD="2012-Q2", OBS_VALUE=far_v)]
+        try:
+            go.select(far, **SEL)
+            check(False, f"values 1048271.7 and {far_v} must be refused as a real conflict")
+        except ValueError as exc:
+            check("ambiguous" in str(exc) and "2012-Q2" in str(exc), f"the refusal must name the quarter: {exc}")
+
 # ---------------------------------------------------------------- the fetchers' wiring
 def run_overlay(mod, series, rows, iso):
     """Run a fetcher's overlay with the OECD call mocked; assert it asked for the right country."""
@@ -172,6 +189,8 @@ def za_wiring():
                         decoys=[(dict(za_sel["gdp_real"], ADJUSTMENT="N"), 12345.0)])
                + rows_for(za_sel["gdp_level"], cand_for(ZA_LEVEL, OECD_NEW["ZA_LEVEL"]),
                           decoys=[(dict(za_sel["gdp_level"], ADJUSTMENT="N"), 54321.0)]))
+    # as in production: every figure also appears in a second OECD table, 0.1 higher after rounding
+    za_rows = za_rows + [dict(r, TABLE_IDENTIFIER="T0102", OBS_VALUE=str(float(r["OBS_VALUE"]) + 0.1)) for r in za_rows]
     s = mk(ZA_REAL, ZA_LEVEL, "Real GDP, SA (NGDPRSAXDCZAQ)", "GDP nominal, SA (NGDPSAXDCZAQ)")
     out = run_overlay(fetch_za, s, za_rows, "ZAF")
     check(s["gdp_real"]["points"][-1] == ["2026-Q2", 1188700.0], f"ZA wiring: real Q2 wrong: {s['gdp_real']['points'][-2:]}")
