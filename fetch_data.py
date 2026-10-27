@@ -47,11 +47,14 @@ UA = {"User-Agent": "economic-atlas/0.2"}
 # UK — ONS series (verified page URIs)
 # ===========================================================================
 UK_SERIES = {
-    "gdp_level": (["/economy/grossdomesticproductgdp/timeseries/ybha/pn2"],
+    "gdp_level": (["/economy/grossdomesticproductgdp/timeseries/ybha/qna",
+                   "/economy/grossdomesticproductgdp/timeseries/ybha/pn2"],
                   "GDP, current prices (YBHA)", "£m"),
-    "gdp_real": (["/economy/grossdomesticproductgdp/timeseries/abmi/pn2"],
+    "gdp_real": (["/economy/grossdomesticproductgdp/timeseries/abmi/qna",
+                   "/economy/grossdomesticproductgdp/timeseries/abmi/pn2"],
                  "GDP, chained volume measure (ABMI)", "£m"),
-    "gdp_growth": (["/economy/grossdomesticproductgdp/timeseries/ihyq/pn2"],
+    "gdp_growth": (["/economy/grossdomesticproductgdp/timeseries/ihyq/qna",
+                   "/economy/grossdomesticproductgdp/timeseries/ihyq/pn2"],
                    "GDP growth, quarter on quarter (IHYQ)", "%"),
     "productivity": (["/employmentandlabourmarket/peopleinwork/labourproductivity/timeseries/lzvb/prdy"],
                      "Output per hour worked, index 2023=100 (LZVB)", "index"),
@@ -146,6 +149,41 @@ def fetch_ons(uris: list[str]) -> tuple[str, list, str | None] | None:
     if last_error:
         raise last_error
     return None
+
+
+# v1.9.14: ONS publishes each GDP series in several datasets. PN2 ("GDP first quarterly estimate") is refreshed
+# only at each first estimate, and by design carries no revisions; QNA ("quarterly national accounts") is
+# refreshed six weeks later with the revised figures. Reading PN2 alone left the site on the first estimate for
+# six weeks of every quarter (Q2 2026: 0.4% against the ONS's revised 0.5% from 30 September). The right one
+# is simply the dataset that goes furthest in time, and on a tie the revised one.
+PICK_FRESHEST = {"gdp_level", "gdp_real", "gdp_growth"}
+
+
+def fetch_ons_freshest(uris: list[str]) -> tuple[str, list, str | None] | None:
+    """Try every dataset in `uris` and return the one whose last period is latest. A tie goes to the dataset
+    listed first (so list the revised one first). A dataset that fails is skipped; if all fail, raise."""
+    best, last_error = None, None
+    for uri in uris:
+        try:
+            got = fetch_ons([uri])
+        except Exception as exc:
+            last_error = exc
+            print(f"  [ons] {uri} unavailable: {exc}")
+            continue
+        if not got or not got[1]:
+            continue
+        freq, points, nxt = got
+        if best is None:
+            best = (uri, freq, points, nxt)
+        elif freq == best[1] and points[-1][0] > best[2][-1][0]:
+            best = (uri, freq, points, nxt)
+    if best is None:
+        if last_error:
+            raise last_error
+        return None
+    if len(uris) > 1:
+        print(f"  [ons] freshest dataset: {best[0]} (to {best[2][-1][0]})")
+    return best[1], best[2], best[3]
 
 
 # ===========================================================================
@@ -485,7 +523,7 @@ def build_uk() -> bool:
     failures = []
     for key, (uris, label, unit) in UK_SERIES.items():
         try:
-            result = fetch_ons(uris)
+            result = fetch_ons_freshest(uris) if key in PICK_FRESHEST else fetch_ons(uris)
             if result is None:
                 raise ValueError("no observations in response")
             freq, points, nxt = result
