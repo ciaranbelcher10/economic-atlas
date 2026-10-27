@@ -134,9 +134,13 @@ def overlay(base: list, cand: dict, window: int = WINDOW, tol: float = TOLERANCE
 
 
 def relabel(label: str) -> str:
+    """Add the overlay note to a series label. The series is still mostly IMF IFS, so the note names that too
+    unless the label already does: a label that says only "OECD" misstates where most of the history comes from
+    (citation_provider.py flagged exactly that once South Africa's overlay reached the data)."""
     if RELABEL in label:
         return label
-    return label[:-1] + ", " + RELABEL + ")" if label.endswith(")") else label + " (" + RELABEL + ")"
+    note = RELABEL if "IMF" in label else "IMF IFS, " + RELABEL
+    return label[:-1] + ", " + note + ")" if label.endswith(")") else label + " (" + note + ")"
 
 
 def apply_overlay(series: dict, key: str, rows: list, sel: dict, log=print):

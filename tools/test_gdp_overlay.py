@@ -311,5 +311,19 @@ def guard_holds_growth_when_a_run_comes_back_a_quarter_behind():
               f"{mod.__name__}: an equal series must be accepted: {verdicts.get('gdp_growth')}")
 
 
+@case
+def relabel_names_both_sources():
+    """An overlaid series is still mostly IMF IFS, so its label must say IMF as well as OECD, once. A label that
+    says only OECD made citation_provider.py report a provider mismatch once South Africa's overlay reached the data."""
+    z = go.relabel("Real GDP, SA (NGDPRSAXDCZAQ)")
+    check("IMF IFS" in z and go.RELABEL in z and z.startswith("Real GDP, SA (NGDPRSAXDCZAQ") and z.endswith("QNA)"),
+          f"a label with no source named must gain both: {z}")
+    a = go.relabel("Real GDP, constant prices, NSA (IMF IFS) (NGDPRNSAXDCARQ)")
+    check(a.count("IMF") == 1 and go.RELABEL in a, f"a label that already names IMF must not repeat it: {a}")
+    g = go.relabel("Real GDP growth, YoY (derived from NGDPRNSAXDCARQ, not seasonally adjusted)")
+    check("IMF IFS" in g and go.RELABEL in g, f"a derived growth label must name both: {g}")
+    check(go.relabel(z) == z and go.relabel(a) == a and go.relabel(g) == g, "relabel must be idempotent")
+
+
 print("test_gdp_overlay:", "FAILED" if fails else "ok", f"({len(fails)} failures)")
 sys.exit(1 if fails else 0)

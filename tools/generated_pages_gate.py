@@ -20,7 +20,11 @@ Checks (every one is mutation-tested in tools/test_generated_pages_gate.py):
      compares with the previous non-overlapping three months, labelled as a range, as the indicator page does;
   6. sitemap.xml lists every generated indicator and ranking page exactly once and points at no missing file;
   7. page hygiene: canonical link, JSON-LD parses, and no NaN/undefined/Infinity in visible text;
-  8. copy: no "checked hourly" family of claims, no em dashes or double hyphens, no "illustrative"/"sample data".
+  8. copy: no "checked hourly" family of claims, no em dashes or double hyphens, no "illustrative"/"sample data";
+  9. methodology-by-economy.html (v1.9.15): every one of the indicator pages is documented exactly once; each row's
+     series label and frequency equal the data file's; each economy's "Not tracked" line and the gap table equal an
+     independent recomputation; each hand-written note appears exactly when its condition holds in the data; every
+     local link resolves.
 
 Run from anywhere:   python3 tools/generated_pages_gate.py
 Options:             --generator PATH   use another copy of the generator (the tests do)
@@ -43,6 +47,7 @@ HERE = os.path.dirname(os.path.abspath(__file__))
 SITE = "https://theeconomicatlas.com"
 MONTHS = ["Jan", "Feb", "Mar", "Apr", "May", "Jun", "Jul", "Aug", "Sep", "Oct", "Nov", "Dec"]
 UK_LFS = {"unemployment", "employment", "inactivity", "unemployment_1624"}
+GENERATED_ROOT = {"methodology-by-economy.html"}   # root pages the generator writes: never staged from the repo
 RANKING_KEY = {"unemployment-rate-by-country": "unemployment"}   # rankings that carry a UK Labour Force Survey row
 fails = []
 counts = {}
@@ -93,6 +98,8 @@ def stage(repo, generator):
     # generator is copied LAST so it replaces the repo's own
     for pat in ("*.json", "*.html", "*.py"):
         for f in glob.glob(os.path.join(repo, pat)):
+            if os.path.basename(f) in GENERATED_ROOT:
+                continue     # generated output, not input: it must come from the generator or it proves nothing
             shutil.copy(f, os.path.join(tmp, os.path.basename(f)))
             n += 1
     shutil.copy(generator, os.path.join(tmp, "generate_indicator_pages.py"))
@@ -111,7 +118,7 @@ def cfg_of(h):
     return json.loads(m.group(1)) if m else None
 
 
-def run_checks(tmp, r):
+def run_checks(tmp, r, repo):
     # 1. generator ran, summary matches the files
     check(r.returncode == 0, f"generator exited {r.returncode}: {r.stderr[-300:]}")
     m = re.search(r"Generated (\d+) indicator pages, (\d+) embeds and (\d+) rankings\.", r.stdout)
@@ -251,19 +258,141 @@ def run_checks(tmp, r):
             check(os.path.exists(os.path.join(tmp, mm.group(1), mm.group(2) + ".html")), f"sitemap points at missing {loc}")
     bump("sitemap entries", len(locs))
 
+    # 9. methodology by economy
+    meth = check_methodology(tmp, repo, ind_files, labels, series_of)
+
     # 7/8. visible text and copy rules on everything generated
     rules = [("hourly claim", re.compile(r"checked hourly|checks hourly|hourly against|updated hourly|from source every hour", re.I)),
              ("em dash", re.compile("\u2014")),
              ("double hyphen", re.compile(r"(?<![-\w])--(?![-\w>])")),
              ("illustrative / sample data", re.compile(r"illustrative|sample data", re.I)),
              ("NaN/undefined/Infinity", re.compile(r"\b(NaN|undefined|Infinity)\b"))]
-    for f in ind_files + emb_files + rank_files:
+    for f in ind_files + emb_files + rank_files + ([meth] if meth else []):
         h = read(f)
         text, meta = visible(h), meta_text(h)
         for name, rx in rules:
             hit = rx.search(text) or rx.search(meta)
             check(not hit, f"{os.path.relpath(f, tmp)}: {name} ('{hit.group(0) if hit else ''}')")
-    bump("pages scanned for copy", len(ind_files) + len(emb_files) + len(rank_files))
+    bump("pages scanned for copy", len(ind_files) + len(emb_files) + len(rank_files) + (1 if meth else 0))
+
+
+# Methodology-by-economy checks. These are a SECOND, independent statement of the rules in
+# methodology_by_economy.py: changing a rule means changing it in both places, on purpose.
+GATE_CORE = [("GDP", ["gdp"]), ("Real GDP", ["real-gdp"]), ("GDP growth", ["gdp-growth-rate", "gdp-annual-growth-rate"]),
+             ("Inflation", ["inflation-rate"]), ("Unemployment", ["unemployment-rate"]),
+             ("Employment rate", ["employment-rate"]), ("Labour force participation", ["labour-force-participation-rate"]),
+             ("Policy interest rate", ["interest-rate"]), ("10-year bond yield", ["10-year-government-bond-yield"]),
+             ("Exchange rate", ["exchange-rate"]), ("Business confidence", ["business-confidence"]),
+             ("Trade balance", ["balance-of-trade"]), ("Current account", ["current-account-to-gdp"]),
+             ("Foreign direct investment", ["foreign-direct-investment"]), ("Government debt", ["government-debt"]),
+             ("Government budget balance", ["government-budget"])]
+GATE_EURO = {"Austria", "Belgium", "Bulgaria", "Croatia", "Cyprus", "Estonia", "Finland", "France", "Germany", "Greece",
+             "Ireland", "Italy", "Latvia", "Lithuania", "Luxembourg", "Malta", "Netherlands", "Portugal", "Slovakia",
+             "Slovenia", "Spain"}
+FREQ_WORD = {"months": "Monthly", "quarters": "Quarterly", "years": "Annual"}
+OECD_PHRASE = "latest quarters from OECD QNA"
+# section id -> (text fragment of the note, how to tell from the data that it is still true)
+NOTE_RULES = {
+    "uk": ("rolling three-month averages", lambda ctx: "\u2013" in ctx["labels"].get("uk-unemployment-rate", "")),
+    "southafrica": ("LRUN64TTZAQ156S", lambda ctx: "LRUN64TTZAQ156S" in ctx["lab"]("unemployment") and ", SA" in ctx["lab"]("unemployment")),
+    "switzerland": ("sporting events", lambda ctx: "CLVMNACSAB1GQCH" in ctx["lab"]("gdp_growth")),
+    "poland": ("goods balance", lambda ctx: "Eurostat" in ctx["lab"]("trade_balance") and "\u20ac" in ctx["unit"]("trade_balance")),
+    "argentina": ("so growth is shown year on year", lambda ctx: "not seasonally adjusted" in ctx["lab"]("gdp_growth") and "YoY" in ctx["lab"]("gdp_growth")),
+}
+
+
+def check_methodology(tmp, repo, ind_files, labels, series_of):
+    path = os.path.join(tmp, "methodology-by-economy.html")
+    if not check(os.path.exists(path), "methodology-by-economy.html was not generated"):
+        return None
+    h = read(path)
+    cm = re.search(r'<link rel="canonical" href="([^"]*)"', h)
+    check(cm and cm.group(1) == f"{SITE}/methodology-by-economy", f"methodology: canonical is {cm.group(1) if cm else None}")
+    for blk in re.findall(r'<script type="application/ld\+json">(.*?)</script>', h, re.S):
+        try:
+            json.loads(blk)
+        except ValueError:
+            check(False, "methodology: JSON-LD does not parse")
+    # --- sections
+    secs = re.findall(r'<section class="mb-econ" id="([^"]*)">(.*?)</section>', h, re.S)
+    page_set = {os.path.basename(f)[:-5] for f in ind_files}
+    seen_pages = []
+    expected_missing = {}
+    for sid, body in secs:
+        name = unescape((re.search(r"<h2>(.*?)</h2>", body, re.S) or [None, ""])[1])
+        rows = re.findall(r'<tr><th scope="row"><a href="indicators/([^"]*)">(.*?)</a></th><td>(.*?)</td><td>(.*?)</td><td>(.*?)</td></tr>', body, re.S)
+        check(rows, f"methodology {name}: no rows")
+        slugs, first_cfg = set(), None
+        for page, title, label, freq, adj in rows:
+            seen_pages.append(page)
+            check(page.startswith(sid + "-"), f"methodology {name}: row links to {page}, which is not this economy's")
+            slugs.add(page[len(sid) + 1:])
+            f = os.path.join(tmp, "indicators", page + ".html")
+            if not os.path.exists(f):
+                check(False, f"methodology {name}: links to missing indicator page {page}")
+                continue
+            cfg = cfg_of(read(f))
+            first_cfg = first_cfg or cfg
+            check(unescape(freq) == FREQ_WORD.get(cfg["freq"]), f"methodology {name}/{page}: frequency '{freq}', data says {cfg['freq']}")
+            s = series_of(os.path.basename(cfg.get("dataUrl", "")), cfg.get("key"))
+            if s is not None:
+                check(unescape(label) == s["label"].strip(), f"methodology {name}/{page}: label '{unescape(label)[:60]}' differs from the data's '{s['label'][:60]}'")
+            else:
+                check(unescape(label).strip() != "", f"methodology {name}/{page}: empty label")
+            check(unescape(adj).strip() != "" and unescape(title).strip() != "", f"methodology {name}/{page}: empty title or adjustment")
+        m = re.search(r"(\d+) indicators</p>", body)
+        check(m and int(m.group(1)) == len(rows), f"methodology {name}: says {m.group(1) if m else None} indicators, lists {len(rows)}")
+        # --- gaps, recomputed here
+        want = [t for t, ss in GATE_CORE
+                if not any(x in slugs for x in ss) and not (t == "Exchange rate" and (name in GATE_EURO or name == "US"))]
+        expected_missing[name] = want
+        gm = re.search(r'<p class="mb-gaps"><strong>Not tracked:</strong> (.*?)\.</p>', body, re.S)
+        got = [] if (gm and "nothing on the core list" in gm.group(1)) else [unescape(x).strip() for x in (gm.group(1).split(", ") if gm else ["<missing>"])]
+        check(got == want, f"methodology {name}: 'Not tracked' says {got}, recomputed {want}")
+        # --- notes
+        notes = [unescape(x) for x in re.findall(r"<li>(.*?)</li>", body, re.S)]
+        data_file = os.path.basename((first_cfg or {}).get("dataUrl", ""))
+        ctx = {"labels": labels, "lab": lambda k, df=data_file: ((series_of(df, k) or {}).get("label") or ""),
+               "unit": lambda k, df=data_file: ((series_of(df, k) or {}).get("unit") or "")}
+        for nsid, (frag, holds) in NOTE_RULES.items():
+            shown = any(frag in n for n in notes)
+            if nsid == sid:
+                check(shown == bool(holds(ctx)), f"methodology {name}: note '{frag}' shown={shown}, but its condition in the data is {bool(holds(ctx))}")
+            else:
+                check(not shown, f"methodology {name}: carries the note meant for {nsid}")
+        oecd_rows = any(OECD_PHRASE in unescape(r[2]) for r in rows)
+        oecd_note = any("The latest quarters of" in n for n in notes)
+        check(oecd_rows == oecd_note, f"methodology {name}: OECD QNA note shown={oecd_note}, labels carry the phrase={oecd_rows}")
+        for n in notes:
+            check(n.strip() != "", f"methodology {name}: empty note")
+        check("None" not in re.findall(r'<tr class="mb-theme"><th colspan="4">(.*?)</th></tr>', body), f"methodology {name}: a row has no theme")
+    # --- completeness: every indicator page documented exactly once
+    check(sorted(seen_pages) == sorted(page_set),
+          f"methodology documents {len(seen_pages)} indicator rows for {len(page_set)} pages "
+          f"(missing {sorted(page_set - set(seen_pages))[:3]}, extra {sorted(set(seen_pages) - page_set)[:3]})")
+    check(len(seen_pages) == len(set(seen_pages)), "methodology lists an indicator page twice")
+    # --- the gap table equals the sections
+    gap = re.search(r"<h2>Where the site has gaps</h2>(.*?)<h2>Economies</h2>", h, re.S)
+    table = {unescape(a): (int(b), [x.strip() for x in unescape(c).split(", ")]) for a, b, c in
+             re.findall(r'<tr><th scope="row">(.*?)</th><td>(\d+)</td><td>(.*?)</td></tr>', gap.group(1) if gap else "", re.S)}
+    for t, _ in GATE_CORE:
+        lacking = sorted(n for n, miss in expected_missing.items() if t in miss)
+        if lacking:
+            check(t in table and table[t][0] == len(lacking) and sorted(table[t][1]) == lacking,
+                  f"methodology gap table for '{t}': {table.get(t, ('absent',))[0]} listed, recomputed {len(lacking)}")
+        else:
+            check(t not in table, f"methodology gap table lists '{t}' though no economy lacks it")
+    # --- every local link resolves
+    for ref in re.findall(r'(?:href|src)="([^"]+)"', h):
+        if re.match(r"(https?:|mailto:|tel:|data:|javascript:|//|#)", ref):
+            continue
+        p = ref.split("#")[0].split("?")[0]
+        if not p:
+            continue
+        cands = [os.path.join(b, p + suf) for b in (repo, tmp) for suf in ("", ".html", "/index.html")]
+        check(any(os.path.isfile(c) for c in cands), f"methodology: link '{ref}' does not resolve")
+    bump("methodology economies", len(secs)), bump("methodology rows", len(seen_pages))
+    return path
 
 
 def main():
@@ -271,6 +400,7 @@ def main():
     ap.add_argument("--generator")
     ap.add_argument("--repo")
     ap.add_argument("--keep", action="store_true")
+    ap.add_argument("--max-fails", type=int, default=40, help="how many failures to print (the exit code counts all)")
     a = ap.parse_args()
     repo = os.path.abspath(a.repo) if a.repo else os.path.dirname(HERE)
     generator = os.path.abspath(a.generator) if a.generator else os.path.join(repo, "generate_indicator_pages.py")
@@ -278,17 +408,17 @@ def main():
         sys.exit(f"no generator at {generator}")
     tmp, r, n_in = stage(repo, generator)
     try:
-        run_checks(tmp, r)
+        run_checks(tmp, r, repo)
     finally:
         if a.keep:
             print("kept", tmp)
         else:
             shutil.rmtree(tmp, ignore_errors=True)
     print(f"generated-pages gate: {n_in} input files staged; " + ", ".join(f"{v} {k}" for k, v in counts.items()))
-    for f in fails[:40]:
+    for f in fails[:a.max_fails]:
         print("FAIL", f)
-    if len(fails) > 40:
-        print(f"... and {len(fails) - 40} more")
+    if len(fails) > a.max_fails:
+        print(f"... and {len(fails) - a.max_fails} more")
     print(f"generated-pages gate: {'FAILED' if fails else 'ok'} ({len(fails)} failures)")
     sys.exit(1 if fails else 0)
 

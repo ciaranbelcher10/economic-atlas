@@ -71,6 +71,10 @@ def repo_copy(edit):
     for pat in ("*.json", "*.html", "*.py"):
         for f in glob.glob(str(ROOT / pat)):
             shutil.copy(f, d / os.path.basename(f))
+    # the methodology page links to the site's css, js and images: link them in so the gate's link check can resolve them
+    for f in ROOT.iterdir():
+        if f.is_file() and not (d / f.name).exists():
+            os.symlink(f, d / f.name)
     edit(d)
     return d
 
