@@ -1565,6 +1565,11 @@ def rank_rows(ranking, catalogue_by_country):
         else:
             period, val = pts[-1]
             prev_p, prev = pts[-2]
+            if is_rolling3m(country, key) and freq == "months" and len(pts) >= 4:
+                # v1.9.13: the ONS rates are rolling three-month averages, so the comparison is the previous
+                # NON-overlapping three months (as on the indicator and country pages), not the overlapping
+                # window one month earlier, and it is labelled as a range (see chg_title).
+                prev_p, prev = pts[-4]
             spark = trailing_years(pts, 5)
         d = rounded_delta(val - prev, unit, key)
         rows.append(dict(base, value=val, value_str=fmt_num(val, unit, key, country, "cell"),
@@ -1874,7 +1879,7 @@ def render_ranking(ranking, rows, unranked, all_rankings_meta, catalogue_by_coun
         led = f'<span class="led {"green" if fresh else "orange"}" aria-hidden="true" style="width:7px;height:7px;margin-right:5px;vertical-align:1px"></span>'
         tag = FREQ_WORD.get(r["freq"], "")
         width = abs(r["value"]) / bar_max * 100 if bar_max else 0
-        chg_title = f' title="Nominal change on a year earlier, in {esc(c)}\'s own currency"' if usd else (f' title="Change on {esc(fmt_period_label(r.get("prev_period", "")))}"' if r.get("prev_period") else "")
+        chg_title = f' title="Nominal change on a year earlier, in {esc(c)}\'s own currency"' if usd else (f' title="Change on {esc((fmt_rolling3m if is_rolling3m(r["country"], r.get("key")) and r.get("freq") == "months" else fmt_period_label)(r.get("prev_period", "")))}"' if r.get("prev_period") else "")
         chg_attr = "" if r["change"] is None else f"{r['change']:.6g}"
         body.append(
             f'<tr data-rank="{i}" data-country="{esc(c)}" data-value="{r["value"]:.6g}" data-change="{chg_attr}" data-period="{period_end_date(r["period"]).isoformat()}" data-source="{esc(r["src_pub"])}">'
