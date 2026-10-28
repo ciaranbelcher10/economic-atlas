@@ -143,19 +143,39 @@ def relabel(label: str) -> str:
     return label[:-1] + ", " + note + ")" if label.endswith(")") else label + " (" + note + ")"
 
 
-def apply_overlay(series: dict, key: str, rows: list, sel: dict, log=print):
+def note(notes, key, status, detail):
+    """Record what the overlay did for one series, so the reason can be read from the data file itself (no logs
+    needed): status is "applied", "refused" or "error"."""
+    if notes is not None:
+        notes[key] = {"status": status, "detail": " ".join(str(detail).split())[:300]}
+
+
+def merge_notes(prev, new, now):
+    """The notes to write: this run's decisions, stamped with the run time, over the previous ones carried forward.
+    A run outside the OECD turn makes no decision, and must not erase the last one."""
+    out = {k: dict(v) for k, v in (prev or {}).items()}
+    for k, v in (new or {}).items():
+        out[k] = dict(v, run=now)
+    return out
+
+
+def apply_overlay(series: dict, key: str, rows: list, sel: dict, log=print, notes=None):
     """Overlay one series in `series` (the run's output map) in place. Returns the report or None."""
     s = series.get(key)
     if not s or s.get("freq") != "quarters" or not s.get("points"):
         log(f"SKIP  {key:<16} OECD overlay: no quarterly IFS series this run")
+        note(notes, key, "refused", "no quarterly IFS series this run")
         return None
     merged, rep = overlay(s["points"], select(rows, **sel))
     if not rep["applied"]:
         log(f"WARN  {key:<16} OECD overlay not applied: {rep['reason']} (IFS series kept)")
+        note(notes, key, "refused", rep["reason"])
         return rep
     s["points"] = merged
     s["label"] = relabel(s["label"])
     log(f"  ok  {key:<16} OECD overlay from {rep['from']}: {rep['replaced']} quarters replaced, "
         f"{rep['added']} added, max deviation {rep['max_dev'] * 100:.2f}% over {rep['checked']} quarters "
         f"(now to {rep['last']})")
+    note(notes, key, "applied", f"from {rep['from']}: {rep['replaced']} quarters replaced, {rep['added']} added, "
+                                f"max deviation {rep['max_dev'] * 100:.2f}% over {rep['checked']} quarters, now to {rep['last']}")
     return rep

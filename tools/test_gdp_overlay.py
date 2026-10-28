@@ -162,12 +162,12 @@ def select_precision_and_ambiguity():
             check("ambiguous" in str(exc) and "2012-Q2" in str(exc), f"the refusal must name the quarter: {exc}")
 
 # ---------------------------------------------------------------- the fetchers' wiring
-def run_overlay(mod, series, rows, iso):
+def run_overlay(mod, series, rows, iso, notes=None):
     """Run a fetcher's overlay with the OECD call mocked; assert it asked for the right country."""
     asked = []
     buf = io.StringIO()
     with mock.patch.object(go, "qna_rows", side_effect=lambda i: asked.append(i) or rows), redirect_stdout(buf):
-        mod.overlay_gdp(series)
+        mod.overlay_gdp(series, notes)
     check(asked == [iso], f"{mod.__name__} asked the OECD for {asked}, expected [{iso!r}]")
     return buf.getvalue()
 
@@ -266,7 +266,7 @@ def oecd_unreachable_warns():
 def overlay_runs_before_growth():
     for fn in ("fetch_za.py", "fetch_ar.py"):
         src = (ROOT / fn).read_text(encoding="utf-8")
-        i_call, i_growth = src.find('overlay_gdp(out["series"])'), src.find('_growth_label("Real GDP growth')
+        i_call, i_growth = src.find('overlay_gdp(out["series"], _overlay_notes)'), src.find('_growth_label("Real GDP growth')
         check(0 < i_call < i_growth, f"{fn}: overlay_gdp must run before gdp_growth is derived")
 
 
@@ -323,6 +323,83 @@ def relabel_names_both_sources():
     g = go.relabel("Real GDP growth, YoY (derived from NGDPRNSAXDCARQ, not seasonally adjusted)")
     check("IMF IFS" in g and go.RELABEL in g, f"a derived growth label must name both: {g}")
     check(go.relabel(z) == z and go.relabel(a) == a and go.relabel(g) == g, "relabel must be idempotent")
+
+
+COUNTRIES_UNDER_TEST = (
+    ("ZA", fetch_za, "ZAF", ZA_REAL, ZA_LEVEL, OECD_NEW["ZA_REAL"], OECD_NEW["ZA_LEVEL"]),
+    ("AR", fetch_ar, "ARG", AR_REAL, AR_LEVEL, OECD_NEW["AR_REAL"], OECD_NEW["AR_LEVEL"]),
+)
+
+
+def _rows(code, base_real, base_level, new_real, new_level, break_level=False, conflict_real=False):
+    sel = EXPECTED_SEL[code]
+    real = rows_for(sel["gdp_real"], cand_for(base_real, new_real))
+    lvl = rows_for(sel["gdp_level"], cand_for(base_level, new_level))
+    if break_level:
+        lvl = [dict(r, OBS_VALUE=str(float(r["OBS_VALUE"]) * 1.05)) for r in lvl]
+    if conflict_real:     # two values for one quarter, 50% apart: the selector no longer pins one series
+        real = real + [dict(real[-1], OBS_VALUE=str(float(real[-1]["OBS_VALUE"]) * 1.5))]
+    return real + lvl
+
+
+@case
+def notes_record_every_decision():
+    for code, mod, iso, br, bl, nr, nl in COUNTRIES_UNDER_TEST:
+        who = mod.__name__
+        n = {}
+        run_overlay(mod, mk(br, bl, "r", "l"), _rows(code, br, bl, nr, nl), iso, n)
+        check(set(n) == {"gdp_real", "gdp_level"} and all(v["status"] == "applied" and "max deviation" in v["detail"] for v in n.values()),
+              f"{who}: both series applied must be recorded as applied with their deviation: {n}")
+        n = {}
+        run_overlay(mod, mk(br, bl, "r", "l"), _rows(code, br, bl, nr, nl, break_level=True), iso, n)
+        check(n.get("gdp_real", {}).get("status") == "applied", f"{who}: real GDP must still apply: {n}")
+        check(n.get("gdp_level", {}).get("status") == "refused" and "differs" in n["gdp_level"]["detail"],
+              f"{who}: a level break must be recorded as refused, with the reason: {n.get('gdp_level')}")
+        # one series failing (the FIRST one) must not stop the other
+        n = {}
+        s = mk(br, bl, "r", "l")
+        run_overlay(mod, s, _rows(code, br, bl, nr, nl, conflict_real=True), iso, n)
+        check(n.get("gdp_real", {}).get("status") == "error" and "ambiguous" in n["gdp_real"]["detail"],
+              f"{who}: an ambiguous selector must be recorded as an error naming the cause: {n.get('gdp_real')}")
+        check(n.get("gdp_level", {}).get("status") == "applied" and s["gdp_level"]["points"][-1][0] == "2026-Q2",
+              f"{who}: nominal GDP must still apply when real GDP errors first: {n.get('gdp_level')}")
+        # OECD unreachable: both recorded as errors, series untouched
+        n = {}
+        s = mk(br, bl, "r", "l")
+        with mock.patch.object(oecd_turn, "check", return_value=None), mock.patch.object(go.time, "sleep", return_value=None), \
+                mock.patch.object(go.requests, "get", side_effect=go.requests.ConnectionError("down")), redirect_stdout(io.StringIO()):
+            mod.overlay_gdp(s, n)
+        check(all(v["status"] == "error" and "OECD request failed" in v["detail"] for v in n.values()) and set(n) == {"gdp_real", "gdp_level"},
+              f"{who}: an unreachable OECD must be recorded for both series: {n}")
+        # off its turn: no decision, so nothing recorded
+        n = {}
+        with mock.patch.object(oecd_turn, "check", side_effect=oecd_turn.NotThisHour("turn")), redirect_stdout(io.StringIO()):
+            mod.overlay_gdp(mk(br, bl, "r", "l"), n)
+        check(n == {}, f"{who}: a run outside the OECD turn must record nothing: {n}")
+
+
+@case
+def notes_are_carried_forward():
+    prev = {"gdp_level": {"status": "refused", "detail": "old reason", "run": "2026-10-27T21:29:12Z"}}
+    new = {"gdp_real": {"status": "applied", "detail": "d"}}
+    m = go.merge_notes(prev, new, "2026-10-28T09:00:00Z")
+    check(m["gdp_level"] == prev["gdp_level"], "a series with no decision this run must keep its previous note")
+    check(m["gdp_real"] == {"status": "applied", "detail": "d", "run": "2026-10-28T09:00:00Z"}, f"a new decision must be stamped with the run time: {m['gdp_real']}")
+    check(go.merge_notes(prev, {}, "t") == prev and go.merge_notes(prev, None, "t") == prev, "an off-turn run (no decisions) must leave the notes exactly as they were")
+    over = go.merge_notes(prev, {"gdp_level": {"status": "applied", "detail": "x"}}, "t2")
+    check(over["gdp_level"]["status"] == "applied" and over["gdp_level"]["run"] == "t2", "a new decision replaces the old one for that series")
+    check(go.merge_notes(None, {}, "t") == {} and go.merge_notes({}, None, "t") == {}, "no notes at all stays empty")
+    check(prev["gdp_level"]["detail"] == "old reason", "merge_notes must not mutate its input")
+
+
+@case
+def fetchers_write_the_notes():
+    for fn in ("fetch_za.py", "fetch_ar.py"):
+        src = (ROOT / fn).read_text(encoding="utf-8")
+        i_init, i_out = src.find("_overlay_notes: dict = {}"), src.find("    out = {")
+        i_merge, i_dump = src.find('gdp_overlay.merge_notes(prev_full.get("overlay_notes"), _overlay_notes, now_iso)'), src.find("        json.dump(out, f)")
+        check(0 < i_init < i_out, f"{fn}: _overlay_notes must be created before out is built")
+        check(0 < i_merge < i_dump and 'out["overlay_notes"] = _notes' in src, f"{fn}: the notes must be merged and stored before the file is written")
 
 
 print("test_gdp_overlay:", "FAILED" if fails else "ok", f"({len(fails)} failures)")

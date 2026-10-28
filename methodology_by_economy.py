@@ -80,13 +80,17 @@ def entry_rows(cslug, entries, adjustment_of):
         adj = adjustment_of(label, e["key"], s.get("freq", ""))
         rows.append(dict(theme=_theme_of(slug), slug=slug, title=e["title"], page=f"{cslug}-{slug}", key=e["key"],
                          label=label, freq=FREQ_WORD.get(s.get("freq", ""), s.get("freq", "")),
-                         adj=_adj_short(adj), order=order.get(slug, (99, 0))))
+                         adj=_adj_short(adj, label), order=order.get(slug, (99, 0))))
     rows.sort(key=lambda r: r["order"])
     return rows
 
 
-def _adj_short(adj):
+def _adj_short(adj, label=""):
     if not adj:
+        # Eurostat flags a series "SCA": seasonally and calendar adjusted. The label says so in words of its own,
+        # which the shared classifier (written for FRED identifiers) does not read, so say it here.
+        if re.search(r"\bSCA\b", label or ""):
+            return "Seasonally and calendar adjusted"
         return "Not stated"
     if adj.lower().startswith("not applicable"):
         return "Not applicable"
@@ -187,19 +191,21 @@ def esc(s):
 
 
 def render_economy(country, cslug, region, entries, rows, missing, notes):
-    out = [f'<section class="mb-econ" id="{esc(cslug)}">',
-           f'<h2>{esc(country)}</h2>',
-           f'<p class="mb-meta">{esc(region)} \u00b7 {len(rows)} indicators</p>',
-           '<table class="mb-table"><thead><tr><th>Indicator</th><th>Series</th><th>Frequency</th>'
-           '<th>Adjustment</th></tr></thead><tbody>']
+    out = [f'<section class="panel ind-panel doc-sec mb-econ" id="{esc(cslug)}" data-name="{esc(country)}" '
+           f'data-region="{esc(region)}">',
+           f'<div class="ind-panelhead"><h2>{esc(country)}</h2>'
+           f'<span class="mb-meta">{esc(region)} \u00b7 {len(rows)} indicators</span></div>',
+           '<div class="rk-scroll"><table class="doc-table mb-table"><thead><tr><th>Indicator</th><th>Series</th>'
+           '<th>Frequency</th><th>Adjustment</th></tr></thead><tbody>']
     theme = None
     for r in rows:
         if r["theme"] != theme:
             theme = r["theme"]
             out.append(f'<tr class="mb-theme"><th colspan="4">{esc(theme)}</th></tr>')
         out.append(f'<tr><th scope="row"><a href="indicators/{esc(r["page"])}">{esc(r["title"])}</a></th>'
-                   f'<td>{esc(r["label"])}</td><td>{esc(r["freq"])}</td><td>{esc(r["adj"])}</td></tr>')
-    out.append('</tbody></table>')
+                   f'<td>{esc(r["label"])}</td><td>{esc(r["freq"])}</td>'
+                   f'<td>{esc(r["adj"])}</td></tr>')
+    out.append('</tbody></table></div>')
     out.append('<p class="mb-gaps"><strong>Not tracked:</strong> ' +
                (esc(", ".join(missing)) if missing else "nothing on the core list") + '.</p>')
     if notes:
@@ -244,5 +250,6 @@ def render_gap_table(summary):
                         f'<td>{esc(", ".join(lacking))}</td></tr>')
     if not rows:
         return "<p>Every economy has every core indicator.</p>"
-    return ('<table class="mb-table mb-gap"><thead><tr><th>Core indicator</th><th>Economies without it</th>'
-            '<th>Which</th></tr></thead><tbody>' + "".join(rows) + '</tbody></table>')
+    return ('<div class="rk-scroll"><table class="doc-table mb-gap"><thead><tr><th>Core indicator</th>'
+            '<th>Economies without it</th><th>Which</th></tr></thead><tbody>' + "".join(rows) +
+            '</tbody></table></div>')

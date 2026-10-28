@@ -7,13 +7,14 @@ module in ways that matter, and doctor the data so that a hand-written note's co
 the gate to exit 1 with the right message each time. A crash does not count as a catch.
 
   - positive control: the repo as it is passes;
-  - 12 breakages (a missing page, broken links, a dropped economy, a doubled row, truncated labels, wrong
-    frequencies, wrong or missing gaps, a note on the wrong economy, a note that outlives its condition, a
-    missing generated note, a wrong gap-table count);
+  - 18 breakages (a missing page, broken links, a dropped economy, a doubled row, truncated labels, wrong
+    frequencies, wrong or missing gaps, a note on the wrong economy, a missing generated note, a wrong gap-table
+    count, the SCA rule reverted, a missing stylesheet, inline styling, lost navigation controls, a charting
+    library loaded on a text page);
   - doctored data: Switzerland's growth label loses its series id. The real module must then drop that note (and
     pass); a module whose check always says yes must be caught.
 
-Run from the repo root:  python3 tools/test_methodology_gate.py     (about two minutes)
+Run from the repo root:  python3 tools/test_methodology_gate.py     (about three minutes)
 """
 import glob
 import json
@@ -68,6 +69,16 @@ def caught(name, r, expect):
               f"{len(fl)} FAIL lines, first: {fl[0][:160] if fl else out[-240:]!r}")
 
 
+SCA_LABEL = "Real GDP, chain-linked volume, SCA (Eurostat namq_10_gdp, CLV20_MEUR)"   # no FRED identifier to read
+
+
+def set_label(d, fname, key, label):
+    p = d / fname
+    j = json.loads(p.read_text(encoding="utf-8"))
+    j["series"][key]["label"] = label
+    p.write_text(json.dumps(j), encoding="utf-8")
+
+
 def edit_file(fname, old, new, count_ok=1):
     src = (ROOT / fname).read_text(encoding="utf-8")
     assert src.count(old) == count_ok, f"{fname}: anchor appears {src.count(old)} times: {old[:70]!r}"
@@ -112,8 +123,8 @@ CASES = [
      edit_file("methodology_by_economy.py", "    for country in sorted(countries):\n", "    for country in sorted(countries)[1:]:\n"),
      "methodology documents"),
     ("a row written twice",
-     edit_file("methodology_by_economy.py", "    out.append('</tbody></table>')\n    out.append('<p class=\"mb-gaps\">",
-               "    out.append(out[-1] if False else '')\n    out.extend(out[-2:-1] if rows else [])\n    out.append('</tbody></table>')\n    out.append('<p class=\"mb-gaps\">"),
+     edit_file("methodology_by_economy.py", "    out.append('</tbody></table></div>')\n    out.append('<p class=\"mb-gaps\">",
+               "    out.extend(out[-2:-1] if rows else [])\n    out.append('</tbody></table></div>')\n    out.append('<p class=\"mb-gaps\">"),
      "twice"),
     ("series labels truncated",
      edit_file("methodology_by_economy.py", '        label = (s.get("label") or "").strip()\n', '        label = (s.get("label") or "").strip()[:18]\n'),
@@ -136,6 +147,22 @@ CASES = [
     ("generated OECD note missing",
      edit_file("methodology_by_economy.py", "    if oecd:\n", "    if False and oecd:\n"),
      "OECD QNA note shown=False"),
+    ("the SCA rule reverted (Eurostat's 'SCA' shown as Not stated)", both(
+        edit_file("methodology_by_economy.py", '        if re.search(r"\\bSCA\\b", label or ""):', '        if False:'), lambda d: set_label(d, "data-fi.json", "gdp_real", SCA_LABEL)),
+     "label says SCA"),
+    ("doc.css not linked", edit_file("generate_indicator_pages.py", 'href="../doc.css?v={DOC_ASSET_VERSION}"', 'href="../doc-x.css?v={DOC_ASSET_VERSION}"'),
+     "head does not link doc.css"),
+    ("inline styling in the content", edit_file("generate_indicator_pages.py", '<nav class="panel ind-panel doc-toc" aria-label="On this page">',
+                                                '<nav class="panel ind-panel doc-toc" style="margin:0" aria-label="On this page">'),
+     "inline style attributes"),
+    ("find-an-economy input lost", edit_file("generate_indicator_pages.py", 'id="docFilter" type="search"', 'id="docFilterX" type="search"'),
+     "find-an-economy controls are missing"),
+    ("contents link to a missing section", edit_file("generate_indicator_pages.py", '<li><a href="#gaps">Where the site has gaps</a></li>',
+                                                     '<li><a href="#gapz">Where the site has gaps</a></li>'),
+     "contents link to missing ids"),
+    ("the charting library loaded on a text page", edit_file("generate_indicator_pages.py",
+        r"""    out = out.replace('<script src="https://cdnjs.cloudflare.com/ajax/libs/Chart.js/4.4.1/chart.umd.min.js"></script>\n', "", 1)""" + "\n",
+        ""), "must not load the charting library"),
     ("a theme lost from the registry",
      edit_file("methodology_by_economy.py", '    ("Public finances", ["government-debt", "government-net-debt", "government-budget", "government-debt-interest"]),\n', ""),
      "has no theme"),
@@ -147,6 +174,15 @@ for name, edit, expect in CASES:
     finally:
         shutil.rmtree(d, ignore_errors=True)
 
+
+# ---------------------------------------------------------------- Eurostat's SCA flag
+d = repo_copy(lambda d: set_label(d, "data-fi.json", "gdp_real", SCA_LABEL))
+try:
+    r = run_gate(d)
+    page = ""
+    check(r.returncode == 0, f"a label that says only SCA must read 'Seasonally and calendar adjusted' and pass: {r.stdout[-300:]} {r.stderr[-200:]}")
+finally:
+    shutil.rmtree(d, ignore_errors=True)
 
 # ---------------------------------------------------------------- a note that outlives its condition
 def drop_swiss_series_id(d):

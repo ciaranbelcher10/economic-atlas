@@ -314,13 +314,13 @@ def check_methodology(tmp, repo, ind_files, labels, series_of):
         except ValueError:
             check(False, "methodology: JSON-LD does not parse")
     # --- sections
-    secs = re.findall(r'<section class="mb-econ" id="([^"]*)">(.*?)</section>', h, re.S)
+    secs = re.findall(r'<section class="[^"]*\bmb-econ\b[^"]*" id="([^"]*)"[^>]*>(.*?)</section>', h, re.S)
     page_set = {os.path.basename(f)[:-5] for f in ind_files}
     seen_pages = []
     expected_missing = {}
     for sid, body in secs:
         name = unescape((re.search(r"<h2>(.*?)</h2>", body, re.S) or [None, ""])[1])
-        rows = re.findall(r'<tr><th scope="row"><a href="indicators/([^"]*)">(.*?)</a></th><td>(.*?)</td><td>(.*?)</td><td>(.*?)</td></tr>', body, re.S)
+        rows = re.findall(r'<tr><th scope="row"><a href="indicators/([^"]*)">(.*?)</a></th><td[^>]*>(.*?)</td><td[^>]*>(.*?)</td><td[^>]*>(.*?)</td></tr>', body, re.S)
         check(rows, f"methodology {name}: no rows")
         slugs, first_cfg = set(), None
         for page, title, label, freq, adj in rows:
@@ -340,7 +340,10 @@ def check_methodology(tmp, repo, ind_files, labels, series_of):
             else:
                 check(unescape(label).strip() != "", f"methodology {name}/{page}: empty label")
             check(unescape(adj).strip() != "" and unescape(title).strip() != "", f"methodology {name}/{page}: empty title or adjustment")
-        m = re.search(r"(\d+) indicators</p>", body)
+            if re.search(r"\bSCA\b", unescape(label)):
+                check(unescape(adj) in ("Seasonally and calendar adjusted", "Seasonally adjusted"),
+                      f"methodology {name}/{page}: the label says SCA but the Adjustment column says '{unescape(adj)}'")
+        m = re.search(r"(\d+) indicators</span>", body)
         check(m and int(m.group(1)) == len(rows), f"methodology {name}: says {m.group(1) if m else None} indicators, lists {len(rows)}")
         # --- gaps, recomputed here
         want = [t for t, ss in GATE_CORE
@@ -366,15 +369,41 @@ def check_methodology(tmp, repo, ind_files, labels, series_of):
         for n in notes:
             check(n.strip() != "", f"methodology {name}: empty note")
         check("None" not in re.findall(r'<tr class="mb-theme"><th colspan="4">(.*?)</th></tr>', body), f"methodology {name}: a row has no theme")
+    # --- looks and behaves like the rest of the site: shared assets, no inline styling, working navigation
+    head = h.split("</head>")[0]
+    for asset in ("indicator.css", "doc.css"):
+        check(re.search(r'<link[^>]*stylesheet[^>]*href="%s(\?[^"]*)?"' % re.escape(asset), head), f"methodology: head does not link {asset}")
+    check(re.search(r'<script[^>]*src="doc\.js(\?[^"]*)?"', h), "methodology: doc.js is not loaded")
+    check("chart.umd" not in h and "indicator-kit" not in h, "methodology: a text page must not load the charting library or the indicator kit")
+    main = h[h.find("<main"):h.find("</main>")]
+    check(main and not re.search(r"\sstyle=", main), "methodology: inline style attributes inside <main>")
+    check(len(re.findall(r"<h1[ >]", main)) == 1, "methodology: exactly one h1 expected")
+    sec_ids = {sid for sid, _ in secs}
+    toc = re.search(r'<nav class="panel ind-panel doc-toc".*?</nav>', main, re.S)
+    toc_ids = re.findall(r'href="#([^"]+)"', toc.group(0)) if toc else []
+    all_ids = set(re.findall(r'\sid="([^"]+)"', main))
+    check(toc_ids and all(t in all_ids for t in toc_ids), f"methodology: contents link to missing ids {[t for t in toc_ids if t not in all_ids]}")
+    idx = re.search(r'<nav class="mb-index".*?</nav>', main, re.S)
+    idx_ids = re.findall(r'href="#([^"]+)" data-for="([^"]+)"', idx.group(0)) if idx else []
+    check(sorted(i for i, _ in idx_ids) == sorted(sec_ids) and all(a == b for a, b in idx_ids),
+          "methodology: the economy index does not match the economy sections one to one")
+    check(re.search(r'<input[^>]*id="docFilter"', main) and re.search(r'id="docCount"', main) and re.search(r'id="docEmpty"', main),
+          "methodology: the find-an-economy controls are missing")
+    regions = {re.search(r'data-region="([^"]*)"', t[0]).group(1) for t in re.findall(r'(<section class="[^"]*\bmb-econ\b[^"]*"[^>]*>)', main, re.S) for t in [(t,)]}
+    chips = set(re.findall(r'class="rk-btn doc-chip[^"]*" data-region="([^"]*)"', main))
+    check("" in chips and (chips - {""}) == regions and all(regions), f"methodology: region chips {sorted(chips)} do not match the sections' regions {sorted(regions)}")
+    for sid, body in secs:
+        nm = re.search(r'data-name="([^"]*)"', h[h.find(f'id="{sid}"') - 120:h.find(f'id="{sid}"') + 200])
+        check(nm and unescape(nm.group(1)) == unescape((re.search(r"<h2>(.*?)</h2>", body, re.S) or [None, ""])[1]), f"methodology {sid}: data-name differs from the heading")
     # --- completeness: every indicator page documented exactly once
     check(sorted(seen_pages) == sorted(page_set),
           f"methodology documents {len(seen_pages)} indicator rows for {len(page_set)} pages "
           f"(missing {sorted(page_set - set(seen_pages))[:3]}, extra {sorted(set(seen_pages) - page_set)[:3]})")
     check(len(seen_pages) == len(set(seen_pages)), "methodology lists an indicator page twice")
     # --- the gap table equals the sections
-    gap = re.search(r"<h2>Where the site has gaps</h2>(.*?)<h2>Economies</h2>", h, re.S)
+    gap = re.search(r"<h2>Where the site has gaps</h2>(.*?)<h2>The \d+ economies</h2>", h, re.S)
     table = {unescape(a): (int(b), [x.strip() for x in unescape(c).split(", ")]) for a, b, c in
-             re.findall(r'<tr><th scope="row">(.*?)</th><td>(\d+)</td><td>(.*?)</td></tr>', gap.group(1) if gap else "", re.S)}
+             re.findall(r'<tr><th scope="row">(.*?)</th><td[^>]*>(\d+)</td><td[^>]*>(.*?)</td></tr>', gap.group(1) if gap else "", re.S)}
     for t, _ in GATE_CORE:
         lacking = sorted(n for n, miss in expected_missing.items() if t in miss)
         if lacking:

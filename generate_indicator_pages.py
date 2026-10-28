@@ -2066,25 +2066,13 @@ EMBED_TEMPLATE = """<!DOCTYPE html>
 """
 
 
-METHODOLOGY_CSS = """
-.mb-wrap{max-width:1040px;margin:0 auto;padding:0 18px 60px}
-.mb-wrap h2{margin:34px 0 4px;font-size:1.35rem}
-.mb-meta{margin:0 0 10px;color:var(--muted,#6b7280);font-size:.9rem}
-.mb-table{width:100%;border-collapse:collapse;font-size:.88rem;margin:6px 0 10px}
-.mb-table th,.mb-table td{padding:6px 8px;border-bottom:1px solid rgba(128,128,128,.25);text-align:left;vertical-align:top}
-.mb-table thead th{font-size:.78rem;text-transform:uppercase;letter-spacing:.04em;color:var(--muted,#6b7280)}
-.mb-table tr.mb-theme th{padding-top:14px;font-size:.78rem;text-transform:uppercase;letter-spacing:.05em;color:var(--muted,#6b7280);border-bottom:0}
-.mb-table tbody th[scope=row]{font-weight:600;white-space:nowrap}
-.mb-gaps{margin:4px 0;font-size:.9rem}.mb-notes{margin:8px 0 0;padding-left:1.1em;font-size:.9rem}.mb-notes li{margin:4px 0}
-.mb-index{display:flex;flex-wrap:wrap;gap:6px 14px;margin:14px 0 6px;font-size:.92rem}
-.mb-rules li{margin:6px 0}
-@media (max-width:640px){.mb-table{font-size:.8rem}.mb-table tbody th[scope=row]{white-space:normal}}
-"""
+DOC_ASSET_VERSION = "1"    # doc.css / doc.js, shared with methodology.html (bump with the files)
 
 
 def render_methodology_page(catalogue_by_country):
-    """/methodology-by-economy: what each economy's series are (v1.9.15). A root page, so the shell's one-folder-deep
-    paths are rewritten; the gate checks every local link still resolves."""
+    """/methodology-by-economy: what each economy's series are. A root page, so the shell's one-folder-deep paths
+    are rewritten; the gate checks every local link still resolves. Looks and behaves like the site's other
+    pages: ind-head title, panel cards, rk-btn chips, rk-scroll tables, with doc.css and doc.js (no inline styling)."""
     canonical = f"{SITE_URL}/methodology-by-economy"
     sections, summary = mbe.build(catalogue_by_country, COUNTRIES, adjustment_of, is_rolling3m, FX_EURO_MEMBERS,
                                   GROWTH_COVERAGE)
@@ -2092,7 +2080,11 @@ def render_methodology_page(catalogue_by_country):
     by_region = {}
     for country in sorted(catalogue_by_country):
         by_region.setdefault(COUNTRIES[country][3], []).append(country)
-    index = "".join(f'<a href="#{COUNTRIES[c][1]}">{esc(c)}</a>' for r in sorted(by_region) for c in by_region[r])
+    index = "".join(f'<a href="#{COUNTRIES[c][1]}" data-for="{COUNTRIES[c][1]}">{esc(c)}</a>'
+                    for c in sorted(catalogue_by_country))
+    chips = ('<button type="button" class="rk-btn doc-chip current" data-region="" aria-pressed="true">All</button>' +
+             "".join(f'<button type="button" class="rk-btn doc-chip" data-region="{esc(r)}" aria-pressed="false">{esc(r)}</button>'
+                     for r in sorted(by_region)))
     pct = int(round(GROWTH_COVERAGE * 100))
     page_title = "Methodology by Economy: What Each Series Is | The Economic Atlas"
     meta_desc = (f"For each of the {n} economies we track: which series feeds every indicator, how often it updates, "
@@ -2102,28 +2094,53 @@ def render_methodology_page(catalogue_by_country):
                          "isPartOf": {"@type": "WebSite", "name": "The Economic Atlas", "url": SITE_URL}},
                         ensure_ascii=False, indent=2)
     out = head_html(page_title, meta_desc, canonical, f"{SITE_URL}/og/rankings-{RANKINGS[0]['slug']}.png", jsonld)
-    out = out.replace("</head>", f"<style>{METHODOLOGY_CSS}</style>\n</head>", 1)
+    out = out.replace("</head>", f'<link rel="stylesheet" href="../doc.css?v={DOC_ASSET_VERSION}">\n</head>', 1)
     out += HEADER_HTML_BASE
-    out += f"""<main class="ind-wrap mb-wrap">
+    out += f"""<main class="ind-wrap doc-wrap">
   <header class="ind-head">
     <h1>Methodology by economy</h1>
-    <p class="ind-lede">For each of the {n} economies we track: the series behind every indicator, how often it updates, whether the source says it is seasonally adjusted, and what we do not track. This page is built from the same data as the indicator pages every time they are rebuilt, so it describes what is on the site now. For how Dollarise and Make it real work, and the known limitations, see the <a href="methodology">general methodology</a>.</p>
+    <p class="ind-lede">For each of the {n} economies we track: the series behind every indicator, how often it updates, whether the source says it is seasonally adjusted, and what we do not track. This page is rebuilt from the same data as the indicator pages, so it describes what is on the site now. For how Dollarise and Make it real work, and the known limitations, see the <a href="methodology">general methodology</a>.</p>
   </header>
-  <h2>How to read this page</h2>
-  <ul class="mb-rules">
-    <li><strong>Series</strong> is the series' own label: the measure, the publisher's identifier and, where the publisher states it, the seasonal adjustment. Click an indicator to see its chart and citation.</li>
-    <li><strong>Adjustment</strong> is shown only when the label or the publisher's documented convention establishes it. Otherwise it says Not stated; we do not guess. Interest rates are Not applicable.</li>
-    <li><strong>Not tracked</strong> means we hold no series for that core indicator. Nothing is estimated or filled in. Euro area members share the euro's own exchange rate, so it is not listed as missing for them.</li>
-    <li>The GDP growth ranking compares every economy for one quarter: the newest quarter that at least {pct}% of the economies with a usable growth series have published.</li>
-  </ul>
-  <h2>Where the site has gaps</h2>
-  {mbe.render_gap_table(summary)}
-  <h2>Economies</h2>
-  <nav class="mb-index" aria-label="Economies">{index}</nav>
-  {sections}
+  <nav class="panel ind-panel doc-toc" aria-label="On this page">
+    <h2>On this page</h2>
+    <ul>
+      <li><a href="#how-to-read">How to read this page</a></li>
+      <li><a href="#gaps">Where the site has gaps</a></li>
+      <li><a href="#economies">The {n} economies</a></li>
+    </ul>
+  </nav>
+  <section class="panel ind-panel doc-sec" id="how-to-read">
+    <h2>How to read this page</h2>
+    <ul>
+      <li><strong>Series</strong> is the series' own label: the measure, the publisher's identifier and, where the publisher states it, the seasonal adjustment. Select an indicator to see its chart and citation.</li>
+      <li><strong>Adjustment</strong> is shown only when the label or the publisher's documented convention establishes it. Otherwise it says Not stated; we do not guess. Interest rates are Not applicable.</li>
+      <li><strong>Not tracked</strong> means we hold no series for that core indicator. Nothing is estimated or filled in. Euro area members share the euro's own exchange rate, and the US dollar is the base currency, so neither is listed as missing for them.</li>
+      <li>The GDP growth ranking compares every economy for one quarter: the newest quarter that at least {pct}% of the economies with a usable growth series have published.</li>
+    </ul>
+  </section>
+  <section class="panel ind-panel doc-sec" id="gaps">
+    <h2>Where the site has gaps</h2>
+    {mbe.render_gap_table(summary)}
+  </section>
+  <section class="doc-sec doc-list" id="economies">
+    <h2>The {n} economies</h2>
+    <div class="doc-tools">
+      <label class="sr-only" for="docFilter">Find an economy</label>
+      <input class="doc-search" id="docFilter" type="search" placeholder="Find an economy" autocomplete="off">
+      <span class="doc-count" id="docCount" aria-live="polite"></span>
+    </div>
+    <div class="doc-chips" role="group" aria-label="Filter by region">{chips}</div>
+    <nav class="mb-index" aria-label="Economies">{index}</nav>
+    <p class="doc-empty" id="docEmpty" hidden>No economy matches that. Try a shorter name, or choose All.</p>
+    {sections}
+  </section>
 </main>
 """
     out += page_tail()
+    # a text page needs neither the charting library nor the indicator kit; it needs doc.js
+    out = out.replace('<script src="https://cdnjs.cloudflare.com/ajax/libs/Chart.js/4.4.1/chart.umd.min.js"></script>\n', "", 1)
+    out = out.replace(f'<script src="../indicator-kit.js?v={KIT_VERSION}"></script>\n', "", 1)
+    out = out.replace("</body>", f'<script src="../doc.js?v={DOC_ASSET_VERSION}" defer></script>\n</body>', 1)
     return out.replace('"../', '"')
 
 

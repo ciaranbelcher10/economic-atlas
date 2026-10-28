@@ -183,15 +183,23 @@ GDP_OVERLAY = {
 }
 
 
-def overlay_gdp(series: dict) -> None:
+def overlay_gdp(series: dict, notes: dict | None = None) -> None:
     try:
         rows = gdp_overlay.qna_rows("ZAF")
-        for key, sel in GDP_OVERLAY.items():
-            gdp_overlay.apply_overlay(series, key, rows, sel)
     except oecd_turn.NotThisHour as exc:
-        print(f"SKIP  gdp OECD overlay  {exc}")
+        print(f"SKIP  gdp OECD overlay  {exc}")       # no decision made: the previous notes stand
+        return
     except Exception as exc:
         print(f"WARN  gdp OECD overlay  {exc} (IFS series kept)")
+        for key in GDP_OVERLAY:
+            gdp_overlay.note(notes, key, "error", f"OECD request failed: {exc}")
+        return
+    for key, sel in GDP_OVERLAY.items():           # each series on its own: one failing must not skip the other
+        try:
+            gdp_overlay.apply_overlay(series, key, rows, sel, notes=notes)
+        except Exception as exc:
+            print(f"WARN  {key:<16} OECD overlay error: {exc} (IFS series kept)")
+            gdp_overlay.note(notes, key, "error", exc)
 
 
 def _growth_label(label: str, series: dict) -> str:
@@ -519,6 +527,7 @@ def _fx_rate_for_period(fx_hist, period, fallback):
 
 
 def main() -> int:
+    _overlay_notes: dict = {}                      # what the OECD overlay decided this run, per series
     out = {
         "updated": datetime.now(timezone.utc).strftime("%Y-%m-%dT%H:%M:%SZ"),
         "sample": False,
@@ -547,7 +556,7 @@ def main() -> int:
                 failures.append(name)
                 print(f"FAIL  {name:<16} {exc}")
 
-        overlay_gdp(out["series"])
+        overlay_gdp(out["series"], _overlay_notes)
 
         # gdp_growth is derived from the REAL (constant-price) GDP series,
         # not the nominal level. Deriving it from the nominal level gave a
@@ -734,6 +743,9 @@ def main() -> int:
                     print(f"FAIL  {tk:<16} no exchange rate this run to convert it; left out")
 
     with open("data-za.json", "w") as f:
+        _notes = gdp_overlay.merge_notes(prev_full.get("overlay_notes"), _overlay_notes, now_iso)
+        if _notes:
+            out["overlay_notes"] = _notes
         json.dump(out, f)
     print(f"\nWrote data-za.json with {len(out['series'])} series.")
     if failures:
