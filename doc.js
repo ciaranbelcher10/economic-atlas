@@ -49,6 +49,7 @@
   var input = doc.getElementById("docFilter");
   var sections = all(".mb-econ");
   var chips = all(".doc-chip");
+  var clearBtn = doc.getElementById("docClear");
   var countEl = doc.getElementById("docCount");
   var emptyEl = doc.getElementById("docEmpty");
   var state = { q: "", region: "" };
@@ -58,21 +59,23 @@
       var ok = (!q || (s.getAttribute("data-name") || "").toLowerCase().indexOf(q) !== -1) &&
                (!state.region || s.getAttribute("data-region") === state.region);
       s.hidden = !ok;
-      var link = doc.querySelector(".mb-index a[data-for='" + s.id + "']");
-      if (link) link.hidden = !ok;
       if (ok) shown++;
     });
     if (countEl) countEl.textContent = (q || state.region) ? shown + " of " + sections.length + " economies" : "";
     if (emptyEl) emptyEl.hidden = shown !== 0;
   }
+  function syncClear() { if (clearBtn && input) clearBtn.hidden = !input.value; }
   function clearFilters() {
     state = { q: "", region: "" };
     if (input) input.value = "";
+    syncClear();
     chips.forEach(function (c) { c.classList.toggle("current", c.getAttribute("data-region") === ""); });
     applyFilters();
   }
   if (input && sections.length) {
-    input.addEventListener("input", function () { state.q = input.value; applyFilters(); });
+    input.addEventListener("input", function () { state.q = input.value; syncClear(); applyFilters(); });
+    input.addEventListener("keydown", function (e) { if (e.key === "Escape" && input.value) { input.value = ""; state.q = ""; syncClear(); applyFilters(); } });
+    if (clearBtn) clearBtn.addEventListener("click", function () { input.value = ""; state.q = ""; syncClear(); applyFilters(); input.focus(); });
     chips.forEach(function (c) {
       c.addEventListener("click", function () {
         state.region = c.getAttribute("data-region") || "";

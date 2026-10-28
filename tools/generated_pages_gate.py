@@ -24,7 +24,8 @@ Checks (every one is mutation-tested in tools/test_generated_pages_gate.py):
   9. methodology-by-economy.html (v1.9.15): every one of the indicator pages is documented exactly once; each row's
      series label and frequency equal the data file's; each economy's "Not tracked" line and the gap table equal an
      independent recomputation; each hand-written note appears exactly when its condition holds in the data; every
-     local link resolves.
+     local link resolves; the page loads the site's shared assets, has no inline styling, working navigation, and
+     no hyperlinks inside running text (buttons instead).
 
 Run from anywhere:   python3 tools/generated_pages_gate.py
 Options:             --generator PATH   use another copy of the generator (the tests do)
@@ -383,11 +384,13 @@ def check_methodology(tmp, repo, ind_files, labels, series_of):
     toc_ids = re.findall(r'href="#([^"]+)"', toc.group(0)) if toc else []
     all_ids = set(re.findall(r'\sid="([^"]+)"', main))
     check(toc_ids and all(t in all_ids for t in toc_ids), f"methodology: contents link to missing ids {[t for t in toc_ids if t not in all_ids]}")
-    idx = re.search(r'<nav class="mb-index".*?</nav>', main, re.S)
-    idx_ids = re.findall(r'href="#([^"]+)" data-for="([^"]+)"', idx.group(0)) if idx else []
-    check(sorted(i for i, _ in idx_ids) == sorted(sec_ids) and all(a == b for a, b in idx_ids),
-          "methodology: the economy index does not match the economy sections one to one")
-    check(re.search(r'<input[^>]*id="docFilter"', main) and re.search(r'id="docCount"', main) and re.search(r'id="docEmpty"', main),
+    check("mb-index" not in main, "methodology: the blue list of economy links must not return (the search box and region buttons do that job)")
+    # buttons, not hyperlinks in running text: any link inside a paragraph or list item must be a button
+    prose = re.sub(r'<nav class="panel ind-panel doc-toc".*?</nav>', "", main, flags=re.S)
+    stray = re.findall(r'<(p|li)\b[^>]*>(?:(?!</\1>).)*?<a\s(?![^>]*class="btn)[^>]*>(.*?)</a>', prose, re.S)
+    check(not stray, f"methodology: a hyperlink inside running text (use a button): {[unescape(x[1])[:40] for x in stray][:3]}")
+    check(re.search(r'<input[^>]*id="docFilter"', main) and re.search(r'id="docCount"', main) and re.search(r'id="docEmpty"', main)
+          and re.search(r'id="docClear"', main) and re.search(r'class="doc-search-icon"', main) and re.search(r'class="doc-searchbox"', main),
           "methodology: the find-an-economy controls are missing")
     regions = {re.search(r'data-region="([^"]*)"', t[0]).group(1) for t in re.findall(r'(<section class="[^"]*\bmb-econ\b[^"]*"[^>]*>)', main, re.S) for t in [(t,)]}
     chips = set(re.findall(r'class="rk-btn doc-chip[^"]*" data-region="([^"]*)"', main))

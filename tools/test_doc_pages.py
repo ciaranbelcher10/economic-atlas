@@ -53,6 +53,11 @@ for prop, val in re.findall(r"([a-z-]+)\s*:\s*([^;{}]+);", css):
 check("@media (max-width:640px)" in css, "doc.css has no mobile layout")
 check("prefers-reduced-motion" in css, "doc.css ignores reduced motion")
 check(":focus-visible" in css, "doc.css styles no focus state")
+for sel in (".doc-searchbox", ".doc-search", ".doc-search-clear", ".doc-search-icon", ".doc-actions", ".doc-chip", ".doc-count"):
+    check(re.search(r"(?m)^" + re.escape(sel) + r"\s*\{", css), f"doc.css has no rule of its own for {sel}")
+loose = re.findall(r"\.doc-sec a(?!:not\(\.btn\))[^{,]*", css)
+check(not loose, f"doc.css restyles the site's own buttons inside sections: {loose[:2]}")
+check(re.search(r"\.doc-sec a:not\(\.btn\)\s*\{", css), "doc.css has no link style for running text inside sections")
 
 # ---------------------------------------------------------------- 2. methodology.html
 h = read("methodology.html")
@@ -76,7 +81,11 @@ det = re.findall(r'<details class="doc-detail" id="([^"]+)"><summary>(.*?)</summ
 check(len(det) == 30 and len({i for i, _ in det}) == 30 and all(i.startswith("limit-") and s.strip() for i, s in det),
       f"expected 30 accordions with unique limit- ids and a summary, found {len(det)}")
 check(re.search(r'<footer class="ind-wrap doc-foot">', h), "methodology.html footer is not aligned with the content column")
-check('href="methodology-by-economy"' in main, "methodology.html does not link the by-economy page")
+check(re.search(r'<a class="btn" href="methodology-by-economy">', main), "methodology.html must offer the by-economy page as a button")
+check(re.search(r'<a class="btn ghost" href="contact">', main), "methodology.html must offer contact as a button")
+prose = re.sub(r'<nav class="panel ind-panel doc-toc".*?</nav>', "", main, flags=re.S)
+stray = re.findall(r'<(p|li)\b[^>]*>(?:(?!</\1>).)*?<a\s(?![^>]*class="btn)[^>]*>(.*?)</a>', prose, re.S)
+check(not stray, f"methodology.html has hyperlinks inside running text (use a button): {[x[1][:40] for x in stray][:3]}")
 for key in ("Known limitations", "Dollarise", "Make it real", "Seasonal adjustment", "Where the data comes from"):
     check(key in main, f"methodology.html lost its '{key}' content")
 for ref in re.findall(r'(?:href|src)="([^"#][^"]*)"', main + h[b:b + 600]):

@@ -7,10 +7,11 @@ module in ways that matter, and doctor the data so that a hand-written note's co
 the gate to exit 1 with the right message each time. A crash does not count as a catch.
 
   - positive control: the repo as it is passes;
-  - 18 breakages (a missing page, broken links, a dropped economy, a doubled row, truncated labels, wrong
+  - 22 breakages (a missing page, broken links, a dropped economy, a doubled row, truncated labels, wrong
     frequencies, wrong or missing gaps, a note on the wrong economy, a missing generated note, a wrong gap-table
     count, the SCA rule reverted, a missing stylesheet, inline styling, lost navigation controls, a charting
-    library loaded on a text page);
+    library loaded on a text page, an in-text hyperlink, the blue economy list, a search box without its
+    icon or clear button);
   - doctored data: Switzerland's growth label loses its series id. The real module must then drop that note (and
     pass); a module whose check always says yes must be caught.
 
@@ -163,6 +164,16 @@ CASES = [
     ("the charting library loaded on a text page", edit_file("generate_indicator_pages.py",
         r"""    out = out.replace('<script src="https://cdnjs.cloudflare.com/ajax/libs/Chart.js/4.4.1/chart.umd.min.js"></script>\n', "", 1)""" + "\n",
         ""), "must not load the charting library"),
+    ("a hyperlink back in running text", edit_file("generate_indicator_pages.py", 'so it describes what is on the site now.</p>',
+                                                   'so it describes what is on the site now. See the <a href="methodology">general methodology</a>.</p>'),
+     "hyperlink inside running text"),
+    ("the blue list of economy links returns", edit_file("generate_indicator_pages.py", '    <div class="doc-chips" role="group"',
+                                                          '    <nav class="mb-index" aria-label="Economies"></nav>\n    <div class="doc-chips" role="group"'),
+     "blue list of economy links must not return"),
+    ("search clear button lost", edit_file("generate_indicator_pages.py", 'id="docClear"', 'id="docClearX"'),
+     "find-an-economy controls are missing"),
+    ("search icon lost", edit_file("generate_indicator_pages.py", 'class="doc-search-icon"', 'class="doc-search-iconX"'),
+     "find-an-economy controls are missing"),
     ("a theme lost from the registry",
      edit_file("methodology_by_economy.py", '    ("Public finances", ["government-debt", "government-net-debt", "government-budget", "government-debt-interest"]),\n', ""),
      "has no theme"),

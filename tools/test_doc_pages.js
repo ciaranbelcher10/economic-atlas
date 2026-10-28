@@ -53,10 +53,20 @@ const same = (a, b) => a.length === b.length && a.every(x => b.includes(x));
     const want = names.filter(x => x.toLowerCase().includes("ger"));
     ok(want.length >= 2 && same(visibleNames(d), want), `typing "ger" must show exactly ${JSON.stringify(want)}, shows ${JSON.stringify(visibleNames(d))}`);
     ok(count.textContent === `${want.length} of ${n} economies`, `count text is "${count.textContent}"`);
-    const linkVis = [...d.querySelectorAll(".mb-index a")].filter(a => !a.hidden).length;
-    ok(linkVis === want.length, `the index must follow the filter: ${linkVis} links shown for ${want.length} economies`);
+    ok(!d.querySelector(".mb-index"), "the blue list of economy links must not exist");
+    ok(!!d.querySelector(".doc-searchbox .doc-search-icon") && !!d.querySelector(".doc-searchbox #docClear"), "the search box needs its icon and clear button");
+    const clear = d.getElementById("docClear");
+    ok(clear.hidden === false, "the clear button must show once something is typed");
     ok(empty.hidden, "the empty message must stay hidden while something matches");
 
+    clear.click();
+    ok(input.value === "" && visibleNames(d).length === n && clear.hidden === true && count.textContent === "",
+       "the clear button must empty the box, restore all 62, hide itself and clear the count");
+    ok(d.getElementById("docClear").hidden, "the clear button is hidden when the box is empty");
+    type("ger");
+    input.dispatchEvent(new w.KeyboardEvent("keydown", {key: "Escape", bubbles: true}));
+    ok(input.value === "" && visibleNames(d).length === n, "Escape in the box must clear it");
+    type("ger");
     type("zzzzq");
     ok(visibleNames(d).length === 0 && !empty.hidden, "no match: every section hidden and the empty message shown");
     type("");

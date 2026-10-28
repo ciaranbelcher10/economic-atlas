@@ -2080,8 +2080,6 @@ def render_methodology_page(catalogue_by_country):
     by_region = {}
     for country in sorted(catalogue_by_country):
         by_region.setdefault(COUNTRIES[country][3], []).append(country)
-    index = "".join(f'<a href="#{COUNTRIES[c][1]}" data-for="{COUNTRIES[c][1]}">{esc(c)}</a>'
-                    for c in sorted(catalogue_by_country))
     chips = ('<button type="button" class="rk-btn doc-chip current" data-region="" aria-pressed="true">All</button>' +
              "".join(f'<button type="button" class="rk-btn doc-chip" data-region="{esc(r)}" aria-pressed="false">{esc(r)}</button>'
                      for r in sorted(by_region)))
@@ -2099,7 +2097,8 @@ def render_methodology_page(catalogue_by_country):
     out += f"""<main class="ind-wrap doc-wrap">
   <header class="ind-head">
     <h1>Methodology by economy</h1>
-    <p class="ind-lede">For each of the {n} economies we track: the series behind every indicator, how often it updates, whether the source says it is seasonally adjusted, and what we do not track. This page is rebuilt from the same data as the indicator pages, so it describes what is on the site now. For how Dollarise and Make it real work, and the known limitations, see the <a href="methodology">general methodology</a>.</p>
+    <p class="ind-lede">For each of the {n} economies we track: the series behind every indicator, how often it updates, whether the source says it is seasonally adjusted, and what we do not track. This page is rebuilt from the same data as the indicator pages, so it describes what is on the site now.</p>
+    <div class="doc-actions"><a class="btn ghost" href="methodology">General methodology</a></div>
   </header>
   <nav class="panel ind-panel doc-toc" aria-label="On this page">
     <h2>On this page</h2>
@@ -2125,12 +2124,15 @@ def render_methodology_page(catalogue_by_country):
   <section class="doc-sec doc-list" id="economies">
     <h2>The {n} economies</h2>
     <div class="doc-tools">
-      <label class="sr-only" for="docFilter">Find an economy</label>
-      <input class="doc-search" id="docFilter" type="search" placeholder="Find an economy" autocomplete="off">
+      <div class="doc-searchbox">
+        <svg class="doc-search-icon" viewBox="0 0 20 20" width="16" height="16" aria-hidden="true" focusable="false"><circle cx="8.5" cy="8.5" r="5.5" fill="none" stroke="currentColor" stroke-width="1.8"/><path d="M13 13l4.5 4.5" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round"/></svg>
+        <label class="sr-only" for="docFilter">Find an economy</label>
+        <input class="doc-search" id="docFilter" type="search" placeholder="Search economies" autocomplete="off" spellcheck="false">
+        <button type="button" class="doc-search-clear" id="docClear" aria-label="Clear search" hidden>&times;</button>
+      </div>
       <span class="doc-count" id="docCount" aria-live="polite"></span>
     </div>
     <div class="doc-chips" role="group" aria-label="Filter by region">{chips}</div>
-    <nav class="mb-index" aria-label="Economies">{index}</nav>
     <p class="doc-empty" id="docEmpty" hidden>No economy matches that. Try a shorter name, or choose All.</p>
     {sections}
   </section>
