@@ -55,14 +55,15 @@ def qna_rows(iso: str) -> list:
     return list(csv.DictReader(io.StringIO(r.text)))
 
 
-def select(rows: list, **want) -> dict:
-    """{quarter: value} for the rows matching every column=value in `want`.
+def select_checked(rows: list, **want) -> tuple:
+    """({quarter: value}, {quarter: (lower, higher)}) for the rows matching every column=value in `want`.
 
-    The OECD publishes some series in more than one table (South Africa: TABLE_IDENTIFIER T0101 and
-    T0102), and the two copies differ only by rounding in the last decimal, e.g. 1048271.7 against
-    1048271.6. Values within DUP_TOLERANCE of each other are the same figure, and the LOWER one is
-    kept so the result does not depend on row order. Values further apart than that mean the
-    selector does not pin down one series, and picking either would be a guess, so this raises."""
+    The OECD publishes some series in more than one table (South Africa: TABLE_IDENTIFIER T0101 and T0102). Most
+    quarters agree to the rounding of the last decimal, e.g. 1048271.7 against 1048271.6, and are the same figure
+    (the LOWER copy is kept, so the result does not depend on row order). A few do not: the two tables differ by
+    0.14% for South Africa's nominal GDP in 2010-Q1. Those quarters are REPORTED in the second value, with the lower
+    copy as the value, and the caller decides whether they matter: a disagreement in 2010 is no reason to refuse a
+    correction to 2026."""
     seen: dict = {}
     for row in rows:
         if not all((row.get(k) or "") == v for k, v in want.items()):
@@ -76,12 +77,22 @@ def select(rows: list, **want) -> dict:
             continue
         seen.setdefault(per, []).append(v)
     out: dict = {}
+    conflicts: dict = {}
     for per, vs in seen.items():
         lo, hi = min(vs), max(vs)
-        if hi - lo > DUP_TOLERANCE * max(1.0, abs(hi)):
-            raise ValueError(f"OECD selector is ambiguous: {per} has values {lo} and {hi}, "
-                             f"further apart than rounding")
         out[per] = lo
+        if hi - lo > DUP_TOLERANCE * max(1.0, abs(hi)):
+            conflicts[per] = (lo, hi)
+    return out, conflicts
+
+
+def select(rows: list, **want) -> dict:
+    """Strict form of select_checked: raises if any quarter's copies disagree beyond rounding."""
+    out, conflicts = select_checked(rows, **want)
+    if conflicts:
+        per = min(conflicts)
+        lo, hi = conflicts[per]
+        raise ValueError(f"OECD selector is ambiguous: {per} has values {lo} and {hi}, further apart than rounding")
     return out
 
 
@@ -99,7 +110,7 @@ def _seq(a: str, b: str) -> list:
 
 
 def overlay(base: list, cand: dict, window: int = WINDOW, tol: float = TOLERANCE,
-            min_overlap: int = MIN_OVERLAP) -> tuple:
+            min_overlap: int = MIN_OVERLAP, conflicts: dict | None = None) -> tuple:
     """Return (points, report). `base` is [[quarter, value], ...] ascending; `cand` is {quarter: value}.
     report["applied"] is False, with a reason, whenever any check fails, and points is then `base`."""
     def no(reason):
@@ -114,12 +125,20 @@ def overlay(base: list, cand: dict, window: int = WINDOW, tol: float = TOLERANCE
     if len(overlap) < min_overlap:
         return no(f"only {len(overlap)} overlapping quarters, need {min_overlap}")
     win = overlap[-window:]
+    start = win[0]
+    # quarters where the OECD's two tables disagree matter only from the window start on: that is the part of the
+    # series the overlay replaces. Earlier ones are left alone, and reported.
+    now_bad = sorted(p for p in (conflicts or {}) if p >= start)
+    if now_bad:
+        lo, hi = conflicts[now_bad[0]]
+        return no(f"OECD has two different values for {now_bad[0]} ({lo} and {hi}) in the part of the series the overlay uses")
+    ignored = sorted(p for p in (conflicts or {}) if p < start)
     devs = [(abs(cand[p] / by[p] - 1), p) for p in win]
     worst, where = max(devs)
     if worst > tol:
         return no(f"OECD differs from IFS by {worst * 100:.2f}% at {where} "
                   f"(limit {tol * 100:.0f}%): different basis or level")
-    start, last_c, last_b = win[0], max(cand), base[-1][0]
+    last_c, last_b = max(cand), base[-1][0]
     if last_c < last_b:
         return no(f"OECD ends {last_c}, before IFS {last_b}")
     seq = _seq(start, last_c)
@@ -130,7 +149,7 @@ def overlay(base: list, cand: dict, window: int = WINDOW, tol: float = TOLERANCE
     replaced = sum(1 for p, _ in base if p >= start)
     return merged, {"applied": True, "from": start, "replaced": replaced,
                     "added": sum(1 for p in seq if p > last_b),
-                    "max_dev": worst, "checked": len(win), "last": last_c}
+                    "max_dev": worst, "checked": len(win), "last": last_c, "ignored": ignored}
 
 
 def relabel(label: str) -> str:
@@ -166,16 +185,19 @@ def apply_overlay(series: dict, key: str, rows: list, sel: dict, log=print, note
         log(f"SKIP  {key:<16} OECD overlay: no quarterly IFS series this run")
         note(notes, key, "refused", "no quarterly IFS series this run")
         return None
-    merged, rep = overlay(s["points"], select(rows, **sel))
+    cand, conflicts = select_checked(rows, **sel)
+    merged, rep = overlay(s["points"], cand, conflicts=conflicts)
     if not rep["applied"]:
         log(f"WARN  {key:<16} OECD overlay not applied: {rep['reason']} (IFS series kept)")
         note(notes, key, "refused", rep["reason"])
         return rep
     s["points"] = merged
     s["label"] = relabel(s["label"])
+    extra = (f"; ignored {len(rep['ignored'])} older quarters where the OECD's two tables disagree "
+             f"(earliest {rep['ignored'][0]})") if rep.get("ignored") else ""
     log(f"  ok  {key:<16} OECD overlay from {rep['from']}: {rep['replaced']} quarters replaced, "
         f"{rep['added']} added, max deviation {rep['max_dev'] * 100:.2f}% over {rep['checked']} quarters "
-        f"(now to {rep['last']})")
+        f"(now to {rep['last']}){extra}")
     note(notes, key, "applied", f"from {rep['from']}: {rep['replaced']} quarters replaced, {rep['added']} added, "
-                                f"max deviation {rep['max_dev'] * 100:.2f}% over {rep['checked']} quarters, now to {rep['last']}")
+                                f"max deviation {rep['max_dev'] * 100:.2f}% over {rep['checked']} quarters, now to {rep['last']}{extra}")
     return rep

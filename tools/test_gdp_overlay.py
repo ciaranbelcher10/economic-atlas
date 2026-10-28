@@ -359,8 +359,8 @@ def notes_record_every_decision():
         n = {}
         s = mk(br, bl, "r", "l")
         run_overlay(mod, s, _rows(code, br, bl, nr, nl, conflict_real=True), iso, n)
-        check(n.get("gdp_real", {}).get("status") == "error" and "ambiguous" in n["gdp_real"]["detail"],
-              f"{who}: an ambiguous selector must be recorded as an error naming the cause: {n.get('gdp_real')}")
+        check(n.get("gdp_real", {}).get("status") == "refused" and "two different values for 2026-Q2" in n["gdp_real"]["detail"],
+              f"{who}: a disagreement in the new quarter must be recorded as refused, naming the quarter: {n.get('gdp_real')}")
         check(n.get("gdp_level", {}).get("status") == "applied" and s["gdp_level"]["points"][-1][0] == "2026-Q2",
               f"{who}: nominal GDP must still apply when real GDP errors first: {n.get('gdp_level')}")
         # OECD unreachable: both recorded as errors, series untouched
@@ -400,6 +400,45 @@ def fetchers_write_the_notes():
         i_merge, i_dump = src.find('gdp_overlay.merge_notes(prev_full.get("overlay_notes"), _overlay_notes, now_iso)'), src.find("        json.dump(out, f)")
         check(0 < i_init < i_out, f"{fn}: _overlay_notes must be created before out is built")
         check(0 < i_merge < i_dump and 'out["overlay_notes"] = _notes' in src, f"{fn}: the notes must be merged and stored before the file is written")
+
+
+@case
+def disagreeing_tables_matter_only_where_the_overlay_works():
+    """Production, 28 Oct 2026: South Africa's nominal GDP was refused entirely because the OECD's two tables disagree
+    by 0.14% in 2010-Q1 (735904.9 against 736905.0). That quarter can never be used. A disagreement blocks the overlay
+    only from the start of the validated window (here 2024-Q2) onward, and older ones are reported, not hidden."""
+    cand = cand_for(ZA_REAL, OECD_NEW["ZA_REAL"])
+    window_start = "2024-Q2"
+    gap = lambda p: (cand[p], cand[p] * 1.0014)
+    # strict select still refuses, so nothing else can hide a disagreement
+    rows = rows_for(EXPECTED_SEL["ZA"]["gdp_real"], cand)
+    rows.append(dict(rows[0], OBS_VALUE=str(float(rows[0]["OBS_VALUE"]) * 1.0014)))
+    oldest = rows[0]["TIME_PERIOD"]
+    try:
+        go.select(rows, **EXPECTED_SEL["ZA"]["gdp_real"])
+        check(False, "select must stay strict")
+    except ValueError:
+        pass
+    c2, conf = go.select_checked(rows, **EXPECTED_SEL["ZA"]["gdp_real"])
+    check(list(conf) == [oldest] and c2[oldest] == min(conf[oldest]), f"select_checked must report the disagreeing quarter and keep the lower copy: {conf}")
+    # 1. an OLD disagreement does not block, and is reported
+    m, rep = go.overlay(ZA_REAL, c2, conflicts=conf)
+    check(rep["applied"] and rep["ignored"] == [oldest], f"an old disagreement must be ignored and reported: {rep}")
+    check(m[0] == ZA_REAL[0] and rep["from"] == window_start, "points before the window must be untouched")
+    n = {}
+    s = mk(ZA_REAL, ZA_LEVEL, "r", "l")
+    run_overlay(fetch_za, s, rows + rows_for(EXPECTED_SEL["ZA"]["gdp_level"], cand_for(ZA_LEVEL, OECD_NEW["ZA_LEVEL"])), "ZAF", n)
+    check(n["gdp_real"]["status"] == "applied" and "ignored 1 older quarters" in n["gdp_real"]["detail"] and oldest in n["gdp_real"]["detail"],
+          f"the note must say how many older quarters were ignored and the earliest: {n.get('gdp_real')}")
+    # 2. a disagreement exactly AT the window start, inside it, or in the new quarter refuses
+    for per in (window_start, "2025-Q1", "2026-Q2"):
+        lo, hi = gap(per)
+        m2, rep2 = go.overlay(ZA_REAL, c2, conflicts={per: (lo, hi)})
+        check(not rep2["applied"] and per in rep2["reason"] and "two different values" in rep2["reason"] and m2 == ZA_REAL,
+              f"a disagreement in {per} must refuse and name it: {rep2}")
+    # 3. nothing to report: the report carries an empty list
+    m3, rep3 = go.overlay(ZA_REAL, cand_for(ZA_REAL, OECD_NEW["ZA_REAL"]))
+    check(rep3["applied"] and rep3["ignored"] == [], f"no disagreements, nothing ignored: {rep3}")
 
 
 print("test_gdp_overlay:", "FAILED" if fails else "ok", f"({len(fails)} failures)")
