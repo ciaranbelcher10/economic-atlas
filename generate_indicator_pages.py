@@ -1276,6 +1276,20 @@ def head_html(title, desc, canonical, og_image, jsonld, extra_css=""):
 <body>
 """
 
+CONSENT_HTML = """<div id="cookieBanner" role="region" aria-label="Cookie consent">
+ <div class="cookie-inner">
+ <div>
+ <p class="cookie-icon" aria-hidden="true">&#127850;</p>
+ <p class="cookie-text"><strong>A quick cookie question.</strong><br>We'd like to use Google Analytics to see how the site is used. It only runs if you say yes, and no personal data is sold or shared either way.</p>
+ </div>
+ <div class="cookie-actions">
+ <button type="button" class="btn ghost" id="cookieReject">Reject</button>
+ <button type="button" class="btn" id="cookieAccept">Accept</button>
+ <a class="btn ghost" href="../privacy">Privacy</a>
+ </div>
+ </div>
+</div>"""
+
 def page_tail(extra_js="", extra_html=""):
     return f"""<div class="ind-footwrap">{FOOTER_HTML}</div>
 {extra_html}
@@ -1283,6 +1297,8 @@ def page_tail(extra_js="", extra_html=""):
 <script src="../indicator-kit.js?v={KIT_VERSION}"></script>
 {extra_js}
 <script src="../mobile.js?v=17"></script>
+{CONSENT_HTML}
+<script src="../consent.js?v=1" defer></script>
 </body>
 </html>
 """

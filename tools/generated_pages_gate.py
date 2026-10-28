@@ -27,6 +27,11 @@ Checks (every one is mutation-tested in tools/test_generated_pages_gate.py):
      local link resolves; the page loads the site's shared assets, has no inline styling, working navigation, and
      no hyperlinks inside running text (buttons instead).
 
+ 10. consent (v1.9.19): every indicator, ranking, rankings-index and methodology page has the cookie banner (with
+     a Privacy button, no hyperlink in its text) and loads consent.js once, deferred; no page loads or names
+     Google Analytics itself; embeds carry neither; consent.js injects Google only inside loadGA(), which runs
+     only after a saved 'granted' or an Accept click, and uses the same ID and key as the root pages.
+
 Run from anywhere:   python3 tools/generated_pages_gate.py
 Options:             --generator PATH   use another copy of the generator (the tests do)
                      --repo PATH        take the inputs from another checkout
@@ -262,6 +267,9 @@ def run_checks(tmp, r, repo):
     # 9. methodology by economy
     meth = check_methodology(tmp, repo, ind_files, labels, series_of)
 
+    # 10. consent-gated analytics on every generated page that a person can land on
+    check_consent(tmp, repo, ind_files, emb_files, rank_files, meth)
+
     # 7/8. visible text and copy rules on everything generated
     rules = [("hourly claim", re.compile(r"checked hourly|checks hourly|hourly against|updated hourly|from source every hour", re.I)),
              ("em dash", re.compile("\u2014")),
@@ -275,6 +283,68 @@ def run_checks(tmp, r, repo):
             hit = rx.search(text) or rx.search(meta)
             check(not hit, f"{os.path.relpath(f, tmp)}: {name} ('{hit.group(0) if hit else ''}')")
     bump("pages scanned for copy", len(ind_files) + len(emb_files) + len(rank_files) + (1 if meth else 0))
+
+
+GA_ID = "G-PJSXJN5H6G"
+CONSENT_KEY = "eatlas_cookie_consent"
+
+
+def check_consent(tmp, repo, ind_files, emb_files, rank_files, meth):
+    """Every landing page carries the banner and loads consent.js (deferred); no page loads Google Analytics
+    itself; embeds (iframed inside other sites) carry neither; consent.js only injects GA inside loadGA(), and
+    calls loadGA() only after a saved 'granted' or an Accept click."""
+    pages = list(ind_files) + list(rank_files)
+    idx = os.path.join(tmp, "rankings", "index.html")
+    if check(os.path.exists(idx), "rankings/index.html was not generated"):
+        pages.append(idx)
+    if meth:
+        pages.append(meth)
+    for f in pages:
+        h, rel = read(f), os.path.relpath(f, tmp)
+        for needle in ('id="cookieBanner"', 'id="cookieAccept"', 'id="cookieReject"'):
+            check(h.count(needle) == 1, f"{rel}: expected exactly one {needle}")
+        tags = re.findall(r"<script[^>]*src=\"[^\"]*consent\.js[^>]*>", h)
+        check(len(tags) == 1 and " defer" in tags[0], f"{rel}: consent.js must be loaded exactly once, with defer")
+        banner = re.search(r'<div id="cookieBanner".*?\n</div>', h, re.S)
+        btxt = banner.group(0) if banner else ""
+        check(re.search(r'<a [^>]*class="btn[^"]*"[^>]*href="[^"]*privacy"', btxt) or
+              re.search(r'<a [^>]*href="[^"]*privacy"[^>]*class="btn', btxt), f"{rel}: banner has no Privacy button")
+        ct = re.search(r'<p class="cookie-text">(.*?)</p>', btxt, re.S)
+        check(ct and "<a " not in ct.group(1), f"{rel}: banner text must not contain a hyperlink (use a button)")
+        for bad in ("googletagmanager", "gtag(", GA_ID):
+            check(bad not in h, f"{rel}: page must not load or name Google Analytics itself ('{bad}')")
+    for f in emb_files:
+        h = read(f)
+        for bad in ("cookieBanner", "consent.js", "googletagmanager", GA_ID):
+            check(bad not in h, f"{os.path.relpath(f, tmp)}: embeds must not carry analytics or a banner ('{bad}')")
+    bump("pages checked for consent", len(pages))
+    bump("embeds checked for no analytics", len(emb_files))
+
+    p = os.path.join(repo, "consent.js")
+    if not check(os.path.exists(p), "consent.js is missing from the repository"):
+        return
+    js = read(p)
+    check(GA_ID in js, "consent.js does not contain the measurement ID")
+    check(f'"{CONSENT_KEY}"' in js, "consent.js does not use the site's consent key")
+    uk = read(os.path.join(repo, "uk.html"))
+    check(f'"{GA_ID}"' in uk and f'"{CONSENT_KEY}"' in uk, "root pages no longer use the same ID and key as consent.js")
+    m = re.search(r"function loadGA\(\)\s*\{", js)
+    if not check(m, "consent.js has no loadGA()"):
+        return
+    depth, i = 1, m.end()
+    while i < len(js) and depth:
+        depth += {"{": 1, "}": -1}.get(js[i], 0)
+        i += 1
+    body, outside = js[m.end():i], js[:m.start()] + js[i:]
+    check("googletagmanager.com/gtag/js" in body and "googletagmanager" not in outside,
+          "consent.js loads Google outside loadGA()")
+    calls = [x.start() for x in re.finditer(r"loadGA\(\)", outside)]
+    check(len(calls) == 2, f"consent.js calls loadGA() {len(calls)} times, expected 2 (saved grant, Accept)")
+    if len(calls) == 2:
+        before = [outside[max(0, calls[0] - 80):calls[0]], outside[max(0, calls[1] - 220):calls[1]]]
+        check('=== "granted"' in before[0], "first loadGA() call is not guarded by a saved 'granted'")
+        check('"granted"' in before[1] and "setItem" in before[1], "second loadGA() call does not follow storing 'granted'")
+        check("denied" not in before[0] and "denied" not in before[1], "a loadGA() call sits next to a 'denied' branch")
 
 
 # Methodology-by-economy checks. These are a SECOND, independent statement of the rules in
