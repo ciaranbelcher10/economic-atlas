@@ -31,7 +31,7 @@ data-metric-sources.json.
 """
 import json, os, re, html as htmllib
 from decimal import Decimal, ROUND_HALF_UP
-from datetime import date, timedelta
+from datetime import date, datetime, timedelta
 
 import methodology_by_economy as mbe
 
@@ -2158,6 +2158,134 @@ def render_methodology_page(catalogue_by_country):
     return out.replace('"../', '"')
 
 
+FREQ_WORD = {"months": "Monthly", "quarters": "Quarterly", "years": "Annual"}
+
+
+def fmt_utc(ts):
+    m = re.match(r"(\d{4})-(\d{2})-(\d{2})T(\d{2}):(\d{2})", ts or "")
+    if not m:
+        return "Not recorded"
+    d = date(int(m.group(1)), int(m.group(2)), int(m.group(3)))
+    return f"{d.day} {d.strftime('%b %Y')}, {m.group(4)}:{m.group(5)} UTC"
+
+
+def parse_release(text):
+    try:
+        return datetime.strptime((text or "").strip(), "%d %B %Y").date()
+    except ValueError:
+        return None
+
+
+def data_status(catalogue_by_country):
+    """Per economy: last checked, series on the site, how many are current. Plus every late series and the overlay notes.
+    Late uses the same rule as the indicator pages (is_fresh)."""
+    today = date.today()
+    rows, behind, overlays = [], [], []
+    for country in sorted(catalogue_by_country):
+        info = catalogue_by_country[country]
+        data, series = info["data"], info["data"].get("series", {})
+        cur = late = 0
+        upcoming = []
+        for e in info["catalogue"]:
+            s = series.get(e["key"], {})
+            freq, period = s.get("freq", ""), e["pts"][-1][0]
+            if is_fresh(period, freq):
+                cur += 1
+            else:
+                late += 1
+                behind.append(dict(country=country, key=e["key"], title=e["title"], period=period, freq=freq,
+                                   next=s.get("next") or ""))
+            d = parse_release(s.get("next"))
+            if d and d >= today:
+                upcoming.append(d)
+        nxt = min(upcoming) if upcoming else None
+        rows.append(dict(country=country, updated=data.get("updated"), series=len(info["catalogue"]), current=cur,
+                         late=late, next=f"{nxt.day} {nxt.strftime('%B %Y')}" if nxt else "Not published"))
+        for key, note in sorted((data.get("overlay_notes") or {}).items()):
+            overlays.append(dict(country=country, key=key, label=series.get(key, {}).get("label", key),
+                                 status=note.get("status", ""), detail=note.get("detail", ""), run=note.get("run")))
+    return rows, behind, overlays
+
+
+def render_data_status_page(catalogue_by_country):
+    """/data-status: is every series current, when was each economy last checked, what is due next. A root page built
+    on every run, so it stays true without anyone editing it; the gate recomputes its numbers from the data files."""
+    canonical = f"{SITE_URL}/data-status"
+    rows, behind, overlays = data_status(catalogue_by_country)
+    n, total = len(rows), sum(r["series"] for r in rows)
+    cur, late = sum(r["current"] for r in rows), sum(r["late"] for r in rows)
+    made_on = date.today()
+    generated = f"{made_on.day} {made_on.strftime('%B %Y')}"
+    page_title = "Data Status: What Is Current and What Is Due | The Economic Atlas"
+    meta_desc = ("Whether every series on The Economic Atlas is up to date, when each economy was last checked against "
+                 "its sources, and what is due next. Rebuilt automatically.")
+    jsonld = json.dumps({"@context": "https://schema.org", "@type": "WebPage", "name": "Data Status",
+                         "description": meta_desc, "url": canonical,
+                         "isPartOf": {"@type": "WebSite", "name": "The Economic Atlas", "url": SITE_URL}},
+                        ensure_ascii=False, indent=2)
+    word = lambda f: FREQ_WORD.get(f, "Not stated")
+    if behind:
+        late_rows = "".join(
+            f'<tr data-economy="{esc(b["country"])}" data-key="{esc(b["key"])}"><th scope="row">{esc(b["country"])}</th>'
+            f'<td>{esc(b["title"])}</td><td>{esc(fmt_period_label(b["period"]))}</td><td>{word(b["freq"])}</td>'
+            f'<td>{esc(b["next"] or "Not published")}</td></tr>' for b in behind)
+        behind_html = ('<div class="rk-scroll"><table class="doc-table ds-behind"><thead><tr><th>Economy</th><th>Series</th>'
+                       '<th>Latest figure</th><th>Frequency</th><th>Next release</th></tr></thead><tbody>'
+                       + late_rows + "</tbody></table></div>")
+    else:
+        behind_html = "<p>Every series is up to date.</p>"
+    econ_rows = "".join(
+        f'<tr data-economy="{esc(r["country"])}"><th scope="row">{esc(r["country"])}</th><td>{esc(fmt_utc(r["updated"]))}</td>'
+        f'<td>{r["series"]}</td><td>{r["current"]}</td><td>{r["late"]}</td><td>{esc(r["next"])}</td></tr>' for r in rows)
+    if overlays:
+        ov_rows = "".join(
+            f'<tr data-economy="{esc(o["country"])}" data-key="{esc(o["key"])}"><th scope="row">{esc(o["country"])}</th>'
+            f'<td>{esc(o["label"])}</td><td>{esc(o["status"].capitalize())}</td><td>{esc(o["detail"])}</td>'
+            f'<td>{esc(fmt_utc(o["run"]))}</td></tr>' for o in overlays)
+        overlay_html = ('<p>For these series the IMF figures run behind, so newer quarters from the OECD are applied once '
+                        'they agree with the IMF over the quarters both publish.</p>'
+                        '<div class="rk-scroll"><table class="doc-table ds-overlay"><thead><tr><th>Economy</th><th>Series</th>'
+                        '<th>Status</th><th>Detail</th><th>Checked</th></tr></thead><tbody>' + ov_rows + "</tbody></table></div>")
+    else:
+        overlay_html = "<p>No series currently takes newer quarters from a second source.</p>"
+    out = head_html(page_title, meta_desc, canonical, f"{SITE_URL}/og/rankings-{RANKINGS[0]['slug']}.png", jsonld)
+    out = out.replace("</head>", f'<link rel="stylesheet" href="doc.css?v={DOC_ASSET_VERSION}">\n</head>', 1)   # root page
+    out += HEADER_HTML_BASE
+    out += f"""<main class="ind-wrap doc-wrap">
+  <header class="ind-head">
+    <h1>Data status</h1>
+    <p class="ind-lede">Whether every series on the site is up to date, when each economy was last checked against its sources, and what is due next. This page is rebuilt automatically each time the data refreshes.</p>
+    <p class="rk-note">Generated from the site's data files on {generated}.</p>
+    <div class="doc-actions"><a class="btn" href="../contact">Report a problem</a> <a class="btn ghost" href="../methodology-by-economy">Methodology by economy</a></div>
+  </header>
+  <section class="panel ind-panel doc-sec" id="summary">
+    <h2>Summary</h2>
+    <p id="dsSummary">{total} series across {n} economies: {cur} up to date, {late} behind schedule.</p>
+    <p>A series counts as behind schedule when its newest figure ends more than 75 days ago for monthly data, 150 days for quarterly data or 660 days for annual data. Some publishers release later than that as a matter of course, so behind schedule does not always mean something has gone wrong.</p>
+  </section>
+  <section class="panel ind-panel doc-sec" id="behind">
+    <h2>Behind schedule</h2>
+    {behind_html}
+  </section>
+  <section class="panel ind-panel doc-sec" id="economies">
+    <h2>By economy</h2>
+    <p>Last checked is when the site last asked that economy's sources for new figures.</p>
+    <div class="rk-scroll"><table class="doc-table ds-economies"><thead><tr><th>Economy</th><th>Last checked</th><th>Series</th><th>Up to date</th><th>Behind</th><th>Next release</th></tr></thead><tbody>{econ_rows}</tbody></table></div>
+  </section>
+  <section class="panel ind-panel doc-sec" id="overlays">
+    <h2>Newer quarters from a second source</h2>
+    {overlay_html}
+  </section>
+</main>
+"""
+    out += page_tail()
+    for tag in ('<script src="https://cdnjs.cloudflare.com/ajax/libs/Chart.js/4.4.1/chart.umd.min.js"></script>\n',
+                f'<script src="../indicator-kit.js?v={KIT_VERSION}"></script>\n'):
+        out = out.replace(tag, "", 1)   # a text page needs neither the charting library nor the indicator kit
+    status_html = out.replace('"../', '"')
+    return status_html
+
+
 def render_rankings_index(ranking_pages, rankings_meta):
     """/rankings: the way in from the ribbon. Every ranking, each with who
     currently leads it, so the page answers something on its own rather than
@@ -2512,6 +2640,7 @@ def main():
 
     write_page(os.path.join("rankings", "index.html"), render_rankings_index(ranking_pages, rankings_meta))
     write_page("methodology-by-economy.html", render_methodology_page(catalogue_by_country))
+    write_page("data-status.html", render_data_status_page(catalogue_by_country))
     urls.append(f"{SITE_URL}/rankings")
 
     for old, new in LEGACY_RANKING_REDIRECTS.items():

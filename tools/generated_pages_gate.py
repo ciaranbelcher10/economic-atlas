@@ -50,6 +50,10 @@ Checks (every one is mutation-tested in tools/test_generated_pages_gate.py):
      current page's top item is neither highlighted nor recoloured; the top items are pushed right; on desktop
      Country Breakdowns is pulled left by exactly its own left padding so it lines up with the unpadded logo.
 
+ 16. data-status.html (v1.9.24): its summary, the behind-schedule list and every economy row are recomputed from the
+     published indicator pages with the gate's own copy of the staleness rule; last-checked times and overlay rows
+     come from the data files; it says when it was generated; the About page links to it.
+
 Run from anywhere:   python3 tools/generated_pages_gate.py
 Options:             --generator PATH   use another copy of the generator (the tests do)
                      --repo PATH        take the inputs from another checkout
@@ -71,7 +75,7 @@ HERE = os.path.dirname(os.path.abspath(__file__))
 SITE = "https://theeconomicatlas.com"
 MONTHS = ["Jan", "Feb", "Mar", "Apr", "May", "Jun", "Jul", "Aug", "Sep", "Oct", "Nov", "Dec"]
 UK_LFS = {"unemployment", "employment", "inactivity", "unemployment_1624"}
-GENERATED_ROOT = {"methodology-by-economy.html"}   # root pages the generator writes: never staged from the repo
+GENERATED_ROOT = {"methodology-by-economy.html", "data-status.html"}   # root pages the generator writes: never staged from the repo
 RANKING_KEY = {"unemployment-rate-by-country": "unemployment"}   # rankings that carry a UK Labour Force Survey row
 fails = []
 counts = {}
@@ -285,8 +289,12 @@ def run_checks(tmp, r, repo):
     # 9. methodology by economy
     meth = check_methodology(tmp, repo, ind_files, labels, series_of)
 
+    # 16. data status page
+    status = check_data_status(tmp, ind_files)
+    rank_plus = rank_files + ([status] if status else [])
+
     # 10. consent-gated analytics on every generated page that a person can land on
-    check_consent(tmp, repo, ind_files, emb_files, rank_files, meth)
+    check_consent(tmp, repo, ind_files, emb_files, rank_plus, meth)
 
     # 11. hand-written root pages: Privacy link in every footer, no hourly-update claim
     check_root_pages(repo)
@@ -296,9 +304,10 @@ def run_checks(tmp, r, repo):
 
     # 14. the methodology-by-economy page says when it was built
     check_built_date(meth)
+    check_built_date(status, "data-status.html")
 
     # 12/13. top navigation on every page, and the About page
-    check_nav(tmp, repo, ind_files, rank_files, meth)
+    check_nav(tmp, repo, ind_files, rank_plus, meth)
     check_about(tmp, repo)
 
     # 7/8. visible text and copy rules on everything generated
@@ -307,13 +316,13 @@ def run_checks(tmp, r, repo):
              ("double hyphen", re.compile(r"(?<![-\w])--(?![-\w>])")),
              ("illustrative / sample data", re.compile(r"illustrative|sample data", re.I)),
              ("NaN/undefined/Infinity", re.compile(r"\b(NaN|undefined|Infinity)\b"))]
-    for f in ind_files + emb_files + rank_files + ([meth] if meth else []):
+    for f in ind_files + emb_files + rank_plus + ([meth] if meth else []):
         h = read(f)
         text, meta = visible(h), meta_text(h)
         for name, rx in rules:
             hit = rx.search(text) or rx.search(meta)
             check(not hit, f"{os.path.relpath(f, tmp)}: {name} ('{hit.group(0) if hit else ''}')")
-    bump("pages scanned for copy", len(ind_files) + len(emb_files) + len(rank_files) + (1 if meth else 0))
+    bump("pages scanned for copy", len(ind_files) + len(emb_files) + len(rank_plus) + (1 if meth else 0))
 
 
 DEPRECATED_STUBS = {"gdp-by-country.html", "inflation-by-country.html", "unemployment-by-country.html"}   # no footer, to be deleted
@@ -374,16 +383,99 @@ def check_banner_css(repo):
     bump("banner style rules checked", 1)
 
 
-def check_built_date(meth):
-    """methodology-by-economy.html states, once, the day it was generated: today (or yesterday, across midnight)."""
+STALE = {"months": 75, "quarters": 150, "years": 660}   # restated here on purpose: the gate's own copy of the rule
+
+
+def period_end(period):
     from datetime import date, timedelta
-    if not check(meth, "no methodology-by-economy page to check for its generated-on date"):
+    m = re.fullmatch(r"(\d{4})-(\d{2})", period)
+    if m:
+        y, mo = int(m.group(1)), int(m.group(2))
+        return date(y + (mo == 12), mo % 12 + 1, 1) - timedelta(days=1)
+    m = re.fullmatch(r"(\d{4})-Q([1-4])", period)
+    if m:
+        y, q = int(m.group(1)), int(m.group(2))
+        return date(y + (q == 4), (q * 3) % 12 + 1, 1) - timedelta(days=1)
+    m = re.fullmatch(r"(\d{4})", period)
+    if m:
+        return date(int(m.group(1)), 12, 31)
+    return None
+
+
+def utc_label(ts):
+    from datetime import date
+    m = re.match(r"(\d{4})-(\d{2})-(\d{2})T(\d{2}):(\d{2})", ts or "")
+    if not m:
+        return "Not recorded"
+    d = date(int(m.group(1)), int(m.group(2)), int(m.group(3)))
+    return f"{d.day} {d.strftime('%b %Y')}, {m.group(4)}:{m.group(5)} UTC"
+
+
+def check_data_status(tmp, ind_files):
+    """data-status.html: every number recomputed from the published indicator pages and the data files."""
+    from datetime import date
+    path = os.path.join(tmp, "data-status.html")
+    if not check(os.path.exists(path), "data-status.html was not generated"):
+        return None
+    h = read(path)
+    cm = re.search(r'<link rel="canonical" href="([^"]+)"', h)
+    check(cm and cm.group(1) == f"{SITE}/data-status", "data-status: canonical is wrong")
+    # what the published pages say: economy -> {key: (freq, last period, data file)}
+    pub = {}
+    for f in ind_files:
+        cfg = cfg_of(read(f)) or {}
+        pts = cfg.get("points") or []
+        if cfg.get("country") and pts:
+            pub.setdefault(cfg["country"], {})[cfg.get("key")] = (cfg.get("freq", ""), pts[-1][0], os.path.basename(cfg.get("dataUrl", "")))
+    today = date.today()
+    stale = set()
+    for c, keys in pub.items():
+        for k, (freq, period, _) in keys.items():
+            end = period_end(period)
+            if end is None or (today - end).days > STALE.get(freq, 90):
+                stale.add((c, k))
+    total = sum(len(v) for v in pub.values())
+    sm = re.search(r'<p id="dsSummary">(\d+) series across (\d+) economies: (\d+) up to date, (\d+) behind schedule\.</p>', h)
+    if check(sm, "data-status: summary line missing or reworded"):
+        got = tuple(int(x) for x in sm.groups())
+        want = (total, len(pub), total - len(stale), len(stale))
+        check(got == want, f"data-status: summary says {got}, the published pages give {want}")
+    def table(cls):
+        m = re.search(r'<table class="doc-table ' + cls + r'">.*?<tbody>(.*?)</tbody>', h, re.S)
+        return m.group(1) if m else ""
+    behind = set(re.findall(r'<tr data-economy="([^"]+)" data-key="([^"]+)">', table("ds-behind")))
+    behind = {(unescape(a), unescape(b)) for a, b in behind}
+    check(behind == stale, f"data-status: behind-schedule rows differ: listed only {sorted(behind - stale)[:4]}, missing {sorted(stale - behind)[:4]}")
+    if not stale:
+        check("Every series is up to date." in h, "data-status: no late series, but the page does not say so")
+    econ = re.findall(r'<tr data-economy="([^"]+)"><th scope="row">[^<]*</th><td>([^<]*)</td><td>(\d+)</td><td>(\d+)</td><td>(\d+)</td><td>([^<]*)</td></tr>', table("ds-economies"))
+    check({unescape(e[0]) for e in econ} == set(pub), "data-status: the economies table does not list exactly the published economies")
+    overlays_want, overlays_got = set(), set(re.findall(r'<tr data-economy="([^"]+)" data-key="([^"]+)">', table("ds-overlay")))
+    for c, last, s, cur, late, _next in econ:
+        c = unescape(c)
+        keys = pub.get(c, {})
+        n_stale = sum(1 for k in keys if (c, k) in stale)
+        check((int(s), int(cur), int(late)) == (len(keys), len(keys) - n_stale, n_stale), f"data-status: {c} row says {s}/{cur}/{late}, expected {len(keys)}/{len(keys) - n_stale}/{n_stale}")
+        files = {v[2] for v in keys.values()}
+        if len(files) == 1:
+            d = json.loads(read(os.path.join(tmp, files.pop())))
+            check(unescape(last) == utc_label(d.get("updated")), f"data-status: {c} last checked '{unescape(last)}' is not the data file's '{utc_label(d.get('updated'))}'")
+            overlays_want |= {(c, k) for k in (d.get("overlay_notes") or {})}
+    check({(unescape(a), b) for a, b in overlays_got} == overlays_want, f"data-status: overlay rows {sorted(overlays_got)} differ from the data files' notes {sorted(overlays_want)}")
+    bump("data status series recomputed", total)
+    return path
+
+
+def check_built_date(meth, name="methodology-by-economy.html"):
+    """A generated root page states, once, the day it was generated: today (or yesterday, across midnight)."""
+    from datetime import date, timedelta
+    if not check(meth, f"no {name} page to check for its generated-on date"):
         return
     h = read(meth)
     found = re.findall(r"Generated from the site's data files on (\d{1,2} [A-Z][a-z]+ \d{4})\.", unescape(h))
     ok_days = {f"{d.day} {d.strftime('%B %Y')}" for d in (date.today(), date.today() - timedelta(days=1))}
-    check(len(found) == 1, f"methodology-by-economy.html: expected one generated-on date line, found {len(found)}")
-    check(len(found) != 1 or found[0] in ok_days, f"methodology-by-economy.html: generated-on date is {found[0] if found else ''}, not today")
+    check(len(found) == 1, f"{name}: expected one generated-on date line, found {len(found)}")
+    check(len(found) != 1 or found[0] in ok_days, f"{name}: generated-on date is {found[0] if found else ''}, not today")
     bump("generated-on date checked", 1)
 
 
@@ -429,6 +521,7 @@ def check_about(tmp, repo):
     check(h.count('<link rel="canonical" href="https://theeconomicatlas.com/about">') == 1, "about.html: canonical is wrong")
     check('<meta property="og:url" content="https://theeconomicatlas.com/about">' in h, "about.html: og:url is wrong")
     check(re.search(r'<a class="item active" href="about">About</a>', h) is not None, "about.html: About is not the active banner item")
+    check('<a class="btn ghost" href="data-status">Data status</a>' in h, "about.html: no Data status button")
     main = re.search(r"<main.*?</main>", h, re.S)
     if not check(main, "about.html has no <main>"):
         return

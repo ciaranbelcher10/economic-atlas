@@ -125,6 +125,13 @@ MUTS = [
     ("about.html left out of the sitemap", mutate('SITEMAP_ROOT_SKIP = {"404.html"}', 'SITEMAP_ROOT_SKIP = {"404.html", "about.html"}'), "sitemap.xml does not list /about"),
     ("methodology page loses its generated-on date", mutate('    <p class="rk-note">Generated from the site\'s data files on {built}.</p>\n', ''), "expected one generated-on date line"),
     ("methodology page shows a stale generated-on date", mutate("    built_on = date.today()\n", "    built_on = date(2020, 1, 1)\n"), "not today"),
+    ('data status page not written', mutate('    write_page("data-status.html", render_data_status_page(catalogue_by_country))\n', ''), 'data-status.html was not generated'),
+    ('data status summary off by one', mutate('{cur} up to date, {late} behind schedule.', '{cur + 1} up to date, {late} behind schedule.'), 'data-status: summary says'),
+    ('data status freshness rule ignored', mutate('            if is_fresh(period, freq):\n                cur += 1', '            if True:\n                cur += 1'), 'behind-schedule rows differ'),
+    ('data status drops an economy', mutate('        cur = late = 0\n        upcoming = []\n', '        if country == "UK":\n            continue\n        cur = late = 0\n        upcoming = []\n'), 'does not list exactly the published economies'),
+    ('data status last-checked time wrong', mutate('esc(fmt_utc(r["updated"]))', 'esc(fmt_utc(None))'), 'last checked'),
+    ('data status overlay rows dropped', mutate('for key, note in sorted((data.get("overlay_notes") or {}).items()):', 'for key, note in []:'), 'overlay rows'),
+    ('data status loses its generated-on date', mutate('    <p class="rk-note">Generated from the site\'s data files on {generated}.</p>\n    <div class="doc-actions"><a class="btn" href="../contact">Report a problem</a>', '<div class="doc-actions"><a class="btn" href="../contact">Report a problem</a>'), 'data-status.html: expected one generated-on date line'),
     ("generator prints no summary", mutate('print(f"Generated {generated} indicator pages', 'print(f"Built {generated} indicator pages'), "printed no"),
 ]
 for name, text, expect in MUTS:
@@ -248,6 +255,7 @@ REPO_MUTS += [
     ("style.css: alignment pull off by a few pixels", page_edit("style.css", "margin-left:-18px;} }", "margin-left:-12px;} }"), "not pulled left by exactly"),
     ("style.css: button padding changes but pull does not", page_edit("style.css", "  padding:14px 18px; display:flex; align-items:center; gap:7px;", "  padding:14px 22px; display:flex; align-items:center; gap:7px;"), "not pulled left by exactly"),
     ("style.css: logo gains left padding", page_edit("style.css", "padding:14px 18px 14px 0; margin-right:10px;", "padding:14px 18px 14px 6px; margin-right:10px;"), "the logo has left padding"),
+    ("about.html: Data status button removed", page_edit("about.html", '<div class="doc-actions"><a class="btn ghost" href="data-status">Data status</a></div>\n', ''), "no Data status button"),
     ("data files stop mentioning BEA while About names it", data_edit("data-metric-sources.json", r"(?<![A-Za-z])BEA(?![A-Za-z])", "XYZ"), "no data file mentions BEA"),
 ]
 for name, edit, expect in REPO_MUTS:
