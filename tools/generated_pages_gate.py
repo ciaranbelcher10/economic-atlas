@@ -35,6 +35,14 @@ Checks (every one is mutation-tested in tools/test_generated_pages_gate.py):
  11. root pages (v1.9.20): every hand-written root page except privacy.html and the three deprecated stubs has
      a Privacy link in its footer, and none claims hourly updates in its visible text or meta tags.
 
+ 12. top banner (v1.9.21): every page that has site navigation (hand-written root pages, indicator pages, rankings,
+     the rankings index, the methodology page) shows Methodology, About and Contact as plain items, in that order,
+     and no page still carries the About dropdown;
+ 13. about.html: title, canonical, active banner item; corrections button at the top; the 'These are not our
+     numbers' caveat is the first section and says what it must; the counts are filled from the manifest and the
+     no-JavaScript fallback has no number; no hyperlink in running text; no UN Comtrade, em dash, double hyphen or
+     hourly claim; every publisher it names appears in the data files' own labels; the sitemap lists /about.
+
 Run from anywhere:   python3 tools/generated_pages_gate.py
 Options:             --generator PATH   use another copy of the generator (the tests do)
                      --repo PATH        take the inputs from another checkout
@@ -276,6 +284,10 @@ def run_checks(tmp, r, repo):
     # 11. hand-written root pages: Privacy link in every footer, no hourly-update claim
     check_root_pages(repo)
 
+    # 12/13. top navigation on every page, and the About page
+    check_nav(tmp, repo, ind_files, rank_files, meth)
+    check_about(tmp, repo)
+
     # 7/8. visible text and copy rules on everything generated
     rules = [("hourly claim", re.compile(r"checked hourly|checks hourly|hourly against|updated hourly|from source every hour", re.I)),
              ("em dash", re.compile("\u2014")),
@@ -311,6 +323,83 @@ def check_root_pages(repo):
         hit = HOURLY_CLAIM.search(visible(h)) or HOURLY_CLAIM.search(meta_text(h))
         check(not hit, f"{name}: hourly-update claim ('{hit.group(0) if hit else ''}')")
     bump("root pages checked (Privacy link, no hourly claim)", n)
+
+
+NAV_STUBS = {"404.html"} | DEPRECATED_STUBS     # no site navigation
+ABOUT_SOURCES = {   # publisher named on the About page -> a token that must appear in the data files' own labels
+    "Eurostat": "Eurostat", "World Bank": "World Bank", "OECD": "OECD", "IMF": "IMF",
+    "Bank for International Settlements": "BIS", "European Central Bank": "ECB", "Office for National Statistics": "ONS",
+    "Bureau of Labor Statistics": "BLS", "Bureau of Economic Analysis": "BEA", "Bank of England": "Bank of England",
+    "Bank of Canada": "Bank of Canada", "FRED": "FRED"}
+
+
+def nav_items(h):
+    m = re.search(r'<div class="navlinks" id="navLinks">(.*?)</div>', h, re.S)
+    if not m:
+        return None
+    return [x.lstrip("./") if x.startswith("../") else x for x in re.findall(r'<a class="item[^"]*" href="([^"]+)"', m.group(1))]
+
+
+def check_nav(tmp, repo, ind_files, rank_files, meth):
+    """The top banner is flat: Methodology, About, Contact, in that order, with no About dropdown anywhere."""
+    pages = {}
+    for f in sorted(glob.glob(os.path.join(repo, "*.html"))):
+        if os.path.basename(f) not in NAV_STUBS | GENERATED_ROOT:
+            pages[os.path.basename(f)] = read(f)
+    for f in list(ind_files) + list(rank_files) + [os.path.join(tmp, "rankings", "index.html")] + ([meth] if meth else []):
+        if os.path.exists(f):
+            pages[os.path.relpath(f, tmp)] = read(f)
+    for name, h in pages.items():
+        items = nav_items(h)
+        check(items is not None, f"{name}: no navigation links block")
+        if items is not None:
+            check(items == ["methodology", "about", "contact"], f"{name}: top banner items are {items}, expected Methodology, About, Contact")
+        check("aboutBtn" not in h and "aboutPanel" not in h, f"{name}: the About dropdown is still present")
+    bump("pages checked for the top banner", len(pages))
+
+
+def check_about(tmp, repo):
+    p = os.path.join(repo, "about.html")
+    if not check(os.path.exists(p), "about.html is missing"):
+        return
+    h = read(p)
+    check("<title>About \u00b7 The Economic Atlas</title>" in h, "about.html: title is wrong")
+    check(h.count('<link rel="canonical" href="https://theeconomicatlas.com/about">') == 1, "about.html: canonical is wrong")
+    check('<meta property="og:url" content="https://theeconomicatlas.com/about">' in h, "about.html: og:url is wrong")
+    check(re.search(r'<a class="item active" href="about">About</a>', h) is not None, "about.html: About is not the active banner item")
+    main = re.search(r"<main.*?</main>", h, re.S)
+    if not check(main, "about.html has no <main>"):
+        return
+    m = main.group(0)
+    head, first = m.split("<section", 1)[0], m.split("<section", 1)[1]
+    check('class="btn" href="contact">Report a correction</a>' in head, "about.html: the corrections button is not at the top")
+    check(re.match(r'[^>]*id="not-our-numbers">\s*<h2>These are not our numbers</h2>', first) is not None,
+          "about.html: the 'These are not our numbers' caveat is not the first section")
+    for phrase in ("We do not produce, estimate or forecast data", "datapoints are calculated by us", "provided as is", "check the source first"):
+        check(phrase in m, f"about.html: caveat is missing '{phrase}'")
+    check(m.count('id="aboutCount"') == 1, "about.html: expected exactly one id=\"aboutCount\"")
+    fb = re.search(r'<span id="aboutCount">([^<]*)</span>', m)
+    check(fb and not re.search(r"\d", fb.group(1)), "about.html: the no-JavaScript fallback for the counts must not contain a number")
+    check('fetch("indicators/manifest.json")' in h, "about.html: counts are not read from indicators/manifest.json")
+    check(not re.search(r"<p[^>]*>[^<]*(<[^/a][^>]*>[^<]*)*<a ", m), "about.html: a hyperlink sits inside running text (use a button)")
+    check("Comtrade" not in m, "about.html: UN Comtrade must not be named")
+    for bad in ("\u2014", " -- ", "hourly"):
+        check(bad not in re.sub(r"<script.*?</script>", "", h, flags=re.S), f"about.html: copy rule broken ('{bad.strip()}')")
+    data = "".join(read(f) for f in glob.glob(os.path.join(repo, "data-*.json")))
+    src = re.search(r'id="where-the-data-comes-from">.*?</section>', m, re.S)
+    stext = src.group(0) if src else ""
+    listed = re.search(r"including (.*?) and other national", stext, re.S)
+    if check(listed, "about.html: the sources sentence has no 'including ... and other national' list"):
+        named = {x.strip().removeprefix("the ") for x in re.sub(r"\s+", " ", listed.group(1)).split(",")}
+        allowed = set(ABOUT_SOURCES) - {"FRED"}
+        check(named == allowed, f"about.html names publishers outside the checked list: extra {sorted(named - allowed)}, missing {sorted(allowed - named)}")
+    check("FRED" in stext, "about.html does not mention FRED")
+    for name, token in ABOUT_SOURCES.items():
+        check(re.search(r"(?<![A-Za-z])" + re.escape(token) + r"(?![A-Za-z])", data) is not None,
+              f"about.html names {name}, but no data file mentions {token}")
+    sm = read(os.path.join(tmp, "sitemap.xml")) if os.path.exists(os.path.join(tmp, "sitemap.xml")) else ""
+    check("<loc>https://theeconomicatlas.com/about</loc>" in sm, "sitemap.xml does not list /about")
+    bump("About page checks", 1)
 
 
 GA_ID = "G-PJSXJN5H6G"

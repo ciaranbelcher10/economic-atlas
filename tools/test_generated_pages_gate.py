@@ -120,6 +120,9 @@ MUTS = [
     ("hyperlink inside the banner text", mutate('either way.</p>', 'either way. <a href="../privacy">Privacy</a></p>'), "must not contain a hyperlink"),
     ("generated page names Google Analytics itself", mutate('<script src="../consent.js?v=1" defer>', '<script>gtag("config","G-PJSXJN5H6G")</script><script src="../consent.js?v=1" defer>'), "must not load or name Google Analytics"),
     ("reject button id missing", mutate('id="cookieReject"', 'id="cookieNo"'), 'expected exactly one id="cookieReject"'),
+    ("generated pages lose the About banner item", mutate('<a class="item" href="../about">About</a>', ''), "top banner items are"),
+    ("generated pages point About at the wrong page", mutate('href="../about">About</a>', 'href="../abouts">About</a>'), "top banner items are"),
+    ("about.html left out of the sitemap", mutate('SITEMAP_ROOT_SKIP = {"404.html"}', 'SITEMAP_ROOT_SKIP = {"404.html", "about.html"}'), "sitemap.xml does not list /about"),
     ("generator prints no summary", mutate('print(f"Generated {generated} indicator pages', 'print(f"Built {generated} indicator pages'), "printed no"),
 ]
 for name, text, expect in MUTS:
@@ -192,6 +195,48 @@ REPO_MUTS = [
     ("index.html: footer removed", page_edit("index.html", "<footer", "<div"), "index.html: footer has no Privacy link"),
     ("markets.html: hourly claim back in meta", page_edit("markets.html", "updated automatically, no", "checked hourly, no"), "markets.html: hourly-update claim"),
     ("calendar.html: hourly claim in visible text", page_edit("calendar.html", "<footer>The Economic Atlas", "<footer>Data updated hourly. The Economic Atlas"), "calendar.html: hourly-update claim"),
+]
+import re as _re
+
+
+def data_edit(fname, rx, new):
+    src = (ROOT / fname).read_text(encoding="utf-8")
+    assert _re.search(rx, src), f"{fname}: pattern missing"
+
+    def edit(d):
+        (d / fname).unlink()
+        (d / fname).write_text(_re.sub(rx, new, src), encoding="utf-8")
+    return edit
+
+
+def drop_page(name):
+    def edit(d):
+        (d / name).unlink()
+    return edit
+
+
+NAV2 = '<a class="item" href="methodology">Methodology</a>\n <a class="item" href="about">About</a>'
+REPO_MUTS += [
+    ("uk.html: About item removed from the banner", page_edit("uk.html", NAV2, '<a class="item" href="methodology">Methodology</a>'), "uk.html: top banner items"),
+    ("terms.html: banner items out of order", page_edit("terms.html", NAV2, '<a class="item" href="about">About</a>\n <a class="item" href="methodology">Methodology</a>'), "terms.html: top banner items"),
+    ("index.html: the About dropdown is back", page_edit("index.html", '<a class="item" href="methodology">Methodology</a>', '<button id="aboutBtn"></button><a class="item" href="methodology">Methodology</a>'), "index.html: the About dropdown is still present"),
+    ("about.html: file missing", drop_page("about.html"), "about.html is missing"),
+    ("about.html: wrong title", page_edit("about.html", "<title>About \u00b7 The Economic Atlas</title>", "<title>About us \u00b7 The Economic Atlas</title>"), "title is wrong"),
+    ("about.html: About not the active item", page_edit("about.html", '<a class="item active" href="about">About</a>', '<a class="item" href="about">About</a>'), "not the active banner item"),
+    ("about.html: corrections button not at the top", page_edit("about.html", 'class="btn" href="contact">Report a correction</a> <a class="btn ghost" href="methodology">Methodology</a>', ''), "corrections button is not at the top"),
+    ("about.html: caveat no longer first", page_edit("about.html", 'id="not-our-numbers"', 'id="x-numbers"'), "caveat is not the first section"),
+    ("about.html: caveat loses 'provided as is'", page_edit("about.html", "provided as is", "provided"), "caveat is missing 'provided as is'"),
+    ("about.html: caveat says views, not datapoints", page_edit("about.html", "datapoints are calculated by us", "views are calculated by us"), "caveat is missing 'datapoints are calculated by us'"),
+    ("about.html: counts span id lost", page_edit("about.html", 'id="aboutCount"', 'id="aboutCnt"'), 'expected exactly one id="aboutCount"'),
+    ("about.html: fallback shows a number", page_edit("about.html", "economic indicators across dozens of economies", "976 indicators across 62 economies"), "fallback for the counts must not contain a number"),
+    ("about.html: counts no longer read from the manifest", page_edit("about.html", 'fetch("indicators/manifest.json")', 'fetch("indicators/manifests.json")'), "counts are not read from"),
+    ("about.html: hyperlink inside running text", page_edit("about.html", "Tell us through the Contact page.", 'Tell us through the <a href="contact">Contact</a> page.'), "hyperlink sits inside running text"),
+    ("about.html: UN Comtrade named", page_edit("about.html", "including Eurostat,", "including UN Comtrade, Eurostat,"), "UN Comtrade must not be named"),
+    ("about.html: an unchecked publisher named", page_edit("about.html", "the Bank of England,", "the Bank of England, the Bank of Japan,"), "names publishers outside the checked list"),
+    ("about.html: a checked publisher dropped", page_edit("about.html", "the Bank of England, the Bank of Canada and other", "the Bank of England and other"), "names publishers outside the checked list"),
+    ("about.html: em dash in copy", page_edit("about.html", "no opinion.", "no opinion \u2014 x."), "copy rule broken"),
+    ("about.html: hourly claim", page_edit("about.html", "refreshed automatically throughout the day", "refreshed hourly"), "about.html: copy rule broken ('hourly')"),
+    ("data files stop mentioning BEA while About names it", data_edit("data-metric-sources.json", r"(?<![A-Za-z])BEA(?![A-Za-z])", "XYZ"), "no data file mentions BEA"),
 ]
 for name, edit, expect in REPO_MUTS:
     d = repo_copy(edit)
