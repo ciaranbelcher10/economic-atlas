@@ -45,6 +45,7 @@ from __future__ import annotations
 import redact_stream  # noqa: F401  (v1.7.42: masks api_key= in all output)
 import re
 import oecd_turn
+import gdp_overlay
 import oecd_prices
 import json
 import time
@@ -488,7 +489,38 @@ def _fx_rate_for_period(fx_hist, period, fallback):
     return best if best is not None else fx_hist[0][1]
 
 
+# v1.9.25: FRED's copy of IMF IFS stopped at Q1 2026 for nominal GDP, a quarter behind real GDP. The OECD's
+# quarterly national accounts carry the same national figures sooner; they replace the IFS values from a
+# validated window onward (see gdp_overlay.py). If any check fails, or it is not this script's OECD turn,
+# the IFS series is left exactly as fetched (series_guard then keeps the longer series from the last run).
+GDP_OVERLAY = {
+    "gdp_level": dict(TRANSACTION="B1GQ", PRICE_BASE="V", ADJUSTMENT="Y", TRANSFORMATION="N", UNIT_MEASURE="XDC"),
+}
+
+
+def overlay_gdp(series: dict, notes: dict | None = None) -> None:
+    try:
+        rows = gdp_overlay.qna_rows("MEX")
+    except oecd_turn.NotThisHour as exc:
+        print(f"SKIP  gdp OECD overlay  {exc}")       # no decision made: the previous notes stand
+        return
+    except Exception as exc:
+        print(f"WARN  gdp OECD overlay  {exc} (IFS series kept)")
+        for key in GDP_OVERLAY:
+            gdp_overlay.note(notes, key, "error", f"OECD request failed: {exc}")
+        return
+    for key, sel in GDP_OVERLAY.items():
+        if key not in series:                       # FRED failed this run: nothing to extend
+            continue
+        try:
+            gdp_overlay.apply_overlay(series, key, rows, sel, notes=notes)
+        except Exception as exc:
+            print(f"WARN  {key:<16} OECD overlay error: {exc} (IFS series kept)")
+            gdp_overlay.note(notes, key, "error", exc)
+
+
 def main() -> int:
+    _overlay_notes: dict = {}                      # what the OECD overlay decided this run, per series
     out = {
         "updated": datetime.now(timezone.utc).strftime("%Y-%m-%dT%H:%M:%SZ"),
         "sample": False,
@@ -516,6 +548,8 @@ def main() -> int:
             except Exception as exc:
                 failures.append(name)
                 print(f"FAIL  {name:<16} {exc}")
+
+        overlay_gdp(out["series"], _overlay_notes)
 
         # gdp_growth from REAL GDP (v1.6.33). It was derived from the
         # nominal gdp_level, so the "real" growth figure included inflation
@@ -696,6 +730,9 @@ def main() -> int:
                     print(f"FAIL  {tk:<16} no exchange rate this run to convert it; left out")
 
     with open("data-mx.json", "w") as f:
+        _notes = gdp_overlay.merge_notes(prev_full.get("overlay_notes"), _overlay_notes, now_iso)
+        if _notes:
+            out["overlay_notes"] = _notes
         json.dump(out, f)
     print(f"\nWrote data-mx.json with {len(out['series'])} series.")
     if failures:

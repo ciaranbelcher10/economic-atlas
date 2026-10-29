@@ -127,11 +127,17 @@ MUTS = [
     ("methodology page shows a stale generated-on date", mutate("    built_on = date.today()\n", "    built_on = date(2020, 1, 1)\n"), "not today"),
     ('data status page not written', mutate('    write_page("data-status.html", render_data_status_page(catalogue_by_country))\n', ''), 'data-status.html was not generated'),
     ('data status summary off by one', mutate('{cur} up to date, {late} behind schedule.', '{cur + 1} up to date, {late} behind schedule.'), 'data-status: summary says'),
-    ('data status freshness rule ignored', mutate('            if is_fresh(period, freq):\n                cur += 1', '            if True:\n                cur += 1'), 'behind-schedule rows differ'),
+    ('data status freshness rule ignored', mutate('            if is_fresh(freshness_period(country, e["key"], period, freq), freq):\n                cur += 1', '            if True:\n                cur += 1'), 'behind-schedule rows differ'),
     ('data status drops an economy', mutate('        cur = late = 0\n        upcoming = []\n', '        if country == "UK":\n            continue\n        cur = late = 0\n        upcoming = []\n'), 'does not list exactly the published economies'),
     ('data status last-checked time wrong', mutate('esc(fmt_utc(r["updated"]))', 'esc(fmt_utc(None))'), 'last checked'),
     ('data status overlay rows dropped', mutate('for key, note in sorted((data.get("overlay_notes") or {}).items()):', 'for key, note in []:'), 'overlay rows'),
     ('data status loses its generated-on date', mutate('    <p class="rk-note">Generated from the site\'s data files on {generated}.</p>\n    <div class="doc-actions"><a class="btn" href="../contact">Report a problem</a>', '<div class="doc-actions"><a class="btn" href="../contact">Report a problem</a>'), 'data-status.html: expected one generated-on date line'),
+    ("rolling three-month figures measured from their middle month again", mutate('    if freq == "months" and is_rolling3m(country, key):\n        y, mo', '    if False:\n        y, mo'), "dot is"),
+    ("indicator pages ignore the rolling-window rule", mutate('    fresh = is_fresh(freshness_period(country, key, latest_p, freq), freq)', '    fresh = is_fresh(latest_p, freq)'), "indicator page dot is"),
+    ("rankings ignore the rolling-window rule", mutate('        fresh = is_fresh(freshness_period(c, r.get("key"), r["latest_period"], r["freq"]), r["freq"])', '        fresh = is_fresh(r["latest_period"], r["freq"])'), "its indicator page says"),
+    ("data status page gets an outline button", mutate('<a class="btn" href="../methodology-by-economy">Methodology by economy</a>', '<a class="btn ghost" href="../methodology-by-economy">Methodology by economy</a>'), "data-status.html: an outline button"),
+    ("methodology-by-economy gets an outline button", mutate('class="btn" href="methodology">General methodology', 'class="btn ghost" href="methodology">General methodology'), "methodology-by-economy.html: an outline button"),
+    ("generated pages back to Methodology before About", mutate('<a class="item" href="../about">About</a>\n <a class="item" href="../methodology">Methodology</a>', '<a class="item" href="../methodology">Methodology</a>\n <a class="item" href="../about">About</a>'), "top banner items are"),
     ("generator prints no summary", mutate('print(f"Generated {generated} indicator pages', 'print(f"Built {generated} indicator pages'), "printed no"),
 ]
 for name, text, expect in MUTS:
@@ -224,15 +230,15 @@ def drop_page(name):
     return edit
 
 
-NAV2 = '<a class="item" href="methodology">Methodology</a>\n <a class="item" href="about">About</a>'
+NAV2 = '<a class="item" href="about">About</a>\n <a class="item" href="methodology">Methodology</a>'
 REPO_MUTS += [
     ("uk.html: About item removed from the banner", page_edit("uk.html", NAV2, '<a class="item" href="methodology">Methodology</a>'), "uk.html: top banner items"),
-    ("terms.html: banner items out of order", page_edit("terms.html", NAV2, '<a class="item" href="about">About</a>\n <a class="item" href="methodology">Methodology</a>'), "terms.html: top banner items"),
+    ("terms.html: banner items out of order", page_edit("terms.html", NAV2, '<a class="item" href="methodology">Methodology</a>\n <a class="item" href="about">About</a>'), "terms.html: top banner items"),
     ("index.html: the About dropdown is back", page_edit("index.html", '<a class="item" href="methodology">Methodology</a>', '<button id="aboutBtn"></button><a class="item" href="methodology">Methodology</a>'), "index.html: the About dropdown is still present"),
     ("about.html: file missing", drop_page("about.html"), "about.html is missing"),
     ("about.html: wrong title", page_edit("about.html", "<title>About \u00b7 The Economic Atlas</title>", "<title>About us \u00b7 The Economic Atlas</title>"), "title is wrong"),
     ("about.html: About not the active item", page_edit("about.html", '<a class="item active" href="about">About</a>', '<a class="item" href="about">About</a>'), "not the active banner item"),
-    ("about.html: corrections button not at the top", page_edit("about.html", 'class="btn" href="contact">Report a correction</a> <a class="btn ghost" href="methodology">Methodology</a>', ''), "corrections button is not at the top"),
+    ("about.html: corrections button not at the top", page_edit("about.html", 'class="btn" href="contact">Report a correction</a> <a class="btn" href="methodology">Methodology</a>', ''), "corrections button is not at the top"),
     ("about.html: caveat no longer first", page_edit("about.html", 'id="not-our-numbers"', 'id="x-numbers"'), "caveat is not the first section"),
     ("about.html: caveat loses 'provided as is'", page_edit("about.html", "provided as is", "provided"), "caveat is missing 'provided as is'"),
     ("about.html: caveat says views, not datapoints", page_edit("about.html", "datapoints are calculated by us", "views are calculated by us"), "caveat is missing 'datapoints are calculated by us'"),
@@ -255,7 +261,10 @@ REPO_MUTS += [
     ("style.css: alignment pull off by a few pixels", page_edit("style.css", "margin-left:-18px;} }", "margin-left:-12px;} }"), "not pulled left by exactly"),
     ("style.css: button padding changes but pull does not", page_edit("style.css", "  padding:14px 18px; display:flex; align-items:center; gap:7px;", "  padding:14px 22px; display:flex; align-items:center; gap:7px;"), "not pulled left by exactly"),
     ("style.css: logo gains left padding", page_edit("style.css", "padding:14px 18px 14px 0; margin-right:10px;", "padding:14px 18px 14px 6px; margin-right:10px;"), "the logo has left padding"),
-    ("about.html: Data status button removed", page_edit("about.html", '<div class="doc-actions"><a class="btn ghost" href="data-status">Data status</a></div>\n', ''), "no Data status button"),
+    ("about.html: Data status button removed", page_edit("about.html", '<div class="doc-actions"><a class="btn" href="data-status">Data status</a></div>\n', ''), "no Data status button"),
+    ("about.html: an outline button back in the content", page_edit("about.html", '<a class="btn" href="data-status">Data status</a>', '<a class="btn ghost" href="data-status">Data status</a>'), "an outline button in the page content"),
+    ("methodology.html: an outline button back in the content", page_edit("methodology.html", 'class="btn" href="contact">Get in touch', 'class="btn ghost" href="contact">Get in touch'), "methodology.html: an outline button"),
+    ("doc.css: text capped in width again", page_edit("doc.css", "color:var(--ink);}   /* v1.9.25: full panel width */", "color:var(--ink); max-width:68ch;}"), "capped in width again"),
     ("data files stop mentioning BEA while About names it", data_edit("data-metric-sources.json", r"(?<![A-Za-z])BEA(?![A-Za-z])", "XYZ"), "no data file mentions BEA"),
 ]
 for name, edit, expect in REPO_MUTS:

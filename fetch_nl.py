@@ -83,6 +83,7 @@ import requests
 import series_guard
 import eurostat_gdp
 import eurostat_unemp
+import eurostat_trade
 
 # Series this script is deliberately allowed to replace with a shorter or
 # lower-frequency one. Without an entry here, series_guard keeps the previous
@@ -98,7 +99,6 @@ ALLOW_SHRINK = {"unemployment": "v1.6.34: OECD/FRED LRHUTTTT copy -> Eurostat un
 # - participation_rate (LRAC64TTNLQ156S) / employment_rate (LREM64TTNLQ156S): OECD infra-annual labour-statistics FRED family, quarterly, ages 15-64. Same pattern confirmed live for Germany (pilot); inferred-by-pattern for Netherlands -- not individually confirmed, check the first Actions log.
 FRED_SERIES = {
     "ecb_rate": ("ECBDFR", "d", "ECB deposit facility rate", "%", None, 1.0),
-    "trade_balance": ("XTNTVA01NLM667S", "m", "Trade balance, goods, $", "$m", None, 1e-6),
     "gdp_level": ("CPMNACSCAB1GQNL", "q", "GDP nominal, SA", "\u20acm", None, 1.0),
     "gdp_real": ("CLVMNACSCAB1GQNL", "q", "Real GDP, chain-linked volume, SA", "\u20acm", None, 1.0),
     "unemployment": ("LRHUTTTTNLM156N", "m", "Unemployment rate, 15+, SA", "%", None, 1.0),
@@ -411,6 +411,11 @@ def _fx_rate_for_period(fx_hist, period, fallback):
     return best if best is not None else fx_hist[0][1]
 
 
+# v1.9.25: trade_balance is asked of Eurostat first (eurostat_trade.py); this FRED copy of the OECD figures is
+# only the fallback when Eurostat fails, and is converted to EUR below like before.
+TRADE_BALANCE_FRED_FALLBACK = ("XTNTVA01NLM667S", "m", "Trade balance, goods, $", "$m", None, 1e-6)
+
+
 def main() -> int:
     out = {
         "updated": datetime.now(timezone.utc).strftime("%Y-%m-%dT%H:%M:%SZ"),
@@ -533,6 +538,31 @@ def main() -> int:
     # BEFORE the "nothing fetched" bailout below (matching the pattern
     # already used elsewhere) so a run where every series fails still
     # gets rescued by carried-over data rather than giving up entirely.
+    # v1.9.25: trade_balance from Eurostat first (eurostat_trade.py), as for seven other members. FRED's
+    # copy of the OECD figures ran a month or more behind; it is now only the fallback (converted to EUR
+    # below, as before). The guard keeps a more current previous series over a staler fallback.
+    _tb = eurostat_trade.series("NL")
+    if _tb:
+        out["series"]["trade_balance"] = _tb
+        print(f"  ok  trade_balance    {len(_tb['points']):>5} observations "
+              f"({_tb['points'][0][0]} to {_tb['points'][-1][0]}, months, Eurostat)")
+    elif key:
+        print("  [trade_balance] Eurostat path failed; trying the FRED copy")
+        try:
+            sid, freq, label, unit, tf, scale = TRADE_BALANCE_FRED_FALLBACK
+            raw = [[p, v * scale] for p, v in fetch_fred(sid, freq, key)]
+            pts = transform(raw, tf)
+            if not pts:
+                raise ValueError("no observations")
+            out["series"]["trade_balance"] = {"label": f"{label} ({sid})", "unit": unit, "freq": "months", "points": pts}
+            print(f"  ok  trade_balance    {len(pts):>5} observations ({pts[0][0]} to {pts[-1][0]}, months, FRED fallback)")
+        except Exception as exc:
+            failures.append("trade_balance")
+            print(f"FAIL  trade_balance     both Eurostat and the FRED copy failed: {exc}")
+    else:
+        failures.append("trade_balance")
+        print("FAIL  trade_balance     Eurostat failed and there is no FRED_API_KEY for the fallback")
+
     _prev_series = prev_full.get("series", {})
     _guard_verdicts = series_guard.apply_guard(
         out["series"], _prev_series, allow_shrink=ALLOW_SHRINK)

@@ -566,6 +566,15 @@ def period_end_date(period):
         return date(int(m.group(1)), 12, 31)
     return date.today()
 
+def freshness_period(country, key, period, freq):
+    """The period a figure's freshness is measured from. A UK rolling three-month figure is stored under its middle
+    month (2026-07 is Jun to Aug 2026), so it is measured from the window's last month, not the middle one (v1.9.25)."""
+    if freq == "months" and is_rolling3m(country, key):
+        y, mo = int(str(period)[:4]), int(str(period)[5:7])
+        return f"{y + (mo == 12)}-{mo % 12 + 1:02d}"
+    return period
+
+
 def is_fresh(period, freq):
     return (date.today() - period_end_date(period)).days <= STALE_DAYS.get(freq, 90)
 
@@ -655,8 +664,8 @@ HEADER_HTML_BASE = """<script>(function(){
  <span></span><span></span><span></span>
  </button>
  <div class="navlinks" id="navLinks">
- <a class="item" href="../methodology">Methodology</a>
  <a class="item" href="../about">About</a>
+ <a class="item" href="../methodology">Methodology</a>
  <a class="item" href="../contact">Contact</a>
  <button type="button" class="authbtn" id="authBtn">Sign Up</button>
  <button type="button" class="theme-toggle" id="themeToggle" aria-label="Switch to dark mode" title="Switch to dark mode">&#127769;</button>
@@ -1707,7 +1716,7 @@ def render_indicator(country, info, entry, rank_info, all_rankings_meta, n_indic
         # Exchange rates: the change as a %, the same way every tile shows it.
         pc = (latest_v - prev_v) / prev_v * 100
         dstr = ("\u2212" if pc < 0 else "+") + _fixed(abs(pc), 2) + "%"
-    fresh = is_fresh(latest_p, freq)
+    fresh = is_fresh(freshness_period(country, key, latest_p, freq), freq)
     led_title = f"Latest release: {plab(latest_p)}" if fresh else f"Awaiting next release. Last data: {plab(latest_p)}"
     updated = (info["data"].get("updated") or "")[:10]
 
@@ -1886,7 +1895,7 @@ def render_ranking(ranking, rows, unranked, all_rankings_meta, catalogue_by_coun
         c = r["country"]
         cslug = COUNTRIES[c][1]
         cls = ""
-        fresh = is_fresh(r["latest_period"], r["freq"])
+        fresh = is_fresh(freshness_period(c, r.get("key"), r["latest_period"], r["freq"]), r["freq"])
         led = f'<span class="led {"green" if fresh else "orange"}" aria-hidden="true" style="width:7px;height:7px;margin-right:5px;vertical-align:1px"></span>'
         tag = FREQ_WORD.get(r["freq"], "")
         width = abs(r["value"]) / bar_max * 100 if bar_max else 0
@@ -2110,7 +2119,7 @@ def render_methodology_page(catalogue_by_country):
     <h1>Methodology by economy</h1>
     <p class="ind-lede">For each of the {n} economies we track: the series behind every indicator, how often it updates, whether the source says it is seasonally adjusted, and what we do not track. This page is rebuilt from the same data as the indicator pages, so it describes what is on the site now.</p>
     <p class="rk-note">Generated from the site's data files on {built}.</p>
-    <div class="doc-actions"><a class="btn ghost" href="methodology">General methodology</a></div>
+    <div class="doc-actions"><a class="btn" href="methodology">General methodology</a></div>
   </header>
   <nav class="panel ind-panel doc-toc" aria-label="On this page">
     <h2>On this page</h2>
@@ -2158,9 +2167,6 @@ def render_methodology_page(catalogue_by_country):
     return out.replace('"../', '"')
 
 
-FREQ_WORD = {"months": "Monthly", "quarters": "Quarterly", "years": "Annual"}
-
-
 def fmt_utc(ts):
     m = re.match(r"(\d{4})-(\d{2})-(\d{2})T(\d{2}):(\d{2})", ts or "")
     if not m:
@@ -2189,11 +2195,12 @@ def data_status(catalogue_by_country):
         for e in info["catalogue"]:
             s = series.get(e["key"], {})
             freq, period = s.get("freq", ""), e["pts"][-1][0]
-            if is_fresh(period, freq):
+            if is_fresh(freshness_period(country, e["key"], period, freq), freq):
                 cur += 1
             else:
                 late += 1
-                behind.append(dict(country=country, key=e["key"], title=e["title"], period=period, freq=freq,
+                shown = (fmt_rolling3m if freq == "months" and is_rolling3m(country, e["key"]) else fmt_period_label)(period)
+                behind.append(dict(country=country, key=e["key"], title=e["title"], period=period, shown=shown, freq=freq,
                                    next=s.get("next") or ""))
             d = parse_release(s.get("next"))
             if d and d >= today:
@@ -2227,7 +2234,7 @@ def render_data_status_page(catalogue_by_country):
     if behind:
         late_rows = "".join(
             f'<tr data-economy="{esc(b["country"])}" data-key="{esc(b["key"])}"><th scope="row">{esc(b["country"])}</th>'
-            f'<td>{esc(b["title"])}</td><td>{esc(fmt_period_label(b["period"]))}</td><td>{word(b["freq"])}</td>'
+            f'<td>{esc(b["title"])}</td><td>{esc(b["shown"])}</td><td>{word(b["freq"])}</td>'
             f'<td>{esc(b["next"] or "Not published")}</td></tr>' for b in behind)
         behind_html = ('<div class="rk-scroll"><table class="doc-table ds-behind"><thead><tr><th>Economy</th><th>Series</th>'
                        '<th>Latest figure</th><th>Frequency</th><th>Next release</th></tr></thead><tbody>'
@@ -2256,7 +2263,7 @@ def render_data_status_page(catalogue_by_country):
     <h1>Data status</h1>
     <p class="ind-lede">Whether every series on the site is up to date, when each economy was last checked against its sources, and what is due next. This page is rebuilt automatically each time the data refreshes.</p>
     <p class="rk-note">Generated from the site's data files on {generated}.</p>
-    <div class="doc-actions"><a class="btn" href="../contact">Report a problem</a> <a class="btn ghost" href="../methodology-by-economy">Methodology by economy</a></div>
+    <div class="doc-actions"><a class="btn" href="../contact">Report a problem</a> <a class="btn" href="../methodology-by-economy">Methodology by economy</a></div>
   </header>
   <section class="panel ind-panel doc-sec" id="summary">
     <h2>Summary</h2>

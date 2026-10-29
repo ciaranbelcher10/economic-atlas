@@ -301,6 +301,7 @@ def run_checks(tmp, r, repo):
 
     # 15. banner styling: matching label colours, no "current page" highlight on top items, right-push, alignment
     check_banner_css(repo)
+    check_doc_pages_style(tmp, repo)
 
     # 14. the methodology-by-economy page says when it was built
     check_built_date(meth)
@@ -361,6 +362,26 @@ def css_prop(body, prop):
     return m.group(1).strip().lower() if m else None
 
 
+DOC_PAGES = ("about.html", "methodology.html")                 # hand-written pages on doc.css
+DOC_GENERATED = ("methodology-by-economy.html", "data-status.html")
+
+
+def check_doc_pages_style(tmp, repo):
+    """v1.9.25: on the document pages every action button looks the same (no outline variant in the content), and
+    paragraphs fill their panel (no width cap on .doc-sec text in doc.css)."""
+    css = re.sub(r"/\*.*?\*/", "", read(os.path.join(repo, "doc.css")), flags=re.S)
+    body = css_rule(css, ".doc-sec p, .doc-sec li")
+    check(body is not None and css_prop(body, "max-width") is None, "doc.css: document-page text is capped in width again")
+    check(not re.search(r"\.doc-sec[^{}]*\b(p|li)\b[^{}]*\{[^}]*max-width", css), "doc.css: another rule caps document-page text width")
+    pages = [os.path.join(repo, f) for f in DOC_PAGES] + [os.path.join(tmp, f) for f in DOC_GENERATED]
+    for f in pages:
+        if not check(os.path.exists(f), f"{os.path.basename(f)} missing"):
+            continue
+        main = re.search(r"<main.*?</main>", read(f), re.S)
+        check(main and "btn ghost" not in main.group(0), f"{os.path.basename(f)}: an outline button in the page content; use the one filled style")
+    bump("document pages checked for one button style", len(pages))
+
+
 def check_banner_css(repo):
     css = re.sub(r"/\*.*?\*/", "", read(os.path.join(repo, "style.css")), flags=re.S)
     top, sub, btn = css_rule(css, "nav.top a.item"), css_rule(css, "nav.sub a.item"), css_rule(css, ".dropbtn")
@@ -411,8 +432,18 @@ def utc_label(ts):
     return f"{d.day} {d.strftime('%b %Y')}, {m.group(4)}:{m.group(5)} UTC"
 
 
+def measured_from(data_file, key, freq, period):
+    """The gate's own copy of the rolling-window rule: UK LFS months are stored under the middle month of the
+    three, so freshness is measured from the month after (v1.9.25)."""
+    if data_file == "data-uk.json" and key in UK_LFS and freq == "months":
+        y, mo = int(period[:4]), int(period[5:7])
+        return f"{y + (mo == 12)}-{mo % 12 + 1:02d}"
+    return period
+
+
 def check_data_status(tmp, ind_files):
-    """data-status.html: every number recomputed from the published indicator pages and the data files."""
+    """data-status.html: every number recomputed from the published indicator pages and the data files. Also each
+    indicator page's freshness dot, and every ranking row's, against the same independent rule (v1.9.25)."""
     from datetime import date
     path = os.path.join(tmp, "data-status.html")
     if not check(os.path.exists(path), "data-status.html was not generated"):
@@ -421,19 +452,37 @@ def check_data_status(tmp, ind_files):
     cm = re.search(r'<link rel="canonical" href="([^"]+)"', h)
     check(cm and cm.group(1) == f"{SITE}/data-status", "data-status: canonical is wrong")
     # what the published pages say: economy -> {key: (freq, last period, data file)}
-    pub = {}
+    pub, slug_of, led_of = {}, {}, {}
     for f in ind_files:
-        cfg = cfg_of(read(f)) or {}
+        h_ind = read(f)
+        cfg = cfg_of(h_ind) or {}
         pts = cfg.get("points") or []
         if cfg.get("country") and pts:
             pub.setdefault(cfg["country"], {})[cfg.get("key")] = (cfg.get("freq", ""), pts[-1][0], os.path.basename(cfg.get("dataUrl", "")))
+            slug_of[os.path.basename(f)[:-5]] = (cfg["country"], cfg.get("key"))
+            lm = re.search(r'<span class="led (green|orange)" id="indLed" title="([^"]*)"', h_ind)
+            led_of[(cfg["country"], cfg.get("key"))] = (lm.group(1), unescape(lm.group(2))) if lm else None
     today = date.today()
     stale = set()
     for c, keys in pub.items():
-        for k, (freq, period, _) in keys.items():
-            end = period_end(period)
+        for k, (freq, period, dfile) in keys.items():
+            end = period_end(measured_from(dfile, k, freq, period))
             if end is None or (today - end).days > STALE.get(freq, 90):
                 stale.add((c, k))
+    # the indicator pages' own dots must agree with the same rule
+    for ck, led in led_of.items():
+        want = "orange" if ck in stale else "green"
+        check(led and led[0] == want and led[1].startswith("Awaiting" if want == "orange" else "Latest release"),
+              f"{ck[0]} {ck[1]}: indicator page dot is {led[0] if led else None}, expected {want}")
+    # and every ranking row's dot, through the indicator page the row links to
+    for rf in glob.glob(os.path.join(tmp, "rankings", "*.html")):
+        for href, colour in re.findall(r'<a href="\.\./indicators/([^"]+)">.*?<span class="led (green|orange)"', read(rf)):
+            ck = slug_of.get(href)
+            if ck is None:
+                continue
+            check(colour == ("orange" if ck in stale else "green"),
+                  f"{os.path.basename(rf)}: {ck[0]} dot is {colour}, its indicator page says {'late' if ck in stale else 'current'}")
+            bump("ranking dots checked")
     total = sum(len(v) for v in pub.values())
     sm = re.search(r'<p id="dsSummary">(\d+) series across (\d+) economies: (\d+) up to date, (\d+) behind schedule\.</p>', h)
     if check(sm, "data-status: summary line missing or reworded"):
@@ -448,6 +497,12 @@ def check_data_status(tmp, ind_files):
     check(behind == stale, f"data-status: behind-schedule rows differ: listed only {sorted(behind - stale)[:4]}, missing {sorted(stale - behind)[:4]}")
     if not stale:
         check("Every series is up to date." in h, "data-status: no late series, but the page does not say so")
+    for c, k, shown in re.findall(r'<tr data-economy="([^"]+)" data-key="([^"]+)"><th scope="row">[^<]*</th><td>[^<]*</td><td>([^<]*)</td>', table("ds-behind")):
+        c, k = unescape(c), unescape(k)
+        if (c, k) in stale:
+            freq, period, dfile = pub[c][k]
+            want = label(period, dfile == "data-uk.json" and k in UK_LFS and freq == "months")
+            check(unescape(shown) == want, f"data-status: {c} {k} latest figure shown as '{unescape(shown)}', expected '{want}'")
     econ = re.findall(r'<tr data-economy="([^"]+)"><th scope="row">[^<]*</th><td>([^<]*)</td><td>(\d+)</td><td>(\d+)</td><td>(\d+)</td><td>([^<]*)</td></tr>', table("ds-economies"))
     check({unescape(e[0]) for e in econ} == set(pub), "data-status: the economies table does not list exactly the published economies")
     overlays_want, overlays_got = set(), set(re.findall(r'<tr data-economy="([^"]+)" data-key="([^"]+)">', table("ds-overlay")))
@@ -495,7 +550,7 @@ def nav_items(h):
 
 
 def check_nav(tmp, repo, ind_files, rank_files, meth):
-    """The top banner is flat: Methodology, About, Contact, in that order, with no About dropdown anywhere."""
+    """The top banner is flat: About, Methodology, Contact, in that order (v1.9.25), with no About dropdown anywhere."""
     pages = {}
     for f in sorted(glob.glob(os.path.join(repo, "*.html"))):
         if os.path.basename(f) not in NAV_STUBS | GENERATED_ROOT:
@@ -507,7 +562,7 @@ def check_nav(tmp, repo, ind_files, rank_files, meth):
         items = nav_items(h)
         check(items is not None, f"{name}: no navigation links block")
         if items is not None:
-            check(items == ["methodology", "about", "contact"], f"{name}: top banner items are {items}, expected Methodology, About, Contact")
+            check(items == ["about", "methodology", "contact"], f"{name}: top banner items are {items}, expected About, Methodology, Contact")
         check("aboutBtn" not in h and "aboutPanel" not in h, f"{name}: the About dropdown is still present")
     bump("pages checked for the top banner", len(pages))
 
@@ -521,7 +576,7 @@ def check_about(tmp, repo):
     check(h.count('<link rel="canonical" href="https://theeconomicatlas.com/about">') == 1, "about.html: canonical is wrong")
     check('<meta property="og:url" content="https://theeconomicatlas.com/about">' in h, "about.html: og:url is wrong")
     check(re.search(r'<a class="item active" href="about">About</a>', h) is not None, "about.html: About is not the active banner item")
-    check('<a class="btn ghost" href="data-status">Data status</a>' in h, "about.html: no Data status button")
+    check('<a class="btn" href="data-status">Data status</a>' in h, "about.html: no Data status button")
     main = re.search(r"<main.*?</main>", h, re.S)
     if not check(main, "about.html has no <main>"):
         return

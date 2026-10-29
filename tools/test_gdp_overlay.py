@@ -20,6 +20,8 @@ import oecd_turn  # noqa: E402
 import series_guard  # noqa: E402
 import fetch_ar  # noqa: E402
 import fetch_za  # noqa: E402
+import fetch_mx  # noqa: E402
+import fetch_kr  # noqa: E402
 
 fails = []
 
@@ -46,6 +48,8 @@ BASE = dict(TRANSACTION="B1GQ", TRANSFORMATION="N", UNIT_MEASURE="XDC")
 EXPECTED_SEL = {
     "ZA": {"gdp_real": dict(BASE, PRICE_BASE="Q", ADJUSTMENT="Y"), "gdp_level": dict(BASE, PRICE_BASE="V", ADJUSTMENT="Y")},
     "AR": {"gdp_real": dict(BASE, PRICE_BASE="Q", ADJUSTMENT="N"), "gdp_level": dict(BASE, PRICE_BASE="V", ADJUSTMENT="Y")},
+    "MX": {"gdp_level": dict(BASE, PRICE_BASE="V", ADJUSTMENT="Y")},   # v1.9.25: nominal only; real GDP is current
+    "KR": {"gdp_level": dict(BASE, PRICE_BASE="V", ADJUSTMENT="Y")},
 }
 
 
@@ -181,6 +185,8 @@ def mk(real, level, real_label, level_label):
 def selectors_are_pinned():
     check(fetch_za.GDP_OVERLAY == EXPECTED_SEL["ZA"], f"fetch_za.GDP_OVERLAY selectors changed: {fetch_za.GDP_OVERLAY}")
     check(fetch_ar.GDP_OVERLAY == EXPECTED_SEL["AR"], f"fetch_ar.GDP_OVERLAY selectors changed: {fetch_ar.GDP_OVERLAY}")
+    check(fetch_mx.GDP_OVERLAY == EXPECTED_SEL["MX"], f"fetch_mx.GDP_OVERLAY selectors changed: {fetch_mx.GDP_OVERLAY}")
+    check(fetch_kr.GDP_OVERLAY == EXPECTED_SEL["KR"], f"fetch_kr.GDP_OVERLAY selectors changed: {fetch_kr.GDP_OVERLAY}")
 
 
 @case
@@ -439,6 +445,77 @@ def disagreeing_tables_matter_only_where_the_overlay_works():
     # 3. nothing to report: the report carries an empty list
     m3, rep3 = go.overlay(ZA_REAL, cand_for(ZA_REAL, OECD_NEW["ZA_REAL"]))
     check(rep3["applied"] and rep3["ignored"] == [], f"no disagreements, nothing ignored: {rep3}")
+
+
+# ---------------------------------------------------------------- v1.9.25: Mexico and South Korea, nominal GDP only
+MX_LEVEL = [["2023-Q4", 8162216.2], ["2024-Q1", 8192966.4], ["2024-Q2", 8282881.2], ["2024-Q3", 8509755.6], ["2024-Q4", 8558602.4], ["2025-Q1", 8716280.0], ["2025-Q2", 8810432.3], ["2025-Q3", 8844688.6], ["2025-Q4", 8937704.2], ["2026-Q1", 9008762.6]]
+KR_LEVEL = [["2023-Q4", 617070800.0], ["2024-Q1", 635775600.0], ["2024-Q2", 639523000.0], ["2024-Q3", 639304200.0], ["2024-Q4", 649601500.0], ["2025-Q1", 652725700.0], ["2025-Q2", 661714900.0], ["2025-Q3", 670117800.0], ["2025-Q4", 692116300.0], ["2026-Q1", 764882300.0]]
+
+
+def level_only(level, label):
+    return {"gdp_level": {"label": label, "unit": "x", "freq": "quarters", "points": [list(p) for p in level]},
+            "gdp_real": {"label": "Real GDP, SA", "unit": "x", "freq": "quarters", "points": [["2026-Q2", 1.0]]}}
+
+
+@case
+def mx_kr_wiring():
+    for mod, iso, code, level in ((fetch_mx, "MEX", "MX", MX_LEVEL), (fetch_kr, "KOR", "KR", KR_LEVEL)):
+        sel = EXPECTED_SEL[code]["gdp_level"]
+        q1 = dict(level)["2026-Q1"]
+        cand = {p: v for p, v in level}
+        cand["2026-Q2"] = round(q1 * 1.012, 1)
+        rows = rows_for(sel, cand, decoys=[(dict(sel, ADJUSTMENT="N"), q1 * 3)])
+        s = level_only(level, f"GDP nominal, SA (NGDPSAXDC{code}Q)")
+        real_before = [list(p) for p in s["gdp_real"]["points"]]
+        notes = {}
+        out = run_overlay(mod, s, rows, iso, notes)
+        check(s["gdp_level"]["points"][-1] == ["2026-Q2", cand["2026-Q2"]], f"{code}: nominal Q2 not added: {s['gdp_level']['points'][-2:]}")
+        check(go.RELABEL in s["gdp_level"]["label"], f"{code}: label not marked as OECD-extended: {s['gdp_level']['label']}")
+        check(s["gdp_real"]["points"] == real_before, f"{code}: real GDP must not be touched")
+        check(notes.get("gdp_level", {}).get("status") == "applied" and "gdp_real" not in notes, f"{code}: notes {notes}")
+        # a level break must be refused and the IFS series kept
+        s2 = level_only(level, "l")
+        broken = rows_for(sel, {p: v * 1.05 for p, v in cand.items()})
+        out2 = run_overlay(mod, s2, broken, iso, {})
+        check(s2["gdp_level"]["points"] == [list(p) for p in level] and "WARN" in out2, f"{code}: a 5% break must be refused: {out2}")
+        # FRED failed this run: no gdp_level in the output, the overlay must not invent one
+        s3 = {"gdp_real": {"label": "r", "unit": "x", "freq": "quarters", "points": [["2026-Q2", 1.0]]}}
+        n3 = {}
+        out3 = run_overlay(mod, s3, rows, iso, n3)
+        check("gdp_level" not in s3, f"{code}: overlay created a series FRED did not return")
+        check(n3 == {} and "WARN" not in out3, f"{code}: a series FRED did not return must be skipped quietly, not noted as an error: {n3} {out3!r}")
+
+
+@case
+def mx_kr_off_turn_skips():
+    for mod in (fetch_mx, fetch_kr):
+        s = level_only(MX_LEVEL, "l")
+        buf = io.StringIO()
+        with mock.patch.object(oecd_turn, "check", side_effect=oecd_turn.NotThisHour("not this group")), \
+                mock.patch.object(go.requests, "get", side_effect=AssertionError("must not call OECD off-turn")), \
+                redirect_stdout(buf):
+            notes = {"gdp_level": {"status": "applied", "detail": "from the last turn"}}
+            mod.overlay_gdp(s, notes)
+        check(s["gdp_level"]["points"] == [list(p) for p in MX_LEVEL] and "SKIP" in buf.getvalue() and "WARN" not in buf.getvalue(),
+              f"{mod.__name__}: off-turn must SKIP without a request or a warning: {buf.getvalue()!r}")
+        check(notes == {"gdp_level": {"status": "applied", "detail": "from the last turn"}},
+              f"{mod.__name__}: off-turn must leave the previous notes untouched: {notes}")
+
+
+@case
+def mx_kr_main_wiring():
+    import inspect
+    for mod, df in ((fetch_mx, "data-mx.json"), (fetch_kr, "data-kr.json")):
+        src = inspect.getsource(mod.main)
+        fred = src.find("for name, (sid, freq, label, unit, tf, scale) in FRED_SERIES.items():")
+        call = src.find('overlay_gdp(out["series"], _overlay_notes)')
+        write = src.find(f'with open("{df}", "w") as f:')
+        merge = src.find('_notes = gdp_overlay.merge_notes(prev_full.get("overlay_notes"), _overlay_notes, now_iso)')
+        dump = src.find("json.dump(out, f)", write)
+        check(src.count('overlay_gdp(out["series"], _overlay_notes)') == 1 and -1 < fred < call,
+              f"{mod.__name__}: main() must call overlay_gdp once, after the FRED fetch")
+        check(-1 < write < merge < dump and 'out["overlay_notes"] = _notes' in src[merge:dump],
+              f"{mod.__name__}: main() must save the overlay notes into {df}")
 
 
 print("test_gdp_overlay:", "FAILED" if fails else "ok", f"({len(fails)} failures)")
