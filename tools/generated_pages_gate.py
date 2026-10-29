@@ -32,6 +32,9 @@ Checks (every one is mutation-tested in tools/test_generated_pages_gate.py):
      Google Analytics itself; embeds carry neither; consent.js injects Google only inside loadGA(), which runs
      only after a saved 'granted' or an Accept click, and uses the same ID and key as the root pages.
 
+ 11. root pages (v1.9.20): every hand-written root page except privacy.html and the three deprecated stubs has
+     a Privacy link in its footer, and none claims hourly updates in its visible text or meta tags.
+
 Run from anywhere:   python3 tools/generated_pages_gate.py
 Options:             --generator PATH   use another copy of the generator (the tests do)
                      --repo PATH        take the inputs from another checkout
@@ -270,6 +273,9 @@ def run_checks(tmp, r, repo):
     # 10. consent-gated analytics on every generated page that a person can land on
     check_consent(tmp, repo, ind_files, emb_files, rank_files, meth)
 
+    # 11. hand-written root pages: Privacy link in every footer, no hourly-update claim
+    check_root_pages(repo)
+
     # 7/8. visible text and copy rules on everything generated
     rules = [("hourly claim", re.compile(r"checked hourly|checks hourly|hourly against|updated hourly|from source every hour", re.I)),
              ("em dash", re.compile("\u2014")),
@@ -283,6 +289,28 @@ def run_checks(tmp, r, repo):
             hit = rx.search(text) or rx.search(meta)
             check(not hit, f"{os.path.relpath(f, tmp)}: {name} ('{hit.group(0) if hit else ''}')")
     bump("pages scanned for copy", len(ind_files) + len(emb_files) + len(rank_files) + (1 if meth else 0))
+
+
+DEPRECATED_STUBS = {"gdp-by-country.html", "inflation-by-country.html", "unemployment-by-country.html"}   # no footer, to be deleted
+HOURLY_CLAIM = re.compile(r"checked hourly|checks hourly|hourly against|updated hourly|from source every hour", re.I)
+
+
+def check_root_pages(repo):
+    """Every hand-written root page (except privacy.html itself and the deprecated stubs) has a footer with a
+    Privacy button-link, and none makes an hourly-update claim in its visible text or meta tags."""
+    n = 0
+    for f in sorted(glob.glob(os.path.join(repo, "*.html"))):
+        name = os.path.basename(f)
+        if name in GENERATED_ROOT or name in DEPRECATED_STUBS:
+            continue
+        h = read(f)
+        n += 1
+        if name != "privacy.html":
+            foots = re.findall(r"<footer.*?</footer>", h, re.S)
+            check(foots and any(re.search(r'href="[^"]*privacy"', x) for x in foots), f"{name}: footer has no Privacy link")
+        hit = HOURLY_CLAIM.search(visible(h)) or HOURLY_CLAIM.search(meta_text(h))
+        check(not hit, f"{name}: hourly-update claim ('{hit.group(0) if hit else ''}')")
+    bump("root pages checked (Privacy link, no hourly claim)", n)
 
 
 GA_ID = "G-PJSXJN5H6G"

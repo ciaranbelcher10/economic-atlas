@@ -113,6 +113,13 @@ MUTS = [
                                                     "latest_period=esc(fmt_period_label(lp[0]))"), "does not show"),
     ("summary line overstates the embeds", mutate('{generated} embeds and', '{generated + 1} embeds and'), "summary says"),
     ("generator crashes", mutate("def main():\n", "def main():\n    raise SystemExit(3)\n"), "generator exited 3"),
+    ("consent.js script dropped from generated pages", mutate('<script src="../consent.js?v=1" defer></script>', ''), "consent.js must be loaded exactly once"),
+    ("consent.js loses defer", mutate('consent.js?v=1" defer>', 'consent.js?v=1">'), "consent.js must be loaded exactly once"),
+    ("cookie banner dropped from generated pages", mutate('{CONSENT_HTML}\n<script src="../consent', '<script src="../consent'), 'expected exactly one id="cookieBanner"'),
+    ("banner loses its Privacy button", mutate(' <a class="btn ghost" href="../privacy">Privacy</a>\n', ''), "banner has no Privacy button"),
+    ("hyperlink inside the banner text", mutate('either way.</p>', 'either way. <a href="../privacy">Privacy</a></p>'), "must not contain a hyperlink"),
+    ("generated page names Google Analytics itself", mutate('<script src="../consent.js?v=1" defer>', '<script>gtag("config","G-PJSXJN5H6G")</script><script src="../consent.js?v=1" defer>'), "must not load or name Google Analytics"),
+    ("reject button id missing", mutate('id="cookieReject"', 'id="cookieNo"'), 'expected exactly one id="cookieReject"'),
     ("generator prints no summary", mutate('print(f"Generated {generated} indicator pages', 'print(f"Built {generated} indicator pages'), "printed no"),
 ]
 for name, text, expect in MUTS:
@@ -148,6 +155,48 @@ for name, edit in (("cross-year rolling range", cross_year), ("ranking compariso
         else:
             wrong_year = mutate("    ey, em = (y, m + 1) if m < 12 else (y + 1, 1)\n", "    ey, em = (y, m + 1) if m < 12 else (y, 1)\n")
             caught(f"{name} with a wrong year rollover", run_gate(wrong_year, repo=d), "title says")
+    finally:
+        shutil.rmtree(d, ignore_errors=True)
+
+# ---------------------------------------------------------------- consent.js and root pages (v1.9.19-20)
+CJS = (ROOT / "consent.js").read_text(encoding="utf-8")
+
+
+def cjs_edit(old, new):
+    assert CJS.count(old) == 1, f"consent.js anchor not unique: {old[:60]!r}"
+
+    def edit(d):
+        (d / "consent.js").unlink()                      # repo_copy symlinks it: replace the link with a changed copy
+        (d / "consent.js").write_text(CJS.replace(old, new), encoding="utf-8")
+    return edit
+
+
+def page_edit(name, old, new):
+    src = (ROOT / name).read_text(encoding="utf-8")
+    assert src.count(old) >= 1, f"{name}: anchor missing: {old[:60]!r}"
+
+    def edit(d):
+        (d / name).unlink()
+        (d / name).write_text(src.replace(old, new, 1), encoding="utf-8")
+    return edit
+
+
+PRIV = '<a href="privacy">Privacy</a> &middot; '
+REPO_MUTS = [
+    ("consent.js: GA loads on every page load", cjs_edit('if (consent === "granted") {\n    loadGA();', 'loadGA();\n  if (consent === "granted") {\n    loadGA();'), "calls loadGA()"),
+    ("consent.js: a denied choice also loads GA", cjs_edit('consent === "granted"', 'consent !== "x"'), "not guarded by a saved 'granted'"),
+    ("consent.js: Accept no longer loads GA", cjs_edit('    if (banner) banner.classList.remove("show");\n    loadGA();', '    if (banner) banner.classList.remove("show");'), "calls loadGA()"),
+    ("consent.js: file missing its measurement ID", cjs_edit('"G-PJSXJN5H6G"', '"G-XXXXXXXXXX"'), "measurement ID"),
+    ("markets.html: Privacy link removed", page_edit("markets.html", PRIV, ""), "markets.html: footer has no Privacy link"),
+    ("contact.html: Privacy link removed", page_edit("contact.html", PRIV, ""), "contact.html: footer has no Privacy link"),
+    ("index.html: footer removed", page_edit("index.html", "<footer", "<div"), "index.html: footer has no Privacy link"),
+    ("markets.html: hourly claim back in meta", page_edit("markets.html", "updated automatically, no", "checked hourly, no"), "markets.html: hourly-update claim"),
+    ("calendar.html: hourly claim in visible text", page_edit("calendar.html", "<footer>The Economic Atlas", "<footer>Data updated hourly. The Economic Atlas"), "calendar.html: hourly-update claim"),
+]
+for name, edit, expect in REPO_MUTS:
+    d = repo_copy(edit)
+    try:
+        caught(name, run_gate(repo=d), expect)
     finally:
         shutil.rmtree(d, ignore_errors=True)
 
