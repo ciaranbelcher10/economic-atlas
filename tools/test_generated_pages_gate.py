@@ -239,6 +239,15 @@ REPO_MUTS += [
     ("about.html: em dash in copy", page_edit("about.html", "no opinion.", "no opinion \u2014 x."), "copy rule broken"),
     ("about.html: hourly claim", page_edit("about.html", "refreshed automatically throughout the day", "refreshed hourly"), "about.html: copy rule broken ('hourly')"),
     ("index.html: hourly claim back in its JSON-LD", page_edit("index.html", '"description": "Economic data taken only from official sources', '"description": "Hourly updating economic data taken only from official sources'), "index.html: hourly-update claim"),
+    ("style.css: top banner colour drifts again", page_edit("style.css", "nav.top a.item{\n  color:#F2F8FD;", "nav.top a.item{\n  color:#D8E4EF;"), "banner label colours differ"),
+    ("style.css: Country Breakdowns colour drifts", page_edit("style.css", ".dropbtn{\n  color:#F2F8FD;", ".dropbtn{\n  color:#D8E4EF;"), "banner label colours differ"),
+    ("style.css: current page highlighted again", page_edit("style.css", "nav.top a.item.active{background:none; color:#F2F8FD;}", "nav.top a.item.active{background:var(--navy-2); color:#F2F8FD;}"), "item is highlighted"),
+    ("style.css: current page recoloured", page_edit("style.css", "nav.top a.item.active{background:none; color:#F2F8FD;}", "nav.top a.item.active{background:none; color:#fff;}"), "item changes colour"),
+    ("style.css: right-push back on the old dropdown", page_edit("style.css", "#navLinks > :first-child{margin-left:auto;}", "#navLinks > .dropdown:first-child{margin-left:auto;}"), "not pushed to the right"),
+    ("style.css: alignment pull removed", page_edit("style.css", "@media (min-width:901px){ nav.sub .wrap > :first-child{margin-left:-18px;} }", ""), "not pulled left by exactly"),
+    ("style.css: alignment pull off by a few pixels", page_edit("style.css", "margin-left:-18px;} }", "margin-left:-12px;} }"), "not pulled left by exactly"),
+    ("style.css: button padding changes but pull does not", page_edit("style.css", "  padding:14px 18px; display:flex; align-items:center; gap:7px;", "  padding:14px 22px; display:flex; align-items:center; gap:7px;"), "not pulled left by exactly"),
+    ("style.css: logo gains left padding", page_edit("style.css", "padding:14px 18px 14px 0; margin-right:10px;", "padding:14px 18px 14px 6px; margin-right:10px;"), "the logo has left padding"),
     ("data files stop mentioning BEA while About names it", data_edit("data-metric-sources.json", r"(?<![A-Za-z])BEA(?![A-Za-z])", "XYZ"), "no data file mentions BEA"),
 ]
 for name, edit, expect in REPO_MUTS:

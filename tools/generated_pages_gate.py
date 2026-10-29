@@ -46,6 +46,10 @@ Checks (every one is mutation-tested in tools/test_generated_pages_gate.py):
  14. methodology-by-economy.html (v1.9.22) states once the day it was generated, and that day is today; the root-page
      hourly check (11) also reads each page's JSON-LD.
 
+ 15. style.css (v1.9.23): top banner items, lower row items and Country Breakdowns share one label colour; the
+     current page's top item is neither highlighted nor recoloured; the top items are pushed right; on desktop
+     Country Breakdowns is pulled left by exactly its own left padding so it lines up with the unpadded logo.
+
 Run from anywhere:   python3 tools/generated_pages_gate.py
 Options:             --generator PATH   use another copy of the generator (the tests do)
                      --repo PATH        take the inputs from another checkout
@@ -287,6 +291,9 @@ def run_checks(tmp, r, repo):
     # 11. hand-written root pages: Privacy link in every footer, no hourly-update claim
     check_root_pages(repo)
 
+    # 15. banner styling: matching label colours, no "current page" highlight on top items, right-push, alignment
+    check_banner_css(repo)
+
     # 14. the methodology-by-economy page says when it was built
     check_built_date(meth)
 
@@ -330,6 +337,41 @@ def check_root_pages(repo):
         hit = HOURLY_CLAIM.search(visible(h)) or HOURLY_CLAIM.search(meta_text(h)) or re.search(r"hourly", ld, re.I)
         check(not hit, f"{name}: hourly-update claim ('{hit.group(0) if hit else ''}')")
     bump("root pages checked (Privacy link, no hourly claim)", n)
+
+
+def css_rule(css, selector):
+    """Body of the first top-level rule whose selector is exactly `selector` (whitespace-insensitive)."""
+    for m in re.finditer(r"([^{}]+)\{([^{}]*)\}", css):
+        if re.sub(r"\s+", " ", m.group(1)).strip() == selector:
+            return m.group(2)
+    return None
+
+
+def css_prop(body, prop):
+    m = re.search(r"(?:^|;)\s*" + re.escape(prop) + r"\s*:\s*([^;]+)", body or "")
+    return m.group(1).strip().lower() if m else None
+
+
+def check_banner_css(repo):
+    css = re.sub(r"/\*.*?\*/", "", read(os.path.join(repo, "style.css")), flags=re.S)
+    top, sub, btn = css_rule(css, "nav.top a.item"), css_rule(css, "nav.sub a.item"), css_rule(css, ".dropbtn")
+    act = css_rule(css, "nav.top a.item.active")
+    for name, body in (("nav.top a.item", top), ("nav.sub a.item", sub), (".dropbtn", btn), ("nav.top a.item.active", act)):
+        check(body is not None, f"style.css: no '{name}' rule")
+    colours = {n: css_prop(b, "color") for n, b in (("top banner items", top), ("lower row items", sub), ("Country Breakdowns", btn))}
+    check(len(set(colours.values())) == 1 and None not in colours.values(), f"style.css: banner label colours differ: {colours}")
+    check(css_prop(act, "background") in ("none", "transparent"), "style.css: the current page's top banner item is highlighted")
+    check(css_prop(act, "color") == colours["top banner items"], "style.css: the current page's top banner item changes colour")
+    push = css_rule(css, "#navLinks > :first-child")
+    check(css_prop(push, "margin-left") == "auto", "style.css: the top banner items are not pushed to the right")
+    check(not re.search(r"#navLinks\s*>\s*\.dropdown", css), "style.css: the right-push still targets the old dropdown")
+    pad = re.match(r"\S+\s+(\S+)", css_prop(btn, "padding") or "")
+    brand = css_prop(css_rule(css, "nav .brand"), "padding") or ""
+    m = re.search(r"@media \(min-width:\s*901px\)\s*\{\s*nav\.sub \.wrap > :first-child\s*\{\s*margin-left:\s*(-?\d+)px", css)
+    check(m and pad and m.group(1) == "-" + pad.group(1).replace("px", ""),
+          "style.css: Country Breakdowns is not pulled left by exactly its own left padding (desktop rule)")
+    check(brand.split()[-1:] == ["0"], "style.css: the logo has left padding, so the alignment rule no longer lines up")
+    bump("banner style rules checked", 1)
 
 
 def check_built_date(meth):
