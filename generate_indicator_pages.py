@@ -2093,6 +2093,8 @@ def render_methodology_page(catalogue_by_country):
              "".join(f'<button type="button" class="rk-btn doc-chip" data-region="{esc(r)}" aria-pressed="false">{esc(r)}</button>'
                      for r in sorted(by_region)))
     pct = int(round(GROWTH_COVERAGE * 100))
+    built_on = date.today()
+    built = f"{built_on.day} {built_on.strftime('%B %Y')}"
     page_title = "Methodology by Economy: What Each Series Is | The Economic Atlas"
     meta_desc = (f"For each of the {n} economies we track: which series feeds every indicator, how often it updates, "
                  "whether it is seasonally adjusted, and what we do not track.")
@@ -2107,6 +2109,7 @@ def render_methodology_page(catalogue_by_country):
   <header class="ind-head">
     <h1>Methodology by economy</h1>
     <p class="ind-lede">For each of the {n} economies we track: the series behind every indicator, how often it updates, whether the source says it is seasonally adjusted, and what we do not track. This page is rebuilt from the same data as the indicator pages, so it describes what is on the site now.</p>
+    <p class="rk-note">Generated from the site's data files on {built}.</p>
     <div class="doc-actions"><a class="btn ghost" href="methodology">General methodology</a></div>
   </header>
   <nav class="panel ind-panel doc-toc" aria-label="On this page">

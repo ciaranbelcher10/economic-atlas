@@ -123,6 +123,8 @@ MUTS = [
     ("generated pages lose the About banner item", mutate('<a class="item" href="../about">About</a>', ''), "top banner items are"),
     ("generated pages point About at the wrong page", mutate('href="../about">About</a>', 'href="../abouts">About</a>'), "top banner items are"),
     ("about.html left out of the sitemap", mutate('SITEMAP_ROOT_SKIP = {"404.html"}', 'SITEMAP_ROOT_SKIP = {"404.html", "about.html"}'), "sitemap.xml does not list /about"),
+    ("methodology page loses its generated-on date", mutate('    <p class="rk-note">Generated from the site\'s data files on {built}.</p>\n', ''), "expected one generated-on date line"),
+    ("methodology page shows a stale generated-on date", mutate("    built_on = date.today()\n", "    built_on = date(2020, 1, 1)\n"), "not today"),
     ("generator prints no summary", mutate('print(f"Generated {generated} indicator pages', 'print(f"Built {generated} indicator pages'), "printed no"),
 ]
 for name, text, expect in MUTS:
@@ -236,6 +238,7 @@ REPO_MUTS += [
     ("about.html: a checked publisher dropped", page_edit("about.html", "the Bank of England, the Bank of Canada and other", "the Bank of England and other"), "names publishers outside the checked list"),
     ("about.html: em dash in copy", page_edit("about.html", "no opinion.", "no opinion \u2014 x."), "copy rule broken"),
     ("about.html: hourly claim", page_edit("about.html", "refreshed automatically throughout the day", "refreshed hourly"), "about.html: copy rule broken ('hourly')"),
+    ("index.html: hourly claim back in its JSON-LD", page_edit("index.html", '"description": "Economic data taken only from official sources', '"description": "Hourly updating economic data taken only from official sources'), "index.html: hourly-update claim"),
     ("data files stop mentioning BEA while About names it", data_edit("data-metric-sources.json", r"(?<![A-Za-z])BEA(?![A-Za-z])", "XYZ"), "no data file mentions BEA"),
 ]
 for name, edit, expect in REPO_MUTS:

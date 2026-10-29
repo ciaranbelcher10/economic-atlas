@@ -43,6 +43,9 @@ Checks (every one is mutation-tested in tools/test_generated_pages_gate.py):
      no-JavaScript fallback has no number; no hyperlink in running text; no UN Comtrade, em dash, double hyphen or
      hourly claim; every publisher it names appears in the data files' own labels; the sitemap lists /about.
 
+ 14. methodology-by-economy.html (v1.9.22) states once the day it was generated, and that day is today; the root-page
+     hourly check (11) also reads each page's JSON-LD.
+
 Run from anywhere:   python3 tools/generated_pages_gate.py
 Options:             --generator PATH   use another copy of the generator (the tests do)
                      --repo PATH        take the inputs from another checkout
@@ -284,6 +287,9 @@ def run_checks(tmp, r, repo):
     # 11. hand-written root pages: Privacy link in every footer, no hourly-update claim
     check_root_pages(repo)
 
+    # 14. the methodology-by-economy page says when it was built
+    check_built_date(meth)
+
     # 12/13. top navigation on every page, and the About page
     check_nav(tmp, repo, ind_files, rank_files, meth)
     check_about(tmp, repo)
@@ -320,9 +326,23 @@ def check_root_pages(repo):
         if name != "privacy.html":
             foots = re.findall(r"<footer.*?</footer>", h, re.S)
             check(foots and any(re.search(r'href="[^"]*privacy"', x) for x in foots), f"{name}: footer has no Privacy link")
-        hit = HOURLY_CLAIM.search(visible(h)) or HOURLY_CLAIM.search(meta_text(h))
+        ld = " ".join(re.findall(r'<script type="application/ld\+json">(.*?)</script>', h, re.S))
+        hit = HOURLY_CLAIM.search(visible(h)) or HOURLY_CLAIM.search(meta_text(h)) or re.search(r"hourly", ld, re.I)
         check(not hit, f"{name}: hourly-update claim ('{hit.group(0) if hit else ''}')")
     bump("root pages checked (Privacy link, no hourly claim)", n)
+
+
+def check_built_date(meth):
+    """methodology-by-economy.html states, once, the day it was generated: today (or yesterday, across midnight)."""
+    from datetime import date, timedelta
+    if not check(meth, "no methodology-by-economy page to check for its generated-on date"):
+        return
+    h = read(meth)
+    found = re.findall(r"Generated from the site's data files on (\d{1,2} [A-Z][a-z]+ \d{4})\.", unescape(h))
+    ok_days = {f"{d.day} {d.strftime('%B %Y')}" for d in (date.today(), date.today() - timedelta(days=1))}
+    check(len(found) == 1, f"methodology-by-economy.html: expected one generated-on date line, found {len(found)}")
+    check(len(found) != 1 or found[0] in ok_days, f"methodology-by-economy.html: generated-on date is {found[0] if found else ''}, not today")
+    bump("generated-on date checked", 1)
 
 
 NAV_STUBS = {"404.html"} | DEPRECATED_STUBS     # no site navigation
