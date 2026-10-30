@@ -92,6 +92,7 @@ from datetime import datetime, timezone
 import requests
 import series_guard
 import projection_guard
+import imf_datamapper
 
 # Series this script is deliberately allowed to replace with a shorter or
 # lower-frequency one. Without an entry here, series_guard keeps the previous
@@ -730,6 +731,13 @@ def main() -> int:
             _prev_for_merge = json.load(f)
     except Exception:
         _prev_for_merge = {}
+    # v1.9.27: deficit from the IMF DataMapper (current World Economic Outlook) first; the FRED copy fetched above
+    # runs months behind and is kept when the DataMapper fails, disagrees or is shorter (imf_datamapper.py).
+    _dm_note = imf_datamapper.overlay(out["series"], "deficit", "GGXCNL_NGDP", "CHL",
+                                       "General government net lending/borrowing, % of GDP (IMF World Economic Outlook, DataMapper GGXCNL_NGDP)")
+    print("  " + _dm_note)
+    if "DataMapper applied" in _dm_note and "deficit" in failures:
+        failures.remove("deficit")
     _prev_series = _prev_for_merge.get("series", {})
     projection_guard.trim_previous(_prev_series)
     # Trade conversion below must only touch series fetched fresh this run:

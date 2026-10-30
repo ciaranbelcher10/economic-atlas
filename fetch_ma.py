@@ -53,6 +53,7 @@ from datetime import datetime, timezone
 import requests
 import series_guard
 import projection_guard
+import imf_datamapper
 
 # Series this script is deliberately allowed to replace with a shorter or
 # lower-frequency one. Without an entry here, series_guard keeps the previous
@@ -784,6 +785,19 @@ def main() -> int:
     # BEFORE the "nothing fetched" bailout below (matching the pattern
     # already used elsewhere) so a run where every series fails still
     # gets rescued by carried-over data rather than giving up entirely.
+    # v1.9.27: debt_gdp from the IMF DataMapper (current World Economic Outlook) first; the FRED copy fetched above
+    # runs months behind and is kept when the DataMapper fails, disagrees or is shorter (imf_datamapper.py).
+    # The World Bank 2011 last resort is a different (central government) series, so it is not a fair
+    # comparison: set it aside while the DataMapper is asked, and put it back only if nothing better came.
+    _wb_stale = (out["series"].pop("debt_gdp") if "last published this series"
+                 in (out["series"].get("debt_gdp") or {}).get("label", "") else None)
+    _dm_note = imf_datamapper.overlay(out["series"], "debt_gdp", "GGXWDG_NGDP", "MAR",
+                                       "General government gross debt, % of GDP (IMF World Economic Outlook, DataMapper GGXWDG_NGDP)")
+    print("  " + _dm_note)
+    if "DataMapper applied" in _dm_note and "debt_gdp" in failures:
+        failures.remove("debt_gdp")
+    if _wb_stale and "debt_gdp" not in out["series"]:
+        out["series"]["debt_gdp"] = _wb_stale
     _prev_series = prev_full.get("series", {})
     projection_guard.trim_previous(_prev_series)
     _guard_verdicts = series_guard.apply_guard(
