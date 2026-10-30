@@ -611,8 +611,15 @@ def check_key_figures(tmp):
         check(i < j < h.find("<footer"), f"key figures: {fname} block is not whole and before the footer")
         blk = h[i:j]
         dm = re.search(r'<time class="kf-date" datetime="(\d{4}-\d{2}-\d{2})">', blk)
-        ld = re.search(r'"dateModified": "(\d{4}-\d{2}-\d{2})"', h)
-        check(dm and ld and dm.group(1) == ld.group(1), f"key figures: {fname} Dataset dateModified does not match the block date")
+        ds = [b for b in re.findall(r'<script type="application/ld\+json">(.*?)</script>', h, re.S) if '"Dataset"' in b]
+        ld = None
+        if check(len(ds) == 1, f"key figures: {fname} has {len(ds)} Dataset blocks"):
+            check(ds[0].count('"dateModified"') == 1, f"key figures: {fname} Dataset has {ds[0].count(chr(34) + 'dateModified')} dateModified keys")
+            try:
+                ld = json.loads(ds[0]).get("dateModified")      # as a reader sees it: with duplicates, the last wins
+            except ValueError:
+                ld = None
+        check(dm and ld == dm.group(1), f"key figures: {fname} Dataset dateModified does not match the block date")
         rows = re.findall(r'<tr><th scope="row"><a href="indicators/([^"]+)">[^<]*</a></th><td class="kf-v">([^<]*)</td><td>([^<]*)</td><td>([^<]*)</td></tr>', blk)
         check(rows, f"key figures: {fname} block has no rows")
         feed_path = os.path.join(tmp, "feeds", stem + ".json")

@@ -42,5 +42,15 @@ check("publisher: ONS", g.kf_publisher("ONS series D7G7 (MM23)"), "ONS")
 check("publisher: earliest named wins", g.kf_publisher("Central Reserve Bank of Peru (BCRP), series PN01273PM, from INEI"), "Central Reserve Bank of Peru")
 check("publisher: derived names the base", g.kf_publisher("Calculated from real GDP, each period. Real GDP: Eurostat namq_10_gdp"), "Eurostat")
 
+# a hand-written Dataset that already ends with its own dateModified: updated in place, never duplicated
+OLD = PAGE.replace('  "isAccessibleForFree": true,\n}', '  "isAccessibleForFree": true,\n  "dateModified": "2026-08-04"\n}')
+d = g.inject_key_figures(OLD, blk("1.0%"), "2026-10-01")
+check("existing dateModified updated, not duplicated", (d.count('"dateModified"'), '"dateModified": "2026-10-01"' in d), (1, True))
+# a page from v1.9.28 that already carries both keys is repaired
+BOTH = OLD.replace('  "isAccessibleForFree": true,', '  "dateModified": "2026-10-30",\n  "isAccessibleForFree": true,')
+e2 = g.inject_key_figures(BOTH, blk("1.0%"), "2026-10-31")
+check("v1.9.28 duplicate repaired", (e2.count('"dateModified"'), '"dateModified": "2026-10-31"' in e2), (1, True))
+check("repaired page is stable on the next run", g.inject_key_figures(e2, blk("1.0%"), "2026-11-02"), e2)
+
 print(f"test_key_figures: {n} checks, {fails} failures")
 sys.exit(1 if fails else 0)

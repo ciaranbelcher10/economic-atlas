@@ -2790,9 +2790,13 @@ def inject_key_figures(page_html, block_for_stamp, today):
         if i < 0:
             raise ValueError("no <footer> to place the key figures before")
         text = page_html[:i] + block + "\n" + page_html[i:]
-    # the page's Dataset carries the same date
-    text = re.sub(r'\n  "dateModified": "\d{4}-\d{2}-\d{2}",', "", text, count=1)
-    text = text.replace('  "isAccessibleForFree": true,', f'  "dateModified": "{stamp}",\n  "isAccessibleForFree": true,', 1)
+    # The page's Dataset carries the same date. Hand-written Datasets already end with a dateModified, so that one
+    # is updated in place; a second key would leave the stale date winning when the JSON is read (v1.9.29 fix).
+    text = re.sub(r'\n  "dateModified": "\d{4}-\d{2}-\d{2}",(?=\n  "isAccessibleForFree")', "", text, count=1)
+    if re.search(r'"dateModified": "\d{4}-\d{2}-\d{2}"', text):
+        text = re.sub(r'"dateModified": "\d{4}-\d{2}-\d{2}"', f'"dateModified": "{stamp}"', text, count=1)
+    else:
+        text = text.replace('  "isAccessibleForFree": true,', f'  "dateModified": "{stamp}",\n  "isAccessibleForFree": true,', 1)
     return text
 
 
