@@ -350,7 +350,9 @@ def check_root_pages(repo):
         ld = " ".join(re.findall(r'<script type="application/ld\+json">(.*?)</script>', h, re.S))
         hit = HOURLY_CLAIM.search(visible(h)) or HOURLY_CLAIM.search(meta_text(h)) or re.search(r"hourly", ld, re.I)
         check(not hit, f"{name}: hourly-update claim ('{hit.group(0) if hit else ''}')")
-    bump("root pages checked (Privacy link, no hourly claim)", n)
+        gone = re.search(r'id="alertBanner"|alertSignup|alert_signups|eatlas_alert_banner_dismissed', h)
+        check(not gone, f"{name}: the retired email-alert banner or signup is back ('{gone.group(0) if gone else ''}')")
+    bump("root pages checked (Privacy link, no hourly claim, no alert signup)", n)
 
 
 def css_rule(css, selector):

@@ -599,11 +599,6 @@ html[data-theme="dark"] .tpm-scopenote strong{color:var(--blue);}
  <a class="item" href="markets" id="navMarketsLink">Markets</a>
 </div></nav>
 <div class="wrap" style="padding-top:16px;">
- <div class="savebar" id="alertBanner" hidden>
- <span class="savebar-icon" aria-hidden="true">&#128276;</span>
- <p>Want to know when new countries, indicators or features land? <a href="contact#alertSignupBox" style="color:inherit; text-decoration:underline;">Leave your email</a>, no account needed.</p>
- <button type="button" class="savebar-close" id="alertBannerClose" aria-label="Dismiss">&times;</button>
- </div>
  <div class="savebar" id="trialBanner" hidden>
  <span class="savebar-icon" aria-hidden="true">&#9203;</span>
  <p id="trialBannerText"></p>
@@ -5607,34 +5602,6 @@ fetch("data-uk-spending-cofog.json", {cache: "no-cache"})
     if(lay) lay.hidden = true;
     if(note) note.textContent = "The spending breakdown couldn\u2019t be loaded just now. Please refresh the page to try again.";
   });
-})();
-</script>
-<script>
-(function(){
-  "use strict";
-  // Site-wide "get notified" banner -- logged-out visitors only (anyone
-  // with an account already gets updates through the account itself),
-  // and remembers a dismissal permanently via localStorage rather than
-  // just for the current page, since this shows on every page and would
-  // be genuinely annoying otherwise. Placed here (just before </body>)
-  // rather than immediately after the banner's own HTML because
-  // window.EATLAS_PREFS isn't defined until later in the page.
-  var DISMISS_KEY = "eatlas_alert_banner_dismissed";
-  var banner = document.getElementById("alertBanner");
-  if(!banner) return;
-  var dismissed = false;
-  try{ dismissed = localStorage.getItem(DISMISS_KEY) === "1"; }catch(e){}
-  if(dismissed) return;
-  var closeBtn = document.getElementById("alertBannerClose");
-  if(closeBtn){
-    closeBtn.addEventListener("click", function(){
-      banner.hidden = true;
-      try{ localStorage.setItem(DISMISS_KEY, "1"); }catch(e){}
-    });
-  }
-  if(window.EATLAS_PREFS && window.EATLAS_PREFS.registerBanner){
-    window.EATLAS_PREFS.registerBanner(banner);
-  }
 })();
 </script>
 <script src="mobile.js?v=17" defer></script>
