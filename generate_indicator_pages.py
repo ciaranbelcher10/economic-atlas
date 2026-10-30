@@ -2182,45 +2182,74 @@ def parse_release(text):
         return None
 
 
+AWAITING_CAP_DAYS = {"months": 180, "quarters": 270, "years": 1000}   # past this, a slow publisher's series is behind again
+AWAITING_CONFIRM_DAYS = 3                                               # and it must have been checked against its source lately
+
+
+def load_awaiting():
+    """(economy, key) -> publisher, from awaiting_sources.json: series whose source publishes later than the normal window."""
+    out = {}
+    for e in load_json("awaiting_sources.json").get("series", []):
+        for k in e["keys"]:
+            out[(e["economy"], k)] = e["publisher"]
+    return out
+
+
+def awaiting_ok(period_from, freq, confirmed_at, today):
+    """A late series on a slow source counts as awaiting only while it is recently confirmed and inside the cap."""
+    m = re.match(r"^(\d{4})-(\d{2})-(\d{2})", str(confirmed_at or ""))
+    if not m or (today - date(int(m.group(1)), int(m.group(2)), int(m.group(3)))).days > AWAITING_CONFIRM_DAYS:
+        return False
+    return (today - period_end_date(period_from)).days <= AWAITING_CAP_DAYS.get(freq, 0)
+
+
 def data_status(catalogue_by_country):
     """Per economy: last checked, series on the site, how many are current. Plus every late series and the overlay notes.
     Late uses the same rule as the indicator pages (is_fresh)."""
     today = date.today()
-    rows, behind, overlays = [], [], []
+    slow = load_awaiting()
+    rows, behind, awaiting, overlays = [], [], [], []
     for country in sorted(catalogue_by_country):
         info = catalogue_by_country[country]
         data, series = info["data"], info["data"].get("series", {})
-        cur = late = 0
+        cur = late = wait = 0
         upcoming = []
         for e in info["catalogue"]:
             s = series.get(e["key"], {})
             freq, period = s.get("freq", ""), e["pts"][-1][0]
-            if is_fresh(freshness_period(country, e["key"], period, freq), freq):
+            measured = freshness_period(country, e["key"], period, freq)
+            if is_fresh(measured, freq):
                 cur += 1
             else:
-                late += 1
                 shown = (fmt_rolling3m if freq == "months" and is_rolling3m(country, e["key"]) else fmt_period_label)(period)
-                behind.append(dict(country=country, key=e["key"], title=e["title"], period=period, shown=shown, freq=freq,
-                                   next=s.get("next") or ""))
+                row = dict(country=country, key=e["key"], title=e["title"], period=period, shown=shown, freq=freq,
+                           next=s.get("next") or "", publisher=slow.get((country, e["key"]), ""))
+                if (country, e["key"]) in slow and awaiting_ok(measured, freq, s.get("confirmed_at"), today):
+                    wait += 1
+                    awaiting.append(row)
+                else:
+                    late += 1
+                    behind.append(row)
             d = parse_release(s.get("next"))
             if d and d >= today:
                 upcoming.append(d)
         nxt = min(upcoming) if upcoming else None
         rows.append(dict(country=country, updated=data.get("updated"), series=len(info["catalogue"]), current=cur,
-                         late=late, next=f"{nxt.day} {nxt.strftime('%B %Y')}" if nxt else "Not published"))
+                         awaiting=wait, late=late, next=f"{nxt.day} {nxt.strftime('%B %Y')}" if nxt else "Not published"))
         for key, note in sorted((data.get("overlay_notes") or {}).items()):
             overlays.append(dict(country=country, key=key, label=series.get(key, {}).get("label", key),
                                  status=note.get("status", ""), detail=note.get("detail", ""), run=note.get("run")))
-    return rows, behind, overlays
+    return rows, behind, awaiting, overlays
 
 
 def render_data_status_page(catalogue_by_country):
     """/data-status: is every series current, when was each economy last checked, what is due next. A root page built
     on every run, so it stays true without anyone editing it; the gate recomputes its numbers from the data files."""
     canonical = f"{SITE_URL}/data-status"
-    rows, behind, overlays = data_status(catalogue_by_country)
+    rows, behind, awaiting, overlays = data_status(catalogue_by_country)
     n, total = len(rows), sum(r["series"] for r in rows)
     cur, late = sum(r["current"] for r in rows), sum(r["late"] for r in rows)
+    wait = sum(r["awaiting"] for r in rows)
     made_on = date.today()
     generated = f"{made_on.day} {made_on.strftime('%B %Y')}"
     page_title = "Data Status: What Is Current and What Is Due | The Economic Atlas"
@@ -2240,10 +2269,20 @@ def render_data_status_page(catalogue_by_country):
                        '<th>Latest figure</th><th>Frequency</th><th>Next release</th></tr></thead><tbody>'
                        + late_rows + "</tbody></table></div>")
     else:
-        behind_html = "<p>Every series is up to date.</p>"
+        behind_html = "<p>No series is behind schedule.</p>"
+    if awaiting:
+        wait_rows = "".join(
+            f'<tr data-economy="{esc(b["country"])}" data-key="{esc(b["key"])}"><th scope="row">{esc(b["country"])}</th>'
+            f'<td>{esc(b["title"])}</td><td>{esc(b["shown"])}</td><td>{word(b["freq"])}</td>'
+            f'<td>{esc(b["publisher"])}</td><td>{esc(b["next"] or "Not published")}</td></tr>' for b in awaiting)
+        awaiting_html = ('<div class="rk-scroll"><table class="doc-table ds-awaiting"><thead><tr><th>Economy</th><th>Series</th>'
+                         '<th>Latest figure</th><th>Frequency</th><th>Source</th><th>Next release</th></tr></thead><tbody>'
+                         + wait_rows + "</tbody></table></div>")
+    else:
+        awaiting_html = "<p>No series is waiting on a slow publisher.</p>"
     econ_rows = "".join(
         f'<tr data-economy="{esc(r["country"])}"><th scope="row">{esc(r["country"])}</th><td>{esc(fmt_utc(r["updated"]))}</td>'
-        f'<td>{r["series"]}</td><td>{r["current"]}</td><td>{r["late"]}</td><td>{esc(r["next"])}</td></tr>' for r in rows)
+        f'<td>{r["series"]}</td><td>{r["current"]}</td><td>{r["awaiting"]}</td><td>{r["late"]}</td><td>{esc(r["next"])}</td></tr>' for r in rows)
     if overlays:
         ov_rows = "".join(
             f'<tr data-economy="{esc(o["country"])}" data-key="{esc(o["key"])}"><th scope="row">{esc(o["country"])}</th>'
@@ -2267,8 +2306,13 @@ def render_data_status_page(catalogue_by_country):
   </header>
   <section class="panel ind-panel doc-sec" id="summary">
     <h2>Summary</h2>
-    <p id="dsSummary">{total} series across {n} economies: {cur} up to date, {late} behind schedule.</p>
-    <p>A series counts as behind schedule when its newest figure ends more than 75 days ago for monthly data, 150 days for quarterly data or 660 days for annual data. Some publishers release later than that as a matter of course, so behind schedule does not always mean something has gone wrong.</p>
+    <p id="dsSummary">{total} series across {n} economies: {cur} up to date, {wait} awaiting the publisher's next release, {late} behind schedule.</p>
+    <p>A series is up to date when its newest figure ends within 75 days for monthly data, 150 days for quarterly data or 660 days for annual data.</p>
+    <p>Some sources always publish later than that. A series from one of them is awaiting the publisher's next release when it was checked against its source in the last {AWAITING_CONFIRM_DAYS} days and holds the newest figure published there. If it falls further behind than that source normally does, it counts as behind schedule.</p>
+  </section>
+  <section class="panel ind-panel doc-sec" id="awaiting">
+    <h2>Awaiting the publisher's next release</h2>
+    {awaiting_html}
   </section>
   <section class="panel ind-panel doc-sec" id="behind">
     <h2>Behind schedule</h2>
@@ -2277,7 +2321,7 @@ def render_data_status_page(catalogue_by_country):
   <section class="panel ind-panel doc-sec" id="economies">
     <h2>By economy</h2>
     <p>Last checked is when the site last asked that economy's sources for new figures.</p>
-    <div class="rk-scroll"><table class="doc-table ds-economies"><thead><tr><th>Economy</th><th>Last checked</th><th>Series</th><th>Up to date</th><th>Behind</th><th>Next release</th></tr></thead><tbody>{econ_rows}</tbody></table></div>
+    <div class="rk-scroll"><table class="doc-table ds-economies"><thead><tr><th>Economy</th><th>Last checked</th><th>Series</th><th>Up to date</th><th>Awaiting</th><th>Behind</th><th>Next release</th></tr></thead><tbody>{econ_rows}</tbody></table></div>
   </section>
   <section class="panel ind-panel doc-sec" id="overlays">
     <h2>Newer quarters from a second source</h2>

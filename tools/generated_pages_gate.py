@@ -50,7 +50,7 @@ Checks (every one is mutation-tested in tools/test_generated_pages_gate.py):
      current page's top item is neither highlighted nor recoloured; the top items are pushed right; on desktop
      Country Breakdowns is pulled left by exactly its own left padding so it lines up with the unpadded logo.
 
- 16. data-status.html (v1.9.24): its summary, the behind-schedule list and every economy row are recomputed from the
+ 16. data-status.html (v1.9.24; awaiting status v1.9.26): its summary, the awaiting list, the behind-schedule list and every economy row are recomputed from the
      published indicator pages with the gate's own copy of the staleness rule; last-checked times and overlay rows
      come from the data files; it says when it was generated; the About page links to it.
 
@@ -405,6 +405,8 @@ def check_banner_css(repo):
 
 
 STALE = {"months": 75, "quarters": 150, "years": 660}   # restated here on purpose: the gate's own copy of the rule
+AWAIT_CAP = {"months": 180, "quarters": 270, "years": 1000}   # likewise restated: how far past its period a slow source may run
+AWAIT_CONFIRM = 3                                             # and how recently it must have been confirmed
 
 
 def period_end(period):
@@ -463,12 +465,22 @@ def check_data_status(tmp, ind_files):
             lm = re.search(r'<span class="led (green|orange)" id="indLed" title="([^"]*)"', h_ind)
             led_of[(cfg["country"], cfg.get("key"))] = (lm.group(1), unescape(lm.group(2))) if lm else None
     today = date.today()
-    stale = set()
+    stale, waiting = set(), set()
+    slow = {(e["economy"], k) for e in json.loads(read(os.path.join(tmp, "awaiting_sources.json")))["series"] for k in e["keys"]}
+    data_cache = {}
     for c, keys in pub.items():
         for k, (freq, period, dfile) in keys.items():
             end = period_end(measured_from(dfile, k, freq, period))
             if end is None or (today - end).days > STALE.get(freq, 90):
                 stale.add((c, k))
+                if (c, k) in slow and (today - end).days <= AWAIT_CAP.get(freq, 0):
+                    if dfile not in data_cache:
+                        data_cache[dfile] = json.loads(read(os.path.join(tmp, dfile)))
+                    conf = str((data_cache[dfile].get("series", {}).get(k) or {}).get("confirmed_at") or "")
+                    cm2 = re.match(r"(\d{4})-(\d{2})-(\d{2})", conf)
+                    if cm2 and (today - date(*map(int, cm2.groups()))).days <= AWAIT_CONFIRM:
+                        waiting.add((c, k))
+    late = stale - waiting
     # the indicator pages' own dots must agree with the same rule
     for ck, led in led_of.items():
         want = "orange" if ck in stale else "green"
@@ -484,33 +496,38 @@ def check_data_status(tmp, ind_files):
                   f"{os.path.basename(rf)}: {ck[0]} dot is {colour}, its indicator page says {'late' if ck in stale else 'current'}")
             bump("ranking dots checked")
     total = sum(len(v) for v in pub.values())
-    sm = re.search(r'<p id="dsSummary">(\d+) series across (\d+) economies: (\d+) up to date, (\d+) behind schedule\.</p>', h)
+    sm = re.search(r'<p id="dsSummary">(\d+) series across (\d+) economies: (\d+) up to date, (\d+) awaiting the publisher\'s next release, (\d+) behind schedule\.</p>', h)
     if check(sm, "data-status: summary line missing or reworded"):
         got = tuple(int(x) for x in sm.groups())
-        want = (total, len(pub), total - len(stale), len(stale))
+        want = (total, len(pub), total - len(stale), len(waiting), len(late))
         check(got == want, f"data-status: summary says {got}, the published pages give {want}")
     def table(cls):
         m = re.search(r'<table class="doc-table ' + cls + r'">.*?<tbody>(.*?)</tbody>', h, re.S)
         return m.group(1) if m else ""
     behind = set(re.findall(r'<tr data-economy="([^"]+)" data-key="([^"]+)">', table("ds-behind")))
     behind = {(unescape(a), unescape(b)) for a, b in behind}
-    check(behind == stale, f"data-status: behind-schedule rows differ: listed only {sorted(behind - stale)[:4]}, missing {sorted(stale - behind)[:4]}")
-    if not stale:
-        check("Every series is up to date." in h, "data-status: no late series, but the page does not say so")
-    for c, k, shown in re.findall(r'<tr data-economy="([^"]+)" data-key="([^"]+)"><th scope="row">[^<]*</th><td>[^<]*</td><td>([^<]*)</td>', table("ds-behind")):
+    check(behind == late, f"data-status: behind-schedule rows differ: listed only {sorted(behind - late)[:4]}, missing {sorted(late - behind)[:4]}")
+    if not late:
+        check("No series is behind schedule." in h, "data-status: no late series, but the page does not say so")
+    aw = {(unescape(a), unescape(b)) for a, b in re.findall(r'<tr data-economy="([^"]+)" data-key="([^"]+)">', table("ds-awaiting"))}
+    check(aw == waiting, f"data-status: awaiting rows differ: listed only {sorted(aw - waiting)[:4]}, missing {sorted(waiting - aw)[:4]}")
+    bump("data status awaiting rows", len(aw))
+    for c, k, shown in re.findall(r'<tr data-economy="([^"]+)" data-key="([^"]+)"><th scope="row">[^<]*</th><td>[^<]*</td><td>([^<]*)</td>', table("ds-behind") + table("ds-awaiting")):
         c, k = unescape(c), unescape(k)
         if (c, k) in stale:
             freq, period, dfile = pub[c][k]
             want = label(period, dfile == "data-uk.json" and k in UK_LFS and freq == "months")
             check(unescape(shown) == want, f"data-status: {c} {k} latest figure shown as '{unescape(shown)}', expected '{want}'")
-    econ = re.findall(r'<tr data-economy="([^"]+)"><th scope="row">[^<]*</th><td>([^<]*)</td><td>(\d+)</td><td>(\d+)</td><td>(\d+)</td><td>([^<]*)</td></tr>', table("ds-economies"))
+    econ = re.findall(r'<tr data-economy="([^"]+)"><th scope="row">[^<]*</th><td>([^<]*)</td><td>(\d+)</td><td>(\d+)</td><td>(\d+)</td><td>(\d+)</td><td>([^<]*)</td></tr>', table("ds-economies"))
     check({unescape(e[0]) for e in econ} == set(pub), "data-status: the economies table does not list exactly the published economies")
     overlays_want, overlays_got = set(), set(re.findall(r'<tr data-economy="([^"]+)" data-key="([^"]+)">', table("ds-overlay")))
-    for c, last, s, cur, late, _next in econ:
+    for c, last, s, cur, wt, lt, _next in econ:
         c = unescape(c)
         keys = pub.get(c, {})
         n_stale = sum(1 for k in keys if (c, k) in stale)
-        check((int(s), int(cur), int(late)) == (len(keys), len(keys) - n_stale, n_stale), f"data-status: {c} row says {s}/{cur}/{late}, expected {len(keys)}/{len(keys) - n_stale}/{n_stale}")
+        n_wait = sum(1 for k in keys if (c, k) in waiting)
+        want_row = (len(keys), len(keys) - n_stale, n_wait, n_stale - n_wait)
+        check((int(s), int(cur), int(wt), int(lt)) == want_row, f"data-status: {c} row says {s}/{cur}/{wt}/{lt}, expected {'/'.join(map(str, want_row))}")
         files = {v[2] for v in keys.values()}
         if len(files) == 1:
             d = json.loads(read(os.path.join(tmp, files.pop())))
