@@ -50,6 +50,7 @@ Checks (every one is mutation-tested in tools/test_generated_pages_gate.py):
      current page's top item is neither highlighted nor recoloured; the top items are pushed right; on desktop
      Country Breakdowns is pulled left by exactly its own left padding so it lines up with the unpadded logo.
 
+ 17. key figures on country pages, feeds/<country>.json and llms.txt (v1.9.28).
  16. data-status.html (v1.9.24; awaiting status v1.9.26): its summary, the awaiting list, the behind-schedule list and every economy row are recomputed from the
      published indicator pages with the gate's own copy of the staleness rule; last-checked times and overlay rows
      come from the data files; it says when it was generated; the About page links to it.
@@ -288,6 +289,9 @@ def run_checks(tmp, r, repo):
 
     # 9. methodology by economy
     meth = check_methodology(tmp, repo, ind_files, labels, series_of)
+
+    # 17. key figures on the country pages, the per-country feeds and llms.txt (v1.9.28)
+    check_key_figures(tmp)
 
     # 16. data status page
     status = check_data_status(tmp, ind_files)
@@ -582,6 +586,67 @@ def check_nav(tmp, repo, ind_files, rank_files, meth):
             check(items == ["about", "methodology", "contact"], f"{name}: top banner items are {items}, expected About, Methodology, Contact")
         check("aboutBtn" not in h and "aboutPanel" not in h, f"{name}: the About dropdown is still present")
     bump("pages checked for the top banner", len(pages))
+
+
+def check_key_figures(tmp):
+    """Each country page carries exactly one generated block, before its footer. Every row's value and period
+    equal what that indicator's own page states in its title, the feed says the same, the page's Dataset date
+    equals the block's date, and llms.txt points only at pages and feeds that exist."""
+    start = "<!-- KEY-FIGURES:START"
+    end = "<!-- KEY-FIGURES:END -->"
+    pages = 0
+    feeds_seen = set()
+    for fname in sorted(os.listdir(tmp)):
+        if not fname.endswith(".html"):
+            continue
+        h = read(os.path.join(tmp, fname))
+        n = h.count(start)
+        if n == 0:
+            continue
+        pages += 1
+        stem = fname[:-5]
+        if not check(n == 1 and h.count(end) == 1, f"key figures: {fname} has {n} blocks"):
+            continue
+        i, j = h.index(start), h.index(end)
+        check(i < j < h.find("<footer"), f"key figures: {fname} block is not whole and before the footer")
+        blk = h[i:j]
+        dm = re.search(r'<time class="kf-date" datetime="(\d{4}-\d{2}-\d{2})">', blk)
+        ld = re.search(r'"dateModified": "(\d{4}-\d{2}-\d{2})"', h)
+        check(dm and ld and dm.group(1) == ld.group(1), f"key figures: {fname} Dataset dateModified does not match the block date")
+        rows = re.findall(r'<tr><th scope="row"><a href="indicators/([^"]+)">[^<]*</a></th><td class="kf-v">([^<]*)</td><td>([^<]*)</td><td>([^<]*)</td></tr>', blk)
+        check(rows, f"key figures: {fname} block has no rows")
+        feed_path = os.path.join(tmp, "feeds", stem + ".json")
+        feed = json.loads(read(feed_path)) if os.path.exists(feed_path) else None
+        check(feed is not None, f"key figures: no feed for {stem}")
+        fby = {it["page"].rsplit("/", 1)[-1]: it for it in (feed or {}).get("indicators", [])}
+        check(len(fby) == len(rows), f"key figures: {stem} feed has {len(fby)} indicators, page block {len(rows)}")
+        feeds_seen.add(stem)
+        for slug, val, per, pub in rows:
+            ip = os.path.join(tmp, "indicators", slug + ".html")
+            if not check(os.path.exists(ip), f"key figures: {fname} links to missing indicators/{slug}"):
+                continue
+            t = re.search(r"<title>(.*?) \| The Economic Atlas</title>", read(ip))
+            tm = re.search(r": ([^:]*) \(([^()]*)\)$", unescape(t.group(1))) if t else None
+            if check(tm, f"key figures: cannot read the title of indicators/{slug}"):
+                check((unescape(val), unescape(per)) == (tm.group(1), tm.group(2)),
+                      f"key figures: {fname} {slug} shows {unescape(val)} ({unescape(per)}), its page says {tm.group(1)} ({tm.group(2)})")
+            it = fby.get(slug)
+            if check(it, f"key figures: {stem} feed lacks {slug}"):
+                check((it["display"], it["period_label"], it["publisher"]) == (unescape(val), unescape(per), unescape(pub)),
+                      f"key figures: {stem} feed and page disagree on {slug}")
+            check(pub.strip() and pub != "FRED", f"key figures: {fname} {slug} has no publisher")
+            bump("key figures rows")
+    bump("key figures pages", pages)
+    check(pages >= 60, f"key figures: only {pages} country pages carry the block")
+    llms = read(os.path.join(tmp, "llms.txt")) if os.path.exists(os.path.join(tmp, "llms.txt")) else ""
+    if check(llms.startswith("# The Economic Atlas"), "llms.txt missing or malformed"):
+        listed = set(re.findall(r"\]\(https://theeconomicatlas\.com/([a-z-]+)\): latest figures as JSON at https://theeconomicatlas\.com/feeds/([a-z-]+)\.json", llms))
+        check({a for a, b in listed} == feeds_seen and all(a == b for a, b in listed),
+              f"llms.txt economies differ from the pages with key figures: {sorted(feeds_seen ^ {a for a, b in listed})[:4]}")
+        for rk in re.findall(r"\(https://theeconomicatlas\.com/rankings/([a-z0-9-]+)\)", llms):
+            check(os.path.exists(os.path.join(tmp, "rankings", rk + ".html")), f"llms.txt links to missing ranking {rk}")
+        check("hourly" not in llms.lower(), "llms.txt claims hourly updates")
+        bump("llms.txt economies", len(listed))
 
 
 def check_about(tmp, repo):
