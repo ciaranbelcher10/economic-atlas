@@ -610,6 +610,8 @@ def check_key_figures(tmp):
         i, j = h.index(start), h.index(end)
         check(i < j < h.find("<footer"), f"key figures: {fname} block is not whole and before the footer")
         blk = h[i:j]
+        dt = re.search(r'<details class="panel kf" id="key-figures"([^>]*)><summary><h2>All latest figures for [^<]+</h2>', blk)
+        check(dt and "open" not in dt.group(1), f"key figures: {fname} block is not a closed panel with its heading line")
         dm = re.search(r'<time class="kf-date" datetime="(\d{4}-\d{2}-\d{2})">', blk)
         ds = [b for b in re.findall(r'<script type="application/ld\+json">(.*?)</script>', h, re.S) if '"Dataset"' in b]
         ld = None

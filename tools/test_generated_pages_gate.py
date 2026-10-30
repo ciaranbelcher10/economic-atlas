@@ -128,9 +128,10 @@ MUTS = [
     ('data status page not written', mutate('    write_page("data-status.html", render_data_status_page(catalogue_by_country))\n', ''), 'data-status.html was not generated'),
     ('data status summary off by one', mutate("{cur} up to date, {wait} awaiting", "{cur + 1} up to date, {wait} awaiting"), 'data-status: summary says'),
     ('data status freshness rule ignored', mutate('            if is_fresh(measured, freq):\n                cur += 1', '            if True:\n                cur += 1'), 'behind-schedule rows differ'),
+    ('key figures open by default', mutate('<details class="panel kf" id="key-figures">', '<details class="panel kf" id="key-figures" open>'), 'not a closed panel'),
     ('key figures show a stale value', mutate('f\'<td class="kf-v">{esc(fmt_num(e["pts"][-1][1]', 'f\'<td class="kf-v">{esc(fmt_num(e["pts"][-2][1]'), 'its page says'),
     ('key figures Dataset date wrong', mutate('f\'"dateModified": "{stamp}"\', text, count=1)', 'f\'"dateModified": "1999-01-01"\', text, count=1)'), 'dateModified does not match'),
-    ('v1.9.28 duplicate date left in place', mutate('    text = re.sub(r\'\\n  "dateModified": "\\d{4}-\\d{2}-\\d{2}",(?=\\n  "isAccessibleForFree")\', "", text, count=1)\n', ''), 'dateModified keys'),
+    # (v1.9.29's repair of the duplicate dateModified is covered by tools/test_key_figures.py: the live pages no longer carry one)
     ('key figures block written twice', mutate('        text = page_html[:old.start()] + block + page_html[old.end():]', '        text = page_html[:old.start()] + block + block + page_html[old.end():]'), 'blocks'),
     ('feed publisher differs from the page', mutate('        pub, code = kf_publisher(src), short_source(src)[1]', '        pub, code = short_source(src)'), 'feed and page disagree'),
     ('llms.txt drops an economy', mutate('    for country, name, cslug in sorted(done, key=lambda t: t[1]):', '    for country, name, cslug in sorted(done, key=lambda t: t[1])[1:]:'), 'llms.txt economies differ'),
