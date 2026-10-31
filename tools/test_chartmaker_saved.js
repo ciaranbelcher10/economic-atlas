@@ -250,6 +250,16 @@ async function page(){
   P = await page(); await P.openSaved("hbars");
   sameSvg(P.svg(), h, "a horizontal bar chart with data labels reopens identically");
   ok(P.$('#cmBarOrientSeg button.active').dataset.orient === "horizontal" && P.$("#cmDataLabelsToggle").checked, "bar controls restored");
+  // v1.9.33: the exported image keeps its whole footer, and labels share one number of decimals
+  let blob = null;
+  P.win.URL.createObjectURL = b => { blob = b; return "blob:x"; };
+  P.click(P.$("#cmPngBtn")); await sleep(100);
+  const ex = blob ? await new Promise(r => { const fr = new P.win.FileReader(); fr.onload = () => r(fr.result); fr.readAsText(blob); }) : "";
+  const H = +((ex.match(/viewBox="0 0 \d+ (\d+)"/) || ex.match(/viewBox='0 0 \d+ (\d+)'/) || [])[1] || 0);
+  const srcYs = [...ex.matchAll(/<text x=["']\d+["'] y=["']([\d.]+)["'][^>]*>(Source: [^<]*|[^<]*)<\/text>/g)].filter(m => /Source:|une_rt|FRED|ONS/.test(m[2])).map(m => +m[1]);
+  ok(H > 0 && srcYs.length && Math.max(...srcYs) <= H - 4, "the export's source footer fits inside the image (" + Math.max(...srcYs) + " of " + H + ")");
+  const decs = [...ex.matchAll(/class=["']cz-dl["'][^>]*>([^<]+)</g)].map(m => (m[1].match(/\.(\d+)/) || ["", ""])[1].length);
+  ok(decs.length === 3 && new Set(decs).size === 1, "data labels share one number of decimals");
   // a negative bar's label sits below it (vertical) / to its left (horizontal)
   P = await page();
   await P.add("UK", "GDP growth (annual, real)");

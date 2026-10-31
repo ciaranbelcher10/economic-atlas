@@ -3704,7 +3704,7 @@ function estProseWidth(text, fontSize){
   try {
     if(!_measureCanvas) _measureCanvas = document.createElement("canvas");
     var ctx = _measureCanvas.getContext("2d");
-    ctx.font = fontSize + "px Helvetica, Arial, sans-serif";
+    ctx.font = fontSize + "px " + CZ_FONT();
     return ctx.measureText(String(text)).width;
   } catch(e){
     return String(text).length * fontSize * 0.58; // fallback if canvas is unavailable
@@ -3718,8 +3718,8 @@ function estProseWidth(text, fontSize){
 // truncating real source citations off mid-string.
 function czWrapSrcFooter(text){
   var madeOnW = estProseWidth("Made on theeconomicatlas.com", 11);
-  var line1MaxW = (G.W - G.padR) - G.padL - madeOnW - 16;
-  var lineMaxW = (G.W - G.padR) - G.padL;
+  var line1MaxW = (G.W - G.padR) - G.padL - madeOnW - 40;   // v1.9.33: slack for font differences between machines
+  var lineMaxW = (G.W - G.padR) - G.padL - 16;
   var words = String(text).split(" ");
   var lines = [];
   var current = "";
@@ -4062,7 +4062,24 @@ function czmSnapshotGeom(){
 // v1.9.32: data labels print the bar's value the way the axis prints values (same units and symbols),
 // at their own size; on a vertical bar above it (below a negative bar), on a horizontal bar past its end.
 function DLS(){ return (czmState && czmState.dataLabelSize) || 11; }
-function czmDataLabelText(v){ return czmTrimAxisZeros(czmState.fmtY(Math.round(v * 100) / 100)); }
+var DL_DECIMALS = 0;
+function czmDataLabelRaw(v){ return czmTrimAxisZeros(czmState.fmtY(Math.round(v * 100) / 100)); }
+function czmSetDataLabelDecimals(rows){
+  DL_DECIMALS = 0;
+  rows.forEach(function(r){
+    if(r.value == null) return;
+    var m = czmDataLabelRaw(r.value).match(/\d\.(\d+)/);
+    if(m) DL_DECIMALS = Math.max(DL_DECIMALS, m[1].length);
+  });
+}
+function czmDataLabelText(v){
+  var raw = czmDataLabelRaw(v);
+  if(!DL_DECIMALS) return raw;
+  return raw.replace(/\d[\d,]*(\.\d+)?/, function(num, dec){
+    var have = dec ? dec.length - 1 : 0;
+    return have >= DL_DECIMALS ? num : num + (have ? "" : ".") + "0".repeat(DL_DECIMALS - have);
+  });
+}
 function czmDataLabelV(bx, top, h, v, t){
   if(v == null) return "";
   var y = v >= 0 ? top - 4 : top + h + DLS();
@@ -4070,6 +4087,7 @@ function czmDataLabelV(bx, top, h, v, t){
 }
 function czmSnapshotGeomH(){
   var rows = czmEffectiveSnapshotRows();
+  czmSetDataLabelDecimals(rows);
   var bl = czmBottomLayout(false, czmState.srcNote);
   czmUpdateCanvasHeight(bl);
   var vals = rows.map(function(r){ return r.value; }).filter(function(v){ return v != null; });
@@ -4084,8 +4102,10 @@ function czmSnapshotGeomH(){
   var dlRoom = czmState.dataLabels ? Math.max(36, vals.reduce(function(m, v){ return Math.max(m, estTextWidth(czmDataLabelText(v), DLS())); }, 0) + 8) : 0;
   var negRoom = czmState.dataLabels && bounds.minV < 0 ? dlRoom : 0;
   var padT = (czmState.chartTitle ? G.padT + 24 : G.padT);
+  var titleRow = czmState.yTitle ? 14 : 0;
+  G.H += titleRow;
   var x0 = padL + negRoom, x1 = G.W - G.padR - dlRoom;
-  var plotW = x1 - x0, plotH = G.H - padT - bl.padB;
+  var plotW = x1 - x0, plotH = G.H - padT - bl.padB - titleRow;
   var n = Math.max(1, rows.length), slot = plotH / n;
   var lg = function(v){ return Math.log10(Math.max(v, bounds.minV)); };
   return {
@@ -4168,6 +4188,7 @@ function czmBuildBars(theme, forExport){
 function czmBarGeom(){ return czmState && czmState.barOrient === "horizontal" ? czmSnapshotGeomH() : czmSnapshotGeom(); }
 function czmBuildSVGSnapshot(theme, forExport){
   var t = THEMES[theme];
+  czmSetDataLabelDecimals(czmEffectiveSnapshotRows());
   var gm = czmSnapshotGeom();
   var rows = czmEffectiveSnapshotRows();
   if(rows.length === 0) return "<svg xmlns=\'http://www.w3.org/2000/svg\' viewBox=\'0 0 " + G.W + " " + G.H + "\'></svg>";
