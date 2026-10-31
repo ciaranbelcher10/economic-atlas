@@ -1399,6 +1399,16 @@ button.mtoggle.fx-both{background:#2FA463; border-color:#2FA463; color:#fff;}
   font:600 12px "Avenir Next","Avenir","Nunito Sans",sans-serif; padding:5px 12px; border-radius:999px; cursor:pointer;}
 .nudge .nudgechip:hover{background:var(--blue); color:#fff;}
 .nudge .nudgechip.added{opacity:.5; cursor:default; pointer-events:none;}
+/* v1.9.34: whole groups at once, and a dark-mode panel instead of the light one */
+.nudge .nudgegroups{display:flex; flex-wrap:wrap; gap:6px; margin:0 0 10px; padding-bottom:10px; border-bottom:1px solid var(--hair);}
+.nudge .nudgegroup{border:1px solid var(--navy); background:var(--navy); color:#fff; border-radius:999px; padding:5px 12px;
+  font:700 12px "Avenir Next","Avenir","Nunito Sans",sans-serif; cursor:pointer;}
+.nudge .nudgegroup:hover{background:var(--navy-2); border-color:var(--navy-2);}
+.nudge .nudgegroup:disabled{opacity:.45; cursor:default;}
+[data-theme="dark"] .nudge{background:var(--panel); border-color:var(--blue);}
+[data-theme="dark"] .nudge .nudgehead{color:var(--ink);}
+[data-theme="dark"] .nudge .nudgechip{background:var(--paper); color:var(--ink); border-color:var(--hair);}
+[data-theme="dark"] .nudge .nudgechip:hover{background:var(--blue); color:#fff;}
 .cm-swpop-tabs{display:flex; gap:6px; margin-bottom:9px;}
 .cm-swpop-tabs button{flex:1; border:1px solid var(--hair); background:var(--paper); color:var(--ink2); font:700 11px "Avenir Next","Avenir","Nunito Sans",sans-serif; padding:5px 0; border-radius:6px; cursor:pointer;}
 .cm-swpop-tabs button.active{background:var(--navy); border-color:var(--navy); color:#fff;}
@@ -1427,6 +1437,10 @@ button.mtoggle.fx-both{background:#2FA463; border-color:#2FA463; color:#fff;}
  <div class="seg fullwidth" id="cmBarOrientSeg" style="width:100%;">
  <button type="button" data-orient="vertical" class="active" style="flex:1;">Vertical bars</button>
  <button type="button" data-orient="horizontal" style="flex:1;">Horizontal bars</button>
+ </div>
+ <div class="cm-field" id="cmSnapshotAtRow" style="display:none; margin-top:10px;">
+ <label for="cmSnapshotAt">Compare at</label>
+ <select id="cmSnapshotAt"></select>
  </div>
  <label class="cm-row" style="margin-top:10px;"><span>Data labels on bars</span><input type="checkbox" id="cmDataLabelsToggle"></label>
  <div class="cm-row" id="cmDataLabelSizeRow" style="display:none;">
@@ -1642,6 +1656,7 @@ button.mtoggle.fx-both{background:#2FA463; border-color:#2FA463; color:#fff;}
  <div class="nudge" id="cmNudge">
  <div class="nudgehead"><span id="cmNudgeTitle"></span>
  <button type="button" class="nudgeclose" id="cmNudgeClose" aria-label="Dismiss">&times;</button></div>
+ <div class="nudgegroups" id="cmNudgeGroups"></div>
  <div class="nudgechips" id="cmNudgeChips"></div>
  </div>
  <div class="pickergrid" id="cmMetricGrid"></div>
@@ -2638,9 +2653,10 @@ var style = {
   refLine: { enabled:false, value:0 }, centerAroundRef: false, thresholdShadeBars: false,
   logScale: false, xTicks: 8, xLabelAngle: "straight",
   yStartMode: "auto", yStartValue: 0,
-  sortMode: "alphabetical",
+  sortMode: "value_desc",   // v1.9.34: highest first by default, everywhere countries are ranked
   axisFontSize: 11, font: "helvetica",
-  barOrient: "vertical", dataLabels: false, dataLabelSize: 11
+  barOrient: "vertical", dataLabels: false, dataLabelSize: 11,
+  snapshotAt: ""   // v1.9.34: the period the bars compare ("" = the end of the date range)
 };
 // v1.9.32: fonts installed on practically every computer and phone, so a downloaded PNG looks like the screen
 var CHART_FONTS = {
@@ -2917,15 +2933,43 @@ document.getElementById("cmMetricBackBtn").addEventListener("click", function(){
 var nudgeEl = document.getElementById("cmNudge");
 var nudgeTitleEl = document.getElementById("cmNudgeTitle");
 var nudgeChipsEl = document.getElementById("cmNudgeChips");
+// v1.9.34: country groups, limited to the economies this site covers (named as the site names them)
+var COUNTRY_GROUPS = [
+  { name: "G7", members: ["Canada","France","Germany","Italy","Japan","UK","US"] },
+  { name: "G20", members: ["Argentina","Australia","Brazil","Canada","China","France","Germany","India","Indonesia","Italy","Japan","Mexico","Saudi Arabia","South Africa","South Korea","Turkey","UK","US"] },
+  { name: "EU", members: ["Austria","Belgium","Bulgaria","Croatia","Cyprus","Czechia","Denmark","Estonia","Finland","France","Germany","Greece","Hungary","Ireland","Italy","Latvia","Lithuania","Luxembourg","Malta","Netherlands","Poland","Portugal","Romania","Slovakia","Slovenia","Spain","Sweden"] },
+  { name: "Euro area", members: ["Austria","Belgium","Bulgaria","Croatia","Cyprus","Estonia","Finland","France","Germany","Greece","Ireland","Italy","Latvia","Lithuania","Luxembourg","Malta","Netherlands","Portugal","Slovakia","Slovenia","Spain"] },
+  { name: "OECD", members: ["Australia","Austria","Belgium","Canada","Chile","Colombia","Czechia","Denmark","Estonia","Finland","France","Germany","Greece","Hungary","Iceland","Ireland","Israel","Italy","Japan","South Korea","Latvia","Lithuania","Luxembourg","Mexico","Netherlands","New Zealand","Norway","Poland","Portugal","Slovakia","Slovenia","Spain","Sweden","Switzerland","Turkey","UK","US"] },
+  { name: "BRICS", members: ["Brazil","China","Egypt","India","Indonesia","South Africa"] }
+];
+function onChartFor(c, metric){ return !starterActive && series.some(function(s){ return s.country === c && s.metric === metric; }); }
 function renderNudge(metric){
   pendingNudgeMetric = metric;
   if(!metric){ nudgeEl.classList.remove("show"); return; }
   var others = ALL_COUNTRIES.filter(function(c){
-    return c !== pendingCountry && !!getSeries(c, metric) && !(!starterActive && series.some(function(s){ return s.country === c && s.metric === metric; }));
-  });
+    return c !== pendingCountry && !!getSeries(c, metric) && !onChartFor(c, metric);
+  }).sort(function(a, b){ return a.localeCompare(b); });   // v1.9.34: A to Z
   if(!others.length){ nudgeEl.classList.remove("show"); return; }
   nudgeTitleEl.textContent = "\uD83C\uDF0D " + CONCEPT_LABEL[metric] + " is also tracked for " + others.length + (others.length === 1 ? " other country:" : " other countries:");
   nudgeChipsEl.innerHTML = "";
+  var groupsEl = document.getElementById("cmNudgeGroups");
+  groupsEl.innerHTML = "";
+  COUNTRY_GROUPS.forEach(function(g){
+    var avail = g.members.filter(function(c){ return !!getSeries(c, metric); });
+    if(avail.length < 2) return;
+    var b = document.createElement("button");
+    b.type = "button"; b.className = "nudgegroup";
+    var todo = function(){ return avail.filter(function(c){ return !onChartFor(c, metric); }); };
+    b.textContent = "Add " + g.name + " (" + avail.length + ")";
+    b.title = avail.join(", ");
+    b.disabled = !todo().length;
+    b.addEventListener("click", function(){
+      todo().forEach(function(c){ addSeries(c, metric); });
+      renderMetricGrid();
+      renderNudge(metric);
+    });
+    groupsEl.appendChild(b);
+  });
   others.forEach(function(c){
     var chip = document.createElement("button");
     chip.type = "button"; chip.className = "nudgechip";
@@ -3021,6 +3065,30 @@ function seriesLabel(s){ return s.customLabel || defaultSeriesLabel(s); }
 // A manually-recoloured series (via the swatch popover) is left alone by
 // this on every future add/remove, until "Use Mako palette" explicitly
 // resets everything.
+function makoRankColors(n){
+  var stops = MAKO_STOPS.slice(0, 6);           // the palest stop disappears on a white background
+  var out = [];
+  for(var i = 0; i < n; i++){
+    var pos = n === 1 ? 0 : (i / (n - 1)) * (stops.length - 1);
+    var lo = Math.floor(pos), hi = Math.min(stops.length - 1, lo + 1);
+    out.push(lerpHex(stops[lo], stops[hi], pos - lo));
+  }
+  return out;
+}
+function rankColorsApply(){
+  var sameMetric = series.length > 1 && series.every(function(s){ return s.metric === series[0].metric; });
+  return chartType === "bar" && sameMetric && series.length <= 10;
+}
+// v1.9.34: in bar mode, 2 to 10 countries take the Mako palette in value order; anything picked by hand wins
+function applyBarRankColors(rows){
+  if(!rankColorsApply()) return;
+  var ranked = rows.filter(function(r){ return r.value != null; }).slice().sort(function(a, b){ return b.value - a.value; });
+  var pal = makoRankColors(ranked.length);
+  ranked.forEach(function(r, i){
+    var s = series.filter(function(x){ return x.country === r.countryCode; })[0];
+    if(s && !s.manualColor){ s.color = pal[i]; r.color = pal[i]; }
+  });
+}
 function assignColors(){
   var countries = [];
   series.forEach(function(s){ if(countries.indexOf(s.country) === -1) countries.push(s.country); });
@@ -3338,7 +3406,7 @@ document.getElementById("cmPaletteModalApply").addEventListener("click", functio
   // Works the same whether the current chart type is line or bar --
   // this only ever changes each series' underlying colour, and both
   // the line stroke and the bar fill already read straight from that.
-  series.forEach(function(s, i){ s.manualColor = false; s.color = pal[i % pal.length]; });
+  series.forEach(function(s, i){ s.manualColor = true; s.color = pal[i % pal.length]; });   // v1.9.34: a chosen palette is a choice, kept over automatic colours
   renderColorsPanel(); renderChart();
   closeModal(paletteModal);
 });
@@ -3486,14 +3554,40 @@ document.getElementById("cmLegendTitle").addEventListener("input", function(e){ 
 // value Bar mode itself reads to pick "latest". Still fully editable;
 // switching back to Line leaves whatever the person typed alone rather
 // than silently reverting it.
+function snapshotPeriod(){
+  var toV = toPeriodSel.value;
+  var at = style.snapshotAt;
+  if(!at || at > toV || at < fromPeriodSel.value) return toV;
+  return at;
+}
+// v1.9.34: the bar chart's period, written in full ("July 2026", "Q2 2026", "2025")
+var FMT_MONTHS_LONG = ["January","February","March","April","May","June","July","August","September","October","November","December"];
+function fmtPeriodLong(p){
+  var mm = /^(\d{4})-(\d{2})$/.exec(p || "");
+  return mm ? FMT_MONTHS_LONG[+mm[2] - 1] + " " + mm[1] : fmtPeriod(p);
+}
+function syncSnapshotAtUI(){
+  var row = document.getElementById("cmSnapshotAtRow"), sel = document.getElementById("cmSnapshotAt");
+  if(!row || !sel) return;
+  var show = chartType === "bar" && series.length > 1;
+  row.style.display = show ? "" : "none";
+  if(!show) return;
+  var periods = allPeriods().filter(function(p){ return p >= fromPeriodSel.value && p <= toPeriodSel.value; });
+  sel.innerHTML = "";
+  var latest = document.createElement("option"); latest.value = ""; latest.textContent = "Latest in range (" + fmtPeriodLong(toPeriodSel.value) + ")";
+  sel.appendChild(latest);
+  periods.slice().reverse().forEach(function(p){ var o = document.createElement("option"); o.value = p; o.textContent = fmtPeriodLong(p); sel.appendChild(o); });
+  sel.value = (style.snapshotAt && periods.indexOf(style.snapshotAt) !== -1) ? style.snapshotAt : "";
+}
 function syncBarLegendTitle(){
+  syncSnapshotAtUI();
   if(chartType !== "bar" || legendTitleTouched) return;
   if(series.length === 1){
     style.legendTitle = "";
     document.getElementById("cmLegendTitle").value = "";
     return;
   }
-  var text = fmtPeriod(toPeriodSel.value);
+  var text = fmtPeriodLong(snapshotPeriod());
   style.legendTitle = text;
   document.getElementById("cmLegendTitle").value = text;
 }
@@ -4717,8 +4811,11 @@ function buildSnapshotRows(){
   }
   lastBarChartThinned = false;
   var sameMetric = series.every(function(s2){ return s2.metric === series[0].metric; });
+  var atV = snapshotPeriod();
   return series.map(function(s){
-    var pts = applyTransform(s.rawPoints, s.transform).filter(function(p){ return p.x >= fromV && p.x <= toV; });
+    // each series' latest figure on or before the chosen period (a quarterly series compared at a month
+    // uses the quarter that month falls in or the one before)
+    var pts = applyTransform(s.rawPoints, s.transform).filter(function(p){ return p.x >= fromV && p.x <= atV; });
     var last = pts.length ? pts[pts.length - 1] : null;
     var label = s.customLabel || (sameMetric ? s.country : defaultSeriesLabel(s));
     return { country: label, countryCode: s.country, value: last ? last.y : null, color: s.color };
@@ -4739,12 +4836,15 @@ function renderChart(){
   emptyStateEl.style.display = "none";
   svgBoxEl.style.display = "block";
   btnPng.disabled = false; btnCsv.disabled = false;
+  if(!rankColorsApply()) assignColors();   // v1.9.34: each country's own colour outside ranked bars
+  if(chartType === "bar") applyBarRankColors(buildSnapshotRows());
   renderColorsPanel();
 
   czmState = buildCzmState();
   var allVals;
   if(chartType === "bar"){
     SNAPSHOT_ROWS = buildSnapshotRows();
+    applyBarRankColors(SNAPSHOT_ROWS);
     if(series.length > 1) SNAPSHOT_ROWS = sortRowsByMode(SNAPSHOT_ROWS, function(r){ return r.value; }, style.sortMode);
     syncBarModeVisibility(); syncBarLegendTitle();
     allVals = SNAPSHOT_ROWS.map(function(r){ return r.value; }).filter(function(v){ return v != null; });
@@ -4939,7 +5039,9 @@ btnPng.addEventListener("click", function(){
   czmState = buildCzmState();
   var svgStr;
   if(chartType === "bar"){
+    if(!rankColorsApply()) assignColors();
     SNAPSHOT_ROWS = buildSnapshotRows();
+    applyBarRankColors(SNAPSHOT_ROWS);
     if(series.length > 1) SNAPSHOT_ROWS = sortRowsByMode(SNAPSHOT_ROWS, function(r){ return r.value; }, style.sortMode);
     svgStr = czmBuildBars(exportTheme, true);
   } else {
@@ -5008,6 +5110,7 @@ function syncBarOptionsUI(){
 document.querySelectorAll("#cmBarOrientSeg button").forEach(function(b){
   b.addEventListener("click", function(){ style.barOrient = b.dataset.orient; syncBarOptionsUI(); renderChart(); });
 });
+document.getElementById("cmSnapshotAt").addEventListener("change", function(e){ style.snapshotAt = e.target.value; syncBarLegendTitle(); renderChart(); });
 document.getElementById("cmDataLabelsToggle").addEventListener("change", function(e){ style.dataLabels = e.target.checked; syncBarOptionsUI(); renderChart(); });
 document.getElementById("cmDlFsMinus").addEventListener("click", function(){ style.dataLabelSize = Math.max(AXIS_FS_MIN, style.dataLabelSize - 1); syncBarOptionsUI(); renderChart(); });
 document.getElementById("cmDlFsPlus").addEventListener("click", function(){ style.dataLabelSize = Math.min(AXIS_FS_MAX + 3, style.dataLabelSize + 1); syncBarOptionsUI(); renderChart(); });
@@ -5345,10 +5448,23 @@ function loadSavedChart(row){
   userDollarPreference = !!(row.snapshot && row.snapshot.dollar);
   userRealPreference = !!(row.snapshot && row.snapshot.real);
   refreshToggleState();
+  var snap0 = row.snapshot || {};
+  yAxisTitleTouched = !!snap0.yAxisTitle; legendTitleTouched = !!snap0.legendTitle;
+  if(!row.snapshot){
+    // v1.9.34: a chart saved on Compare or a country page has no ChartMaker settings, so start from the
+    // defaults instead of keeping the previous chart's titles, axis and options
+    style.chartTitle = ""; style.yAxisTitle = ""; style.legendTitle = "";
+    document.getElementById("cmChartTitle").value = ""; document.getElementById("cmLegendTitle").value = "";
+    style.refLine = {enabled:false, value:0}; style.logScale = false; style.centerAroundRef = false; style.thresholdShadeBars = false;
+    style.yStartMode = "auto"; style.yStartValue = 0; style.snapshotAt = ""; style.sortMode = "value_desc";
+    chartType = "line";
+    document.querySelectorAll("#cmChartTypeSeg button").forEach(function(b){ b.classList.toggle("active", b.dataset.type === chartType); });
+    syncBarModeVisibility();
+  }
   if(row.snapshot){
     var snap = row.snapshot;
     style.chartTitle = snap.chartTitle || ""; document.getElementById("cmChartTitle").value = style.chartTitle;
-    style.yAxisTitle = snap.yAxisTitle || ""; document.getElementById("cmYAxisTitle").value = style.yAxisTitle; yAxisTitleTouched = true;
+    style.yAxisTitle = snap.yAxisTitle || ""; document.getElementById("cmYAxisTitle").value = style.yAxisTitle;
     style.legendTitle = snap.legendTitle || ""; document.getElementById("cmLegendTitle").value = style.legendTitle;
     if(snap.legendTitle) legendTitleTouched = true;
     style.yTitlePos = snap.yTitlePos || "along";
@@ -5378,6 +5494,7 @@ function loadSavedChart(row){
     style.barOrient = snap.barOrient === "horizontal" ? "horizontal" : "vertical";
     style.dataLabels = !!snap.dataLabels;
     style.dataLabelSize = (typeof snap.dataLabelSize === "number") ? Math.max(AXIS_FS_MIN, Math.min(AXIS_FS_MAX + 3, snap.dataLabelSize)) : 11;
+    style.snapshotAt = typeof snap.snapshotAt === "string" ? snap.snapshotAt : "";
     syncBarOptionsUI();
     syncAxisFontUI();
     if(snap.theme === "light" || snap.theme === "dark"){
@@ -5387,10 +5504,11 @@ function loadSavedChart(row){
     style.xTicks = snap.xTicks || 8;
     style.xLabelAngle = snap.xLabelAngle || "straight";
     document.querySelectorAll("#cmXAngleSeg button").forEach(function(b){ b.classList.toggle("active", b.dataset.angle===style.xLabelAngle); });
-    style.sortMode = snap.sortMode || "alphabetical";
+    style.sortMode = snap.sortMode || "value_desc";
   }
   annotations = (row.annotations || []).map(function(a){ a.id = "a"+(++annotSeq); return a; });
   if(!row.snapshot){ savedTickStep = null; savedTickIdx = null; }
+  if(!yAxisTitleTouched){ style.yAxisTitle = ""; syncAutoYAxisTitle(); }
   renderSeriesList(); renderColorsPanel(); renderAnnotList(); populateDateRange();
   // A saved period that is no longer offered (a revised or shortened series) snaps to the nearest one
   // instead of leaving the selector blank, which used to draw an empty or squashed axis.
@@ -5460,7 +5578,7 @@ saveConfirmBtn.addEventListener("click", function(){
         yStartMode: style.yStartMode, yStartValue: style.yStartValue,
         yTickStepIdx: yTickStepIdx, yTickStep: currentYTickStep(), xTicks: style.xTicks, xLabelAngle: style.xLabelAngle,
         theme: exportTheme, axisFontSize: style.axisFontSize, font: style.font,
-        barOrient: style.barOrient, dataLabels: style.dataLabels, dataLabelSize: style.dataLabelSize,
+        barOrient: style.barOrient, dataLabels: style.dataLabels, dataLabelSize: style.dataLabelSize, snapshotAt: style.snapshotAt,
         sortMode: style.sortMode,
         real: userRealPreference, dollar: userDollarPreference
       }

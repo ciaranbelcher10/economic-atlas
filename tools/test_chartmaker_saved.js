@@ -267,6 +267,48 @@ async function page(){
   P.$("#cmDataLabelsToggle").checked = true; P.fire(P.$("#cmDataLabelsToggle"), "change"); await sleep(60);
   ok(/<text class="cz-dl"[^>]*>(\u2212|-)[\d.]+%</.test(P.svg()), "negative values are labelled with their sign");
 
+  // 11. v1.9.34: high-to-low by default, A-Z chips with group buttons, compare at a chosen period with the
+  //     month in full, Mako by rank for 2-10 countries, and saved charts from other pages clearing old titles
+  P = await page();
+  await P.add("UK", "Unemployment rate");
+  click: {
+    const chips = [...P.doc.querySelectorAll("#cmNudgeChips .nudgechip")].map(c => c.textContent.replace(/ [+\u2713]$/, ""));
+    ok(chips.length > 10 && chips.every((c, i) => i === 0 || chips[i - 1].localeCompare(c) <= 0), "other countries are listed A to Z");
+    const groups = [...P.doc.querySelectorAll("#cmNudgeGroups .nudgegroup")].map(b => b.textContent);
+    ok(["G7", "G20", "EU", "Euro area", "OECD", "BRICS"].every(g => groups.some(t => t.startsWith("Add " + g + " ("))), "group buttons for G7, G20, EU, euro area, OECD and BRICS: " + groups.join(" | "));
+    P.click([...P.doc.querySelectorAll("#cmNudgeGroups .nudgegroup")].filter(b => b.textContent.startsWith("Add G7"))[0]);
+    await sleep(200);
+  }
+  const g7 = [...P.doc.querySelectorAll("#cmSeriesList .main-edit")].map(i => i.value.split(",")[0]).sort();
+  eq(g7.join(","), "Canada,France,Germany,Italy,Japan,UK,US", "Add G7 puts exactly the G7 on the chart");
+  P.click(P.$('#cmChartTypeSeg button[data-type="bar"]')); await sleep(120);
+  eq(P.$("#cmSortModeSelect").value, "value_desc", "bars are ordered high to low by default");
+  const vals = [...P.svg().matchAll(/<rect [^>]*height="([\d.]+)"[^>]*rx="3"/g)].map(m => +m[1]);
+  ok(vals.length === 7 && vals.every((v, i) => i === 0 || vals[i - 1] >= v - 0.01), "tallest bar first");
+  ok(/>(January|February|March|April|May|June|July|August|September|October|November|December) \d{4}</.test(P.svg()), "the period under the bars names the month in full");
+  const fills = [...P.svg().matchAll(/<rect [^>]*rx="3" fill="(#[0-9A-Fa-f]{6})"/g)].map(m => m[1].toUpperCase());
+  eq(fills[0], "#2E1E3B", "with 2 to 10 countries the highest bar takes the darkest Mako colour");
+  eq(new Set(fills).size, 7, "each bar has its own shade");
+  ok(P.$("#cmSnapshotAtRow").style.display !== "none", "Compare at is offered for bars");
+  const atOpts = [...P.$("#cmSnapshotAt").options].map(o => o.value).filter(Boolean);
+  const pick = atOpts[12];
+  P.$("#cmSnapshotAt").value = pick; P.fire(P.$("#cmSnapshotAt"), "change"); await sleep(80);
+  const months = ["January","February","March","April","May","June","July","August","September","October","November","December"];
+  const want = /-\d{2}$/.test(pick) ? months[+pick.slice(5) - 1] + " " + pick.slice(0, 4) : pick;
+  ok(P.svg().includes(">" + want + "<"), "the bars say which period they compare: " + want);
+  ok(P.svg() !== "" && !P.svg().includes(">" + P.$("#cmSnapshotAt").options[0].textContent.replace(/^Latest in range \(|\)$/g, "") + "<"), "the old period label is gone");
+  // eleven or more countries: each country's own colour
+  await P.add("Spain", "Unemployment rate"); await P.add("Sweden", "Unemployment rate");
+  await P.add("Poland", "Unemployment rate"); await P.add("Austria", "Unemployment rate");
+  const fills11 = [...P.svg().matchAll(/<rect [^>]*rx="3" fill="(#[0-9A-Fa-f]{6})"/g)].map(m => m[1].toUpperCase());
+  ok(fills11.length === 11 && fills11.indexOf("#1E4566") !== -1, "over 10 countries, each keeps its own colour (UK navy present)");
+  // a chart saved on Compare opens without the previous chart's titles
+  P.$("#cmChartTitle").value = "Old title"; P.fire(P.$("#cmChartTitle"), "input");
+  savedRows = [{ id: 11, name: "cmp", country_code: "compare", created_at: "2026-10-30T12:00:00Z", metric_key: "unemployment", style: { countries: ["UK", "Germany"] } }];
+  await P.openSaved("cmp");
+  eq(P.$("#cmChartTitle").value, "", "opening a Compare chart clears the old chart title");
+  ok(!/Old title/.test(P.svg()), "and the old title is not drawn");
+
   if(bootErrors.length) fail("page errors: " + bootErrors.slice(0, 3).join(" | "));
   console.log(`test_chartmaker_saved: ${checks} checks, ${failures} failures`);
   process.exit(failures ? 1 : 0);
