@@ -309,6 +309,47 @@ async function page(){
   eq(P.$("#cmChartTitle").value, "", "opening a Compare chart clears the old chart title");
   ok(!/Old title/.test(P.svg()), "and the old title is not drawn");
 
+  // 12. v1.9.35: groups stay whole with "No data", latest periods are shown before choosing, older figures
+  //     say which period they are from, and a source every country shares is cited once
+  P = await page();
+  P.click(P.$("#cmAddBtn"));
+  const ukBtn = await P.until(() => [...P.doc.querySelectorAll("#cmCountryRegions .picker-item")].filter(e => e.textContent.trim() === "UK")[0], "UK");
+  P.click(ukBtn);
+  const fdiCard = await P.until(() => [...P.doc.querySelectorAll("#cmMetricGrid .pickeritem")].filter(e => (e.querySelector("div") || {}).textContent === "FDI, % of GDP")[0], "FDI card");
+  ok(/Latest: (January|February|March|April|May|June|July|August|September|October|November|December )?\d{4}/.test(fdiCard.textContent), "each metric card shows its latest period before choosing: " + fdiCard.textContent.slice(-30));
+  P.click(fdiCard); await sleep(200);
+  const g7b = [...P.doc.querySelectorAll("#cmNudgeGroups .nudgegroup")].filter(b => b.textContent.startsWith("Add G7"))[0];
+  ok(g7b && /Add G7 \(7\)/.test(g7b.textContent) && /No data for France, Germany, Italy/.test(g7b.title), "the G7 button counts all seven and names the ones without data");
+  P.click(g7b); await sleep(250);
+  eq(P.doc.querySelectorAll("#cmSeriesList .cm-seriesitem").length, 7, "Add G7 puts all seven on, data or not");
+  P.click(P.$('#cmChartTypeSeg button[data-type="bar"]')); await sleep(120);
+  P.click(P.$('#cmBarOrientSeg button[data-orient="horizontal"]')); await sleep(80);
+  const nb = P.svg();
+  eq((nb.match(/>No data</g) || []).length, 3, "the three without the metric show No data");
+  ok(/>France</.test(nb) && />Germany</.test(nb) && />Italy</.test(nb), "and are still named on the chart");
+  ok(!/France: |Germany: |Italy: /.test(P.$("#cmSvgBox").textContent), "countries without data are not cited as sources");
+  // one source for everyone: cited once
+  P = await page();
+  await P.add("Austria", "Unemployment rate");
+  P.click([...P.doc.querySelectorAll("#cmNudgeGroups .nudgegroup")].filter(b => b.textContent.startsWith("Add Euro area"))[0]); await sleep(300);
+  P.click(P.$('#cmChartTypeSeg button[data-type="bar"]')); await sleep(150);
+  let blob2 = null;
+  P.win.URL.createObjectURL = b => { blob2 = b; return "blob:x"; };
+  P.click(P.$("#cmPngBtn")); await sleep(120);
+  const ex2 = blob2 ? await new Promise(r => { const fr = new P.win.FileReader(); fr.onload = () => r(fr.result); fr.readAsText(blob2); }) : "";
+  const srcText = [...ex2.matchAll(/>([^<]*une_rt_m[^<]*)</g)].map(m => m[1]).join(" ");
+  eq((srcText.match(/une_rt_m/g) || []).length, 1, "a source all 21 share is cited once: " + srcText.slice(0, 80));
+  // a saved chart keeps its No data countries
+  savedPayloads.length = 0;
+  P = await page();
+  await P.add("UK", "FDI, % of GDP");
+  P.click([...P.doc.querySelectorAll("#cmNudgeGroups .nudgegroup")].filter(b => b.textContent.startsWith("Add G7"))[0]); await sleep(250);
+  P.click(P.$("#cmSaveBtn")); P.$("#cmSaveNameInput").value = "g7fdi"; P.click(P.$("#cmSaveConfirmBtn")); await sleep(300);
+  const gp = savedPayloads[0];
+  savedRows = [{ id: 12, name: "g7fdi", country_code: "chartmaker", created_at: "2026-10-30T12:00:00Z", style: clone(gp.style), from_period: gp.from_period, to_period: gp.to_period, metric_key: "fdi" }];
+  P = await page(); await P.openSaved("g7fdi");
+  eq(P.doc.querySelectorAll("#cmSeriesList .cm-seriesitem").length, 7, "a saved G7 chart reopens with all seven");
+
   if(bootErrors.length) fail("page errors: " + bootErrors.slice(0, 3).join(" | "));
   console.log(`test_chartmaker_saved: ${checks} checks, ${failures} failures`);
   process.exit(failures ? 1 : 0);

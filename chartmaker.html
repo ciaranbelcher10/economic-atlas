@@ -1497,8 +1497,8 @@ button.mtoggle.fx-both{background:#2FA463; border-color:#2FA463; color:#fff;}
 
  <!-- RIGHT: colours -->
  <div class="ctl-panel" id="cmColorsPanel">
- <h3>Line colours</h3>
- <p style="font-size:11.5px; color:var(--ink2); margin:0 0 10px; line-height:1.5;">Comparing one metric across countries defaults to each country's usual colour; comparing several metrics for one country defaults to a Mako gradient. Recolour any line individually below, or choose a palette for all of them at once.</p>
+ <h3 id="cmColorsTitle">Line colours</h3>
+ <p id="cmColorsExplain" style="font-size:11.5px; color:var(--ink2); margin:0 0 10px; line-height:1.5;">Each country keeps its usual colour; several metrics for one country use a Mako gradient. Recolour any one below, or choose a palette for all of them.</p>
  <button type="button" id="cmOpenPaletteModalBtn" style="width:100%; margin-bottom:12px; padding:8px 0; border:1px solid var(--hair); border-radius:8px; background:var(--paper); color:var(--ink); font:700 12.5px 'Avenir Next','Avenir','Nunito Sans',sans-serif; cursor:pointer;">Choose palette for all lines&hellip;</button>
  <div class="cm-clashwarn" id="cmClashWarn" hidden></div>
  <div id="cmColorsEmpty" class="cm-status" style="margin-top:0;">Add a metric to choose its colour.</div>
@@ -1515,7 +1515,7 @@ button.mtoggle.fx-both{background:#2FA463; border-color:#2FA463; color:#fff;}
  <input type="text" id="cmChartTitle" maxlength="80">
  </div>
  <div class="cm-field">
- <label for="cmYAxisTitle">Y-axis title</label>
+ <label for="cmYAxisTitle" id="cmYAxisTitleLabel">Y-axis title</label>
  <input type="text" id="cmYAxisTitle" maxlength="40" placeholder="e.g. % change, year-on-year">
  </div>
  <div class="cm-field">
@@ -2512,6 +2512,11 @@ function computeDisplay(country, metric, nomUnit, nomPts, real, dollar){
   return out;
 }
 function applyDisplayToSeries(s){
+  if(s.missing){
+    var sib = series.filter(function(x){ return !x.missing && x.metric === s.metric; })[0];
+    s.unit = sib ? sib.unit : ""; s.rawPoints = []; s.realView = false; s.converted = false; s.inUSD = false; s.display = null;
+    return;
+  }
   var d = computeDisplay(s.country, s.metric, s.origUnit, s.origRawPoints, TOGGLE_STATE.real, TOGGLE_STATE.dollar);
   s.unit = d.unit; s.rawPoints = d.pts;
   s.realView = d.realView; s.converted = d.converted; s.inUSD = d.inUSD; s.display = d;
@@ -2612,7 +2617,7 @@ function updateToggleUI(){
 // Recomputes what every series shows and refreshes the buttons and note. Called whenever the
 // series list changes (add, remove, switch measure, open a saved chart) and when a toggle is clicked.
 function refreshToggleState(){
-  var basis = dollarBasis(series, userDollarPreference);
+  var basis = dollarBasis(liveSeries(), userDollarPreference);
   dollariseForced = basis.forced;
   dollariseNoOp = basis.noOp;
   TOGGLE_STATE.real = userRealPreference;
@@ -2745,7 +2750,7 @@ function transformsFor(unit){
 // The units actually drawn, after each series' transform.
 function effectiveUnits(){
   var units = {};
-  series.forEach(function(s){ units[transformUnit(s.unit, s.transform)] = true; });
+  series.forEach(function(s){ if(!s.missing) units[transformUnit(s.unit, s.transform)] = true; });
   return Object.keys(units);
 }
 function allPeriods(){
@@ -2905,7 +2910,8 @@ function renderMetricGrid(){
           " available: " + names + ". Choose the measure and basis (year on year, month on month) once it is on the chart.";
       }
       item.innerHTML = "<div style='font-weight:700;'>" + (isFam ? famTitle : conceptLabelFor(pendingCountry, k)) +
-        "</div><div class='e'>" + (already ? "Already on the chart" : (isFam ? famExpl : CONCEPT_EXPLAINER[k])) + "</div>";
+        "</div><div class='e'>" + (already ? "Already on the chart" : (isFam ? famExpl : CONCEPT_EXPLAINER[k])) + "</div>" +
+        (latestOf(pendingCountry, k) ? "<div class='e cm-latest'>Latest: " + fmtPeriodLong(latestOf(pendingCountry, k)) + "</div>" : "");
       if(!already){
         item.addEventListener("click", function(){
           addSeries(pendingCountry, k);
@@ -2942,6 +2948,10 @@ var COUNTRY_GROUPS = [
   { name: "OECD", members: ["Australia","Austria","Belgium","Canada","Chile","Colombia","Czechia","Denmark","Estonia","Finland","France","Germany","Greece","Hungary","Iceland","Ireland","Israel","Italy","Japan","South Korea","Latvia","Lithuania","Luxembourg","Mexico","Netherlands","New Zealand","Norway","Poland","Portugal","Slovakia","Slovenia","Spain","Sweden","Switzerland","Turkey","UK","US"] },
   { name: "BRICS", members: ["Brazil","China","Egypt","India","Indonesia","South Africa"] }
 ];
+function latestOf(country, metric){
+  var s = getSeries(country, metric);
+  return s && s.points.length ? s.points[s.points.length - 1][0] : null;
+}
 function onChartFor(c, metric){ return !starterActive && series.some(function(s){ return s.country === c && s.metric === metric; }); }
 function renderNudge(metric){
   pendingNudgeMetric = metric;
@@ -2957,14 +2967,16 @@ function renderNudge(metric){
   COUNTRY_GROUPS.forEach(function(g){
     var avail = g.members.filter(function(c){ return !!getSeries(c, metric); });
     if(avail.length < 2) return;
+    var lacking = g.members.filter(function(c){ return !getSeries(c, metric); });
     var b = document.createElement("button");
     b.type = "button"; b.className = "nudgegroup";
-    var todo = function(){ return avail.filter(function(c){ return !onChartFor(c, metric); }); };
-    b.textContent = "Add " + g.name + " (" + avail.length + ")";
-    b.title = avail.join(", ");
+    // every member goes on, so the chart is the whole group; members without this metric show "No data"
+    var todo = function(){ return g.members.filter(function(c){ return !onChartFor(c, metric); }); };
+    b.textContent = "Add " + g.name + " (" + g.members.length + ")";
+    b.title = g.members.join(", ") + (lacking.length ? ". No data for " + lacking.join(", ") + ", shown as No data." : "");
     b.disabled = !todo().length;
     b.addEventListener("click", function(){
-      todo().forEach(function(c){ addSeries(c, metric); });
+      todo().forEach(function(c){ addSeries(c, metric, false, true); });
       renderMetricGrid();
       renderNudge(metric);
     });
@@ -2973,10 +2985,12 @@ function renderNudge(metric){
   others.forEach(function(c){
     var chip = document.createElement("button");
     chip.type = "button"; chip.className = "nudgechip";
-    chip.textContent = c + " +";
+    var lt = latestOf(c, metric), own = latestOf(pendingCountry, metric);
+    chip.textContent = c + (lt && own && lt < own ? " \u00b7 " + fmtPeriod(lt) : "") + " +";   // v1.9.35: say when a country is behind
+    chip.title = lt ? "Latest: " + fmtPeriodLong(lt) : "";
     chip.addEventListener("click", function(){
       addSeries(c, metric);
-      chip.textContent = c + " \u2713";
+      chip.textContent = chip.textContent.replace(/ \+$/, " \u2713");
       chip.classList.add("added");
       renderMetricGrid();
     });
@@ -3015,10 +3029,24 @@ function clearStarter(){
   annotations = [];
   fromPeriodSel.value = ""; toPeriodSel.value = "";   // the example's five-year window is not the person's choice
 }
-function addSeries(country, metric, isStarter){
+// v1.9.35: a country that does not publish this metric can still be put on the chart (a group such as the
+// G7 stays whole). It carries no figures and is drawn as a labelled "No data" bar or legend entry.
+function missingSeriesFor(country, metric){
+  return { id: "s" + (++seriesSeq), country: country, metric: metric, transform: "raw", unit: "", label: CONCEPT_LABEL[metric] || metric,
+           color: COUNTRY_COLOR[country] || "#8A9490", manualColor: false, customLabel: null, missing: true,
+           rawPoints: [], origUnit: "", origRawPoints: [] };
+}
+function liveSeries(){ return series.filter(function(s){ return !s.missing; }); }
+function addSeries(country, metric, isStarter, allowMissing){
   var s = getSeries(country, metric);
-  if(!s) return;
+  if(!s && !allowMissing) return;
   if(!isStarter) clearStarter();
+  if(!s){
+    series.push(missingSeriesFor(country, metric));
+    refreshToggleState(); assignColors(); syncAutoYAxisTitle(); resetYTickStepIdx();
+    renderSeriesList(); renderColorsPanel(); populateDateRange(); renderChart(); syncStarterUI();
+    return;
+  }
   var pts = s.points.map(function(p){ return {x:p[0], y:p[1]}; });
   series.push({
     id: "s" + (++seriesSeq), country: country, metric: metric, transform: "raw",
@@ -3083,6 +3111,7 @@ function rankColorsApply(){
 function applyBarRankColors(rows){
   if(!rankColorsApply()) return;
   var ranked = rows.filter(function(r){ return r.value != null; }).slice().sort(function(a, b){ return b.value - a.value; });
+  rows.forEach(function(r){ if(r.value == null){ var sx = series.filter(function(x){ return x.country === r.countryCode; })[0]; if(sx && !sx.manualColor){ sx.color = "#8A9490"; r.color = "#8A9490"; } } });
   var pal = makoRankColors(ranked.length);
   ranked.forEach(function(r, i){
     var s = series.filter(function(x){ return x.country === r.countryCode; })[0];
@@ -3317,6 +3346,15 @@ function renderColorsPanel(){
       }
     }
   }
+  // v1.9.35: the ranked Mako shades are meant to be close; only warn about colours someone chose
+  if(rankColorsApply()) clashPairs = [];
+  var isBarNow = chartType === "bar";
+  document.getElementById("cmColorsTitle").textContent = isBarNow ? "Bar colours" : "Line colours";
+  document.getElementById("cmColorsExplain").textContent = rankColorsApply()
+    ? "Bars for 2 to 10 countries are shaded by rank, darkest for the highest value. Recolour any bar below, or choose a palette."
+    : (isBarNow ? "Each country keeps its usual colour. Recolour any bar below, or choose a palette for all of them."
+                : "Each country keeps its usual colour; several metrics for one country use a Mako gradient. Recolour any line below, or choose a palette.");
+  document.getElementById("cmOpenPaletteModalBtn").textContent = isBarNow ? "Choose palette for all bars\u2026" : "Choose palette for all lines\u2026";
   if(clashPairs.length){
     clashWarnEl.hidden = false;
     clashWarnEl.textContent = "These colours look very similar and may be hard to tell apart: " + clashPairs.join("; ") + ".";
@@ -4247,7 +4285,7 @@ function czmBuildSVGSnapshotH(theme, forExport){
     var cy = gm.yForIndex(i);
     svg.push("<text x='" + (gm.padL - 8).toFixed(1) + "' y='" + (cy + AFS() * 0.35).toFixed(1) + "' font-size='" + AFS() + "' fill='" + t.ink2 + "' text-anchor='end'>" + escapeXML(r.country) + "</text>");
     if(r.value == null){
-      svg.push("<text x='" + (zeroX + 6).toFixed(1) + "' y='" + (cy + 4).toFixed(1) + "' font-size='10' fill='" + t.ink2 + "'>no data</text>");
+      svg.push("<text x='" + (zeroX + 6).toFixed(1) + "' y='" + (cy + 4).toFixed(1) + "' font-size='" + AFS() + "' fill='" + t.ink2 + "'>No data</text>");
       return;
     }
     var vx = gm.x(r.value), left = Math.min(vx, zeroX), w = Math.max(0.6, Math.abs(vx - zeroX));
@@ -4734,9 +4772,20 @@ function buildCombinedSrcNote(){
     var key = s.country + "|" + concept;
     if(seen[key]) return;
     seen[key] = true;
+    if(s.missing) return;
     var short = shortSourceNote(s.country, concept);
-    if(short) parts.push(s.country + ": " + short);
+    if(short) parts.push({ country: s.country, src: short });
   });
+  // v1.9.35: countries sharing a source are cited once ("Eurostat une_rt_m (Austria, Belgium, ...)"),
+  // and a source every country shares is cited plainly, instead of repeating it for each country
+  var bySrc = [], idx = {};
+  parts.forEach(function(p){
+    if(!(p.src in idx)){ idx[p.src] = bySrc.length; bySrc.push({ src: p.src, countries: [] }); }
+    bySrc[idx[p.src]].countries.push(p.country);
+  });
+  parts = bySrc.length === 1 && bySrc[0].countries.length > 1
+    ? [bySrc[0].src]
+    : bySrc.map(function(g){ return g.countries.length > 1 ? g.src + " (" + g.countries.join(", ") + ")" : g.countries[0] + ": " + g.src; });
   // Compare's wording for a converted chart.
   return parts.length ? parts.join("; ") + (converted ? " (converted to USD)" : "") : fallback;
 }
@@ -4777,7 +4826,7 @@ function buildCzmState(){
 function buildSeriesList(){
   return series.map(function(s){
     var pts = applyTransform(s.rawPoints, s.transform).map(function(p){ return [p.x, p.y]; });
-    return { country: seriesLabel(s), color: s.color, points: pts };
+    return { country: seriesLabel(s) + (s.missing ? " (no data)" : ""), color: s.color, points: pts };
   });
 }
 
@@ -4812,13 +4861,23 @@ function buildSnapshotRows(){
   lastBarChartThinned = false;
   var sameMetric = series.every(function(s2){ return s2.metric === series[0].metric; });
   var atV = snapshotPeriod();
+  // does period p cover month/quarter/year a? (a quarterly figure covers the months in it)
+  function covers(p, a){
+    if(p === a) return true;
+    var q = /^(\d{4})-Q(\d)$/.exec(p), m = /^(\d{4})-(\d{2})$/.exec(a);
+    if(q && m) return q[1] === m[1] && Math.ceil(+m[2] / 3) === +q[2];
+    if(/^\d{4}$/.test(p)) return a.slice(0, 4) === p;
+    return false;
+  }
   return series.map(function(s){
     // each series' latest figure on or before the chosen period (a quarterly series compared at a month
     // uses the quarter that month falls in or the one before)
     var pts = applyTransform(s.rawPoints, s.transform).filter(function(p){ return p.x >= fromV && p.x <= atV; });
     var last = pts.length ? pts[pts.length - 1] : null;
     var label = s.customLabel || (sameMetric ? s.country : defaultSeriesLabel(s));
-    return { country: label, countryCode: s.country, value: last ? last.y : null, color: s.color };
+    // v1.9.35: a figure older than the period being compared says which period it is from
+    if(last && !covers(last.x, atV)) label += " (" + fmtPeriod(last.x) + ")";
+    return { country: label, countryCode: s.country, value: last ? last.y : null, color: s.color, missing: !!s.missing, asOf: last ? last.x : null };
   });
 }
 
@@ -5099,6 +5158,8 @@ btnCsv.addEventListener("click", function(){
 // Compare's own Bar view).
 function syncBarOptionsUI(){
   var isBar = chartType === "bar";
+  var yl = document.getElementById("cmYAxisTitleLabel");
+  if(yl) yl.textContent = (isBar && style.barOrient === "horizontal") ? "Value axis title (along the bottom)" : "Y-axis title";
   document.getElementById("cmBarOptions").style.display = isBar ? "" : "none";
   document.querySelectorAll("#cmBarOrientSeg button").forEach(function(b){ b.classList.toggle("active", b.dataset.orient === style.barOrient); });
   document.getElementById("cmDataLabelsToggle").checked = !!style.dataLabels;
@@ -5143,7 +5204,7 @@ function syncBarModeVisibility(){
       ? (lastBarChartThinned
           ? "With a single metric, Bar shows its history as a time series of bars. This date range has more periods than can be shown as individual bars legibly, so it's sampled down to a representative subset, narrow the date range to see every period."
           : "With a single metric, Bar shows its full history as a time series of bars, one per period in the selected date range.")
-      : "Bar shows each metric's latest value in the selected date range, one bar per metric: a snapshot rather than a chart over time.";
+      : "One bar per country, each at its figure for the period chosen in Compare at. A bar from an earlier period says which, and a country without the figure shows No data.";
   }
 }
 document.getElementById("cmChartTypeSeg").querySelectorAll("button").forEach(function(b){
@@ -5305,7 +5366,7 @@ function normalizeSavedRow(row){
     var singleName = CODE_TO_REGISTRY_KEY[code] || code;
     seriesSpec = [{ country: singleName, metric: row.metric_key, transform: "raw" }];
   }
-  var available = seriesSpec.length > 0 && seriesSpec.every(function(s){
+  var available = seriesSpec.length > 0 && seriesSpec.some(function(s){
     return !!getSeries(s.country, s.metric);
   });
   return {
@@ -5438,7 +5499,7 @@ function loadSavedChart(row){
   colorIdx = 0;
   savedSeries.forEach(function(ss){
     var s = getSeries(ss.country, ss.metric);
-    if(!s) return;
+    if(!s){ var ms = missingSeriesFor(ss.country, ss.metric); ms.customLabel = ss.customLabel || null; if(ss.manualColor){ ms.color = ss.color; ms.manualColor = true; } series.push(ms); colorIdx++; return; }
     var pts = s.points.map(function(p){ return {x:p[0], y:p[1]}; });
     series.push({ id:"s"+(++seriesSeq), country:ss.country, metric:ss.metric, transform:ss.transform||"raw", unit:s.unit, label:s.label, color: ss.color || COUNTRY_COLOR[ss.country] || "#1E4566", manualColor: !!ss.manualColor, customLabel: ss.customLabel || null, measureLocked: !!ss.measureLocked, rawPoints:pts, origUnit:s.unit, origRawPoints:pts });
     colorIdx++;
@@ -5568,7 +5629,7 @@ saveConfirmBtn.addEventListener("click", function(){
     from_period: fromPeriodSel.value,
     to_period: toPeriodSel.value,
     style: {
-      series: series.map(function(s){ return { country:s.country, metric:s.metric, transform:s.transform, color:s.color, manualColor:s.manualColor, customLabel:s.customLabel, measureLocked:!!s.measureLocked }; }),
+      series: series.map(function(s){ return { country:s.country, metric:s.metric, transform:s.transform, color:s.color, manualColor:s.manualColor, customLabel:s.customLabel, measureLocked:!!s.measureLocked, missing:!!s.missing }; }),
       // v1.9.32: positions and sizes travel too, so a reopened chart looks exactly as it was saved
       annotations: annotations.map(function(a){ return { date:a.date, label:a.label, type:a.type, align:a.align, seriesIndex:a.seriesIndex||0, labelX:a.labelX, labelY:a.labelY, fontSize:a.fontSize||11 }; }),
       snapshot: {
