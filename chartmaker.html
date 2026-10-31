@@ -5327,7 +5327,38 @@ function renderThumb(container, item){
     };
     SERIES_LIST = thumbSeries;
     czmState = thumbState;
-    container.innerHTML = czmBuildSVG("light", false);
+    if(snap.chartType === "bar"){
+      // v1.9.36: a bar chart's thumbnail is drawn as bars (it was always drawn as lines)
+      var at = (snap.snapshotAt && snap.snapshotAt >= from && snap.snapshotAt <= to) ? snap.snapshotAt : to;
+      var brows;
+      if(thumbSeries.length === 1){
+        brows = thumbSeries[0].points.filter(function(p){ return p[0] >= from && p[0] <= to; })
+          .map(function(p){ return { country: fmtPeriod(p[0]), value: p[1], color: thumbSeries[0].color }; });
+      } else {
+        brows = thumbSeries.map(function(ts, i){
+          var pts = ts.points.filter(function(p){ return p[0] >= from && p[0] <= at; });
+          var ss = item.seriesSpec.filter(function(x){ return getSeries(x.country, x.metric); })[i] || {};
+          return { country: ss.customLabel || ss.country || ts.country, value: pts.length ? pts[pts.length - 1][1] : null, color: ts.color };
+        });
+        brows = sortRowsByMode(brows, function(r){ return r.value; }, snap.sortMode || "value_desc");
+      }
+      var bv = brows.map(function(r){ return r.value; }).filter(function(v){ return v != null; }).concat([0]);
+      var blo = Math.min.apply(null, bv), bhi = Math.max.apply(null, bv);
+      thumbState.yTickStepIdx = typeof snap.yTickStep === "number"
+        ? (function(){ var c = niceStepCandidates(blo, bhi), best = 0, bd = Infinity; c.forEach(function(v, i){ var d = Math.abs(Math.log(v / snap.yTickStep)); if(d < bd){ bd = d; best = i; } }); return best; })()
+        : defaultStepIdxFor(blo, bhi, 5);
+      thumbState.barOrient = snap.barOrient || "vertical";
+      thumbState.dataLabels = !!snap.dataLabels; thumbState.dataLabelSize = snap.dataLabelSize || 11;
+      thumbState.axisFontSize = snap.axisFontSize || 11; thumbState.font = snap.font || "helvetica";
+      thumbState.thresholdShadeBars = !!snap.thresholdShadeBars;
+      thumbState.legendTitle = snap.legendTitle || "";
+      var savedRows_ = SNAPSHOT_ROWS, savedH = G.H;
+      SNAPSHOT_ROWS = brows;
+      try{ container.innerHTML = czmBuildBars("light", false); }
+      finally{ SNAPSHOT_ROWS = savedRows_; G.H = savedH; }
+    } else {
+      container.innerHTML = czmBuildSVG("light", false);
+    }
   }catch(e){ /* thumbnail is best-effort only */ }
   finally{
     SERIES_LIST = savedSeriesList; czmState = savedCzmState; UNIFIED_DATES = savedUnifiedDates;

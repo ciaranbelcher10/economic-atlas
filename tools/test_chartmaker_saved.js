@@ -247,6 +247,12 @@ async function page(){
   P.click(P.$("#cmSaveBtn")); P.$("#cmSaveNameInput").value = "hbars"; P.click(P.$("#cmSaveConfirmBtn")); await sleep(300);
   const hp = savedPayloads[0];
   savedRows = [{ id: 10, name: "hbars", country_code: "chartmaker", created_at: "2026-10-30T12:00:00Z", style: clone(hp.style), from_period: hp.from_period, to_period: hp.to_period, metric_key: "unemployment" }];
+  P = await page();
+  P.click(P.$("#cmOpenBtn")); await sleep(400);
+  const th = [...P.doc.querySelectorAll(".cm-savedrow")].filter(x => x.querySelector(".cm-savedname").textContent === "hbars")[0];
+  const thHtml = th ? th.querySelector(".cm-savedthumb").innerHTML : "";
+  ok((thHtml.match(/<rect [^>]*rx="3"/g) || []).length === 3 && !/<path /.test(thHtml), "a bar chart's thumbnail in the Open list is drawn as bars (v1.9.36)");
+  P.click(P.$("#cmOpenModal .modal-x") || P.$("#cmOpenClose") || P.doc.body); await sleep(100);
   P = await page(); await P.openSaved("hbars");
   sameSvg(P.svg(), h, "a horizontal bar chart with data labels reopens identically");
   ok(P.$('#cmBarOrientSeg button.active').dataset.orient === "horizontal" && P.$("#cmDataLabelsToggle").checked, "bar controls restored");
