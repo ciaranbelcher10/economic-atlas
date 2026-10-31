@@ -212,7 +212,8 @@ const sleep = ms => new Promise(r => setTimeout(r, ms));
     const cb = await until(() => [...doc.querySelectorAll("#cmCountryRegions .picker-item")].filter(e => e.textContent.trim() === country)[0], "country " + country);
     click(cb);
     const mc = await until(() => [...doc.querySelectorAll("#cmMetricGrid .pickeritem")].filter(e => { const t = e.querySelector("div"); return t && t.textContent.trim() === metric; })[0], "metric " + metric);
-    const n = rows().length;
+    // v1.9.32: the example chart is replaced by the first metric added
+    const n = $("#cmStarterNote") && !$("#cmStarterNote").hidden ? 0 : rows().length;
     click(mc);
     await until(() => rows().length === n + 1, "the new series row");
     await sleep(60);
@@ -329,10 +330,12 @@ const sleep = ms => new Promise(r => setTimeout(r, ms));
   await toggle(real()); await toggle(dol());
   eq(labels()[0], "UK, GDP level", "both off before opening");
   click($("#cmOpenBtn")); await sleep(400);
-  const openBtns = [...doc.querySelectorAll(".cm-savedrow")].map(r => ({ name: r.querySelector(".cm-savedname").textContent, open: r.querySelector("button.open"), thumb: r.querySelector(".cm-savedthumb").textContent.replace(/\s+/g, " ") }));
+  const openBtns = [...doc.querySelectorAll(".cm-savedrow")].map(r => ({ name: r.querySelector(".cm-savedname").textContent, open: r.querySelector("button.open"), thumb: r.querySelector(".cm-savedthumb").textContent.replace(/\s+/g, " "), paths: [...r.querySelectorAll(".cm-savedthumb path")].map(x => x.getAttribute("d")).join("|") }));
   const tc = openBtns.filter(x => x.name === "toggle chart")[0], oc = openBtns.filter(x => x.name === "older chart")[0];
-  ok(tc && /Real GDP level \(USD\)/.test(tc.thumb), "the Open list thumbnail shows the real, dollar series it was saved as: " + (tc && tc.thumb.slice(0, 80)));
-  ok(oc && /UK, GDP level/.test(oc.thumb) && !/USD/.test(oc.thumb), "an older chart's thumbnail is unchanged");
+  // v1.9.32: a single line has no legend (as in Customise & export), so the thumbnail is read by its axis
+  ok(tc && /US dollars/.test(tc.thumb), "the Open list thumbnail shows the real, dollar series it was saved as: " + (tc && tc.thumb.slice(0, 80)));
+  // the older chart carries the same saved axis title, so it is told apart by what it plots: nominal pounds, not real dollars
+  ok(oc && tc && oc.paths && oc.paths !== tc.paths, "an older chart's thumbnail is drawn from its own (nominal, own-currency) data");
   click(tc.open); await sleep(300);
   ok(real().getAttribute("aria-pressed") === "true" && dol().getAttribute("aria-pressed") === "true", "opening the saved chart restores both toggles");
   eq(labels()[0], "UK, Real GDP level (USD)", "and the series shows as saved");
