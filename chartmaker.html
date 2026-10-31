@@ -1494,8 +1494,11 @@ button.mtoggle.fx-both{background:#2FA463; border-color:#2FA463; color:#fff;}
 .cmx-dates{margin-top:14px; padding-top:14px; border-top:1px solid var(--hair);}
 .cmx-chart{padding:18px 20px 18px;}
 /* v1.9.38: the chart had grown with the panel to 1,800px wide; cap it at a readable size */
-.cmx-chart .cm-chart-outer{max-width:960px; margin-left:auto; margin-right:auto;}
-.cmx-chart .cm-exportbar{max-width:960px; margin-left:auto; margin-right:auto; width:100%;}
+/* v1.9.39: the whole chart fits on screen: at most 760px wide, and never taller than the window allows
+   (the shape is fixed at 1.618:1, so capping the width by the window height caps both) */
+.cmx-chart .cm-chart-outer{width:min(100%, 760px, calc((100vh - 240px) * 1.618)); max-width:none; margin-left:auto; margin-right:auto;}
+.cmx-chart .cm-exportbar{width:min(100%, 760px, calc((100vh - 240px) * 1.618)); margin-left:auto; margin-right:auto;}
+@media (max-height:520px){ .cmx-chart .cm-chart-outer, .cmx-chart .cm-exportbar{width:min(100%, 760px);} }
 .ctl-panel h3.cmx-step{text-transform:none; letter-spacing:0; font-size:15px; color:var(--ink);}
 #cmSortModeRow select{width:auto;}
 .cmx-controls{display:flex; align-items:center; gap:10px; flex-wrap:wrap; margin-bottom:10px;}
