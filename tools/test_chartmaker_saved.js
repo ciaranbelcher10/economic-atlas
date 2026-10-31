@@ -20,6 +20,7 @@ const sameSvg = (a, b, m) => { if(a === b) return ok(true, m); let i = 0; while(
 const { JSDOM, VirtualConsole } = require("jsdom");
 const bootErrors = [];
 const savedPayloads = []; let savedRows = [];
+let seedStorage = null;   // v1.9.37: lets a test start a page with a browser draft already present
 async function boot(){
   const html = fs.readFileSync(path.join(ROOT, "chartmaker.html"), "utf8");
   const vc = new VirtualConsole();
@@ -33,6 +34,8 @@ async function boot(){
     runScripts: "dangerously", pretendToBeVisual: true, virtualConsole: vc,
     url: "https://theeconomicatlas.com/chartmaker.html",
     beforeParse(win){
+      if (seedStorage) { try { Object.keys(seedStorage).forEach(k => win.localStorage.setItem(k, seedStorage[k])); } catch (e) {} }
+      win.confirm = () => true;
       win.HTMLCanvasElement.prototype.getContext = () => ({ canvas: {}, clearRect(){}, save(){}, restore(){}, beginPath(){}, moveTo(){}, lineTo(){},
         stroke(){}, fill(){}, arc(){}, fillRect(){}, measureText: () => ({ width: 10 }), fillText(){}, setTransform(){}, scale(){}, translate(){}, closePath(){},
         createLinearGradient: () => ({ addColorStop(){} }) });
@@ -68,17 +71,19 @@ async function page(){
     const t0 = Date.now();
     for(;;){ const v = get(); if(v) return v; if(Date.now() - t0 > (ms || 8000)) throw new Error("timed out waiting for " + what); await sleep(40); }
   }
+  // v1.9.37: drives the new chooser (tick the country, pick the indicator version, Add)
+  const BASE_OF = { "Unemployment rate": "unemployment", "GDP level": "gdp_level", "GDP growth (annual, real)": "gdp_growth", "FDI, % of GDP": "fdi", "Real GDP level": "gdp_real" };
   async function add(country, metric){
-    click($("#cmAddBtn"));
-    const cb = await until(() => [...doc.querySelectorAll("#cmCountryRegions .picker-item")].filter(e => e.textContent.trim() === country)[0], "country " + country);
-    click(cb);
-    const mc = await until(() => [...doc.querySelectorAll("#cmMetricGrid .pickeritem")].filter(e => { const t = e.querySelector("div"); return t && t.textContent.trim() === metric; })[0], "metric " + metric);
-    // v1.9.32: the example chart is replaced by the first metric added
     const n = $("#cmStarterNote") && !$("#cmStarterNote").hidden ? 0 : rows().length;
-    click(mc);
-    await until(() => rows().length === n + 1, "the new series row");
-    await sleep(60);
+    click($("#cmAddBtn"));
+    const cb = await until(() => [...doc.querySelectorAll("#cmzCountries input[data-c]")].filter(e => e.dataset.c === country)[0], "country " + country);
+    cb.checked = true; cb.dispatchEvent(new win.Event("change", { bubbles: true }));
+    const vb = await until(() => [...doc.querySelectorAll("#cmzInds button[data-base]")].filter(b => b.dataset.base === (BASE_OF[metric] || metric))[0], "indicator " + metric);
+    click(vb);
+    click($("#cmzAdd"));
+    await until(() => rows().length === n + 1, "series " + country + " " + metric + " added");
   }
+
   const svg = () => $("#cmSvgBox").innerHTML;
   const fire = (el, type) => el.dispatchEvent(new win.Event(type, { bubbles: true }));
   async function openSaved(name){
@@ -87,7 +92,18 @@ async function page(){
     if(!r) throw new Error("saved chart not listed: " + name);
     click(r.querySelector("button.open")); await sleep(300);
   }
-  return { win, doc, $, click, add, svg, fire, until, openSaved };
+  // choose a whole group and one indicator version in the chooser, then Add
+  async function addGroup(group, base){
+    click($("#cmAddBtn"));
+    const gb = await until(() => [...doc.querySelectorAll("#cmzGroups button")].filter(b => b.textContent.startsWith(group + " ("))[0], "group " + group);
+    click(gb);
+    const vb = await until(() => [...doc.querySelectorAll("#cmzInds button[data-base]")].filter(b => b.dataset.base === base)[0], "version " + base);
+    click(vb);
+    const cov = $("#cmzCov").textContent, label = $("#cmzAdd").textContent, groupBtn = gb.textContent, vtext = vb.textContent;
+    click($("#cmzAdd")); await sleep(250);
+    return { cov, label, groupBtn, vtext };
+  }
+  return { win, doc, $, click, add, addGroup, svg, fire, until, openSaved };
 }
 
 (async () => {
@@ -273,20 +289,18 @@ async function page(){
   P.$("#cmDataLabelsToggle").checked = true; P.fire(P.$("#cmDataLabelsToggle"), "change"); await sleep(60);
   ok(/<text class="cz-dl"[^>]*>(\u2212|-)[\d.]+%</.test(P.svg()), "negative values are labelled with their sign");
 
-  // 11. v1.9.34: high-to-low by default, A-Z chips with group buttons, compare at a chosen period with the
-  //     month in full, Mako by rank for 2-10 countries, and saved charts from other pages clearing old titles
+  // 11. v1.9.34 (chooser rebuilt v1.9.37): countries A to Z with group buttons, high-to-low by default,
+  //     compare at a chosen period with the month in full, Mako by rank, saved charts clearing old titles
   P = await page();
-  await P.add("UK", "Unemployment rate");
-  click: {
-    const chips = [...P.doc.querySelectorAll("#cmNudgeChips .nudgechip")].map(c => c.textContent.replace(/ [+\u2713]$/, ""));
-    ok(chips.length > 10 && chips.every((c, i) => i === 0 || chips[i - 1].localeCompare(c) <= 0), "other countries are listed A to Z");
-    const groups = [...P.doc.querySelectorAll("#cmNudgeGroups .nudgegroup")].map(b => b.textContent);
-    ok(["G7", "G20", "EU", "Euro area", "OECD", "BRICS"].every(g => groups.some(t => t.startsWith("Add " + g + " ("))), "group buttons for G7, G20, EU, euro area, OECD and BRICS: " + groups.join(" | "));
-    P.click([...P.doc.querySelectorAll("#cmNudgeGroups .nudgegroup")].filter(b => b.textContent.startsWith("Add G7"))[0]);
-    await sleep(200);
-  }
+  P.click(P.$("#cmAddBtn")); await sleep(80);
+  const clist = [...P.doc.querySelectorAll("#cmzCountries input[data-c]")].map(c => c.dataset.c);
+  ok(clist.length >= 60 && clist.every((c, i) => i === 0 || clist[i - 1].localeCompare(c) <= 0), "countries are listed A to Z");
+  const groups = [...P.doc.querySelectorAll("#cmzGroups button")].map(b => b.textContent);
+  ok(["G7", "G20", "EU", "Euro area", "OECD", "BRICS"].every(g => groups.some(t => t.startsWith(g + " ("))), "group buttons for G7, G20, EU, euro area, OECD and BRICS: " + groups.join(" | "));
+  P.click(P.$("#cmzCancel")); await sleep(50);
+  await P.addGroup("G7", "unemployment");
   const g7 = [...P.doc.querySelectorAll("#cmSeriesList .main-edit")].map(i => i.value.split(",")[0]).sort();
-  eq(g7.join(","), "Canada,France,Germany,Italy,Japan,UK,US", "Add G7 puts exactly the G7 on the chart");
+  eq(g7.join(","), "Canada,France,Germany,Italy,Japan,UK,US", "the G7 group puts exactly the G7 on the chart");
   P.click(P.$('#cmChartTypeSeg button[data-type="bar"]')); await sleep(120);
   eq(P.$("#cmSortModeSelect").value, "value_desc", "bars are ordered high to low by default");
   const vals = [...P.svg().matchAll(/<rect [^>]*height="([\d.]+)"[^>]*rx="3"/g)].map(m => +m[1]);
@@ -315,29 +329,22 @@ async function page(){
   eq(P.$("#cmChartTitle").value, "", "opening a Compare chart clears the old chart title");
   ok(!/Old title/.test(P.svg()), "and the old title is not drawn");
 
-  // 12. v1.9.35: groups stay whole with "No data", latest periods are shown before choosing, older figures
-  //     say which period they are from, and a source every country shares is cited once
+  // 12. v1.9.35 (chooser v1.9.37): groups stay whole with "No data", latest periods are shown before choosing,
+  //     coverage is spelled out before adding, and a source every country shares is cited once
   P = await page();
-  P.click(P.$("#cmAddBtn"));
-  const ukBtn = await P.until(() => [...P.doc.querySelectorAll("#cmCountryRegions .picker-item")].filter(e => e.textContent.trim() === "UK")[0], "UK");
-  P.click(ukBtn);
-  const fdiCard = await P.until(() => [...P.doc.querySelectorAll("#cmMetricGrid .pickeritem")].filter(e => (e.querySelector("div") || {}).textContent === "FDI, % of GDP")[0], "FDI card");
-  ok(/Latest: (January|February|March|April|May|June|July|August|September|October|November|December )?\d{4}/.test(fdiCard.textContent), "each metric card shows its latest period before choosing: " + fdiCard.textContent.slice(-30));
-  P.click(fdiCard); await sleep(200);
-  const g7b = [...P.doc.querySelectorAll("#cmNudgeGroups .nudgegroup")].filter(b => b.textContent.startsWith("Add G7"))[0];
-  ok(g7b && /Add G7 \(7\)/.test(g7b.textContent) && /No data for France, Germany, Italy/.test(g7b.title), "the G7 button counts all seven and names the ones without data");
-  P.click(g7b); await sleep(250);
-  eq(P.doc.querySelectorAll("#cmSeriesList .cm-seriesitem").length, 7, "Add G7 puts all seven on, data or not");
+  const g7f = await P.addGroup("G7", "fdi");
+  ok(/latest (January|February|March|April|May|June|July|August|September|October|November|December )?\d{4}/.test(g7f.vtext), "each indicator version shows its latest period before adding: " + g7f.vtext);
+  ok(/4 of 7 have data/.test(g7f.cov) && /No data for France, Germany, Italy/.test(g7f.cov), "coverage is spelled out before adding: " + g7f.cov);
+  eq(g7f.label, "Add 7 to chart", "the button says how many will be added");
+  eq(P.doc.querySelectorAll("#cmSeriesList .cm-seriesitem").length, 7, "all seven go on, data or not");
   P.click(P.$('#cmChartTypeSeg button[data-type="bar"]')); await sleep(120);
   P.click(P.$('#cmBarOrientSeg button[data-orient="horizontal"]')); await sleep(80);
   const nb = P.svg();
   eq((nb.match(/>No data</g) || []).length, 3, "the three without the metric show No data");
   ok(/>France</.test(nb) && />Germany</.test(nb) && />Italy</.test(nb), "and are still named on the chart");
-  ok(!/France: |Germany: |Italy: /.test(P.$("#cmSvgBox").textContent), "countries without data are not cited as sources");
   // one source for everyone: cited once
   P = await page();
-  await P.add("Austria", "Unemployment rate");
-  P.click([...P.doc.querySelectorAll("#cmNudgeGroups .nudgegroup")].filter(b => b.textContent.startsWith("Add Euro area"))[0]); await sleep(300);
+  await P.addGroup("Euro area", "unemployment");
   P.click(P.$('#cmChartTypeSeg button[data-type="bar"]')); await sleep(150);
   let blob2 = null;
   P.win.URL.createObjectURL = b => { blob2 = b; return "blob:x"; };
@@ -348,13 +355,52 @@ async function page(){
   // a saved chart keeps its No data countries
   savedPayloads.length = 0;
   P = await page();
-  await P.add("UK", "FDI, % of GDP");
-  P.click([...P.doc.querySelectorAll("#cmNudgeGroups .nudgegroup")].filter(b => b.textContent.startsWith("Add G7"))[0]); await sleep(250);
+  await P.addGroup("G7", "fdi");
   P.click(P.$("#cmSaveBtn")); P.$("#cmSaveNameInput").value = "g7fdi"; P.click(P.$("#cmSaveConfirmBtn")); await sleep(300);
   const gp = savedPayloads[0];
   savedRows = [{ id: 12, name: "g7fdi", country_code: "chartmaker", created_at: "2026-10-30T12:00:00Z", style: clone(gp.style), from_period: gp.from_period, to_period: gp.to_period, metric_key: "fdi" }];
   P = await page(); await P.openSaved("g7fdi");
   eq(P.doc.querySelectorAll("#cmSeriesList .cm-seriesitem").length, 7, "a saved G7 chart reopens with all seven");
+
+  // 13. v1.9.37: chooser search, buttons greyed when not relevant, compact cards, Reset, and recovery
+  P = await page();
+  P.click(P.$("#cmAddBtn")); await sleep(60);
+  P.$("#cmzSearch").value = "HICP Italy"; P.fire(P.$("#cmzSearch"), "input"); await sleep(40);
+  ok(P.$('#cmzCountries input[data-c="Italy"]').checked, "searching a country name ticks it");
+  ok(/^Inflation, HICP:/.test(P.$("#cmzCov").textContent), "searching a version name selects it: " + P.$("#cmzCov").textContent.slice(0, 60));
+  P.click(P.$("#cmzAdd")); await sleep(200);
+  ok(/^Italy, /.test(P.$("#cmSeriesList .main-edit").value), "and Add puts it on the chart");
+  P = await page();
+  await P.add("UK", "Unemployment rate");
+  ok(P.$("#makeRealToggle").disabled && P.$("#dollariseToggle").disabled, "Make it real and Dollarise are greyed out for an unemployment rate");
+  ok(/inflation-adjusted/.test(P.$("#makeRealToggle").title) && /currency/.test(P.$("#dollariseToggle").title), "and say why on hover");
+  await P.add("Canada", "GDP level");
+  ok(!P.$("#makeRealToggle").disabled && !P.$("#dollariseToggle").disabled, "both become available once GDP is on the chart");
+  const card = P.doc.querySelector("#cmSeriesList .cm-seriesitem");
+  ok(card.querySelector(".cmx-opts") && !card.classList.contains("cmx-open"), "a metric card's settings start closed");
+  ok(/^Latest: /.test(card.querySelector(".cmx-sub").textContent), "a card shows its latest period");
+  P.click(card.querySelector(".cmx-gear")); await sleep(30);
+  ok(P.doc.querySelector("#cmSeriesList .cm-seriesitem").classList.contains("cmx-open"), "the gear opens a card's settings");
+  // a draft is kept in the browser, then offered on the next visit
+  await sleep(900);
+  const draft = P.win.localStorage.getItem("eatlas_chartmaker_draft");
+  ok(draft && JSON.parse(draft).payload.style.series.length === 2, "the chart being built is kept in this browser");
+  seedStorage = { eatlas_chartmaker_draft: draft };
+  P = await page();
+  seedStorage = null;
+  await sleep(200);
+  ok(!P.$("#cmRestoreBar").hidden && /2 metrics/.test(P.$("#cmRestoreText").textContent), "returning offers the last chart: " + P.$("#cmRestoreText").textContent.slice(0, 70));
+  P.click(P.$("#cmRestoreBtn")); await sleep(250);
+  eq(P.doc.querySelectorAll("#cmSeriesList .cm-seriesitem").length, 2, "Restore brings it back");
+  ok(P.$("#cmRestoreBar").hidden, "and the offer goes away");
+  // Reset clears to the example and forgets the draft
+  P.click(P.$("#cmResetBtn")); await sleep(250);
+  ok(!P.$("#cmStarterNote").hidden && P.doc.querySelectorAll("#cmSeriesList .cm-seriesitem").length === 1, "Reset goes back to the example chart");
+  ok(!P.win.localStorage.getItem("eatlas_chartmaker_draft"), "Reset forgets the kept chart");
+  const stale = JSON.stringify({ t: Date.now() - 25 * 3600 * 1000, payload: JSON.parse(draft).payload });
+  seedStorage = { eatlas_chartmaker_draft: stale };
+  P = await page(); seedStorage = null; await sleep(200);
+  ok(P.$("#cmRestoreBar").hidden, "a chart kept more than 24 hours ago is not offered");
 
   if(bootErrors.length) fail("page errors: " + bootErrors.slice(0, 3).join(" | "));
   console.log(`test_chartmaker_saved: ${checks} checks, ${failures} failures`);

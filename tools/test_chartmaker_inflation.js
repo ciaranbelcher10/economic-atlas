@@ -82,19 +82,17 @@ async function boot() {
   const $ = sel => doc.querySelector(sel);
   const cards = () => [...doc.querySelectorAll("#cmMetricGrid .picker-item, #cmMetricGrid .pickeritem")];
 
-  function openPickerFor(country) {
+  // v1.9.37: the chooser offers each inflation measure as its own version of "Inflation"
+  function openChooserFor(country) {
     $("#cmAddBtn").dispatchEvent(new win.Event("click"));
-    const btn = [...doc.querySelectorAll("#cmCountryRegions .picker-item")]
-      .filter(el => el.textContent.trim() === country)[0];
-    if (!btn) { fail(`country "${country}" not offered in the picker`); return false; }
-    btn.dispatchEvent(new win.Event("click", { bubbles: true }));
+    const cb = [...doc.querySelectorAll("#cmzCountries input[data-c]")].filter(el => el.dataset.c === country)[0];
+    if (!cb) { fail(`country "${country}" not offered in the chooser`); return false; }
+    cb.checked = true; cb.dispatchEvent(new win.Event("change", { bubbles: true }));
     return true;
   }
-  function inflationCards() {
-    return cards().filter(el => {
-      const t = el.querySelector("div");
-      return t && t.textContent.trim() === "Inflation";
-    });
+  function inflationVersions() {
+    const box = [...doc.querySelectorAll("#cmzInds .cmz-ind")].filter(el => el.querySelector(".nm").textContent === "Inflation")[0];
+    return box ? [...box.querySelectorAll("button[data-base]")] : [];
   }
   function seriesRows() { return [...doc.querySelectorAll("#cmSeriesList .cm-seriesitem")]; }
   function selectsIn(row) { return [...row.querySelectorAll("select")]; }
@@ -106,18 +104,19 @@ async function boot() {
     return true;
   }
 
-  // --- the picker collapses the family into one entry -------------------
-  if (!openPickerFor("UK")) { console.log(`\n${checks} checks, ${failures} failures`); process.exit(1); }
+  // --- the chooser lists the measures a country serves as versions of Inflation ---
+  if (!openChooserFor("UK")) { console.log(`\n${checks} checks, ${failures} failures`); process.exit(1); }
   await new Promise(r => setTimeout(r, 60));
-  const uk = inflationCards();
-  eq(uk.length, 1, "UK inflation entries in the picker");
-  if (uk.length) {
-    const blurb = uk[0].textContent;
-    if (/Headline CPI/.test(blurb) && /CPIH/.test(blurb)) ok("entry names the measures available");
-    else fail("entry does not name the measures it contains: " + blurb.slice(0, 120));
-    uk[0].dispatchEvent(new win.Event("click", { bubbles: true }));
-    await new Promise(r => setTimeout(r, 120));
-  }
+  const vers = inflationVersions();
+  const names = vers.map(b => b.childNodes[0].textContent);
+  if (names.indexOf("Headline") !== -1 && names.indexOf("CPIH") !== -1) ok("UK inflation versions include Headline and CPIH: " + names.join(", "));
+  else fail("UK inflation versions: " + names.join(", "));
+  if (names.indexOf("PCE") === -1) ok("a measure the UK does not publish is not offered for the UK alone");
+  else fail("PCE offered for the UK");
+  const head = vers.filter(b => b.dataset.base === "cpi")[0];
+  if (head) { head.dispatchEvent(new win.Event("click", { bubbles: true })); await new Promise(r => setTimeout(r, 40)); }
+  $("#cmzAdd").dispatchEvent(new win.Event("click"));
+  await new Promise(r => setTimeout(r, 120));
   eq(seriesRows().length, 1, "series added from the single entry");
 
   // --- measure and basis selectors offer only what is served -------------
@@ -152,16 +151,12 @@ async function boot() {
   // now uses Singapore, which serves an annual year-on-year rate only. If
   // Singapore ever gains another basis, move this assertion rather than
   // deleting it: the rule it checks still matters.
-  const mclose = $("#cmMetricClose") || $("#cmMetricModal .modal-close");
-  if (mclose) mclose.dispatchEvent(new win.Event("click", { bubbles: true }));
-  await new Promise(r => setTimeout(r, 60));
-  if (openPickerFor("Singapore")) {
-    await new Promise(r => setTimeout(r, 120));
-    const sg = inflationCards();
-    if (!sg.length) fail("Singapore picker shows no Inflation entry (modal hidden=" +
-      $("#cmMetricModal").hidden + ", cards seen: " +
-      cards().map(c => c.querySelector("div") && c.querySelector("div").textContent.trim()).join(" | ").slice(0, 200) + ")");
-    if (sg.length) { sg[0].dispatchEvent(new win.Event("click", { bubbles: true })); await new Promise(r => setTimeout(r, 150)); }
+  if (openChooserFor("Singapore")) {
+    await new Promise(r => setTimeout(r, 80));
+    const sgv = inflationVersions().filter(b => b.dataset.base === "cpi")[0];
+    if (!sgv) fail("Singapore chooser shows no Inflation, Headline version");
+    else { sgv.dispatchEvent(new win.Event("click", { bubbles: true })); await new Promise(r => setTimeout(r, 40));
+           $("#cmzAdd").dispatchEvent(new win.Event("click")); await new Promise(r => setTimeout(r, 150)); }
   }
   // the series title is an <input> value, not text content
   const rowTitle = r => { const i = r.querySelector(".main-edit"); return i ? i.value : r.textContent; };
@@ -214,13 +209,11 @@ async function boot() {
   const gdpRow = rows2.filter(r => /GDP/i.test(rowTitle(r)))[0];
   if (!gdpRow) {
     // add one so the assertion has something to work with
-    if (openPickerFor("UK")) {
+    if (openChooserFor("UK")) {
       await new Promise(r => setTimeout(r, 80));
-      const gdpCard = cards().filter(el => {
-        const t = el.querySelector("div");
-        return t && /^GDP/i.test(t.textContent.trim());
-      })[0];
-      if (gdpCard) { gdpCard.dispatchEvent(new win.Event("click", { bubbles: true })); await new Promise(r => setTimeout(r, 140)); }
+      const gb = [...doc.querySelectorAll("#cmzInds button[data-base]")].filter(b => b.dataset.base === "gdp_level")[0];
+      if (gb) { gb.dispatchEvent(new win.Event("click", { bubbles: true })); await new Promise(r => setTimeout(r, 40));
+                $("#cmzAdd").dispatchEvent(new win.Event("click")); await new Promise(r => setTimeout(r, 140)); }
     }
   }
   const gdp = seriesRows().filter(r => /GDP/i.test(rowTitle(r)))[0];

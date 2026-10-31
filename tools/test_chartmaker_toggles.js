@@ -207,17 +207,19 @@ const sleep = ms => new Promise(r => setTimeout(r, ms));
     const t0 = Date.now();
     for(;;){ const v = get(); if(v) return v; if(Date.now() - t0 > (ms || 8000)) throw new Error("timed out waiting for " + what); await sleep(40); }
   }
+  // v1.9.37: drives the new chooser (tick the country, pick the indicator version, Add)
+  const BASE_OF = { "Unemployment rate": "unemployment", "GDP level": "gdp_level", "GDP growth (annual, real)": "gdp_growth", "FDI, % of GDP": "fdi", "Real GDP level": "gdp_real" };
   async function add(country, metric){
-    click($("#cmAddBtn"));
-    const cb = await until(() => [...doc.querySelectorAll("#cmCountryRegions .picker-item")].filter(e => e.textContent.trim() === country)[0], "country " + country);
-    click(cb);
-    const mc = await until(() => [...doc.querySelectorAll("#cmMetricGrid .pickeritem")].filter(e => { const t = e.querySelector("div"); return t && t.textContent.trim() === metric; })[0], "metric " + metric);
-    // v1.9.32: the example chart is replaced by the first metric added
     const n = $("#cmStarterNote") && !$("#cmStarterNote").hidden ? 0 : rows().length;
-    click(mc);
-    await until(() => rows().length === n + 1, "the new series row");
-    await sleep(60);
+    click($("#cmAddBtn"));
+    const cb = await until(() => [...doc.querySelectorAll("#cmzCountries input[data-c]")].filter(e => e.dataset.c === country)[0], "country " + country);
+    cb.checked = true; cb.dispatchEvent(new win.Event("change", { bubbles: true }));
+    const vb = await until(() => [...doc.querySelectorAll("#cmzInds button[data-base]")].filter(b => b.dataset.base === (BASE_OF[metric] || metric))[0], "indicator " + metric);
+    click(vb);
+    click($("#cmzAdd"));
+    await until(() => rows().length === n + 1, "series " + country + " " + metric + " added");
   }
+
   const real = () => $("#makeRealToggle"), dol = () => $("#dollariseToggle");
   const toggle = async el => { click(el); await sleep(180); };
 
