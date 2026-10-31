@@ -76,10 +76,14 @@ async function page(){
   async function add(country, metric){
     const n = $("#cmStarterNote") && !$("#cmStarterNote").hidden ? 0 : rows().length;
     click($("#cmAddBtn"));
-    const cb = await until(() => [...doc.querySelectorAll("#cmzCountries input[data-c]")].filter(e => e.dataset.c === country)[0], "country " + country);
-    cb.checked = true; cb.dispatchEvent(new win.Event("change", { bubbles: true }));
+    // v1.9.38: the chooser opens with the chart's countries ticked; pick the version first, then keep
+    // only what is already on the chart for it plus the country being added
     const vb = await until(() => [...doc.querySelectorAll("#cmzInds button[data-base]")].filter(b => b.dataset.base === (BASE_OF[metric] || metric))[0], "indicator " + metric);
     click(vb);
+    [...doc.querySelectorAll("#cmzCountries label")].forEach(l => {
+      const i = l.querySelector("input"), keep = i.dataset.c === country || /On chart/.test(l.textContent);
+      if(i.checked !== keep){ i.checked = keep; i.dispatchEvent(new win.Event("change", { bubbles: true })); }
+    });
     click($("#cmzAdd"));
     await until(() => rows().length === n + 1, "series " + country + " " + metric + " added");
   }
@@ -401,6 +405,22 @@ async function page(){
   seedStorage = { eatlas_chartmaker_draft: stale };
   P = await page(); seedStorage = null; await sleep(200);
   ok(P.$("#cmRestoreBar").hidden, "a chart kept more than 24 hours ago is not offered");
+
+  // 14. v1.9.38: the chooser opens showing what is on the chart, and can take countries off
+  P = await page();
+  await P.addGroup("G7", "unemployment");
+  P.click(P.$("#cmAddBtn")); await sleep(80);
+  const ticked = [...P.doc.querySelectorAll("#cmzCountries input[data-c]")].filter(i => i.checked).map(i => i.dataset.c).sort();
+  eq(ticked.join(","), "Canada,France,Germany,Italy,Japan,UK,US", "the chooser opens with the chart's countries ticked");
+  ok(P.$('#cmzInds button[data-base="unemployment"]').classList.contains("on"), "and the chart's indicator selected");
+  eq((P.$("#cmzCountries").textContent.match(/On chart/g) || []).length, 7, "each is marked On chart");
+  eq(P.$("#cmzAdd").textContent, "Already on the chart", "nothing to do until something changes");
+  const jp = P.$('#cmzCountries input[data-c="Japan"]'); jp.checked = false; P.fire(jp, "change");
+  const sp = P.$('#cmzCountries input[data-c="Spain"]'); sp.checked = true; P.fire(sp, "change");
+  eq(P.$("#cmzAdd").textContent, "Add 1, remove 1", "the button says what will change");
+  P.click(P.$("#cmzAdd")); await sleep(250);
+  const now = [...P.doc.querySelectorAll("#cmSeriesList .main-edit")].map(i => i.value.split(",")[0]).sort();
+  eq(now.join(","), "Canada,France,Germany,Italy,Spain,UK,US", "Japan comes off and Spain goes on");
 
   if(bootErrors.length) fail("page errors: " + bootErrors.slice(0, 3).join(" | "));
   console.log(`test_chartmaker_saved: ${checks} checks, ${failures} failures`);

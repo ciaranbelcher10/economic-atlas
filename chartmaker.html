@@ -1437,6 +1437,8 @@ button.mtoggle.fx-both{background:#2FA463; border-color:#2FA463; color:#fff;}
 .cmz-countries label:hover{background:var(--paper);}
 .cmz-countries label.nd{color:var(--ink2);}
 .cmz-countries label small{margin-left:auto; font-size:11px; color:var(--ink2);}
+.cmz-countries label small.onc{color:var(--navy); font-weight:700;}
+[data-theme="dark"] .cmz-countries label small.onc{color:var(--blue);}
 .cmz-cat{margin-bottom:16px;}
 .cmz-ind{padding:10px 12px; border:1px solid var(--hair); border-radius:10px; margin-bottom:8px;}
 .cmz-ind.sel{border-color:var(--blue); box-shadow:0 0 0 1px var(--blue) inset;}
@@ -1491,6 +1493,11 @@ button.mtoggle.fx-both{background:#2FA463; border-color:#2FA463; color:#fff;}
 .cmx-optl select{width:100%;}
 .cmx-dates{margin-top:14px; padding-top:14px; border-top:1px solid var(--hair);}
 .cmx-chart{padding:18px 20px 18px;}
+/* v1.9.38: the chart had grown with the panel to 1,800px wide; cap it at a readable size */
+.cmx-chart .cm-chart-outer{max-width:960px; margin-left:auto; margin-right:auto;}
+.cmx-chart .cm-exportbar{max-width:960px; margin-left:auto; margin-right:auto; width:100%;}
+.ctl-panel h3.cmx-step{text-transform:none; letter-spacing:0; font-size:15px; color:var(--ink);}
+#cmSortModeRow select{width:auto;}
 .cmx-controls{display:flex; align-items:center; gap:10px; flex-wrap:wrap; margin-bottom:10px;}
 .cmx-inline{display:flex; align-items:center; gap:10px; flex-wrap:wrap;}
 .cmx-chk{display:inline-flex; align-items:center; gap:6px; font-size:13px; font-weight:700; cursor:pointer;}
@@ -3096,7 +3103,8 @@ function renderChooserCountries(){
   });
   document.getElementById("cmzCountries").innerHTML = list.map(function(c){
     var on = cz.countries.indexOf(c) !== -1, has = !v || !!v.key(c);
-    return "<label class='" + (has ? "" : "nd") + "'><input type='checkbox' data-c='" + escapeXML(c) + "'" + (on ? " checked" : "") + "> " + escapeXML(c) + (has ? "" : "<small>No data</small>") + "</label>";
+    var already = v && czOnChart(c, v);
+    return "<label class='" + (has ? "" : "nd") + "'><input type='checkbox' data-c='" + escapeXML(c) + "'" + (on ? " checked" : "") + "> " + escapeXML(c) + (already ? "<small class='onc'>On chart</small>" : (has ? "" : "<small>No data</small>")) + "</label>";
   }).join("") || "<p class='cm-status'>No country matches.</p>";
   document.getElementById("cmzCount").textContent = cz.countries.length ? cz.countries.length + " chosen" : "";
 }
@@ -3120,19 +3128,45 @@ function renderChooserInds(){
 }
 function renderChooserCov(){
   var btn = document.getElementById("cmzAdd"), cov = document.getElementById("cmzCov"), v = czVersion();
-  if(!cz.countries.length || !v){
+  if(!v || (!cz.countries.length && !ALL_COUNTRIES.some(function(c){ return czOnChart(c, v); }))){
     cov.textContent = !cz.countries.length && !v ? "Choose countries and an indicator." : (!cz.countries.length ? "Now choose one or more countries." : "Now choose an indicator.");
     btn.disabled = true; btn.textContent = "Add to chart"; return;
   }
   var miss = cz.countries.filter(function(c){ return !v.key(c); }), n = cz.countries.length, lt = czLatest(v, cz.countries);
+  var adds = cz.countries.filter(function(c){ return !czOnChart(c, v); }).length;
+  var drops = ALL_COUNTRIES.filter(function(c){ return czOnChart(c, v) && cz.countries.indexOf(c) === -1; }).length;
   cov.innerHTML = "<b>" + escapeXML(CHOOSER[cz.ind].nm + ", " + v.k) + "</b>: " + (n - miss.length) + " of " + n + " " + (n === 1 ? "has" : "have") + " data" + (lt ? ", latest " + escapeXML(fmtPeriodLong(lt)) : "") + "." +
     (miss.length ? " <span class='miss'>No data for " + escapeXML(miss.join(", ")) + "; " + (miss.length === 1 ? "it" : "they") + " will show as No data.</span>" : "");
-  btn.disabled = false; btn.textContent = "Add " + n + " to chart";
+  btn.disabled = !adds && !drops;
+  btn.textContent = !adds && !drops ? "Already on the chart"
+    : (drops && !adds ? "Remove " + drops + " from chart"
+    : (drops ? "Add " + adds + ", remove " + drops : (adds === n ? "Add " + n + " to chart" : "Add " + adds + " more to chart")));
 }
 function renderChooser(){ renderChooserGroups(); renderChooserCountries(); renderChooserInds(); renderChooserCov(); }
 var chooserEl = document.getElementById("cmChooser");
+// v1.9.38: the chooser opens showing what is on the chart: those countries ticked and, when every
+// metric is the same indicator, that version selected. Unticking one takes it off on Update.
+function onChartSet(){
+  return starterActive ? [] : series.map(function(s){ return { country: s.country, metric: s.metric }; });
+}
+function czFindVersion(metric){
+  for(var i = 0; i < CHOOSER.length; i++){
+    for(var j = 0; j < CHOOSER[i].v.length; j++){
+      var v = CHOOSER[i].v[j];
+      if(v.base === metric || ALL_COUNTRIES.some(function(c){ return v.key(c) === metric; })) return [i, j];
+    }
+  }
+  return null;
+}
+function czOnChart(c, v){ return series.some(function(s){ return !starterActive && s.country === c && (s.metric === v.key(c) || (s.missing && s.metric === v.base)); }); }
 function openChooser(){
   cz = { countries: [], ind: -1, ver: 0, q: "" };
+  var on = onChartSet();
+  on.forEach(function(x){ if(cz.countries.indexOf(x.country) === -1) cz.countries.push(x.country); });
+  var metrics = on.map(function(x){ return x.metric; }).filter(function(m, i, a){ return a.indexOf(m) === i; });
+  var found = metrics.length ? czFindVersion(metrics[0]) : null;
+  if(found && metrics.every(function(m){ var f = czFindVersion(m); return f && f[0] === found[0] && f[1] === found[1]; })){ cz.ind = found[0]; cz.ver = found[1]; }
+  else if(metrics.length > 1){ cz.countries = []; }   // a mix of indicators: start clean, nothing is removed
   document.getElementById("cmzSearch").value = "";
   renderChooser(); chooserEl.hidden = false;
   setTimeout(function(){ document.getElementById("cmzSearch").focus(); }, 30);
@@ -3175,7 +3209,9 @@ document.getElementById("cmzInds").addEventListener("click", function(e){
   renderChooser();
 });
 document.getElementById("cmzAdd").addEventListener("click", function(){
-  var v = czVersion(); if(!v || !cz.countries.length) return;
+  var v = czVersion(); if(!v) return;
+  series.filter(function(s){ return !starterActive && cz.countries.indexOf(s.country) === -1 && (s.metric === v.key(s.country) || (s.missing && s.metric === v.base)); })
+    .map(function(s){ return s.id; }).forEach(function(id){ removeSeries(id); });
   cz.countries.slice().sort(function(a, b){ return a.localeCompare(b); }).forEach(function(c){
     var k = v.key(c);
     var already = series.some(function(s){ return !starterActive && s.country === c && (s.metric === (k || v.base)); });

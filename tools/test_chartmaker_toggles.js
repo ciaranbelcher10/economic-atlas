@@ -212,10 +212,14 @@ const sleep = ms => new Promise(r => setTimeout(r, ms));
   async function add(country, metric){
     const n = $("#cmStarterNote") && !$("#cmStarterNote").hidden ? 0 : rows().length;
     click($("#cmAddBtn"));
-    const cb = await until(() => [...doc.querySelectorAll("#cmzCountries input[data-c]")].filter(e => e.dataset.c === country)[0], "country " + country);
-    cb.checked = true; cb.dispatchEvent(new win.Event("change", { bubbles: true }));
+    // v1.9.38: the chooser opens with the chart's countries ticked; pick the version first, then keep
+    // only what is already on the chart for it plus the country being added
     const vb = await until(() => [...doc.querySelectorAll("#cmzInds button[data-base]")].filter(b => b.dataset.base === (BASE_OF[metric] || metric))[0], "indicator " + metric);
     click(vb);
+    [...doc.querySelectorAll("#cmzCountries label")].forEach(l => {
+      const i = l.querySelector("input"), keep = i.dataset.c === country || /On chart/.test(l.textContent);
+      if(i.checked !== keep){ i.checked = keep; i.dispatchEvent(new win.Event("change", { bubbles: true })); }
+    });
     click($("#cmzAdd"));
     await until(() => rows().length === n + 1, "series " + country + " " + metric + " added");
   }
