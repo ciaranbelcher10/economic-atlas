@@ -5574,26 +5574,49 @@ btnPng.addEventListener("click", function(){
   };
   img.src = url;
 });
+// v1.9.50: every text cell quoted (series labels contain commas, "US, Unemployment rate"), and a
+// notes block under the data naming each series' unit after its transform, the transform, and the
+// full source citation with its series code, so a downloaded file still says where it came from.
+function csvCell(v){
+  v = v === undefined || v === null ? "" : String(v);
+  return /[",\r\n]/.test(v) ? "\"" + v.replace(/"/g, "\"\"") + "\"" : v;
+}
+function csvUnit(s){
+  var u = transformUnit(s.unit, s.transform);
+  if(u === s.unit && isCurrencySeries(s)){
+    var code = (s.inUSD || isAlreadyUSDUnit(s.unit, s.country, s.metric)) ? "USD" : COUNTRY_CURRENCY[s.country];
+    if(code && CURRENCY_NAME[code]) u = u + " (" + CURRENCY_NAME[code] + ")";
+  }
+  return u || "";
+}
+function buildChartCSV(){
+  var fromV = fromPeriodSel.value, toV = toPeriodSel.value;
+  var live = liveSeries();
+  var perSeries = live.map(function(s){
+    var map = {};
+    applyTransform(s.rawPoints, s.transform).forEach(function(p){ if(p.x >= fromV && p.x <= toV) map[p.x] = p.y; });
+    return { s: s, map: map };
+  });
+  var periods = {};
+  perSeries.forEach(function(ps){ Object.keys(ps.map).forEach(function(k){ periods[k] = true; }); });
+  var rows = [["period"].concat(perSeries.map(function(ps){ return seriesLabel(ps.s); })).map(csvCell).join(",")];
+  Object.keys(periods).sort().forEach(function(l){
+    rows.push([l].concat(perSeries.map(function(ps){ var v = ps.map[l]; return v === undefined || v === null || !isFinite(v) ? "" : v; })).map(csvCell).join(","));
+  });
+  rows.push("");
+  rows.push(["Series", "Unit", "Transform", "Source"].map(csvCell).join(","));
+  series.forEach(function(s){
+    var src = s.missing ? "No data for this country on The Economic Atlas"
+      : (getSourceNote(s.country, displayMetric(s)) || "See theeconomicatlas.com/methodology") + (s.converted ? " (converted to USD)" : "");
+    rows.push([seriesLabel(s), s.missing ? "" : csvUnit(s), transformLabel(s.transform || "raw"), src].map(csvCell).join(","));
+  });
+  rows.push(csvCell("Downloaded from The Economic Atlas (theeconomicatlas.com) on " + new Date().toISOString().slice(0, 10) + ". Periods " + fromV + " to " + toV + "."));
+  return rows.join("\n") + "\n";
+}
 btnCsv.addEventListener("click", function(){
   if(!series.length) return;
   if(!czExportLoggedIn()){ window.EATLAS_OPEN_AUTH_MODAL(); return; }
-  var fromV = fromPeriodSel.value, toV = toPeriodSel.value;
-  var perSeries = series.map(function(s){
-    var transformed = applyTransform(s.rawPoints, s.transform);
-    var map = {};
-    transformed.forEach(function(p){ if(p.x >= fromV && p.x <= toV) map[p.x] = p.y; });
-    return { s: s, map: map };
-  });
-  var allPeriods = {};
-  perSeries.forEach(function(ps){ Object.keys(ps.map).forEach(function(k){ allPeriods[k] = true; }); });
-  var labels = Object.keys(allPeriods).sort();
-  var header = ["period"].concat(perSeries.map(function(ps){ return seriesLabel(ps.s); }));
-  var rows = [header.join(",")];
-  labels.forEach(function(l){
-    var row = [l].concat(perSeries.map(function(ps){ var v = ps.map[l]; return v === undefined ? "" : v; }));
-    rows.push(row.join(","));
-  });
-  var blob = new Blob([rows.join("\n")], {type:"text/csv"});
+  var blob = new Blob([buildChartCSV()], {type:"text/csv;charset=utf-8"});
   var url = URL.createObjectURL(blob);
   var a = document.createElement("a"); a.href = url; a.download = "chartmaker-export.csv"; a.click();
   URL.revokeObjectURL(url);
