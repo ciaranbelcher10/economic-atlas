@@ -2071,7 +2071,10 @@ function mergeLiveEvent(ev){
     country: ev.country,
     concept: normalisedConcept,
     name: ev.name,
-    sub: "Scheduled release date, taken from the publishing agency's own calendar.",
+    // v1.9.42: past events are now kept (calendar_history.py), so say which they are
+    sub: ev.date < fmtISO(today)
+      ? "Released on this date, as scheduled in the publishing agency's own calendar."
+      : "Scheduled release date, taken from the publishing agency's own calendar.",
     rate: isRate,
     src: ev.source
   });
