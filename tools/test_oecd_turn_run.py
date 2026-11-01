@@ -15,7 +15,7 @@ def check(cond, msg):
     if not cond: fails.append(msg)
 
 os.environ.pop("OECD_TURN_GROUP", None)
-os.environ["GITHUB_RUN_NUMBER"] = "1027"          # 1027 % 3 == 1 -> B
+os.environ["GITHUB_RUN_NUMBER"] = "1027"          # 1027 % 6 == 1 -> B
 check(ot.current_group() == "B", "run number decides the group")
 
 # The 4 Oct 14:57 run crossed 15:00; both checks must now agree.
@@ -25,7 +25,11 @@ for t in (datetime(2026, 10, 4, 14, 59, tzinfo=timezone.utc), datetime(2026, 10,
         dt.now.return_value = t
         check(ot.current_group() == "B", f"same group at {t:%H:%M} within one run")
 
-check([ot.ORDER[n % 3] for n in (1026, 1027, 1028, 1029)] == ["A", "B", "C", "A"], "consecutive runs rotate A, B, C")
+os.environ["GITHUB_RUN_NUMBER"] = "1029"
+check(ot.current_group() == "D", "run 1029 serves D (six groups since v1.9.57)")
+os.environ["GITHUB_RUN_NUMBER"] = "1027"
+seq = [ot.ORDER[n % len(ot.ORDER)] for n in range(1026, 1033)]
+check(seq == ["A", "B", "C", "D", "E", "F", "A"], f"consecutive runs rotate A to F: {seq}")
 check(ot.current_group(datetime(2026, 1, 1, 2, tzinfo=timezone.utc)) == "C", "explicit now still uses the clock")
 
 os.environ["OECD_TURN_GROUP"] = "A"

@@ -212,7 +212,7 @@ import oecd_turn  # noqa: E402
 _src = open(os.path.join(os.path.dirname(os.path.abspath(__file__)), "..", "fetch_lv.py"), encoding="utf-8").read()
 _geos = set(re.findall(r"geo=([A-Z]{2})", _src))
 check(_geos == {"LV"}, f"every Eurostat query in fetch_lv.py is geo=LV: {sorted(_geos)}")
-check(oecd_turn.GROUPS.get("fetch_lv.py") == "A", "fetch_lv.py mapped to oecd_turn group A")
+check(oecd_turn.GROUPS.get("fetch_lv.py") in oecd_turn.ORDER, "fetch_lv.py has an oecd_turn group")  # v1.9.57: the letter moves when groups are rebalanced
 check(_live_hash() == _LIVE_H0, "live data-lv.json untouched by this test")
 print(f"{N[0]} checks, {len(FAILS)} failures")
 sys.exit(1 if FAILS else 0)

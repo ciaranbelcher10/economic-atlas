@@ -1,4 +1,4 @@
-"""Rotate OECD requests across three country groups, one group per run
+"""Rotate OECD requests across six country groups (three until v1.9.57), one group per run
 (by GitHub run number since v1.6.44; by clock hour when run locally).
 
 Why. The OECD rate-limits by requests per window, and a single hourly run
@@ -85,7 +85,47 @@ GROUPS = {
     "fetch_my.py": "C",   # makes no OECD calls (Malaysia is not covered); mapped so the roster test holds
     "fetch_nz.py": "C",   # OECD-heavy (CPI, QNA, LFS, IRLT, BCI): C had four heavy countries, now five each
 }
-ORDER = ("A", "B", "C")
+
+# v1.9.57: six groups, not three. Group B had grown to 21 scripts, and in the 1 Nov 2026 19:10 run
+# every OECD request after about the 55th (Thailand onwards in run order) got HTTP 429, so Lithuania,
+# Slovenia, Greece, Hungary and Iceland lost their turn. Each group was split in two by alternating
+# along the workflow's run order (A -> A and D, B -> B and E, C -> C and F), so each run makes about
+# half the OECD requests and the heavy CPI scripts stay spread out. OECD data is now at most six
+# hourly runs old instead of three; the series are monthly or slower.
+SPLIT_V1957 = {
+    "fetch_ar.py": "F",
+    "fetch_at.py": "F",
+    "fetch_au.py": "D",
+    "fetch_be.py": "D",
+    "fetch_ch.py": "E",
+    "fetch_co.py": "D",
+    "fetch_dk.py": "D",
+    "fetch_eg.py": "D",
+    "fetch_fi.py": "D",
+    "fetch_hu.py": "E",
+    "fetch_ie.py": "E",
+    "fetch_il.py": "E",
+    "fetch_is.py": "E",
+    "fetch_it.py": "E",
+    "fetch_jp.py": "D",
+    "fetch_lt.py": "E",
+    "fetch_lu.py": "F",
+    "fetch_lv.py": "D",
+    "fetch_mt.py": "E",
+    "fetch_my.py": "F",
+    "fetch_nl.py": "F",
+    "fetch_pe.py": "F",
+    "fetch_ph.py": "F",
+    "fetch_pt.py": "E",
+    "fetch_sa.py": "D",
+    "fetch_sk.py": "F",
+    "fetch_tr.py": "F",
+    "fetch_za.py": "F",
+    "fetch_th.py": "E",   # 14 OECD requests in the 1 Nov log (CPI fallbacks); B keeps India, Indonesia, Mexico
+}
+# fetch_us.py stays with fetch_data.py in A (both write data-us.json); Germany (one light call) stays in B
+GROUPS.update(SPLIT_V1957)
+ORDER = ("A", "B", "C", "D", "E", "F")
 
 
 class NotThisHour(Exception):

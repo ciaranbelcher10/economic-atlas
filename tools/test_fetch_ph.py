@@ -256,7 +256,7 @@ for name, plant in {
     check(bool(audit(x)), f"audit catches: {name}")
 
 import oecd_turn  # noqa: E402
-check(oecd_turn.GROUPS.get("fetch_ph.py") == "C", "fetch_ph.py mapped to oecd_turn group C (no OECD calls; every script is mapped)")
+check(oecd_turn.GROUPS.get("fetch_ph.py") in oecd_turn.ORDER, "fetch_ph.py has an oecd_turn group (no OECD calls; every script is mapped)")  # v1.9.57: the letter moves when groups are rebalanced
 check("Philippines" in F.__doc__ and "fetch_my.py" in F.__doc__, "docstring names the country and the template")
 check((hashlib.sha256(open(LIVE, "rb").read()).hexdigest() if os.path.exists(LIVE) else None) == H0, "live data-ph.json untouched")
 print(f"{N[0]} checks, {len(BAD)} failures")

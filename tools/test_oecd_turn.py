@@ -36,29 +36,32 @@ def raises(script, hour):
 check("hour 0 serves A", ot.current_group(at(0)) == "A")
 check("hour 1 serves B", ot.current_group(at(1)) == "B")
 check("hour 2 serves C", ot.current_group(at(2)) == "C")
-check("hour 3 wraps back to A", ot.current_group(at(3)) == "A")
-check("hour 23 serves C", ot.current_group(at(23)) == "C")
-# every group gets exactly eight hours a day
-counts = {g: sum(1 for h in range(24) if ot.current_group(at(h)) == g) for g in "ABC"}
-check("each group gets eight hours a day", counts == {"A": 8, "B": 8, "C": 8})
-# and no country ever waits more than three hours between turns
+check("hour 3 serves D", ot.current_group(at(3)) == "D")
+check("hour 6 wraps back to A", ot.current_group(at(6)) == "A")
+check("hour 23 serves F", ot.current_group(at(23)) == "F")
+# every group gets exactly four hours a day (six groups since v1.9.57)
+counts = {g: sum(1 for h in range(24) if ot.current_group(at(h)) == g) for g in ot.ORDER}
+check("each group gets four hours a day", counts == {g: 4 for g in ot.ORDER})
+# and no country ever waits more than six hours between turns
 for script, grp in ot.GROUPS.items():
     hours = [h for h in range(24) if ot.current_group(at(h)) == grp]
     gaps = [(hours[(i + 1) % len(hours)] - hours[i]) % 24 for i in range(len(hours))]
-    if max(gaps) != 3:
-        check(f"{script} never waits more than three hours", False)
+    if max(gaps) != 6:
+        check(f"{script} never waits more than six hours", False)
         break
 else:
-    check("no country waits more than three hours between OECD turns", True)
+    check("no country waits more than six hours between OECD turns", True)
 
 # --- who skips ----------------------------------------------------------
-check("a group-A script fetches in hour 0", not raises("fetch_au.py", 0))
-check("a group-A script skips in hour 1", raises("fetch_au.py", 1))
+check("a group-A script fetches in hour 0", not raises("fetch_br.py", 0))
+check("a group-A script skips in hour 1", raises("fetch_br.py", 1))
+check("a group-D script fetches in hour 3", not raises("fetch_au.py", 3))
+check("a group-D script skips in hour 0", raises("fetch_au.py", 0))
 check("a group-B script fetches in hour 1", not raises("fetch_de.py", 1))
 check("a group-C script fetches in hour 2", not raises("fetch_no.py", 2))
 check("a group-C script skips in hour 0", raises("fetch_no.py", 0))
 check("a full path is resolved to its file name",
-      not raises("/home/runner/work/x/fetch_au.py", 0))
+      not raises("/home/runner/work/x/fetch_br.py", 0))
 
 # --- fail open ------------------------------------------------------------
 check("an unmapped script always fetches (a new country keeps working)",
@@ -73,8 +76,14 @@ check("fetch_data.py and fetch_us.py share a group (both write data-us.json)",
 heavy = {"fetch_au.py", "fetch_br.py", "fetch_ca.py", "fetch_cl.py", "fetch_co.py",
          "fetch_ch.py", "fetch_id.py", "fetch_in.py", "fetch_il.py", "fetch_mx.py",
          "fetch_no.py", "fetch_za.py", "fetch_kr.py", "fetch_tr.py", "fetch_nz.py"}
-per = {g: sum(1 for s in heavy if ot.GROUPS[s] == g) for g in "ABC"}
-check("heavy OECD countries spread five, five, five", sorted(per.values()) == [5, 5, 5])
+per = {g: sum(1 for s in heavy if ot.GROUPS[s] == g) for g in ot.ORDER}
+# v1.9.57: six groups; fifteen heavy countries spread three or two per group
+check("heavy OECD countries spread evenly (3 or 2 per group) " + str(per), sorted(per.values()) == [2, 2, 2, 3, 3, 3])
+check("six groups in rotation", ot.ORDER == ("A", "B", "C", "D", "E", "F"))
+check("no group holds more than 12 scripts " + str({g: list(ot.GROUPS.values()).count(g) for g in ot.ORDER}),
+      max(list(ot.GROUPS.values()).count(g) for g in ot.ORDER) <= 12)
+check("India, Indonesia, Mexico and Thailand are not all in one turn (the 14-request CPI scripts)",
+      len({ot.GROUPS[s] for s in ("fetch_in.py", "fetch_id.py", "fetch_mx.py", "fetch_th.py")}) >= 2)
 # Every country fetch script is mapped (fetch_xx.py plus fetch_data.py and
 # fetch_us.py), however many countries there are. Counting a fixed number
 # broke the moment a country was added (v1.6.49, China).

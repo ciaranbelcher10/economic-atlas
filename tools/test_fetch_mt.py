@@ -211,7 +211,7 @@ import oecd_turn  # noqa: E402
 _src = open(os.path.join(os.path.dirname(os.path.abspath(__file__)), "..", "fetch_mt.py"), encoding="utf-8").read()
 _geos = set(re.findall(r"geo=([A-Z]{2})", _src))
 check(_geos == {"MT"}, f"every Eurostat query in fetch_mt.py is geo=MT: {sorted(_geos)}")
-check(oecd_turn.GROUPS.get("fetch_mt.py") == "B", "fetch_mt.py mapped to oecd_turn group B")
+check(oecd_turn.GROUPS.get("fetch_mt.py") in oecd_turn.ORDER, "fetch_mt.py has an oecd_turn group")  # v1.9.57: the letter moves when groups are rebalanced
 check(_live_hash() == _LIVE_H0, "live data-mt.json untouched by this test")
 print(f"{N[0]} checks, {len(FAILS)} failures")
 sys.exit(1 if FAILS else 0)

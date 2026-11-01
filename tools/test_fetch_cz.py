@@ -241,7 +241,7 @@ for name, plant in {
 check(F.__doc__ and "Czechia" in F.__doc__ and "Greece" in F.__doc__ and "Poland" in F.__doc__,
       "docstring describes Czechia and its templates")
 import oecd_turn  # noqa: E402
-check(oecd_turn.GROUPS.get("fetch_cz.py") == "A", "fetch_cz.py mapped to oecd_turn group A")
+check(oecd_turn.GROUPS.get("fetch_cz.py") in oecd_turn.ORDER, "fetch_cz.py has an oecd_turn group")  # v1.9.57: the letter moves when groups are rebalanced
 check(_live_hash() == _LIVE_H0, "live data-cz.json untouched by this test")
 print(f"{N[0]} checks, {len(FAILS)} failures")
 sys.exit(1 if FAILS else 0)
