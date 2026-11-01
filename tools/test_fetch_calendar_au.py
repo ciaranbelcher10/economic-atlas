@@ -88,6 +88,16 @@ def good(u):
     return R(f"<html>release-calendar {A.MONTHS[m]} {y}<table><tr><td>1</td></tr><tr><td></td></tr></table></html>")
 rc, out = run(good)
 check(rc == 0 and {(e["date"], e["concept"]) for e in out["events"]} == WANT, f"good run writes the January releases: {rc}")
+# v1.9.56: the RBA dates are merged into the file main() writes, next to the ABS releases
+FX = Path(__file__).resolve().parent / "fixtures" / "calendar"
+RBA_S = (FX / "rba_board_meeting_schedules_202611.html").read_text()
+RBA_T = (FX / "rba_int_rate_decisions_202611.html").read_text()
+rc, out = run(lambda u: R(RBA_S) if u == A.RBA_URL else R(RBA_T) if u == A.RBA_TIME_URL else good(u))
+rba = [e for e in out.get("events", []) if isinstance(e, dict) and e.get("concept") == "rate_decision"]
+check(rc == 0 and [e["date"] for e in rba] == ["2027-02-09", "2027-03-23", "2027-05-04", "2027-06-22", "2027-08-10",
+      "2027-09-28", "2027-11-02", "2027-12-14"] and rba[0]["time"] == "2:30pm Sydney time",
+      f"RBA decisions after 2 Jan 2027 are written with the ABS releases: {[e['date'] for e in rba]}")
+check(any(e.get("concept") == "cpi" for e in out.get("events", []) if isinstance(e, dict)), "ABS releases still written alongside")
 check(out.get("country") == "Australia" and "generated" in out, "file shape")
 check(hashlib.sha256(LIVE.read_bytes()).hexdigest() == H0, "live data-calendar-au.json untouched")
 print(f"{ok} ok, {bad} failed")

@@ -15,8 +15,15 @@ Served (title as the ABS writes it):
   ppi    Producer Price Indexes, Australia (quarterly)
 "Updated information" re-releases are skipped.
 
-Not served: RBA cash rate decisions. rba.gov.au returns a "JavaScript is blocked"
-page to scripts, so the dates stay off the calendar rather than being hand-entered.
+RBA cash rate decisions (v1.9.56, rate_decision): read from the RBA's Board Meeting
+Schedules page, one table per year ("Board meeting schedules 2026"), a row per month with
+the Monetary Policy Board meeting in the first column ("2&ndash;3 November"). The decision
+is announced on the meeting's last day, at the time the RBA's decisions page states ("at
+2.30 pm after each Board meeting"). The RBA part is checked on its own: each year table
+must hold 6 to 12 meetings whose month matches their row. If it fails or the site is
+blocked, the ABS releases are still written and the RBA dates already on file are kept,
+with the reason in the log. (An earlier check found rba.gov.au served GitHub's runners a
+"JavaScript is blocked" page; a probe from a Mac on 1 Nov 2026 read it with no wall.)
 
 Integrity: every page must be an ABS release-calendar page for the month asked for;
 every event's date must fall inside that month; the first three months must all
@@ -41,6 +48,10 @@ SRC = "abs.gov.au release calendar (official monthly calendar pages)"
 UA = {"User-Agent": "Mozilla/5.0 (Macintosh; Intel Mac OS X 10_15_7) AppleWebKit/537.36 "
                     "(KHTML, like Gecko) Chrome/124.0 Safari/537.36",
       "Accept-Language": "en"}
+RBA_URL = "https://www.rba.gov.au/schedules-events/board-meeting-schedules.html"
+RBA_TIME_URL = "https://www.rba.gov.au/monetary-policy/int-rate-decisions/"
+RBA_SRC = "rba.gov.au Board Meeting Schedules (Monetary Policy Board)"
+RBA_NAME = "RBA Monetary Policy Board decision (cash rate target)"
 MONTHS_AHEAD = 6
 MUST_LOAD = 3
 # titles are matched exactly and must be followed by a period, so "Labour Force,
@@ -149,6 +160,82 @@ def parse_month(markup: str, y: int, m: int) -> tuple[list[dict], list[str]]:
     return events, problems
 
 
+def rba_time(markup: str) -> str:
+    """'2:30pm Sydney time' from the decisions page sentence, or '' if it is not there."""
+    t = re.sub(r"<[^>]+>", " ", markup)
+    m = re.search(r"decision at\s+(\d{1,2})[.:](\d{2})\s*([ap])\.?m\.?\s+after each (?:Monetary Policy )?Board meeting",
+                  html.unescape(t), re.I)
+    return f"{int(m.group(1))}:{m.group(2)}{m.group(3).lower()}m Sydney time" if m else ""
+
+
+def parse_rba(markup: str, time_label: str = "") -> tuple[list[dict], list[str]]:
+    """Monetary Policy Board decision dates (each meeting's last day), and problems."""
+    tables = re.findall(r"<table[\s\S]*?</table>", markup, re.I)
+    years = [(re.search(r"Board meeting schedules\s+(\d{4})", re.sub(r"<[^>]+>", " ", t)), t) for t in tables]
+    years = [(int(m.group(1)), t) for m, t in years if m]
+    if not years:
+        return [], ["no 'Board meeting schedules <year>' table (bot wall or a changed page?)"]
+    events, problems = [], []
+    for y, t in years:
+        head = re.search(r"<thead[\s\S]*?</thead>", t, re.I)
+        cols = [cell_text(c) for c in re.findall(r"<th[^>]*>([\s\S]*?)</th>", head.group(0) if head else "", re.I)]
+        if len(cols) < 2 or cols[1] != "Monetary Policy Board":
+            problems.append(f"{y}: second column is {cols[1:2]}, not 'Monetary Policy Board'")
+            continue
+        n = 0
+        for row in re.findall(r"<tr[^>]*>([\s\S]*?)</tr>", t, re.I):
+            rh = re.search(r'<th[^>]*scope="row"[^>]*>([\s\S]*?)</th>', row, re.I)
+            tds = [cell_text(c) for c in re.findall(r"<td[^>]*>([\s\S]*?)</td>", row, re.I)]
+            if not rh or not tds or not tds[0]:
+                continue
+            row_month = cell_text(rh.group(1))
+            m = re.fullmatch(r"(\d{1,2})(?:\s+(" + "|".join(MONTHS[1:]) + r"))?(?:\s*[\u2013-]\s*(\d{1,2}))?\s+("
+                             + "|".join(MONTHS[1:]) + r")", tds[0])
+            if not m:
+                problems.append(f"{y} {row_month}: meeting cell not read: {tds[0]!r}")
+                continue
+            end_day, end_month = int(m.group(3) or m.group(1)), m.group(4)
+            if (m.group(2) or end_month) != row_month and end_month != row_month:
+                problems.append(f"{y} {row_month}: meeting {tds[0]!r} is not in its row's month")
+                continue
+            try:
+                d = date(y, MONTHS.index(end_month), end_day)
+            except ValueError:
+                problems.append(f"{y}: impossible date {tds[0]!r}")
+                continue
+            n += 1
+            ev = {"date": d.isoformat(), "country": "Australia", "concept": "rate_decision",
+                  "name": RBA_NAME, "source": RBA_SRC}
+            if time_label:
+                ev["time"] = time_label
+            events.append(ev)
+        if not 6 <= n <= 12:
+            problems.append(f"{y}: {n} Monetary Policy Board meetings; the RBA holds 8 a year")
+    return events, problems
+
+
+def fetch_rba(s, previous: list[dict], today: str) -> tuple[list[dict], str]:
+    """RBA decision dates, or the ones already on file if the RBA cannot be read. Never raises."""
+    kept = [e for e in (previous if isinstance(previous, list) else [])
+            if isinstance(e, dict) and e.get("concept") == "rate_decision" and str(e.get("date", "")) >= today]
+    try:
+        r = s.get(RBA_URL, timeout=40)
+        r.raise_for_status()
+        page = r.content.decode("utf-8", "replace")
+        try:
+            t = s.get(RBA_TIME_URL, timeout=40)
+            label = rba_time(t.content.decode("utf-8", "replace")) if t.status_code == 200 else ""
+        except requests.RequestException:
+            label = ""
+        ev, pr = parse_rba(page, label)
+        if pr:
+            raise ValueError("; ".join(pr[:3]) + f" | sample: {re.sub(r'\s+', ' ', page[:200])}")
+        note = "" if label else " (decision time not found on the RBA decisions page; dates only)"
+        return ev, f"RBA: {len([e for e in ev if e['date'] >= today])} upcoming decisions{note}"
+    except Exception as e:
+        return kept, f"WARNING RBA: {type(e).__name__}: {str(e)[:300]}; kept {len(kept)} RBA dates already on file"
+
+
 def sample(markup: str) -> str:
     busy = [c for r in rows_of(markup) for c in r if len(c) > 20][:2]
     return " || ".join(x[:200] for x in busy) or re.sub(r"\s+", " ", markup[:300])
@@ -185,6 +272,14 @@ def main() -> int:
               file=sys.stderr)
         return 1
     t0 = today.isoformat()
+    try:
+        with open(OUT) as f:
+            previous = json.load(f).get("events", [])
+    except (OSError, ValueError):
+        previous = []
+    rba, rba_note = fetch_rba(s, previous, t0)
+    print(rba_note, file=sys.stderr if rba_note.startswith("WARNING") else sys.stdout)
+    events = events + rba
     events = sorted({(e["date"], e["concept"]): e for e in events if e["date"] >= t0}.values(),
                     key=lambda e: (e["date"], e["concept"]))
     if not events:
