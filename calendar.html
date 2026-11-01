@@ -1600,7 +1600,7 @@ var COUNTRY_COLOR = {Taiwan:"#2B8C8C", Iceland:"#3A86B4", "Hong Kong":"#B5345F",
 // tools/add_country.py adds each new euro member here.
 var ECB_MEMBERS = ["Austria","Belgium","Finland","France","Germany","Greece","Ireland","Italy","Netherlands","Portugal","Spain","Slovakia","Croatia","Bulgaria","Lithuania","Estonia","Latvia","Slovenia","Luxembourg","Cyprus","Malta"];
 var COUNTRIES_WITH_DATA = ["Brazil", "Canada", "Chile", "Eurozone",
-  "Indonesia", "Israel", "Japan", "Mexico", "Norway", "Poland",
+  "Indonesia", "Israel", "Japan", "Norway",
   "South Africa", "Sweden", "Switzerland", "Turkey", "UK", "US",
   "China", "Malaysia", "New Zealand", "Czechia", "Hungary",
   "Iceland", "Hong Kong", "Vietnam", "Nigeria", "Taiwan", "Australia",
@@ -1669,15 +1669,19 @@ function isLoggedIn(){
   return !!(window.EATLAS_PREFS && window.EATLAS_PREFS.isLoggedIn && window.EATLAS_PREFS.isLoggedIn());
 }
 
+// v1.9.49: a saved list may name a country since taken off the calendar (Mexico,
+// Poland); keep only countries still on it, and fall back to all if none are left.
+function keepCovered(list){
+  var kept = Array.isArray(list) ? list.filter(function(c){ return ALL_COUNTRIES.indexOf(c) !== -1; }) : [];
+  return kept.length ? kept : ALL_COUNTRIES.slice();
+}
 function loadTrackedCountries(){
   if(isLoggedIn()){
-    var saved = window.EATLAS_PREFS.get("calendar_tracked_countries", null);
-    if(Array.isArray(saved) && saved.length) return saved;
-    return ALL_COUNTRIES.slice();
+    return keepCovered(window.EATLAS_PREFS.get("calendar_tracked_countries", null));
   }
   try{
     var raw = localStorage.getItem(LOCAL_FALLBACK_COUNTRIES_KEY);
-    if(raw){ var parsed = JSON.parse(raw); if(Array.isArray(parsed) && parsed.length) return parsed; }
+    if(raw) return keepCovered(JSON.parse(raw));
   }catch(e){}
   return ALL_COUNTRIES.slice();
 }
@@ -1926,7 +1930,9 @@ function wireCalendarInteractions(){
   ];
   // Economies on the site whose release dates cannot be read yet (blocked or script-only
   // publisher pages). Shown greyed so their absence is explained rather than silent.
-  var CTP_NOT_YET = ["Argentina","Egypt","India","Morocco","Pakistan","Peru","Philippines","Romania","Saudi Arabia","Singapore"]
+  // v1.9.49: Mexico (Banxico page moved, INEGI captcha) and Poland (NBP bot wall) moved here
+  // from COUNTRIES_WITH_DATA until the calendar workflow can drive a headless browser.
+  var CTP_NOT_YET = ["Argentina","Egypt","India","Mexico","Morocco","Pakistan","Peru","Philippines","Poland","Romania","Saudi Arabia","Singapore"]
     .filter(function(c){ return ALL_COUNTRIES.indexOf(c) === -1; });
   var CTP_ORDER = ["rate_decision", "cpi", "gdp", "jobs", "trade", "ppi", "pce", "public_finances"];
   var ctpQuery = "";
