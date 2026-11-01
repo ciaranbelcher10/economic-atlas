@@ -105,8 +105,8 @@ check("policy_rate" not in s and "current_account" not in s and "fdi" not in s, 
 fred_ids = [u.split("series_id=")[1].split("&")[0] for u in SEEN if "stlouisfed" in u]
 check(all(("AT" not in x[5:] and "BE" not in x[5:]) for x in fred_ids if x.startswith(("CP0000", "IRLT", "LRAC", "LREM", "LRHU"))),
       f"no Belgian or Austrian series ids left: {fred_ids}")
-check({"CP0000LUM086NEST", "IRLTLT01LUM156N", "ECBDFR", "DEXUSEU"} <= set(fred_ids) and not {"LRAC64TTLUQ156S", "LREM64TTLUQ156S"} & set(fred_ids),
-      f"asks FRED for the Luxembourg ids: {fred_ids}")
+check({"CP0000LUM086NEST", "ECBDFR", "DEXUSEU"} <= set(fred_ids) and "IRLTLT01LUM156N" not in fred_ids and not {"LRAC64TTLUQ156S", "LREM64TTLUQ156S"} & set(fred_ids),
+      f"asks FRED for the Luxembourg ids, and no longer for the bond yield (v1.9.54): {fred_ids}")
 check("CPMNACSCAB1GQEE" not in fred_ids and "LRHUTTTTLUM156S" not in fred_ids, "Eurostat GDP/unemployment used, FRED copies not fetched")
 check(all("LUM086" in s[k]["label"] for k in ("cpi", "cpi_mom")), "HICP labels name the Luxembourg series")
 check(s["cpi"]["points"][0][0] == "1997-01" and s["cpi_mom"]["points"][0][0] == "1996-02", f"HICP not trimmed (no SERIES_START for cpi): first {s['cpi']['points'][0][0]}")
@@ -177,12 +177,11 @@ DOWN.discard("eurostat-lfsi")
 check(any("geo=LU" in u and "age=Y15-64" in u for u in SEEN), "Eurostat labour query is Luxembourg, ages 15-64")
 DOWN.clear(); install()
 _, d9, _ = run()
-# v1.9.51: since v1.8.11 Eurostat is always asked, but only to extend FRED's series past its last
-# month; with FRED answering, the series stays FRED's and no FRED month is replaced
+# v1.9.54: the bond yield comes from Eurostat irt_lt_mcby_m only (FRED's copy failed every run from
+# 21 Oct 2026), and its label names the Eurostat code the page cites
 b9 = d9["series"]["bond_yield_10y"]
-check("IRLTLT01LUM156N" in b9["label"] and "irt_lt_mcby_m" not in b9["label"].split("extended")[0],
-      f"FRED answers: bond series stays FRED's ({b9['label']})")
-check(any("irt_lt_mcby_m" in u for u in SEEN), "FRED answers: Eurostat asked only to extend the latest month")
+check("irt_lt_mcby_m" in b9["label"] and "IRLTLT01LUM156N" not in b9["label"], f"bond yield from Eurostat, labelled so: {b9['label']}")
+check(any("irt_lt_mcby_m" in u and "geo=LU" in u for u in SEEN), "Eurostat asked for the LU yield")
 
 # audit: clean synthetic file passes structure; planted faults are caught
 sys.path.insert(0, os.path.join(os.path.dirname(os.path.abspath(__file__))))

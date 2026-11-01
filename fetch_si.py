@@ -68,7 +68,9 @@ FRED_SERIES = {
     "gdp_level": ("CPMNACSCAB1GQEE", "q", "Nominal GDP, current prices, SCA (Eurostat)", "\u20acm", None, 1.0),
     "gdp_real": ("CLVMNACSCAB1GQEE", "q", "Real GDP, chain-linked volumes, SCA (Eurostat)", "\u20acm", None, 1.0),
     "unemployment": ("LRHUTTTTSIM156S", "m", "Unemployment rate, 15+, SA (OECD harmonized)", "%", None, 1.0),
-    "bond_yield_10y": ("IRLTLT01SIM156N", "m", "10-year government bond yield", "%", None, 1.0),
+    # v1.9.54: bond_yield_10y comes from Eurostat irt_lt_mcby_m only. FRED's OECD copy (IRLTLT01SIM156N)
+    # failed every run from 21 Oct 2026 while the pages still cited it; Eurostat is the fresher of the
+    # two and is what the site has shown since. A failed Eurostat run keeps the previous series.
     "cpi": ("CP0000SIM086NEST", "m", "HICP, all items, YoY", "%", "yoy", 1.0),
     "cpi_mom": ("CP0000SIM086NEST", "m", "HICP, all items, MoM", "%", "mom", 1.0),
 }
