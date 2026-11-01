@@ -105,8 +105,8 @@ check("policy_rate" not in s and "current_account" not in s and "fdi" not in s, 
 fred_ids = [u.split("series_id=")[1].split("&")[0] for u in SEEN if "stlouisfed" in u]
 check(all(("AT" not in x[5:] and "BE" not in x[5:]) for x in fred_ids if x.startswith(("CP0000", "IRLT", "LRAC", "LREM", "LRHU"))),
       f"no Belgian or Austrian series ids left: {fred_ids}")
-check({"CP0000LVM086NEST", "IRLTLT01LVM156N", "ECBDFR", "DEXUSEU"} <= set(fred_ids) and not {"LRAC64TTLVQ156S", "LREM64TTLVQ156S"} & set(fred_ids),
-      f"asks FRED for the Latvian ids: {fred_ids}")
+check({"CP0000LVM086NEST", "ECBDFR", "DEXUSEU"} <= set(fred_ids) and not {"IRLTLT01LVM156N", "LRAC64TTLVQ156S", "LREM64TTLVQ156S"} & set(fred_ids),
+      f"asks FRED for the Latvian ids it can serve, not the ones that answer HTTP 400 (v1.9.12): {fred_ids}")
 check("CPMNACSCAB1GQEE" not in fred_ids and "LRHUTTTTLVM156S" not in fred_ids, "Eurostat GDP/unemployment used, FRED copies not fetched")
 check(all("LVM086" in s[k]["label"] for k in ("cpi", "cpi_mom")), "HICP labels name the Latvian series")
 check(s["cpi"]["points"][0][0] == "1997-01" and s["cpi_mom"]["points"][0][0] == "1996-02", f"HICP not trimmed (no SERIES_START for cpi): first {s['cpi']['points'][0][0]}")
@@ -177,7 +177,7 @@ DOWN.discard("eurostat-lfsi")
 check(any("geo=LV" in u and "age=Y15-64" in u for u in SEEN), "Eurostat labour query is Latvia, ages 15-64")
 DOWN.clear(); install()
 _, d9, _ = run()
-check(not any("irt_lt_mcby_m" in u for u in SEEN), "no bond fallback call when FRED answers")
+check(any("irt_lt_mcby_m" in u and "LV" in u for u in SEEN), "v1.9.12: the 10-year yield is asked of Eurostat first (FRED answers HTTP 400)")
 
 # audit: clean synthetic file passes structure; planted faults are caught
 sys.path.insert(0, os.path.join(os.path.dirname(os.path.abspath(__file__))))

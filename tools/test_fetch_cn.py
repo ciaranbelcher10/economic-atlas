@@ -172,7 +172,7 @@ sys.argv[0] = "fetch_cn.py"; oecd_turn._announced = False
 rc6, d6 = run(prev=d)
 check("off-turn keeps OECD series", all(d6["series"][k] == s[k] for k in ("gdp_level", "cpi", "business_confidence", "bond_yield_10y")))
 check("off-turn still fetches BIS and World Bank", d6["series"]["policy_rate"] == s["policy_rate"] and "unemployment" in d6["series"])
-check("fetch_cn.py is in turn group C", oecd_turn.GROUPS.get("fetch_cn.py") == "C")
+check("fetch_cn.py has an oecd_turn group", oecd_turn.GROUPS.get("fetch_cn.py") in oecd_turn.ORDER)  # v1.9.58: the letter moves when groups are rebalanced
 
 # trade tiles end on the same month, including when the guard carries a longer previous exports series
 import fetch_cn as _fc

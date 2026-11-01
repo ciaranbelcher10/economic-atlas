@@ -12,6 +12,15 @@ LIVE = os.path.join(HERE, "..", "data-sa.json")
 H0 = hashlib.sha256(open(LIVE, "rb").read()).hexdigest() if os.path.exists(LIVE) else None
 os.environ["OECD_TURN_GROUP"] = "ALL"
 import fetch_sa as F  # noqa: E402
+
+# v1.9.58: the fixtures are laid out as the sources stood in mid-October 2026, and the script's
+# "too old to show as current" checks compare against today. Pin the script's clock to that date
+# (as test_fetch_ph.py does since v1.9.51) so the test keeps testing the parsers as time passes.
+class _FixedNow(F.datetime):
+    @classmethod
+    def now(cls, tz=None):
+        return F.datetime(2026, 10, 15, 12, 0, tzinfo=tz)
+F.datetime = _FixedNow
 import audit_sa as A  # noqa: E402
 F.OECD_PAUSE = 0
 
@@ -169,7 +178,7 @@ for name, plant in {
     check(bool(audit(x)), f"audit catches: {name}")
 
 import oecd_turn  # noqa: E402
-check(oecd_turn.GROUPS.get("fetch_sa.py") == "A", "fetch_sa.py in oecd_turn group A")
+check(oecd_turn.GROUPS.get("fetch_sa.py") in oecd_turn.ORDER, "fetch_sa.py has an oecd_turn group")  # v1.9.58: the letter moves when groups are rebalanced
 check("Saudi Arabia" in F.__doc__ and "modelled" in F.__doc__, "docstring names the country and the unemployment stand-in")
 check((hashlib.sha256(open(LIVE, "rb").read()).hexdigest() if os.path.exists(LIVE) else None) == H0, "live data-sa.json untouched")
 print(f"{N[0]} checks, {len(BAD)} failures")

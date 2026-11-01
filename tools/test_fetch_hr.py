@@ -105,8 +105,8 @@ check("policy_rate" not in s and "current_account" not in s and "fdi" not in s, 
 fred_ids = [u.split("series_id=")[1].split("&")[0] for u in SEEN if "stlouisfed" in u]
 check(all(("AT" not in x[5:] and "BE" not in x[5:]) for x in fred_ids if x.startswith(("CP0000", "IRLT", "LRAC", "LREM", "LRHU"))),
       f"no Belgian or Austrian series ids left: {fred_ids}")
-check({"CP0000HRM086NEST", "IRLTLT01HRM156N", "LRAC64TTHRQ156S", "LREM64TTHRQ156S", "ECBDFR", "DEXUSEU"} <= set(fred_ids),
-      f"asks FRED for the Croatian ids: {fred_ids}")
+check({"CP0000HRM086NEST", "ECBDFR", "DEXUSEU"} <= set(fred_ids) and not {"IRLTLT01HRM156N", "LRAC64TTHRQ156S", "LREM64TTHRQ156S"} & set(fred_ids),
+      f"asks FRED for the Croatian ids it can serve, not the ones that answer HTTP 400 (v1.9.12): {fred_ids}")
 check("CPMNACSCAB1GQHR" not in fred_ids and "LRHUTTTTHRM156S" not in fred_ids, "Eurostat GDP/unemployment used, FRED copies not fetched")
 check(all("HRM086" in s[k]["label"] for k in ("cpi", "cpi_mom")), "HICP labels name the Croatian series")
 check(s["ecb_rate"]["points"][0][0] == "2023-01", f"ECB rate served from euro entry (2023-01): first {s['ecb_rate']['points'][0][0]}")
@@ -173,7 +173,7 @@ DOWN.discard("eurostat-lfsi")
 check(any("geo=HR" in u and "age=Y15-64" in u for u in SEEN), "Eurostat labour query is Croatia, ages 15-64")
 DOWN.clear(); install()
 _, d9, _ = run()
-check(not any("ec.europa.eu/eurostat" in u for u in SEEN), "no Eurostat fallback calls when FRED answers")
+check(any("irt_lt_mcby_m" in u and "HR" in u for u in SEEN), "v1.9.12: the 10-year yield is asked of Eurostat first (FRED answers HTTP 400)")
 
 # audit: clean synthetic file passes structure; planted faults are caught
 sys.path.insert(0, os.path.join(os.path.dirname(os.path.abspath(__file__))))

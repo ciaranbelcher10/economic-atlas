@@ -4,6 +4,14 @@ import sys
 sys.path.insert(0, os.path.dirname(os.path.dirname(os.path.abspath(__file__))))
 sys.path.insert(0, os.path.dirname(os.path.abspath(__file__)))
 import fetch_pe as e
+
+# v1.9.58: fixtures laid out as the sources stood in mid-October 2026; the "too old" checks compare
+# against today, so pin the script's clock to that date (as test_fetch_ph.py and test_fetch_sa.py do).
+class _FixedNow(e.datetime):
+    @classmethod
+    def now(cls, tz=None):
+        return e.datetime(2026, 10, 15, 12, 0, tzinfo=tz)
+e.datetime = _FixedNow
 import imf_weo
 import bis_daily
 from fake_net import FakeNet, Checker, bis_rows, months, wb, run_main
