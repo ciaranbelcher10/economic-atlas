@@ -1352,6 +1352,12 @@ button.mtoggle.fx-both{background:#2FA463; border-color:#2FA463; color:#fff;}
 .cm-lbl .main-edit{font-weight:700; font-size:12.5px; width:100%; border:1px solid transparent; background:none; color:var(--ink); padding:2px 20px 2px 4px; border-radius:5px; font-family:inherit;}
 .cm-lbl .main-edit:hover{border-color:var(--hair);}
 .cm-lbl .main-edit:focus{border-color:var(--blue); background:var(--paper); outline:none;}
+.cmx-evlbl{font-size:11px; font-weight:700; color:var(--ink2); margin:2px 0 -2px;}
+.cmx-evrow{display:flex; align-items:center; gap:10px;}
+.cmx-evfs{display:flex; align-items:center; gap:6px; flex-shrink:0;}
+.cmx-evfs button{width:24px; height:24px; border:1px solid var(--hair); background:var(--panel); color:var(--ink); border-radius:6px; cursor:pointer; font-size:13px; line-height:1;}
+.cmx-evfs button:disabled{opacity:.4; cursor:default;}
+.cmx-evfs span{font-size:11.5px; min-width:18px; text-align:center;}
 .cm-lbl-pencil{position:absolute; right:5px; top:50%; transform:translateY(-50%); width:12px; height:12px; color:var(--ink2); opacity:.55; pointer-events:none;}
 .cm-lbl select{width:100%; margin-top:4px; padding:4px 6px; font-size:12px; border:1px solid var(--hair); border-radius:6px; background:var(--paper); color:var(--ink);}
 .cm-rm{background:none; border:none; color:var(--ink2); font-size:17px; padding:0 2px; line-height:1; cursor:pointer; flex:0 0 auto;}
@@ -1679,7 +1685,7 @@ button.mtoggle.fx-both{background:#2FA463; border-color:#2FA463; color:#fff;}
  <div id="cmColorsEmpty" class="cm-status" style="margin-top:0;">Add a metric to choose its colour.</div>
  <div id="cmColorsList"></div>
  <div class="cm-row" id="cmThresholdShadeRow" style="display:none;">
- <span>Colour bars by above/below reference line (overrides country colours)</span>
+ <span id="cmThresholdShadeLabel">Colour bars by above/below reference line (overrides country colours)</span>
  <input type="checkbox" id="cmThresholdShadeToggle">
  </div>
  <div class="cm-row" id="cmFillRow">
@@ -1741,7 +1747,7 @@ button.mtoggle.fx-both{background:#2FA463; border-color:#2FA463; color:#fff;}
  <div class="cmx-group" id="cmEventsPanel"><h4>Events</h4>
  <div id="cmAnnotList"></div>
  <button type="button" class="cm-addbtn" id="cmAddAnnotBtn">+ Add event</button>
- <p style="font-size:11.5px; color:var(--ink2); margin:9px 0 0; line-height:1.4;">Up to 6. Pick the date, line or arrow, and where the label sits relative to it.</p>
+ <p style="font-size:11.5px; color:var(--ink2); margin:9px 0 0; line-height:1.4;">Up to 6. Each event has its own date, shape, label position and size. Drag a label on the chart to move it.</p>
  </div>
  </div>
  </section>
@@ -2815,6 +2821,8 @@ var style = {
   barOrient: "vertical", dataLabels: false, dataLabelSize: 11,
   snapshotAt: ""   // v1.9.34: the period the bars compare ("" = the end of the date range)
 };
+// v1.9.40: a copy of the starting settings, so a chart without ChartMaker settings (or Reset) starts clean
+var STYLE_DEFAULTS = JSON.parse(JSON.stringify(style));
 // v1.9.32: fonts installed on practically every computer and phone, so a downloaded PNG looks like the screen
 var CHART_FONTS = {
   helvetica: "Helvetica, Arial, sans-serif",
@@ -4151,7 +4159,22 @@ function renderAnnotList(){
     var labelBox = document.createElement("textarea"); labelBox.value = a.label; labelBox.maxLength = 90;
     labelBox.className = "cm-annot-label-box";
     labelBox.addEventListener("input", function(){ a.label = labelBox.value || "Event"; updateSummary(); renderChart(); });
-    body.appendChild(dateSel); body.appendChild(typeSeg); body.appendChild(alignSeg);
+    // v1.9.40: per-event label size, as Customise & export has (9 to 20).
+    var fsWrap = document.createElement("div"); fsWrap.className = "cmx-evfs";
+    var fsMinus = document.createElement("button"); fsMinus.type = "button"; fsMinus.innerHTML = "&minus;"; fsMinus.setAttribute("aria-label", "Smaller label");
+    var fsVal = document.createElement("span"); fsVal.textContent = a.fontSize || 11;
+    var fsPlus = document.createElement("button"); fsPlus.type = "button"; fsPlus.textContent = "+"; fsPlus.setAttribute("aria-label", "Larger label");
+    function setFs(v){ a.fontSize = Math.max(9, Math.min(20, v)); fsVal.textContent = a.fontSize; fsMinus.disabled = a.fontSize <= 9; fsPlus.disabled = a.fontSize >= 20; renderChart(); }
+    fsMinus.disabled = (a.fontSize||11) <= 9; fsPlus.disabled = (a.fontSize||11) >= 20;
+    fsMinus.addEventListener("click", function(){ setFs((a.fontSize||11) - 1); });
+    fsPlus.addEventListener("click", function(){ setFs((a.fontSize||11) + 1); });
+    fsWrap.appendChild(fsMinus); fsWrap.appendChild(fsVal); fsWrap.appendChild(fsPlus);
+    function evLabel(txt){ var l = document.createElement("label"); l.className = "cmx-evlbl"; l.textContent = txt; return l; }
+    var posRow = document.createElement("div"); posRow.className = "cmx-evrow";
+    alignSeg.style.flex = "1"; posRow.appendChild(alignSeg); posRow.appendChild(fsWrap);
+    body.appendChild(evLabel("Date")); body.appendChild(dateSel);
+    body.appendChild(evLabel("Shape")); body.appendChild(typeSeg);
+    body.appendChild(evLabel("Label position and size")); body.appendChild(posRow);
     // Which line the arrow points at -- only meaningful for the arrow
     // type, and only worth showing once there's more than one line to
     // choose between. This is the fix for the reported bug: an arrow
@@ -4165,12 +4188,12 @@ function renderAnnotList(){
         targetSel.appendChild(o);
       });
       var targetLabel = document.createElement("label");
-      targetLabel.style.cssText = "font-size:11px; font-weight:700; color:var(--ink2); margin-top:2px;";
+      targetLabel.className = "cmx-evlbl";
       targetLabel.textContent = "Points at";
       targetSel.addEventListener("change", function(){ a.seriesIndex = parseInt(targetSel.value, 10) || 0; renderChart(); });
       body.appendChild(targetLabel); body.appendChild(targetSel);
     }
-    body.appendChild(labelBox);
+    body.appendChild(evLabel("Label")); body.appendChild(labelBox);
     summary.addEventListener("click", function(){ a.collapsed = !a.collapsed; body.style.display = a.collapsed?"none":"flex"; chevron.textContent = a.collapsed?"\u25b8":"\u25be"; });
     chevron.addEventListener("click", function(){ summary.click(); });
     card.appendChild(head); card.appendChild(body);
@@ -4877,6 +4900,7 @@ function czmAnnotationSVG(a, ai, gm, t, forExport){
   s.push("</g>");
   return s.join("");
 }
+var cmxThumbSeq = 0; // thumbnails get their own clip ids; the main chart keeps a fixed one so its SVG is repeatable
 function czmBuildSVG(theme, forExport){
   var t = THEMES[theme];
   var gm = czmGeom();
@@ -4962,6 +4986,19 @@ function czmBuildSVG(theme, forExport){
   czmState.annotations.forEach(function(a, ai){
     svg.push(czmAnnotationSVG(a, ai, gm, t, forExport));
   });
+  // v1.9.40: a single line can be coloured above/below the reference
+  // line, as Customise & export does. Same two colours as the bars. The
+  // full path is drawn twice, each copy clipped to one side of the
+  // reference line's pixel row, so crossings split exactly.
+  var lineSplit = SERIES_LIST.length === 1 && czmState.refLine.enabled && czmState.thresholdShadeBars;
+  var splitVal = czmState.refLine.value, splitClip = null;
+  if(lineSplit){
+    var splitY = Math.max(gm.padT, Math.min(gm.padT + gm.plotH, gm.y(splitVal)));
+    splitClip = "cmxSplit" + (czmState._clipNs || (forExport ? "E" : "S"));
+    svg.push("<clipPath id='" + splitClip + "a'><rect x='0' y='" + gm.padT + "' width='" + G.W + "' height='" + (splitY - gm.padT).toFixed(1) + "'/></clipPath>");
+    svg.push("<clipPath id='" + splitClip + "b'><rect x='0' y='" + splitY.toFixed(1) + "' width='" + G.W + "' height='" + (gm.padT + gm.plotH - splitY).toFixed(1) + "'/></clipPath>");
+  }
+  var SPLIT_UP = "#348FA7", SPLIT_DOWN = "#413D7B";
   SERIES_LIST.forEach(function(s){
     var pts = czmFilteredSeries(s);
     if(!pts.length) return;
@@ -4969,11 +5006,26 @@ function czmBuildSVG(theme, forExport){
     if(czmState.showFill){
       var last = pts[pts.length - 1], first = pts[0];
       var area = path + " L" + gm.xForDate(last[0]).toFixed(1) + "," + (gm.padT + gm.plotH) + " L" + gm.xForDate(first[0]).toFixed(1) + "," + (gm.padT + gm.plotH) + " Z";
-      svg.push("<path d='" + area + "' fill='" + s.color + "' fill-opacity='0.12'/>");
+      if(lineSplit){
+        // shade between the line and the reference line, so each side shows how far it is above or below
+        area = path + " L" + gm.xForDate(last[0]).toFixed(1) + "," + splitY.toFixed(1) + " L" + gm.xForDate(first[0]).toFixed(1) + "," + splitY.toFixed(1) + " Z";
+        svg.push("<path d='" + area + "' fill='" + SPLIT_UP + "' fill-opacity='0.12' clip-path='url(#" + splitClip + "a)'/>");
+        svg.push("<path d='" + area + "' fill='" + SPLIT_DOWN + "' fill-opacity='0.14' clip-path='url(#" + splitClip + "b)'/>");
+      } else {
+        svg.push("<path d='" + area + "' fill='" + s.color + "' fill-opacity='0.12'/>");
+      }
     }
-    svg.push("<path d='" + path + "' fill='none' stroke='" + s.color + "' stroke-width='2.5' stroke-linejoin='round' stroke-linecap='round'/>");
+    if(lineSplit){
+      svg.push("<path d='" + path + "' fill='none' stroke='" + SPLIT_UP + "' stroke-width='2.5' stroke-linejoin='round' stroke-linecap='round' clip-path='url(#" + splitClip + "a)'/>");
+      svg.push("<path d='" + path + "' fill='none' stroke='" + SPLIT_DOWN + "' stroke-width='2.5' stroke-linejoin='round' stroke-linecap='round' clip-path='url(#" + splitClip + "b)'/>");
+    } else {
+      svg.push("<path d='" + path + "' fill='none' stroke='" + s.color + "' stroke-width='2.5' stroke-linejoin='round' stroke-linecap='round'/>");
+    }
     if(czmState.showPoints !== false){
-      pts.forEach(function(p){ svg.push("<circle cx='" + gm.xForDate(p[0]).toFixed(1) + "' cy='" + gm.y(p[1]).toFixed(1) + "' r='2.2' fill='" + s.color + "'/>"); });
+      pts.forEach(function(p){
+        var pc = lineSplit ? (p[1] >= splitVal ? SPLIT_UP : SPLIT_DOWN) : s.color;
+        svg.push("<circle cx='" + gm.xForDate(p[0]).toFixed(1) + "' cy='" + gm.y(p[1]).toFixed(1) + "' r='2.2' fill='" + pc + "'/>");
+      });
     }
   });
   if(forExport){
@@ -5324,8 +5376,14 @@ function renderChart(){
   // Customise & Export applies.
   var thresholdRowEl = document.getElementById("cmThresholdShadeRow");
   var thresholdToggleEl = document.getElementById("cmThresholdShadeToggle");
-  var showThreshold = style.refLine.enabled && chartType === "bar";
+  // v1.9.40: also offered for a single line (one line has no other
+  // line to tell apart, so colour is free to carry above/below).
+  var singleLine = chartType !== "bar" && series.length === 1;
+  var showThreshold = style.refLine.enabled && (chartType === "bar" || singleLine);
   thresholdRowEl.style.display = showThreshold ? "flex" : "none";
+  document.getElementById("cmThresholdShadeLabel").textContent = singleLine
+    ? "Colour the line by above/below reference line"
+    : "Colour bars by above/below reference line (overrides country colours)";
   if(!showThreshold && style.thresholdShadeBars){ style.thresholdShadeBars = false; thresholdToggleEl.checked = false; }
 
   // Y-axis start: unavailable on a log axis (no meaningful zero/fixed
@@ -5736,6 +5794,7 @@ function renderThumb(container, item){
       thumbState.dataLabels = !!snap.dataLabels; thumbState.dataLabelSize = snap.dataLabelSize || 11;
       thumbState.axisFontSize = snap.axisFontSize || 11; thumbState.font = snap.font || "helvetica";
       thumbState.thresholdShadeBars = !!snap.thresholdShadeBars;
+      thumbState._clipNs = "T" + (++cmxThumbSeq);
       thumbState.legendTitle = snap.legendTitle || "";
       var savedRows_ = SNAPSHOT_ROWS, savedH = G.H;
       SNAPSHOT_ROWS = brows;
@@ -5905,6 +5964,30 @@ function updateOpenLetterBadge(){
   badge.classList.add("show");
 }
 openPopBody.addEventListener("scroll", updateOpenLetterBadge);
+// v1.9.40: puts every Style control in line with the settings, so a reopened, restored or reset chart
+// shows exactly what it is drawing. Bar-only rows are handled by syncBarOptionsUI.
+function syncStyleUI(){
+  var $ = function(id){ return document.getElementById(id); };
+  $("cmChartTitle").value = style.chartTitle || "";
+  $("cmYAxisTitle").value = style.yAxisTitle || "";
+  $("cmLegendTitle").value = style.legendTitle || "";
+  document.querySelectorAll("#cmYTitlePosSeg button").forEach(function(b){ b.classList.toggle("active", b.dataset.pos === style.yTitlePos); });
+  $("cmFillToggle").checked = !!style.showFill;
+  $("cmPointsToggle").checked = !!style.showPoints;
+  $("cmRefToggle").checked = !!style.refLine.enabled;
+  $("cmRefValue").value = style.refLine.value || 0;
+  $("cmLogToggle").checked = !!style.logScale;
+  $("cmCenterRefToggle").checked = !!style.centerAroundRef;
+  $("cmThresholdShadeToggle").checked = !!style.thresholdShadeBars;
+  document.querySelectorAll("#cmYStartSeg button").forEach(function(b){ b.classList.toggle("active", b.dataset.mode === style.yStartMode); });
+  $("cmYStartValue").value = style.yStartValue || 0;
+  $("cmYStartCustomRow").style.display = style.yStartMode === "custom" ? "flex" : "none";
+  $("cmXTickVal").textContent = style.xTicks;
+  document.querySelectorAll("#cmXAngleSeg button").forEach(function(b){ b.classList.toggle("active", b.dataset.angle === style.xLabelAngle); });
+  $("cmSortModeSelect").value = style.sortMode;
+  document.querySelectorAll("#cmThemeSeg button").forEach(function(b){ b.classList.toggle("active", b.dataset.theme === exportTheme); });
+  syncAxisFontUI(); syncBarOptionsUI();
+}
 function loadSavedChart(row){
   // row is a NORMALIZED item from normalizeSavedRow() now, not a raw
   // saved_charts row -- works the same whether it originally came from
@@ -5930,11 +6013,9 @@ function loadSavedChart(row){
   if(!row.snapshot){
     // v1.9.34: a chart saved on Compare or a country page has no ChartMaker settings, so start from the
     // defaults instead of keeping the previous chart's titles, axis and options
-    style.chartTitle = ""; style.yAxisTitle = ""; style.legendTitle = "";
-    document.getElementById("cmChartTitle").value = ""; document.getElementById("cmLegendTitle").value = "";
-    style.refLine = {enabled:false, value:0}; style.logScale = false; style.centerAroundRef = false; style.thresholdShadeBars = false;
-    style.yStartMode = "auto"; style.yStartValue = 0; style.snapshotAt = ""; style.sortMode = "value_desc";
-    style.axisFontSize = 11; style.font = "helvetica"; style.barOrient = "vertical"; style.dataLabels = false; style.dataLabelSize = 11;
+    // v1.9.40: every setting back to its default (fill, points, title position, x ticks and angle used to carry over)
+    Object.keys(STYLE_DEFAULTS).forEach(function(k){ style[k] = JSON.parse(JSON.stringify(STYLE_DEFAULTS[k])); });
+    exportTheme = "light";
     syncAxisFontUI(); syncBarOptionsUI();
     chartType = "line";
     document.querySelectorAll("#cmChartTypeSeg button").forEach(function(b){ b.classList.toggle("active", b.dataset.type === chartType); });
@@ -5950,7 +6031,7 @@ function loadSavedChart(row){
     document.querySelectorAll("#cmYTitlePosSeg button").forEach(function(b){ b.classList.toggle("active", b.dataset.pos===style.yTitlePos); });
     style.showFill = !!snap.showFill; document.getElementById("cmFillToggle").checked = style.showFill;
     style.showPoints = snap.showPoints !== false; document.getElementById("cmPointsToggle").checked = style.showPoints;
-    style.refLine = snap.refLine || {enabled:false, value:0};
+    style.refLine = { enabled: !!(snap.refLine && snap.refLine.enabled), value: (snap.refLine && +snap.refLine.value) || 0 };   // a copy, never the saved object
     document.getElementById("cmRefToggle").checked = !!style.refLine.enabled;
     document.getElementById("cmRefValue").value = style.refLine.value || 0;
     style.logScale = !!snap.logScale; document.getElementById("cmLogToggle").checked = style.logScale;
@@ -5985,6 +6066,7 @@ function loadSavedChart(row){
     document.querySelectorAll("#cmXAngleSeg button").forEach(function(b){ b.classList.toggle("active", b.dataset.angle===style.xLabelAngle); });
     style.sortMode = snap.sortMode || "value_desc";
   }
+  syncStyleUI();
   annotations = (row.annotations || []).map(function(a){ a.id = "a"+(++annotSeq); return a; });
   if(!row.snapshot){ savedTickStep = null; savedTickIdx = null; }
   if(!yAxisTitleTouched){ style.yAxisTitle = ""; syncAutoYAxisTitle(); }
