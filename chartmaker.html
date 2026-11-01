@@ -3410,6 +3410,8 @@ function addSeries(country, metric, isStarter, allowMissing){
   var s = getSeries(country, metric);
   if(!s && !allowMissing) return;
   if(!isStarter) clearStarter();
+  // v1.9.43: new data on an empty chart starts without the last chart's title
+  if(!series.length) clearChartTitle();
   if(!s){
     series.push(missingSeriesFor(country, metric));
     refreshToggleState(); assignColors(); syncAutoYAxisTitle(); resetYTickStepIdx();
@@ -3432,6 +3434,10 @@ function addSeries(country, metric, isStarter, allowMissing){
   renderChart();
   reconcileInflationMeasures();
   syncStarterUI();
+}
+function clearChartTitle(){
+  style.chartTitle = "";
+  var el = document.getElementById("cmChartTitle"); if(el) el.value = "";
 }
 function removeSeries(id){
   series = series.filter(function(s){ return s.id !== id; });
