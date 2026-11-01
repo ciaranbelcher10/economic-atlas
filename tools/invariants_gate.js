@@ -102,13 +102,22 @@ for (const src of ["generate_indicator_pages.py", "tools/build_country_page.py"]
 const LIB = {"d3.min.js": "d3/dist/d3.min.js", "chart.umd.min.js": "chart.js/dist/chart.umd.js", "topojson.min.js": "topojson/dist/topojson.min.js",
              "hammer.min.js": "hammerjs/hammer.min.js", "chartjs-plugin-zoom.min.js": "chartjs-plugin-zoom/dist/chartjs-plugin-zoom.min.js"};
 const SUPA = "window.supabase={createClient:function(){var q={select:function(){return q},eq:function(){return q},order:function(){return q},maybeSingle:function(){return Promise.resolve({data:null})},then:function(r){return Promise.resolve({data:[]}).then(r)}};return {auth:{getSession:function(){return Promise.resolve({data:{session:null}})},onAuthStateChange:function(){return {data:{subscription:{unsubscribe:function(){}}}}}},from:function(){return q}}}};";
+// v1.9.52: fail loudly. A missing library file, a library-looking script this gate does not serve,
+// a library whose global never appears, a rejected promise and a crash of the gate itself all fail
+// the run; before, each was swallowed and a half-rendered page could pass.
+const GLOBAL_OF = {"d3.min.js": "d3", "chart.umd.min.js": "Chart", "topojson.min.js": "topojson", "hammer.min.js": "Hammer"};
+const missingLibs = Object.entries(LIB).map(([, rel]) => rel).concat(["world-atlas/countries-110m.json"]).filter(rel => !fs.existsSync(NM + rel));
+if (missingLibs.length) { console.error(`invariants_gate: library files missing from ${NM}: ${missingLibs.join(", ")}. Run the npm line at the top of this file.`); process.exit(2); }
+const UNSERVED = [];
 class Loader extends ResourceLoader {
   fetch(url) { const b = url.split("/").pop().split("?")[0];
     if (LIB[b]) return Promise.resolve(fs.readFileSync(NM + LIB[b]));
     if (/supabase/.test(url)) return Promise.resolve(Buffer.from(SUPA));
+    if (/(^|[-.])(d3|chart|topojson|hammer|zoom|leaflet|plotly|echarts)[^/]*\.js$/i.test(b)) UNSERVED.push(b);
     return Promise.resolve(Buffer.from("")); }
 }
-process.on("unhandledRejection", () => {});
+const REJECTED = [];
+process.on("unhandledRejection", e => REJECTED.push(String((e && e.message) || e).split("\n")[0]));
 function visibleText(d) {
   const w = d.createTreeWalker(d.body, 4), out = [];
   while (w.nextNode()) {
@@ -139,9 +148,16 @@ function render(p, transform) {
   for (const p of (only ? [only] : countryPages)) {
     const code = (read(p).match(/fetch\("data-([a-z]{2})\.json"/) || [])[1];
     const own = new Set(Object.values(JSON.parse(read(`data-${code}.json`)).series || {}).map(s => (s.unit || "")[0]).filter(g => GLYPH[g]));
+    const rej0 = REJECTED.length, uns0 = UNSERVED.length;
     const {dom, errs} = await render(p);
     await new Promise(r => setTimeout(r, 2500));
     const d = dom.window.document, text = visibleText(d);
+    ok(REJECTED.length === rej0, `${p}: unhandled promise rejection: ${REJECTED.slice(rej0, rej0 + 2).join(" | ")}`);
+    ok(UNSERVED.length === uns0, `${p}: asks for a library this gate does not serve (add it to LIB): ${UNSERVED.slice(uns0).join(", ")}`);
+    for (const [file, g] of Object.entries(GLOBAL_OF)) {
+      if (!new RegExp("<script[^>]+src=[\"'][^\"']*" + file.replace(/\./g, "\\.")).test(read(p))) continue;
+      ok(typeof dom.window[g] !== "undefined", `${p}: ${file} is on the page but ${g} never loaded`);
+    }
     const lf = d.getElementById("loadFail");
     ok(lf && lf.hidden, `${p}: the "couldn't load" notice shows with real data (a render error?) ${errs.slice(0, 2).join(" | ")}`);
     const bad = text.match(/\b(NaN|undefined|Infinity|null)\b/g);
@@ -181,4 +197,4 @@ function render(p, transform) {
   }
   console.log(`${dataFiles.length} data files, ${N} country pages, ${checks} checks, ${failures} failures`);
   process.exit(failures ? 1 : 0);
-})();
+})().catch(e => { console.error("invariants_gate: crashed: " + ((e && e.stack) || e)); process.exit(2); });
