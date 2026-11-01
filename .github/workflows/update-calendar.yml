@@ -180,6 +180,14 @@ jobs:
           echo ">>> RUNNING fetch_calendar_tw.py" >> calendar_pipeline_log.txt
           python fetch_calendar_tw.py 2>&1 | tee -a calendar_pipeline_log.txt
 
+      # v1.9.42: put back past events the fetchers dropped (they write only
+      # upcoming ones), from the committed files. Never fails the run.
+      - name: Keep past calendar events
+        continue-on-error: true
+        run: |
+          echo ">>> RUNNING calendar_history.py" >> calendar_pipeline_log.txt
+          python calendar_history.py 2>&1 | tee -a calendar_pipeline_log.txt
+
       - name: Show pipeline log
         if: always()
         run: cat calendar_pipeline_log.txt
