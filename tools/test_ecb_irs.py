@@ -58,7 +58,9 @@ for country, (cc, cur, script, page) in CASES.items():
     # guard: the switch is accepted; a FRED quarterly fallback afterwards is not
     prev = json.load(open(os.path.join(REPO, f"data-{cc.lower()}.json"), encoding="utf-8"))["series"]["bond_yield_10y"]
     start = {"PL": (2001, 1), "IT": (1991, 3), "ES": (1991, 11)}[cc]
-    new = {"label": "ECB IRS " + k, "unit": "%", "freq": "months", "points": months(start, (2026, 8))}
+    # v1.9.51: end where the live file ends (a fixed end date went stale once the live series ran past it)
+    ly, lm = (int(x) for x in prev["points"][-1][0].split("-"))
+    new = {"label": "ECB IRS " + k, "unit": "%", "freq": "months", "points": months(start, (ly, lm))}
     v = series_guard.merge_series("bond_yield_10y", new, prev, {})[1]
     check(v.startswith("new"), f"{country}: guard accepts the ECB series (got {v})")
     fb = {"label": "FRED fallback", "unit": "%", "freq": "quarters",

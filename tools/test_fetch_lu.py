@@ -177,7 +177,12 @@ DOWN.discard("eurostat-lfsi")
 check(any("geo=LU" in u and "age=Y15-64" in u for u in SEEN), "Eurostat labour query is Luxembourg, ages 15-64")
 DOWN.clear(); install()
 _, d9, _ = run()
-check(not any("irt_lt_mcby_m" in u for u in SEEN), "no bond fallback call when FRED answers")
+# v1.9.51: since v1.8.11 Eurostat is always asked, but only to extend FRED's series past its last
+# month; with FRED answering, the series stays FRED's and no FRED month is replaced
+b9 = d9["series"]["bond_yield_10y"]
+check("IRLTLT01LUM156N" in b9["label"] and "irt_lt_mcby_m" not in b9["label"].split("extended")[0],
+      f"FRED answers: bond series stays FRED's ({b9['label']})")
+check(any("irt_lt_mcby_m" in u for u in SEEN), "FRED answers: Eurostat asked only to extend the latest month")
 
 # audit: clean synthetic file passes structure; planted faults are caught
 sys.path.insert(0, os.path.join(os.path.dirname(os.path.abspath(__file__))))

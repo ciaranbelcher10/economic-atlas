@@ -11,6 +11,15 @@ sys.path.insert(0, os.path.join(HERE, "..")); sys.path.insert(0, HERE)
 LIVE = os.path.join(HERE, "..", "data-ph.json")
 H0 = hashlib.sha256(open(LIVE, "rb").read()).hexdigest() if os.path.exists(LIVE) else None
 import fetch_ph as F  # noqa: E402
+
+# v1.9.51: the fixtures are laid out as the sources stood in mid-October 2026, and the script's
+# "too old to show as current" checks compare against today. Pin the script's clock to that date so
+# the test keeps testing the parsers instead of failing as the calendar moves on.
+class _FixedNow(F.datetime):
+    @classmethod
+    def now(cls, tz=None):
+        return F.datetime(2026, 10, 15, 12, 0, tzinfo=tz)
+F.datetime = _FixedNow
 import audit_ph as A  # noqa: E402
 F.PX_PAUSE = 0
 
@@ -183,7 +192,8 @@ check(not any("022B5BEXS2" in u for u in SEEN), "PSA's mislabelled growth table 
 c = dict(s["cpi"]["points"])
 check(s["cpi"]["points"][0][0] == "1995-01" and all(p in c for p in months("1995-01", "2026-09")), f"CPI from 1995, no hole: {s['cpi']['points'][0]}")
 check(not any("0012M4ACP27" in u for u in SEEN), "PSA's broken back series is not queried")
-check(abs(s["cpi_mom"]["points"][-1][1] - 0.2) <= 0.1 and s["cpi_mom"]["points"][0][0] == "2018-02", "m/m from the 2018-based index")
+# v1.9.51: since v1.8.9 m/m comes from the joined index (back-cast + 2018-based), so it starts in 1994
+check(abs(s["cpi_mom"]["points"][-1][1] - 0.2) <= 0.1 and s["cpi_mom"]["points"][0][0] == "1994-02", f"m/m from the joined index, history from 1994: {s['cpi_mom']['points'][0]}")
 check(s["unemployment"]["points"][0][0] == "2021-01" and s["unemployment"]["points"][-1] == ["2026-08", 3.9]
       and s["participation"]["points"][-1] == ["2026-08", 64.5],
       f"LFS from the unbroken monthly run: {s['unemployment']['points'][0]}")
