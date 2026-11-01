@@ -60,7 +60,9 @@ check(any("only 3 release rows" in p for p in DK.parse(fewdk)[1]), "dk: a page w
 nocore = (F / "dst_planlagte_202611.html").read_text()
 for t in ["Consumer price index", "Harmonised index of consumer prices", "International trade in goods", "GDP, quarterly national accounts"]:
     nocore = nocore.replace(f'<td class="SchLeft">{t}</td>', '<td class="SchLeft">Other</td>')
-check(any("no CPI, trade or GDP" in p for p in DK.parse(nocore)[1]), "dk: a page with no CPI, trade or GDP row fails")
+pr_nc = DK.parse(nocore)[1]
+check(any("no CPI, trade or GDP" in p for p in pr_nc), "dk: a page with no CPI, trade or GDP row fails")
+check(any("News titles seen: 05-11-2026 Bankruptcies;" in p and "Registered unemployment" in p for p in pr_nc), f"dk: the failure names the News titles it saw {pr_nc}")
 
 # South Africa
 ev, pr = ZA.parse((F / "sarb_home_202611.html").read_text())

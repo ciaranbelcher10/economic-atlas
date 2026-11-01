@@ -44,7 +44,7 @@ def text(cell: str) -> str:
 
 
 def parse(page: str) -> tuple[list[dict], list[str]]:
-    events, problems, rows = [], [], 0
+    events, problems, rows, news = [], [], 0, []
     for m in ROW_RE.finditer(page):
         cells = [text(c) for c in m.groups()]
         dm = DATE_RE.match(cells[0])
@@ -53,6 +53,7 @@ def parse(page: str) -> tuple[list[dict], list[str]]:
         rows += 1
         if cells[2].lower() != "news":
             continue
+        news.append(f"{cells[0]} {cells[3]}")
         try:
             d = date(int(dm.group(3)), int(dm.group(2)), int(dm.group(1)))
         except ValueError:
@@ -71,7 +72,9 @@ def parse(page: str) -> tuple[list[dict], list[str]]:
     elif rows < 20:
         problems.append(f"only {rows} release rows; the schedule normally lists dozens")
     elif not any(e["concept"] in ("cpi", "trade", "gdp") for e in events):
-        problems.append("no CPI, trade or GDP release found among the rows")
+        # v1.9.46: name what was seen, so the Actions log shows how the titles are worded
+        problems.append(f"no CPI, trade or GDP release found among the rows ({rows} rows, {len(news)} News); "
+                        f"News titles seen: {'; '.join(news[:25]) or 'none'}")
     return events, problems
 
 
