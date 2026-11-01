@@ -1,4 +1,4 @@
-"""Fetch Denmark's official release dates and write data-calendar-dk.json (v1.9.45).
+"""Fetch Denmark's official release dates and write data-calendar-dk.json (v1.9.45, v1.9.48).
 
 One official source: Statistics Denmark's scheduled releases (dst.dk/en/Statistik/planlagte),
 a table of rows: date (dd-mm-yyyy, written with non-breaking hyphens), time, type (News
@@ -9,6 +9,15 @@ and national accounts) and trade (International or external trade in goods).
 
 Not served: Danmarks Nationalbank rate changes, which follow the ECB's decisions (the
 euro area rate decisions are already on the calendar).
+
+v1.9.48: the page shows only 8 days by default, which often holds no CPI, trade or GDP
+release. The page is an ASP.NET form, so the script now reads the page, copies its hidden
+fields and submits it with "3 months" and "News from Statistics Denmark" chosen (82 rows on
+1 Nov 2026, under the 100-row page limit). Titles matched against the 3-month list seen in
+probe dk3: "Consumer price index and net retail price index", "Balance of payments and
+external trade" (the monthly goods trade release), "National accounts" (key figures, GDP),
+"Unemployment (monthly)", "Labour force survey (quarterly)". "National accounts by sector",
+"External trade in organic products" and "Trade by enterprise caracteristica" are left out.
 
 Built from the live rows seen in the probe of 1 Nov 2026; the first real Actions run is
 the real test. If the page changes shape the parser fails loudly and the old file is kept.
@@ -25,6 +34,12 @@ from calendar_common import clean_name, run_single
 OUT = "data-calendar-dk.json"
 URL = "https://www.dst.dk/en/Statistik/planlagte"
 SRC = "dst.dk scheduled releases (official Statistics Denmark release calendar)"
+FIELD = "main_0$pagecontent_0$textcontent_1$"
+# Periode "c" = 3 months, Produkt "1" = News from Statistics Denmark (options seen in probe dk2)
+FORM = {FIELD + "Subject": "", FIELD + "SubjectSecond": "", FIELD + "Produkt": "1",
+        FIELD + "Periode": "c", FIELD + "UpdateBtn": "Select"}
+HIDDEN_RE = re.compile(r'<input type="hidden" name="([^"]+)"[^>]*value="([^"]*)"')
+SHOWING_RE = re.compile(r"Showing\s+(\d+)\s+to\s+(\d+)\s+of\s+(\d+)")
 CELL = r"<td[^>]*>(.*?)</td>\s*"
 ROW_RE = re.compile(r"<tr[^>]*>\s*" + CELL * 6, re.S | re.I)
 DATE_RE = re.compile(r"^(\d{2})\D(\d{2})\D(\d{4})$")
@@ -34,8 +49,8 @@ RULES = [
     (re.compile(r"^consumer price index|^harmonised index of consumer prices", re.I), "cpi"),
     (re.compile(r"^producer (and import )?price ind", re.I), "ppi"),
     (re.compile(r"^(registered |gross )?unemployment\b|^labour force survey", re.I), "jobs"),
-    (re.compile(r"\bgdp\b|national accounts", re.I), "gdp"),
-    (re.compile(r"^(international|external) trade in goods", re.I), "trade"),
+    (re.compile(r"\bgdp\b|^national accounts$|quarterly national accounts", re.I), "gdp"),
+    (re.compile(r"^(international|external) trade in goods|^balance of payments and external trade$", re.I), "trade"),
 ]
 
 
@@ -78,10 +93,34 @@ def parse(page: str) -> tuple[list[dict], list[str]]:
     return events, problems
 
 
+def form_fields(page: str) -> dict:
+    hidden = {m.group(1): html.unescape(m.group(2)) for m in HIDDEN_RE.finditer(page)}
+    if "__VIEWSTATE" not in hidden:
+        raise ValueError("the release calendar form was not found (bot wall or a changed page?)")
+    return {**hidden, **FORM}
+
+
+def check_filtered(page: str) -> list[str]:
+    """The 3-month News view: every row News, and the page not cut off at its limit."""
+    problems = []
+    types = {text(m.group(3)).lower() for m in ROW_RE.finditer(page) if DATE_RE.match(text(m.group(1)))}
+    if types - {"news"}:
+        problems.append(f"the 3-month News filter was not applied (row types {sorted(types)})")
+    sm = SHOWING_RE.search(page)
+    if not sm:
+        problems.append("no 'Showing x to y of z' line on the filtered page")
+    elif int(sm.group(2)) < int(sm.group(3)):
+        print(f"note Denmark: showing {sm.group(2)} of {sm.group(3)} News rows; later dates left out", file=sys.stderr)
+    return problems
+
+
 def fetch_events(s, today: str) -> list[dict]:
     r = s.get(URL, timeout=40)
     r.raise_for_status()
+    r = s.post(URL, data=form_fields(r.text), timeout=60)
+    r.raise_for_status()
     events, problems = parse(r.text)
+    problems = check_filtered(r.text) + problems
     if problems:
         raise ValueError("; ".join(problems))
     return events
