@@ -792,7 +792,7 @@ def main() -> int:
     _wb_stale = (out["series"].pop("debt_gdp") if "last published this series"
                  in (out["series"].get("debt_gdp") or {}).get("label", "") else None)
     _dm_note = imf_datamapper.overlay(out["series"], "debt_gdp", "GGXWDG_NGDP", "MAR",
-                                       "General government gross debt, % of GDP (IMF World Economic Outlook, DataMapper GGXWDG_NGDP)")
+                                       "General government gross debt, % of GDP (IMF World Economic Outlook, GGXWDG_NGDP)")
     print("  " + _dm_note)
     if "DataMapper applied" in _dm_note and "debt_gdp" in failures:
         failures.remove("debt_gdp")

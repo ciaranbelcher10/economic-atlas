@@ -68,7 +68,16 @@ def fetch(indicator: str, iso3: str, today: date | None = None) -> list | None:
         return None
 
 
-def overlay(series: dict, key: str, indicator: str, iso3: str, label: str, fetcher=fetch, today: date | None = None) -> str:
+def fetch_weo(indicator: str, iso3: str, today: date | None = None) -> list | None:
+    """v1.9.55: the DataMapper URL answers 403 Forbidden to GitHub's runners (every run, Chile, Colombia and
+    Morocco, 1 Nov 2026), so the overlay was never applied. The same World Economic Outlook series comes
+    through api.imf.org (imf_weo.py), which the runners reach for 22 other economies; ask that instead.
+    imf_weo keeps only actual years (before the edition's update year) and rejects stale editions."""
+    import imf_weo
+    return imf_weo.fetch(iso3, indicator) or None
+
+
+def overlay(series: dict, key: str, indicator: str, iso3: str, label: str, fetcher=fetch_weo, today: date | None = None) -> str:
     pts = fetcher(indicator, iso3, today)
     if not pts:
         return f"{key}: DataMapper unavailable, FRED copy kept"

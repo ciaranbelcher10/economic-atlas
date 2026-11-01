@@ -63,7 +63,11 @@ import series_guard
 # overwriting good data.
 #
 # Add an entry ONLY when intentionally swapping source, and say why, e.g.
-#     ALLOW_SHRINK = {"ppi": "PPIACO -> PPIFID, final demand is the BLS headline"}
+#     # v1.9.55: series taken off this economy. The guard carries any series missing from a run forward,
+# so a retired key must be listed here to leave the data file. OECD stopped updating this country's
+# business confidence (BCICP) after April 2026; it is shown nowhere rather than shown stale.
+RETIRED = {"business_confidence": "OECD stopped publishing it after April 2026"}
+ALLOW_SHRINK = {"ppi": "PPIACO -> PPIFID, final demand is the BLS headline"}
 # Remove it once the new series has landed.
 ALLOW_SHRINK = {}
 
@@ -517,8 +521,6 @@ def main() -> int:
          "General government gross debt, % of GDP (IMF WEO)", "%", "years"),
         ("deficit", lambda: imf_weo.fetch("CAN", imf_weo.DEFICIT),
          "General government net lending/borrowing, % of GDP (IMF WEO)", "%", "years"),
-        ("business_confidence", lambda: fetch_oecd_bci(),
-         "Business confidence indicator, LT avg = 100 (OECD BCICP)", "index", "months"),
         ("cpi", lambda: fetch_oecd_cpi(("CAN",), "M"),
          "CPI, all items, YoY (OECD live prices system)", "%", "months"),
         # A month-on-month rate cannot come from a 12-month rate, so this
@@ -570,6 +572,10 @@ def main() -> int:
     _fresh_keys = set(out["series"])
     _guard_verdicts = series_guard.apply_guard(
         out["series"], _prev_series, allow_shrink=ALLOW_SHRINK)
+    # v1.9.55: retired series are dropped even though the guard would carry them forward
+    for _k, _why in RETIRED.items():
+        if out["series"].pop(_k, None) is not None:
+            print(f"RETIRED {_k}: {_why}")
     if not out.get("fx_to_usd") and prev_full.get("fx_to_usd"):
         out["fx_to_usd"] = prev_full["fx_to_usd"]
         print("CARRIED OVER fx_to_usd from previous run")
