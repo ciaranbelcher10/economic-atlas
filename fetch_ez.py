@@ -434,6 +434,30 @@ def fetch_worldbank(code: str) -> list | None:
     return points or None
 
 
+# v1.9.53: series served direct from Eurostat. If Eurostat fails for one of these, FRED's copy is
+# NOT a like-for-like stand-in: it is the old EA19 aggregate (Eurostat's is today's EA21) on an
+# older price base, so a one-run swap silently changed the series' basis and label (28 Oct 2026).
+EUROSTAT_DIRECT = ("gdp_level", "gdp_real", "gdp_growth", "cpi", "cpi_mom")
+
+
+def keep_eurostat(series: dict, fetched: dict, prev_series: dict) -> list:
+    """For each EUROSTAT_DIRECT key Eurostat did not answer this run, keep the previous run's
+    series if that came from Eurostat, so FRED's EA19 copy is used only when there has never
+    been a Eurostat series. Adds the kept series to both `series` and `fetched` (which makes
+    the FRED loop skip them) and returns the keys kept."""
+    kept = []
+    for k in EUROSTAT_DIRECT:
+        old = prev_series.get(k) or {}
+        if k in fetched or "Eurostat" not in old.get("label", "") or not old.get("points"):
+            continue
+        series[k] = old
+        fetched[k] = old
+        kept.append(k)
+        print(f"CARRIED OVER {k}: Eurostat unavailable this run; the previous Eurostat series is kept "
+              f"rather than switching to FRED's EA19 copy")
+    return kept
+
+
 def load_previous() -> dict:
     try:
         with open("data-ez.json") as f:
@@ -508,6 +532,14 @@ def main() -> int:
         if pts:
             out["series"][name] = {"label": label, "unit": "%", "freq": "months", "points": pts}
             es_gdp = dict(es_gdp, **{name: out["series"][name]})
+
+    try:
+        with open("data-ez.json") as f:
+            _prev_eurostat = json.load(f).get("series", {})
+    except Exception:
+        _prev_eurostat = {}
+    es_gdp = dict(es_gdp)
+    keep_eurostat(out["series"], es_gdp, _prev_eurostat)
 
     key = os.environ.get("FRED_API_KEY")
     if not key:
