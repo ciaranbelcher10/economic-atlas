@@ -32,7 +32,7 @@
 <link href="https://fonts.googleapis.com/css2?family=Nunito+Sans:wght@400;600;700&display=swap" rel="stylesheet">
 <link rel="icon" type="image/png" sizes="32x32" href="favicon-32.png">
 <link rel="apple-touch-icon" href="apple-touch-icon.png">
-<link rel="stylesheet" href="style.css?v=54">
+<link rel="stylesheet" href="style.css?v=55">
 <link rel="stylesheet" href="mobile.css?v=15">
 </head>
 <body>
@@ -167,7 +167,7 @@
  <div class="cookie-inner">
  <div>
  <p class="cookie-icon" aria-hidden="true">&#127850;</p>
- <p class="cookie-text"><strong>A quick cookie question.</strong><br>We'd like to use Google Analytics to see how the site is used, which pages people find useful, roughly how many visits we get. It only runs if you say yes, and no personal data is sold or shared either way. <a href="contact">Questions? Get in touch</a>.</p>
+ <p class="cookie-text"><strong>A quick cookie question.</strong><br>We'd like to use Google Analytics to see how the site is used, which pages people find useful, roughly how many visits we get. It only runs if you say yes, and no personal data is sold or shared either way.</p>
  </div>
  <div class="cookie-actions">
  <button type="button" class="btn ghost" id="cookieReject">Reject</button>
@@ -1235,7 +1235,8 @@ html[data-theme="dark"] table.mk td.up{color:#6FCB96;} html[data-theme="dark"] t
 .mk-led{display:inline-block; width:8px; height:8px; border-radius:50%; margin-right:7px; vertical-align:middle;}
 .mk-led.green{background:#2FA36B;} .mk-led.amber{background:#D99A2B;} .mk-led.red{background:#C94545;}
 .mk-empty{color:var(--ink2); font-size:14px;}
-table.mk a{color:inherit; text-decoration:none; border-bottom:1px dotted var(--ink2);}
+table.mk a{color:inherit; text-decoration:none;}
+table.mk a.ea-cty{font-weight:700; border-bottom:none;}
 </style>
 <div class="mk-grid">
  <section class="mk-card mk-wide" id="chart-yields">
@@ -1347,7 +1348,7 @@ function led(p, freq){
   return '<span class="mk-led ' + c + '" title="' + t + '" aria-label="' + t + '"></span>';
 }
 function countryCell(cc, label){
-  return led.apply(null, label) + '<a href="' + C[cc][1] + '">' + esc(C[cc][0]) + '</a>';
+  return led.apply(null, label) + '<a class="ea-cty" href="' + C[cc][1] + '">' + esc(C[cc][0]) + '</a>';
 }
 function lagBack(pts, n){ return pts.length > n ? pts[pts.length - 1 - n] : null; }
 function onOrBefore(pts, iso){ for(var i = pts.length - 1; i >= 0; i--){ if(pts[i][0] <= iso) return pts[i]; } return null; }
@@ -1476,13 +1477,13 @@ Promise.all([
       var w = pc(7), m = pc(0, 1), y = pc(0, 0, 1);
       var label = cc === "ez" ? "Euro (euro area)" : name + " (" + C[cc][0] + ")";
       fr.push({href: C[cc][1], keys:[label, last[1], last[0], w, m, y, p.source],
-        cells: '<td>' + led(last[0], "days") + '<a href="' + C[cc][1] + '">' + esc(label) + '</a></td><td class="num">$' + fmt(last[1], last[1] < 1 ? 4 : 3) + ' per ' + unit + '</td><td>' + periodLabel(last[0]) + '</td><td class="num ' + cls(w) + '">' + signed(w, 1, "%") + '</td><td class="num ' + cls(m) + '">' + signed(m, 1, "%") + '</td><td class="num ' + cls(y) + '">' + signed(y, 1, "%") + '</td><td class="src">' + srcText(p.source) + '</td>'});
+        cells: '<td>' + led(last[0], "days") + '<a class="ea-cty" href="' + C[cc][1] + '">' + esc(label) + '</a></td><td class="num">$' + fmt(last[1], last[1] < 1 ? 4 : 3) + ' per ' + unit + '</td><td>' + periodLabel(last[0]) + '</td><td class="num ' + cls(w) + '">' + signed(w, 1, "%") + '</td><td class="num ' + cls(m) + '">' + signed(m, 1, "%") + '</td><td class="num ' + cls(y) + '">' + signed(y, 1, "%") + '</td><td class="src">' + srcText(p.source) + '</td>'});
     } else if(p.freq === "years" && p.points && p.points.length >= 2){
       var a = p.points[p.points.length - 1], b0 = p.points[p.points.length - 2];
       var chg = (a[1] / b0[1] - 1) * 100;
       var lab2 = name + " (" + C[cc][0] + ")";
       fa.push({keys:[lab2, a[1], a[0], chg, p.source],
-        cells: '<td>' + led(a[0], "years") + '<a href="' + C[cc][1] + '">' + esc(lab2) + '</a></td><td class="num">$' + fmt(a[1], a[1] < 1 ? 4 : 3) + ' per ' + unit + '</td><td>' + a[0] + '</td><td class="num ' + cls(chg) + '">' + signed(chg, 1, "%") + '</td><td class="src">' + srcText(p.source) + '</td>'});
+        cells: '<td>' + led(a[0], "years") + '<a class="ea-cty" href="' + C[cc][1] + '">' + esc(lab2) + '</a></td><td class="num">$' + fmt(a[1], a[1] < 1 ? 4 : 3) + ' per ' + unit + '</td><td>' + a[0] + '</td><td class="num ' + cls(chg) + '">' + signed(chg, 1, "%") + '</td><td class="src">' + srcText(p.source) + '</td>'});
     }
   });
   fr.sort(function(a, b){ return (b.keys[5] == null ? -1e9 : b.keys[5]) - (a.keys[5] == null ? -1e9 : a.keys[5]); });
@@ -1600,7 +1601,9 @@ Promise.all([
 });
 })();
 </script>
-<footer>The Economic Atlas · Data from national statistical offices, used under open licences. <a href="privacy">Privacy</a> &middot; <a href="terms">Terms</a></footer>
+<footer>The Economic Atlas · Data from national statistical offices, used under open licences.
+ <div class="lnk-row"><a class="ea-btn sm" href="privacy">Privacy</a><a class="ea-btn sm" href="terms">Terms</a></div>
+</footer>
 </div>
 <script src="mobile.js?v=17" defer></script>
 </body>

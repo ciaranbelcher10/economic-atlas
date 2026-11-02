@@ -8,17 +8,17 @@ button class. Navigation (<nav>, menus, dropdowns) is not running text.
 
 Scopes:
   --generated  pages built by generate_indicator_pages.py (must be 0)
-  --all        every page in the repo (reported; enforced once v1.9.67 lands)
+  --all        every page in the repo (must be 0 since v1.9.67), plus links built inside page scripts
   --root DIR   scan another checkout (default: the repo this file is in)
   --regen      rebuild the generated pages in a temp folder first (as generated_pages_gate does),
                so the check does not wait for the next data run to regenerate the live pages
 Run: python3 tools/test_no_text_links.py --generated
 """
-import os, sys, glob
+import os, re, sys, glob
 from html.parser import HTMLParser
 
 BUTTON_CLASSES = {"btn", "rk-btn", "rk-cty", "glow-cta", "rkx-card", "w-badge",
-                  "lockedbtn", "item", "ea-btn", "doc-anchor"}
+                  "lockedbtn", "item", "ea-btn", "ea-cty", "doc-anchor"}
 TEXT_TAGS = {"p", "li", "td", "th", "dd", "footer", "figcaption", "blockquote", "small", "label"}
 SKIP_TAGS = {"nav", "script", "style", "template", "head"}
 SKIP_CLASSES = {"dropdown", "dropdown-panel", "menu", "nav-menu", "mnav", "drawer"}
@@ -65,6 +65,18 @@ def scan(path):
     s.feed(open(path, encoding="utf-8", errors="ignore").read())
     return s.bad
 
+JS_LINK = re.compile(r"""<a href=[^>]{0,200}?>(?!<title>|<text\b)""")
+
+def script_links(root):
+    """Links the page scripts build as strings. Chart links (<a> wrapping an SVG <title> or <text>) are not text."""
+    bad = []
+    for f in glob.glob(os.path.join(root, "*.html")):
+        s = open(f, encoding="utf-8", errors="ignore").read()
+        for m in re.finditer(r"<script\b[^>]*>(.*?)</script>", s, re.S):
+            for x in JS_LINK.finditer(m.group(1)):
+                bad.append((os.path.basename(f), x.group(0)[:80]))
+    return bad
+
 def main(argv):
     root = os.path.dirname(os.path.dirname(os.path.abspath(__file__)))
     scope = "all" if "--all" in argv else "generated"
@@ -92,7 +104,13 @@ def main(argv):
         ok = len(fl) > 1000 and total == 0
         print(f"{1 if ok else 0} ok, {0 if ok else 1} failed")
         return 0 if ok else 1
-    return 0
+    js = script_links(root)
+    print(f"  {len(js)} link(s) built as text by page scripts")
+    for f, x in js[:10]:
+        print(f"    {f}: {x}")
+    checks = [len(fl) > 2000, total == 0, not js]
+    print(f"{sum(checks)} ok, {len(checks) - sum(checks)} failed")
+    return 0 if all(checks) else 1
 
 if __name__ == "__main__":
     sys.exit(main(sys.argv[1:]))

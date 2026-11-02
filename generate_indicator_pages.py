@@ -1277,7 +1277,7 @@ def head_html(title, desc, canonical, og_image, jsonld, extra_css=""):
 <link rel="preconnect" href="https://fonts.googleapis.com">
 <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
 <link href="https://fonts.googleapis.com/css2?family=Nunito+Sans:wght@400;600;700&display=swap" rel="stylesheet">
-<link rel="stylesheet" href="../style.css?v=54">
+<link rel="stylesheet" href="../style.css?v=55">
 <link rel="stylesheet" href="../mobile.css?v=15">
 <link rel="stylesheet" href="../indicator.css?v={KIT_VERSION}">
 <script type="application/ld+json">
