@@ -330,7 +330,7 @@ def run_checks(tmp, r, repo):
     bump("pages scanned for copy", len(ind_files) + len(emb_files) + len(rank_plus) + (1 if meth else 0))
 
 
-DEPRECATED_STUBS = {"gdp-by-country.html", "inflation-by-country.html", "unemployment-by-country.html"}   # no footer, to be deleted
+DEPRECATED_STUBS = {"gdp-by-country.html", "inflation-by-country.html", "unemployment-by-country.html"}   # legacy redirects, rewritten by generate_indicator_pages.py every run; keep them
 HOURLY_CLAIM = re.compile(r"checked hourly|checks hourly|hourly against|updated hourly|from source every hour", re.I)
 
 
