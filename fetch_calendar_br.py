@@ -1,86 +1,104 @@
-"""Fetch upcoming Copom (Brazil) rate decision dates and write
-data-calendar-br.json.
+"""BCB (Brazil) Copom rate decision dates -> data-calendar-br.json.
 
 Run:  python3 fetch_calendar_br.py
-No API key needed -- public BCB page.
 
-Source: the Central Bank of Brazil (Banco Central do Brasil) publishes
-its full year of Copom meeting dates in one official announcement each
-year, similar in spirit to how the Bank of Canada does it. The 2026
-dates (confirmed via multiple Brazilian financial news outlets tonight,
-all citing the same BCB announcement): 27 to 28 January, 17 to 18 March,
-28 to 29 April, 16 to 17 June, 4 to 5 August, 15 to 16 September, 3 to 4
-November, 8 to 9 December. Each meeting spans two days (Tuesday and
-Wednesday); the decision is announced the evening of the second day,
-typically between 6:30pm and 7:30pm Brasilia time -- not a fixed minute
-the way the Fed/ECB/BoE are, so left as an approximate window rather
-than a specific time.
+v1.9.61: read live from the BCB's own calendar API, replacing the hand-typed 2026 list.
+The bcb.gov.br calendar component (found in probes cal13 to cal15) reads
+  /api/servico/sitebcb/calendario?lista=Reuniões do Copom&inicioAgenda='YYYY-MM-DD'&fimAgenda='YYYY-MM-DD'
+(the quotes are part of the value, as the site sends them). It returns {"conteudo": [...]},
+one entry per meeting DAY: "evento": "Reunião do Copom", "dataEvento": "2026-11-03T03:00:00Z"
+(midnight in Brasília, UTC-3). Each meeting runs over two consecutive days and the rate
+decision is announced on the evening of the last day, so each run of consecutive days
+becomes one event on its last day. The decision is not at a fixed minute, so no time is given.
 
-Ideally this script would fetch the BCB's own calendar page directly
-rather than relying on the dates as reported by news outlets -- that
-page wasn't individually located and fetched tonight (time ran out
-after confirming the dates via several independent Brazilian financial
-sources, which is reasonable corroboration but not the same as reading
-it from bcb.gov.br itself). Flagged as a follow-up: find and fetch BCB's
-own Copom calendar page, then extract from there instead of hardcoding.
-
-NOT YET RUN LIVE. The dates below are hardcoded from research rather
-than scraped, since the primary source page wasn't pinned down -- this
-is a genuine gap, not an oversight, and should be the first thing fixed
-before relying on this script.
+If the API cannot be read, fails a check, or leaves no upcoming date, the existing
+data-calendar-br.json is left as it is and a "WARNING BCB: ..." line is printed.
+The run never fails the workflow.
 """
-
 from __future__ import annotations
 
 import json
+import re
 import sys
-from datetime import date, datetime, timezone
+from datetime import date, datetime, timedelta, timezone
 
-# Hardcoded from the 2026 Copom calendar as reported by BCB and
-# corroborated by multiple Brazilian financial outlets (CNN Brasil,
-# InfoMoney, C6 Bank) tonight -- NOT scraped from bcb.gov.br directly.
-# Each tuple is (meeting start, decision day / meeting end).
-COPOM_2026_MEETINGS = [
-    (date(2026, 1, 27), date(2026, 1, 28)),
-    (date(2026, 3, 17), date(2026, 3, 18)),
-    (date(2026, 4, 28), date(2026, 4, 29)),
-    (date(2026, 6, 16), date(2026, 6, 17)),
-    (date(2026, 8, 4), date(2026, 8, 5)),
-    (date(2026, 9, 15), date(2026, 9, 16)),
-    (date(2026, 11, 3), date(2026, 11, 4)),
-    (date(2026, 12, 8), date(2026, 12, 9)),
-]
+import requests
+
+from calendar_common import UA
+
+LISTA = "Reuniões do Copom"
+URL = "https://www.bcb.gov.br/api/servico/sitebcb/calendario"
+REFERER = "https://www.bcb.gov.br/controleinflacao/calendarioreunioescopom"
+OUT = "data-calendar-br.json"
+NAME = "Copom Selic rate decision"
+SRC = "bcb.gov.br calendar, Reuniões do Copom"
+BRT = timezone(timedelta(hours=-3))
 
 
-def main():
-    today = datetime.now(timezone.utc).date()
-    print("WARNING: dates below are hardcoded from cross-referenced news "
-          "reporting, not scraped from bcb.gov.br directly -- find BCB's "
-          "own Copom calendar page and point this script at it before "
-          "trusting this for more than one year.", file=sys.stderr)
+def params(today: date) -> dict:
+    return {"lista": LISTA, "inicioAgenda": f"'{today.isoformat()}'",
+            "fimAgenda": f"'{(today + timedelta(days=400)).isoformat()}'"}
 
-    events = []
-    for _, decision_day in COPOM_2026_MEETINGS:
-        if decision_day < today:
+
+def parse(raw: bytes) -> tuple[list[dict], list[str]]:
+    try:
+        data = json.loads(raw)
+    except ValueError:
+        return [], [f"not JSON (bot wall or a changed API?): {raw[:120]!r}"]
+    rows = data.get("conteudo") if isinstance(data, dict) else None
+    if not isinstance(rows, list):
+        return [], ["no 'conteudo' list in the response"]
+    days, problems = set(), []
+    for r in rows:
+        if not isinstance(r, dict) or r.get("evento") != "Reunião do Copom":
+            problems.append(f"unexpected entry: {str(r)[:120]}")
             continue
-        events.append({
-            "date": decision_day.isoformat(),
-            "country": "Brazil",
-            "concept": "rate_decision",
-            "name": "Copom Selic rate decision",
-            "source": "bcb.gov.br (2026 Copom calendar, corroborated via news reporting, not yet scraped directly)",
-            "time": "Evening, Brasilia time, typically 6:30pm to 7:30pm",
-        })
+        try:
+            d = datetime.strptime(str(r.get("dataEvento")), "%Y-%m-%dT%H:%M:%SZ").replace(tzinfo=timezone.utc).astimezone(BRT).date()
+        except ValueError:
+            problems.append(f"date not read: {r.get('dataEvento')!r}")
+            continue
+        days.add(d)
+    if not days and not problems:
+        problems.append("no meeting days in the response")
+    events, run = [], []
+    for d in sorted(days):
+        if run and d - run[-1] != timedelta(days=1):
+            events.append(run[-1])
+            run = []
+        run.append(d)
+        if len(run) > 2:
+            problems.append(f"meeting of more than two days ending {d}")
+    if run:
+        events.append(run[-1])
+    out = [{"date": d.isoformat(), "country": "Brazil", "concept": "rate_decision", "name": NAME,
+            "source": SRC, "time": None} for d in events]
+    for y in {d.year for d in events}:
+        n = sum(d.year == y for d in events)
+        if n > 10:
+            problems.append(f"{y}: {n} decisions; Copom meets 8 times a year")
+    return out, problems
 
-    out = {
-        "generated": datetime.now(timezone.utc).isoformat(),
-        "country": "Brazil",
-        "events": events,
-    }
-    with open("data-calendar-br.json", "w") as f:
-        json.dump(out, f, indent=2)
-    print(f"Wrote {len(events)} Brazil calendar events.")
+
+def main() -> int:
+    today = datetime.now(BRT).date()
+    try:
+        r = requests.get(URL, params=params(today), headers={**UA, "Accept": "application/json", "Referer": REFERER}, timeout=40)
+        r.raise_for_status()
+        ev, pr = parse(r.content)
+        if pr:
+            raise ValueError("; ".join(pr[:3]))
+        ev = [e for e in ev if e["date"] >= today.isoformat()]
+        if not ev:
+            raise ValueError("no upcoming decision date")
+    except Exception as e:
+        print(f"WARNING BCB: {type(e).__name__}: {str(e)[:300]}; existing {OUT} kept", file=sys.stderr)
+        return 0
+    with open(OUT, "w") as f:
+        json.dump({"generated": datetime.now(timezone.utc).isoformat(), "country": "Brazil", "events": ev}, f, indent=2)
+    print(f"BCB: wrote {len(ev)} upcoming Copom decisions (next {ev[0]['date']}).")
+    return 0
 
 
 if __name__ == "__main__":
-    main()
+    sys.exit(main())
