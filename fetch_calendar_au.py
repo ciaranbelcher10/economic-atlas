@@ -162,9 +162,10 @@ def parse_month(markup: str, y: int, m: int) -> tuple[list[dict], list[str]]:
 
 def rba_time(markup: str) -> str:
     """'2:30pm Sydney time' from the decisions page sentence, or '' if it is not there."""
-    t = re.sub(r"<[^>]+>", " ", markup)
-    m = re.search(r"decision at\s+(\d{1,2})[.:](\d{2})\s*([ap])\.?m\.?\s+after each (?:Monetary Policy )?Board meeting",
-                  html.unescape(t), re.I)
+    # v1.9.59: the live page breaks the sentence across lines ("after each\r\n\tBoard meeting"),
+    # so all whitespace is collapsed to single spaces before matching.
+    t = re.sub(r"\s+", " ", html.unescape(re.sub(r"<[^>]+>", " ", markup)))
+    m = re.search(r"decision at (\d{1,2})[.:](\d{2}) ?([ap])\.?m\.? after each (?:Monetary Policy )?Board meeting", t, re.I)
     return f"{int(m.group(1))}:{m.group(2)}{m.group(3).lower()}m Sydney time" if m else ""
 
 
