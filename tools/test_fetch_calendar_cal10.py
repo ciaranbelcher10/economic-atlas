@@ -161,6 +161,7 @@ for n in ["fetch_calendar_tr.py", "fetch_calendar_ca.py"]:
     check("hardcoded" not in src.lower() and "date(2026," not in src, f"{n}: no hand-typed dates left")
 for n, h in LIVE.items():
     check(hashlib.sha256((ROOT / n).read_bytes()).hexdigest() == h, f"{n} untouched")
-check(not (ROOT / "data-calendar-sg.json").exists(), "no data-calendar-sg.json committed (bot-owned)")
+# v1.9.60: no "file must not exist" check here; once the workflow runs, the bot commits that file.
+# The hash loop above already proves the test never writes a live data-calendar-*.json.
 print(f"{ok} ok, {bad} failed")
 sys.exit(1 if bad else 0)
