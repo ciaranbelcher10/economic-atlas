@@ -57,7 +57,13 @@
   function trim(s){ return s.replace(/(\.\d*[1-9])0+(?!\d)|\.0+(?!\d)/, function(m, keep){ return keep || ""; }); }
 
   /* mode: "value" (headline), "cell" (table column: fixed decimals, no trim), "tip" (tooltip), "axis" (tick), "delta" (signed change) */
+  // v1.9.66: a value that rounds to zero is shown unsigned ("0.0%", not "−0.0%"), matching the generator
   function fmtNum(v, o){
+    var out = fmtNumRaw(v, o);
+    if((out.charAt(0) === MINUS || out.charAt(0) === "+") && !/[1-9]/.test(out)) out = out.slice(1);
+    return out;
+  }
+  function fmtNumRaw(v, o){
     if(v == null || !isFinite(v)) return "n/a";
     o = o || {};
     var mode = o.mode || "value", kind = unitKind(o.unit);
@@ -311,6 +317,9 @@
         paint();
       });
     });
+    // v1.9.66: on phones a long history opens on 10 years, so the bars are readable; Max is one tap away
+    var b10 = document.querySelector('[data-range="10"]');
+    if(b10 && window.matchMedia && window.matchMedia("(max-width: 700px)").matches) b10.click();
     [["indToggleReal", "real_on"], ["indToggleDollar", "dollar_on"]].forEach(function(t){
       var b = document.getElementById(t[0]);
       if(!b) return;

@@ -202,7 +202,7 @@ def render_economy(country, cslug, region, entries, rows, missing, notes):
         if r["theme"] != theme:
             theme = r["theme"]
             out.append(f'<tr class="mb-theme"><th colspan="4">{esc(theme)}</th></tr>')
-        out.append(f'<tr><th scope="row"><a href="indicators/{esc(r["page"])}">{esc(r["title"])}</a></th>'
+        out.append(f'<tr><th scope="row"><a class="rk-cty" href="indicators/{esc(r["page"])}">{esc(r["title"])}</a></th>'
                    f'<td>{esc(r["label"])}</td><td>{esc(r["freq"])}</td>'
                    f'<td>{esc(r["adj"])}</td></tr>')
     out.append('</tbody></table></div>')

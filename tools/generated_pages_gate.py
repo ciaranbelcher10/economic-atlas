@@ -494,7 +494,7 @@ def check_data_status(tmp, ind_files):
               f"{ck[0]} {ck[1]}: indicator page dot is {led[0] if led else None}, expected {want}")
     # and every ranking row's dot, through the indicator page the row links to
     for rf in glob.glob(os.path.join(tmp, "rankings", "*.html")):
-        for href, colour in re.findall(r'<a href="\.\./indicators/([^"]+)">.*?<span class="led (green|orange)"', read(rf)):
+        for href, colour in re.findall(r'<a class="rk-cty" href="\.\./indicators/([^"]+)">.*?<span class="led (green|orange)"', read(rf)):
             ck = slug_of.get(href)
             if ck is None:
                 continue
@@ -624,7 +624,7 @@ def check_key_figures(tmp):
             except ValueError:
                 ld = None
         check(dm and ld == dm.group(1), f"key figures: {fname} Dataset dateModified does not match the block date")
-        rows = re.findall(r'<tr><th scope="row"><a href="indicators/([^"]+)">[^<]*</a></th><td class="kf-v">([^<]*)</td><td>([^<]*)</td><td>([^<]*)</td></tr>', blk)
+        rows = re.findall(r'<tr><th scope="row"><a class="rk-cty" href="indicators/([^"]+)">[^<]*</a></th><td class="kf-v">([^<]*)</td><td>([^<]*)</td><td>([^<]*)</td></tr>', blk)
         check(rows, f"key figures: {fname} block has no rows")
         feed_path = os.path.join(tmp, "feeds", stem + ".json")
         feed = json.loads(read(feed_path)) if os.path.exists(feed_path) else None
@@ -811,7 +811,7 @@ def check_methodology(tmp, repo, ind_files, labels, series_of):
     expected_missing = {}
     for sid, body in secs:
         name = unescape((re.search(r"<h2>(.*?)</h2>", body, re.S) or [None, ""])[1])
-        rows = re.findall(r'<tr><th scope="row"><a href="indicators/([^"]*)">(.*?)</a></th><td[^>]*>(.*?)</td><td[^>]*>(.*?)</td><td[^>]*>(.*?)</td></tr>', body, re.S)
+        rows = re.findall(r'<tr><th scope="row"><a class="rk-cty" href="indicators/([^"]*)">(.*?)</a></th><td[^>]*>(.*?)</td><td[^>]*>(.*?)</td><td[^>]*>(.*?)</td></tr>', body, re.S)
         check(rows, f"methodology {name}: no rows")
         slugs, first_cfg = set(), None
         for page, title, label, freq, adj in rows:

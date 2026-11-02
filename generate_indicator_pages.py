@@ -44,7 +44,7 @@ SITE_URL = "https://theeconomicatlas.com"
 # underlying official statistics, which stay with their publishers.
 CREATOR = {"@type": "Organization", "name": "The Economic Atlas", "url": SITE_URL}
 LICENSE = f"{SITE_URL}/terms"
-KIT_VERSION = "8"
+KIT_VERSION = "9"
 
 # country display name -> (data-file code, page slug, alpha-2, region)
 COUNTRIES = {
@@ -439,6 +439,13 @@ def _fixed(x, d):
     return str(Decimal(x).quantize(q, rounding=ROUND_HALF_UP))
 
 def fmt_num(v, unit, key="", country="", mode="value", dollarised=False):
+    """v1.9.66: a value that rounds to zero is shown unsigned ("0.0%", not "−0.0%")."""
+    out = _fmt_num_raw(v, unit, key, country, mode, dollarised)
+    if out[:1] in (MINUS, "+") and not re.search(r"[1-9]", out):
+        out = out[1:]
+    return out
+
+def _fmt_num_raw(v, unit, key="", country="", mode="value", dollarised=False):
     if v is None:
         return "n/a"
     kind = unit_kind(unit)
@@ -1199,7 +1206,8 @@ HEADER_HTML_BASE = """<script>(function(){
 FOOTER_HTML = """<footer>
  Data from official national and international statistics sources. Series codes are shown with each metric;
  figures are the latest published observations and are subject to revision.
- Ideas or corrections: <a href="../contact">get in touch</a>. <a href="../privacy">Privacy</a> &middot; <a href="../terms">Terms</a>.
+ Ideas or corrections are welcome.
+ <div class="lnk-row"><a class="rk-btn sm" href="../contact">Get in touch</a><a class="rk-btn sm" href="../privacy">Privacy</a><a class="rk-btn sm" href="../terms">Terms</a></div>
 </footer>
 """
 
@@ -1641,6 +1649,8 @@ def _change_words(a, b, unit, key, country):
         return "was unchanged"
     return ("rose" if d > 0 else "fell") + " by " + fmt_num(abs(d), unit, key, country, "delta").lstrip("+")
 
+RANK_BTN_MARK = "\x00RANKBTN\x00"
+
 def context_sentences(country, label, key, pts, unit, freq, rank=None):
     out = []
     if len(pts) < 3:
@@ -1684,7 +1694,7 @@ def context_sentences(country, label, key, pts, unit, freq, rank=None):
             out.append(f"Its average since {per(pts[0][0])} is {val(avg)}, and the latest reading is {rel} that.")
     if rank:
         pos, count, title, slug = rank
-        out.append(f'{in_country(country)[0].upper() + in_country(country)[1:]} is {ordinal(pos)} of {count} countries in our <a href="../rankings/{slug}">{esc(title)}</a> ranking.')
+        out.append(f'{in_country(country)[0].upper() + in_country(country)[1:]} is {ordinal(pos)} of {count} countries in our {esc(title)} ranking.' + RANK_BTN_MARK + slug + "|" + title)
     return out
 
 
@@ -1803,14 +1813,19 @@ def render_indicator(country, info, entry, rank_info, all_rankings_meta, n_indic
         if pos and rm:
             rk_ctx = (pos, rm["count"], rm["title"], rm["slug"])
     ctx = context_sentences(country, meta_label, key, pts, unit, freq, rk_ctx)
-    ctx_items = []
+    ctx_items, ctx_btns = [], []
     for sentence in ctx:
-        parts = re.split(r'(<a href="[^"]*">.*?</a>)', sentence)
-        ctx_items.append("".join(x if x.startswith("<a ") else esc(x) for x in parts))
+        # v1.9.66: no links inside running text; the ranking gets its own button below the paragraphs
+        if RANK_BTN_MARK in sentence:
+            sentence, tail = sentence.split(RANK_BTN_MARK, 1)
+            rslug, rtitle = tail.split("|", 1)
+            ctx_btns.append(f'<a class="rk-btn" href="../rankings/{rslug}">Open the {esc(rtitle)} ranking</a>')
+        ctx_items.append(esc(sentence))
     ctx_html = ("" if not ctx_items else
                 f'<section class="ind-section" aria-labelledby="ctxHead">\n    <h2 id="ctxHead">{esc(country)} {esc(title)} in context</h2>\n'
                 f'    <p class="ind-section-sub">Worked out from the published series shown above.</p>\n'
-                + "".join(f"    <p class=\"ind-ctx\">{c}</p>\n" for c in ctx_items) + "  </section>")
+                + "".join(f"    <p class=\"ind-ctx\">{c}</p>\n" for c in ctx_items)
+                + (f'    <div class="lnk-row">{"".join(ctx_btns)}</div>\n' if ctx_btns else "") + "  </section>")
     rest = description[len(first_sentence(description)):].strip()
     about_p = f"<p>{esc(rest)}</p>" if rest else ""
     html_out = head_html(page_title, meta_desc, canonical, og_image, jsonld)
@@ -1905,7 +1920,7 @@ def render_ranking(ranking, rows, unranked, all_rankings_meta, catalogue_by_coun
         body.append(
             f'<tr data-rank="{i}" data-country="{esc(c)}" data-value="{r["value"]:.6g}" data-change="{chg_attr}" data-period="{period_end_date(r["period"]).isoformat()}" data-source="{esc(r["src_pub"])}">'
             f'<td class="rank">{i}</td>'
-            f'<td class="country"><a href="../indicators/{cslug}-{m["slug"]}">{esc(c)}</a><span class="rk-region">{esc(COUNTRIES[c][3])}</span></td>'
+            f'<td class="country"><a class="rk-cty" href="../indicators/{cslug}-{m["slug"]}">{esc(c)}</a><span class="rk-region">{esc(COUNTRIES[c][3])}</span></td>'
             f'<td class="num val{cls}">{esc(r["value_str"])}<span class="rk-bar"><span class="{"neg" if r["value"] < 0 else ""}" style="width:{width:.1f}%"></span></span></td>'
             f'<td class="num chg"{chg_title}>{esc(r["change_str"])}</td>'
             f'<td class="num">{led}{esc((fmt_rolling3m if is_rolling3m(r["country"], r.get("key")) and r.get("freq") == "months" else fmt_period_label)(r["period"]))}<span class="measuretag">{esc(tag)}</span></td>'
@@ -2394,7 +2409,7 @@ def legacy_redirect_html(target_slug):
 <link rel="canonical" href="{url}">
 <meta http-equiv="refresh" content="0; url=/rankings/{target_slug}">
 <meta name="robots" content="noindex">
-</head><body><p>This ranking has moved to <a href="/rankings/{target_slug}">{url}</a>.</p>
+</head><body><p>This ranking has moved.</p><p><a class="rk-btn" href="/rankings/{target_slug}">Open {url}</a></p>
 <script>location.replace("/rankings/{target_slug}");</script></body></html>
 """
 
@@ -2759,7 +2774,7 @@ def render_key_figures(country, name, cslug, info, stamp):
             last_cat = e["m"]["cat"]
             rows.append(f'<tr class="kf-cat"><th colspan="4" scope="colgroup">{esc(last_cat)}</th></tr>')
         pub = kf_publisher((info["sources"].get(e["key"]) or {}).get("source", ""))
-        rows.append(f'<tr><th scope="row"><a href="indicators/{cslug}-{e["m"]["slug"]}">{esc(e["title"])}</a></th>'
+        rows.append(f'<tr><th scope="row"><a class="rk-cty" href="indicators/{cslug}-{e["m"]["slug"]}">{esc(e["title"])}</a></th>'
                     f'<td class="kf-v">{esc(fmt_num(e["pts"][-1][1], e["unit"], e["key"], country))}</td>'
                     f'<td>{esc(kf_period(country, e))}</td><td>{esc(pub)}</td></tr>')
     summary = kf_summary(country, name, info)
