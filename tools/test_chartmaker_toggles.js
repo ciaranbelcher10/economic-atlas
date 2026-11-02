@@ -157,7 +157,7 @@ const { JSDOM, VirtualConsole } = require("jsdom");
 const bootErrors = [];
 const savedPayloads = []; let savedRows = [];
 async function boot(){
-  const html = fs.readFileSync(path.join(ROOT, "chartmaker.html"), "utf8");
+  const html = require("./inline_local_scripts")(fs.readFileSync(path.join(ROOT, "chartmaker.html"), "utf8"), ROOT);
   const vc = new VirtualConsole();
   vc.on("jsdomError", e => {
     const msg = String(e && e.message || e).split("\n")[0];

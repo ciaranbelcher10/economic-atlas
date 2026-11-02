@@ -29,7 +29,7 @@ function eq(a, b, what) {
 
 const store = {};
 function boot() {
-  const html = fs.readFileSync("dashboard.html", "utf8");
+  const html = require("./inline_local_scripts")(fs.readFileSync("dashboard.html", "utf8"), undefined);
   const vc = new VirtualConsole();
   // Uncaught page errors were being swallowed here. A deleted constant is
   // valid syntax, so html_gate cannot see it -- only running the page can.

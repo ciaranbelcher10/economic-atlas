@@ -59,7 +59,7 @@ for country, (iso, script, page, fred) in CASES.items():
     check(html.count("OECD DF_IALFS_UNE_M") == 2, f"{country}: tile and info panel cite OECD")
 
 dash = open(os.path.join(REPO, "dashboard.html"), encoding="utf-8").read()
-check("explainerOf(it.key, it.country)" in dash, "dashboard picker passes the country")
+check("EAChooser.create(" in dash, "dashboard picker is the shared chooser (v1.9.62)")
 check("function explainerOf(key, country)" in dash, "dashboard explainer is per country")
 
 for f in fails:
