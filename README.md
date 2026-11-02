@@ -194,27 +194,10 @@ clicking "Next" or by actually performing the described action (both
 work) — nothing in the tour is a mocked-up screenshot or a fake
 interaction.
 
-## Email alerts
-A no-account-required email signup (`alert_signups` table in Supabase,
-insert-only RLS — the email can never be read back via the client API,
-by design) for people who want to hear about new countries, indicators
-or features without creating a full account. Promoted via a dismissible
-orange banner site-wide (hidden once logged in) and a form on the
-Roadmap page.
-
-**⚠️ Known mismatch, found in a pre-v1.0 review, not yet resolved**:
-`privacy.html`'s "Email signup" section states addresses are stored with
-"Kit (our email delivery provider)" and describes an unsubscribe-link
-flow. Neither exists in the code — signups go straight into the
-Supabase `alert_signups` table, there's no Kit integration anywhere in
-the repo, and no automated emails are sent to this list at all yet (no
-double opt-in/confirmation flow is wired up — the `confirmed` column
-exists on the table but nothing sets it or acts on it). Since this
-banner is already live and collecting real addresses against a privacy
-policy that describes a different, non-existent data flow, this is
-worth resolving before promoting email capture any further — either by
-building the Kit integration the policy describes, or by rewriting that
-section of the policy to match what actually happens today.
+## Email alerts (removed)
+The no-account email signup (banner and Roadmap form) was removed before v2.0, and its
+Supabase `alert_signups` table was dropped on 2 Nov 2026. `generated_pages_gate.py` checks
+that no page brings the signup back.
 
 ## Clean URLs
 Every internal link and the sitemap use extensionless paths (`/uk`, not
