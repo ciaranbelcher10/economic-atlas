@@ -17,6 +17,7 @@ const sleep = ms => new Promise(r => setTimeout(r, ms));
 const CSS = fs.readFileSync(path.join(ROOT, "mobile.css"), "utf8");
 const HTML = fs.readFileSync(path.join(ROOT, "compare.html"), "utf8");
 
+const rule = sel => { const m = CSS.match(new RegExp(sel.replace(/[.#()\[\]"=>*+]/g, "\\$&") + "\\{([^}]*)\\}")); return m ? m[1] : ""; };
 (async () => {
   const { win, doc, errs } = await boot();
   const $ = s => doc.querySelector(s), $$ = s => [...doc.querySelectorAll(s)];
@@ -53,6 +54,17 @@ const HTML = fs.readFileSync(path.join(ROOT, "compare.html"), "utf8");
   ok(rows.every(r => r.querySelectorAll(".cmp-rk-bar").length === 1), "one bar per row");
   ok(rows.every(r => r.querySelector(".cmp-rk-bar i").style.background === r.querySelector(".tpm-rankswatch").style.background), "bars use the country colour");
   ok($$(".metric-card .tpm-mobile-note").length === 0 && $$(".tpm-mobile-note").length === 0, "no trade-page note on Compare");
+
+  // v1.9.77: labelled full-screen button on every card, after the ranking, pressing the card's own button
+  ok(cards().every(c => c.querySelectorAll(".cmp-m-fs").length === 1), "every card has one full-screen button");
+  { const v = visible()[0], fs = v.querySelector(".cmp-m-fs");
+    ok(/full-screen chart/i.test(fs.textContent), "button is labelled: " + fs.textContent.trim());
+    let pressed = 0; v.querySelector(".card-fullscreen-btn").addEventListener("click", () => pressed++);
+    fs.click(); await sleep(50);
+    ok(pressed === 1, "it presses the card's own Fullscreen button");
+    const m = doc.getElementById("cardFullscreenModal"); ok(m && !m.hidden, "full-screen chart opens");
+    const cl = doc.getElementById("cardFullscreenClose"); if(cl) cl.click(); await sleep(30); }
+  ok(/order:2;/.test(rule("  body.cmp-m .metric-card > .cmp-m-fs")) && /min-height:44px/.test(rule("  body.cmp-m .metric-card > .cmp-m-fs")), "button sits with the ranking, 44px");
 
   // summary per metric
   const ths = $$("#rankTable thead th");
@@ -123,7 +135,6 @@ const HTML = fs.readFileSync(path.join(ROOT, "compare.html"), "utf8");
   ["#cmpMBar\\{", "\\.cmp-m-tab\\{", "\\.cmp-metric-sum\\{", "#metricPicker \\.pickeritem::after", "body\\.cmp-m #countriesPanelBody\\{"].forEach(sel => {
     const i = CSS.search(new RegExp(sel)); ok(i > start && start > 0, sel + " phone-scoped");
   });
-  const rule = sel => { const m = CSS.match(new RegExp(sel.replace(/[.#()\[\]"=>*+]/g, "\\$&") + "\\{([^}]*)\\}")); return m ? m[1] : ""; };
   ok(/min-height:44px/.test(rule("  .cmp-m-tab")), "tabs 44px");
   ok(/min-height:48px/.test(rule("  #metricPicker .pickeritem")), "picker rows 48px");
   ok(/display:none !important/.test(rule("  body.cmp-m .metric-card.cmp-m-off")), "inactive cards hidden");

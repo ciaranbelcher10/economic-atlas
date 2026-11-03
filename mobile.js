@@ -1096,6 +1096,19 @@
       });
     });
   }
+  /* v1.9.77: a clear, labelled full-screen chart button straight under the
+     ranking on each card (the card's own Fullscreen button was tucked away
+     inside More options). It just presses the card's own button. */
+  function addFullscreenButton(card){
+    var real = card.querySelector(".card-fullscreen-btn");
+    if(!real || card.querySelector(".cmp-m-fs")) return;
+    var b = document.createElement("button");
+    b.type = "button";
+    b.className = "cmp-m-fs";
+    b.innerHTML = '<span aria-hidden="true">\u2922</span> View full-screen chart';
+    b.addEventListener("click", function(){ real.click(); });
+    card.appendChild(b);
+  }
   function initCompareMobile(){
     var grid = document.getElementById("chartGrid");
     var toggle = document.getElementById("countriesToggleBtn");
@@ -1175,6 +1188,7 @@
       var on = c.dataset.concept === cmpActive;
       if(c.classList.contains("cmp-m-off") === on) c.classList.toggle("cmp-m-off", !on);
       addRankBars(c);
+      addFullscreenButton(c);
     });
     var sig = concepts.join(",") + "#" + cmpActive + "#" + cards.map(function(c){ var t = c.querySelector(".card-title"); return t ? t.textContent : ""; }).join("|");
     if(tabs._sig === sig) return;
