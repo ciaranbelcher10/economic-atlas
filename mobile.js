@@ -829,54 +829,70 @@
       anchor.insertAdjacentElement("beforebegin", agenda);
     }
 
+    var mini = document.getElementById("calMiniMonth");
+    if(!mini){
+      mini = document.createElement("div");
+      mini.id = "calMiniMonth";
+      heading.insertAdjacentElement("beforebegin", mini);
+    }
+    function esc(t){ return String(t).replace(/[&<>"]/g, function(c){ return {"&":"&amp;","<":"&lt;",">":"&gt;",'"':"&quot;"}[c]; }); }
+    var DOW = ["Sun","Mon","Tue","Wed","Thu","Fri","Sat"];
+    var DOT_MAX = 4;
+
     function renderAgendaFromGrid(){
+      var cal = window.EA_CAL;
+      if(!cal) return;
+      var days = cal.monthDays();
       var monthLabel = document.getElementById("calMonthLabel");
-      heading.textContent = "This month's tracked releases";
-      var cells = $all(".cal-cell", weeksEl).filter(function(c){ return !c.classList.contains("other"); });
-      var html = "";
-      var anyEvents = false;
-      cells.forEach(function(cell){
-        var pills = $all(".cal-pill", cell);
-        var more = cell.querySelector(".cal-more");
-        if(!pills.length && !more) return;
-        anyEvents = true;
-        var dayNum = cell.querySelector(".cal-daynum");
-        var isToday = cell.classList.contains("today");
-        var dayText = dayNum ? dayNum.textContent.trim() : "";
-        html += '<div class="cal-agenda-day'+(isToday?" is-today":"")+'" data-day="'+dayText+'">';
-        html += '<div class="d-head"><span class="d-num">'+dayText+'</span>'+(isToday?'<span class="d-dow">Today</span>':'')+'</div>';
-        pills.forEach(function(pill, i){
-          var bg = pill.style.background || "#37659E";
-          html += '<div class="cal-agenda-pill" data-cell-day="'+dayText+'" data-pill-index="'+i+'" style="background:'+bg+'">';
-          html += '<span class="dot" aria-hidden="true"></span>' + pill.textContent;
-          html += '</div>';
-        });
-        if(more){
-          html += '<div class="cal-agenda-more">'+more.textContent+', full list on desktop/tablet</div>';
-        }
-        html += '</div>';
+      var label = monthLabel ? monthLabel.textContent : "this month";
+
+      // Compact month grid: one dot per event (up to DOT_MAX, then "+").
+      var g = '<div class="cal-mm-dow">' + DOW.map(function(d){ return "<span>"+d.charAt(0)+"</span>"; }).join("") + "</div><div class=\"cal-mm-grid\">";
+      for(var i = 0; i < cal.firstDow(); i++) g += '<span class="cal-mm-pad"></span>';
+      days.forEach(function(d){
+        var n = d.events.length;
+        g += '<button type="button" class="cal-mm-day'+(d.isToday?" is-today":"")+(n?" has-ev":"")+'" data-day="'+d.day+'" aria-label="'+d.day+", "+n+(n===1?" release":" releases")+'"'+(n?"":" disabled")+'>';
+        g += '<span class="n">'+d.day+'</span><span class="dots">';
+        d.events.slice(0, DOT_MAX).forEach(function(e){ g += '<i style="background:'+esc(e.color)+'"></i>'; });
+        if(n > DOT_MAX) g += '<b>+</b>';
+        g += "</span></button>";
       });
-      if(!anyEvents){
-        var label = monthLabel ? monthLabel.textContent : "this month";
-        html = '<p class="cal-agenda-empty">No tracked releases in '+label+'.</p>';
-      }
+      mini.innerHTML = g + "</div>";
+
+      // Agenda: every event, one compact row each. Empty days are skipped.
+      heading.textContent = label + ": all tracked releases";
+      var html = "", flat = [];
+      days.forEach(function(d){
+        if(!d.events.length) return;
+        html += '<div class="cal-agenda-day'+(d.isToday?" is-today":"")+'" id="calAgDay'+d.day+'" data-day="'+d.day+'">';
+        html += '<div class="d-head"><span class="d-num">'+d.day+'</span><span class="d-dow">'+(d.isToday?"Today":DOW[d.dow])+"</span></div>";
+        d.events.forEach(function(e){
+          html += '<button type="button" class="cal-ag-row" data-i="'+flat.length+'">' +
+            '<i class="dot" style="background:'+esc(e.color)+'"></i>' +
+            '<span class="c">'+esc(e.country)+'</span>' +
+            '<span class="r">'+esc(e.label)+'</span>' +
+            '<span class="t">'+esc(e.time || "Time tbc")+"</span></button>";
+          flat.push(e);
+        });
+        html += "</div>";
+      });
+      if(!flat.length) html = '<p class="cal-agenda-empty">No tracked releases in '+esc(label)+".</p>";
       agenda.innerHTML = html;
 
       renderCalendarNextUp();
 
-      // Wire each agenda pill to trigger the real pill's existing click
-      // handler (opens the event detail view) rather than reimplementing it.
-      $all(".cal-agenda-pill", agenda).forEach(function(agPill){
-        agPill.addEventListener("click", function(){
-          var day = this.dataset.cellDay;
-          var idx = +this.dataset.pillIndex;
-          var cell = cells.filter(function(c){
-            var dn = c.querySelector(".cal-daynum");
-            return dn && dn.textContent.trim() === day;
-          })[0];
-          if(!cell) return;
-          var realPill = $all(".cal-pill", cell)[idx];
-          if(realPill) realPill.click();
+      $all(".cal-ag-row", agenda).forEach(function(row){
+        row.addEventListener("click", function(){ cal.open(flat[+this.getAttribute("data-i")].ev); });
+      });
+      $all(".cal-mm-day.has-ev", mini).forEach(function(btn){
+        btn.addEventListener("click", function(){
+          var target = document.getElementById("calAgDay" + this.getAttribute("data-day"));
+          if(!target) return;
+          $all(".cal-agenda-day.is-picked", agenda).forEach(function(x){ x.classList.remove("is-picked"); });
+          $all(".cal-mm-day.is-picked", mini).forEach(function(x){ x.classList.remove("is-picked"); });
+          target.classList.add("is-picked");
+          this.classList.add("is-picked");
+          if(target.scrollIntoView) target.scrollIntoView({behavior:"smooth", block:"start"});
         });
       });
     }

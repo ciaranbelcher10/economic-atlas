@@ -33,7 +33,7 @@
 <link rel="icon" type="image/png" sizes="32x32" href="favicon-32.png">
 <link rel="apple-touch-icon" href="apple-touch-icon.png">
 <link rel="stylesheet" href="style.css?v=55">
-<link rel="stylesheet" href="mobile.css?v=17">
+<link rel="stylesheet" href="mobile.css?v=18">
 </head>
 <body>
 <nav class="top"><div class="wrap">
@@ -1894,6 +1894,26 @@ function renderLegend(){
   el.innerHTML = parts.join("");
 }
 
+/* v1.9.70: read-only bridge for the phone month view in mobile.js, so it
+   reads every event for the viewed month instead of scraping the capped
+   desktop pills. */
+window.EA_CAL = {
+  monthDays: function(){
+    var out = [], n = new Date(viewYear, viewMonth + 1, 0).getDate(), t = fmtISO(today);
+    for(var day = 1; day <= n; day++){
+      var d = new Date(viewYear, viewMonth, day), iso = fmtISO(d);
+      out.push({ iso: iso, day: day, dow: d.getDay(), isToday: iso === t,
+        events: eventsForDate(iso).map(function(ev){
+          return { country: ev.country, label: SHORT_LABEL[ev.concept] || ev.name,
+                   time: ev.time || "", color: eventColor(ev), ev: ev };
+        }) });
+    }
+    return out;
+  },
+  firstDow: function(){ return new Date(viewYear, viewMonth, 1).getDay(); },
+  open: function(ev){ openEventDetail(ev); }
+};
+
 function renderAll(){
   renderCountriesCount();
   renderMonth();
@@ -2270,6 +2290,6 @@ initCalendar();
 })();
 </script>
 
-<script src="mobile.js?v=19" defer></script>
+<script src="mobile.js?v=20" defer></script>
 </body>
 </html>
