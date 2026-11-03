@@ -107,7 +107,8 @@ async function boot(){
   ok(/minmax\(0,1fr\)/.test(rule(".cal-mm-dow, .cal-mm-grid")), "mini grid columns can shrink (no overflow)");
   ok(!/width:\s*\d{3,}px/.test(MOBILE_CSS.slice(idx, MOBILE_CSS.indexOf("7. CHARTMAKER"))), "no fixed widths >= 100px in calendar rules");
   ok(!/full list on desktop/.test(MOBILE_JS), "mobile.js has no 'full list on desktop' copy");
-  ok(/mobile\.css\?v=19/.test(CAL) && /mobile\.js\?v=21/.test(CAL), "calendar.html on mobile.css v19 / mobile.js v21");
+  { const cv = +(CAL.match(/mobile\.css\?v=(\d+)/) || [0, 0])[1], jv = +(CAL.match(/mobile\.js\?v=(\d+)/) || [0, 0])[1];
+    ok(cv >= 19 && jv >= 21, `calendar.html on mobile.css >= v19 / mobile.js >= v21 (v${cv} / v${jv})`); }
 
   console.log(`test_calendar_agenda: ${checks - failures} ok, ${failures} failed`);
   process.exit(failures ? 1 : 0);

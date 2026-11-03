@@ -257,6 +257,9 @@ html[data-theme="dark"]{ --map-nodata: #C4CAC0; }
 .mapmetric button.active{background:var(--navy); border-color:var(--navy); color:#fff;}
 .mapmetric button:hover:not(.active){border-color:var(--blue); color:var(--navy);}
 #heatmapSvg{width:100%; height:auto; display:block;}
+/* v1.9.72: ranked list twin of the map. Hidden here; mobile.css shows it on
+   phones and hides the map, where a 343px world map is unreadable. */
+.map-rank{display:none;}
 .legend-grad{display:flex; align-items:center; gap:10px; margin-top:10px; font-size:12px; color:var(--ink2);}
 .mapyear-row{display:flex; align-items:center; gap:12px; margin:10px 0 4px;}
 .mapyear-label{font-size:12.5px; color:var(--ink2); white-space:nowrap;}
@@ -276,7 +279,7 @@ footer.dash-foot{margin-top:36px; font-size:12.5px; color:var(--ink2); border-to
 .seg button{background:transparent; color:var(--ink2);}
 .seg button.active{background:var(--blue); color:#fff;}
 </style>
-<link rel="stylesheet" href="mobile.css?v=19">
+<link rel="stylesheet" href="mobile.css?v=20">
 </head>
 <body>
 <nav class="top"><div class="wrap">
@@ -1508,7 +1511,7 @@ footer.dash-foot{margin-top:36px; font-size:12.5px; color:var(--ink2); border-to
  <span class="mapyear-label">Year: <strong id="mapYearLabel"></strong></span>
  <input type="range" id="mapYearSlider" step="1">
  </div>
- <div style="position:relative;">
+ <div style="position:relative;" id="mapSvgWrap">
  <svg id="heatmapSvg" viewBox="0 0 960 500"></svg>
  <div id="heatTip"></div>
  <div class="mapzoom-controls">
@@ -3706,8 +3709,45 @@ function initMapYearSlider(){
   });
 }
 var worldData = null;
+/* v1.9.72: same countries, values and colours as the map, as a ranked bar
+   list (highest first). Countries with no value for the year go last. */
+function renderMapRankList(mappable, dvByCountry, colorScale, lo, hi){
+  var card = document.getElementById("mapCard");
+  if(!card) return;
+  var list = document.getElementById("mapRankList");
+  if(!list){
+    list = document.createElement("div");
+    list.id = "mapRankList";
+    list.className = "map-rank";
+    var wrap = document.getElementById("mapSvgWrap");
+    if(wrap) wrap.insertAdjacentElement("afterend", list); else card.appendChild(list);
+  }
+  var withVal = mappable.filter(function(c){ return dvByCountry[c] && dvByCountry[c].value != null; })
+    .sort(function(a, b){ return dvByCountry[b].value - dvByCountry[a].value; });
+  var without = mappable.filter(function(c){ return withVal.indexOf(c) === -1; });
+  var span = Math.max(Math.abs(lo), Math.abs(hi)) || 1;
+  function esc(t){ return String(t).replace(/[&<>"]/g, function(ch){ return {"&":"&amp;","<":"&lt;",">":"&gt;","\"":"&quot;"}[ch]; }); }
+  var html = "";
+  withVal.forEach(function(c, i){
+    var dv = dvByCountry[c];
+    var w = Math.max(2, Math.round(Math.abs(dv.value) / span * 100));
+    html += "<div class=\"map-rank-row\" data-country=\"" + esc(c) + "\">"
+      + "<span class=\"mr-n\">" + (i + 1) + "</span>"
+      + "<span class=\"mr-c\">" + esc(c) + "</span>"
+      + "<span class=\"mr-v\">" + esc(displayString(dv)) + "</span>"
+      + "<span class=\"mr-bar\"><i style=\"width:" + w + "%; background:" + colorScale(dv.value) + ";\"></i></span>"
+      + "</div>";
+  });
+  without.forEach(function(c){
+    html += "<div class=\"map-rank-row is-na\" data-country=\"" + esc(c) + "\"><span class=\"mr-n\"></span><span class=\"mr-c\">" + esc(c) + "</span><span class=\"mr-v\">n/a</span><span class=\"mr-bar\"></span></div>";
+  });
+  if(!mappable.length) html = "<p class=\"map-rank-empty\">Pin a country with its own geography to rank it here.</p>";
+  list.innerHTML = html;
+}
 function drawHeatmap(){
-  if(!worldData || mapYear == null) return;
+  // d3 is a CDN script: if it failed to load, skip the map and list rather
+  // than throwing out of renderDash (which would stop tiles rendering).
+  if(mapYear == null || typeof d3 === "undefined") return;
   var svg = d3.select("#heatmapSvg");
   svg.selectAll("*").remove();
   if(!mapMetric){
@@ -3733,6 +3773,8 @@ function drawHeatmap(){
   }
   document.getElementById("legendLo").textContent = legendText(lo, lowRep);
   document.getElementById("legendHi").textContent = legendText(hi, hiRep);
+  try { renderMapRankList(mappable, dvByCountry, colorScale, lo, hi); } catch(e){ console.error("Ranked map list failed:", e); }
+  if(!worldData) return; // ranked list above needs no geography
   var isoToCountry = {};
   mappable.forEach(function(c){ isoToCountry[ISO_OF[c]] = c; });
   var projection = d3.geoNaturalEarth1().fitSize([960, 500], {type: "Sphere"});
@@ -5248,6 +5290,6 @@ window.EATLAS_SAVED_CHARTS = (function(){
 })();
 })();
 </script>
-<script src="mobile.js?v=21" defer></script>
+<script src="mobile.js?v=22" defer></script>
 </body>
 </html>

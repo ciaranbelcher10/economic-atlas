@@ -488,9 +488,29 @@
       nav.insertAdjacentElement("afterend", hint);
     }
 
+    var prog = document.querySelector(".sec-progress");
+    if(!prog){
+      prog = document.createElement("p");
+      prog.className = "sec-progress";
+      prog.setAttribute("aria-live", "polite");
+      hint.insertAdjacentElement("afterend", prog);
+      var seen = false;
+      try { seen = localStorage.getItem("ea_swipe_hint_seen") === "1"; } catch(e){}
+      if(!seen){
+        prog.classList.add("first-visit");
+        try { localStorage.setItem("ea_swipe_hint_seen", "1"); } catch(e){}
+        setTimeout(function(){ prog.classList.remove("first-visit"); syncDots(); }, 6000);
+      }
+    }
     function syncDots(){
       var activeIdx = btns.findIndex(function(b){ return b.classList.contains("active"); });
       $all("span", hint).forEach(function(dot, i){ dot.classList.toggle("active", i===activeIdx); });
+      if(activeIdx === -1) return;
+      var name = btns[activeIdx].textContent.trim();
+      var txt = (activeIdx + 1) + " of " + btns.length + ": " + name;
+      if(prog.classList.contains("first-visit")) txt += ". Swipe left or right for other sections";
+      prog.innerHTML = '<span class="ar' + (activeIdx > 0 ? "" : " off") + '" aria-hidden="true">\u2039</span><span class="t"></span><span class="ar' + (activeIdx < btns.length - 1 ? "" : " off") + '" aria-hidden="true">\u203A</span>';
+      prog.querySelector(".t").textContent = txt;
     }
     var mo = new MutationObserver(syncDots);
     btns.forEach(function(b){ mo.observe(b, {attributes:true, attributeFilter:["class"]}); });
@@ -1016,6 +1036,194 @@
   }
 
   /* ------------------------------------------------------------------
+     v1.9.72 shared bottom sheet (phones): a title plus a list of actions.
+     items: [{label, note, danger, pressed, onClick}]
+     ------------------------------------------------------------------ */
+  function closeEaSheet(){
+    var b = document.getElementById("eaSheetBackdrop"), sh = document.getElementById("eaSheet");
+    if(b) b.remove();
+    if(sh) sh.remove();
+    document.removeEventListener("keydown", eaSheetKey);
+  }
+  function eaSheetKey(e){ if(e.key === "Escape") closeEaSheet(); }
+  function openEaSheet(title, items, foot){
+    closeEaSheet();
+    var back = document.createElement("div");
+    back.id = "eaSheetBackdrop";
+    back.className = "ea-sheet-backdrop";
+    back.addEventListener("click", closeEaSheet);
+    var sh = document.createElement("div");
+    sh.id = "eaSheet";
+    sh.className = "ea-sheet ea-sheet-menu";
+    sh.setAttribute("role", "dialog");
+    sh.setAttribute("aria-modal", "true");
+    sh.setAttribute("aria-label", title);
+    var h = document.createElement("p");
+    h.className = "ea-sheet-title";
+    h.textContent = title;
+    sh.appendChild(h);
+    items.forEach(function(it){
+      var b = document.createElement("button");
+      b.type = "button";
+      b.className = "ea-sheet-item" + (it.danger ? " danger" : "");
+      if(it.pressed != null){ b.setAttribute("aria-pressed", it.pressed ? "true" : "false"); }
+      b.innerHTML = '<span class="l"></span>' + (it.pressed != null ? '<span class="sw" aria-hidden="true"></span>' : "");
+      b.querySelector(".l").textContent = it.label;
+      b.addEventListener("click", function(){ closeEaSheet(); it.onClick(); });
+      sh.appendChild(b);
+    });
+    if(foot){
+      var f = document.createElement("p");
+      f.className = "ea-sheet-foot";
+      f.textContent = foot;
+      sh.appendChild(f);
+    }
+    var cancel = document.createElement("button");
+    cancel.type = "button";
+    cancel.className = "ea-sheet-item cancel";
+    cancel.textContent = "Close";
+    cancel.addEventListener("click", closeEaSheet);
+    sh.appendChild(cancel);
+    document.body.appendChild(back);
+    document.body.appendChild(sh);
+    document.addEventListener("keydown", eaSheetKey);
+    var first = sh.querySelector(".ea-sheet-item");
+    if(first && first.focus) first.focus();
+  }
+  window.EA_openSheet = openEaSheet;
+
+  /* ------------------------------------------------------------------
+     v1.9.72 Dashboard on phones: the three toggle/export buttons collapse
+     into one "⋯" options sheet; dashboard tabs get a "⋯" with Rename,
+     Delete, From template and Add, routed through the page's own sidebar
+     controls so behaviour (prompts, Pro limits, RLS) stays identical.
+     ------------------------------------------------------------------ */
+  function initDashOptions(){
+    var grid = document.getElementById("dashGrid");
+    var row = document.querySelector(".metric-toggles");
+    if(!grid || !row) return;
+    var btn = document.getElementById("dashOptsBtn");
+    if(!isMobile()){
+      row.classList.remove("dash-opts-on");
+      return;
+    }
+    row.classList.add("dash-opts-on");
+    if(btn) return;
+    btn = document.createElement("button");
+    btn.type = "button";
+    btn.id = "dashOptsBtn";
+    btn.className = "dash-opts-btn";
+    btn.setAttribute("aria-label", "Dashboard options");
+    btn.setAttribute("aria-haspopup", "dialog");
+    btn.innerHTML = '<span class="st"></span><span class="dots" aria-hidden="true">\u22EF</span>';
+    row.insertBefore(btn, row.firstChild);
+    function state(id){ var b = document.getElementById(id); return !!(b && b.getAttribute("aria-pressed") === "true"); }
+    function syncLabel(){
+      var on = [];
+      if(state("makeRealBtn")) on.push("Real");
+      if(state("dollariseBtn")) on.push("USD");
+      btn.querySelector(".st").textContent = on.length ? "Showing: " + on.join(" + ") : "Options";
+    }
+    syncLabel();
+    ["makeRealBtn", "dollariseBtn"].forEach(function(id){
+      var b = document.getElementById(id);
+      if(b) new MutationObserver(syncLabel).observe(b, {attributes:true, attributeFilter:["aria-pressed"]});
+    });
+    btn.addEventListener("click", function(){
+      var items = [];
+      var real = document.getElementById("makeRealBtn"), usd = document.getElementById("dollariseBtn"), exp = document.getElementById("exportDashboardBtn");
+      if(real) items.push({label:"Make it real", pressed: state("makeRealBtn"), onClick:function(){ real.click(); }});
+      if(usd) items.push({label:"Dollarise", pressed: state("dollariseBtn"), onClick:function(){ usd.click(); }});
+      if(exp) items.push({label:"Export dashboard (PNG)", onClick:function(){ exp.click(); }});
+      var note = row.querySelector(".mtoggle-note");
+      openEaSheet("Dashboard options", items, note ? note.textContent.trim() : "");
+    });
+  }
+
+  function decorateDashTabs(){
+    var tabs = document.getElementById("dashMobileTabs");
+    var list = document.getElementById("dashSidebarList");
+    if(!tabs || !list) return;
+    tabs.setAttribute("role", "tablist");
+    tabs.setAttribute("aria-label", "Your dashboards");
+    var items = $all(".dash-sidebar-item", list);
+    $all(".dash-mobile-tab", tabs).forEach(function(tab, i){
+      if(tab.classList.contains("dash-mobile-tab-add")){
+        tab.setAttribute("role", "button");
+        tab.setAttribute("tabindex", "0");
+        return;
+      }
+      var active = tab.classList.contains("active");
+      tab.setAttribute("role", "tab");
+      tab.setAttribute("aria-selected", active ? "true" : "false");
+      tab.setAttribute("tabindex", active ? "0" : "-1");
+      if(!active || tab.querySelector(".dash-tab-more")) return;
+      var item = items[i];
+      if(!item) return;
+      var more = document.createElement("button");
+      more.type = "button";
+      more.className = "dash-tab-more";
+      more.setAttribute("aria-label", "Options for " + tab.textContent.trim());
+      more.textContent = "\u22EF";
+      more.addEventListener("click", function(e){
+        e.stopPropagation();
+        var name = item.querySelector(".dash-sidebar-item-name");
+        var menuBtns = $all(".dash-sidebar-menu button", item);
+        var acts = menuBtns.map(function(mb){
+          return {label: mb.textContent.trim(), danger: mb.classList.contains("danger"), onClick:function(){ mb.click(); }};
+        });
+        $all(".dash-sidebar-add", list).forEach(function(add){
+          var t = add.textContent.replace(/^\s*[+\u2731]\s*/, "").trim();
+          acts.push({label: t === "Add dashboard" ? "New dashboard" : "New " + t.toLowerCase(), onClick:function(){ add.click(); }});
+        });
+        openEaSheet(name ? name.textContent.trim() : "Dashboard", acts);
+      });
+      tab.appendChild(more);
+    });
+  }
+  function watchDashTabs(){
+    var tabs = document.getElementById("dashMobileTabs");
+    if(!tabs || tabs._mobWatched) return;
+    tabs._mobWatched = true;
+    decorateDashTabs();
+    new MutationObserver(function(){ decorateDashTabs(); }).observe(tabs, {childList:true});
+  }
+
+  /* ------------------------------------------------------------------
+     v1.9.72 UK inactivity reasons bar: on phones, segments too narrow for
+     their number lose the in-bar label, and every figure moves into the
+     legend so nothing is lost.
+     ------------------------------------------------------------------ */
+  var REASON_MIN_SHARE = 14; // % of bar width a label needs on a ~343px bar
+  function fixReasonBar(){
+    var bar = document.getElementById("reasonBar"), legend = document.getElementById("reasonLegend");
+    if(!bar || !legend) return;
+    var segs = $all("div", bar);
+    if(!segs.length) return;
+    var mobile = isMobile();
+    var total = segs.reduce(function(a, d){ return a + (parseFloat(d.style.flex) || parseFloat(d.style.flexGrow) || 0); }, 0) || 100;
+    var spans = $all("span", legend);
+    segs.forEach(function(d, i){
+      var share = (parseFloat(d.style.flex) || parseFloat(d.style.flexGrow) || 0) / total * 100;
+      d.classList.toggle("rb-narrow", mobile && share < REASON_MIN_SHARE);
+      var sp = spans[i];
+      if(!sp) return;
+      var v = sp.querySelector(".rb-v");
+      if(mobile){
+        if(!v){ v = document.createElement("b"); v.className = "rb-v"; sp.appendChild(v); }
+        v.textContent = d.textContent.trim();
+      } else if(v){ v.remove(); }
+    });
+  }
+  function watchReasonBar(){
+    var bar = document.getElementById("reasonBar");
+    if(!bar || bar._mobWatched) return;
+    bar._mobWatched = true;
+    fixReasonBar();
+    new MutationObserver(fixReasonBar).observe(bar, {childList:true});
+  }
+
+  /* ------------------------------------------------------------------
      init
      ------------------------------------------------------------------ */
   // Every feature in init() runs on every page, but each one only
@@ -1051,6 +1259,9 @@
     safeCall(fixStaleCalendarCopy);
     safeCall(simplifyCalendarCopy);
     safeCall(watchDashGlance);
+    safeCall(initDashOptions);
+    safeCall(watchDashTabs);
+    safeCall(watchReasonBar);
     safeCall(chartmakerGate);
   }
 
@@ -1062,6 +1273,7 @@
   // Re-run the cheap, idempotent bits after async page data loads and on resize/orientation change.
   window.addEventListener("resize", function(){
     addTradeNote(); tableToCards(); chartmakerGate(); simplifyComparePage(); simplifyCalendarCopy();
+    safeCall(initDashOptions); safeCall(fixReasonBar);
     alignCountryMapWithSearch();
   });
   window.addEventListener("load", function(){
