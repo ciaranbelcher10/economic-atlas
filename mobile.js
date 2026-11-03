@@ -1093,51 +1093,19 @@
   window.EA_openSheet = openEaSheet;
 
   /* ------------------------------------------------------------------
-     v1.9.72 Dashboard on phones: the three toggle/export buttons collapse
-     into one "⋯" options sheet; dashboard tabs get a "⋯" with Rename,
+     v1.9.72 Dashboard on phones: dashboard tabs get a "⋯" with Rename,
      Delete, From template and Add, routed through the page's own sidebar
      controls so behaviour (prompts, Pro limits, RLS) stays identical.
      ------------------------------------------------------------------ */
+  /* v1.9.73: Make it real and Dollarise stay visible as the two halves of the
+     toggles row (as on country pages); Export shrinks to an icon button at
+     the end of the same row. */
   function initDashOptions(){
     var grid = document.getElementById("dashGrid");
-    var row = document.querySelector(".metric-toggles");
-    if(!grid || !row) return;
-    var btn = document.getElementById("dashOptsBtn");
-    if(!isMobile()){
-      row.classList.remove("dash-opts-on");
-      return;
-    }
-    row.classList.add("dash-opts-on");
-    if(btn) return;
-    btn = document.createElement("button");
-    btn.type = "button";
-    btn.id = "dashOptsBtn";
-    btn.className = "dash-opts-btn";
-    btn.setAttribute("aria-label", "Dashboard options");
-    btn.setAttribute("aria-haspopup", "dialog");
-    btn.innerHTML = '<span class="st"></span><span class="dots" aria-hidden="true">\u22EF</span>';
-    row.insertBefore(btn, row.firstChild);
-    function state(id){ var b = document.getElementById(id); return !!(b && b.getAttribute("aria-pressed") === "true"); }
-    function syncLabel(){
-      var on = [];
-      if(state("makeRealBtn")) on.push("Real");
-      if(state("dollariseBtn")) on.push("USD");
-      btn.querySelector(".st").textContent = on.length ? "Showing: " + on.join(" + ") : "Options";
-    }
-    syncLabel();
-    ["makeRealBtn", "dollariseBtn"].forEach(function(id){
-      var b = document.getElementById(id);
-      if(b) new MutationObserver(syncLabel).observe(b, {attributes:true, attributeFilter:["aria-pressed"]});
-    });
-    btn.addEventListener("click", function(){
-      var items = [];
-      var real = document.getElementById("makeRealBtn"), usd = document.getElementById("dollariseBtn"), exp = document.getElementById("exportDashboardBtn");
-      if(real) items.push({label:"Make it real", pressed: state("makeRealBtn"), onClick:function(){ real.click(); }});
-      if(usd) items.push({label:"Dollarise", pressed: state("dollariseBtn"), onClick:function(){ usd.click(); }});
-      if(exp) items.push({label:"Export dashboard (PNG)", onClick:function(){ exp.click(); }});
-      var note = row.querySelector(".mtoggle-note");
-      openEaSheet("Dashboard options", items, note ? note.textContent.trim() : "");
-    });
+    var exp = document.getElementById("exportDashboardBtn");
+    if(!grid || !exp) return;
+    if(!exp.getAttribute("aria-label")) exp.setAttribute("aria-label", "Export dashboard (PNG)");
+    if(!exp.getAttribute("title")) exp.setAttribute("title", "Export dashboard (PNG)");
   }
 
   function decorateDashTabs(){

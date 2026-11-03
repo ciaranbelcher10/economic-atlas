@@ -1,7 +1,8 @@
 #!/usr/bin/env node
 /* v1.9.72 Dashboard on phones + country page tweaks.
  *  - two-column compact tiles (phone-scoped CSS), drag handle hidden, 44px remove hit area
- *  - Make it real / Dollarise / Export collapse into one "⋯" options button + sheet that drives the real buttons
+ *  - Make it real / Dollarise visible as two halves of the toggles row; Export a 44px icon button (v1.9.73)
+ *  - Pin to dashboard chooser: stacked columns take content height on phones (no overlap, v1.9.73)
  *  - dashboard tabs: role=tablist/tab, active tab has a "⋯" opening Rename / Delete / New, routed to sidebar controls
  *  - map replaced on phones by a ranked bar list: same countries, sorted high to low, bars sized by value
  *  - UK inactivity bar: narrow segments lose in-bar label on phones, legend carries every figure
@@ -64,33 +65,16 @@ async function loaded(win, extra){
   ["UK::cpi", "US::cpi", "Japan::cpi", "Germany::cpi", "Eurozone::cpi"].forEach(id => win.EATLAS_DASH.ensurePinned(id));
   await sleep(500);
 
-  // options button + sheet
-  const optBtn = doc.getElementById("dashOptsBtn");
-  ok(!!optBtn, "dashboard has one options button");
-  ok(doc.querySelectorAll("#dashOptsBtn").length === 1, "options button not duplicated");
+  // v1.9.73: toggles stay visible; Export is an icon button; no options sheet
+  ok(!doc.getElementById("dashOptsBtn"), "no options button (toggles restored)");
   const row = doc.querySelector(".metric-toggles");
-  ok(row && row.classList.contains("dash-opts-on"), "toggles row switched to options mode on phones");
-  if(optBtn){
-    ok(/Options/.test(optBtn.textContent), "options button reads Options when nothing is on");
-    optBtn.click();
-    const sheet = doc.getElementById("eaSheet");
-    ok(!!sheet && sheet.getAttribute("role") === "dialog", "options sheet opens as a dialog");
-    const labels = sheet ? [...sheet.querySelectorAll(".ea-sheet-item:not(.cancel) .l")].map(x => x.textContent) : [];
-    ok(labels.join("|") === "Make it real|Dollarise|Export dashboard (PNG)", "sheet offers the three actions: " + labels.join("|"));
-    const realItem = sheet && sheet.querySelector(".ea-sheet-item");
-    ok(realItem && realItem.getAttribute("aria-pressed") === "false", "Make it real shows off state");
-    realItem && realItem.click();
-    await sleep(150);
-    ok(doc.getElementById("makeRealBtn").getAttribute("aria-pressed") === "true", "sheet drives the real Make it real button");
-    ok(!doc.getElementById("eaSheet"), "sheet closes after an action");
-    await sleep(50);
-    ok(/Showing: Real/.test(optBtn.textContent), "options button reflects state: " + optBtn.textContent);
-    optBtn.click();
-    ok(doc.querySelector("#eaSheet .ea-sheet-item").getAttribute("aria-pressed") === "true", "sheet reopens with Make it real on");
-    doc.getElementById("eaSheetBackdrop").click();
-    ok(!doc.getElementById("eaSheet"), "backdrop tap closes sheet");
-    doc.getElementById("makeRealBtn").click(); await sleep(100);
-  }
+  ok(row && !row.classList.contains("dash-opts-on"), "toggles row not hidden behind a menu");
+  ["makeRealBtn", "dollariseBtn", "exportDashboardBtn"].forEach(id => ok(row && row.contains(doc.getElementById(id)), id + " is in the toggles row"));
+  const exp = doc.getElementById("exportDashboardBtn");
+  ok(exp && exp.getAttribute("aria-label") === "Export dashboard (PNG)", "icon-only Export keeps its accessible name");
+  doc.getElementById("makeRealBtn").click(); await sleep(100);
+  ok(doc.getElementById("makeRealBtn").getAttribute("aria-pressed") === "true", "Make it real works directly");
+  doc.getElementById("makeRealBtn").click(); await sleep(100);
 
   // ranked list
   const list = doc.getElementById("mapRankList");
@@ -190,13 +174,16 @@ async function loaded(win, extra){
 
   /* ---------------- CSS ---------------- */
   const start = CSS.indexOf("@media (max-width:760px){", 140);
-  ["\\.dashgrid\\{", "\\.dash-opts-btn\\{", "\\.map-rank\\{", "\\.ea-sheet-item\\{", "\\.sec-progress\\{", "\\.reasonbar div\\.rb-narrow"].forEach(sel => {
+  ["\\.dashgrid\\{", "#exportDashboardBtn\\{", "\\.cmz-body\\{", "\\.map-rank\\{", "\\.ea-sheet-item\\{", "\\.sec-progress\\{", "\\.reasonbar div\\.rb-narrow"].forEach(sel => {
     const i = CSS.search(new RegExp(sel));
     ok(i > start && start > 0, sel + " is phone-scoped");
   });
   const rule = sel => { const m = CSS.match(new RegExp(sel.replace(/[.#()]/g, "\\$&") + "\\{([^}]*)\\}")); return m ? m[1] : ""; };
   ok(/repeat\(2, minmax\(0,1fr\)\)/.test(rule("  .dashgrid")), "two shrinkable tile columns");
-  ok(/min-height:44px/.test(rule("  .dash-opts-btn")), "options button 44px");
+  ok(/min-height:44px/.test(rule("  #exportDashboardBtn")) && /width:44px/.test(rule("  #exportDashboardBtn")), "Export icon button 44px");
+  ok(!/dash-opts/.test(CSS), "no rule hides the toggles behind a menu");
+  ok(/grid-auto-rows:max-content !important/.test(rule("  .cmz-body")), "chooser rows take content height");
+  ok(/min-height:auto !important/.test(rule("  .cmz-col")), "chooser columns no longer shrink to 0");
   ok(/min-height:48px/.test(rule("  .ea-sheet-item")), "sheet items 48px");
   ok(/min-height:44px/.test(rule("  .metric-toggles .mtoggle")), "toggles 44px");
   ok(/inset:-11px/.test(rule("  .tile .remove::before")), "remove button has a 44px hit area");
@@ -204,7 +191,7 @@ async function loaded(win, extra){
   ok(/display:none !important/.test(rule("  #mapSvgWrap, #mapCard .legend-grad, #heatTip")), "map hidden on phones");
   const dhtml = fs.readFileSync(path.join(ROOT, "dashboard.html"), "utf8");
   ok(/\.map-rank\{display:none;\}/.test(dhtml), "ranked list hidden on desktop");
-  ok(/mobile\.css\?v=20/.test(dhtml) && /mobile\.js\?v=22/.test(dhtml), "dashboard on mobile.css v20 / mobile.js v22");
+  ok(/mobile\.css\?v=21/.test(dhtml) && /mobile\.js\?v=23/.test(dhtml), "dashboard on mobile.css v21 / mobile.js v23");
 
   console.log(`test_dashboard_mobile: ${checks - failures} ok, ${failures} failed`);
   process.exit(failures ? 1 : 0);
