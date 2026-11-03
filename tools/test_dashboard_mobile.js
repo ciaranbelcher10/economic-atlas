@@ -191,7 +191,27 @@ async function loaded(win, extra){
   ok(/display:none !important/.test(rule("  #mapSvgWrap, #mapCard .legend-grad, #heatTip")), "map hidden on phones");
   const dhtml = fs.readFileSync(path.join(ROOT, "dashboard.html"), "utf8");
   ok(/\.map-rank\{display:none;\}/.test(dhtml), "ranked list hidden on desktop");
-  ok(/mobile\.css\?v=21/.test(dhtml) && /mobile\.js\?v=23/.test(dhtml), "dashboard on mobile.css v21 / mobile.js v23");
+  ok(/mobile\.css\?v=22/.test(dhtml) && /mobile\.js\?v=23/.test(dhtml), "dashboard on mobile.css v22 / mobile.js v23");
+
+  // v1.9.74: export works on phones (canvas size cap, null blob, share sheet) and shows state on the icon
+  ok(/Math\.min\(3, Math\.sqrt\(16000000 \/ \(baseW \* baseH\)\), 16000 \/ baseH, 16000 \/ baseW\)/.test(dhtml), "export scale capped under iOS canvas limits");
+  ok(/if\(!blob\)\{ finish\(false\); return; \}/.test(dhtml), "null blob reports failure instead of hanging");
+  ok(/navigator\.canShare && navigator\.canShare\(\{ files: \[file\] \}\)/.test(dhtml) && /viaLink\(blob\);\s*\}\);\s*return;/.test(dhtml), "phones use the share sheet, falling back to a download link");
+  { // run the size rule for 4..40 tiles: never over 16.7M px or 16384px a side
+    const W = 700 + 48; let worst = 0, side = 0;
+    for(let n = 1; n <= 40; n++){ const H = n * (260 + 46 + 18) + 48; const sc = Math.min(3, Math.sqrt(16000000 / (W * H)), 16000 / H, 16000 / W);
+      worst = Math.max(worst, Math.floor(W * sc) * Math.floor(H * sc)); side = Math.max(side, Math.floor(H * sc)); }
+    ok(worst <= 16777216 && side <= 16384, `largest export ${worst} px, tallest ${side} px`);
+  }
+  ok(/#exportDashboardBtn:disabled::before/.test(CSS) && /#exportDashboardBtn\.is-failed::before/.test(CSS) && /#exportDashboardBtn\.is-done::before/.test(CSS), "icon shows busy / done / failed");
+
+  // v1.9.74: chooser countries use a round + that becomes a tick
+  const CH = fs.readFileSync(path.join(ROOT, "chooser.js"), "utf8");
+  ok(/\.cmz-countries input\[type=checkbox\]\{-webkit-appearance:none; appearance:none;/.test(CH), "chooser checkbox restyled");
+  ok(/input\[type=checkbox\]::after\{content:\\"\+\\"/.test(CH), "unchecked shows +");
+  ok(/:checked::after\{content:\\"\\\\2713\\"/.test(CH), "checked shows a tick");
+  ok(/@media \(max-width:760px\)\{ \.cmz-countries label\{min-height:44px;\} \}/.test(CH), "country rows 44px on phones");
+  ["dashboard.html", "chartmaker.html"].forEach(f => ok(/chooser\.js\?v=2/.test(fs.readFileSync(path.join(ROOT, f), "utf8")), f + " loads chooser.js v2"));
 
   console.log(`test_dashboard_mobile: ${checks - failures} ok, ${failures} failed`);
   process.exit(failures ? 1 : 0);
