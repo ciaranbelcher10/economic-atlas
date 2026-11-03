@@ -155,21 +155,46 @@ html[data-theme="dark"] .ht-item{ color:#8FE3B0 !important; }
      --------------------------------------------------------------------- */
   nav.sub{ display:none !important; } /* mega-dropdown replaced by toolbar below */
 
+  /* v1.9.68: mobile foundations. Five tabs fixed to the bottom of the screen (thumb reach),
+     a slim top bar that slides away while you read, and one set of spacing tokens. */
+  :root{ --m-gutter:16px; --m-tabbar:58px; --m-head-h:52px; }
+  .wrap{ padding-left:var(--m-gutter) !important; padding-right:var(--m-gutter) !important; }
+
+  nav.top{ position:sticky !important; top:0; z-index:60; transition:transform .22s ease; will-change:transform; }
+  nav.top.mob-hidden{ transform:translateY(-100%); }
+  nav.top .wrap{ min-height:var(--m-head-h); align-items:center; }
+  nav.top .brand{ font-size:16.5px !important; gap:9px; }
+  nav.top .brand img{ width:28px !important; height:28px !important; }
+
   #mobToolbar{
-    position:sticky; top:0; z-index:40;
-    display:flex; overflow-x:auto; -webkit-overflow-scrolling:touch;
-    scrollbar-width:none;
-    background:var(--navy,#1B2A3D); border-bottom:1px solid rgba(255,255,255,.08);
+    position:fixed; left:0; right:0; bottom:0; z-index:70;
+    display:grid; grid-template-columns:repeat(5, minmax(0,1fr));
+    background:var(--navy,#1B2A3D); border-top:1px solid rgba(255,255,255,.10);
+    box-shadow:0 -6px 18px rgba(0,0,0,.22);
+    padding-bottom:env(safe-area-inset-bottom, 0px);
   }
-  #mobToolbar::-webkit-scrollbar{ display:none; }
   #mobToolbar a{
-    flex:0 0 auto; display:flex; flex-direction:column; align-items:center;
-    gap:2px; padding:10px 16px; font-size:11.5px; font-weight:600;
-    color:rgba(255,255,255,.68); text-decoration:none; white-space:nowrap;
-    border-bottom:2.5px solid transparent;
+    display:flex; flex-direction:column; align-items:center; justify-content:center;
+    gap:3px; min-height:var(--m-tabbar); padding:6px 2px; min-width:0;
+    font-size:10.5px; font-weight:600; letter-spacing:.01em;
+    color:rgba(255,255,255,.66); text-decoration:none; white-space:nowrap;
+    overflow:hidden; text-overflow:ellipsis; border-top:2.5px solid transparent;
   }
-  #mobToolbar a .ic{ font-size:16px; line-height:1; }
-  #mobToolbar a.active{ color:#fff; border-bottom-color:var(--blue,#37659E); }
+  #mobToolbar a .ic{ font-size:20px; line-height:1; }
+  #mobToolbar a.active{ color:#fff; border-top-color:var(--blue,#37659E); background:rgba(255,255,255,.06); }
+  body.mob-tabbar{ padding-bottom:calc(var(--m-tabbar) + env(safe-area-inset-bottom, 0px)) !important; }
+
+  /* sticky bars under the header follow it up and down */
+  nav.cat{ top:var(--m-head-h) !important; transition:top .22s ease; }
+  body.mob-head-hidden nav.cat{ top:0 !important; }
+
+  /* Shared bottom sheet: pickers slide up from the bottom with a grab handle (used by the calendar picker now,
+     and by Compare, Dashboard and Rankings in later packages). */
+  .ea-sheet{ position:fixed; left:0; right:0; bottom:0; max-height:92vh; z-index:1200;
+    background:var(--panel); color:var(--ink); border-radius:18px 18px 0 0;
+    box-shadow:0 -18px 40px rgba(0,0,0,.35); padding-bottom:env(safe-area-inset-bottom, 0px); }
+  .ea-sheet{ background-image:linear-gradient(var(--hair), var(--hair)); background-size:40px 5px;
+    background-position:center 8px; background-repeat:no-repeat; padding-top:16px; }
 
   /* ---------------------------------------------------------------------
      2. HOMEPAGE MAP — calmer entrance

@@ -87,10 +87,9 @@
       { href:"compare",   label:"Compare",   ic:"\u2696\uFE0F",  match:function(p){ return p==="compare"; } },
       { href:"rankings",  label:"Rankings",  ic:"\uD83C\uDFC5",  match:function(){ return onRankings; } },
       { href:"dashboard", label:"Dashboard", ic:"\uD83D\uDCCC",  match:function(p){ return p==="dashboard"; } },
-      { href:"chartmaker",label:"Chartmaker",ic:"\uD83D\uDCC8",  match:function(p){ return p==="chartmaker"; } },
-      { href:"calendar",  label:"Calendar",  ic:"\uD83D\uDDD3\uFE0F", match:function(p){ return p==="calendar"; } },
-      { href:"markets",   label:"Markets",   ic:"\uD83D\uDCB9", match:function(p){ return p==="markets"; } }
+      { href:"chartmaker",label:"Chartmaker",ic:"\uD83D\uDCC8",  match:function(p){ return p==="chartmaker"; } }
     ];
+    // v1.9.68: the bar sits at the bottom of the screen with exactly five tabs; Calendar and Markets live in the menu
     var bar = document.createElement("nav");
     bar.id = "mobToolbar";
     bar.setAttribute("aria-label","Tools");
@@ -102,7 +101,52 @@
       bar.appendChild(a);
     });
     navTop.insertAdjacentElement("afterend", bar);
+    document.body.classList.add("mob-tabbar");
+    addMenuTools(prefix, page);
   }
+
+  /* v1.9.68: tools that are not in the five-tab bar are added to the top of the menu on phones */
+  function addMenuTools(prefix, page){
+    var links = document.getElementById("navLinks");
+    if(!links || links.querySelector("[data-mob-extra]")) return;
+    [["markets","Markets"],["calendar","Calendar"]].forEach(function(t){
+      var a = document.createElement("a");
+      a.className = "item" + (page === t[0] ? " active" : "");
+      a.href = prefix + t[0];
+      a.textContent = t[1];
+      a.setAttribute("data-mob-extra", "1");
+      links.insertBefore(a, links.firstChild);
+    });
+  }
+
+  /* v1.9.68: slim header that slides away while reading and comes back on the first scroll up */
+  function initSlimHeader(){
+    if(!isMobile()) return;
+    var nav = document.querySelector("nav.top");
+    if(!nav || nav.getAttribute("data-slim")) return;
+    nav.setAttribute("data-slim", "1");
+    var toggle = document.getElementById("navToggle");
+    var last = window.scrollY || 0, ticking = false;
+    function setHidden(h){
+      if(h && toggle && toggle.getAttribute("aria-expanded") === "true") h = false;   // never hide an open menu
+      nav.classList.toggle("mob-hidden", h);
+      document.body.classList.toggle("mob-head-hidden", h);
+    }
+    function onScroll(){
+      var y = window.scrollY || 0, d = y - last;
+      if(y < 64) setHidden(false);
+      else if(d > 6) setHidden(true);
+      else if(d < -6) setHidden(false);
+      last = y; ticking = false;
+    }
+    window.addEventListener("scroll", function(){
+      if(ticking) return;
+      ticking = true;
+      (window.requestAnimationFrame || setTimeout)(onScroll);
+    }, {passive:true});
+    document.documentElement.style.setProperty("--m-head-h", (nav.offsetHeight || 52) + "px");
+  }
+  window.EATLAS_initSlimHeader = initSlimHeader;
 
   /* ------------------------------------------------------------------
      2. HOMEPAGE MAP — calmer entrance caption
@@ -930,6 +974,7 @@
 
   function init(){
     safeCall(buildToolbar);
+    safeCall(initSlimHeader);
     safeCall(addMapCaption);
     safeCall(initHomeQuickNav);
     safeCall(alignCountryMapWithSearch);
