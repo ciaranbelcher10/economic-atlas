@@ -837,42 +837,63 @@
     }
     function esc(t){ return String(t).replace(/[&<>"]/g, function(c){ return {"&":"&amp;","<":"&lt;",">":"&gt;",'"':"&quot;"}[c]; }); }
     var DOW = ["Sun","Mon","Tue","Wed","Thu","Fri","Sat"];
-    var DOT_MAX = 4;
+    // Short country tags for the month-grid chips (cells are ~50px wide on a phone).
+    var CC = {"Argentina":"AR","Australia":"AU","Austria":"AT","Belgium":"BE","Brazil":"BR","Bulgaria":"BG","Canada":"CA",
+      "Chile":"CL","China":"CN","Colombia":"CO","Croatia":"HR","Cyprus":"CY","Czechia":"CZ","Denmark":"DK","Egypt":"EG",
+      "Estonia":"EE","Eurozone":"EZ","Finland":"FI","France":"FR","Germany":"DE","Greece":"GR","Hong Kong":"HK","Hungary":"HU",
+      "Iceland":"IS","India":"IN","Indonesia":"ID","Ireland":"IE","Israel":"IL","Italy":"IT","Japan":"JP","Latvia":"LV",
+      "Lithuania":"LT","Luxembourg":"LU","Malaysia":"MY","Malta":"MT","Mexico":"MX","Morocco":"MA","Netherlands":"NL",
+      "New Zealand":"NZ","Nigeria":"NG","Norway":"NO","Pakistan":"PK","Peru":"PE","Philippines":"PH","Poland":"PL",
+      "Portugal":"PT","Romania":"RO","Saudi Arabia":"SA","Singapore":"SG","Slovakia":"SK","Slovenia":"SI","South Africa":"ZA",
+      "South Korea":"KR","Spain":"ES","Sweden":"SE","Switzerland":"CH","Taiwan":"TW","Thailand":"TH","Turkey":"TR",
+      "UAE":"AE","UK":"UK","US":"US","Vietnam":"VN"};
+    function cc(name){ return CC[name] || String(name).replace(/[^A-Za-z]/g, "").slice(0, 3).toUpperCase(); }
 
     function renderAgendaFromGrid(){
       var cal = window.EA_CAL;
       if(!cal) return;
       var days = cal.monthDays();
+      var ym = cal.ym();
       var monthLabel = document.getElementById("calMonthLabel");
       var label = monthLabel ? monthLabel.textContent : "this month";
+      var flat = [];
+      days.forEach(function(d){ d.events.forEach(function(e){ e._i = flat.length; flat.push(e); }); });
 
-      // Compact month grid: one dot per event (up to DOT_MAX, then "+").
-      var g = '<div class="cal-mm-dow">' + DOW.map(function(d){ return "<span>"+d.charAt(0)+"</span>"; }).join("") + "</div><div class=\"cal-mm-grid\">";
-      for(var i = 0; i < cal.firstDow(); i++) g += '<span class="cal-mm-pad"></span>';
+      // Full month grid, calendar-app style: every release is a labelled chip
+      // in its day; week rows grow to fit, so nothing is clipped or counted away.
+      var g = '<div class="cal-mm-dow">' + DOW.map(function(d){ return "<span>"+d.toUpperCase()+"</span>"; }).join("") + '</div><div class="cal-mm-grid">';
+      var lead = cal.firstDow();
+      var prevLast = new Date(ym[0], ym[1], 0).getDate();
+      for(var i = lead; i > 0; i--){
+        g += '<div class="cal-mm-day is-other" aria-hidden="true"><span class="n">'+(prevLast - i + 1)+"</span></div>";
+      }
       days.forEach(function(d){
         var n = d.events.length;
-        g += '<button type="button" class="cal-mm-day'+(d.isToday?" is-today":"")+(n?" has-ev":"")+'" data-day="'+d.day+'" aria-label="'+d.day+", "+n+(n===1?" release":" releases")+'"'+(n?"":" disabled")+'>';
-        g += '<span class="n">'+d.day+'</span><span class="dots">';
-        d.events.slice(0, DOT_MAX).forEach(function(e){ g += '<i style="background:'+esc(e.color)+'"></i>'; });
-        if(n > DOT_MAX) g += '<b>+</b>';
-        g += "</span></button>";
+        g += '<div class="cal-mm-day'+(d.isToday?" is-today":"")+(n?" has-ev":"")+(d.dow===0?" is-sun":"")+'" data-day="'+d.day+'"' +
+          (n ? ' role="button" tabindex="0" aria-label="'+d.day+", "+n+(n===1?" release":" releases")+'"' : "") + ">";
+        g += '<span class="n">'+d.day+"</span>";
+        d.events.forEach(function(e){
+          g += '<span class="cal-mm-chip" style="background:'+esc(e.color)+'" title="'+esc(e.country+", "+e.label)+'">'+esc(cc(e.country)+" "+e.label)+"</span>";
+        });
+        g += "</div>";
       });
+      var tail = (7 - (lead + days.length) % 7) % 7;
+      for(var t = 1; t <= tail; t++) g += '<div class="cal-mm-day is-other" aria-hidden="true"><span class="n">'+t+"</span></div>";
       mini.innerHTML = g + "</div>";
 
       // Agenda: every event, one compact row each. Empty days are skipped.
       heading.textContent = label + ": all tracked releases";
-      var html = "", flat = [];
+      var html = "";
       days.forEach(function(d){
         if(!d.events.length) return;
         html += '<div class="cal-agenda-day'+(d.isToday?" is-today":"")+'" id="calAgDay'+d.day+'" data-day="'+d.day+'">';
         html += '<div class="d-head"><span class="d-num">'+d.day+'</span><span class="d-dow">'+(d.isToday?"Today":DOW[d.dow])+"</span></div>";
         d.events.forEach(function(e){
-          html += '<button type="button" class="cal-ag-row" data-i="'+flat.length+'">' +
+          html += '<button type="button" class="cal-ag-row" data-i="'+e._i+'">' +
             '<i class="dot" style="background:'+esc(e.color)+'"></i>' +
             '<span class="c">'+esc(e.country)+'</span>' +
             '<span class="r">'+esc(e.label)+'</span>' +
             '<span class="t">'+esc(e.time || "Time tbc")+"</span></button>";
-          flat.push(e);
         });
         html += "</div>";
       });
@@ -885,6 +906,7 @@
         row.addEventListener("click", function(){ cal.open(flat[+this.getAttribute("data-i")].ev); });
       });
       $all(".cal-mm-day.has-ev", mini).forEach(function(btn){
+        btn.addEventListener("keydown", function(ev){ if(ev.key === "Enter" || ev.key === " "){ ev.preventDefault(); this.click(); } });
         btn.addEventListener("click", function(){
           var target = document.getElementById("calAgDay" + this.getAttribute("data-day"));
           if(!target) return;

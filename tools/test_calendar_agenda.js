@@ -1,7 +1,7 @@
 #!/usr/bin/env node
-/* v1.9.70 phone calendar: compact month grid with dots + full agenda rows.
- * Every event in the viewed month must appear (no "+N more" capping, no
- * "full list on desktop"), dots match events, tap targets >= 44px, phone-scoped.
+/* v1.9.70/71 phone calendar: calendar-app month grid with a labelled chip per release + full agenda rows.
+ * Every event in the viewed month must appear in the grid and the agenda (no "+N more", no
+ * "full list on desktop"), chips match events, tap targets >= 44px, phone-scoped.
  * Run: NODE_PATH=/tmp/node_modules node tools/test_calendar_agenda.js */
 const fs = require("fs"), path = require("path");
 const ROOT = path.resolve(__dirname, "..");
@@ -42,13 +42,22 @@ async function boot(){
     if(total) monthsWithEvents++;
     const rows = doc.querySelectorAll("#calAgenda .cal-ag-row");
     ok(rows.length === total, `month ${step}: agenda rows (${rows.length}) == events (${total})`);
-    const mm = doc.querySelectorAll("#calMiniMonth .cal-mm-day");
-    ok(mm.length === days.length, `month ${step}: mini grid has one cell per day`);
+    const mm = doc.querySelectorAll("#calMiniMonth .cal-mm-day:not(.is-other)");
+    ok(mm.length === days.length, `month ${step}: grid has one cell per day of the month`);
+    const allCells = doc.querySelectorAll("#calMiniMonth .cal-mm-grid > .cal-mm-day").length;
+    ok(allCells % 7 === 0, `month ${step}: grid fills whole weeks (${allCells} cells)`);
+    ok(doc.querySelectorAll("#calMiniMonth .cal-mm-day.is-other .cal-mm-chip").length === 0, `month ${step}: no chips on other-month days`);
     days.forEach((d, i) => {
       const cell = mm[i]; if(!cell) return;
-      const dots = cell.querySelectorAll(".dots i").length, plus = !!cell.querySelector(".dots b");
-      ok(dots === Math.min(4, d.events.length), `month ${step} day ${d.day}: dots ${dots} vs ${d.events.length} events`);
-      ok(plus === d.events.length > 4, `month ${step} day ${d.day}: "+" marker iff more than 4`);
+      ok(+cell.dataset.day === d.day, `month ${step}: cell ${i} is day ${d.day}`);
+      const chips = [...cell.querySelectorAll(".cal-mm-chip")];
+      ok(chips.length === d.events.length, `month ${step} day ${d.day}: chips ${chips.length} vs ${d.events.length} events`);
+      chips.forEach((c, j) => {
+        const e = d.events[j];
+        ok(c.textContent.endsWith(" " + e.label) && /^[A-Z]{2,3} /.test(c.textContent), `month ${step} day ${d.day}: chip "${c.textContent}" = code + label`);
+        ok(c.style.background !== "", `month ${step} day ${d.day}: chip coloured`);
+      });
+      ok(cell.classList.contains("is-sun") === (d.dow === 0), `month ${step} day ${d.day}: Sunday marking`);
       if(d.events.length > 3) busySeen = true;
       if(d.events.length){
         const sec = doc.getElementById("calAgDay" + d.day);
@@ -64,6 +73,7 @@ async function boot(){
   doc.getElementById("calTodayBtn") && doc.getElementById("calTodayBtn").click();
   await new Promise(r => setTimeout(r, 30));
   const btn = doc.querySelector("#calMiniMonth .cal-mm-day.has-ev");
+  if(btn) ok(btn.getAttribute("role") === "button" && btn.tabIndex === 0, "event days are keyboard-reachable buttons");
   if(btn){
     btn.click();
     const sec = doc.getElementById("calAgDay" + btn.dataset.day);
@@ -73,20 +83,31 @@ async function boot(){
   // Tap a row: event modal opens.
   const row = doc.querySelector("#calAgenda .cal-ag-row");
   if(row){ row.click(); const m = doc.getElementById("calEventModal"); ok(m && !m.hidden, "tapping a row opens event detail"); }
-  const empty = doc.querySelector("#calMiniMonth .cal-mm-day:not(.has-ev)");
-  if(empty) ok(empty.disabled, "empty days are not tappable");
+  // Every row opens its own event (check the last row, which an index slip would miss).
+  const rowsNow = [...doc.querySelectorAll("#calAgenda .cal-ag-row")];
+  const last = rowsNow[rowsNow.length - 1];
+  if(last){
+    last.click();
+    const country = last.querySelector(".c").textContent;
+    const shown = doc.querySelector("#calEventDetailBody .cal-detail-country");
+    ok(shown && shown.textContent.indexOf(country) === 0, `last row opens its own event (${country})`);
+  }
+  const empty = doc.querySelector("#calMiniMonth .cal-mm-day:not(.has-ev):not(.is-other)");
+  if(empty) ok(!empty.hasAttribute("role"), "empty days are not tappable");
 
   // CSS: phone-scoped, 44px targets, no fixed widths.
   const start = MOBILE_CSS.indexOf("@media (max-width:760px){", 140);
   const idx = MOBILE_CSS.indexOf("#calMiniMonth{");
   ok(start !== -1 && idx > start, "calendar rules inside the phone media block");
   const rule = sel => { const m = MOBILE_CSS.match(new RegExp(sel.replace(/[.#]/g, "\\$&") + "\\{([^}]*)\\}")); return m ? m[1] : ""; };
-  ok(/min-height:\s*44px/.test(rule(".cal-mm-day")), ".cal-mm-day min-height 44px");
+  ok(/min-height:\s*(4[4-9]|[5-9]\d)px/.test(rule(".cal-mm-day")), ".cal-mm-day min-height >= 44px");
+  ok(/pointer-events:\s*none/.test(rule(".cal-mm-chip")), "chips are labels, the whole day cell is the tap target");
+  ok(!/\+\d|more/.test([...doc.querySelectorAll("#calMiniMonth .cal-mm-chip")].map(c=>c.textContent).join("|")), "no '+N more' chips");
   ok(/min-height:\s*44px/.test(rule(".cal-ag-row")), ".cal-ag-row min-height 44px");
   ok(/minmax\(0,1fr\)/.test(rule(".cal-mm-dow, .cal-mm-grid")), "mini grid columns can shrink (no overflow)");
   ok(!/width:\s*\d{3,}px/.test(MOBILE_CSS.slice(idx, MOBILE_CSS.indexOf("7. CHARTMAKER"))), "no fixed widths >= 100px in calendar rules");
   ok(!/full list on desktop/.test(MOBILE_JS), "mobile.js has no 'full list on desktop' copy");
-  ok(/mobile\.css\?v=18/.test(CAL) && /mobile\.js\?v=20/.test(CAL), "calendar.html on mobile.css v18 / mobile.js v20");
+  ok(/mobile\.css\?v=19/.test(CAL) && /mobile\.js\?v=21/.test(CAL), "calendar.html on mobile.css v19 / mobile.js v21");
 
   console.log(`test_calendar_agenda: ${checks - failures} ok, ${failures} failed`);
   process.exit(failures ? 1 : 0);
