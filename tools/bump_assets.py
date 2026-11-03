@@ -5,7 +5,9 @@ The data bot rewrites the country pages every run, so packages that change a
 shared asset ship this script rather than the pages themselves. Idempotent:
 a page already on the new version is left alone. Generated pages (indicators/,
 embed/, rankings/ and the generator-owned root pages) take their versions from
-generate_indicator_pages.py and pick the bump up on the next data run.
+generate_indicator_pages.py and pick the bump up on the next data run; since
+v1.9.79 this script bumps those generator template strings too (they had been
+left on mobile.css v17 / mobile.js v19 since v1.9.68).
 
 Run from the repo root:  python3 tools/bump_assets.py mobile.css=16 mobile.js=18
 """
@@ -29,7 +31,18 @@ def main(argv):
         if new != s:
             open(f, "w", encoding="utf-8").write(new)
             changed.append(os.path.basename(f))
+    gen = os.path.join(ROOT, "generate_indicator_pages.py")
+    gen_changed = 0
+    if os.path.exists(gen):
+        g = open(gen, encoding="utf-8").read()
+        g2 = g
+        for asset, ver in pairs:
+            g2 = re.sub(r"(\.\./)" + re.escape(asset) + r"\?v=\d+\b", r"\g<1>" + f"{asset}?v={ver}", g2)
+        if g2 != g:
+            open(gen, "w", encoding="utf-8").write(g2)
+            gen_changed = 1
     print(f"bump_assets: {len(changed)} page(s) changed")
+    print(f"bump_assets: generator template {'updated' if gen_changed else 'unchanged'}")
     return 0
 
 if __name__ == "__main__":

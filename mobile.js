@@ -1284,6 +1284,73 @@
   }
 
   /* ------------------------------------------------------------------
+     v1.9.79 RANKINGS on phones: region chips that filter the 62 rows and
+     a "Find a country" box that jumps to and highlights a row. Reads the
+     region and country already printed on each row; no data of its own.
+     ------------------------------------------------------------------ */
+  function initRankingsTools(){
+    var table = document.getElementById("rkTable");
+    var tbody = table && table.tBodies[0];
+    if(!tbody) return;
+    var bar = document.getElementById("rkMTools");
+    if(!isMobile()){
+      if(bar) bar.hidden = true;
+      $all("tr.rk-m-hide", tbody).forEach(function(tr){ tr.classList.remove("rk-m-hide"); });
+      return;
+    }
+    if(bar){ bar.hidden = false; return; }
+    var rows = $all("tr", tbody);
+    var counts = {};
+    rows.forEach(function(tr){ var r = tr.querySelector(".rk-region"); if(r){ var k = r.textContent.trim(); counts[k] = (counts[k] || 0) + 1; } });
+    var regions = Object.keys(counts).sort(function(a, b){ return counts[b] - counts[a] || a.localeCompare(b); });
+    if(!regions.length) return;
+    bar = document.createElement("div");
+    bar.id = "rkMTools";
+    bar.innerHTML = '<input type="search" id="rkMFind" placeholder="Find a country" aria-label="Find a country" autocomplete="off">'
+      + '<div class="rk-m-chips" role="group" aria-label="Filter by region"></div><p class="rk-m-status" aria-live="polite"></p>';
+    var chips = bar.querySelector(".rk-m-chips");
+    var region = "";
+    function mk(label, val, n){
+      var b = document.createElement("button");
+      b.type = "button"; b.className = "rk-m-chip"; b.dataset.region = val;
+      b.setAttribute("aria-pressed", val === "" ? "true" : "false");
+      b.textContent = label + (n != null ? " " + n : "");
+      b.addEventListener("click", function(){ setRegion(val); });
+      chips.appendChild(b);
+    }
+    mk("All", "", rows.length);
+    regions.forEach(function(r){ mk(r, r, counts[r]); });
+    var status = bar.querySelector(".rk-m-status");
+    function setRegion(val){
+      region = val;
+      $all(".rk-m-chip", chips).forEach(function(b){ b.setAttribute("aria-pressed", b.dataset.region === val ? "true" : "false"); });
+      var shown = 0;
+      $all("tr", tbody).forEach(function(tr){
+        var r = tr.querySelector(".rk-region");
+        var hide = !!val && (!r || r.textContent.trim() !== val);
+        tr.classList.toggle("rk-m-hide", hide);
+        if(!hide) shown++;
+      });
+      status.textContent = val ? shown + " of " + rows.length + " countries in " + val + ". Ranks are out of all " + rows.length + "." : "";
+    }
+    var find = bar.querySelector("#rkMFind");
+    find.addEventListener("input", function(){
+      var q = find.value.trim().toLowerCase();
+      $all("tr.rk-m-hit", tbody).forEach(function(tr){ tr.classList.remove("rk-m-hit"); });
+      if(!q) return;
+      var all = $all("tr", tbody);
+      var name = function(tr){ var c = tr.querySelector(".rk-cty") || tr.querySelector(".country"); return c ? c.textContent.trim().toLowerCase() : ""; };
+      var hit = all.filter(function(tr){ return name(tr).indexOf(q) === 0; })[0] || all.filter(function(tr){ return name(tr).indexOf(q) !== -1; })[0];
+      if(!hit) return;
+      if(hit.classList.contains("rk-m-hide")) setRegion("");
+      hit.classList.add("rk-m-hit");
+      if(hit.scrollIntoView) hit.scrollIntoView({block:"center", behavior:"smooth"});
+    });
+    var card = table.closest(".rk-card") || table.parentNode;
+    card.insertAdjacentElement("beforebegin", bar);
+  }
+
+  /* ------------------------------------------------------------------
      v1.9.72 shared bottom sheet (phones): a title plus a list of actions.
      items: [{label, note, danger, pressed, onClick}]
      ------------------------------------------------------------------ */
@@ -1500,6 +1567,7 @@
     safeCall(watchDashTabs);
     safeCall(watchReasonBar);
     safeCall(initCompareMobile);
+    safeCall(initRankingsTools);
     safeCall(chartmakerGate);
   }
 
@@ -1511,7 +1579,7 @@
   // Re-run the cheap, idempotent bits after async page data loads and on resize/orientation change.
   window.addEventListener("resize", function(){
     addTradeNote(); tableToCards(); chartmakerGate(); simplifyComparePage(); simplifyCalendarCopy();
-    safeCall(initDashOptions); safeCall(fixReasonBar); safeCall(initCompareMobile);
+    safeCall(initDashOptions); safeCall(fixReasonBar); safeCall(initCompareMobile); safeCall(initRankingsTools);
     alignCountryMapWithSearch();
   });
   window.addEventListener("load", function(){
