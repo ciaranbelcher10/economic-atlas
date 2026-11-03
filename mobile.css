@@ -418,25 +418,23 @@ html[data-theme="dark"] .ht-item{ color:#8FE3B0 !important; }
      search box in the country picker, tidier control bar.
      --------------------------------------------------------------------- */
   #rankTable, .rank-scroll-hint{ display:none !important; }
-  #cmpCardsWrap{ display:flex; flex-direction:column; gap:12px; margin-top:4px; }
-  .cmp-country-card{
-    border:1px solid var(--hair); border-radius:12px; padding:14px 16px;
-    background:var(--panel,#fff);
-  }
-  .cmp-country-card h4{
-    margin:0 0 8px; font-size:15px; display:flex; align-items:center; gap:8px;
-  }
-  .cmp-country-card .swatch{ width:10px; height:10px; border-radius:50%; display:inline-block; }
-  .cmp-country-card .row{
-    display:flex; justify-content:space-between; gap:10px; padding:6px 0;
-    border-top:1px solid var(--hair); font-size:13.5px;
-  }
-  .cmp-country-card .row:first-of-type{ border-top:none; }
-  .cmp-country-card .row .lbl{ color:var(--ink2); }
-  .cmp-country-card .row .val{ font-weight:700; text-align:right; }
-  .cmp-country-card .row .val .cellperiod{
-    display:block; font-weight:400; color:var(--ink2); font-size:11px; margin-top:1px;
-  }
+  /* v1.9.76: summary as one card per metric, a row per country */
+  #cmpCardsWrap{ display:flex; flex-direction:column; gap:10px; margin-top:4px; }
+  .cmp-metric-sum{ border:1px solid var(--hair); border-radius:12px; padding:10px 12px 4px; background:var(--panel,#fff); }
+  .cmp-metric-sum h4{ margin:0 0 4px; font-size:14px; }
+  .cmp-metric-sum .sr{ display:grid; grid-template-columns:10px minmax(0,1fr) auto; column-gap:8px; align-items:center;
+    padding:7px 0; border-top:1px solid var(--hair); }
+  .cmp-metric-sum h4 + .sr{ border-top:none; }
+  .cmp-metric-sum .sw{ width:10px; height:10px; border-radius:50%; }
+  .cmp-metric-sum .c{ min-width:0; }
+  .cmp-metric-sum .cn{ display:block; font-size:13.5px; font-weight:600; }
+  .cmp-metric-sum .tg{ display:block; font-size:11px; color:var(--ink2); white-space:nowrap; overflow:hidden; text-overflow:ellipsis; }
+  .cmp-metric-sum .v{ text-align:right; }
+  .cmp-metric-sum .v b{ display:block; font-size:14px; }
+  .cmp-metric-sum .pr{ display:block; font-size:11px; color:var(--ink2); }
+  .cmp-metric-sum .mk{ grid-column:2 / span 2; justify-self:start; font-size:10.5px; font-weight:700; letter-spacing:.03em;
+    text-transform:uppercase; margin-top:2px; color:var(--blue,#37659E); }
+  .cmp-metric-sum .sr.is-hi .v b{ color:var(--blue,#37659E); }
 
   #pickerSearchWrap{ margin:8px 0 12px; }
   #pickerSearch{
@@ -469,6 +467,88 @@ html[data-theme="dark"] .ht-item{ color:#8FE3B0 !important; }
   .card-opts-toggle .car{ transition:transform .15s ease; display:inline-block; }
   .metric-card.opts-open .card-opts-toggle .car{ transform:rotate(180deg); }
   .card-time-row{ flex-wrap:wrap; row-gap:8px; }
+
+  /* ---------------------------------------------------------------------
+     v1.9.76 COMPARE phone layout
+     --------------------------------------------------------------------- */
+  body.cmp-m #countriesToggleBtn{ display:none !important; }
+  #cmpMBar{ position:sticky; top:var(--m-head-h,0px); z-index:15; margin:0 -16px 12px; padding:8px 16px 0;
+    background:var(--paper); border-bottom:1px solid var(--hair); transition:top .22s ease; }
+  body.mob-head-hidden #cmpMBar{ top:0; }
+  .cmp-m-chips, .cmp-m-tabs{ display:flex; gap:6px; overflow-x:auto; scrollbar-width:none; }
+  .cmp-m-chips::-webkit-scrollbar, .cmp-m-tabs::-webkit-scrollbar{ display:none; }
+  .cmp-m-chip{ flex:none; display:inline-flex; align-items:center; gap:6px; min-height:36px; padding:0 12px;
+    border:1px solid var(--hair); border-radius:999px; background:var(--panel); color:var(--ink);
+    font:inherit; font-size:13px; font-weight:600; cursor:pointer; white-space:nowrap; }
+  .cmp-m-chip i{ width:9px; height:9px; border-radius:50%; display:block; }
+  .cmp-m-add{ color:var(--blue,#37659E); border-style:dashed; }
+  .cmp-m-tabs{ margin-top:6px; }
+  .cmp-m-tab{ flex:none; min-height:44px; padding:0 12px; border:none; border-bottom:3px solid transparent; background:none;
+    color:var(--ink2); font:inherit; font-size:13.5px; font-weight:700; white-space:nowrap; cursor:pointer; }
+  .cmp-m-tab[aria-selected="true"]{ color:var(--ink); border-bottom-color:var(--blue,#37659E); }
+  .cmp-m-tab-add{ color:var(--blue,#37659E); }
+  body.cmp-m .metric-card.cmp-m-off{ display:none !important; }
+  body.cmp-m #addMetricTile{ display:none !important; }
+  body.cmp-m.cmp-m-empty #addMetricTile{ display:flex !important; }
+  body.cmp-m .wrap > p[style*="font-size:14.5px"]{ font-size:13.5px !important; }
+
+  /* one metric card: answer first, controls after */
+  body.cmp-m .metric-card{ display:flex !important; flex-direction:column; }
+  body.cmp-m .metric-card > *{ order:20; }
+  body.cmp-m .metric-card > .card-title-row{ order:0; padding-right:40px; }
+  body.cmp-m .metric-card > .card-avg-readout{ order:1; margin:0 0 6px !important; }
+  body.cmp-m .metric-card > .tpm-layout{ order:2; }
+  body.cmp-m .metric-card > .card-time-row{ order:3; margin-top:10px; }
+  body.cmp-m .metric-card > .card-snapshot-wrap,
+  body.cmp-m .metric-card > .card-change-wrap{ order:4; }
+  body.cmp-m .metric-card > .card-opts-toggle{ order:5; align-self:flex-start; min-height:44px; padding:0 !important; }
+  body.cmp-m .metric-card > .charttoggle,
+  body.cmp-m .metric-card > .card-sort-row{ order:6; }
+  body.cmp-m .metric-card > .card-expl{ order:7; display:none; font-size:12.5px; }
+  body.cmp-m .metric-card.opts-open > .card-expl{ display:block; }
+  body.cmp-m .metric-card > .lockedactions{ order:8; }
+  body.cmp-m .metric-card .card-sort-row{ display:none !important; }
+  body.cmp-m .metric-card.opts-open .card-sort-row{ display:flex !important; }
+  body.cmp-m .metric-card .card-remove{ z-index:2; }
+
+  /* ranked list: compact rows with a bar */
+  body.cmp-m .tpm-ranking h4, body.cmp-m .tpm-ranksubtitle{ display:none; }
+  body.cmp-m .tpm-rankrow{ display:grid !important; grid-template-columns:20px 10px minmax(0,1fr) auto; grid-template-rows:auto auto;
+    column-gap:8px; row-gap:4px; align-items:center; padding:8px 0 !important; }
+  body.cmp-m .tpm-rankrow .tpm-ranknum{ font-size:12px; font-weight:700; color:var(--ink2); text-align:right; }
+  body.cmp-m .tpm-rankrow .tpm-rankname{ font-size:14px; font-weight:600; min-width:0; overflow:hidden; text-overflow:ellipsis; white-space:nowrap; }
+  body.cmp-m .tpm-rankrow .tpm-ranktag{ display:block; font-size:11px; font-weight:400; color:var(--ink2); overflow:hidden; text-overflow:ellipsis; }
+  body.cmp-m .tpm-rankrow .tpm-rankvalue{ font-size:14px; font-weight:700; text-align:right; white-space:nowrap; }
+  body.cmp-m .tpm-rankrow .tpm-rankvalue .per{ display:block; font-size:11px; font-weight:400; color:var(--ink2); }
+  body.cmp-m .cmp-rk-bar{ grid-column:3 / span 2; height:6px; border-radius:3px; background:var(--hair); overflow:hidden; display:block; }
+  body.cmp-m .cmp-rk-bar i{ display:block; height:100%; border-radius:3px; }
+  body.cmp-m .cmp-rk-bar.neg i{ opacity:.55; }
+
+  /* countries panel as a bottom sheet */
+  body.cmp-m #countriesPanelBody{ position:fixed !important; top:auto !important; left:0 !important; right:0 !important; bottom:0 !important;
+    width:auto !important; max-height:82vh !important; border-radius:18px 18px 0 0 !important; z-index:1200 !important;
+    padding:14px 16px calc(16px + env(safe-area-inset-bottom, 0px)) !important; }
+  .cmp-m-done{ display:block; margin:0 0 8px auto; min-height:44px; padding:0 18px; border:none; border-radius:999px;
+    background:var(--blue,#37659E); color:#fff; font:inherit; font-size:14px; font-weight:700; cursor:pointer; }
+  #cmpPanelBackdrop[hidden]{ display:none !important; }
+
+  /* Add a metric as a bottom sheet with search and one-line rows */
+  #metricPicker{ align-items:flex-end !important; padding:0 !important; }
+  #metricPicker .modal-content{ width:100% !important; max-width:none !important; max-height:86vh !important; overflow-y:auto;
+    border-radius:18px 18px 0 0 !important; padding:18px 16px calc(16px + env(safe-area-inset-bottom, 0px)) !important; }
+  #metricPicker .modal-sub{ display:none; }
+  #metricPickerSearch{ position:sticky; top:-18px; z-index:2; width:100%; box-sizing:border-box; margin:8px 0 10px; padding:11px 14px;
+    border-radius:10px; border:1px solid var(--hair); background:var(--paper); color:var(--ink); font:inherit; font-size:16px; }
+  #metricPicker .pickercat[hidden], #metricPicker .pickeritem[hidden]{ display:none !important; }
+  #metricPicker .pickercat{ margin:12px 0 4px !important; }
+  #metricPicker .pickeritem{ display:flex !important; align-items:center; gap:10px; min-height:48px; margin:0 !important;
+    padding:6px 4px !important; border:none !important; border-bottom:1px solid var(--hair) !important; border-radius:0 !important; background:none !important; }
+  #metricPicker .pickeritem > div:first-child{ flex:1; font-size:14.5px; }
+  #metricPicker .pickeritem .e{ display:none !important; }
+  #metricPicker .pickeritem::after{ content:"+"; flex:none; width:26px; height:26px; border-radius:50%; border:1.5px solid var(--blue,#37659E);
+    color:var(--blue,#37659E); display:flex; align-items:center; justify-content:center; font-size:17px; font-weight:700; line-height:1; box-sizing:border-box; }
+  #metricPicker .pickeritem.added::after{ content:"\2713"; background:var(--blue,#37659E); color:#fff; font-size:14px; }
+  #metricPicker .pickeritem.added{ opacity:1 !important; }
   .card-map-toggle{ display:none !important; } /* mini choropleth for 2-4 countries isn't worth the space on mobile */
   .cmp-card.wide[style*="margin-top"]{ margin-top:10px !important; } /* tighten the big gap before the footer methodology card */
 

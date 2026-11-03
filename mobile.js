@@ -546,6 +546,7 @@
   function addTradeNote(){
     if(!isMobile()) return;
     $all(".tpm-layout").forEach(function(layout){
+      if(layout.closest(".metric-card")) return; // Compare reuses the layout; the trade note is wrong there (v1.9.76)
       // Note is inserted as the PREVIOUS SIBLING of .tpm-layout (not a
       // descendant), so the dedupe check must look at the sibling, not
       // inside layout itself — checking layout.querySelector() here was
@@ -604,54 +605,73 @@
      5. COMPARE PAGE — stacked cards from the existing rank table,
      search box in the country picker.
      ------------------------------------------------------------------ */
+  /* v1.9.76: Compare summary on phones is one card per metric (rows =
+     countries) instead of one card per country, with the table's own
+     highest / lowest markers shown as small labels. */
   function tableToCards(){
     if(!isMobile()) return;
     var table = document.getElementById("rankTable");
     if(!table) return;
     var wrap = table.closest("div") || table.parentElement;
     if(!wrap) return;
+    var thead = table.querySelector("thead"), tbody = table.querySelector("tbody");
+    if(!thead || !tbody || !tbody.rows.length) return;
     var cardsWrap = document.getElementById("cmpCardsWrap");
     if(!cardsWrap){
       cardsWrap = document.createElement("div");
       cardsWrap.id = "cmpCardsWrap";
       wrap.insertAdjacentElement("afterend", cardsWrap);
     }
-    var thead = table.querySelector("thead");
-    var tbody = table.querySelector("tbody");
-    if(!thead || !tbody || !tbody.rows.length){
-      // table not populated yet (page still fetching data) — retry shortly
-      return;
+    var ths = $all("th", thead), rows = $all("tr", tbody);
+    var html = "";
+    for(var col = 1; col < ths.length; col++){
+      html += '<div class="cmp-metric-sum" data-k="' + escAttr(ths[col].getAttribute("data-k") || "") + '"><h4></h4>';
+      rows.forEach(function(tr){
+        var cells = $all("td", tr), cell = cells[col], name = cells[0];
+        if(!cell || !name) return;
+        var sw = name.querySelector(".swatch");
+        var first = cell.childNodes[0];
+        var val = first && first.nodeType === 3 ? first.textContent.trim() : (cell.textContent || "").trim();
+        var per = cell.querySelector(".cellperiod"), tag = cell.querySelector(".measuretag");
+        var mark = cell.classList.contains("col-hi") ? "hi" : (cell.classList.contains("col-lo") ? "lo" : "");
+        html += '<div class="sr' + (mark ? " is-" + mark : "") + '">'
+          + '<span class="sw" style="background:' + escAttr(sw ? sw.style.background : "var(--hair)") + '"></span>'
+          + '<span class="c"><span class="cn"></span>' + (tag ? '<small class="tg"></small>' : "") + "</span>"
+          + '<span class="v"><b></b>' + (per ? '<small class="pr"></small>' : "") + "</span>"
+          + (mark ? '<span class="mk">' + (mark === "hi" ? "Highest" : "Lowest") + "</span>" : "")
+          + "</div>";
+      });
+      html += "</div>";
     }
-    var headers = $all("th", thead).map(function(th){ return th.textContent.trim(); });
-    cardsWrap.innerHTML = "";
-    $all("tr", tbody).forEach(function(tr){
-      var cells = $all("td", tr);
-      if(!cells.length) return;
-      var card = document.createElement("div");
-      card.className = "cmp-country-card";
-      var h4 = document.createElement("h4");
-      var swatch = tr.querySelector(".swatch, [style*='background']");
-      var dotColor = swatch ? getComputedStyle(swatch).backgroundColor : "";
-      h4.innerHTML = (dotColor ? '<span class="swatch" style="background:'+dotColor+'"></span>' : "") + cells[0].textContent.trim();
-      card.appendChild(h4);
-      for(var i=1;i<cells.length;i++){
-        var row = document.createElement("div");
-        row.className = "row";
-        var lbl = document.createElement("span"); lbl.className = "lbl"; lbl.textContent = headers[i] || "";
-        var val = document.createElement("span"); val.className = "val"; val.innerHTML = cells[i].innerHTML;
-        row.appendChild(lbl); row.appendChild(val);
-        card.appendChild(row);
-      }
-      cardsWrap.appendChild(card);
-    });
+    cardsWrap.innerHTML = html;
+    // fill text safely (no HTML from cells)
+    var cardsEls = $all(".cmp-metric-sum", cardsWrap);
+    for(var c = 1; c < ths.length; c++){
+      var card = cardsEls[c - 1];
+      card.querySelector("h4").textContent = ths[c].textContent.trim();
+      var srs = $all(".sr", card), k = 0;
+      rows.forEach(function(tr){
+        var cells = $all("td", tr), cell = cells[c], name = cells[0];
+        if(!cell || !name) return;
+        var sr = srs[k++];
+        var first = cell.childNodes[0];
+        sr.querySelector(".cn").textContent = name.textContent.trim();
+        sr.querySelector("b").textContent = first && first.nodeType === 3 ? first.textContent.trim() : cell.textContent.trim();
+        var per = cell.querySelector(".cellperiod"), tag = cell.querySelector(".measuretag");
+        if(per) sr.querySelector(".pr").textContent = per.textContent.trim();
+        if(tag) sr.querySelector(".tg").textContent = tag.textContent.trim();
+      });
+    }
   }
+  function escAttr(t){ return String(t).replace(/[&<>"]/g, function(ch){ return {"&":"&amp;","<":"&lt;",">":"&gt;","\"":"&quot;"}[ch]; }); }
+
   function simplifyComparePage(){
     if(!isMobile()) return;
     // Hide the second intro paragraph by matching its text — it has no
     // distinguishing class in the markup, so a text match is more robust
     // than a fragile structural selector that could catch the wrong <p>.
     $all("p").forEach(function(p){
-      if(/^Looking for a specific ranking/.test(p.textContent.trim())){
+      if(/^Looking for a (specific|single) ranking/.test(p.textContent.trim())){
         p.classList.add("cmp-lede-hide");
       }
     });
@@ -665,7 +685,7 @@
       var btn = document.createElement("button");
       btn.type = "button";
       btn.className = "card-opts-toggle";
-      btn.innerHTML = "Chart options <span class=\"car\" aria-hidden=\"true\">\u25BE</span>";
+      btn.innerHTML = "<span aria-hidden=\"true\">\u22EF</span> More options <span class=\"car\" aria-hidden=\"true\">\u25BE</span>";
       btn.addEventListener("click", function(){ card.classList.toggle("opts-open"); });
       anchor.insertAdjacentElement("beforebegin", btn);
     });
@@ -1036,6 +1056,180 @@
   }
 
   /* ------------------------------------------------------------------
+     v1.9.76 COMPARE on phones: one sticky bar with country chips and a
+     tab per metric; one metric card on screen at a time, answer (ranked
+     bars) first, controls after; countries panel and Add a metric as
+     bottom sheets, the latter with search and + / tick rows.
+     ------------------------------------------------------------------ */
+  var cmpActive = null, cmpKnown = null;
+  function cmpCards(){ return $all("#chartGrid .metric-card"); }
+  function parseShownNumber(t){
+    t = String(t).replace(/\u2212/g, "-").replace(/,/g, "").trim();
+    var m = t.match(/(-?)[^0-9\-]*([0-9]*\.?[0-9]+)\s*(tn|bn|m|k|%)?/i);
+    if(!m) return null;
+    var v = parseFloat(m[2]); if(isNaN(v)) return null;
+    var mult = {tn:1e12, bn:1e9, m:1e6, k:1e3}[(m[3] || "").toLowerCase()] || 1;
+    return (m[1] === "-" ? -1 : 1) * v * mult;
+  }
+  function addRankBars(card){
+    $all(".tpm-ranklist", card).forEach(function(ol){
+      var rows = $all(".tpm-rankrow", ol);
+      var vals = rows.map(function(li){
+        var v = li.querySelector(".tpm-rankvalue");
+        if(!v) return null;
+        var txt = ""; v.childNodes.forEach(function(n){ if(n.nodeType === 3) txt += n.textContent; });
+        return parseShownNumber(txt);
+      });
+      var ok = vals.length && vals.every(function(v){ return v != null; });
+      var max = ok ? Math.max.apply(null, vals.map(Math.abs)) : 0;
+      rows.forEach(function(li, i){
+        var bar = li.querySelector(".cmp-rk-bar");
+        if(!ok || !max){ if(bar) bar.remove(); return; }
+        if(!bar){ bar = document.createElement("span"); bar.className = "cmp-rk-bar"; bar.appendChild(document.createElement("i")); li.appendChild(bar); }
+        var sw = li.querySelector(".tpm-rankswatch");
+        var w = Math.max(2, Math.round(Math.abs(vals[i]) / max * 100));
+        var fill = bar.firstChild;
+        if(fill.style.width !== w + "%") fill.style.width = w + "%";
+        var bg = sw ? sw.style.background : "";
+        if(bg && fill.style.background !== bg) fill.style.background = bg;
+        bar.classList.toggle("neg", vals[i] < 0);
+      });
+    });
+  }
+  function initCompareMobile(){
+    var grid = document.getElementById("chartGrid");
+    var toggle = document.getElementById("countriesToggleBtn");
+    if(!grid || !toggle) return;
+    if(!isMobile()){ document.body.classList.remove("cmp-m"); return; }
+    document.body.classList.add("cmp-m");
+    var bar = document.getElementById("cmpMBar");
+    if(!bar){
+      bar = document.createElement("div");
+      bar.id = "cmpMBar";
+      bar.innerHTML = '<div class="cmp-m-chips" id="cmpMChips"></div><div class="cmp-m-tabs" id="cmpMTabs" role="tablist" aria-label="Metrics"></div>';
+      toggle.insertAdjacentElement("afterend", bar);
+    }
+    renderCompareBar();
+    if(!grid._cmpMWatched){
+      grid._cmpMWatched = true;
+      new MutationObserver(function(){ if(isMobile()) renderCompareBar(); }).observe(grid, {childList:true, subtree:true});
+      var chipRow = document.getElementById("chipRow");
+      if(chipRow) new MutationObserver(function(){ if(isMobile()) renderCompareChips(); }).observe(chipRow, {childList:true, subtree:true, attributes:true, attributeFilter:["style"]});
+      var panel = document.getElementById("countriesPanelBody");
+      if(panel){
+        var done = document.createElement("button");
+        done.type = "button"; done.className = "cmp-m-done"; done.textContent = "Done";
+        done.addEventListener("click", function(){ toggle.click(); });
+        panel.insertBefore(done, panel.firstChild);
+        var back = document.createElement("div");
+        back.id = "cmpPanelBackdrop"; back.className = "ea-sheet-backdrop"; back.hidden = true;
+        back.addEventListener("click", function(){ toggle.click(); });
+        document.body.appendChild(back);
+        var sync = function(){ back.hidden = !(isMobile() && panel.style.display === "block"); };
+        new MutationObserver(sync).observe(panel, {attributes:true, attributeFilter:["style"]});
+        sync();
+      }
+    }
+    initMetricPickerSheet();
+  }
+  function renderCompareChips(){
+    var host = document.getElementById("cmpMChips"), toggle = document.getElementById("countriesToggleBtn");
+    var chipRow = document.getElementById("chipRow");
+    if(!host || !chipRow) return;
+    var chips = $all(".chip[data-country]", chipRow);
+    var sig = chips.map(function(c){ return c.dataset.country + "|" + c.style.background; }).join(",");
+    if(host._sig === sig) return;
+    host._sig = sig;
+    host.innerHTML = "";
+    chips.forEach(function(c){
+      var b = document.createElement("button");
+      b.type = "button"; b.className = "cmp-m-chip";
+      b.innerHTML = '<i aria-hidden="true"></i><span></span>';
+      b.querySelector("i").style.background = c.style.background;
+      b.querySelector("span").textContent = c.dataset.country;
+      b.setAttribute("aria-label", c.dataset.country + ", change countries");
+      b.addEventListener("click", function(){ toggle.click(); });
+      host.appendChild(b);
+    });
+    var add = document.createElement("button");
+    add.type = "button"; add.className = "cmp-m-chip cmp-m-add";
+    add.textContent = chips.length ? "+ Edit" : "+ Add countries";
+    add.addEventListener("click", function(){ toggle.click(); });
+    host.appendChild(add);
+  }
+  function renderCompareBar(){
+    renderCompareChips();
+    var tabs = document.getElementById("cmpMTabs");
+    if(!tabs) return;
+    var cards = cmpCards();
+    var concepts = cards.map(function(c){ return c.dataset.concept; });
+    // newly added metric becomes the active tab; removed active falls back to the first
+    if(cmpKnown){
+      var fresh = concepts.filter(function(k){ return cmpKnown.indexOf(k) === -1; });
+      if(fresh.length) cmpActive = fresh[fresh.length - 1];
+    }
+    cmpKnown = concepts;
+    if(concepts.indexOf(cmpActive) === -1) cmpActive = concepts[0] || null;
+    document.body.classList.toggle("cmp-m-empty", !concepts.length);
+    cards.forEach(function(c){
+      var on = c.dataset.concept === cmpActive;
+      if(c.classList.contains("cmp-m-off") === on) c.classList.toggle("cmp-m-off", !on);
+      addRankBars(c);
+    });
+    var sig = concepts.join(",") + "#" + cmpActive + "#" + cards.map(function(c){ var t = c.querySelector(".card-title"); return t ? t.textContent : ""; }).join("|");
+    if(tabs._sig === sig) return;
+    tabs._sig = sig;
+    tabs.innerHTML = "";
+    cards.forEach(function(c){
+      var t = c.querySelector(".card-title");
+      var b = document.createElement("button");
+      b.type = "button"; b.className = "cmp-m-tab";
+      b.setAttribute("role", "tab");
+      var on = c.dataset.concept === cmpActive;
+      b.setAttribute("aria-selected", on ? "true" : "false");
+      b.tabIndex = on ? 0 : -1;
+      b.dataset.concept = c.dataset.concept;
+      b.textContent = t && t.textContent.trim() ? t.textContent.trim() : c.dataset.concept;
+      b.addEventListener("click", function(){ cmpActive = this.dataset.concept; tabs._sig = null; renderCompareBar(); });
+      tabs.appendChild(b);
+    });
+    var add = document.createElement("button");
+    add.type = "button"; add.className = "cmp-m-tab cmp-m-tab-add";
+    add.textContent = "+ Add metric";
+    add.addEventListener("click", function(){ var t = document.getElementById("addMetricTile"); if(t) t.click(); });
+    tabs.appendChild(add);
+    var act = tabs.querySelector('[aria-selected="true"]');
+    if(act && act.scrollIntoView) act.scrollIntoView({inline:"center", block:"nearest"});
+  }
+  function initMetricPickerSheet(){
+    var modal = document.getElementById("metricPicker"), gridEl = document.getElementById("metricPickerGrid");
+    if(!modal || !gridEl || document.getElementById("metricPickerSearch")) return;
+    var input = document.createElement("input");
+    input.type = "search"; input.id = "metricPickerSearch";
+    input.placeholder = "Search metrics, e.g. inflation";
+    input.setAttribute("aria-label", "Search metrics");
+    gridEl.insertAdjacentElement("beforebegin", input);
+    function filter(){
+      var q = input.value.trim().toLowerCase();
+      var cat = null, catHas = false;
+      $all(".pickercat, .pickeritem", gridEl).forEach(function(el){
+        if(el.classList.contains("pickercat")){
+          if(cat) cat.hidden = !catHas;
+          cat = el; catHas = false; return;
+        }
+        var hit = !q || el.textContent.toLowerCase().indexOf(q) !== -1 || (cat && cat.textContent.toLowerCase().indexOf(q) !== -1);
+        el.hidden = !hit;
+        if(hit) catHas = true;
+      });
+      if(cat) cat.hidden = !catHas;
+    }
+    input.addEventListener("input", filter);
+    new MutationObserver(function(){ if(input.value) filter(); }).observe(gridEl, {childList:true});
+    new MutationObserver(function(){ if(modal.hidden){ input.value = ""; filter(); } })
+      .observe(modal, {attributes:true, attributeFilter:["hidden"]});
+  }
+
+  /* ------------------------------------------------------------------
      v1.9.72 shared bottom sheet (phones): a title plus a list of actions.
      items: [{label, note, danger, pressed, onClick}]
      ------------------------------------------------------------------ */
@@ -1251,6 +1445,7 @@
     safeCall(initDashOptions);
     safeCall(watchDashTabs);
     safeCall(watchReasonBar);
+    safeCall(initCompareMobile);
     safeCall(chartmakerGate);
   }
 
@@ -1262,7 +1457,7 @@
   // Re-run the cheap, idempotent bits after async page data loads and on resize/orientation change.
   window.addEventListener("resize", function(){
     addTradeNote(); tableToCards(); chartmakerGate(); simplifyComparePage(); simplifyCalendarCopy();
-    safeCall(initDashOptions); safeCall(fixReasonBar);
+    safeCall(initDashOptions); safeCall(fixReasonBar); safeCall(initCompareMobile);
     alignCountryMapWithSearch();
   });
   window.addEventListener("load", function(){

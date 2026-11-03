@@ -202,7 +202,8 @@ async function loaded(win, extra){
   ok(/display:none !important/.test(rule("  #mapSvgWrap, #mapCard .legend-grad, #heatTip")), "map hidden on phones");
   const dhtml = fs.readFileSync(path.join(ROOT, "dashboard.html"), "utf8");
   ok(/\.map-rank\{display:none;\}/.test(dhtml), "ranked list hidden on desktop");
-  ok(/mobile\.css\?v=23/.test(dhtml) && /mobile\.js\?v=24/.test(dhtml), "dashboard on mobile.css v23 / mobile.js v24");
+  { const cv = +(dhtml.match(/mobile\.css\?v=(\d+)/) || [0, 0])[1], jv = +(dhtml.match(/mobile\.js\?v=(\d+)/) || [0, 0])[1];
+    ok(cv >= 23 && jv >= 24, `dashboard on mobile.css >= v23 / mobile.js >= v24 (v${cv} / v${jv})`); }
 
   // v1.9.74: export works on phones (canvas size cap, null blob, share sheet) and shows state on the icon
   ok(/Math\.min\(3, Math\.sqrt\(16000000 \/ \(baseW \* baseH\)\), 16000 \/ baseH, 16000 \/ baseW\)/.test(dhtml), "export scale capped under iOS canvas limits");
