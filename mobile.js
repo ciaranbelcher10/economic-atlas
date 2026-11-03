@@ -992,24 +992,75 @@
   /* ------------------------------------------------------------------
      7. CHARTMAKER — hard mobile gate
      ------------------------------------------------------------------ */
+  /* v1.9.80 Chartmaker on phones: no more "needs a bigger screen" dead end.
+     The live chart shows with a gallery of example charts above it; the
+     editing panels stay hidden. "Send to my desktop" shares (or copies) a
+     link that opens the same example on a big screen. Signed-in people can
+     open their saved charts read-only through the page's own Open list. */
   function chartmakerGate(){
     var layout = document.getElementById("cmLayout");
     if(!layout) return;
+    var gate = document.getElementById("cmMobileGate");
     if(!isMobile()){
-      var gate = document.getElementById("cmMobileGate");
+      document.body.classList.remove("cm-m");
       if(gate) gate.style.display = "none";
       layout.style.display = "";
       return;
     }
-    if(document.getElementById("cmMobileGate")) return;
-    var gate = document.createElement("div");
+    document.body.classList.add("cm-m");
+    if(gate){ gate.style.display = ""; syncCmGate(); return; }
+    gate = document.createElement("div");
     gate.id = "cmMobileGate";
     gate.innerHTML =
-      '<span class="ic" aria-hidden="true">\uD83D\uDCC8</span>' +
-      '<h3>Chartmaker needs a bigger screen</h3>' +
-      '<p>Building and styling a custom chart, picking metrics, colours, axis titles and exporting as PNG or CSV, needs more room than a phone can comfortably give it. Open this page on a tablet or desktop and it\u2019ll be exactly as you left it.</p>' +
-      '<span class="save-hint">Tip: bookmark this page now, then come back to it once you\u2019re on a bigger screen.</span>';
+      '<p class="cm-m-lead">Browse example charts here. Building and styling your own works best on a bigger screen.</p>' +
+      '<div class="cm-m-ex" role="group" aria-label="Example charts"></div>' +
+      '<div class="cm-m-actions">' +
+        '<button type="button" class="cm-m-send">Send this to my desktop</button>' +
+        '<button type="button" class="cm-m-saved" hidden>Your saved charts</button>' +
+      '</div>' +
+      '<p class="cm-m-msg" aria-live="polite"></p>';
     layout.insertAdjacentElement("beforebegin", gate);
+    var send = gate.querySelector(".cm-m-send"), msg = gate.querySelector(".cm-m-msg");
+    send.addEventListener("click", function(){
+      var cm = window.EA_CM || {};
+      var url = location.origin + location.pathname + (cm.current ? "?ex=" + encodeURIComponent(cm.current) : "");
+      var title = "Chartmaker, The Economic Atlas";
+      function copied(){ msg.textContent = "Link copied. Open it on your computer to edit this chart."; }
+      function failed(){ msg.textContent = "Open " + url + " on your computer."; }
+      if(navigator.share){
+        navigator.share({ title: title, url: url }).catch(function(e){
+          if(e && e.name === "AbortError") return;
+          if(navigator.clipboard) navigator.clipboard.writeText(url).then(copied, failed); else failed();
+        });
+      } else if(navigator.clipboard){
+        navigator.clipboard.writeText(url).then(copied, failed);
+      } else failed();
+    });
+    gate.querySelector(".cm-m-saved").addEventListener("click", function(){
+      var o = document.getElementById("cmOpenBtn"); if(o) o.click();
+    });
+    document.addEventListener("ea:cm-ready", syncCmGate);
+    document.addEventListener("ea:cm-example", syncCmGate);
+    syncCmGate();
+  }
+  function syncCmGate(){
+    var gate = document.getElementById("cmMobileGate"), cm = window.EA_CM;
+    if(!gate) return;
+    var host = gate.querySelector(".cm-m-ex");
+    if(cm && cm.examples && !host.children.length){
+      cm.examples.forEach(function(e){
+        var b = document.createElement("button");
+        b.type = "button"; b.className = "cm-m-chip"; b.dataset.key = e.key; b.textContent = e.title;
+        b.addEventListener("click", function(){ if(window.EA_CM) window.EA_CM.show(this.dataset.key); });
+        host.appendChild(b);
+      });
+    }
+    $all(".cm-m-chip", host).forEach(function(b){
+      b.setAttribute("aria-pressed", cm && cm.current === b.dataset.key ? "true" : "false");
+    });
+    var saved = gate.querySelector(".cm-m-saved");
+    var inn = !!(window.EATLAS_PREFS && window.EATLAS_PREFS.isLoggedIn && window.EATLAS_PREFS.isLoggedIn());
+    if(saved.hidden === inn) saved.hidden = !inn;
   }
 
   /* ------------------------------------------------------------------

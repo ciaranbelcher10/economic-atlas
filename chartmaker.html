@@ -33,7 +33,7 @@
 <link rel="icon" type="image/png" sizes="32x32" href="favicon-32.png">
 <link rel="apple-touch-icon" href="apple-touch-icon.png">
 <link rel="stylesheet" href="style.css?v=55">
-<link rel="stylesheet" href="mobile.css?v=27">
+<link rel="stylesheet" href="mobile.css?v=28">
 </head>
 <body>
 <nav class="top"><div class="wrap">
@@ -5990,19 +5990,64 @@ saveConfirmBtn.addEventListener("click", function(){
   });
 });
 
+/* ---- v1.9.80: example charts (phone gallery, and ?ex= links to send a chart to a desktop) ---- */
+var EXAMPLES = [
+  { key: "uk-inflation", title: "UK inflation", series: [["UK", "cpi"]], years: 5 },
+  { key: "g7-inflation", title: "G7 inflation", series: [["US", "cpi"], ["UK", "cpi"], ["Germany", "cpi"], ["France", "cpi"], ["Italy", "cpi"], ["Japan", "cpi"], ["Canada", "cpi"]], years: 5 },
+  { key: "unemployment", title: "Unemployment: US, UK, Germany", series: [["US", "unemployment"], ["UK", "unemployment"], ["Germany", "unemployment"]], years: 10 },
+  { key: "policy-rates", title: "Policy rates: US, UK, euro area", series: [["US", "policy_rate"], ["UK", "policy_rate"], ["Eurozone", "policy_rate"]], years: 10 }
+];
+function exampleByKey(k){ return EXAMPLES.filter(function(e){ return e.key === k; })[0] || null; }
+// Shown exactly like the starter: it clears as soon as the person adds their own metric.
+function loadExample(key){
+  var ex = exampleByKey(key);
+  if(!ex) return false;
+  var have = ex.series.filter(function(p){ return getSeries(p[0], p[1]); });
+  if(!have.length) return false;
+  starterActive = false;
+  series = []; annotations = []; colorIdx = 0;
+  fromPeriodSel.value = ""; toPeriodSel.value = "";
+  have.forEach(function(p){ addSeries(p[0], p[1], true); });
+  var opts = Array.prototype.map.call(fromPeriodSel.options, function(o){ return o.value; });
+  var last = opts[opts.length - 1] || "";
+  var cut = (parseInt(last.slice(0, 4), 10) - ex.years) + last.slice(4);
+  var pick = opts.filter(function(p){ return p >= cut; })[0];
+  if(pick){ fromPeriodSel.value = pick; resetYTickStepIdx(); renderChart(); }
+  starterActive = true;
+  syncStarterUI();
+  window.EA_CM.current = key;
+  document.dispatchEvent(new CustomEvent("ea:cm-example", { detail: { key: key } }));
+  return true;
+}
+window.EA_CM = {
+  examples: EXAMPLES.map(function(e){ return { key: e.key, title: e.title }; }),
+  show: loadExample,
+  current: null,
+  ready: false
+};
+function exampleFromUrl(){
+  try { return new URLSearchParams(window.location.search).get("ex"); } catch(e){ return null; }
+}
+
 /* ---- init ---- */
 populateDateRange();
 renderSeriesList();
 renderColorsPanel();
 renderChart();
 syncStarterUI();
-loadAllCountryData().then(function(){ maybeLoadStarter(); offerDraft(); });
+loadAllCountryData().then(function(){
+  var ex = exampleFromUrl();
+  if(!(ex && loadExample(ex))) maybeLoadStarter();
+  offerDraft();
+  window.EA_CM.ready = true;
+  document.dispatchEvent(new CustomEvent("ea:cm-ready"));
+});
 
 } // end runChartMaker
 
 })();
 </script>
 
-<script src="mobile.js?v=28" defer></script>
+<script src="mobile.js?v=29" defer></script>
 </body>
 </html>
