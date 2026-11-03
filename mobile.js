@@ -87,9 +87,9 @@
       { href:"compare",   label:"Compare",   ic:"\u2696\uFE0F",  match:function(p){ return p==="compare"; } },
       { href:"rankings",  label:"Rankings",  ic:"\uD83C\uDFC5",  match:function(){ return onRankings; } },
       { href:"dashboard", label:"Dashboard", ic:"\uD83D\uDCCC",  match:function(p){ return p==="dashboard"; } },
-      { href:"chartmaker",label:"Chartmaker",ic:"\uD83D\uDCC8",  match:function(p){ return p==="chartmaker"; } }
+      { href:"calendar",  label:"Calendar",  ic:"\uD83D\uDDD3\uFE0F", match:function(p){ return p==="calendar"; } }
     ];
-    // v1.9.68: the bar sits at the bottom of the screen with exactly five tabs; Calendar and Markets live in the menu
+    // v1.9.68: five tabs at the bottom of the screen; Chartmaker and Markets live in the menu
     var bar = document.createElement("nav");
     bar.id = "mobToolbar";
     bar.setAttribute("aria-label","Tools");
@@ -109,7 +109,7 @@
   function addMenuTools(prefix, page){
     var links = document.getElementById("navLinks");
     if(!links || links.querySelector("[data-mob-extra]")) return;
-    [["markets","Markets"],["calendar","Calendar"]].forEach(function(t){
+    [["markets","Markets"],["chartmaker","Chartmaker"]].forEach(function(t){
       var a = document.createElement("a");
       a.className = "item" + (page === t[0] ? " active" : "");
       a.href = prefix + t[0];
@@ -147,6 +147,24 @@
     document.documentElement.style.setProperty("--m-head-h", (nav.offsetHeight || 52) + "px");
   }
   window.EATLAS_initSlimHeader = initSlimHeader;
+
+  /* v1.9.68: the section chips are one sideways-scrolling row on phones; keep the active one in view
+     as the reader taps or swipes between sections */
+  function keepActiveChipInView(){
+    if(!isMobile()) return;
+    var cat = document.querySelector("nav.cat");
+    if(!cat || cat.getAttribute("data-chipwatch")) return;
+    cat.setAttribute("data-chipwatch", "1");
+    function centre(){
+      var b = cat.querySelector("button.active");
+      if(!b) return;
+      var target = b.offsetLeft - (cat.clientWidth - b.offsetWidth) / 2;
+      if(cat.scrollTo) cat.scrollTo({left: Math.max(0, target), behavior: "smooth"}); else cat.scrollLeft = Math.max(0, target);
+    }
+    new MutationObserver(centre).observe(cat, {subtree:true, attributes:true, attributeFilter:["class"]});
+    centre();
+  }
+  window.EATLAS_keepActiveChipInView = keepActiveChipInView;
 
   /* ------------------------------------------------------------------
      2. HOMEPAGE MAP — calmer entrance caption
@@ -975,6 +993,7 @@
   function init(){
     safeCall(buildToolbar);
     safeCall(initSlimHeader);
+    safeCall(keepActiveChipInView);
     safeCall(addMapCaption);
     safeCall(initHomeQuickNav);
     safeCall(alignCountryMapWithSearch);
