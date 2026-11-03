@@ -1109,12 +1109,51 @@
     b.addEventListener("click", function(){ real.click(); });
     card.appendChild(b);
   }
+  /* v1.9.78: per card on phones, "Remove this metric" lives in More options
+     (the corner x read as "close"), and the freshness key sits as one small
+     line at the bottom of the card instead of two lines under the tabs. */
+  function addCardExtras(card){
+    var real = card.querySelector(".card-remove");
+    if(real && !card.querySelector(".cmp-m-remove")){
+      var b = document.createElement("button");
+      b.type = "button";
+      b.className = "cmp-m-remove";
+      b.textContent = "Remove this metric";
+      b.addEventListener("click", function(){ real.click(); });
+      card.appendChild(b);
+    }
+    if(!card.querySelector(".cmp-m-key")){
+      var k = document.createElement("p");
+      k.className = "cmp-m-key";
+      k.innerHTML = '<span><span class="led green" aria-hidden="true"></span>Latest data</span><span><span class="led orange" aria-hidden="true"></span>Awaiting next update</span>';
+      card.appendChild(k);
+    }
+  }
+  var CMP_SHORT_LEDE = "Rank the 62 economies side by side, for one year or over time.";
+  var CMP_SHORT_SAVE = "Sign up free to keep this comparison.";
+  function compactCompareTop(on){
+    var h1 = document.querySelector("h1");
+    var lede = h1 && h1.nextElementSibling;
+    if(lede && lede.tagName === "P"){
+      if(!lede.dataset.full) lede.dataset.full = lede.textContent;
+      var want = on ? CMP_SHORT_LEDE : lede.dataset.full;
+      if(lede.textContent !== want) lede.textContent = want;
+      lede.classList.add("cmp-m-lede");
+    }
+    var sb = document.querySelector("#saveBar p");
+    if(sb){
+      if(!sb.dataset.full) sb.dataset.full = sb.textContent;
+      var w2 = on ? CMP_SHORT_SAVE : sb.dataset.full;
+      if(sb.textContent !== w2) sb.textContent = w2;
+    }
+  }
   function initCompareMobile(){
     var grid = document.getElementById("chartGrid");
     var toggle = document.getElementById("countriesToggleBtn");
     if(!grid || !toggle) return;
-    if(!isMobile()){ document.body.classList.remove("cmp-m"); return; }
+    if(!isMobile()){ document.body.classList.remove("cmp-m"); compactCompareTop(false); return; }
     document.body.classList.add("cmp-m");
+    compactCompareTop(true);
     var bar = document.getElementById("cmpMBar");
     if(!bar){
       bar = document.createElement("div");
@@ -1189,6 +1228,7 @@
       if(c.classList.contains("cmp-m-off") === on) c.classList.toggle("cmp-m-off", !on);
       addRankBars(c);
       addFullscreenButton(c);
+      addCardExtras(c);
     });
     var sig = concepts.join(",") + "#" + cmpActive + "#" + cards.map(function(c){ var t = c.querySelector(".card-title"); return t ? t.textContent : ""; }).join("|");
     if(tabs._sig === sig) return;

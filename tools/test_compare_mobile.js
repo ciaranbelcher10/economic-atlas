@@ -66,6 +66,16 @@ const rule = sel => { const m = CSS.match(new RegExp(sel.replace(/[.#()\[\]"=>*+
     const cl = doc.getElementById("cardFullscreenClose"); if(cl) cl.click(); await sleep(30); }
   ok(/order:2;/.test(rule("  body.cmp-m .metric-card > .cmp-m-fs")) && /min-height:44px/.test(rule("  body.cmp-m .metric-card > .cmp-m-fs")), "button sits with the ranking, 44px");
 
+  // v1.9.78: decluttered top and flat cards
+  ok(doc.querySelector("h1").nextElementSibling.textContent === "Rank the 62 economies side by side, for one year or over time.", "short intro on phones");
+  ok($("#saveBar p").textContent === "Sign up free to keep this comparison.", "one-line save banner text");
+  ok(cards().every(c => c.querySelectorAll(".cmp-m-remove").length === 1 && c.querySelectorAll(".cmp-m-key").length === 1), "each card has one Remove and one freshness line");
+  ok(cards().every(c => c.querySelector(".cmp-m-key .led.green") && c.querySelector(".cmp-m-key .led.orange")), "freshness line shows both lights");
+  { const nBefore = cards().length, rm = visible()[0].querySelector(".cmp-m-remove");
+    rm.click(); await sleep(300);
+    ok(cards().length === nBefore - 1, "Remove this metric removes the card");
+    ok(visible().length === 1, "another card shown after removing"); }
+
   // summary per metric
   const ths = $$("#rankTable thead th");
   const sums = $$("#cmpCardsWrap .cmp-metric-sum");
@@ -143,6 +153,15 @@ const rule = sel => { const m = CSS.match(new RegExp(sel.replace(/[.#()\[\]"=>*+
   ok(/\[data-theme="dark"\] \.card-sort-row\{background:var\(--panel\) !important;/.test(HTML), "dark Order-by strip uses the panel colour");
   { const cv = +(HTML.match(/mobile\.css\?v=(\d+)/) || [0, 0])[1], jv = +(HTML.match(/mobile\.js\?v=(\d+)/) || [0, 0])[1];
     ok(cv >= 24 && jv >= 25, `compare on mobile.css >= v24 / mobile.js >= v25 (v${cv} / v${jv})`); }
+
+  ok(/display:none !important/.test(rule("  body.cmp-m .metric-card .card-title")), "duplicate card title hidden");
+  ok(/display:none !important/.test(rule("  body.cmp-m .metric-card > .card-remove")), "corner x hidden");
+  ok(/display:block/.test(rule("  body.cmp-m .metric-card.opts-open > .cmp-m-remove")) && /display:none/.test(rule("  body.cmp-m .metric-card > .cmp-m-remove")), "Remove lives in More options");
+  ok(/body\.cmp-m \.metric-card\{ background:transparent !important; border:none !important;/.test(CSS) && /border:none !important/.test(rule("  body.cmp-m .tpm-ranking")), "card and ranking unframed");
+  ok(/display:none !important/.test(rule("  body.cmp-m .wrap > .lightskey, body.cmp-m #mainContent > .lightskey")), "top freshness key hidden");
+  ok(/\n  \.cmp-m-tabs\{ -webkit-mask-image:linear-gradient\(to right, #000 calc\(100% - 36px\), transparent\);/.test(CSS), "tabs fade at the right edge");
+  ok(/\.cmp-m-key, \.cmp-m-remove, \.cmp-m-fs\{ display:none; \}\s*$/.test(CSS), "phone extras hidden outside phone widths");
+  ok(d.doc.querySelector("h1").nextElementSibling.textContent.indexOf("Rank and compare all 62") === 0, "desktop keeps the full intro");
 
   console.log(`test_compare_mobile: ${checks - failures} ok, ${failures} failed`);
   process.exit(failures ? 1 : 0);
