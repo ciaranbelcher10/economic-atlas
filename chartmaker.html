@@ -33,7 +33,7 @@
 <link rel="icon" type="image/png" sizes="32x32" href="favicon-32.png">
 <link rel="apple-touch-icon" href="apple-touch-icon.png">
 <link rel="stylesheet" href="style.css?v=55">
-<link rel="stylesheet" href="mobile.css?v=28">
+<link rel="stylesheet" href="mobile.css?v=29">
 </head>
 <body>
 <nav class="top"><div class="wrap">
@@ -3765,8 +3765,10 @@ function syncSnapshotAtUI(){
 }
 function syncBarLegendTitle(){
   syncSnapshotAtUI();
-  if(chartType !== "bar" || legendTitleTouched) return;
-  if(series.length === 1){
+  if(legendTitleTouched) return;
+  // v1.9.81: the snapshot date is only meaningful on a multi-country bar.
+  // Switching back to Line left it behind ("July 2026" under a time axis).
+  if(chartType !== "bar" || series.length === 1){
     style.legendTitle = "";
     document.getElementById("cmLegendTitle").value = "";
     return;
@@ -4011,7 +4013,9 @@ function estProseWidth(text, fontSize){
 // truncating real source citations off mid-string.
 function czWrapSrcFooter(text){
   var madeOnW = estProseWidth("Made on theeconomicatlas.com", 11);
-  var line1MaxW = (G.W - G.padR) - G.padL - madeOnW - 40;   // v1.9.33: slack for font differences between machines
+  // v1.9.81: line 1 is drawn with "Source: " in front, which the wrap never measured,
+  // so a long first line ran straight into "Made on theeconomicatlas.com".
+  var line1MaxW = (G.W - G.padR) - G.padL - madeOnW - estProseWidth("Source: ", 11) - 40;   // v1.9.33: slack for font differences between machines
   var lineMaxW = (G.W - G.padR) - G.padL - 16;
   var words = String(text).split(" ");
   var lines = [];
@@ -5992,16 +5996,40 @@ saveConfirmBtn.addEventListener("click", function(){
 
 /* ---- v1.9.80: example charts (phone gallery, and ?ex= links to send a chart to a desktop) ---- */
 var EXAMPLES = [
-  { key: "uk-inflation", title: "UK inflation", series: [["UK", "cpi"]], years: 5 },
-  { key: "g7-inflation", title: "G7 inflation", series: [["US", "cpi"], ["UK", "cpi"], ["Germany", "cpi"], ["France", "cpi"], ["Italy", "cpi"], ["Japan", "cpi"], ["Canada", "cpi"]], years: 5 },
-  { key: "unemployment", title: "Unemployment: US, UK, Germany", series: [["US", "unemployment"], ["UK", "unemployment"], ["Germany", "unemployment"]], years: 10 },
-  { key: "policy-rates", title: "Policy rates: US, UK, euro area", series: [["US", "policy_rate"], ["UK", "policy_rate"], ["Eurozone", "policy_rate"]], years: 10 }
+  // v1.9.81: one placeholder, Ciaran's own "Policy Rates" chart, loaded through the saved-chart path so
+  // it shows exactly as styled (labels, colours, title). More of his charts replace the old plain four.
+  { key: "policy-rates", title: "Policy rates", row: {
+    seriesSpec: [
+      { country: "Eurozone", metric: "policy_rate", transform: "raw", customLabel: "ECB Policy Rate", color: "#D47353", manualColor: true },
+      { country: "UK", metric: "policy_rate", transform: "raw", customLabel: "BoE Base Rate", color: "#1E4566", manualColor: true },
+      { country: "US", metric: "policy_rate", transform: "raw", customLabel: "Fed Policy rate", color: "#AD1E1E", manualColor: true }
+    ],
+    snapshot: { chartType: "line", chartTitle: "Policy Rates", yAxisTitle: "", legendTitle: "", yTitlePos: "along",
+      showFill: false, showPoints: false, refLine: { enabled: false, value: 0 }, logScale: false,
+      yStartMode: "auto", yStartValue: 0, xTicks: 8, xLabelAngle: "straight", centerAroundRef: false, thresholdShadeBars: false },
+    annotations: [],
+    from_period: "2020-01"
+  } }
 ];
 function exampleByKey(k){ return EXAMPLES.filter(function(e){ return e.key === k; })[0] || null; }
 // Shown exactly like the starter: it clears as soon as the person adds their own metric.
 function loadExample(key){
   var ex = exampleByKey(key);
   if(!ex) return false;
+  if(ex.row){
+    var avail = ex.row.seriesSpec.filter(function(ss){ return getSeries(ss.country, ss.metric); });
+    if(!avail.length) return false;
+    var lastP = Array.prototype.map.call(fromPeriodSel.options, function(o){ return o.value; }).pop() || "";
+    var r = JSON.parse(JSON.stringify(ex.row));
+    r.to_period = lastP;
+    loadSavedChart(r);
+    if(!toPeriodSel.value){ toPeriodSel.value = toPeriodSel.options.length ? toPeriodSel.options[toPeriodSel.options.length - 1].value : ""; renderChart(); }
+    starterActive = true;
+    syncStarterUI();
+    window.EA_CM.current = key;
+    document.dispatchEvent(new CustomEvent("ea:cm-example", { detail: { key: key } }));
+    return true;
+  }
   var have = ex.series.filter(function(p){ return getSeries(p[0], p[1]); });
   if(!have.length) return false;
   starterActive = false;

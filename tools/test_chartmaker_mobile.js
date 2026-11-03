@@ -1,5 +1,7 @@
 #!/usr/bin/env node
-/* v1.9.80 Chartmaker on phones: example gallery + live chart instead of the "bigger screen" dead end,
+/* v1.9.81: gallery is one placeholder (Ciaran's Policy Rates chart, loaded as styled); footer wrap
+ * reserves the "Source: " prefix; an auto snapshot-date legend title clears when leaving Bar.
+ * v1.9.80 Chartmaker on phones: example gallery + live chart instead of the "bigger screen" dead end,
  * "Send this to my desktop" link (?ex=key opens the same example on any screen), saved charts read-only
  * for signed-in people via the page's own Open list. Desktop unchanged.
  * Run: NODE_PATH=/tmp/node_modules node tools/test_chartmaker_mobile.js */
@@ -43,36 +45,36 @@ const seriesNames = d => [...d.querySelectorAll("#cmSeriesList .cm-seriesitem")]
   const { win, doc, errs } = await boot();
   const $ = s => doc.querySelector(s), $$ = s => [...doc.querySelectorAll(s)];
   ok(errs.length === 0, "no page errors: " + errs.join("; "));
-  ok(win.EA_CM && win.EA_CM.ready && win.EA_CM.examples.length === 4, "page exposes 4 examples");
+  ok(win.EA_CM && win.EA_CM.ready && win.EA_CM.examples.length === 1 && win.EA_CM.examples[0].key === "policy-rates", "page exposes the one Policy rates example");
   ok(doc.body.classList.contains("cm-m"), "phone mode on");
   const gate = $("#cmMobileGate");
   ok(gate && !/bigger screen\b(?! )/.test("") && !/needs a bigger screen/i.test(gate.textContent), "no dead-end message");
   const chips = $$(".cm-m-chip");
-  ok(chips.length === 4 && chips.map(c => c.textContent).join("|") === win.EA_CM.examples.map(e => e.title).join("|"), "one chip per example");
+  ok(chips.length === 1 && chips.map(c => c.textContent).join("|") === win.EA_CM.examples.map(e => e.title).join("|"), "one chip per example");
   ok(chips.every(c => c.getAttribute("aria-pressed") === "false"), "starter chart: no example pressed");
   ok($("#cmSvgBox").style.display !== "none", "the live chart is drawn");
-  for(const [i, want] of [[1, 7], [2, 3], [3, 3], [0, 1]]){
-    chips[i].click(); await sleep(150);
-    const k = chips[i].dataset.key;
-    ok(win.EA_CM.current === k && chips[i].getAttribute("aria-pressed") === "true" && $$(".cm-m-chip[aria-pressed=true]").length === 1, `example ${k} selected`);
-    ok(seriesNames(doc).length === want, `example ${k} draws ${want} series (got ${seriesNames(doc).length})`);
-    ok($("#cmSvgBox").style.display !== "none" && $("#cmSvgBox").innerHTML.length > 200, `example ${k} chart rendered`);
-  }
+  chips[0].click(); await sleep(150);
+  ok(win.EA_CM.current === "policy-rates" && chips[0].getAttribute("aria-pressed") === "true", "example policy-rates selected");
+  const svgH = $("#cmSvgBox").innerHTML;
+  ok(seriesNames(doc).length === 3 && /ECB Policy Rate/.test(svgH) && /BoE Base Rate/.test(svgH) && /Fed Policy rate/.test(svgH), "Policy Rates loads with Ciaran's three labels");
+  ok($("#cmChartTitle").value === "Policy Rates", "title as styled");
+  ok($("#cmSvgBox").style.display !== "none" && /Policy Rates/.test($("#cmSvgBox").innerHTML) && /ECB Policy Rate/.test($("#cmSvgBox").innerHTML), "chart rendered with title and legend");
+  ok(!/July 20/.test($("#cmSvgBox").innerHTML), "no stray snapshot date under the axis");
   // send to desktop: no share -> clipboard
-  chips[1].click(); await sleep(100);
+  chips[0].click(); await sleep(100);
   $(".cm-m-send").click(); await sleep(50);
-  ok(win.__copied[0] === "https://theeconomicatlas.com/chartmaker?ex=g7-inflation", "copies a link to this example: " + win.__copied[0]);
+  ok(win.__copied[0] === "https://theeconomicatlas.com/chartmaker?ex=policy-rates", "copies a link to this example: " + win.__copied[0]);
   ok(/Link copied/.test($(".cm-m-msg").textContent), "confirms the copy");
   ok($(".cm-m-saved").hidden, "signed out: no saved charts button");
   ok($$("#cmMobileGate").length === 1, "one gallery");
   win.dispatchEvent(new win.Event("resize")); await sleep(50);
-  ok($$("#cmMobileGate").length === 1 && $$(".cm-m-chip").length === 4, "re-runs keep one gallery");
+  ok($$("#cmMobileGate").length === 1 && $$(".cm-m-chip").length === 1, "re-runs keep one gallery");
 
   // with share sheet + signed in
   const b = await boot({ share: true, loggedIn: true });
-  b.doc.querySelectorAll(".cm-m-chip")[2].click(); await sleep(100);
+  b.doc.querySelectorAll(".cm-m-chip")[0].click(); await sleep(100);
   b.doc.querySelector(".cm-m-send").click(); await sleep(50);
-  ok(b.win.__shared.length === 1 && b.win.__shared[0].url === "https://theeconomicatlas.com/chartmaker?ex=unemployment" && !b.win.__copied.length, "phones with a share sheet share the link");
+  ok(b.win.__shared.length === 1 && b.win.__shared[0].url === "https://theeconomicatlas.com/chartmaker?ex=policy-rates" && !b.win.__copied.length, "phones with a share sheet share the link");
   ok(!b.doc.querySelector(".cm-m-saved").hidden, "signed in: saved charts button shown");
   let opened = 0; b.doc.getElementById("cmOpenBtn").addEventListener("click", () => opened++);
   b.doc.querySelector(".cm-m-saved").click();
@@ -86,6 +88,33 @@ const seriesNames = d => [...d.querySelectorAll("#cmSeriesList .cm-seriesitem")]
   const e = await boot({ desktop: true, query: "?ex=nonsense" });
   ok(e.win.EA_CM.current === null && seriesNames(e.doc).length === 1, "unknown ?ex= falls back to the normal starter");
 
+  // legend title: auto snapshot date clears when leaving Bar (v1.9.81)
+  const L = await boot({ desktop: true });
+  const lb = s => L.doc.querySelector(s);
+  L.win.EA_CM.show("policy-rates"); await sleep(100);
+  lb('#cmLegendTitle').value = ""; 
+  [...L.doc.querySelectorAll("#cmChartTypeSeg button")].find(b => b.dataset.type === "bar").click(); await sleep(80);
+  const auto = lb("#cmLegendTitle").value;
+  ok(/20\d\d/.test(auto), "bar with several countries fills the snapshot date: " + auto);
+  [...L.doc.querySelectorAll("#cmChartTypeSeg button")].find(b => b.dataset.type === "line").click(); await sleep(80);
+  ok(lb("#cmLegendTitle").value === "" && !L.doc.getElementById("cmSvgBox").innerHTML.includes(">" + auto + "<"), "back to Line: auto date cleared");
+  lb("#cmLegendTitle").value = "My label"; lb("#cmLegendTitle").dispatchEvent(new L.win.Event("input")); await sleep(50);
+  [...L.doc.querySelectorAll("#cmChartTypeSeg button")].find(b => b.dataset.type === "bar").click(); await sleep(50);
+  [...L.doc.querySelectorAll("#cmChartTypeSeg button")].find(b => b.dataset.type === "line").click(); await sleep(50);
+  ok(lb("#cmLegendTitle").value === "My label", "a typed legend title is kept");
+
+  // footer wrap reserves "Source: " (v1.9.81): run the real function with a proportional measure
+  const HTML = fs.readFileSync(path.join(ROOT, "chartmaker.html"), "utf8");
+  const fsrc = HTML.slice(HTML.indexOf("function czWrapSrcFooter(text){"), HTML.indexOf("function czSrcLineCount("));
+  const wrap = new Function("G", "estProseWidth", fsrc + "; return czWrapSrcFooter;")({ W: 1200, padL: 90, padR: 15 }, t => String(t).length * 6.6);
+  const W6 = t => String(t).length * 6.6;
+  const note = "Canada: FRED series LRUNTTTTCAM156S; Eurostat une_rt_m (France, Germany, Italy); Japan: FRED series LRHUTTTTJPM156S; UK: ONS series MGSX (LMS); US: FRED series UNRATE";
+  const ln = wrap(note);
+  const room = (1200 - 15) - 90 - W6("Made on theeconomicatlas.com");
+  ok(ln.length >= 2 && W6("Source: " + ln[0]) + 16 <= room, "first source line plus prefix clears Made on: " + W6("Source: " + ln[0]) + " vs " + room);
+  ok(ln.join(" ") === note, "wrap keeps every word");
+
+  ok(/aspect-ratio:3 \/ 2/.test(CSS), "phone chart card matches the chart's shape");
   const start = CSS.indexOf("@media (max-width:760px){", 140);
   ok(CSS.indexOf("body.cm-m .cmx-data") > start && start > 0, "phone-scoped CSS");
   ok(!/#cmLayout\{ display:none !important; \}/.test(CSS), "layout no longer hidden on phones");
