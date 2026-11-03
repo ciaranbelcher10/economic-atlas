@@ -62,16 +62,23 @@ async function loaded(win, extra){
   const win = dom.window, doc = win.document;
   await loaded(win, () => win.REGISTRY && Object.keys(win.REGISTRY).length);
   ok(win.EATLAS_DASH && typeof win.EATLAS_DASH.ensurePinned === "function", "dashboard exposes ensurePinned");
+  { const h0 = doc.getElementById("dashExportRow"); ok(h0 && h0.hidden, "empty dashboard on load: Export hidden"); }
   ["UK::cpi", "US::cpi", "Japan::cpi", "Germany::cpi", "Eurozone::cpi"].forEach(id => win.EATLAS_DASH.ensurePinned(id));
   await sleep(500);
 
-  // v1.9.73: toggles stay visible; Export is an icon button; no options sheet
-  ok(!doc.getElementById("dashOptsBtn"), "no options button (toggles restored)");
+  // v1.9.75: toggles stay in the row; Export moves under the tiles, labelled, only when tiles exist
+  ok(!doc.getElementById("dashOptsBtn"), "no options button");
   const row = doc.querySelector(".metric-toggles");
-  ok(row && !row.classList.contains("dash-opts-on"), "toggles row not hidden behind a menu");
-  ["makeRealBtn", "dollariseBtn", "exportDashboardBtn"].forEach(id => ok(row && row.contains(doc.getElementById(id)), id + " is in the toggles row"));
+  ["makeRealBtn", "dollariseBtn"].forEach(id => ok(row && row.contains(doc.getElementById(id)), id + " is in the toggles row"));
   const exp = doc.getElementById("exportDashboardBtn");
-  ok(exp && exp.getAttribute("aria-label") === "Export dashboard (PNG)", "icon-only Export keeps its accessible name");
+  ok(exp && !row.contains(exp), "Export is not in the toggles row on phones");
+  const holder = doc.getElementById("dashExportRow");
+  ok(holder && holder.contains(exp) && holder.previousElementSibling === doc.getElementById("dashGrid"), "Export sits directly under the tiles");
+  ok(holder && !holder.hidden, "Export shown when tiles exist");
+  ok(/Export dashboard/.test(exp.textContent), "Export keeps its label: " + exp.textContent);
+  ok(doc.querySelectorAll("#exportDashboardBtn").length === 1 && doc.querySelectorAll("#dashExportRow").length === 1, "Export not duplicated");
+  win.dispatchEvent(new win.Event("resize")); await sleep(30);
+  ok(doc.querySelectorAll("#dashExportRow").length === 1 && holder.contains(exp), "re-runs keep one Export under the tiles");
   doc.getElementById("makeRealBtn").click(); await sleep(100);
   ok(doc.getElementById("makeRealBtn").getAttribute("aria-pressed") === "true", "Make it real works directly");
   doc.getElementById("makeRealBtn").click(); await sleep(100);
@@ -136,6 +143,10 @@ async function loaded(win, extra){
     if(m1){ m1.click(); ok(!doc.querySelector("#eaSheet .ea-sheet-item.danger"), "default dashboard offers no Delete"); doc.getElementById("eaSheetBackdrop").click(); }
   }
 
+  // empty dashboard: Export hidden
+  [...doc.querySelectorAll("#dashGrid .tile")].forEach(t => t.remove()); await sleep(50);
+  ok(doc.getElementById("dashExportRow").hidden, "Export hidden when there are no tiles");
+
   /* ---------------- UK page ---------------- */
   const uk = boot("uk.html");
   const uw = uk.dom.window, ud = uw.document;
@@ -174,13 +185,13 @@ async function loaded(win, extra){
 
   /* ---------------- CSS ---------------- */
   const start = CSS.indexOf("@media (max-width:760px){", 140);
-  ["\\.dashgrid\\{", "#exportDashboardBtn\\{", "\\.cmz-body\\{", "\\.map-rank\\{", "\\.ea-sheet-item\\{", "\\.sec-progress\\{", "\\.reasonbar div\\.rb-narrow"].forEach(sel => {
+  ["\\.dashgrid\\{", "\\.dash-export-row\\{", "\\.cmz-body\\{", "\\.map-rank\\{", "\\.ea-sheet-item\\{", "\\.sec-progress\\{", "\\.reasonbar div\\.rb-narrow"].forEach(sel => {
     const i = CSS.search(new RegExp(sel));
     ok(i > start && start > 0, sel + " is phone-scoped");
   });
   const rule = sel => { const m = CSS.match(new RegExp(sel.replace(/[.#()]/g, "\\$&") + "\\{([^}]*)\\}")); return m ? m[1] : ""; };
   ok(/repeat\(2, minmax\(0,1fr\)\)/.test(rule("  .dashgrid")), "two shrinkable tile columns");
-  ok(/min-height:44px/.test(rule("  #exportDashboardBtn")) && /width:44px/.test(rule("  #exportDashboardBtn")), "Export icon button 44px");
+  ok(/min-height:44px/.test(rule("  #exportDashboardBtn")) && /width:100%/.test(rule("  #exportDashboardBtn")) && /font-size:14px/.test(rule("  #exportDashboardBtn")), "Export full width, labelled, 44px");
   ok(!/dash-opts/.test(CSS), "no rule hides the toggles behind a menu");
   ok(/grid-auto-rows:max-content !important/.test(rule("  .cmz-body")), "chooser rows take content height");
   ok(/min-height:auto !important/.test(rule("  .cmz-col")), "chooser columns no longer shrink to 0");
@@ -191,7 +202,7 @@ async function loaded(win, extra){
   ok(/display:none !important/.test(rule("  #mapSvgWrap, #mapCard .legend-grad, #heatTip")), "map hidden on phones");
   const dhtml = fs.readFileSync(path.join(ROOT, "dashboard.html"), "utf8");
   ok(/\.map-rank\{display:none;\}/.test(dhtml), "ranked list hidden on desktop");
-  ok(/mobile\.css\?v=22/.test(dhtml) && /mobile\.js\?v=23/.test(dhtml), "dashboard on mobile.css v22 / mobile.js v23");
+  ok(/mobile\.css\?v=23/.test(dhtml) && /mobile\.js\?v=24/.test(dhtml), "dashboard on mobile.css v23 / mobile.js v24");
 
   // v1.9.74: export works on phones (canvas size cap, null blob, share sheet) and shows state on the icon
   ok(/Math\.min\(3, Math\.sqrt\(16000000 \/ \(baseW \* baseH\)\), 16000 \/ baseH, 16000 \/ baseW\)/.test(dhtml), "export scale capped under iOS canvas limits");
@@ -203,7 +214,7 @@ async function loaded(win, extra){
       worst = Math.max(worst, Math.floor(W * sc) * Math.floor(H * sc)); side = Math.max(side, Math.floor(H * sc)); }
     ok(worst <= 16777216 && side <= 16384, `largest export ${worst} px, tallest ${side} px`);
   }
-  ok(/#exportDashboardBtn:disabled::before/.test(CSS) && /#exportDashboardBtn\.is-failed::before/.test(CSS) && /#exportDashboardBtn\.is-done::before/.test(CSS), "icon shows busy / done / failed");
+  ok(/#exportDashboardBtn\.is-failed\{/.test(CSS), "failed export shows red");
 
   // v1.9.74: chooser countries use a round + that becomes a tick
   const CH = fs.readFileSync(path.join(ROOT, "chooser.js"), "utf8");
@@ -212,6 +223,12 @@ async function loaded(win, extra){
   ok(/:checked::after\{content:\\"\\\\2713\\"/.test(CH), "checked shows a tick");
   ok(/@media \(max-width:760px\)\{ \.cmz-countries label\{min-height:44px;\} \}/.test(CH), "country rows 44px on phones");
   ["dashboard.html", "chartmaker.html"].forEach(f => ok(/chooser\.js\?v=2/.test(fs.readFileSync(path.join(ROOT, f), "utf8")), f + " loads chooser.js v2"));
+
+  // v1.9.75: calendar country picker uses the same round + / tick
+  const CALH = fs.readFileSync(path.join(ROOT, "calendar.html"), "utf8");
+  ok(/\.ctp-countries input\{-webkit-appearance:none; appearance:none; width:26px; height:26px;/.test(CALH), "calendar picker uses round + buttons");
+  ok(/\.ctp-countries input::after\{content:"\+"/.test(CALH) && /\.ctp-countries input:checked::after\{content:"\\2713"/.test(CALH), "calendar: + becomes a tick");
+  ok(!/\.ctp-countries input\{width:15px/.test(CALH), "old tick-box rule gone");
 
   console.log(`test_dashboard_mobile: ${checks - failures} ok, ${failures} failed`);
   process.exit(failures ? 1 : 0);

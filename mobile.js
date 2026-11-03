@@ -1097,15 +1097,36 @@
      Delete, From template and Add, routed through the page's own sidebar
      controls so behaviour (prompts, Pro limits, RLS) stays identical.
      ------------------------------------------------------------------ */
-  /* v1.9.73: Make it real and Dollarise stay visible as the two halves of the
-     toggles row (as on country pages); Export shrinks to an icon button at
-     the end of the same row. */
+  /* v1.9.75: on phones Export leaves the toggles row (Make it real and
+     Dollarise get the full width) and sits under the tiles as a labelled
+     button, shown only when there is something to export. Desktop keeps it
+     at the end of the toggles row. The real button node moves, so its own
+     click handler and "Exporting..." labels keep working. */
   function initDashOptions(){
     var grid = document.getElementById("dashGrid");
     var exp = document.getElementById("exportDashboardBtn");
-    if(!grid || !exp) return;
-    if(!exp.getAttribute("aria-label")) exp.setAttribute("aria-label", "Export dashboard (PNG)");
-    if(!exp.getAttribute("title")) exp.setAttribute("title", "Export dashboard (PNG)");
+    var row = document.querySelector(".metric-toggles");
+    if(!grid || !exp || !row) return;
+    var holder = document.getElementById("dashExportRow");
+    if(isMobile()){
+      if(!holder){
+        holder = document.createElement("div");
+        holder.id = "dashExportRow";
+        holder.className = "dash-export-row";
+        grid.insertAdjacentElement("afterend", holder);
+      }
+      if(exp.parentNode !== holder) holder.appendChild(exp);
+      var sync = function(){ holder.hidden = !grid.querySelector(".tile"); };
+      sync();
+      if(!grid._mobExportWatched){
+        grid._mobExportWatched = true;
+        new MutationObserver(function(){ var h = document.getElementById("dashExportRow"); if(h) h.hidden = !grid.querySelector(".tile"); })
+          .observe(grid, {childList:true});
+      }
+    } else if(exp.parentNode !== row){
+      row.appendChild(exp);
+      if(holder) holder.hidden = true;
+    }
   }
 
   function decorateDashTabs(){
