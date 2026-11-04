@@ -1,5 +1,7 @@
 #!/usr/bin/env node
-/* v1.9.81: gallery is one placeholder (Ciaran's Policy Rates chart, loaded as styled); footer wrap
+/* v1.9.82: phones open straight on Policy Rates (never the UK CPI starter), no chip row for a single
+ * example, narrower phone canvas with bigger axis text, at most 5 x labels, footer band cropped; desktop unchanged.
+ * v1.9.81: gallery is one placeholder (Ciaran's Policy Rates chart, loaded as styled); footer wrap
  * reserves the "Source: " prefix; an auto snapshot-date legend title clears when leaving Bar.
  * v1.9.80 Chartmaker on phones: example gallery + live chart instead of the "bigger screen" dead end,
  * "Send this to my desktop" link (?ex=key opens the same example on any screen), saved charts read-only
@@ -51,7 +53,14 @@ const seriesNames = d => [...d.querySelectorAll("#cmSeriesList .cm-seriesitem")]
   ok(gate && !/bigger screen\b(?! )/.test("") && !/needs a bigger screen/i.test(gate.textContent), "no dead-end message");
   const chips = $$(".cm-m-chip");
   ok(chips.length === 1 && chips.map(c => c.textContent).join("|") === win.EA_CM.examples.map(e => e.title).join("|"), "one chip per example");
-  ok(chips.every(c => c.getAttribute("aria-pressed") === "false"), "starter chart: no example pressed");
+  ok(win.EA_CM.current === "policy-rates" && chips[0].getAttribute("aria-pressed") === "true", "phone opens straight on Policy Rates");
+  ok(seriesNames(doc).length === 3 && !seriesNames(doc).some(n => /CPI|inflation/i.test(n)), "no UK starter chart on phones: " + seriesNames(doc).join("|"));
+  ok($(".cm-m-ex").hidden === true, "single example: chip row hidden");
+  const vb = ($("#cmSvgBox svg") || { getAttribute: () => "" }).getAttribute("viewBox").split(" ").map(Number);
+  ok(vb[2] === 520 && vb[3] > 200 && vb[3] < 507, "phone canvas narrow and footer band cropped: " + vb.join(" "));
+  const xl = [...doc.querySelectorAll("#cmSvgBox svg text")].map(t => t.textContent).filter(t => /^[A-Z][a-z]{2} \d{4}$/.test(t));
+  ok(xl.length >= 2 && xl.length <= 5, "phone x labels thinned to 5 or fewer: " + xl.length);
+  ok([...doc.querySelectorAll("#cmSvgBox svg text")].some(t => xl.includes(t.textContent) && +t.getAttribute("font-size") >= 14), "phone axis text at least 14");
   ok($("#cmSvgBox").style.display !== "none", "the live chart is drawn");
   chips[0].click(); await sleep(150);
   ok(win.EA_CM.current === "policy-rates" && chips[0].getAttribute("aria-pressed") === "true", "example policy-rates selected");
@@ -85,6 +94,11 @@ const seriesNames = d => [...d.querySelectorAll("#cmSeriesList .cm-seriesitem")]
   ok(!d.doc.body.classList.contains("cm-m") && (!d.doc.getElementById("cmMobileGate") || d.doc.getElementById("cmMobileGate").style.display === "none"), "desktop: no phone gallery");
   ok(d.win.EA_CM.current === "policy-rates" && seriesNames(d.doc).length === 3, "desktop ?ex=policy-rates opens that example");
   ok(!d.doc.getElementById("cmStarterNote").hidden, "desktop: shown as an example that clears when you add a metric");
+  const dv = (d.doc.querySelector("#cmSvgBox svg") || { getAttribute: () => "" }).getAttribute("viewBox");
+  ok(/^0 0 820 5\d\d$/.test(dv), "desktop canvas unchanged: " + dv);
+  const HT = fs.readFileSync(path.join(ROOT, "chartmaker.html"), "utf8");
+  const pngH = HT.slice(HT.indexOf("btnPng.addEventListener(\"click\""), HT.indexOf("btnPng.addEventListener(\"click\"") + 600);
+  ok(/G\.W = CM_DESK_W;/.test(pngH), "PNG export always uses the full desktop canvas");
   const e = await boot({ desktop: true, query: "?ex=nonsense" });
   ok(e.win.EA_CM.current === null && seriesNames(e.doc).length === 1, "unknown ?ex= falls back to the normal starter");
 
@@ -114,7 +128,8 @@ const seriesNames = d => [...d.querySelectorAll("#cmSeriesList .cm-seriesitem")]
   ok(ln.length >= 2 && W6("Source: " + ln[0]) + 16 <= room, "first source line plus prefix clears Made on: " + W6("Source: " + ln[0]) + " vs " + room);
   ok(ln.join(" ") === note, "wrap keeps every word");
 
-  ok(/aspect-ratio:3 \/ 2/.test(CSS), "phone chart card matches the chart's shape");
+  ok(/body\.cm-m \.cm-chart-outer\{[^}]*aspect-ratio:auto !important/.test(CSS) && /body\.cm-m #cmSvgBox svg\{[^}]*height:auto/.test(CSS), "phone chart card takes the cropped chart's shape");
+  ok(/\.cm-m-ex\[hidden\]\{ display:none; \}/.test(CSS), "hidden chip row really hides");
   const start = CSS.indexOf("@media (max-width:760px){", 140);
   ok(CSS.indexOf("body.cm-m .cmx-data") > start && start > 0, "phone-scoped CSS");
   ok(!/#cmLayout\{ display:none !important; \}/.test(CSS), "layout no longer hidden on phones");

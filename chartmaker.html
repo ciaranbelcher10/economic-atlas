@@ -33,7 +33,7 @@
 <link rel="icon" type="image/png" sizes="32x32" href="favicon-32.png">
 <link rel="apple-touch-icon" href="apple-touch-icon.png">
 <link rel="stylesheet" href="style.css?v=55">
-<link rel="stylesheet" href="mobile.css?v=29">
+<link rel="stylesheet" href="mobile.css?v=30">
 </head>
 <body>
 <nav class="top"><div class="wrap">
@@ -3969,6 +3969,10 @@ addAnnotBtn.addEventListener("click", addAnnotation);
    Compare's.
    ============================================================================ */
 var G = { W:820, H:507, padL:60, padR:24, padT:34 };
+// v1.9.82: phones draw a narrower canvas (bigger text once scaled down), at most 5 x labels, and crop the
+// footer band the preview never fills. Export always uses the full desktop canvas.
+var CM_DESK_W = 820, CM_PHONE_W = 520, CM_PHONE_AFS = 14, CM_PHONE_XTICKS = 5, CM_LAST_BL = null;
+function cmPhone(){ return !!(window.matchMedia && window.matchMedia("(max-width:760px)").matches); }
 var BASE_H = 507; // original fixed canvas height, tuned assuming a source note of up to 2 lines -- G.H grows beyond this when a chart's source note needs more (see czmUpdateCanvasHeight)
 var THEMES = {
   light: { bg:"#FFFFFF", ink:"#171B1E", ink2:"#5A6167", grid:"#E4E6E1", annot:"#9AA4A0", annotText:"#6B7470" },
@@ -4275,6 +4279,7 @@ function czmBottomLayout(hasLegend, srcText){
 // margin expands. Called every render, so G.H is always sized for
 // whatever chart is current, not left over from a previous one.
 function czmUpdateCanvasHeight(bl){
+  CM_LAST_BL = bl;
   G.H = BASE_H + Math.max(0, bl.srcLines - 2) * 14;
 }
 function czmGeom(){
@@ -5095,6 +5100,13 @@ function renderChart(){
   renderColorsPanel();
 
   czmState = buildCzmState();
+  var phone = cmPhone();
+  G.W = phone ? CM_PHONE_W : CM_DESK_W;
+  if(phone){
+    czmState.xTicks = Math.min(czmState.xTicks || 8, CM_PHONE_XTICKS);
+    czmState.axisFontSize = Math.max(czmState.axisFontSize || 11, CM_PHONE_AFS);
+    if(czmState.xLabelAngle !== "straight") czmState.xLabelAngle = "straight";
+  }
   var allVals;
   if(chartType === "bar"){
     SNAPSHOT_ROWS = buildSnapshotRows();
@@ -5154,7 +5166,16 @@ function renderChart(){
   document.getElementById("cmYStartValue").disabled = yStartDisabled;
 
   svgBoxEl.innerHTML = chartType === "bar" ? czmBuildBars(exportTheme, false) : czmBuildSVG(exportTheme, false);
+  if(phone) cmCropPhoneFooter();
   wireDragHandles();
+}
+
+// The preview leaves the source/"Made on" band empty (export only); on phones cut it off the viewBox.
+function cmCropPhoneFooter(){
+  var svgEl = svgBoxEl.querySelector("svg"), bl = CM_LAST_BL;
+  if(!svgEl || !bl) return;
+  var h = Math.round(G.H - bl.padB + bl.oDivider + 6);
+  if(h > 0 && h < G.H) svgEl.setAttribute("viewBox", "0 0 " + G.W + " " + h);
 }
 
 /* ---- drag-to-reposition + click-to-edit-in-place for event lines/arrows,
@@ -5297,6 +5318,7 @@ btnPng.addEventListener("click", function(){
   if(!series.length) return;
   if(!czExportLoggedIn()){ window.EATLAS_OPEN_AUTH_MODAL(); return; }
   czmState = buildCzmState();
+  G.W = CM_DESK_W;
   var svgStr;
   if(chartType === "bar"){
     if(!rankColorsApply()) assignColors();
@@ -6065,7 +6087,8 @@ renderChart();
 syncStarterUI();
 loadAllCountryData().then(function(){
   var ex = exampleFromUrl();
-  if(!(ex && loadExample(ex))) maybeLoadStarter();
+  // v1.9.82: phones open straight on the first gallery chart, never the desktop starter.
+  if(!(ex && loadExample(ex)) && !(cmPhone() && EXAMPLES.length && loadExample(EXAMPLES[0].key))) maybeLoadStarter();
   offerDraft();
   window.EA_CM.ready = true;
   document.dispatchEvent(new CustomEvent("ea:cm-ready"));
@@ -6076,6 +6099,6 @@ loadAllCountryData().then(function(){
 })();
 </script>
 
-<script src="mobile.js?v=29" defer></script>
+<script src="mobile.js?v=30" defer></script>
 </body>
 </html>

@@ -1055,6 +1055,7 @@
         host.appendChild(b);
       });
     }
+    host.hidden = !(cm && cm.examples && cm.examples.length > 1);   // v1.9.82: no chip row for a single example
     $all(".cm-m-chip", host).forEach(function(b){
       b.setAttribute("aria-pressed", cm && cm.current === b.dataset.key ? "true" : "false");
     });
