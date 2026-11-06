@@ -91,8 +91,21 @@ async function bootCal(phone, store){
     let asked = 0; win.EATLAS_OPEN_AUTH_MODAL = () => asked++;
     $("#calCountriesBtn").click(); await sleep(60);
     ok(doc.body.style.position === "fixed" && doc.body.classList.contains("ctp-open"), tag + ": the page behind is locked while the picker is open");
+    ok(doc.documentElement.style.overflow === "hidden" && doc.body.style.overflow === "hidden", tag + ": page and body overflow hidden while open");
+    { const mk = (el, y) => { const ev = new win.Event("touchmove", { bubbles: true, cancelable: true }); ev.touches = [{ clientY: y }]; el.dispatchEvent(ev); return ev.defaultPrevented; };
+      const st = (el, y) => { const ev = new win.Event("touchstart", { bubbles: true }); ev.touches = [{ clientY: y }]; el.dispatchEvent(ev); };
+      st($(".ctp-head"), 300);
+      ok(mk($(".ctp-head"), 250) && mk($(".ctp-foot"), 250) && mk($("#calCountriesModal"), 250), tag + ": a swipe outside the list is blocked");
+      const body = $(".ctp-body"); Object.defineProperty(body, "scrollHeight", { configurable: true, value: 2000 }); Object.defineProperty(body, "clientHeight", { configurable: true, value: 500 });
+      body.scrollTop = 0; st(body, 300);
+      ok(mk(body, 350), tag + ": pulling down at the top of the list is blocked");
+      ok(!mk(body, 250), tag + ": swiping up inside the list scrolls it");
+      body.scrollTop = 1500; st(body, 300);
+      ok(mk(body, 250) && !mk(body, 350), tag + ": at the bottom, further up is blocked, back down is allowed"); }
     $("#ctpDone").click(); await sleep(30);
     ok(doc.body.style.position === "" && !doc.body.classList.contains("ctp-open"), tag + ": Done unlocks the page");
+    { const ev = new win.Event("touchmove", { bubbles: true, cancelable: true }); ev.touches = [{ clientY: 1 }]; doc.body.dispatchEvent(ev);
+      ok(!ev.defaultPrevented && doc.documentElement.style.overflow === "", tag + ": after closing, the page scrolls normally again"); }
     $("#calCountriesBtn").click(); await sleep(30);
     doc.dispatchEvent(new win.KeyboardEvent("keydown", { key: "Escape" })); await sleep(30);
     ok(doc.body.style.position === "" && $("#calCountriesModal").hidden, tag + ": Escape closes and unlocks");
@@ -155,6 +168,7 @@ async function bootCal(phone, store){
   }
   { const CAL = fs.readFileSync(path.join(ROOT, "calendar.html"), "utf8");
     ok(/\.ctp-body\{display:block; overflow:auto; -webkit-overflow-scrolling:touch; overscroll-behavior:contain;\}/.test(CAL), "phone picker list never hands its scroll to the page");
+    ok(/\.ctp-back\{overscroll-behavior:contain; touch-action:none;\}/.test(CAL) && /\.ctp-back \.ctp-body\{touch-action:pan-y;\}/.test(CAL), "only the list takes vertical swipes");
     ok(/EATLAS_PREFS\.onSettled\(reloadTracked\)/.test(CAL), "calendar re-reads the tracked lists once the account check settles"); }
   { const ST = fs.readFileSync(path.join(ROOT, "style.css"), "utf8");
     ok(/\.cap-warn\.flag\{animation:capNudge/.test(ST) && /prefers-reduced-motion:reduce\)\{ \.cap-warn\.flag\{animation:none;\}/.test(ST), "a small nudge, none for reduced motion");
