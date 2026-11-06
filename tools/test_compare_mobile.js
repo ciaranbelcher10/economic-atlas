@@ -1,12 +1,10 @@
 #!/usr/bin/env node
-/* v1.9.76 Compare on phones.
- *  - sticky bar: one chip per selected country (+ Edit), one tab per metric card (+ Add metric)
- *  - exactly one metric card visible; tabs switch it; a newly added metric becomes active
- *  - ranked list gets bars sized by value; trade-page note not shown on Compare
- *  - summary: one card per metric, a row per country, Highest / Lowest from the table's own markers
- *  - Add a metric: search filters items and hides empty categories; + / tick rows
- *  - countries panel opens as a sheet with Done + backdrop
- *  - desktop untouched; dark-mode "Order countries by" strip no longer light
+/* v1.9.83 Compare on phones, rebuilt.
+ *  - one view: Metric and Countries buttons, average + High/Low toggle, one ranked list; old page hidden
+ *  - rows: rank, name, value, thin bar; year tag only when it differs from most rows; tap expands a trend line
+ *  - one full-screen sheet at a time: metric list (search, groups, tap = switch) or countries (presets, tick list, count, Done)
+ *  - state kept in localStorage and the URL (?metric=, countries=all or set=preset); Back closes the sheet
+ *  - desktop untouched
  * Run: NODE_PATH=/tmp/node_modules node tools/test_compare_mobile.js */
 const fs = require("fs"), path = require("path");
 const ROOT = path.resolve(__dirname, "..");
@@ -16,152 +14,114 @@ const ok = (c, m) => { checks++; if(!c){ failures++; console.log("  FAIL  " + m)
 const sleep = ms => new Promise(r => setTimeout(r, ms));
 const CSS = fs.readFileSync(path.join(ROOT, "mobile.css"), "utf8");
 const HTML = fs.readFileSync(path.join(ROOT, "compare.html"), "utf8");
+const num = t => parseFloat(String(t).replace(/[^0-9.\-]/g, ""));
 
-const rule = sel => { const m = CSS.match(new RegExp(sel.replace(/[.#()\[\]"=>*+]/g, "\\$&") + "\\{([^}]*)\\}")); return m ? m[1] : ""; };
 (async () => {
-  const { win, doc, errs } = await boot();
+  const { win, doc, errs, store } = await boot();
   const $ = s => doc.querySelector(s), $$ = s => [...doc.querySelectorAll(s)];
+  const rows = () => $$("#cmpP .cmpp-list li[data-c]");
+  const sheet = () => $("#cmpPSheet");
   ok(errs.length === 0, "no page errors: " + errs.join("; "));
-  ok(doc.body.classList.contains("cmp-m"), "phone layout switched on");
-  ok($$("#cmpMBar").length === 1, "one sticky bar");
+  ok(doc.body.classList.contains("cmp-p") && !doc.body.classList.contains("cmp-m"), "rebuilt phone view on, old phone layer off");
+  ok($$("#cmpP").length === 1 && !$("#cmpMBar"), "one view, no old chip/tab bar");
+  ok(/body\.cmp-p #mainContent, body\.cmp-p #loadMsg, body\.cmp-p #saveBar[^{]*\{ display:none !important; \}/.test(CSS), "old page, loading line and save bar hidden on phones");
 
-  const chipCountries = $$("#chipRow .chip[data-country]").map(c => c.dataset.country);
-  const barChips = $$("#cmpMChips .cmp-m-chip:not(.cmp-m-add)");
-  ok(chipCountries.length > 0 && barChips.map(b => b.textContent).join() === chipCountries.join(), "one bar chip per selected country: " + barChips.map(b => b.textContent));
-  ok(barChips.every((b, i) => b.querySelector("i").style.background === $$("#chipRow .chip[data-country]")[i].style.background), "chips keep each country's colour");
-  ok(!!$("#cmpMChips .cmp-m-add"), "chip bar has + Edit");
+  // default: debt across all 62, highest first
+  ok($(".cmpp-metric").textContent === "Government debt, % of GDP", "default metric: " + $(".cmpp-metric").textContent);
+  ok($(".cmpp-set").textContent === "All 62", "default set: " + $(".cmpp-set").textContent);
+  ok(rows().length >= 50, "ranks every country with data: " + rows().length);
+  const vals = rows().map(r => num(r.querySelector(".v").textContent));
+  ok(vals.every((v, i) => i === 0 || v <= vals[i - 1]), "highest first");
+  ok(rows().every((r, i) => r.querySelector(".r").textContent === String(i + 1)), "ranks numbered 1..n");
+  ok(rows()[0].querySelector(".b i").style.width === "100%" && rows().every(r => { const w = parseFloat(r.querySelector(".b i").style.width); return w >= 2 && w <= 100; }), "bars scaled to the largest");
+  ok(/^Average \d+(\.\d+)?% · Latest, mostly 20\d\d$/.test($(".cmpp-avg").textContent), "average and main year: " + $(".cmpp-avg").textContent);
+  { const modeY = $(".cmpp-avg").textContent.slice(-4);
+    const tags = rows().map(r => r.querySelector(".n em")).filter(Boolean);
+    ok(rows().filter(r => !r.querySelector(".n em")).length > rows().length / 2, "most rows carry no year tag");
+    ok(tags.every(t => t.textContent !== modeY && /^20\d\d$/.test(t.textContent)), "year tag only where it differs"); }
+  ok(!$$("#cmpP i[style*='background']").length && !$$("#cmpP .tpm-rankswatch").length, "no colour dots");
 
-  const cards = () => $$("#chartGrid .metric-card");
-  const visible = () => cards().filter(c => !c.classList.contains("cmp-m-off"));
-  const tabs = () => $$("#cmpMTabs .cmp-m-tab:not(.cmp-m-tab-add)");
-  ok(cards().length >= 2, "default comparison has several metrics (" + cards().length + ")");
-  ok(tabs().length === cards().length, "one tab per metric card");
-  ok(tabs().every((t, i) => t.textContent === cards()[i].querySelector(".card-title").textContent.trim()), "tab labels match card titles");
-  ok(!!$("#cmpMTabs .cmp-m-tab-add"), "tabs end with + Add metric");
-  ok($("#cmpMTabs").getAttribute("role") === "tablist" && tabs().every(t => t.getAttribute("role") === "tab"), "tab roles");
-  ok(visible().length === 1 && visible()[0] === cards()[0], "exactly one card visible, the first");
-  ok(tabs()[0].getAttribute("aria-selected") === "true" && tabs().filter(t => t.getAttribute("aria-selected") === "true").length === 1, "first tab selected, only one");
+  // order toggle
+  $(".cmpp-order").click(); await sleep(20);
+  const asc = rows().map(r => num(r.querySelector(".v").textContent));
+  ok(asc.every((v, i) => i === 0 || v >= asc[i - 1]) && /Lowest first/.test($(".cmpp-order").textContent), "toggle: lowest first");
+  $(".cmpp-order").click(); await sleep(20);
 
-  tabs()[cards().length - 1].click(); await sleep(50);
-  ok(visible().length === 1 && visible()[0] === cards()[cards().length - 1], "tapping a tab shows that card only");
-  ok(tabs()[cards().length - 1].getAttribute("aria-selected") === "true", "tapped tab selected");
+  // row expands to a trend
+  rows()[0].click(); await sleep(20);
+  ok(rows()[0].classList.contains("open") && rows()[0].getAttribute("aria-expanded") === "true", "tap opens a row");
+  ok(/<path d="M[\d.]+ [\d.]+ L/.test(rows()[0].querySelector(".cmpp-detail").innerHTML) && /^Latest: 20\d\d/.test(rows()[0].querySelector(".cmpp-detail p").textContent), "trend line and latest period");
+  rows()[1].click(); await sleep(20);
+  ok($$("#cmpP li.open").length === 1 && rows()[1].classList.contains("open"), "one open row at a time");
+  rows()[1].click(); await sleep(20);
+  ok(!$$("#cmpP li.open").length, "tap again closes");
 
-  // ranked bars on the visible card
-  const rows = $$(".metric-card:not(.cmp-m-off) .tpm-rankrow");
-  const widths = rows.map(r => r.querySelector(".cmp-rk-bar i") ? parseFloat(r.querySelector(".cmp-rk-bar i").style.width) : NaN);
-  ok(rows.length >= 2 && widths.every(w => w >= 2 && w <= 100), "every ranked row has a bar: " + widths.join(","));
-  ok(widths.some(w => w === 100), "largest value has a full bar");
-  ok(rows.every(r => r.querySelectorAll(".cmp-rk-bar").length === 1), "one bar per row");
-  ok(rows.every(r => r.querySelector(".cmp-rk-bar i").style.background === r.querySelector(".tpm-rankswatch").style.background), "bars use the country colour");
-  ok($$(".metric-card .tpm-mobile-note").length === 0 && $$(".tpm-mobile-note").length === 0, "no trade-page note on Compare");
+  // metric sheet
+  $(".cmpp-pick[data-open=metric]").click(); await sleep(20);
+  ok(!sheet().hidden && sheet().dataset.kind === "metric" && doc.body.classList.contains("cmpp-sheet-open"), "metric sheet opens full screen");
+  ok($$("#cmpPSheet .cmpp-item").length >= 10 && $$("#cmpPSheet .cmpp-grp h3").length >= 4, "metrics grouped by topic");
+  ok($$("#cmpPSheet .cmpp-item[aria-pressed=true]").map(b => b.dataset.k).join() === "debt_gdp", "current metric ticked");
+  ok(!$$("#cmpPSheet .cmpp-item").some(b => b.dataset.k === "cpih" || b.dataset.k === "unemployment_1624"), "single-country metrics left out");
+  const q = $("#cmpPSheet .cmpp-q"); q.value = "unemploy"; q.dispatchEvent(new win.Event("input"));
+  const shown = $$("#cmpPSheet .cmpp-item").filter(b => !b.hidden);
+  ok(shown.length >= 1 && shown.every(b => /unemploy/i.test(b.textContent)) && $$("#cmpPSheet .cmpp-grp").filter(g => !g.hidden).length === 1, "search filters and hides empty groups");
+  $("#cmpPSheet .cmpp-item[data-k=unemployment]").click(); await sleep(700);
+  ok(sheet().hidden && !doc.body.classList.contains("cmpp-sheet-open"), "tapping a metric closes the sheet");
+  ok($(".cmpp-metric").textContent === "Unemployment rate" && rows().length >= 40, "ranking switched to unemployment");
+  ok(/metric=unemployment/.test(win.location.search) && /countries=all/.test(win.location.search), "URL carries metric and all: " + win.location.search);
+  ok(JSON.parse(store.eatlas_cmp_phone).metric === "unemployment", "metric remembered");
 
-  // v1.9.77: labelled full-screen button on every card, after the ranking, pressing the card's own button
-  ok(cards().every(c => c.querySelectorAll(".cmp-m-fs").length === 1), "every card has one full-screen button");
-  { const v = visible()[0], fs = v.querySelector(".cmp-m-fs");
-    ok(/full-screen chart/i.test(fs.textContent), "button is labelled: " + fs.textContent.trim());
-    let pressed = 0; v.querySelector(".card-fullscreen-btn").addEventListener("click", () => pressed++);
-    fs.click(); await sleep(50);
-    ok(pressed === 1, "it presses the card's own Fullscreen button");
-    const m = doc.getElementById("cardFullscreenModal"); ok(m && !m.hidden, "full-screen chart opens");
-    const cl = doc.getElementById("cardFullscreenClose"); if(cl) cl.click(); await sleep(30); }
-  ok(/order:2;/.test(rule("  body.cmp-m .metric-card > .cmp-m-fs")) && /min-height:44px/.test(rule("  body.cmp-m .metric-card > .cmp-m-fs")), "button sits with the ranking, 44px");
+  // countries sheet: presets
+  $(".cmpp-pick[data-open=countries]").click(); await sleep(20);
+  ok(!sheet().hidden && sheet().dataset.kind === "countries", "countries sheet opens");
+  ok($$("#cmpPSheet .cmpp-presets button").map(b => b.textContent).join("|") === "All|G7|G20|EU|Europe|Asia-Pacific|Americas|Emerging|None", "presets");
+  ok($(".cmpp-count").textContent === "62 selected" && $$("#cmpPSheet .cmpp-c[aria-pressed=true]").length === 62, "all ticked to start");
+  $("#cmpPSheet .cmpp-presets [data-p=g7]").click(); await sleep(10);
+  ok($(".cmpp-count").textContent === "7 selected" && $("#cmpPSheet .cmpp-presets [data-p=g7]").getAttribute("aria-pressed") === "true", "G7 one tap, count live");
+  ok(rows().length >= 40, "list waits for Done");
+  $("#cmpPSheet .cmpp-done").click(); await sleep(700);
+  ok(rows().length === 7 && $(".cmpp-set").textContent === "G7 (7)", "G7 applied: " + rows().length);
+  ok(/set=g7/.test(win.location.search) && !/countries=/.test(win.location.search), "URL: set=g7");
 
-  // v1.9.78: decluttered top and flat cards
-  ok(doc.querySelector("h1").nextElementSibling.textContent === "Rank the 62 economies side by side, for one year or over time.", "short intro on phones");
-  ok($("#saveBar p").textContent === "Sign up free to keep this comparison.", "one-line save banner text");
-  ok(cards().every(c => c.querySelectorAll(".cmp-m-remove").length === 1 && c.querySelectorAll(".cmp-m-key").length === 1), "each card has one Remove and one freshness line");
-  ok(cards().every(c => c.querySelector(".cmp-m-key .led.green") && c.querySelector(".cmp-m-key .led.orange")), "freshness line shows both lights");
-  { const nBefore = cards().length, rm = visible()[0].querySelector(".cmp-m-remove");
-    rm.click(); await sleep(300);
-    ok(cards().length === nBefore - 1, "Remove this metric removes the card");
-    ok(visible().length === 1, "another card shown after removing"); }
+  // custom tick list
+  $(".cmpp-pick[data-open=countries]").click(); await sleep(20);
+  $("#cmpPSheet .cmpp-presets [data-p=none]").click(); await sleep(10);
+  ok($(".cmpp-count").textContent === "0 selected", "None clears");
+  ["UK", "Germany", "Japan", "Brazil", "India"].forEach(c => $(`#cmpPSheet .cmpp-c[data-c="${c}"]`).click());
+  ok($(".cmpp-count").textContent === "5 selected" && $(`#cmpPSheet .cmpp-c[data-c="UK"]`).getAttribute("aria-pressed") === "true", "ticks and count");
+  $(`#cmpPSheet .cmpp-c[data-c="India"]`).click();
+  ok($(".cmpp-count").textContent === "4 selected", "tap again unticks");
+  const cq = $("#cmpPSheet .cmpp-q"); cq.value = "kor"; cq.dispatchEvent(new win.Event("input"));
+  ok($$("#cmpPSheet .cmpp-c").filter(b => !b.hidden).map(b => b.dataset.c).join() === "South Korea", "country search");
+  $(`#cmpPSheet .cmpp-c[data-c="South Korea"]`).click();
+  $("#cmpPSheet .cmpp-done").click(); await sleep(700);
+  ok(rows().map(r => r.dataset.c).sort().join() === "Brazil,Germany,Japan,South Korea,UK" && $(".cmpp-set").textContent === "5 chosen", "custom set applied: " + rows().map(r => r.dataset.c));
+  ok(JSON.parse(store.eatlas_cmp_phone).custom.sort().join() === "Brazil,Germany,Japan,South Korea,UK", "custom set remembered");
 
-  // summary per metric
-  const ths = $$("#rankTable thead th");
-  const sums = $$("#cmpCardsWrap .cmp-metric-sum");
-  ok(sums.length === ths.length - 1, "one summary card per metric (" + sums.length + ")");
-  ok(sums.every((s, i) => s.querySelector("h4").textContent === ths[i + 1].textContent.trim()), "summary card titles match columns");
-  const trs = $$("#rankTable tbody tr");
-  sums.forEach((s, i) => {
-    const srs = [...s.querySelectorAll(".sr")];
-    ok(srs.length === trs.length, `summary ${i}: a row per country`);
-    trs.forEach((tr, j) => {
-      const cell = tr.querySelectorAll("td")[i + 1];
-      const hi = cell.classList.contains("col-hi"), lo = cell.classList.contains("col-lo");
-      ok(srs[j].classList.contains("is-hi") === hi && srs[j].classList.contains("is-lo") === lo, `summary ${i} row ${j}: highest/lowest follow the table`);
-      ok(srs[j].querySelector(".cn").textContent === tr.querySelector("td.country").textContent.trim(), `summary ${i} row ${j}: country`);
-      ok(srs[j].querySelector("b").textContent === cell.childNodes[0].textContent.trim(), `summary ${i} row ${j}: value ${srs[j].querySelector("b").textContent}`);
-    });
-  });
-  ok(!$(".cmp-country-card"), "old per-country summary cards gone");
-
-  // Add a metric sheet
-  $("#cmpMTabs .cmp-m-tab-add").click(); await sleep(50);
-  ok($("#metricPicker") && !$("#metricPicker").hidden, "+ Add metric opens the picker");
-  const search = $("#metricPickerSearch");
-  ok(!!search && $$("#metricPickerSearch").length === 1, "picker has one search box");
-  search.value = "unemployment"; search.dispatchEvent(new win.Event("input"));
-  const shown = $$("#metricPickerGrid .pickeritem:not([hidden])");
-  ok(shown.length >= 1 && shown.every(e => /unemployment/i.test(e.textContent)), "search filters items: " + shown.map(e => e.dataset.key));
-  const cats = $$("#metricPickerGrid .pickercat:not([hidden])").map(c => c.textContent);
-  ok(cats.length === 1 && /labour/i.test(cats[0]), "empty categories hidden: " + cats);
-  search.value = "zzzz"; search.dispatchEvent(new win.Event("input"));
-  ok($$("#metricPickerGrid .pickeritem:not([hidden])").length === 0, "no match hides everything");
-  search.value = "unemployment"; search.dispatchEvent(new win.Event("input"));
-  const before = cards().length;
-  $$("#metricPickerGrid .pickeritem:not([hidden]):not(.added)")[0].click(); await sleep(300);
-  ok(cards().length === before + 1, "picking adds a card");
-  ok(visible().length === 1 && visible()[0] === cards()[cards().length - 1], "new metric becomes the visible card");
-  ok(tabs().length === cards().length && tabs()[tabs().length - 1].getAttribute("aria-selected") === "true", "new tab added and selected");
-  $("#metricPickerClose").click(); await sleep(50);
-  ok(search.value === "", "search clears when the picker closes");
-
-  // remove active card -> falls back
-  visible()[0].querySelector(".card-remove").click(); await sleep(300);
-  ok(cards().length === before && visible().length === 1 && visible()[0] === cards()[0], "removing the active metric shows the first");
-
-  // countries sheet
-  barChips[0].click(); await sleep(50);
-  ok($("#countriesPanelBody").style.display === "block", "chip opens the countries panel");
-  ok(!!$("#countriesPanelBody .cmp-m-done") && $$(".cmp-m-done").length === 1, "panel has one Done button");
-  ok(!$("#cmpPanelBackdrop").hidden, "backdrop shown");
-  $("#cmpPanelBackdrop").click(); await sleep(50);
-  ok($("#countriesPanelBody").style.display === "none" && $("#cmpPanelBackdrop").hidden, "backdrop closes the panel");
-  $("#cmpMChips .cmp-m-add").click(); await sleep(30); $(".cmp-m-done").click(); await sleep(50);
-  ok($("#countriesPanelBody").style.display === "none", "Done closes the panel");
-
-  // re-runs stay idempotent
+  // Back closes the sheet, and only one sheet ever exists
+  $(".cmpp-pick[data-open=metric]").click(); await sleep(20);
+  win.history.back(); await sleep(400);
+  ok(sheet().hidden, "Back closes the sheet");
+  ok(/metric=unemployment/.test(win.location.search), "URL kept after Back: " + win.location.search);
   win.dispatchEvent(new win.Event("resize")); await sleep(50); win.dispatchEvent(new win.Event("resize")); await sleep(50);
-  ok($$("#cmpMBar").length === 1 && $$("#metricPickerSearch").length === 1 && $$(".cmp-m-done").length === 1 && $$("#cmpPanelBackdrop").length === 1, "nothing duplicated after re-runs");
+  ok($$("#cmpPSheet").length === 1 && $$("#cmpP").length === 1, "nothing duplicated after re-runs");
+
+  // restored from storage on the next visit
+  const r2 = await boot({ store: { eatlas_cmp_phone: store.eatlas_cmp_phone } });
+  ok(r2.doc.querySelector(".cmpp-metric").textContent === "Unemployment rate" && r2.doc.querySelectorAll("#cmpP .cmpp-list li[data-c]").length === 5, "choices restored on return");
+  // a desktop-style link opens that metric across all countries
+  const r3 = await boot({ query: "?metric=cpi&countries=all" });
+  ok(r3.doc.querySelector(".cmpp-metric").textContent === "Inflation" && r3.doc.querySelector(".cmpp-set").textContent === "All 62", "?metric=cpi&countries=all link");
 
   /* desktop */
   const d = await boot({ desktop: true });
-  ok(!d.doc.body.classList.contains("cmp-m") && !d.doc.getElementById("cmpMBar"), "desktop: no phone layout");
-  ok([...d.doc.querySelectorAll(".metric-card")].every(c => !c.classList.contains("cmp-m-off")), "desktop: every card visible");
-  ok(!d.doc.querySelector(".cmp-rk-bar") && !d.doc.getElementById("metricPickerSearch"), "desktop: no phone extras");
-
-  /* CSS + markup */
-  const start = CSS.indexOf("@media (max-width:760px){", 140);
-  ["#cmpMBar\\{", "\\.cmp-m-tab\\{", "\\.cmp-metric-sum\\{", "#metricPicker \\.pickeritem::after", "body\\.cmp-m #countriesPanelBody\\{"].forEach(sel => {
-    const i = CSS.search(new RegExp(sel)); ok(i > start && start > 0, sel + " phone-scoped");
-  });
-  ok(/min-height:44px/.test(rule("  .cmp-m-tab")), "tabs 44px");
-  ok(/min-height:48px/.test(rule("  #metricPicker .pickeritem")), "picker rows 48px");
-  ok(/display:none !important/.test(rule("  body.cmp-m .metric-card.cmp-m-off")), "inactive cards hidden");
-  ok(/order:2/.test(rule("  body.cmp-m .metric-card > .tpm-layout")) && /order:3/.test(rule("  body.cmp-m .metric-card > .card-time-row")), "ranking before controls");
-  ok(/display:none !important/.test(rule("  body.cmp-m .metric-card .card-sort-row")), "Order by hidden until More options");
-  ok(/\[data-theme="dark"\] \.card-sort-row\{background:var\(--panel\) !important;/.test(HTML), "dark Order-by strip uses the panel colour");
-  { const cv = +(HTML.match(/mobile\.css\?v=(\d+)/) || [0, 0])[1], jv = +(HTML.match(/mobile\.js\?v=(\d+)/) || [0, 0])[1];
-    ok(cv >= 24 && jv >= 25, `compare on mobile.css >= v24 / mobile.js >= v25 (v${cv} / v${jv})`); }
-
-  ok(/display:none !important/.test(rule("  body.cmp-m .metric-card .card-title")), "duplicate card title hidden");
-  ok(/display:none !important/.test(rule("  body.cmp-m .metric-card > .card-remove")), "corner x hidden");
-  ok(/display:block/.test(rule("  body.cmp-m .metric-card.opts-open > .cmp-m-remove")) && /display:none/.test(rule("  body.cmp-m .metric-card > .cmp-m-remove")), "Remove lives in More options");
-  ok(/body\.cmp-m \.metric-card\{ background:transparent !important; border:none !important;/.test(CSS) && /border:none !important/.test(rule("  body.cmp-m .tpm-ranking")), "card and ranking unframed");
-  ok(/display:none !important/.test(rule("  body.cmp-m .wrap > .lightskey, body.cmp-m #mainContent > .lightskey")), "top freshness key hidden");
-  ok(/\n  \.cmp-m-tabs\{ -webkit-mask-image:linear-gradient\(to right, #000 calc\(100% - 36px\), transparent\);/.test(CSS), "tabs fade at the right edge");
-  ok(/\.cmp-m-key, \.cmp-m-remove, \.cmp-m-fs\{ display:none; \}\s*$/.test(CSS), "phone extras hidden outside phone widths");
+  ok(!d.doc.body.classList.contains("cmp-p") && !d.doc.body.classList.contains("cmp-m"), "desktop: no phone layout");
+  ok(/^#cmpP, #cmpPSheet\{ display:none; \}$/m.test(CSS), "phone view hidden outside phone widths");
+  ok(d.doc.querySelectorAll(".metric-card").length >= 2 && d.doc.getElementById("mainContent").style.display === "block", "desktop: cards as before");
   ok(d.doc.querySelector("h1").nextElementSibling.textContent.indexOf("Rank and compare all 62") === 0, "desktop keeps the full intro");
+  { const cv = +(HTML.match(/mobile\.css\?v=(\d+)/) || [0, 0])[1], jv = +(HTML.match(/mobile\.js\?v=(\d+)/) || [0, 0])[1];
+    ok(cv >= 30 && jv >= 30, `compare on mobile.css/js >= v30 (v${cv} / v${jv})`); }
+  ok(/window\.EATLAS_COMPARE_DATA = \{/.test(HTML), "compare exposes its data helpers");
 
   console.log(`test_compare_mobile: ${checks - failures} ok, ${failures} failed`);
   process.exit(failures ? 1 : 0);

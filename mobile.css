@@ -719,3 +719,56 @@ html[data-theme="dark"] .ht-item{ color:#8FE3B0 !important; }
 
 /* v1.9.78: phone-only Compare extras stay hidden if the window widens past phone size. */
 .cmp-m-key, .cmp-m-remove, .cmp-m-fs{ display:none; }
+
+/* v1.9.83: Compare on phones, rebuilt (#cmpP view + one #cmpPSheet). Desktop never sees either. */
+#cmpP, #cmpPSheet{ display:none; }
+@media (max-width:760px){
+  body.cmp-p #mainContent, body.cmp-p #loadMsg, body.cmp-p #saveBar, body.cmp-p .cmp-m-lede,
+  body.cmp-p h1 + p{ display:none !important; }
+  body.cmp-p h1{ font-size:22px !important; margin:4px 0 10px !important; }
+  body.cmp-p #cmpP{ display:block; }
+  .cmpp-bar{ position:sticky; top:var(--m-head-h,0px); z-index:20; display:grid; grid-template-columns:1fr 1fr; gap:8px; padding:8px 0; background:var(--paper,#121618); }
+  .cmpp-pick{ min-height:52px; text-align:left; padding:6px 30px 6px 12px; border:1px solid var(--hair); border-radius:12px; background:var(--panel); color:var(--ink);
+    font:inherit; cursor:pointer; position:relative; min-width:0; }
+  .cmpp-pick::after{ content:"\25BE"; position:absolute; right:12px; top:50%; transform:translateY(-50%); color:var(--ink2); }
+  .cmpp-pick small{ display:block; font-size:11px; color:var(--ink2); text-transform:uppercase; letter-spacing:.04em; }
+  .cmpp-pick span{ display:block; font-size:15px; font-weight:700; white-space:nowrap; overflow:hidden; text-overflow:ellipsis; }
+  .cmpp-sub{ display:flex; align-items:center; justify-content:space-between; gap:8px; margin:2px 0 6px; font-size:12.5px; color:var(--ink2); }
+  .cmpp-order{ flex:none; min-height:36px; padding:0 10px; border:1px solid var(--hair); border-radius:999px; background:transparent; color:var(--ink); font:inherit; font-size:12.5px; cursor:pointer; }
+  .cmpp-list{ list-style:none; margin:0; padding:0; }
+  .cmpp-list li{ display:grid; grid-template-columns:26px minmax(0,1fr) auto; column-gap:8px; align-items:baseline; padding:9px 2px 7px; border-top:1px solid var(--hair); cursor:pointer; }
+  .cmpp-list li:first-child{ border-top:none; }
+  .cmpp-list li.cmpp-loading{ display:block; color:var(--ink2); cursor:default; padding:16px 2px; }
+  .cmpp-list .r{ font-size:12px; color:var(--ink2); font-variant-numeric:tabular-nums; }
+  .cmpp-list .n{ font-size:15px; font-weight:600; min-width:0; overflow:hidden; text-overflow:ellipsis; white-space:nowrap; }
+  .cmpp-list .n em{ font-style:normal; font-weight:500; font-size:11px; color:var(--ink2); margin-left:6px; padding:1px 5px; border:1px solid var(--hair); border-radius:6px; }
+  .cmpp-list .v{ font-size:15px; font-weight:700; font-variant-numeric:tabular-nums; }
+  .cmpp-list .b{ grid-column:2 / 4; height:4px; margin-top:6px; border-radius:2px; background:var(--hair); overflow:hidden; }
+  .cmpp-list .b i{ display:block; height:100%; border-radius:2px; background:var(--blue,#37659E); }
+  .cmpp-list .b i.neg{ background:#C0504D; }
+  .cmpp-detail{ grid-column:2 / 4; margin-top:8px; }
+  .cmpp-spark{ display:block; width:100%; height:70px; }
+  .cmpp-spark path{ fill:none; stroke:var(--blue,#37659E); stroke-width:2; vector-effect:non-scaling-stroke; }
+  .cmpp-yrs{ display:flex; justify-content:space-between; font-size:11px; color:var(--ink2); }
+  .cmpp-detail p{ margin:4px 0 2px; font-size:12px; color:var(--ink2); }
+  .cmpp-none{ margin:10px 2px 0; font-size:12px; color:var(--ink2); }
+  body.cmp-p #cmpPSheet:not([hidden]){ display:flex; flex-direction:column; position:fixed; inset:0; z-index:10050; background:var(--paper,#121618); color:var(--ink);
+    padding:env(safe-area-inset-top,0px) 16px env(safe-area-inset-bottom,0px); }
+  body.cmpp-sheet-open{ overflow:hidden; }
+  .cmpp-sh-head{ display:flex; align-items:center; justify-content:space-between; padding:12px 0 8px; }
+  .cmpp-sh-head b{ font-size:18px; }
+  .cmpp-done{ min-height:44px; padding:0 18px; border:none; border-radius:999px; background:var(--blue,#37659E); color:#fff; font:inherit; font-weight:700; cursor:pointer; }
+  .cmpp-q{ width:100%; box-sizing:border-box; min-height:44px; padding:0 12px; border:1px solid var(--hair); border-radius:10px; background:var(--panel); color:var(--ink); font:inherit; font-size:16px; }
+  .cmpp-presets{ display:flex; flex-wrap:wrap; gap:6px; margin:10px 0 4px; }
+  .cmpp-presets button{ min-height:36px; padding:0 12px; border:1px solid var(--hair); border-radius:999px; background:var(--panel); color:var(--ink); font:inherit; font-size:13.5px; cursor:pointer; }
+  .cmpp-presets button[aria-pressed="true"]{ background:var(--blue,#37659E); border-color:var(--blue,#37659E); color:#fff; }
+  .cmpp-count{ margin:4px 0 0; font-size:12.5px; color:var(--ink2); }
+  .cmpp-sh-body{ flex:1; overflow-y:auto; -webkit-overflow-scrolling:touch; padding-bottom:16px; }
+  .cmpp-grp h3{ margin:14px 0 2px; font-size:12px; text-transform:uppercase; letter-spacing:.05em; color:var(--ink2); }
+  .cmpp-item{ display:flex; align-items:center; justify-content:space-between; width:100%; min-height:46px; padding:0 4px; border:none; border-bottom:1px solid var(--hair);
+    background:transparent; color:var(--ink); font:inherit; font-size:15px; text-align:left; cursor:pointer; }
+  .cmpp-item::after{ content:""; flex:none; width:22px; height:22px; border:2px solid var(--hair); border-radius:6px; box-sizing:border-box; }
+  .cmpp-item[aria-pressed="true"]{ font-weight:700; }
+  .cmpp-item[aria-pressed="true"]::after{ content:"\2713"; border-color:var(--blue,#37659E); background:var(--blue,#37659E); color:#fff; font-size:14px; line-height:18px; text-align:center; }
+  .cmpp-item[hidden], .cmpp-grp[hidden]{ display:none; }
+}

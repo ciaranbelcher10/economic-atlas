@@ -5,7 +5,7 @@ module.exports=async function(opts){opts=opts||{};
  const html=require(ROOT+"/tools/inline_local_scripts")(fs.readFileSync(ROOT+"/compare.html","utf8"),ROOT);
  const store=Object.assign({},opts.store||{});const errs=[];const vc=new VirtualConsole();
  vc.on("jsdomError",e=>{const m=String(e&&e.message||e).split("\n")[0];if(!/supabase|EATLAS_PREFS|Not implemented/i.test(m))errs.push(m);});
- const dom=new JSDOM(html,{runScripts:"dangerously",pretendToBeVisual:true,virtualConsole:vc,url:"https://theeconomicatlas.com/compare",
+ const dom=new JSDOM(html,{runScripts:"dangerously",pretendToBeVisual:true,virtualConsole:vc,url:"https://theeconomicatlas.com/compare"+(opts.query||""),
  beforeParse(win){win.HTMLCanvasElement.prototype.getContext=()=>new Proxy({},{get(){return function(){return{addColorStop(){}};};}});
   function C(c,cfg){this.data=(cfg&&cfg.data)||{datasets:[]};this.options=(cfg&&cfg.options)||{};this.canvas=c;}C.prototype.update=function(){};C.prototype.destroy=function(){};C.prototype.resetZoom=function(){};C.register=function(){};win.Chart=C;
   win.eval(fs.readFileSync(NM+"/d3/dist/d3.min.js","utf8"));win.eval(fs.readFileSync(NM+"/topojson/dist/topojson.min.js","utf8"));

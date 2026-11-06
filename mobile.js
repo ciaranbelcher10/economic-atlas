@@ -1199,7 +1199,271 @@
       if(sb.textContent !== w2) sb.textContent = w2;
     }
   }
+  /* ---- v1.9.83: Compare on phones, rebuilt. One metric ranked across a country set; two buttons
+     (metric, countries) open one full-screen sheet at a time; rows expand to a trend line. Reads
+     compare.html's own data helpers (REGISTRY, getSnapshotValue, displayString...); desktop untouched. */
+  var CMPP_KEY = "eatlas_cmp_phone";
+  var CMPP_PRESETS = [
+    { id:"all", label:"All" },
+    { id:"g7", label:"G7", list:["UK","US","Germany","France","Italy","Japan","Canada"] },
+    { id:"g20", label:"G20", list:["Argentina","Australia","Brazil","Canada","China","France","Germany","India","Indonesia","Italy","Japan","Mexico","Saudi Arabia","South Africa","South Korea","Turkey","UK","US","Eurozone"] },
+    { id:"eu", label:"EU", list:["Germany","France","Italy","Spain","Netherlands","Ireland","Poland","Austria","Sweden","Belgium","Portugal","Finland","Greece","Czechia","Hungary","Romania","Slovakia","Croatia","Bulgaria","Lithuania","Estonia","Latvia","Slovenia","Luxembourg","Cyprus","Malta","Denmark"] },
+    { id:"europe", label:"Europe", region:["Europe"] },
+    { id:"asiapac", label:"Asia-Pacific", region:["Asia","Oceania"] },
+    { id:"americas", label:"Americas", region:["North America","South America"] },
+    { id:"emerging", label:"Emerging", list:["China","India","Indonesia","Brazil","Mexico","South Africa","Turkey","Saudi Arabia","Argentina","Chile","Colombia","Peru","Philippines","Thailand","Malaysia","Vietnam","Nigeria","Egypt","Pakistan","Morocco","Poland","Hungary","Romania"] },
+    { id:"custom", label:"Custom" }
+  ];
+  var cmpp = null;   // {metric, preset, custom:[], desc, open:null|country}
+  function CD(){ return window.EATLAS_COMPARE_DATA || {}; }
+  function cmppReady(){ var mc = document.getElementById("mainContent"); return !!(window.EATLAS_COMPARE_DATA && mc && mc.style.display !== "none" && CD().currentYear() != null); }
+  function cmppAll(){ return (CD().ALL_COUNTRIES || []).slice(); }
+  function cmppLabel(c){ return (CD().COUNTRY_LABEL && CD().COUNTRY_LABEL[c]) || c; }
+  function cmppPresetList(id){
+    var p = CMPP_PRESETS.filter(function(x){ return x.id === id; })[0], all = cmppAll();
+    if(!p || id === "all") return all;
+    if(id === "custom") return (cmpp.custom || []).filter(function(c){ return all.indexOf(c) !== -1; });
+    if(p.region) return all.filter(function(c){ return p.region.indexOf(CD().REGION_OF[c]) !== -1; });
+    return p.list.filter(function(c){ return all.indexOf(c) !== -1; });
+  }
+  function cmppLoad(){
+    var s = {};
+    try{ s = JSON.parse(localStorage.getItem(CMPP_KEY) || "{}") || {}; }catch(e){}
+    var q = {}; try{ q = new URLSearchParams(location.search); }catch(e){ q = { get: function(){ return null; } }; }
+    var m = q.get("metric") || s.metric || "debt_gdp";
+    if(!(CD().CONCEPT_LABEL || {})[m]) m = "debt_gdp";
+    var pr = q.get("countries") === "all" ? "all" : (q.get("set") || s.preset || "all");
+    if(!CMPP_PRESETS.some(function(x){ return x.id === pr; })) pr = "all";
+    cmpp = { metric: m, preset: pr, custom: Array.isArray(s.custom) ? s.custom : [], desc: s.desc !== false, open: null };
+  }
+  function cmppSave(noUrl){
+    try{ localStorage.setItem(CMPP_KEY, JSON.stringify({ metric: cmpp.metric, preset: cmpp.preset, custom: cmpp.custom, desc: cmpp.desc })); }catch(e){}
+    if(noUrl) return;
+    try{
+      var q = new URLSearchParams(location.search);
+      q.set("metric", cmpp.metric);
+      if(cmpp.preset === "all"){ q.set("countries", "all"); q.delete("set"); }
+      else { q.delete("countries"); if(cmpp.preset === "custom") q.delete("set"); else q.set("set", cmpp.preset); }
+      history.replaceState(history.state, "", location.pathname + "?" + q.toString());
+    }catch(e){}
+  }
+  function cmppValue(c, k){
+    var top = CD().maxYearFor(k);
+    for(var y = top; y >= top - 3; y--){
+      var dv = null; try{ dv = CD().getSnapshotValue(c, k, y); }catch(e){}
+      if(dv && dv.value != null && isFinite(dv.value)) return dv;
+    }
+    return null;
+  }
+  function cmppMetrics(){
+    var all = cmppAll();
+    return Object.keys(CD().CONCEPT_LABEL).filter(function(k){
+      var n = 0;
+      for(var i = 0; i < all.length && n < 5; i++){ if(cmppValue(all[i], k)) n++; }
+      return n >= 5;
+    });
+  }
+  function cmppEsc(s){ return String(s).replace(/[&<>"]/g, function(ch){ return { "&":"&amp;", "<":"&lt;", ">":"&gt;", '"':"&quot;" }[ch]; }); }
+  function cmppBuild(){
+    var main = document.getElementById("mainContent");
+    var v = document.getElementById("cmpP");
+    if(!v){
+      v = document.createElement("div");
+      v.id = "cmpP";
+      v.innerHTML =
+        '<div class="cmpp-bar">' +
+          '<button type="button" class="cmpp-pick" data-open="metric"><small>Metric</small><span class="cmpp-metric"></span></button>' +
+          '<button type="button" class="cmpp-pick" data-open="countries"><small>Countries</small><span class="cmpp-set"></span></button>' +
+        '</div>' +
+        '<div class="cmpp-sub"><span class="cmpp-avg"></span><button type="button" class="cmpp-order"></button></div>' +
+        '<ol class="cmpp-list" aria-live="polite"></ol>' +
+        '<p class="cmpp-none" hidden></p>';
+      (main ? main.parentNode : document.body).insertBefore(v, main || null);
+      $all(".cmpp-pick", v).forEach(function(b){ b.addEventListener("click", function(){ cmppOpen(this.dataset.open); }); });
+      $(".cmpp-order", v).addEventListener("click", function(){ cmpp.desc = !cmpp.desc; cmppSave(); cmppRender(); });
+      $(".cmpp-list", v).addEventListener("click", function(e){
+        var li = e.target.closest ? e.target.closest("li[data-c]") : null;
+        if(!li) return;
+        cmpp.open = cmpp.open === li.dataset.c ? null : li.dataset.c;
+        cmppRender();
+      });
+    }
+    return v;
+  }
+  function cmppRender(){
+    var v = cmppBuild();
+    var k = cmpp.metric;
+    $(".cmpp-metric", v).textContent = CD().CONCEPT_LABEL[k];
+    var set = cmppPresetList(cmpp.preset);
+    var pl = CMPP_PRESETS.filter(function(x){ return x.id === cmpp.preset; })[0];
+    $(".cmpp-set", v).textContent = cmpp.preset === "all" ? "All " + set.length : cmpp.preset === "custom" ? set.length + " chosen" : pl.label + " (" + set.length + ")";
+    var list = $(".cmpp-list", v), none = $(".cmpp-none", v);
+    if(!cmppReady()){ list.innerHTML = '<li class="cmpp-loading">Loading data\u2026</li>'; return; }
+    var rows = [], missing = [];
+    set.forEach(function(c){ var dv = cmppValue(c, k); if(dv) rows.push({ c: c, dv: dv }); else missing.push(c); });
+    rows.sort(function(a, b){ return cmpp.desc ? b.dv.value - a.dv.value : a.dv.value - b.dv.value; });
+    var yc = {}; rows.forEach(function(r){ yc[r.dv.year] = (yc[r.dv.year] || 0) + 1; });
+    var modeY = Object.keys(yc).sort(function(a, b){ return yc[b] - yc[a]; })[0];
+    var maxAbs = rows.reduce(function(m, r){ return Math.max(m, Math.abs(r.dv.value)); }, 0) || 1;
+    var unit = CD().CONCEPT_UNIT[k];
+    var avgTxt = "";
+    if(rows.length > 1 && unit !== "currency"){
+      var avg = rows.reduce(function(s, r){ return s + r.dv.value; }, 0) / rows.length;
+      avgTxt = "Average " + CD().displayString({ value: Math.round(avg * 100) / 100, unit: unit, isDelta: false }) + " \u00b7 ";
+    }
+    $(".cmpp-avg", v).textContent = avgTxt + (modeY ? "Latest, mostly " + modeY : "");
+    $(".cmpp-order", v).textContent = cmpp.desc ? "Highest first \u2193" : "Lowest first \u2191";
+    var html = rows.map(function(r, i){
+      var w = Math.max(2, Math.round(Math.abs(r.dv.value) / maxAbs * 100));
+      var tag = String(r.dv.year) !== modeY ? '<em>' + r.dv.year + '</em>' : "";
+      var open = cmpp.open === r.c;
+      return '<li data-c="' + cmppEsc(r.c) + '"' + (open ? ' class="open"' : "") + ' role="button" tabindex="0" aria-expanded="' + open + '">' +
+        '<span class="r">' + (i + 1) + '</span><span class="n">' + cmppEsc(cmppLabel(r.c)) + tag + '</span>' +
+        '<span class="v">' + cmppEsc(CD().displayString(r.dv)) + '</span>' +
+        '<span class="b"><i class="' + (r.dv.value < 0 ? "neg" : "") + '" style="width:' + w + '%"></i></span>' +
+        (open ? cmppDetail(r.c, k, r.dv) : "") + '</li>';
+    }).join("");
+    list.innerHTML = html;
+    none.hidden = !missing.length;
+    none.textContent = missing.length ? "No data: " + missing.map(cmppLabel).join(", ") : "";
+    if(!rows.length){ list.innerHTML = '<li class="cmpp-loading">No country in this set has this metric.</li>'; }
+  }
+  function cmppDetail(c, k, dv){
+    var top = dv.year, pts = [];
+    for(var y = top - 10; y <= top; y++){
+      var p = null; try{ p = CD().getSnapshotValue(c, k, y); }catch(e){}
+      if(p && p.value != null && isFinite(p.value)) pts.push([y, p.value]);
+    }
+    var svg = "";
+    if(pts.length >= 2){
+      var W = 300, H = 70, x0 = pts[0][0], x1 = pts[pts.length - 1][0];
+      var lo = Math.min.apply(null, pts.map(function(p){ return p[1]; })), hi = Math.max.apply(null, pts.map(function(p){ return p[1]; }));
+      if(hi === lo){ hi += 1; lo -= 1; }
+      var d = pts.map(function(p, i){ var x = (p[0] - x0) / (x1 - x0 || 1) * (W - 8) + 4, y = H - 6 - (p[1] - lo) / (hi - lo) * (H - 12); return (i ? "L" : "M") + x.toFixed(1) + " " + y.toFixed(1); }).join(" ");
+      svg = '<svg class="cmpp-spark" viewBox="0 0 ' + W + ' ' + H + '" preserveAspectRatio="none" aria-hidden="true"><path d="' + d + '"/></svg>' +
+        '<span class="cmpp-yrs"><span>' + x0 + '</span><span>' + x1 + '</span></span>';
+    }
+    var src = null; try{ src = CD().shortSourceNote ? CD().shortSourceNote(c, k) : null; }catch(e){}
+    return '<div class="cmpp-detail">' + svg + '<p>Latest: ' + cmppEsc(String(dv.year)) + (src ? ' \u00b7 Source: ' + cmppEsc(src) : "") + '</p></div>';
+  }
+  /* one sheet, reused */
+  function cmppSheet(){
+    var s = document.getElementById("cmpPSheet");
+    if(s) return s;
+    s = document.createElement("div");
+    s.id = "cmpPSheet"; s.hidden = true;
+    s.setAttribute("role", "dialog"); s.setAttribute("aria-modal", "true");
+    s.innerHTML = '<div class="cmpp-sh-head"><b></b><button type="button" class="cmpp-done">Done</button></div>' +
+      '<input type="search" class="cmpp-q" autocomplete="off">' + '<div class="cmpp-sh-top"></div><div class="cmpp-sh-body"></div>';
+    document.body.appendChild(s);
+    $(".cmpp-done", s).addEventListener("click", cmppClose);
+    $(".cmpp-q", s).addEventListener("input", function(){ cmppFilter(this.value); });
+    document.addEventListener("keydown", function(e){ if(e.key === "Escape" && !s.hidden) cmppClose(); });
+    window.addEventListener("popstate", function(){
+      if(!s.hidden) cmppClose(true);
+      else if(s._saveAfterPop){ s._saveAfterPop = false; cmppSave(); }
+    });
+    return s;
+  }
+  function cmppFilter(q){
+    var s = cmppSheet(); q = String(q || "").trim().toLowerCase();
+    $all(".cmpp-item", s).forEach(function(it){ it.hidden = !!q && it.textContent.toLowerCase().indexOf(q) === -1; });
+    $all(".cmpp-grp", s).forEach(function(g){ g.hidden = !$all(".cmpp-item", g).some(function(it){ return !it.hidden; }); });
+  }
+  function cmppOpen(kind){
+    if(!cmppReady()) return;
+    var s = cmppSheet();
+    s.dataset.kind = kind;
+    $(".cmpp-q", s).value = "";
+    var body = $(".cmpp-sh-body", s), top = $(".cmpp-sh-top", s);
+    if(kind === "metric"){
+      $("b", s).textContent = "Choose a metric";
+      $(".cmpp-q", s).placeholder = "Search metrics";
+      top.innerHTML = "";
+      var ks = cmppMetrics();
+      body.innerHTML = CD().CATEGORY_ORDER.map(function(cat){
+        var inCat = ks.filter(function(k){ return CD().CONCEPT_CATEGORY[k] === cat; });
+        if(!inCat.length) return "";
+        return '<div class="cmpp-grp"><h3>' + cmppEsc(cat) + '</h3>' + inCat.map(function(k){
+          return '<button type="button" class="cmpp-item" data-k="' + k + '" aria-pressed="' + (k === cmpp.metric) + '">' + cmppEsc(CD().CONCEPT_LABEL[k]) + '</button>';
+        }).join("") + '</div>';
+      }).join("");
+      $all(".cmpp-item", body).forEach(function(b){ b.addEventListener("click", function(){ cmpp.metric = this.dataset.k; cmpp.open = null; cmppClose(); }); });
+    } else {
+      $("b", s).textContent = "Choose countries";
+      $(".cmpp-q", s).placeholder = "Search countries";
+      top.innerHTML = '<div class="cmpp-presets">' + CMPP_PRESETS.filter(function(p){ return p.id !== "custom"; }).map(function(p){
+        return '<button type="button" data-p="' + p.id + '">' + p.label + '</button>'; }).join("") +
+        '<button type="button" data-p="none">None</button></div><p class="cmpp-count"></p>';
+      var groups = CD().REGION_GROUPS || [];
+      body.innerHTML = groups.map(function(g){
+        return '<div class="cmpp-grp"><h3>' + cmppEsc(g.name) + '</h3>' + g.countries.map(function(c){
+          return '<button type="button" class="cmpp-item cmpp-c" data-c="' + cmppEsc(c) + '" aria-pressed="false">' + cmppEsc(cmppLabel(c)) + '</button>';
+        }).join("") + '</div>';
+      }).join("");
+      var cur = cmppPresetList(cmpp.preset);
+      s._picked = cur.slice(); s._preset = cmpp.preset;
+      $all(".cmpp-presets button", top).forEach(function(b){ b.addEventListener("click", function(){
+        var id = this.dataset.p;
+        s._preset = id === "none" ? "custom" : id;
+        s._picked = id === "none" ? [] : cmppPresetListFor(id);
+        cmppSyncTicks();
+      }); });
+      $all(".cmpp-c", body).forEach(function(b){ b.addEventListener("click", function(){
+        var c = this.dataset.c, i = s._picked.indexOf(c);
+        if(i === -1) s._picked.push(c); else s._picked.splice(i, 1);
+        s._preset = "custom";
+        cmppSyncTicks();
+      }); });
+      cmppSyncTicks();
+    }
+    s.hidden = false;
+    document.body.classList.add("cmpp-sheet-open");
+    try{ history.pushState({ cmpp: 1 }, ""); s._pushed = true; }catch(e){ s._pushed = false; }
+  }
+  function cmppPresetListFor(id){ var keep = cmpp.preset; cmpp.preset = id; var l = cmppPresetList(id); cmpp.preset = keep; return l; }
+  function cmppSyncTicks(){
+    var s = cmppSheet();
+    $all(".cmpp-c", s).forEach(function(b){ b.setAttribute("aria-pressed", s._picked.indexOf(b.dataset.c) !== -1 ? "true" : "false"); });
+    $all(".cmpp-presets button", s).forEach(function(b){ b.setAttribute("aria-pressed", b.dataset.p === s._preset ? "true" : "false"); });
+    var n = $(".cmpp-count", s); if(n) n.textContent = s._picked.length + " selected";
+  }
+  function cmppClose(fromPop){
+    var s = cmppSheet();
+    if(s.hidden) return;
+    if(s.dataset.kind === "countries"){
+      if(s._preset === "custom"){ cmpp.preset = "custom"; cmpp.custom = s._picked.slice(); }
+      else cmpp.preset = s._preset;
+      cmpp.open = null;
+    }
+    s.hidden = true;
+    document.body.classList.remove("cmpp-sheet-open");
+    // Back closes the sheet: the URL is written once the pushed entry is gone, or it would be undone.
+    if(s._pushed && fromPop !== true){
+      s._pushed = false; s._saveAfterPop = true; cmppSave(true);
+      try{ history.back(); }catch(e){}
+      setTimeout(function(){ if(s._saveAfterPop){ s._saveAfterPop = false; cmppSave(); } }, 500);
+    } else { s._pushed = false; cmppSave(); }
+    cmppRender();
+  }
+  function initComparePhone(){
+    if(!document.getElementById("chartGrid")) return;
+    if(!isMobile()){
+      document.body.classList.remove("cmp-p");
+      var sh = document.getElementById("cmpPSheet"); if(sh && !sh.hidden) cmppClose();
+      return;
+    }
+    document.body.classList.add("cmp-p");
+    if(!cmpp) cmppLoad();
+    cmppRender();
+    if(!cmppReady() && !initComparePhone._poll){
+      initComparePhone._poll = setInterval(function(){ if(cmppReady()){ clearInterval(initComparePhone._poll); initComparePhone._poll = null; cmppRender(); } }, 250);
+    }
+  }
+  window.EA_CMPP = { state: function(){ return cmpp; }, render: function(){ cmppRender(); }, presets: CMPP_PRESETS };
   function initCompareMobile(){
+    if(document.getElementById("chartGrid") && isMobile()){ document.body.classList.remove("cmp-m"); compactCompareTop(false); initComparePhone(); return; }   // v1.9.83: rebuilt phone view
+    initComparePhone();
     var grid = document.getElementById("chartGrid");
     var toggle = document.getElementById("countriesToggleBtn");
     if(!grid || !toggle) return;
