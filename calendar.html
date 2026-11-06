@@ -32,8 +32,8 @@
 <link href="https://fonts.googleapis.com/css2?family=Nunito+Sans:wght@400;600;700&display=swap" rel="stylesheet">
 <link rel="icon" type="image/png" sizes="32x32" href="favicon-32.png">
 <link rel="apple-touch-icon" href="apple-touch-icon.png">
-<link rel="stylesheet" href="style.css?v=55">
-<link rel="stylesheet" href="mobile.css?v=37">
+<link rel="stylesheet" href="style.css?v=56">
+<link rel="stylesheet" href="mobile.css?v=38">
 </head>
 <body>
 <nav class="top"><div class="wrap">
@@ -1357,6 +1357,7 @@
 .ctp-note{font-size:12px; color:var(--ink2); line-height:1.5; margin:8px 0 0;}
 .ctp-email{margin-top:18px; padding-top:14px; border-top:1px solid var(--hair);}
 .ctp-email label{display:flex; align-items:center; gap:8px; font-size:13.5px; font-weight:700; cursor:pointer;}
+#calCapWarn{border-radius:0;}
 .ctp-foot{display:flex; align-items:center; gap:14px; padding:14px 22px; border-top:1px solid var(--hair);}
 .ctp-sum{flex:1; font-size:13px; color:var(--ink2); line-height:1.45;}
 .ctp-sum b{color:var(--ink);}
@@ -1423,6 +1424,7 @@
  <div class="ctp-chips" id="ctpGroups"></div>
  <div class="ctp-label">Regions</div>
  <div class="ctp-chips" id="ctpRegions"></div>
+ <div class="cap-meter" id="calCapMeter" hidden><div class="cap-meter-txt"></div><div class="cap-slots" aria-hidden="true"></div></div>
  <div class="ctp-countries" id="ctpCountries"></div>
  <div id="ctpNotYet"></div>
  </div>
@@ -1439,6 +1441,7 @@
  <div id="calEmailAlertsRow" class="ctp-email"></div>
  </div>
  </div>
+ <div class="cap-warn" id="calCapWarn" role="status" hidden><div class="cap-warn-h"><span class="cap-lock" aria-hidden="true"></span><strong></strong></div><p></p><div class="cap-warn-btns"><button type="button" class="cap-signup">Sign up free</button><button type="button" class="cap-login">Log in</button></div></div>
  <div class="ctp-foot">
  <div class="ctp-sum" id="ctpSummary" aria-live="polite"></div>
  <p class="ctp-saved" id="calPickerSubtext"></p>
@@ -1685,15 +1688,29 @@ function keepCovered(list){
   var kept = Array.isArray(list) ? list.filter(function(c){ return ALL_COUNTRIES.indexOf(c) !== -1; }) : [];
   return kept.length ? kept : ALL_COUNTRIES.slice();
 }
+// v1.9.90: without an account the calendar tracks up to 3 countries;
+// with one (free), every country.
+var CAL_FREE_MAX = 3;
+var CAL_FREE_START = ["UK", "US", "Eurozone"];
+function calMaxCountries(){ return isLoggedIn() ? ALL_COUNTRIES.length : CAL_FREE_MAX; }
+function calFreeDefault(){
+  var d = CAL_FREE_START.filter(function(c){ return ALL_COUNTRIES.indexOf(c) !== -1; });
+  ALL_COUNTRIES.forEach(function(c){ if(d.length < CAL_FREE_MAX && d.indexOf(c) === -1) d.push(c); });
+  return d.slice(0, CAL_FREE_MAX);
+}
 function loadTrackedCountries(){
   if(isLoggedIn()){
     return keepCovered(window.EATLAS_PREFS.get("calendar_tracked_countries", null));
   }
   try{
     var raw = localStorage.getItem(LOCAL_FALLBACK_COUNTRIES_KEY);
-    if(raw) return keepCovered(JSON.parse(raw));
+    if(raw){
+      var kept = JSON.parse(raw);
+      kept = Array.isArray(kept) ? kept.filter(function(c){ return ALL_COUNTRIES.indexOf(c) !== -1; }) : [];
+      if(kept.length) return kept.slice(0, CAL_FREE_MAX);
+    }
   }catch(e){}
-  return ALL_COUNTRIES.slice();
+  return calFreeDefault();
 }
 function saveTrackedCountries(list){
   if(isLoggedIn()){ window.EATLAS_PREFS.set("calendar_tracked_countries", list); return; }
@@ -1774,7 +1791,18 @@ function calCountryMatch(e){
 
 function renderCountriesCount(){
   var el = document.getElementById("calCountriesCount");
-  if(el) el.textContent = trackedCountries.length + " of " + ALL_COUNTRIES.length;
+  if(el) el.textContent = trackedCountries.length + " of " + (isLoggedIn() ? ALL_COUNTRIES.length : CAL_FREE_MAX + " free");
+}
+// v1.9.90: the page loads before the account check settles, so re-read the
+// tracked lists once it does (and on a live log-in): a logged-in visitor
+// gets their saved, uncapped selection instead of the 3-country preview.
+function reloadTracked(){
+  trackedCountries = loadTrackedCountries();
+  trackedMetrics = loadTrackedMetrics();
+  renderAll();
+}
+if(window.EATLAS_PREFS && window.EATLAS_PREFS.onSettled){
+  try{ window.EATLAS_PREFS.onSettled(reloadTracked); }catch(e){}
 }
 
 function renderMonth(){
@@ -1919,7 +1947,10 @@ window.EA_CAL = {
   },
   firstDow: function(){ return new Date(viewYear, viewMonth, 1).getDay(); },
   ym: function(){ return [viewYear, viewMonth]; },
-  open: function(ev){ openEventDetail(ev); }
+  open: function(ev){ openEventDetail(ev); },
+  tracked: function(){ return trackedCountries.slice(); },
+  maxCountries: function(){ return calMaxCountries(); },
+  reloadTracked: function(){ reloadTracked(); }
 };
 
 function renderAll(){
@@ -2019,9 +2050,10 @@ function wireCalendarInteractions(){
     document.getElementById("ctpNotYet").innerHTML = notYet.length
       ? "<div class='ctp-notyet'><b>Not on the calendar yet:</b> " + notYet.map(ctpEsc).join(", ") + ". Their publishers' release calendars cannot be read automatically yet, so they are left out rather than filled in by hand.</div>"
       : "";
-    document.getElementById("ctpCount").textContent = trackedCountries.length + " of " + ALL_COUNTRIES.length;
+    document.getElementById("ctpCount").textContent = trackedCountries.length + " of " + (isLoggedIn() ? ALL_COUNTRIES.length : CAL_FREE_MAX + " free");
     renderMetricsPickerGrid(up);
     renderPickerSummary();
+    renderCalCap();
   }
   function renderPickerSummary(){
     var n = 0, d = new Date(today), cs = {};
@@ -2035,10 +2067,52 @@ function wireCalendarInteractions(){
       : "Pick at least one country and one release type to fill the calendar.";
   }
   function setCountries(list){
+    var max = calMaxCountries(), capped = false;
+    if(list.length > max){
+      // keep what is already tracked first, then fill the free slots in order
+      var keep = trackedCountries.filter(function(c){ return list.indexOf(c) !== -1; }).slice(0, max);
+      list.forEach(function(c){ if(keep.length < max && keep.indexOf(c) === -1) keep.push(c); });
+      list = keep; capped = true;
+    }
     trackedCountries = ALL_COUNTRIES.filter(function(c){ return list.indexOf(c) !== -1; });
     saveTrackedCountries(trackedCountries);
     renderAll();
     renderPicker();
+    if(capped) calCapFlag();
+  }
+  /* v1.9.90 free limit: slot meter, padlocks and a sign-up card in the picker */
+  function renderCalCap(){
+    var meter = document.getElementById("calCapMeter"), warn = document.getElementById("calCapWarn");
+    var logged = isLoggedIn(), max = calMaxCountries(), atCap = !logged && trackedCountries.length >= max;
+    if(meter){
+      meter.hidden = logged;
+      meter.classList.toggle("full", atCap);
+      meter.querySelector(".cap-meter-txt").textContent = Math.min(trackedCountries.length, max) + " of " + max + " free countries used";
+      var slots = meter.querySelector(".cap-slots"); slots.innerHTML = "";
+      for(var i = 0; i < max; i++){ var b = document.createElement("i"); if(i < trackedCountries.length) b.className = "on"; slots.appendChild(b); }
+      var more = document.createElement("i"); more.className = "more"; slots.appendChild(more);
+    }
+    if(warn){
+      warn.querySelector("strong").textContent = "Track all " + ALL_COUNTRIES.length + " countries";
+      warn.querySelector("p").textContent = "Accounts are free and unlock every country's releases, plus email alerts. Or remove a country to swap it.";
+      warn.hidden = !atCap;
+      if(!atCap) warn.classList.remove("flag");
+    }
+    var lab = document.querySelectorAll("#ctpCountries label");
+    for(var j = 0; j < lab.length; j++){
+      var inp = lab[j].querySelector("input");
+      var lk = atCap && inp && !inp.checked;
+      lab[j].classList.toggle("lk", lk);
+      if(inp) inp.setAttribute("aria-label", lk ? "Sign up free to add " + inp.dataset.country : inp.dataset.country);
+    }
+    return atCap;
+  }
+  function calCapFlag(){
+    var warn = document.getElementById("calCapWarn");
+    if(!warn) return;
+    warn.hidden = false;
+    warn.classList.remove("flag"); void warn.offsetWidth; warn.classList.add("flag");
+    try{ if(navigator.vibrate) navigator.vibrate(40); }catch(e){}
   }
   function renderMetricsPickerGrid(up){
     if(!metricsGrid) return;
@@ -2114,6 +2188,9 @@ function wireCalendarInteractions(){
   if(pickAll) pickAll.addEventListener("click", function(){ setCountries(ALL_COUNTRIES.slice()); });
   var pickNone = document.getElementById("calPickNone");
   if(pickNone) pickNone.addEventListener("click", function(){ setCountries([]); });
+  document.querySelectorAll("#calCapWarn .cap-signup, #calCapWarn .cap-login").forEach(function(b){
+    b.addEventListener("click", function(){ closeCountriesModal(); if(window.EATLAS_OPEN_AUTH_MODAL) window.EATLAS_OPEN_AUTH_MODAL(); });
+  });
   var ctpDone = document.getElementById("ctpDone");
   if(ctpDone) ctpDone.addEventListener("click", function(){ closeCountriesModal(); });
   var colorModeSeg = document.getElementById("calColorModeSeg");

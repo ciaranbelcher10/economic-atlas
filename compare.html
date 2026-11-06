@@ -32,7 +32,7 @@
 <link href="https://fonts.googleapis.com/css2?family=Nunito+Sans:wght@400;600;700&display=swap" rel="stylesheet">
 <link rel="icon" type="image/png" sizes="32x32" href="favicon-32.png">
 <link rel="apple-touch-icon" href="apple-touch-icon.png">
-<link rel="stylesheet" href="style.css?v=55">
+<link rel="stylesheet" href="style.css?v=56">
 <style>
 :root{ --map-nodata: #E9EBE7; }
 /* ---- info button + popover (per-card data source & methodology) ---- */
@@ -92,6 +92,7 @@ html[data-theme="dark"]{ --map-nodata: #C4CAC0; }
 .picker-item .dot{width:9px; height:9px; border-radius:50%; flex:none; background:var(--hair);}
 .picker-item.active{border-color:transparent; color:#fff;}
 .picker-item input{position:absolute; opacity:0; pointer-events:none;}
+#countryModal .cap-warn{position:sticky; bottom:-24px; margin:16px -28px -24px; z-index:2;}
 /* v1.9.76: the per-card "Order countries by" strip had a light inline tint in dark mode. */
 [data-theme="dark"] .card-sort-row{background:var(--panel) !important; border-color:var(--hair) !important;}
 [data-theme="dark"] .card-sort-row > span{color:var(--ink) !important;}
@@ -364,7 +365,7 @@ footer.cmp-foot{margin-top:36px; font-size:12.5px; color:var(--ink2); border-top
   "variableMeasured": ["GDP level", "GDP growth rate", "Consumer Price Index (inflation)", "Unemployment rate", "Government debt to GDP", "Trade balance", "Central bank policy rate"]
 }
 </script>
-<link rel="stylesheet" href="mobile.css?v=37">
+<link rel="stylesheet" href="mobile.css?v=38">
 </head>
 <body>
 <nav class="top"><div class="wrap">
@@ -1706,7 +1707,9 @@ footer.cmp-foot{margin-top:36px; font-size:12.5px; color:var(--ink2); border-top
  <button type="button" id="pickerSelectAll">Select all</button>
  <button type="button" id="pickerClearAll">Clear all</button>
  </div>
+ <div class="cap-meter" id="cmpCapMeter" hidden><div class="cap-meter-txt"></div><div class="cap-slots" aria-hidden="true"></div></div>
  <div id="pickerRegions"></div>
+ <div class="cap-warn" id="cmpCapWarn" role="status" hidden><div class="cap-warn-h"><span class="cap-lock" aria-hidden="true"></span><strong></strong></div><p></p><div class="cap-warn-btns"><button type="button" class="cap-signup">Sign up free</button><button type="button" class="cap-login">Log in</button></div></div>
  </div>
 </div>
 <script src="https://cdnjs.cloudflare.com/ajax/libs/d3/7.8.5/d3.min.js"></script>
@@ -4235,10 +4238,10 @@ function toggleCountry(c, showToast){
     // Hit the logged-out cap trying to add one more: same lock+prompt
     // pattern as Download data / Customise & export elsewhere, rather
     // than the click silently doing nothing.
+    // v1.9.90: no forced log-in; the country picker opens (or stays
+    // open) with the free-limit card flagged, as on phones.
     var loggedIn = !!(window.EATLAS_PREFS && window.EATLAS_PREFS.isLoggedIn && window.EATLAS_PREFS.isLoggedIn());
-    if(!loggedIn && window.EATLAS_OPEN_AUTH_MODAL){
-      window.EATLAS_OPEN_AUTH_MODAL();
-    }
+    if(!loggedIn) cmpCapFlag();
     return;
   }
   if(window.EATLAS_PREFS) window.EATLAS_PREFS.set("compareSelectedCountries", selected);
@@ -4386,8 +4389,40 @@ function openColorPicker(country, anchorEl, onChanged){
   }, 0);
 }
 /* --------------------------- country picker modal -------------------------- */
+// v1.9.90 desktop free limit: slot meter, padlocks and a sign-up card in
+// the country picker, instead of jumping straight to the log-in form.
+function cmpCapState(){
+  var loggedIn = !!(window.EATLAS_PREFS && window.EATLAS_PREFS.isLoggedIn && window.EATLAS_PREFS.isLoggedIn());
+  var max = getMaxSelected();
+  return { loggedIn: loggedIn, max: max, atCap: !loggedIn && selected.length >= max };
+}
+function renderCmpCap(){
+  var st = cmpCapState(), meter = document.getElementById("cmpCapMeter"), warn = document.getElementById("cmpCapWarn");
+  if(!meter || !warn) return st;
+  meter.hidden = st.loggedIn;
+  meter.classList.toggle("full", st.atCap);
+  meter.querySelector(".cap-meter-txt").textContent = Math.min(selected.length, st.max) + " of " + st.max + " free countries used";
+  var slots = meter.querySelector(".cap-slots"); slots.innerHTML = "";
+  for(var i = 0; i < st.max; i++){ var b = document.createElement("i"); if(i < selected.length) b.className = "on"; slots.appendChild(b); }
+  var more = document.createElement("i"); more.className = "more"; slots.appendChild(more);
+  warn.querySelector("strong").textContent = "Compare all " + ALL_COUNTRIES.length + " countries";
+  warn.querySelector("p").textContent = "Accounts are free and unlock every economy. Or remove a country to swap it.";
+  warn.hidden = !st.atCap;
+  if(!st.atCap) warn.classList.remove("flag");
+  return st;
+}
+function cmpCapFlag(){
+  if(document.body.classList.contains("cmp-m")) return; // phones use their own sheet
+  var modal = document.getElementById("countryModal");
+  if(modal && modal.hidden) openCountryModal();
+  var warn = document.getElementById("cmpCapWarn");
+  if(!warn) return;
+  warn.hidden = false;
+  warn.classList.remove("flag"); void warn.offsetWidth; warn.classList.add("flag");
+}
 function renderCountryPicker(){
   var wrap = document.getElementById("pickerRegions");
+  var capSt = renderCmpCap();
   wrap.innerHTML = "";
   REGION_GROUPS.forEach(function(region){
     var known = region.countries.filter(function(c){ return ALL_COUNTRIES.indexOf(c) !== -1; });
@@ -4407,6 +4442,11 @@ function renderCountryPicker(){
       if(isOn) item.style.background = getCountryColor(c);
       item.innerHTML = "<input type=\"checkbox\"" + (isOn ? " checked" : "") + ">"
         + "<span class=\"dot\" style=\"background:" + (isOn ? "#fff" : getCountryColor(c)) + ";\"></span>" + COUNTRY_LABEL[c];
+      if(!isOn && capSt.atCap){
+        item.classList.add("lk");
+        item.title = "Sign up free to add " + COUNTRY_LABEL[c];
+        item.insertAdjacentHTML("beforeend", "<span class=\"cap-lock\" aria-hidden=\"true\"></span>");
+      }
       item.querySelector("input").addEventListener("change", function(){
         toggleCountry(c, false);
         renderCountryPicker();
@@ -4432,15 +4472,22 @@ try {
   document.getElementById("pickerSelectAll").addEventListener("click", function(){
     var max = getMaxSelected();
     var loggedIn = !!(window.EATLAS_PREFS && window.EATLAS_PREFS.isLoggedIn && window.EATLAS_PREFS.isLoggedIn());
-    if(ALL_COUNTRIES.length > max && !loggedIn){
-      selected = ALL_COUNTRIES.slice(0, max);
-      if(window.EATLAS_OPEN_AUTH_MODAL) window.EATLAS_OPEN_AUTH_MODAL();
+    var capped = ALL_COUNTRIES.length > max && !loggedIn;
+    if(capped){
+      // keep what is already picked, then fill the free slots in order
+      var keep = selected.slice(0, max);
+      ALL_COUNTRIES.forEach(function(c){ if(keep.length < max && keep.indexOf(c) === -1) keep.push(c); });
+      selected = keep;
     } else {
       selected = ALL_COUNTRIES.slice();
     }
     if(window.EATLAS_PREFS) window.EATLAS_PREFS.set("compareSelectedCountries", selected);
     renderAll();
     renderCountryPicker();
+    if(capped) cmpCapFlag();
+  });
+  document.querySelectorAll("#cmpCapWarn .cap-signup, #cmpCapWarn .cap-login").forEach(function(b){
+    b.addEventListener("click", function(){ closeCountryModal(); if(window.EATLAS_OPEN_AUTH_MODAL) window.EATLAS_OPEN_AUTH_MODAL(); });
   });
   document.getElementById("pickerClearAll").addEventListener("click", function(){
     selected = [];

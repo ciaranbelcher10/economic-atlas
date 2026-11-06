@@ -24,6 +24,9 @@ async function boot(){
   const win = dom.window;
   await new Promise(r => win.addEventListener("load", r, { once: true }));
   await new Promise(r => setTimeout(r, 900));
+  // v1.9.90: logged out tracks 3 countries; these checks want the full calendar, so stand in a logged-in account
+  win.EATLAS_PREFS = Object.assign({}, win.EATLAS_PREFS, { isLoggedIn: () => true, get: (k, d) => d, set(){} });
+  win.EA_CAL.reloadTracked();
   win.eval(MOBILE_JS);
   await new Promise(r => setTimeout(r, 100));
   return win;
