@@ -1,5 +1,6 @@
 #!/usr/bin/env node
-/* v1.9.83 Compare on phones (attempt 2, built on the v1.9.82 layout).
+/* v1.9.83/v1.9.85 Compare on phones (attempt 2, built on the v1.9.82 layout).
+ *  v1.9.85: Select all, no double-tap zoom, last metric removable, ranking folds to 4 with Show all.
  *  - first visit: UK, US, Germany, Japan on Unemployment only (desktop keeps its 3 starter metrics)
  *  - sticky bar: country chips (+ Edit) and underlined metric tabs; active tab has its own x
  *    (none on the last metric); "+ Add" pinned outside the scrolling tabs
@@ -37,7 +38,7 @@ const sorted = a => a.slice().sort((x, y) => x.localeCompare(y));
   const tabs = () => $$("#cmpMTabs .cmp-m-tab");
   ok(cards().length === 1 && tabs().length === 1, "one card, one tab");
   ok(/unemployment/i.test(tabs()[0].textContent), "tab names Unemployment: " + tabs()[0].textContent);
-  ok($$("#cmpMTabs .cmp-m-tab-x").length === 0, "no x on the only metric");
+  ok($$("#cmpMTabs .cmp-m-tab-x").length === 1, "the only metric still has its x (v1.9.85)");
   ok(!!$("#cmpMAddMetric") && !$("#cmpMTabs #cmpMAddMetric") && $("#cmpMAddMetric").parentElement.classList.contains("cmp-m-tabrow"), "+ Add sits outside the scrolling tabs");
 
   /* chips */
@@ -69,7 +70,7 @@ const sorted = a => a.slice().sort((x, y) => x.localeCompare(y));
   const secRows = (i) => { const out = []; let n = 0; [...sheet().querySelector(".cmp-s-list").children].forEach(el => { if(el.classList.contains("cmp-s-sec")) n++; else if(n === i && el.classList.contains("cmp-s-row")) out.push(el); }); return out; };
   const names = rs => rs.map(r => r.querySelector(".cmp-s-name").textContent);
   ok(names(secRows(1)).join() === "Unemployment rate", "In your comparison lists the chosen metric: " + names(secRows(1)));
-  ok(!secRows(1)[0].querySelector(".cmp-s-btn"), "no minus on the only metric");
+  ok(!!secRows(1)[0].querySelector(".cmp-s-btn.rm"), "the only metric has a minus (v1.9.85)");
   { const n2 = names(secRows(2)); ok(n2.length === api.allMetrics().length - 1 && n2.join() === sorted(n2).join(), "Add more is A to Z, every other metric (" + n2.length + ")"); }
   ok(secRows(2).every(r => r.querySelector(".cmp-s-btn.ad")), "every Add more row has +");
   { const f = sheet().querySelector(".cmp-s-find"); f.value = "inflation"; f.dispatchEvent(new win.Event("input"));
@@ -82,7 +83,7 @@ const sorted = a => a.slice().sort((x, y) => x.localeCompare(y));
   addKey("cpi"); await sleep(250); addKey("gdp_growth"); await sleep(250);
   ok(api.getMetrics().join() === "unemployment,cpi,gdp_growth", "+ adds metrics: " + api.getMetrics());
   { const mine = names(secRows(1)); ok(mine.length === 3 && mine.join() === sorted(mine).join(), "chosen list A to Z: " + mine); }
-  ok(secRows(1).every(r => r.querySelector(".cmp-s-btn.rm")), "each chosen metric has minus when there are several");
+  ok(secRows(1).every(r => r.querySelector(".cmp-s-btn.rm")), "each chosen metric has minus");
   ok(sheet().querySelector('.cmp-s-row[data-key="cpi"]').classList.contains("on"), "added metric moves to the top section");
   sheet().querySelector('.cmp-s-row[data-key="cpi"] .cmp-s-btn.rm').click(); await sleep(250);
   ok(api.getMetrics().join() === "unemployment,gdp_growth", "minus removes a metric: " + api.getMetrics());
@@ -95,7 +96,7 @@ const sorted = a => a.slice().sort((x, y) => x.localeCompare(y));
   ok(/Remove /.test($(".cmp-m-tab-x").getAttribute("aria-label")), "x is labelled");
   $(".cmp-m-tab-x").click(); await sleep(300);
   ok(api.getMetrics().join() === "unemployment" && tabs().length === 1 && visible().length === 1, "x removes that metric, the other stays shown");
-  ok($$("#cmpMTabs .cmp-m-tab-x").length === 0, "x gone again on the last metric");
+  ok($$("#cmpMTabs .cmp-m-tab-x").length === 1, "last metric keeps its x");
 
   /* 3. countries sheet, single layer */
   // simulate the old bug: desktop picker and old panel open, then open ours
@@ -111,6 +112,7 @@ const sorted = a => a.slice().sort((x, y) => x.localeCompare(y));
   ok(!sheet().querySelector(".cmp-s-note").hidden, "logged out at 4: cap note shown");
   ok(!/small circle/i.test(sheet().textContent), "no desktop colour-circle wording");
   ok(["G7", "G20", "EU", "Asia-Pacific", "Americas"].every(n => sheet().querySelector('[data-preset="' + n + '"]')) && !!sheet().querySelector(".cmp-s-clear"), "presets and Clear all");
+  ok(!!sheet().querySelector(".cmp-s-all") && sheet().querySelector(".cmp-s-presets").firstElementChild.classList.contains("cmp-s-all"), "Select all leads the quick picks");
   // reopen while open: still one layer
   $("#cmpMChips .cmp-m-add").click(); await sleep(30);
   ok($$("#cmpMSheet").length === 1 && $$("#cmpMSheetBack").length === 1, "opening again never stacks a second layer");
@@ -152,6 +154,12 @@ const sorted = a => a.slice().sort((x, y) => x.localeCompare(y));
     ok(win.history.length === h0, "switching sheets adds no extra Back step"); }
   sheet().querySelector(".cmp-s-done").click(); await sleep(30);
 
+  /* v1.9.85 Select all: logged out keeps 4 and offers sign up */
+  { let asked = 0; win.EATLAS_OPEN_AUTH_MODAL = () => asked++;
+    $("#cmpMChips .cmp-m-add").click(); await sleep(30);
+    sheet().querySelector(".cmp-s-all").click(); await sleep(250);
+    ok(asked === 1 && !sheet() && api.getSelected().length === 4, "Select all logged out: 4 kept, sign up offered"); }
+
   /* rotate hint when wide */
   api.setSelected(["UK", "US", "Germany", "Japan"]); await sleep(250);
   { // the harness has no Supabase, so stand in a logged-in prefs object for this part
@@ -166,9 +174,32 @@ const sorted = a => a.slice().sort((x, y) => x.localeCompare(y));
     ok($("#cmpMRotate").hidden && $$("#cmpMRotate").length === 1, "dismissed for the visit, never duplicated");
     $("#cardFullscreenClose").click(); await sleep(30); }
 
+  /* v1.9.85 ranking folds to 4, Show all expands, a change folds it back */
+  { const rowsOf = () => $$(".metric-card:not(.cmp-m-off) .tpm-rankrow");
+    const shownRows = () => rowsOf().filter(r => !r.classList.contains("cmp-m-rk-off"));
+    const more = () => $(".metric-card:not(.cmp-m-off) .cmp-m-more");
+    ok(rowsOf().length === 7 && shownRows().length === 4, "7 countries: top 4 shown (" + shownRows().length + ")");
+    ok(shownRows().every((r, i) => r === rowsOf()[i]), "the 4 shown are the top of the ranking");
+    ok(more() && more().textContent === "Show all 7 countries" && more().getAttribute("aria-expanded") === "false", "Show all button labelled with the count");
+    more().click(); await sleep(60);
+    ok(shownRows().length === 7 && more().textContent === "Show fewer" && more().getAttribute("aria-expanded") === "true", "Show all expands, then offers Show fewer");
+    win.dispatchEvent(new win.Event("resize")); await sleep(80);
+    ok(shownRows().length === 7, "stays open across re-runs");
+    more().click(); await sleep(60);
+    ok(shownRows().length === 4, "Show fewer folds back");
+    more().click(); await sleep(60);
+    api.setSelected(["UK", "US", "Germany", "Japan", "France", "Italy"]); await sleep(300);
+    ok(shownRows().length === 4 && more().textContent === "Show all 6 countries", "changing countries folds it back to 4");
+    ok($$(".metric-card:not(.cmp-m-off) .cmp-m-more").length === 1, "one Show all button");
+    { const ol = $(".metric-card:not(.cmp-m-off) .tpm-ranklist"); [...ol.querySelectorAll(".tpm-rankrow")].slice(4).forEach(li => li.remove()); await sleep(80);
+      ok(!more() && shownRows().length === 4, "list redrawn in place with 4 rows: button removed"); }
+    api.setSelected(["UK", "US", "Germany"]); await sleep(300);
+    ok(!more() && shownRows().length === 3, "4 or fewer countries: no button, all shown");
+    ok(/display:none !important/.test(rule("  body.cmp-m .tpm-rankrow.cmp-m-rk-off")), "folded rows hidden by CSS"); }
+
   /* empty state: the Add a metric tile opens the phone sheet, not the desktop picker */
   if(sheet()) sheet().querySelector(".cmp-s-done").click();
-  api.removeMetric("unemployment"); await sleep(250);
+  $(".cmp-m-tab-x").click(); await sleep(300);
   ok(api.getMetrics().length === 0 && doc.body.classList.contains("cmp-m-empty"), "no metrics: empty state on");
   $("#addMetricTile").click(); await sleep(40);
   ok(sheet() && sheet().dataset.mode === "metrics" && $("#metricPicker").hidden, "empty-state tile opens the Metrics sheet");
@@ -196,13 +227,15 @@ const sorted = a => a.slice().sort((x, y) => x.localeCompare(y));
   ok(/min-height:48px/.test(rule("  .cmp-s-row")) && /width:44px; height:44px/.test(rule("  .cmp-s-btn")), "sheet rows 48px, buttons 44px");
   ok(/min-height:44px/.test(rule("  .cmp-m-tab")) && /height:44px/.test(rule("  .cmp-m-tab-x")), "tabs and x 44px tall");
   ok(/font-size:16px/.test(rule("  .cmp-s-find")), "search 16px (no iOS zoom)");
+  ok(/touch-action:manipulation/.test(rule("  #cmpMSheet button, #cmpMBar button, .cmp-m-more, .cmp-m-fs")), "no double-tap zoom on sheet, bar and ranking buttons");
+  ok(/flex-wrap:wrap/.test(rule("  .cmp-s-presets")) && !/overflow-x/.test(rule("  .cmp-s-presets")), "quick picks wrap, all visible");
   ok(/z-index:1300/.test(rule("  #cmpMSheet")) && /z-index:1299/.test(rule("  #cmpMSheetBack")), "sheet above every other layer");
   ok(/@media \(orientation:landscape\)\{ #cmpMRotate\{ display:none !important; \} \}/.test(CSS), "rotate hint hidden in landscape");
   ok(/display:none !important/.test(rule("  body.cmp-m .metric-card.cmp-m-off")), "inactive cards hidden");
   ok(/order:2/.test(rule("  body.cmp-m .metric-card > .tpm-layout")), "ranking first");
   ok(/CMP_PHONE_START \? \["unemployment"\]/.test(HTML), "phone default in compare.html");
   { const cv = +(HTML.match(/mobile\.css\?v=(\d+)/) || [0, 0])[1], jv = +(HTML.match(/mobile\.js\?v=(\d+)/) || [0, 0])[1];
-    ok(cv >= 33 && jv >= 33, `compare on mobile.css/js >= v33 (v${cv} / v${jv})`); }
+    ok(cv >= 34 && jv >= 34, `compare on mobile.css/js >= v34 (v${cv} / v${jv})`); }
 
   console.log(`test_compare_mobile: ${checks - failures} ok, ${failures} failed`);
   process.exit(failures ? 1 : 0);

@@ -1148,6 +1148,30 @@
       });
     });
   }
+  /* v1.9.85: the ranking shows its top 4 rows, then a Show all button.
+     A change of countries rebuilds the card, which folds it back to 4. */
+  var CMP_RANK_SHOW = 4;
+  function capRanking(card){
+    var ol = card.querySelector(".tpm-ranklist");
+    var btn = card.querySelector(".cmp-m-more");
+    var rows = ol ? $all(".tpm-rankrow", ol) : [];
+    if(rows.length <= CMP_RANK_SHOW){
+      rows.forEach(function(li){ li.classList.remove("cmp-m-rk-off"); });
+      if(btn) btn.remove();
+      return;
+    }
+    // open state lives on the card; a new set of countries rebuilds the card, so it starts folded
+    if(!btn){
+      btn = document.createElement("button");
+      btn.type = "button"; btn.className = "cmp-m-more";
+      btn.addEventListener("click", function(){ card._rkOpen = !card._rkOpen; capRanking(card); });
+    }
+    if(btn.previousElementSibling !== ol && ol.parentNode) ol.insertAdjacentElement("afterend", btn);
+    rows.forEach(function(li, i){ li.classList.toggle("cmp-m-rk-off", !card._rkOpen && i >= CMP_RANK_SHOW); });
+    var label = card._rkOpen ? "Show fewer" : "Show all " + rows.length + " countries";
+    if(btn.textContent !== label) btn.textContent = label;
+    btn.setAttribute("aria-expanded", card._rkOpen ? "true" : "false");
+  }
   /* v1.9.77: a clear, labelled full-screen chart button straight under the
      ranking on each card (the card's own Fullscreen button was tucked away
      inside More options). It just presses the card's own button. */
@@ -1269,6 +1293,7 @@
       var on = c.dataset.concept === cmpActive;
       if(c.classList.contains("cmp-m-off") === on) c.classList.toggle("cmp-m-off", !on);
       addRankBars(c);
+      capRanking(c);
       addFullscreenButton(c);
       addCardExtras(c);
     });
@@ -1292,8 +1317,8 @@
       b.textContent = label;
       b.addEventListener("click", function(){ cmpActive = this.dataset.concept; tabs._sig = null; renderCompareBar(); });
       wrap.appendChild(b);
-      // v1.9.83: the active tab carries its own remove button (not on the last metric)
-      if(on && cards.length > 1){
+      // v1.9.85: the active tab carries its own remove button, the last metric included
+      if(on){
         var x = document.createElement("button");
         x.type = "button"; x.className = "cmp-m-tab-x";
         x.setAttribute("aria-label", "Remove " + label);
@@ -1370,6 +1395,10 @@
         b.addEventListener("click", function(){ cmpApplyPreset(p.list); });
         pre.appendChild(b);
       });
+      var all = document.createElement("button");
+      all.type = "button"; all.className = "cmp-s-chip cmp-s-all"; all.textContent = "Select all";
+      all.addEventListener("click", function(){ var api = cmpApi(); if(api) cmpApplyPreset(api.allCountries()); });
+      pre.insertBefore(all, pre.firstChild);
       var clr = document.createElement("button");
       clr.type = "button"; clr.className = "cmp-s-chip cmp-s-clear"; clr.textContent = "Clear all";
       clr.addEventListener("click", function(){ var api = cmpApi(); if(api) api.setSelected([]); renderCmpSheet(); });
@@ -1466,7 +1495,7 @@
       var others = all.filter(function(m){ return on.indexOf(m.key) === -1; }).sort(byLabel);
       list.appendChild(cmpHead("In your comparison (" + mine.length + ")"));
       mine.filter(function(m){ return match(m.label); }).forEach(function(m){
-        list.appendChild(cmpRow(m.label, "", "", true, mine.length > 1 ? function(){ api.removeMetric(m.key); renderCmpSheet(); } : null, m.key));
+        list.appendChild(cmpRow(m.label, "", "", true, function(){ api.removeMetric(m.key); renderCmpSheet(); }, m.key));
       });
       list.appendChild(cmpHead("Add more"));
       others.filter(function(m){ return match(m.label) || match(m.note); }).forEach(function(m){
