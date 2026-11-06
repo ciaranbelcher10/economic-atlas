@@ -1158,22 +1158,14 @@
     b.type = "button";
     b.className = "cmp-m-fs";
     b.innerHTML = '<span aria-hidden="true">\u2922</span> View full-screen chart';
-    b.addEventListener("click", function(){ real.click(); });
+    b.addEventListener("click", function(){ real.click(); showRotateHint(card.dataset.concept); });
     card.appendChild(b);
   }
   /* v1.9.78: per card on phones, "Remove this metric" lives in More options
      (the corner x read as "close"), and the freshness key sits as one small
      line at the bottom of the card instead of two lines under the tabs. */
   function addCardExtras(card){
-    var real = card.querySelector(".card-remove");
-    if(real && !card.querySelector(".cmp-m-remove")){
-      var b = document.createElement("button");
-      b.type = "button";
-      b.className = "cmp-m-remove";
-      b.textContent = "Remove this metric";
-      b.addEventListener("click", function(){ real.click(); });
-      card.appendChild(b);
-    }
+    // v1.9.83: removing a metric is the x on its tab (Remove this metric button retired)
     if(!card.querySelector(".cmp-m-key")){
       var k = document.createElement("p");
       k.className = "cmp-m-key";
@@ -1210,7 +1202,10 @@
     if(!bar){
       bar = document.createElement("div");
       bar.id = "cmpMBar";
-      bar.innerHTML = '<div class="cmp-m-chips" id="cmpMChips"></div><div class="cmp-m-tabs" id="cmpMTabs" role="tablist" aria-label="Metrics"></div>';
+      bar.innerHTML = '<div class="cmp-m-chips" id="cmpMChips"></div>'
+        + '<div class="cmp-m-tabrow"><div class="cmp-m-tabs" id="cmpMTabs" role="tablist" aria-label="Metrics"></div>'
+        + '<button type="button" class="cmp-m-tab-add" id="cmpMAddMetric">+ Add</button></div>';
+      bar.querySelector("#cmpMAddMetric").addEventListener("click", function(){ openCmpSheet("metrics"); });
       toggle.insertAdjacentElement("afterend", bar);
     }
     renderCompareBar();
@@ -1219,25 +1214,19 @@
       new MutationObserver(function(){ if(isMobile()) renderCompareBar(); }).observe(grid, {childList:true, subtree:true});
       var chipRow = document.getElementById("chipRow");
       if(chipRow) new MutationObserver(function(){ if(isMobile()) renderCompareChips(); }).observe(chipRow, {childList:true, subtree:true, attributes:true, attributeFilter:["style"]});
-      var panel = document.getElementById("countriesPanelBody");
-      if(panel){
-        var done = document.createElement("button");
-        done.type = "button"; done.className = "cmp-m-done"; done.textContent = "Done";
-        done.addEventListener("click", function(){ toggle.click(); });
-        panel.insertBefore(done, panel.firstChild);
-        var back = document.createElement("div");
-        back.id = "cmpPanelBackdrop"; back.className = "ea-sheet-backdrop"; back.hidden = true;
-        back.addEventListener("click", function(){ toggle.click(); });
-        document.body.appendChild(back);
-        var sync = function(){ back.hidden = !(isMobile() && panel.style.display === "block"); };
-        new MutationObserver(sync).observe(panel, {attributes:true, attributeFilter:["style"]});
-        sync();
-      }
+      window.addEventListener("popstate", function(){ if(cmpSheetMode) closeCmpSheet(true); });
+      // the empty-state Add a metric tile opens the phone sheet, not the desktop picker
+      document.addEventListener("click", function(e){
+        if(!isMobile() || !e.target.closest || !e.target.closest("#addMetricTile")) return;
+        e.stopPropagation(); e.preventDefault(); openCmpSheet("metrics");
+      }, true);
     }
-    initMetricPickerSheet();
+    // v1.9.83: the Summary table is not shown on phones (the ranking above says the same)
+    var rt = document.getElementById("rankTable"), sumCard = rt && rt.closest(".cmp-card");
+    if(sumCard) sumCard.classList.add("cmp-m-sum");
   }
   function renderCompareChips(){
-    var host = document.getElementById("cmpMChips"), toggle = document.getElementById("countriesToggleBtn");
+    var host = document.getElementById("cmpMChips");
     var chipRow = document.getElementById("chipRow");
     if(!host || !chipRow) return;
     var chips = $all(".chip[data-country]", chipRow);
@@ -1252,13 +1241,14 @@
       b.querySelector("i").style.background = c.style.background;
       b.querySelector("span").textContent = c.dataset.country;
       b.setAttribute("aria-label", c.dataset.country + ", change countries");
-      b.addEventListener("click", function(){ toggle.click(); });
+      b.addEventListener("click", function(){ openCmpSheet("countries"); });
       host.appendChild(b);
     });
     var add = document.createElement("button");
     add.type = "button"; add.className = "cmp-m-chip cmp-m-add";
-    add.textContent = chips.length ? "+ Edit" : "+ Add countries";
-    add.addEventListener("click", function(){ toggle.click(); });
+    add.textContent = chips.length ? "Edit" : "+ Add countries";
+    add.setAttribute("aria-label", "Edit countries");
+    add.addEventListener("click", function(){ openCmpSheet("countries"); });
     host.appendChild(add);
   }
   function renderCompareBar(){
@@ -1288,51 +1278,231 @@
     tabs.innerHTML = "";
     cards.forEach(function(c){
       var t = c.querySelector(".card-title");
+      var label = t && t.textContent.trim() ? t.textContent.trim() : c.dataset.concept;
+      var on = c.dataset.concept === cmpActive;
+      var wrap = document.createElement("span");
+      wrap.className = "cmp-m-tabwrap" + (on ? " on" : "");
+      wrap.setAttribute("role", "presentation");
       var b = document.createElement("button");
       b.type = "button"; b.className = "cmp-m-tab";
       b.setAttribute("role", "tab");
-      var on = c.dataset.concept === cmpActive;
       b.setAttribute("aria-selected", on ? "true" : "false");
       b.tabIndex = on ? 0 : -1;
       b.dataset.concept = c.dataset.concept;
-      b.textContent = t && t.textContent.trim() ? t.textContent.trim() : c.dataset.concept;
+      b.textContent = label;
       b.addEventListener("click", function(){ cmpActive = this.dataset.concept; tabs._sig = null; renderCompareBar(); });
-      tabs.appendChild(b);
+      wrap.appendChild(b);
+      // v1.9.83: the active tab carries its own remove button (not on the last metric)
+      if(on && cards.length > 1){
+        var x = document.createElement("button");
+        x.type = "button"; x.className = "cmp-m-tab-x";
+        x.setAttribute("aria-label", "Remove " + label);
+        x.innerHTML = "&times;";
+        x.addEventListener("click", function(){ cmpRemoveMetric(c.dataset.concept); });
+        wrap.appendChild(x);
+      }
+      tabs.appendChild(wrap);
     });
-    var add = document.createElement("button");
-    add.type = "button"; add.className = "cmp-m-tab cmp-m-tab-add";
-    add.textContent = "+ Add metric";
-    add.addEventListener("click", function(){ var t = document.getElementById("addMetricTile"); if(t) t.click(); });
-    tabs.appendChild(add);
     var act = tabs.querySelector('[aria-selected="true"]');
     if(act && act.scrollIntoView) act.scrollIntoView({inline:"center", block:"nearest"});
   }
-  function initMetricPickerSheet(){
-    var modal = document.getElementById("metricPicker"), gridEl = document.getElementById("metricPickerGrid");
-    if(!modal || !gridEl || document.getElementById("metricPickerSearch")) return;
-    var input = document.createElement("input");
-    input.type = "search"; input.id = "metricPickerSearch";
-    input.placeholder = "Search metrics, e.g. inflation";
-    input.setAttribute("aria-label", "Search metrics");
-    gridEl.insertAdjacentElement("beforebegin", input);
-    function filter(){
-      var q = input.value.trim().toLowerCase();
-      var cat = null, catHas = false;
-      $all(".pickercat, .pickeritem", gridEl).forEach(function(el){
-        if(el.classList.contains("pickercat")){
-          if(cat) cat.hidden = !catHas;
-          cat = el; catHas = false; return;
-        }
-        var hit = !q || el.textContent.toLowerCase().indexOf(q) !== -1 || (cat && cat.textContent.toLowerCase().indexOf(q) !== -1);
-        el.hidden = !hit;
-        if(hit) catHas = true;
+  function cmpApi(){ return window.EATLAS_COMPARE || null; }
+  function cmpRemoveMetric(k){
+    var api = cmpApi();
+    if(api && api.removeMetric){ api.removeMetric(k); return; }
+    var card = document.querySelector('.metric-card[data-concept="' + k + '"] .card-remove');
+    if(card) card.click();
+  }
+  function cmpLabel(c){ var api = cmpApi(); return api && api.COUNTRY_LABEL && api.COUNTRY_LABEL[c] || c; }
+  function cmpByLabel(a, b){ return cmpLabel(a).localeCompare(cmpLabel(b)); }
+
+  /* ------------------------------------------------------------------
+     v1.9.83 COMPARE phone sheets: ONE full-screen sheet, used for both
+     Countries and Metrics. Opening it closes anything else first (the
+     old countries panel, the desktop pickers, the shared action sheet),
+     so two layers can never sit on top of each other. Done, the x, the
+     backdrop and the phone's Back button all close it completely.
+     Chosen items first (A to Z, minus to remove), then the rest (A to Z,
+     plus to add), with search on top.
+     ------------------------------------------------------------------ */
+  var CMP_PRESETS = [
+    {name:"G7", list:["Canada","France","Germany","Italy","Japan","UK","US"]},
+    {name:"G20", list:["Argentina","Australia","Brazil","Canada","China","France","Germany","India","Indonesia","Italy","Japan","Mexico","Saudi Arabia","South Africa","South Korea","Turkey","UK","US"]},
+    {name:"EU", list:["Austria","Belgium","Bulgaria","Croatia","Cyprus","Czechia","Denmark","Estonia","Finland","France","Germany","Greece","Hungary","Ireland","Italy","Latvia","Lithuania","Luxembourg","Malta","Netherlands","Poland","Portugal","Romania","Slovakia","Slovenia","Spain","Sweden"]},
+    {name:"Asia-Pacific", list:["Australia","China","Hong Kong","India","Indonesia","Japan","Malaysia","New Zealand","Pakistan","Philippines","Singapore","South Korea","Taiwan","Thailand","Vietnam"]},
+    {name:"Americas", list:["Argentina","Brazil","Canada","Chile","Colombia","Mexico","Peru","US"]}
+  ];
+  var cmpSheetMode = null, cmpSheetPushed = false;
+  function closeOtherLayers(){
+    var panel = document.getElementById("countriesPanelBody");
+    if(panel && panel.style.display === "block") panel.style.display = "none";
+    ["countryModal", "metricPicker"].forEach(function(id){ var m = document.getElementById(id); if(m && !m.hidden) m.hidden = true; });
+    if(typeof closeEaSheet === "function") closeEaSheet();
+  }
+  function openCmpSheet(mode){
+    closeOtherLayers();
+    var keepEntry = !!cmpSheetMode && cmpSheetPushed;   // switching sheets reuses the same Back entry
+    closeCmpSheet(true);
+    cmpSheetMode = mode;
+    var back = document.createElement("div");
+    back.id = "cmpMSheetBack"; back.className = "ea-sheet-backdrop";
+    back.addEventListener("click", function(){ closeCmpSheet(); });
+    var sh = document.createElement("div");
+    sh.id = "cmpMSheet"; sh.setAttribute("role", "dialog"); sh.setAttribute("aria-modal", "true");
+    sh.dataset.mode = mode;
+    var title = mode === "countries" ? "Countries" : "Metrics";
+    sh.setAttribute("aria-label", title);
+    sh.innerHTML = '<div class="cmp-s-head"><h2></h2><button type="button" class="cmp-s-done"></button></div>'
+      + '<input type="search" class="cmp-s-find" autocomplete="off">'
+      + (mode === "countries" ? '<div class="cmp-s-presets" role="group" aria-label="Quick picks"></div><p class="cmp-s-note" hidden></p>' : "")
+      + '<div class="cmp-s-list"></div>';
+    sh.querySelector("h2").textContent = title;
+    var find = sh.querySelector(".cmp-s-find");
+    find.placeholder = mode === "countries" ? "Search countries" : "Search metrics";
+    find.setAttribute("aria-label", find.placeholder);
+    find.addEventListener("input", function(){ renderCmpSheet(); });
+    sh.querySelector(".cmp-s-done").addEventListener("click", function(){ closeCmpSheet(); });
+    if(mode === "countries"){
+      var pre = sh.querySelector(".cmp-s-presets");
+      CMP_PRESETS.forEach(function(p){
+        var b = document.createElement("button");
+        b.type = "button"; b.className = "cmp-s-chip"; b.textContent = p.name; b.dataset.preset = p.name;
+        b.addEventListener("click", function(){ cmpApplyPreset(p.list); });
+        pre.appendChild(b);
       });
-      if(cat) cat.hidden = !catHas;
+      var clr = document.createElement("button");
+      clr.type = "button"; clr.className = "cmp-s-chip cmp-s-clear"; clr.textContent = "Clear all";
+      clr.addEventListener("click", function(){ var api = cmpApi(); if(api) api.setSelected([]); renderCmpSheet(); });
+      pre.appendChild(clr);
     }
-    input.addEventListener("input", filter);
-    new MutationObserver(function(){ if(input.value) filter(); }).observe(gridEl, {childList:true});
-    new MutationObserver(function(){ if(modal.hidden){ input.value = ""; filter(); } })
-      .observe(modal, {attributes:true, attributeFilter:["hidden"]});
+    document.body.appendChild(back);
+    document.body.appendChild(sh);
+    document.body.classList.add("cmp-sheet-open");
+    document.addEventListener("keydown", cmpSheetKey);
+    if(keepEntry) cmpSheetPushed = true;
+    else { try{ history.pushState({cmpSheet:1}, "", location.href); cmpSheetPushed = true; }catch(e){ cmpSheetPushed = false; } }
+    renderCmpSheet();
+  }
+  function cmpSheetKey(e){ if(e.key === "Escape") closeCmpSheet(); }
+  function closeCmpSheet(fromHistory){
+    var sh = document.getElementById("cmpMSheet"), back = document.getElementById("cmpMSheetBack");
+    if(sh) sh.remove();
+    if(back) back.remove();
+    document.body.classList.remove("cmp-sheet-open");
+    document.removeEventListener("keydown", cmpSheetKey);
+    var wasOpen = !!cmpSheetMode;
+    cmpSheetMode = null;
+    if(wasOpen && cmpSheetPushed && !fromHistory){
+      cmpSheetPushed = false;
+      try{ if(history.state && history.state.cmpSheet) history.back(); }catch(e){}
+    }
+    if(fromHistory) cmpSheetPushed = false;
+  }
+  function cmpLoggedIn(){ return !!(window.EATLAS_PREFS && window.EATLAS_PREFS.isLoggedIn && window.EATLAS_PREFS.isLoggedIn()); }
+  function cmpAskSignup(){
+    closeCmpSheet();
+    if(window.EATLAS_OPEN_AUTH_MODAL) window.EATLAS_OPEN_AUTH_MODAL();
+  }
+  function cmpApplyPreset(list){
+    var api = cmpApi(); if(!api) return;
+    var all = api.allCountries();
+    var capped = api.setSelected(list.filter(function(c){ return all.indexOf(c) !== -1; }));
+    if(capped && !cmpLoggedIn()){ cmpAskSignup(); return; }
+    renderCmpSheet();
+  }
+  function cmpRow(label, note, color, chosen, onTap, key){
+    var r = document.createElement("div");
+    r.className = "cmp-s-row" + (chosen ? " on" : "");
+    r.dataset.key = key;
+    var t = document.createElement("span"); t.className = "cmp-s-txt";
+    if(color){ var d = document.createElement("i"); d.className = "cmp-s-dot"; d.style.background = color; t.appendChild(d); }
+    var n = document.createElement("span"); n.className = "cmp-s-name"; n.textContent = label; t.appendChild(n);
+    if(note){ var s2 = document.createElement("small"); s2.textContent = note; t.appendChild(s2); }
+    r.appendChild(t);
+    if(onTap){
+      var b = document.createElement("button");
+      b.type = "button"; b.className = "cmp-s-btn " + (chosen ? "rm" : "ad");
+      b.setAttribute("aria-label", (chosen ? "Remove " : "Add ") + label);
+      b.innerHTML = chosen ? "&minus;" : "+";
+      b.addEventListener("click", onTap);
+      r.appendChild(b);
+    }
+    return r;
+  }
+  function cmpHead(text){ var h = document.createElement("h3"); h.className = "cmp-s-sec"; h.textContent = text; return h; }
+  function renderCmpSheet(){
+    var sh = document.getElementById("cmpMSheet"), api = cmpApi();
+    if(!sh || !api) return;
+    var list = sh.querySelector(".cmp-s-list"), q = sh.querySelector(".cmp-s-find").value.trim().toLowerCase();
+    var done = sh.querySelector(".cmp-s-done");
+    list.innerHTML = "";
+    var match = function(t){ return !q || String(t).toLowerCase().indexOf(q) !== -1; };
+    if(cmpSheetMode === "countries"){
+      var sel = api.getSelected(), max = api.maxSelected();
+      done.textContent = "Done (" + sel.length + ")";
+      var chosen = sel.slice().sort(cmpByLabel).filter(function(c){ return match(cmpLabel(c)); });
+      var rest = api.allCountries().filter(function(c){ return sel.indexOf(c) === -1; }).sort(cmpByLabel).filter(function(c){ return match(cmpLabel(c)); });
+      var note = sh.querySelector(".cmp-s-note");
+      var atCap = sel.length >= max && !cmpLoggedIn();
+      note.hidden = !atCap;
+      note.textContent = atCap ? "Free accounts compare up to " + max + " countries at once. Remove one to swap, or sign up free for more." : "";
+      list.appendChild(cmpHead("Selected (" + sel.length + ")"));
+      if(!sel.length){ var e = document.createElement("p"); e.className = "cmp-s-empty"; e.textContent = "No countries yet. Add some below or pick a group above."; list.appendChild(e); }
+      chosen.forEach(function(c){
+        list.appendChild(cmpRow(cmpLabel(c), "", api.getCountryColor(c), true, function(){ api.toggleCountry(c); renderCmpSheet(); }, c));
+      });
+      list.appendChild(cmpHead("Add more"));
+      rest.forEach(function(c){
+        list.appendChild(cmpRow(cmpLabel(c), "", "", false, function(){
+          if(api.getSelected().length >= api.maxSelected() && !cmpLoggedIn()){ cmpAskSignup(); return; }
+          api.toggleCountry(c); renderCmpSheet();
+        }, c));
+      });
+    } else {
+      var all = api.allMetrics(), on = api.getMetrics();
+      done.textContent = "Done";
+      var byLabel = function(a, b){ return a.label.localeCompare(b.label); };
+      var mine = all.filter(function(m){ return on.indexOf(m.key) !== -1; }).sort(byLabel);
+      var others = all.filter(function(m){ return on.indexOf(m.key) === -1; }).sort(byLabel);
+      list.appendChild(cmpHead("In your comparison (" + mine.length + ")"));
+      mine.filter(function(m){ return match(m.label); }).forEach(function(m){
+        list.appendChild(cmpRow(m.label, "", "", true, mine.length > 1 ? function(){ api.removeMetric(m.key); renderCmpSheet(); } : null, m.key));
+      });
+      list.appendChild(cmpHead("Add more"));
+      others.filter(function(m){ return match(m.label) || match(m.note); }).forEach(function(m){
+        list.appendChild(cmpRow(m.label, m.note, "", false, function(){ api.addMetric(m.key); renderCmpSheet(); }, m.key));
+      });
+    }
+    if(!list.querySelector(".cmp-s-row") && q){
+      var none = document.createElement("p"); none.className = "cmp-s-empty"; none.textContent = "Nothing matches that search."; list.appendChild(none);
+    }
+  }
+
+  /* v1.9.83: in the full-screen chart, a "turn your phone" hint when the
+     chart is too wide to read upright (6+ countries, or a line chart over
+     time). Hidden in landscape by CSS; dismissible for the visit. */
+  var cmpRotateDismissed = false;
+  function cmpChartIsWide(concept){
+    var api = cmpApi(); if(!api) return false;
+    var n = api.getSelected().length;
+    var line = api.getCardChartType && api.getCardChartType(concept) === "line";
+    return n >= 6 || line;
+  }
+  function showRotateHint(concept){
+    var modal = document.getElementById("cardFullscreenModal");
+    if(!modal) return;
+    var hint = document.getElementById("cmpMRotate");
+    if(!hint){
+      var canvas = document.getElementById("cardFullscreenCanvas");
+      var host = canvas && canvas.parentElement;
+      if(!host) return;
+      hint = document.createElement("p");
+      hint.id = "cmpMRotate";
+      hint.innerHTML = '<span class="ic" aria-hidden="true">\u21BB</span><span class="tx">Turn your phone sideways to see the full chart.</span><button type="button" aria-label="Dismiss">&times;</button>';
+      hint.querySelector("button").addEventListener("click", function(){ cmpRotateDismissed = true; hint.hidden = true; });
+      host.parentElement.insertBefore(hint, host);
+    }
+    hint.hidden = !(isMobile() && !cmpRotateDismissed && cmpChartIsWide(concept));
   }
 
   /* ------------------------------------------------------------------

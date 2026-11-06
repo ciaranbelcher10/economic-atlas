@@ -364,7 +364,7 @@ footer.cmp-foot{margin-top:36px; font-size:12.5px; color:var(--ink2); border-top
   "variableMeasured": ["GDP level", "GDP growth rate", "Consumer Price Index (inflation)", "Unemployment rate", "Government debt to GDP", "Trade balance", "Central bank policy rate"]
 }
 </script>
-<link rel="stylesheet" href="mobile.css?v=32">
+<link rel="stylesheet" href="mobile.css?v=33">
 </head>
 <body>
 <nav class="top"><div class="wrap">
@@ -3983,7 +3983,10 @@ var cardMapInstances = {};
 // the visitor's account (via EATLAS_PREFS) if they're logged in.
 // Deliberately no localStorage fallback: logged out, this always starts
 // from the same defaults and never remembers anything, by design.
-var DEFAULT_CONCEPTS = ["gdp_level", "gdp_growth", "cpi"];
+// v1.9.83: phones open on one metric, Unemployment, so the first screen
+// is a short readable ranking (desktop keeps its three starter metrics).
+var CMP_PHONE_START = !!(window.matchMedia && window.matchMedia("(max-width:760px)").matches);
+var DEFAULT_CONCEPTS = CMP_PHONE_START ? ["unemployment"] : ["gdp_level", "gdp_growth", "cpi"];
 var visibleMetrics = DEFAULT_CONCEPTS.slice();
 function saveVisibleMetrics(){
   if(window.EATLAS_PREFS) window.EATLAS_PREFS.set("compareMetrics", visibleMetrics);
@@ -5541,7 +5544,24 @@ window.EATLAS_COMPARE = {
     if(!st) return null;
     return { mode: st.mode, snapshotYear: st.snapshotYear, changeStartYear: st.changeStartYear, changeEndYear: st.changeEndYear };
   },
-  loadSavedSelection: loadSavedSelection
+  loadSavedSelection: loadSavedSelection,
+  // v1.9.83: used by the phone Countries and Metrics sheets in mobile.js,
+  // so they change the comparison through the page's own functions.
+  allCountries: function(){ return ALL_COUNTRIES.slice(); },
+  maxSelected: function(){ return getMaxSelected(); },
+  toggleCountry: function(c){ toggleCountry(c, false); },
+  setSelected: function(arr){
+    var want = (arr || []).filter(function(c){ return COUNTRY_LABEL[c]; });
+    var max = getMaxSelected(), capped = want.length > max;
+    selected = capped ? want.slice(0, max) : want;
+    if(window.EATLAS_PREFS) window.EATLAS_PREFS.set("compareSelectedCountries", selected);
+    renderAll();
+    return capped;
+  },
+  allMetrics: function(){ return ALL_CONCEPT_KEYS.map(function(k){ return {key:k, label:CONCEPT_LABEL[k], note:CONCEPT_EXPLAINER[k] || ""}; }); },
+  getMetrics: function(){ return visibleMetrics.slice(); },
+  addMetric: function(k){ if(CONCEPT_LABEL[k]) addMetric(k); },
+  removeMetric: function(k){ removeMetric(k); }
 };
 })();
 </script>
@@ -7457,6 +7477,6 @@ window.EATLAS_COMPARE = {
   })();
 })();
 </script>
-<script src="mobile.js?v=32" defer></script>
+<script src="mobile.js?v=33" defer></script>
 </body>
 </html>
