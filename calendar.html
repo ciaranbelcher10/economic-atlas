@@ -32,8 +32,8 @@
 <link href="https://fonts.googleapis.com/css2?family=Nunito+Sans:wght@400;600;700&display=swap" rel="stylesheet">
 <link rel="icon" type="image/png" sizes="32x32" href="favicon-32.png">
 <link rel="apple-touch-icon" href="apple-touch-icon.png">
-<link rel="stylesheet" href="style.css?v=56">
-<link rel="stylesheet" href="mobile.css?v=38">
+<link rel="stylesheet" href="style.css?v=57">
+<link rel="stylesheet" href="mobile.css?v=39">
 </head>
 <body>
 <nav class="top"><div class="wrap">
@@ -1311,7 +1311,7 @@
 .ctp-back[hidden]{display:none;}
 .ctp{background:var(--panel); color:var(--ink); border-radius:16px; width:min(1040px,100%); max-height:min(860px,94vh); display:grid; grid-template-rows:auto auto minmax(0,1fr) auto; overflow:hidden; box-shadow:0 24px 60px rgba(0,0,0,.35);}
 .ctp-head{display:flex; align-items:center; gap:12px; padding:18px 22px 10px;}
-.ctp-head h2{font-size:20px; flex:1; margin:0;}
+.ctp-head h2{font-size:24px; line-height:1.2; flex:1; margin:0;}
 .ctp-x{border:none; background:var(--paper); color:var(--ink); width:34px; height:34px; border-radius:50%; cursor:pointer; font-size:18px;}
 .ctp-search{padding:0 22px 14px;}
 .ctp-search input{width:100%; box-sizing:border-box; border:1px solid var(--hair); background:var(--paper); color:var(--ink); border-radius:9px; padding:11px 14px; font:inherit; font-size:15px;}
@@ -1357,7 +1357,7 @@
 .ctp-note{font-size:12px; color:var(--ink2); line-height:1.5; margin:8px 0 0;}
 .ctp-email{margin-top:18px; padding-top:14px; border-top:1px solid var(--hair);}
 .ctp-email label{display:flex; align-items:center; gap:8px; font-size:13.5px; font-weight:700; cursor:pointer;}
-#calCapWarn{border-radius:0;}
+#calCapWarn, #calCapSlim{margin:8px 22px;}
 .ctp-foot{display:flex; align-items:center; gap:14px; padding:14px 22px; border-top:1px solid var(--hair);}
 .ctp-sum{flex:1; font-size:13px; color:var(--ink2); line-height:1.45;}
 .ctp-sum b{color:var(--ink);}
@@ -1441,7 +1441,7 @@
  <div id="calEmailAlertsRow" class="ctp-email"></div>
  </div>
  </div>
- <div class="cap-warn" id="calCapWarn" role="status" hidden><div class="cap-warn-h"><span class="cap-lock" aria-hidden="true"></span><strong></strong></div><p></p><div class="cap-warn-btns"><button type="button" class="cap-signup">Sign up free</button><button type="button" class="cap-login">Log in</button></div></div>
+ <div class="cap-warn" id="calCapWarn" role="status" hidden><span class="cap-lock" aria-hidden="true"></span><div class="cap-body"><strong></strong><p></p><div class="cap-warn-btns"><button type="button" class="cap-signup">Sign up free</button><button type="button" class="cap-login">Log in</button></div></div><button type="button" class="cap-x" aria-label="Close this note">&times;</button></div><div class="cap-slim" id="calCapSlim" hidden><span class="cap-lock" aria-hidden="true"></span><span class="cap-slim-t"></span><button type="button" class="cap-slim-go">Sign up</button></div>
  <div class="ctp-foot">
  <div class="ctp-sum" id="ctpSummary" aria-live="polite"></div>
  <p class="ctp-saved" id="calPickerSubtext"></p>
@@ -2092,10 +2092,13 @@ function wireCalendarInteractions(){
       for(var i = 0; i < max; i++){ var b = document.createElement("i"); if(i < trackedCountries.length) b.className = "on"; slots.appendChild(b); }
       var more = document.createElement("i"); more.className = "more"; slots.appendChild(more);
     }
-    if(warn){
-      warn.querySelector("strong").textContent = "Track all " + ALL_COUNTRIES.length + " countries";
-      warn.querySelector("p").textContent = "Accounts are free and unlock every country's releases, plus email alerts. Or remove a country to swap it.";
-      warn.hidden = !atCap;
+    var slim = document.getElementById("calCapSlim");
+    if(warn && slim){
+      warn.querySelector("strong").textContent = "Want more countries?";
+      warn.querySelector("p").textContent = "A free account unlocks all " + ALL_COUNTRIES.length + ", plus email alerts.";
+      slim.querySelector(".cap-slim-t").textContent = "Free account for all " + ALL_COUNTRIES.length;
+      warn.hidden = !atCap || calCapClosed;
+      slim.hidden = !atCap || !calCapClosed;
       if(!atCap) warn.classList.remove("flag");
     }
     var lab = document.querySelectorAll("#ctpCountries label");
@@ -2107,12 +2110,15 @@ function wireCalendarInteractions(){
     }
     return atCap;
   }
+  // v1.9.91: the card can be closed for the visit; a locked tap brings it back
+  var calCapClosed = false;
   function calCapFlag(){
     var warn = document.getElementById("calCapWarn");
     if(!warn) return;
+    calCapClosed = false;
     warn.hidden = false;
+    var slim = document.getElementById("calCapSlim"); if(slim) slim.hidden = true;
     warn.classList.remove("flag"); void warn.offsetWidth; warn.classList.add("flag");
-    try{ if(navigator.vibrate) navigator.vibrate(40); }catch(e){}
   }
   function renderMetricsPickerGrid(up){
     if(!metricsGrid) return;
@@ -2188,7 +2194,8 @@ function wireCalendarInteractions(){
   if(pickAll) pickAll.addEventListener("click", function(){ setCountries(ALL_COUNTRIES.slice()); });
   var pickNone = document.getElementById("calPickNone");
   if(pickNone) pickNone.addEventListener("click", function(){ setCountries([]); });
-  document.querySelectorAll("#calCapWarn .cap-signup, #calCapWarn .cap-login").forEach(function(b){
+  document.querySelector("#calCapWarn .cap-x").addEventListener("click", function(){ calCapClosed = true; renderCalCap(); });
+  document.querySelectorAll("#calCapWarn .cap-signup, #calCapWarn .cap-login, #calCapSlim .cap-slim-go").forEach(function(b){
     b.addEventListener("click", function(){ closeCountriesModal(); if(window.EATLAS_OPEN_AUTH_MODAL) window.EATLAS_OPEN_AUTH_MODAL(); });
   });
   var ctpDone = document.getElementById("ctpDone");
@@ -2375,6 +2382,6 @@ initCalendar();
 })();
 </script>
 
-<script src="mobile.js?v=37" defer></script>
+<script src="mobile.js?v=38" defer></script>
 </body>
 </html>

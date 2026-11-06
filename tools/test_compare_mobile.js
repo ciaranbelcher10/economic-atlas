@@ -111,13 +111,22 @@ const sorted = a => a.slice().sort((x, y) => x.localeCompare(y));
   ok(names(secRows(1)).join() === "Germany,Japan,United Kingdom,United States", "Selected A to Z: " + names(secRows(1)));
   ok(secRows(1).every(r => r.querySelector(".cmp-s-dot") && r.querySelector(".cmp-s-btn.rm")), "selected rows: colour dot and minus");
   { const n2 = names(secRows(2)); ok(n2.length === api.allCountries().length - 4 && n2.join() === sorted(n2).join(), "Add more: the rest, A to Z (" + n2.length + ")"); }
-  ok(!sheet().querySelector(".cmp-s-warn").hidden && /Compare all \d+ countries/.test(sheet().querySelector(".cmp-s-warn").textContent), "logged out at 4: warning box shown");
+  ok(!sheet().querySelector(".cmp-s-warn").hidden && /Want more countries\?/.test(sheet().querySelector(".cmp-s-warn").textContent) && /unlocks all \d+/.test(sheet().querySelector(".cmp-s-warn").textContent), "logged out at 4: warning box shown");
   /* v1.9.87 salience */
   { const m = sheet().querySelector(".cmp-s-meter"), w = sheet().querySelector(".cmp-s-warn");
     ok(!m.hidden && m.classList.contains("full") && /4 of 4 free countries used/.test(m.textContent), "slot meter shows 4 of 4, marked full");
     ok(m.querySelectorAll(".cmp-s-slots i.on").length === 4 && m.querySelectorAll(".cmp-s-slots i.more").length === 1, "meter: 4 filled slots plus a locked extra");
-    ok(sheet().lastElementChild === w && w.previousElementSibling.classList.contains("cmp-s-list"), "sign-up card pinned below the scrolling list");
-    ok(secRows(2).length > 0 && secRows(2).every(r => r.classList.contains("lk") && r.querySelector(".cmp-s-btn.lk .cmp-s-lock") && /^Sign up free to add /.test(r.querySelector(".cmp-s-btn").getAttribute("aria-label"))), "at the cap every Add more row shows a padlock");
+    ok(w.previousElementSibling.classList.contains("cmp-s-list") && sheet().lastElementChild.classList.contains("cap-slim") && sheet().lastElementChild.hidden, "card pinned below the scrolling list, slim line after it (hidden)");
+    ok(w.classList.contains("cap-warn") && !!w.querySelector(".cap-x"), "card uses the shared quiet style and has a close button");
+    // v1.9.91 close for the visit, slim line stays, a locked tap reopens it
+    w.querySelector(".cap-x").click(); await sleep(30);
+    { const w2 = sheet().querySelector(".cmp-s-warn"), sl = sheet().querySelector(".cap-slim");
+      ok(w2.hidden && !sl.hidden && /Free account for all \d+/.test(sl.textContent), "x closes the card, leaving one slim line");
+      $("#cmpMEdit").click(); await sleep(30);
+      ok(sheet().querySelector(".cmp-s-warn").hidden && !sheet().querySelector(".cap-slim").hidden, "stays closed when the sheet is reopened");
+      sheet().querySelector('.cmp-s-row.lk .cmp-s-btn').click(); await sleep(30);
+      ok(!sheet().querySelector(".cmp-s-warn").hidden && sheet().querySelector(".cap-slim").hidden && sheet().querySelector(".cmp-s-warn").classList.contains("flag"), "a padlock tap reopens the card with a nudge"); }
+    ok(secRows(2).length > 0 && secRows(2).every(r => r.classList.contains("lk") && r.querySelector(".cmp-s-btn.lk .cap-lock") && /^Sign up free to add /.test(r.querySelector(".cmp-s-btn").getAttribute("aria-label"))), "at the cap every Add more row shows a padlock");
     ok(/Sign up free/.test(w.querySelector(".cmp-s-signup").textContent) && /Log in/.test(w.querySelector(".cmp-s-login").textContent), "card offers Sign up free and Log in");
     ok(!/\u2014/.test(w.textContent), "no em dash in the card"); }
   ok(!/small circle/i.test(sheet().textContent), "no desktop colour-circle wording");
@@ -139,7 +148,7 @@ const sorted = a => a.slice().sort((x, y) => x.localeCompare(y));
   // at cap, logged out: no forced log-in; the warning box is flagged and the sheet stays open (v1.9.86)
   { let asked = 0, buzz = 0; win.EATLAS_OPEN_AUTH_MODAL = () => asked++; win.navigator.vibrate = () => { buzz++; return true; };
     sheet().querySelector('.cmp-s-row[data-key="Italy"] .cmp-s-btn.ad').click(); await sleep(100);
-    ok(buzz === 1, "a locked tap buzzes once where supported");
+    ok(buzz === 0, "no buzz: the nudge is visual only");
     const w = () => sheet().querySelector(".cmp-s-warn");
     ok(asked === 0 && !!sheet() && api.getSelected().indexOf("Italy") === -1, "at the free cap, + does not force a log-in and leaves the sheet open");
     ok(!w().hidden && w().classList.contains("flag"), "the warning box is flagged");

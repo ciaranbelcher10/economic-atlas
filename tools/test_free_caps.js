@@ -41,7 +41,13 @@ async function bootCal(phone, store){
     ok(asked === 0, "compare desktop: a 5th country no longer jumps to the log-in form");
     ok(!$("#countryModal").hidden && !$("#cmpCapWarn").hidden && $("#cmpCapWarn").classList.contains("flag"), "the country picker opens with the free-limit card flagged");
     ok(api.getSelected().indexOf("France") === -1, "the 5th country is not added");
-    ok(/Compare all \d+ countries/.test($("#cmpCapWarn").textContent) && /Sign up free/.test($("#cmpCapWarn .cap-signup").textContent) && /Log in/.test($("#cmpCapWarn .cap-login").textContent), "card: headline, Sign up free, Log in");
+    ok(/Want more countries\?/.test($("#cmpCapWarn").textContent) && /unlocks all \d+\./.test($("#cmpCapWarn").textContent) && /Sign up free/.test($("#cmpCapWarn .cap-signup").textContent) && /Log in/.test($("#cmpCapWarn .cap-login").textContent), "card: headline, Sign up free, Log in");
+    $("#cmpCapWarn .cap-x").click(); await sleep(30);
+    ok($("#cmpCapWarn").hidden && !$("#cmpCapSlim").hidden && /Free account for all \d+/.test($("#cmpCapSlim").textContent), "compare desktop: x closes the card, slim line stays");
+    api.toggleCountry("Italy"); await sleep(60);
+    ok(!$("#cmpCapWarn").hidden && $("#cmpCapSlim").hidden, "compare desktop: another locked add reopens the card");
+    { const li = doc.querySelector("#pickerRegions .picker-item.lk input"); li.checked = true; li.dispatchEvent(new win.Event("change", { bubbles: true })); await sleep(60); }
+    ok(!$("#cmpCapWarn").hidden && $("#cmpCapSlim").hidden, "compare desktop: reopened card survives the picker redrawing");
     const m = $("#cmpCapMeter");
     ok(!m.hidden && m.classList.contains("full") && /4 of 4 free countries used/.test(m.textContent) && m.querySelectorAll(".cap-slots i.on").length === 4, "meter: 4 of 4, full");
     const items = [...doc.querySelectorAll("#pickerRegions .picker-item")];
@@ -86,13 +92,24 @@ async function bootCal(phone, store){
     $("#calCountriesBtn").click(); await sleep(60);
     const m = $("#calCapMeter"), w = $("#calCapWarn");
     ok(!$("#calCountriesModal").hidden && !m.hidden && m.classList.contains("full") && /3 of 3 free countries used/.test(m.textContent), tag + ": meter 3 of 3, full");
-    ok(!w.hidden && /Track all \d+ countries/.test(w.textContent) && /email alerts/.test(w.textContent), tag + ": card shown at the cap");
+    ok(!w.hidden && /Want more countries\?/.test(w.textContent) && /unlocks all \d+, plus email alerts/.test(w.textContent), tag + ": card shown at the cap");
     const labs = [...doc.querySelectorAll("#ctpCountries label")];
     ok(labs.filter(l => !l.querySelector("input").checked).every(l => l.classList.contains("lk")) && labs.filter(l => l.querySelector("input").checked).every(l => !l.classList.contains("lk")), tag + ": padlocks on every untracked country only");
     // tick a locked one
     const lk = labs.find(l => l.classList.contains("lk")), li = lk.querySelector("input"), name = li.dataset.country;
     li.checked = true; li.dispatchEvent(new win.Event("change", { bubbles: true })); await sleep(60);
     ok(cal.tracked().indexOf(name) === -1 && !$('#ctpCountries input[data-country="' + name + '"]').checked && w.classList.contains("flag") && asked === 0, tag + ": a locked tick is undone, card flagged, no log-in forced");
+    w.querySelector(".cap-x").click(); await sleep(30);
+    ok(w.hidden && !$("#calCapSlim").hidden, tag + ": x closes the card, slim line stays");
+    $("#calCapSlim .cap-slim-go").click(); await sleep(30);
+    const sent = asked; asked = 0;
+    ok(sent === 1 && $("#calCountriesModal").hidden, tag + ": the slim Sign up closes the picker and opens sign up");
+    $("#calCountriesBtn").click(); await sleep(60);
+    ok(w.hidden && !$("#calCapSlim").hidden, tag + ": still closed when the picker reopens");
+    { const l2 = doc.querySelector("#ctpCountries label.lk input"); l2.checked = true; l2.dispatchEvent(new win.Event("change", { bubbles: true })); await sleep(60); }
+    ok(!w.hidden && $("#calCapSlim").hidden, tag + ": a padlock tap reopens the card");
+    { const sr = $("#ctpSearch"); sr.value = "a"; sr.dispatchEvent(new win.Event("input")); await sleep(30); sr.value = ""; sr.dispatchEvent(new win.Event("input")); await sleep(30); }
+    ok(!w.hidden && $("#calCapSlim").hidden, tag + ": reopened card survives the picker redrawing");
     // All keeps the 3
     $("#calPickAll").click(); await sleep(60);
     ok(cal.tracked().length === 3 && asked === 0, tag + ": All keeps 3 logged out");
@@ -123,7 +140,11 @@ async function bootCal(phone, store){
   { const CAL = fs.readFileSync(path.join(ROOT, "calendar.html"), "utf8");
     ok(/EATLAS_PREFS\.onSettled\(reloadTracked\)/.test(CAL), "calendar re-reads the tracked lists once the account check settles"); }
   { const ST = fs.readFileSync(path.join(ROOT, "style.css"), "utf8");
-    ok(/\.cap-warn\.flag\{animation:capShake/.test(ST) && /prefers-reduced-motion:reduce\)\{ \.cap-warn\.flag\{animation:capPulse/.test(ST), "card shakes, or pulses for reduced motion"); }
+    ok(/\.cap-warn\.flag\{animation:capNudge/.test(ST) && /prefers-reduced-motion:reduce\)\{ \.cap-warn\.flag\{animation:none;\}/.test(ST), "a small nudge, none for reduced motion");
+    ok(!/#FBF1DC|#3A2D12|capShake/.test(ST) && /\.cap-warn\{[^}]*background:var\(--panel\)/.test(ST), "no amber slab: the card uses the page's own panel colour");
+    const MC = fs.readFileSync(path.join(ROOT, "mobile.css"), "utf8");
+    ok(/\.cap-signup, \.cap-login, \.cap-slim-go\{ min-height:44px !important; \}/.test(MC), "phone buttons keep 44pt targets");
+    ok(/\.cmp-s-head h2, \.ctp-head h2, \.modal-content h2\{ font-size:24px !important/.test(MC), "sheet and picker titles 24px like Compare"); }
   console.log("test_free_caps: " + (checks - failures) + " ok, " + failures + " failed");
   process.exit(failures ? 1 : 0);
 })().catch(e => { console.log("  FAIL  crashed: " + e.stack); console.log("test_free_caps: " + (checks - failures) + " ok, " + (failures + 1) + " failed"); process.exit(1); });

@@ -32,7 +32,7 @@
 <link href="https://fonts.googleapis.com/css2?family=Nunito+Sans:wght@400;600;700&display=swap" rel="stylesheet">
 <link rel="icon" type="image/png" sizes="32x32" href="favicon-32.png">
 <link rel="apple-touch-icon" href="apple-touch-icon.png">
-<link rel="stylesheet" href="style.css?v=56">
+<link rel="stylesheet" href="style.css?v=57">
 <style>
 :root{ --map-nodata: #E9EBE7; }
 /* ---- info button + popover (per-card data source & methodology) ---- */
@@ -92,7 +92,8 @@ html[data-theme="dark"]{ --map-nodata: #C4CAC0; }
 .picker-item .dot{width:9px; height:9px; border-radius:50%; flex:none; background:var(--hair);}
 .picker-item.active{border-color:transparent; color:#fff;}
 .picker-item input{position:absolute; opacity:0; pointer-events:none;}
-#countryModal .cap-warn{position:sticky; bottom:-24px; margin:16px -28px -24px; z-index:2;}
+#countryModal .cap-warn, #countryModal .cap-slim{position:sticky; bottom:-24px; z-index:2;}
+#countryModal .cap-slim{background:var(--paper); padding:6px 0; margin:8px 0 0;}
 /* v1.9.76: the per-card "Order countries by" strip had a light inline tint in dark mode. */
 [data-theme="dark"] .card-sort-row{background:var(--panel) !important; border-color:var(--hair) !important;}
 [data-theme="dark"] .card-sort-row > span{color:var(--ink) !important;}
@@ -365,7 +366,7 @@ footer.cmp-foot{margin-top:36px; font-size:12.5px; color:var(--ink2); border-top
   "variableMeasured": ["GDP level", "GDP growth rate", "Consumer Price Index (inflation)", "Unemployment rate", "Government debt to GDP", "Trade balance", "Central bank policy rate"]
 }
 </script>
-<link rel="stylesheet" href="mobile.css?v=38">
+<link rel="stylesheet" href="mobile.css?v=39">
 </head>
 <body>
 <nav class="top"><div class="wrap">
@@ -1709,7 +1710,7 @@ footer.cmp-foot{margin-top:36px; font-size:12.5px; color:var(--ink2); border-top
  </div>
  <div class="cap-meter" id="cmpCapMeter" hidden><div class="cap-meter-txt"></div><div class="cap-slots" aria-hidden="true"></div></div>
  <div id="pickerRegions"></div>
- <div class="cap-warn" id="cmpCapWarn" role="status" hidden><div class="cap-warn-h"><span class="cap-lock" aria-hidden="true"></span><strong></strong></div><p></p><div class="cap-warn-btns"><button type="button" class="cap-signup">Sign up free</button><button type="button" class="cap-login">Log in</button></div></div>
+ <div class="cap-warn" id="cmpCapWarn" role="status" hidden><span class="cap-lock" aria-hidden="true"></span><div class="cap-body"><strong></strong><p></p><div class="cap-warn-btns"><button type="button" class="cap-signup">Sign up free</button><button type="button" class="cap-login">Log in</button></div></div><button type="button" class="cap-x" aria-label="Close this note">&times;</button></div><div class="cap-slim" id="cmpCapSlim" hidden><span class="cap-lock" aria-hidden="true"></span><span class="cap-slim-t"></span><button type="button" class="cap-slim-go">Sign up</button></div>
  </div>
 </div>
 <script src="https://cdnjs.cloudflare.com/ajax/libs/d3/7.8.5/d3.min.js"></script>
@@ -4405,19 +4406,26 @@ function renderCmpCap(){
   var slots = meter.querySelector(".cap-slots"); slots.innerHTML = "";
   for(var i = 0; i < st.max; i++){ var b = document.createElement("i"); if(i < selected.length) b.className = "on"; slots.appendChild(b); }
   var more = document.createElement("i"); more.className = "more"; slots.appendChild(more);
-  warn.querySelector("strong").textContent = "Compare all " + ALL_COUNTRIES.length + " countries";
-  warn.querySelector("p").textContent = "Accounts are free and unlock every economy. Or remove a country to swap it.";
-  warn.hidden = !st.atCap;
+  warn.querySelector("strong").textContent = "Want more countries?";
+  warn.querySelector("p").textContent = "A free account unlocks all " + ALL_COUNTRIES.length + ".";
+  var slim = document.getElementById("cmpCapSlim");
+  slim.querySelector(".cap-slim-t").textContent = "Free account for all " + ALL_COUNTRIES.length;
+  warn.hidden = !st.atCap || cmpCapClosed;
+  slim.hidden = !st.atCap || !cmpCapClosed;
   if(!st.atCap) warn.classList.remove("flag");
   return st;
 }
+// v1.9.91: the card can be closed for the visit; a locked tap brings it back
+var cmpCapClosed = false;
 function cmpCapFlag(){
   if(document.body.classList.contains("cmp-m")) return; // phones use their own sheet
   var modal = document.getElementById("countryModal");
   if(modal && modal.hidden) openCountryModal();
   var warn = document.getElementById("cmpCapWarn");
   if(!warn) return;
+  cmpCapClosed = false;
   warn.hidden = false;
+  var slim = document.getElementById("cmpCapSlim"); if(slim) slim.hidden = true;
   warn.classList.remove("flag"); void warn.offsetWidth; warn.classList.add("flag");
 }
 function renderCountryPicker(){
@@ -4486,7 +4494,8 @@ try {
     renderCountryPicker();
     if(capped) cmpCapFlag();
   });
-  document.querySelectorAll("#cmpCapWarn .cap-signup, #cmpCapWarn .cap-login").forEach(function(b){
+  document.querySelector("#cmpCapWarn .cap-x").addEventListener("click", function(){ cmpCapClosed = true; renderCmpCap(); });
+  document.querySelectorAll("#cmpCapWarn .cap-signup, #cmpCapWarn .cap-login, #cmpCapSlim .cap-slim-go").forEach(function(b){
     b.addEventListener("click", function(){ closeCountryModal(); if(window.EATLAS_OPEN_AUTH_MODAL) window.EATLAS_OPEN_AUTH_MODAL(); });
   });
   document.getElementById("pickerClearAll").addEventListener("click", function(){
@@ -7570,6 +7579,6 @@ window.EATLAS_COMPARE = {
   })();
 })();
 </script>
-<script src="mobile.js?v=37" defer></script>
+<script src="mobile.js?v=38" defer></script>
 </body>
 </html>

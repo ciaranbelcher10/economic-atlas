@@ -1414,7 +1414,7 @@
       + '<input type="search" class="cmp-s-find" autocomplete="off">'
       + (mode === "countries" ? '<div class="cmp-s-presets" role="group" aria-label="Quick picks"></div><div class="cmp-s-meter" hidden><div class="cmp-s-meter-txt"></div><div class="cmp-s-slots" aria-hidden="true"></div></div>' : "")
       + '<div class="cmp-s-list"></div>'
-      + (mode === "countries" ? '<div class="cmp-s-warn" role="status" hidden><div class="cmp-s-warn-h"><span class="cmp-s-lock" aria-hidden="true"></span><strong></strong></div><p></p><div class="cmp-s-warn-btns"><button type="button" class="cmp-s-signup">Sign up free</button><button type="button" class="cmp-s-login">Log in</button></div></div>' : "");
+      + (mode === "countries" ? '<div class="cap-warn cmp-s-warn" role="status" hidden><span class="cap-lock" aria-hidden="true"></span><div class="cap-body"><strong></strong><p></p><div class="cap-warn-btns"><button type="button" class="cap-signup cmp-s-signup">Sign up free</button><button type="button" class="cap-login cmp-s-login">Log in</button></div></div><button type="button" class="cap-x" aria-label="Close this note">&times;</button></div><div class="cap-slim" hidden><span class="cap-lock" aria-hidden="true"></span><span class="cap-slim-t"></span><button type="button" class="cap-slim-go">Sign up</button></div>' : "");
     sh.querySelector("h2").textContent = title;
     var find = sh.querySelector(".cmp-s-find");
     find.placeholder = mode === "countries" ? "Search countries" : "Search metrics";
@@ -1435,6 +1435,8 @@
       pre.insertBefore(all, pre.firstChild);
       sh.querySelector(".cmp-s-signup").addEventListener("click", cmpOpenAuth);
       sh.querySelector(".cmp-s-login").addEventListener("click", cmpOpenAuth);
+      sh.querySelector(".cap-slim-go").addEventListener("click", cmpOpenAuth);
+      sh.querySelector(".cap-x").addEventListener("click", function(){ cmpCapClosed = true; renderCmpSheet(); });
       var clr = document.createElement("button");
       clr.type = "button"; clr.className = "cmp-s-chip cmp-s-clear"; clr.textContent = "Clear all";
       clr.addEventListener("click", function(){ var api = cmpApi(); if(api) api.setSelected([]); renderCmpSheet(); });
@@ -1467,13 +1469,16 @@
   /* v1.9.86: at the free limit nothing forces a log-in; the sheet shows a
      warning box with its own Sign up or log in button, and flags it when a
      tap would go over the limit. */
+  /* v1.9.91: the card is quieter and can be closed for the visit (one slim
+     line stays); a locked tap reopens it with a small nudge. */
+  var cmpCapClosed = false;
   function cmpAskSignup(){
     var sh = document.getElementById("cmpMSheet"), w = sh && sh.querySelector(".cmp-s-warn");
     if(!w) return;
+    cmpCapClosed = false;
     w.hidden = false;
+    var sl = sh.querySelector(".cap-slim"); if(sl) sl.hidden = true;
     w.classList.remove("flag"); void w.offsetWidth; w.classList.add("flag");
-    /* v1.9.87: a short buzz where the phone supports it (Android) */
-    try{ if(navigator.vibrate) navigator.vibrate(40); }catch(e){}
   }
   function cmpOpenAuth(){
     closeCmpSheet();
@@ -1520,10 +1525,13 @@
       var rest = api.allCountries().filter(function(c){ return sel.indexOf(c) === -1; }).sort(cmpByLabel).filter(function(c){ return match(cmpLabel(c)); });
       var warn = sh.querySelector(".cmp-s-warn");
       var atCap = sel.length >= max && !cmpLoggedIn();
-      warn.hidden = !atCap;
+      var slim = sh.querySelector(".cap-slim"), nAll = api.allCountries().length;
+      warn.hidden = !atCap || cmpCapClosed;
+      slim.hidden = !atCap || !cmpCapClosed;
       if(!atCap) warn.classList.remove("flag");
-      warn.querySelector("strong").textContent = "Compare all " + api.allCountries().length + " countries";
-      warn.querySelector("p").textContent = "Accounts are free and unlock every economy. Or remove a country to swap it.";
+      warn.querySelector("strong").textContent = "Want more countries?";
+      warn.querySelector("p").textContent = "A free account unlocks all " + nAll + ".";
+      slim.querySelector(".cap-slim-t").textContent = "Free account for all " + nAll;
       /* v1.9.87: slot meter, always visible when logged out */
       var meter = sh.querySelector(".cmp-s-meter");
       meter.hidden = cmpLoggedIn();
@@ -1547,7 +1555,7 @@
           /* v1.9.87: at the free cap each + becomes a padlock */
           row.classList.add("lk");
           var lb = row.querySelector(".cmp-s-btn");
-          lb.classList.add("lk"); lb.innerHTML = '<span class="cmp-s-lock" aria-hidden="true"></span>';
+          lb.classList.add("lk"); lb.innerHTML = '<span class="cap-lock" aria-hidden="true"></span>';
           lb.setAttribute("aria-label", "Sign up free to add " + cmpLabel(c));
         }
         list.appendChild(row);
