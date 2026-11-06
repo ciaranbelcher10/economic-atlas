@@ -1096,8 +1096,41 @@
       glance.id = "dashGlance";
       grid.insertAdjacentElement("beforebegin", glance);
     }
+    if(document.body.classList.contains("dash-m")){
+      /* v1.9.89: phones get the freshness key and the count on one small line */
+      glance.innerHTML = '<span class="k"><span class="led green" aria-hidden="true"></span>Live</span>'
+        + '<span class="k"><span class="led orange" aria-hidden="true"></span>Awaiting update</span>'
+        + '<span class="n">' + tiles.length + ' metric' + (tiles.length===1?"":"s") + ', ' + countryCount + ' countr' + (countryCount===1?"y":"ies") + '</span>';
+      return;
+    }
     glance.innerHTML = '<b>At a glance:</b> tracking ' + tiles.length + ' metric' + (tiles.length===1?"":"s")
       + ' across ' + countryCount + ' countr' + (countryCount===1?"y":"ies") + '.';
+  }
+  /* v1.9.89 Dashboard on phones: title first, board chips under the intro,
+     one-line intro, toggle explainer behind an (i) button. */
+  function tidyDashPhone(){
+    var wrap = document.getElementById("dashMainWrap");
+    if(!wrap || !isMobile()) return;
+    document.body.classList.add("dash-m");
+    var h1 = wrap.querySelector("h1"), intro = h1 && h1.nextElementSibling;
+    if(intro && intro.tagName === "P" && !intro.classList.contains("dash-m-intro")){
+      var n = (intro.textContent.match(/(\d+) tracked/) || [])[1];
+      intro.classList.add("dash-m-intro");
+      intro.textContent = "Pin any metric from " + (n ? n + " economies" : "any economy") + " into one view.";
+    }
+    var tg = wrap.querySelector(".metric-toggles"), tabs = document.getElementById("dashMobileTabs");
+    if(tabs && tg && tabs.parentNode !== wrap) wrap.insertBefore(tabs, tg);
+    if(tg && !tg.querySelector(".dash-m-info")){
+      var b = document.createElement("button");
+      b.type = "button"; b.className = "dash-m-info"; b.textContent = "i";
+      b.setAttribute("aria-label", "What these switches do"); b.setAttribute("aria-expanded", "false");
+      b.addEventListener("click", function(){
+        var open = !tg.classList.contains("note-open");
+        tg.classList.toggle("note-open", open); b.setAttribute("aria-expanded", open ? "true" : "false");
+      });
+      var dol = document.getElementById("dollariseBtn");
+      if(dol && dol.parentNode === tg) dol.insertAdjacentElement("afterend", b); else tg.appendChild(b);
+    }
   }
   function watchDashGlance(){
     var grid = document.getElementById("dashGrid");
@@ -1845,6 +1878,7 @@
     safeCall(watchCalendarNextUp);
     safeCall(fixStaleCalendarCopy);
     safeCall(simplifyCalendarCopy);
+    safeCall(tidyDashPhone);
     safeCall(watchDashGlance);
     safeCall(initDashOptions);
     safeCall(watchDashTabs);

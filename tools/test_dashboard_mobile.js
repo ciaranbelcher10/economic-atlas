@@ -66,6 +66,28 @@ async function loaded(win, extra){
   ["UK::cpi", "US::cpi", "Japan::cpi", "Germany::cpi", "Eurozone::cpi"].forEach(id => win.EATLAS_DASH.ensurePinned(id));
   await sleep(500);
 
+  /* v1.9.89 tidy: title first, chips under the intro, (i) for the explainer, key + count on one line */
+  { const wrap = doc.getElementById("dashMainWrap"), h1 = wrap.querySelector("h1"), intro = h1.nextElementSibling;
+    const tabs = doc.getElementById("dashMobileTabs"), tg = wrap.querySelector(".metric-toggles");
+    ok(doc.body.classList.contains("dash-m"), "phone dashboard flagged dash-m");
+    ok(intro.classList.contains("dash-m-intro") && /^Pin any metric from \d+ economies into one view\.$/.test(intro.textContent), "intro cut to one line: " + intro.textContent);
+    ok(tabs.parentNode === wrap && tabs.nextElementSibling === tg && h1.compareDocumentPosition(tabs) & 4, "board chips sit under the title, above the toggles");
+    const info = tg.querySelector(".dash-m-info");
+    ok(info && info.previousElementSibling === doc.getElementById("dollariseBtn") && info.getAttribute("aria-expanded") === "false", "(i) button after Dollarise, closed");
+    info.click(); ok(tg.classList.contains("note-open") && info.getAttribute("aria-expanded") === "true", "(i) opens the explainer");
+    info.click(); ok(!tg.classList.contains("note-open"), "(i) closes it again");
+    const g = doc.getElementById("dashGlance");
+    ok(g && g.querySelectorAll(".k .led.green, .k .led.orange").length === 2 && /^5 metrics, 5 countries$/.test(g.querySelector(".n").textContent), "key and count on one line: " + (g && g.textContent));
+    ok(!/At a glance/.test(g.textContent), "no boxed At a glance on phones");
+    win.eval(MOBILE_JS); await sleep(150);
+    ok(doc.querySelectorAll(".dash-m-info").length === 1 && intro.textContent.indexOf("Pin any metric from") === 0, "re-running adds nothing twice"); }
+  { const r = sel => (CSS.match(new RegExp(sel.replace(/[.#()\[\]"=>*+]/g, "\\$&") + "\\{([^}]*)\\}")) || [])[1] || "";
+    ok(/display:none !important/.test(r("  body.dash-m .metric-toggles .mtoggle-note")) && /display:block/.test(r("  body.dash-m .metric-toggles.note-open .mtoggle-note")), "explainer hidden until (i)");
+    ok(/display:none !important/.test(r("  body.dash-m #dashLightskey")), "two-line key hidden on phones");
+    ok(/font-size:22px/.test(r("  body.dash-m #dashMainWrap h1")), "title 22px");
+    ok(/--m-tabbar:48px/.test(CSS) && /font-size:18px/.test(r("  #mobToolbar a .ic")), "bottom bar 48px, 18px icons");
+    ok(/padding-top:12px !important/.test(r('  .wrap[style*="padding:30px 24px 60px"]')) && /padding-top:12px !important/.test(r("  header.page")) && /padding-top:12px !important/.test(r("  .ind-wrap")) && /margin-top:8px !important/.test(r("  .mk-hero")), "titles close under the top bar on every page type"); }
+
   // v1.9.75: toggles stay in the row; Export moves under the tiles, labelled, only when tiles exist
   ok(!doc.getElementById("dashOptsBtn"), "no options button");
   const row = doc.querySelector(".metric-toggles");
