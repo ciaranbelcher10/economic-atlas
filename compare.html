@@ -3953,6 +3953,43 @@ function defaultCardTimeState(concept){
     changeEndYear: end
   };
 }
+// v1.9.88: each card's mode and year(s) are saved (account when logged
+// in, this browser when not); the next render clamps them to the valid
+// range. A year left on the newest available year is
+// saved as "latest", so next year's data is picked up on its own.
+var cardTimeSaveTimer = null;
+function saveCardTimeState(){
+  if(!window.EATLAS_PREFS) return;
+  clearTimeout(cardTimeSaveTimer);
+  cardTimeSaveTimer = setTimeout(function(){
+    var out = {};
+    Object.keys(cardTimeState).forEach(function(k){
+      var st = cardTimeState[k], max = maxYearFor(k);
+      out[k] = {
+        mode: st.mode === "change" ? "change" : "snapshot",
+        snapshotYear: st.snapshotYear >= max ? "latest" : st.snapshotYear,
+        changeStartYear: st.changeStartYear,
+        changeEndYear: st.changeEndYear >= max ? "latest" : st.changeEndYear
+      };
+    });
+    window.EATLAS_PREFS.set("compareCardTime", out);
+  }, 400);
+}
+function restoreCardTimeState(saved){
+  if(!saved || typeof saved !== "object") return;
+  Object.keys(saved).forEach(function(k){
+    var v = saved[k];
+    if(!CONCEPT_LABEL[k] || !v || typeof v !== "object") return;
+    var max = maxYearFor(k), d = defaultCardTimeState(k);
+    var yr = function(x, dflt){ return x === "latest" ? max : (typeof x === "number" && isFinite(x) ? x : dflt); };
+    cardTimeState[k] = {
+      mode: v.mode === "change" ? "change" : "snapshot",
+      snapshotYear: yr(v.snapshotYear, d.snapshotYear),
+      changeStartYear: yr(v.changeStartYear, d.changeStartYear),
+      changeEndYear: yr(v.changeEndYear, d.changeEndYear)
+    };
+  });
+}
 function ensureCardTimeState(concept){
   if(!cardTimeState[concept]) cardTimeState[concept] = defaultCardTimeState(concept);
   return cardTimeState[concept];
@@ -4035,6 +4072,7 @@ var lastAddedMetric = null;
 function removeMetric(key){
   visibleMetrics = visibleMetrics.filter(function(m){ return m !== key; });
   delete cardTimeState[key];
+  saveCardTimeState();
   // Tear down that card's map instance too, if it had one open -- zoom
   // listeners and the SVG both need to go, not just the state object,
   // or repeatedly adding/removing the same metric across a session
@@ -4852,6 +4890,7 @@ function wireCardTimeControls(card, concept){
       snapWrap.hidden = st.mode !== "snapshot";
       changeWrap.hidden = st.mode !== "change";
       refreshOneCard(concept);
+    saveCardTimeState();
     });
   });
   snapWrap.hidden = st.mode !== "snapshot";
@@ -4864,6 +4903,7 @@ function wireCardTimeControls(card, concept){
     st.snapshotYear = +snapSlider.value;
     snapLabel.textContent = st.snapshotYear;
     refreshOneCard(concept);
+    saveCardTimeState();
   });
   [changeStartSlider, changeEndSlider].forEach(function(s){ s.min = minYear; s.max = maxYearFor(concept); });
   changeStartSlider.value = st.changeStartYear;
@@ -4879,6 +4919,7 @@ function wireCardTimeControls(card, concept){
     st.changeStartYear = v;
     updateCardChangeSliderVisuals(card, st);
     refreshOneCard(concept);
+    saveCardTimeState();
   });
   changeEndSlider.addEventListener("input", function(){
     var v = +changeEndSlider.value;
@@ -4886,6 +4927,7 @@ function wireCardTimeControls(card, concept){
     st.changeEndYear = v;
     updateCardChangeSliderVisuals(card, st);
     refreshOneCard(concept);
+    saveCardTimeState();
   });
 }
 // Fills (or refills) a card's chart/ranking content only -- never
@@ -5256,6 +5298,7 @@ loadAll().then(function(){
       if(Array.isArray(saved) && saved.length && saved.every(function(m){ return CONCEPT_LABEL[m]; })){
         visibleMetrics = saved;
       }
+      restoreCardTimeState(window.EATLAS_PREFS.get("compareCardTime", null));
       // Each card's own time controls are now built per-card, inside
       // buildCardShell(), as part of renderAll() -> renderCharts() --
       // no separate page-wide init step needed before that runs.
@@ -5561,7 +5604,10 @@ window.EATLAS_COMPARE = {
   allMetrics: function(){ return ALL_CONCEPT_KEYS.map(function(k){ return {key:k, label:CONCEPT_LABEL[k], note:CONCEPT_EXPLAINER[k] || ""}; }); },
   getMetrics: function(){ return visibleMetrics.slice(); },
   addMetric: function(k){ if(CONCEPT_LABEL[k]) addMetric(k); },
-  removeMetric: function(k){ removeMetric(k); }
+  removeMetric: function(k){ removeMetric(k); },
+  getCardTime: function(k){ var st = cardTimeState[k]; return st ? {mode:st.mode, snapshotYear:st.snapshotYear, changeStartYear:st.changeStartYear, changeEndYear:st.changeEndYear} : null; },
+  maxYearFor: function(k){ return maxYearFor(k); },
+  restoreCardTime: function(saved){ restoreCardTimeState(saved); renderAll(); }
 };
 })();
 </script>
