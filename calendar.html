@@ -33,7 +33,7 @@
 <link rel="icon" type="image/png" sizes="32x32" href="favicon-32.png">
 <link rel="apple-touch-icon" href="apple-touch-icon.png">
 <link rel="stylesheet" href="style.css?v=57">
-<link rel="stylesheet" href="mobile.css?v=39">
+<link rel="stylesheet" href="mobile.css?v=40">
 </head>
 <body>
 <nav class="top"><div class="wrap">
@@ -1309,6 +1309,8 @@
 /* v1.9.65: on phones .ctp-body is a plain block. As a grid with min-height:0 columns, its auto rows shrank below their content and the two columns drew over each other. */
 .ctp-back{position:fixed; inset:0; background:rgba(10,14,18,.55); display:flex; align-items:center; justify-content:center; padding:20px; z-index:1200;}
 .ctp-back[hidden]{display:none;}
+.ctp-back{overscroll-behavior:contain;}
+.ctp-body{overscroll-behavior:contain;}
 .ctp{background:var(--panel); color:var(--ink); border-radius:16px; width:min(1040px,100%); max-height:min(860px,94vh); display:grid; grid-template-rows:auto auto minmax(0,1fr) auto; overflow:hidden; box-shadow:0 24px 60px rgba(0,0,0,.35);}
 .ctp-head{display:flex; align-items:center; gap:12px; padding:18px 22px 10px;}
 .ctp-head h2{font-size:24px; line-height:1.2; flex:1; margin:0;}
@@ -1365,7 +1367,7 @@
 .ctp-btn{border:1px solid var(--hair); background:var(--panel); color:var(--ink); border-radius:9px; padding:9px 18px; font:700 13.5px "Avenir Next","Avenir","Nunito Sans",sans-serif; cursor:pointer;}
 .ctp-btn.primary{background:var(--navy); border-color:var(--navy); color:#fff;}
 .ctp-x:focus-visible,.ctp-btn:focus-visible,.ctp-chips button:focus-visible,.ctp-metrics button:focus-visible,.ctp-quick button:focus-visible{outline:2px solid var(--blue); outline-offset:2px;}
-@media (max-width:760px){ .ctp-back{padding:0; align-items:flex-end;} .ctp{border-radius:18px 18px 0 0; max-height:92vh; height:92vh; padding-top:16px; background-image:linear-gradient(var(--hair),var(--hair)); background-size:40px 5px; background-position:center 8px; background-repeat:no-repeat;} .ctp-body{display:block; overflow:auto; -webkit-overflow-scrolling:touch;} .ctp-col{overflow:visible; min-height:auto;} .ctp-col + .ctp-col{border-left:none; border-top:1px solid var(--hair);} .ctp-countries{grid-template-columns:1fr;} .ctp-foot{flex-wrap:wrap;} .ctp-sum{flex-basis:100%;} .ctp-saved{flex:1;} }
+@media (max-width:760px){ .ctp-back{padding:0; align-items:flex-end;} .ctp{border-radius:18px 18px 0 0; max-height:92vh; height:92vh; padding-top:16px; background-image:linear-gradient(var(--hair),var(--hair)); background-size:40px 5px; background-position:center 8px; background-repeat:no-repeat;} .ctp-body{display:block; overflow:auto; -webkit-overflow-scrolling:touch; overscroll-behavior:contain;} .ctp-col{overflow:visible; min-height:auto;} .ctp-col + .ctp-col{border-left:none; border-top:1px solid var(--hair);} .ctp-countries{grid-template-columns:1fr;} .ctp-foot{flex-wrap:wrap;} .ctp-sum{flex-basis:100%;} .ctp-saved{flex:1;} }
 </style>
 <div class="wrap cm-wrap">
 <header class="page">
@@ -2187,7 +2189,7 @@ function wireCalendarInteractions(){
     var subtext = document.getElementById("calPickerSubtext");
     if(subtext) subtext.textContent = isLoggedIn() ? "Changes save to your account as you go." : "Changes save to this browser as you go.";
     var m = document.getElementById("calCountriesModal");
-    if(m) m.hidden = false;
+    if(m){ m.hidden = false; calLockPage(); }
     if(ctpSearch && window.matchMedia && window.matchMedia("(min-width: 761px)").matches) ctpSearch.focus();
   });
   var pickAll = document.getElementById("calPickAll");
@@ -2214,7 +2216,27 @@ function wireCalendarInteractions(){
       });
     });
   }
-  function closeCountriesModal(){ var m = document.getElementById("calCountriesModal"); if(m) m.hidden = true; }
+  function closeCountriesModal(){ var m = document.getElementById("calCountriesModal"); if(m) m.hidden = true; calUnlockPage(); }
+  /* v1.9.92: while the picker is open the page behind stays still, so a
+     swipe scrolls the country list, never the calendar underneath.
+     position:fixed is the lock iOS Safari respects; the scroll position is
+     put back on close. */
+  var calLockedY = null;
+  function calLockPage(){
+    if(calLockedY !== null) return;
+    calLockedY = window.scrollY || window.pageYOffset || 0;
+    var b = document.body.style;
+    b.position = "fixed"; b.top = (-calLockedY) + "px"; b.left = "0"; b.right = "0"; b.width = "100%";
+    document.body.classList.add("ctp-open");
+  }
+  function calUnlockPage(){
+    if(calLockedY === null) return;
+    var b = document.body.style, y = calLockedY;
+    b.position = ""; b.top = ""; b.left = ""; b.right = ""; b.width = "";
+    document.body.classList.remove("ctp-open");
+    calLockedY = null;
+    window.scrollTo(0, y);
+  }
   var countriesClose = document.getElementById("calCountriesClose");
   if(countriesClose) countriesClose.addEventListener("click", closeCountriesModal);
   var countriesBackdrop = document.getElementById("calCountriesBackdrop");

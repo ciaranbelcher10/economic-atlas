@@ -90,6 +90,22 @@ async function bootCal(phone, store){
     ok(/^3 of 3 free$/.test($("#calCountriesCount").textContent), tag + ": the Countries button says 3 of 3 free: " + $("#calCountriesCount").textContent);
     let asked = 0; win.EATLAS_OPEN_AUTH_MODAL = () => asked++;
     $("#calCountriesBtn").click(); await sleep(60);
+    ok(doc.body.style.position === "fixed" && doc.body.classList.contains("ctp-open"), tag + ": the page behind is locked while the picker is open");
+    $("#ctpDone").click(); await sleep(30);
+    ok(doc.body.style.position === "" && !doc.body.classList.contains("ctp-open"), tag + ": Done unlocks the page");
+    $("#calCountriesBtn").click(); await sleep(30);
+    doc.dispatchEvent(new win.KeyboardEvent("keydown", { key: "Escape" })); await sleep(30);
+    ok(doc.body.style.position === "" && $("#calCountriesModal").hidden, tag + ": Escape closes and unlocks");
+    { let y = 500, went = null;
+      Object.defineProperty(win, "scrollY", { configurable: true, get: () => y });
+      win.scrollTo = (x, yy) => { went = yy; };
+      $("#calCountriesBtn").click(); await sleep(30);
+      ok(doc.body.style.top === "-500px", tag + ": the page is held where it was");
+      y = 0; // a fixed body reads as scrolled to the top
+      $("#calCountriesBtn").click(); await sleep(30);
+      $("#calCountriesClose").click(); await sleep(30);
+      ok(doc.body.style.position === "" && doc.body.style.top === "" && went === 500, tag + ": opening twice still puts the page back where it was (" + went + ")"); }
+    $("#calCountriesBtn").click(); await sleep(60);
     const m = $("#calCapMeter"), w = $("#calCapWarn");
     ok(!$("#calCountriesModal").hidden && !m.hidden && m.classList.contains("full") && /3 of 3 free countries used/.test(m.textContent), tag + ": meter 3 of 3, full");
     ok(!w.hidden && /Want more countries\?/.test(w.textContent) && /unlocks all \d+, plus email alerts/.test(w.textContent), tag + ": card shown at the cap");
@@ -138,13 +154,15 @@ async function bootCal(phone, store){
     b.win.close();
   }
   { const CAL = fs.readFileSync(path.join(ROOT, "calendar.html"), "utf8");
+    ok(/\.ctp-body\{display:block; overflow:auto; -webkit-overflow-scrolling:touch; overscroll-behavior:contain;\}/.test(CAL), "phone picker list never hands its scroll to the page");
     ok(/EATLAS_PREFS\.onSettled\(reloadTracked\)/.test(CAL), "calendar re-reads the tracked lists once the account check settles"); }
   { const ST = fs.readFileSync(path.join(ROOT, "style.css"), "utf8");
     ok(/\.cap-warn\.flag\{animation:capNudge/.test(ST) && /prefers-reduced-motion:reduce\)\{ \.cap-warn\.flag\{animation:none;\}/.test(ST), "a small nudge, none for reduced motion");
     ok(!/#FBF1DC|#3A2D12|capShake/.test(ST) && /\.cap-warn\{[^}]*background:var\(--panel\)/.test(ST), "no amber slab: the card uses the page's own panel colour");
     const MC = fs.readFileSync(path.join(ROOT, "mobile.css"), "utf8");
     ok(/\.cap-signup, \.cap-login, \.cap-slim-go\{ min-height:44px !important; \}/.test(MC), "phone buttons keep 44pt targets");
-    ok(/\.cmp-s-head h2, \.ctp-head h2, \.modal-content h2\{ font-size:24px !important/.test(MC), "sheet and picker titles 24px like Compare"); }
+    ok(/\.cmp-s-head h2, \.ctp-head h2, \.modal-content h2\{ font-size:24px !important/.test(MC), "sheet and picker titles 24px like Compare");
+    ok(/body\.mob-tabbar h1\.hero-h1\{ font-size:26px !important/.test(MC), "home hero 26px on phones"); }
   console.log("test_free_caps: " + (checks - failures) + " ok, " + failures + " failed");
   process.exit(failures ? 1 : 0);
 })().catch(e => { console.log("  FAIL  crashed: " + e.stack); console.log("test_free_caps: " + (checks - failures) + " ok, " + (failures + 1) + " failed"); process.exit(1); });
