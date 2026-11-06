@@ -111,7 +111,15 @@ const sorted = a => a.slice().sort((x, y) => x.localeCompare(y));
   ok(names(secRows(1)).join() === "Germany,Japan,United Kingdom,United States", "Selected A to Z: " + names(secRows(1)));
   ok(secRows(1).every(r => r.querySelector(".cmp-s-dot") && r.querySelector(".cmp-s-btn.rm")), "selected rows: colour dot and minus");
   { const n2 = names(secRows(2)); ok(n2.length === api.allCountries().length - 4 && n2.join() === sorted(n2).join(), "Add more: the rest, A to Z (" + n2.length + ")"); }
-  ok(!sheet().querySelector(".cmp-s-warn").hidden && /Sign up free or log in/.test(sheet().querySelector(".cmp-s-warn").textContent), "logged out at 4: warning box shown");
+  ok(!sheet().querySelector(".cmp-s-warn").hidden && /Compare all \d+ countries/.test(sheet().querySelector(".cmp-s-warn").textContent), "logged out at 4: warning box shown");
+  /* v1.9.87 salience */
+  { const m = sheet().querySelector(".cmp-s-meter"), w = sheet().querySelector(".cmp-s-warn");
+    ok(!m.hidden && m.classList.contains("full") && /4 of 4 free countries used/.test(m.textContent), "slot meter shows 4 of 4, marked full");
+    ok(m.querySelectorAll(".cmp-s-slots i.on").length === 4 && m.querySelectorAll(".cmp-s-slots i.more").length === 1, "meter: 4 filled slots plus a locked extra");
+    ok(sheet().lastElementChild === w && w.previousElementSibling.classList.contains("cmp-s-list"), "sign-up card pinned below the scrolling list");
+    ok(secRows(2).length > 0 && secRows(2).every(r => r.classList.contains("lk") && r.querySelector(".cmp-s-btn.lk .cmp-s-lock") && /^Sign up free to add /.test(r.querySelector(".cmp-s-btn").getAttribute("aria-label"))), "at the cap every Add more row shows a padlock");
+    ok(/Sign up free/.test(w.querySelector(".cmp-s-signup").textContent) && /Log in/.test(w.querySelector(".cmp-s-login").textContent), "card offers Sign up free and Log in");
+    ok(!/\u2014/.test(w.textContent), "no em dash in the card"); }
   ok(!/small circle/i.test(sheet().textContent), "no desktop colour-circle wording");
   ok(["G7", "G20", "EU", "Asia-Pacific", "Americas"].every(n => sheet().querySelector('[data-preset="' + n + '"]')) && !!sheet().querySelector(".cmp-s-clear"), "presets and Clear all");
   ok(!!sheet().querySelector(".cmp-s-all") && sheet().querySelector(".cmp-s-presets").firstElementChild.classList.contains("cmp-s-all"), "Select all leads the quick picks");
@@ -122,14 +130,16 @@ const sorted = a => a.slice().sort((x, y) => x.localeCompare(y));
   sheet().querySelector('.cmp-s-row[data-key="Japan"] .cmp-s-btn.rm').click(); await sleep(250);
   ok(api.getSelected().indexOf("Japan") === -1 && /Done \(3\)/.test(sheet().querySelector(".cmp-s-done").textContent), "minus removes a country, count updates");
   ok(sheet().querySelector(".cmp-s-warn").hidden, "warning box hides below 4");
+  ok(/3 of 4 free/.test(sheet().querySelector(".cmp-s-meter").textContent) && !sheet().querySelector(".cmp-s-meter").classList.contains("full") && !sheet().querySelector(".cmp-s-row.lk"), "below 4: meter not full, no padlocks");
   { const f = sheet().querySelector(".cmp-s-find"); f.value = "fra"; f.dispatchEvent(new win.Event("input"));
     ok(names(secRows(2)).join() === "France", "search finds France: " + names(secRows(2)));
     sheet().querySelector('.cmp-s-row[data-key="France"] .cmp-s-btn.ad').click(); await sleep(250);
     ok(api.getSelected().indexOf("France") !== -1, "+ adds a country");
     f.value = ""; f.dispatchEvent(new win.Event("input")); }
   // at cap, logged out: no forced log-in; the warning box is flagged and the sheet stays open (v1.9.86)
-  { let asked = 0; win.EATLAS_OPEN_AUTH_MODAL = () => asked++;
+  { let asked = 0, buzz = 0; win.EATLAS_OPEN_AUTH_MODAL = () => asked++; win.navigator.vibrate = () => { buzz++; return true; };
     sheet().querySelector('.cmp-s-row[data-key="Italy"] .cmp-s-btn.ad').click(); await sleep(100);
+    ok(buzz === 1, "a locked tap buzzes once where supported");
     const w = () => sheet().querySelector(".cmp-s-warn");
     ok(asked === 0 && !!sheet() && api.getSelected().indexOf("Italy") === -1, "at the free cap, + does not force a log-in and leaves the sheet open");
     ok(!w().hidden && w().classList.contains("flag"), "the warning box is flagged");
@@ -138,7 +148,10 @@ const sorted = a => a.slice().sort((x, y) => x.localeCompare(y));
     ok(asked === 0 && !!sheet() && api.getSelected().length === 4 && !w().hidden, "a 7-country preset logged out: first 4 kept, warning shown, no log-in forced");
     ok(w().classList.contains("flag"), "the cut-down preset flags the warning");
     w().querySelector(".cmp-s-signup").click(); await sleep(40);
-    ok(asked === 1 && !sheet(), "the warning's Sign up or log in button closes the sheet and opens sign up"); }
+    ok(asked === 1 && !sheet(), "the card's Sign up free button closes the sheet and opens sign up");
+    $("#cmpMEdit").click(); await sleep(30);
+    sheet().querySelector(".cmp-s-login").click(); await sleep(40);
+    ok(asked === 2 && !sheet(), "the card's Log in button does the same"); }
   // Clear all
   $("#cmpMEdit").click(); await sleep(30);
   sheet().querySelector(".cmp-s-clear").click(); await sleep(250);
@@ -241,7 +254,12 @@ const sorted = a => a.slice().sort((x, y) => x.localeCompare(y));
   ok(/z-index:1300/.test(rule("  #cmpMSheet")) && /z-index:1299/.test(rule("  #cmpMSheetBack")), "sheet above every other layer");
   ok(/@media \(orientation:landscape\)\{ #cmpMRotate\{ display:none !important; \} \}/.test(CSS), "rotate hint hidden in landscape");
   ok(/display:none !important/.test(rule("  body.cmp-m .metric-card.cmp-m-off")), "inactive cards hidden");
-  ok(/order:2/.test(rule("  body.cmp-m .metric-card > .tpm-layout")), "ranking first");
+  { const o = sel => +((rule("  body.cmp-m .metric-card > " + sel).match(/order:(\d+)/) || [])[1]);
+    ok(o(".card-time-row") < o(".card-avg-readout") && o(".card-avg-readout") < o(".tpm-layout") && o(".tpm-layout") < o(".card-opts-toggle"), "year controls above the ranking, More options below");
+    ok(/order:2/.test(rule("  body.cmp-m .metric-card > .card-change-wrap")) && o(".card-time-row") < 2 && o(".cmp-m-fs") === o(".tpm-layout"), "slider under the mode switch; full-screen button right after the ranking"); }
+  ok(/width:28px; height:28px/.test(rule("  body.cmp-m .metric-card .timeslider::-webkit-slider-thumb")) && /width:28px; height:28px/.test(rule("  body.cmp-m .metric-card .timeslider::-moz-range-thumb")), "year thumb is 28px");
+  ok(/height:44px/.test(rule("  body.cmp-m .metric-card .timeslider")), "slider touch height 44px");
+  ok(/display:none/.test(rule("  body.cmp-m .metric-card .card-time-row .hlabel")), "Compare: label hidden on phones");
   ok(/CMP_PHONE_START \? \["unemployment"\]/.test(HTML), "phone default in compare.html");
   { const cv = +(HTML.match(/mobile\.css\?v=(\d+)/) || [0, 0])[1], jv = +(HTML.match(/mobile\.js\?v=(\d+)/) || [0, 0])[1];
     ok(cv >= 35 && jv >= 35, `compare on mobile.css/js >= v35 (v${cv} / v${jv})`); }

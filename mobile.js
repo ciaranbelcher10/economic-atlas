@@ -1379,8 +1379,9 @@
     sh.setAttribute("aria-label", title);
     sh.innerHTML = '<div class="cmp-s-head"><h2></h2><button type="button" class="cmp-s-done"></button></div>'
       + '<input type="search" class="cmp-s-find" autocomplete="off">'
-      + (mode === "countries" ? '<div class="cmp-s-presets" role="group" aria-label="Quick picks"></div><div class="cmp-s-warn" role="status" hidden><p></p><button type="button" class="cmp-s-signup">Sign up or log in</button></div>' : "")
-      + '<div class="cmp-s-list"></div>';
+      + (mode === "countries" ? '<div class="cmp-s-presets" role="group" aria-label="Quick picks"></div><div class="cmp-s-meter" hidden><div class="cmp-s-meter-txt"></div><div class="cmp-s-slots" aria-hidden="true"></div></div>' : "")
+      + '<div class="cmp-s-list"></div>'
+      + (mode === "countries" ? '<div class="cmp-s-warn" role="status" hidden><div class="cmp-s-warn-h"><span class="cmp-s-lock" aria-hidden="true"></span><strong></strong></div><p></p><div class="cmp-s-warn-btns"><button type="button" class="cmp-s-signup">Sign up free</button><button type="button" class="cmp-s-login">Log in</button></div></div>' : "");
     sh.querySelector("h2").textContent = title;
     var find = sh.querySelector(".cmp-s-find");
     find.placeholder = mode === "countries" ? "Search countries" : "Search metrics";
@@ -1400,6 +1401,7 @@
       all.addEventListener("click", function(){ var api = cmpApi(); if(api) cmpApplyPreset(api.allCountries()); });
       pre.insertBefore(all, pre.firstChild);
       sh.querySelector(".cmp-s-signup").addEventListener("click", cmpOpenAuth);
+      sh.querySelector(".cmp-s-login").addEventListener("click", cmpOpenAuth);
       var clr = document.createElement("button");
       clr.type = "button"; clr.className = "cmp-s-chip cmp-s-clear"; clr.textContent = "Clear all";
       clr.addEventListener("click", function(){ var api = cmpApi(); if(api) api.setSelected([]); renderCmpSheet(); });
@@ -1437,6 +1439,8 @@
     if(!w) return;
     w.hidden = false;
     w.classList.remove("flag"); void w.offsetWidth; w.classList.add("flag");
+    /* v1.9.87: a short buzz where the phone supports it (Android) */
+    try{ if(navigator.vibrate) navigator.vibrate(40); }catch(e){}
   }
   function cmpOpenAuth(){
     closeCmpSheet();
@@ -1485,7 +1489,16 @@
       var atCap = sel.length >= max && !cmpLoggedIn();
       warn.hidden = !atCap;
       if(!atCap) warn.classList.remove("flag");
-      warn.querySelector("p").textContent = "Free accounts compare up to " + max + " countries. Sign up free or log in to add more, or remove one to swap.";
+      warn.querySelector("strong").textContent = "Compare all " + api.allCountries().length + " countries";
+      warn.querySelector("p").textContent = "Accounts are free and unlock every economy. Or remove a country to swap it.";
+      /* v1.9.87: slot meter, always visible when logged out */
+      var meter = sh.querySelector(".cmp-s-meter");
+      meter.hidden = cmpLoggedIn();
+      meter.classList.toggle("full", atCap);
+      meter.querySelector(".cmp-s-meter-txt").textContent = Math.min(sel.length, max) + " of " + max + " free countries used";
+      var slots = meter.querySelector(".cmp-s-slots"); slots.innerHTML = "";
+      for(var si = 0; si < max; si++){ var sl = document.createElement("i"); if(si < sel.length) sl.className = "on"; slots.appendChild(sl); }
+      var more = document.createElement("i"); more.className = "more"; slots.appendChild(more);
       list.appendChild(cmpHead("Selected (" + sel.length + ")"));
       if(!sel.length){ var e = document.createElement("p"); e.className = "cmp-s-empty"; e.textContent = "No countries yet. Add some below or pick a group above."; list.appendChild(e); }
       chosen.forEach(function(c){
@@ -1493,10 +1506,18 @@
       });
       list.appendChild(cmpHead("Add more"));
       rest.forEach(function(c){
-        list.appendChild(cmpRow(cmpLabel(c), "", "", false, function(){
+        var row = cmpRow(cmpLabel(c), "", "", false, function(){
           if(api.getSelected().length >= api.maxSelected() && !cmpLoggedIn()){ cmpAskSignup(); return; }
           api.toggleCountry(c); renderCmpSheet();
-        }, c));
+        }, c);
+        if(atCap){
+          /* v1.9.87: at the free cap each + becomes a padlock */
+          row.classList.add("lk");
+          var lb = row.querySelector(".cmp-s-btn");
+          lb.classList.add("lk"); lb.innerHTML = '<span class="cmp-s-lock" aria-hidden="true"></span>';
+          lb.setAttribute("aria-label", "Sign up free to add " + cmpLabel(c));
+        }
+        list.appendChild(row);
       });
     } else {
       var all = api.allMetrics(), on = api.getMetrics();
