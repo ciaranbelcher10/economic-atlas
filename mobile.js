@@ -1226,10 +1226,12 @@
     if(!bar){
       bar = document.createElement("div");
       bar.id = "cmpMBar";
-      bar.innerHTML = '<div class="cmp-m-chips" id="cmpMChips"></div>'
+      bar.innerHTML = '<div class="cmp-m-chiprow"><button type="button" class="cmp-m-edit" id="cmpMEdit" aria-label="Edit countries">Edit</button>'
+        + '<div class="cmp-m-chips" id="cmpMChips"></div></div>'
         + '<div class="cmp-m-tabrow"><div class="cmp-m-tabs" id="cmpMTabs" role="tablist" aria-label="Metrics"></div>'
         + '<button type="button" class="cmp-m-tab-add" id="cmpMAddMetric">+ Add</button></div>';
       bar.querySelector("#cmpMAddMetric").addEventListener("click", function(){ openCmpSheet("metrics"); });
+      bar.querySelector("#cmpMEdit").addEventListener("click", function(){ openCmpSheet("countries"); });
       toggle.insertAdjacentElement("afterend", bar);
     }
     renderCompareBar();
@@ -1268,12 +1270,10 @@
       b.addEventListener("click", function(){ openCmpSheet("countries"); });
       host.appendChild(b);
     });
-    var add = document.createElement("button");
-    add.type = "button"; add.className = "cmp-m-chip cmp-m-add";
-    add.textContent = chips.length ? "Edit" : "+ Add countries";
-    add.setAttribute("aria-label", "Edit countries");
-    add.addEventListener("click", function(){ openCmpSheet("countries"); });
-    host.appendChild(add);
+    // v1.9.86: Edit is pinned at the left of the row; the chips start from the first country
+    var edit = document.getElementById("cmpMEdit");
+    if(edit) edit.textContent = chips.length ? "Edit" : "+ Add countries";
+    host.scrollLeft = 0;
   }
   function renderCompareBar(){
     renderCompareChips();
@@ -1379,7 +1379,7 @@
     sh.setAttribute("aria-label", title);
     sh.innerHTML = '<div class="cmp-s-head"><h2></h2><button type="button" class="cmp-s-done"></button></div>'
       + '<input type="search" class="cmp-s-find" autocomplete="off">'
-      + (mode === "countries" ? '<div class="cmp-s-presets" role="group" aria-label="Quick picks"></div><p class="cmp-s-note" hidden></p>' : "")
+      + (mode === "countries" ? '<div class="cmp-s-presets" role="group" aria-label="Quick picks"></div><div class="cmp-s-warn" role="status" hidden><p></p><button type="button" class="cmp-s-signup">Sign up or log in</button></div>' : "")
       + '<div class="cmp-s-list"></div>';
     sh.querySelector("h2").textContent = title;
     var find = sh.querySelector(".cmp-s-find");
@@ -1399,6 +1399,7 @@
       all.type = "button"; all.className = "cmp-s-chip cmp-s-all"; all.textContent = "Select all";
       all.addEventListener("click", function(){ var api = cmpApi(); if(api) cmpApplyPreset(api.allCountries()); });
       pre.insertBefore(all, pre.firstChild);
+      sh.querySelector(".cmp-s-signup").addEventListener("click", cmpOpenAuth);
       var clr = document.createElement("button");
       clr.type = "button"; clr.className = "cmp-s-chip cmp-s-clear"; clr.textContent = "Clear all";
       clr.addEventListener("click", function(){ var api = cmpApi(); if(api) api.setSelected([]); renderCmpSheet(); });
@@ -1428,7 +1429,16 @@
     if(fromHistory) cmpSheetPushed = false;
   }
   function cmpLoggedIn(){ return !!(window.EATLAS_PREFS && window.EATLAS_PREFS.isLoggedIn && window.EATLAS_PREFS.isLoggedIn()); }
+  /* v1.9.86: at the free limit nothing forces a log-in; the sheet shows a
+     warning box with its own Sign up or log in button, and flags it when a
+     tap would go over the limit. */
   function cmpAskSignup(){
+    var sh = document.getElementById("cmpMSheet"), w = sh && sh.querySelector(".cmp-s-warn");
+    if(!w) return;
+    w.hidden = false;
+    w.classList.remove("flag"); void w.offsetWidth; w.classList.add("flag");
+  }
+  function cmpOpenAuth(){
     closeCmpSheet();
     if(window.EATLAS_OPEN_AUTH_MODAL) window.EATLAS_OPEN_AUTH_MODAL();
   }
@@ -1436,8 +1446,8 @@
     var api = cmpApi(); if(!api) return;
     var all = api.allCountries();
     var capped = api.setSelected(list.filter(function(c){ return all.indexOf(c) !== -1; }));
-    if(capped && !cmpLoggedIn()){ cmpAskSignup(); return; }
     renderCmpSheet();
+    if(capped && !cmpLoggedIn()) cmpAskSignup();
   }
   function cmpRow(label, note, color, chosen, onTap, key){
     var r = document.createElement("div");
@@ -1471,10 +1481,11 @@
       done.textContent = "Done (" + sel.length + ")";
       var chosen = sel.slice().sort(cmpByLabel).filter(function(c){ return match(cmpLabel(c)); });
       var rest = api.allCountries().filter(function(c){ return sel.indexOf(c) === -1; }).sort(cmpByLabel).filter(function(c){ return match(cmpLabel(c)); });
-      var note = sh.querySelector(".cmp-s-note");
+      var warn = sh.querySelector(".cmp-s-warn");
       var atCap = sel.length >= max && !cmpLoggedIn();
-      note.hidden = !atCap;
-      note.textContent = atCap ? "Free accounts compare up to " + max + " countries at once. Remove one to swap, or sign up free for more." : "";
+      warn.hidden = !atCap;
+      if(!atCap) warn.classList.remove("flag");
+      warn.querySelector("p").textContent = "Free accounts compare up to " + max + " countries. Sign up free or log in to add more, or remove one to swap.";
       list.appendChild(cmpHead("Selected (" + sel.length + ")"));
       if(!sel.length){ var e = document.createElement("p"); e.className = "cmp-s-empty"; e.textContent = "No countries yet. Add some below or pick a group above."; list.appendChild(e); }
       chosen.forEach(function(c){

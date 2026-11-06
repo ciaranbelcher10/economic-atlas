@@ -1,5 +1,6 @@
 #!/usr/bin/env node
 /* v1.9.83/v1.9.85 Compare on phones (attempt 2, built on the v1.9.82 layout).
+ *  v1.9.86: free limit shows a warning box in the sheet (no forced log-in); Edit pinned left of the chips.
  *  v1.9.85: Select all, no double-tap zoom, last metric removable, ranking folds to 4 with Show all.
  *  - first visit: UK, US, Germany, Japan on Unemployment only (desktop keeps its 3 starter metrics)
  *  - sticky bar: country chips (+ Edit) and underlined metric tabs; active tab has its own x
@@ -43,9 +44,10 @@ const sorted = a => a.slice().sort((x, y) => x.localeCompare(y));
 
   /* chips */
   const chipCountries = $$("#chipRow .chip[data-country]").map(c => c.dataset.country);
-  const barChips = () => $$("#cmpMChips .cmp-m-chip:not(.cmp-m-add)");
+  const barChips = () => $$("#cmpMChips .cmp-m-chip");
   ok(barChips().map(b => b.textContent).join() === chipCountries.join(), "one bar chip per selected country");
-  ok($("#cmpMChips .cmp-m-add").textContent === "Edit", "chip bar ends with Edit");
+  ok($("#cmpMEdit").textContent === "Edit" && !$("#cmpMChips #cmpMEdit"), "Edit pinned at the left, outside the scrolling chips (v1.9.86)");
+  ok($(".cmp-m-chiprow").firstElementChild === $("#cmpMEdit"), "Edit is the first thing in the row");
 
   /* ranking + full-screen + rotate */
   const rows = $$(".metric-card:not(.cmp-m-off) .tpm-rankrow");
@@ -109,31 +111,36 @@ const sorted = a => a.slice().sort((x, y) => x.localeCompare(y));
   ok(names(secRows(1)).join() === "Germany,Japan,United Kingdom,United States", "Selected A to Z: " + names(secRows(1)));
   ok(secRows(1).every(r => r.querySelector(".cmp-s-dot") && r.querySelector(".cmp-s-btn.rm")), "selected rows: colour dot and minus");
   { const n2 = names(secRows(2)); ok(n2.length === api.allCountries().length - 4 && n2.join() === sorted(n2).join(), "Add more: the rest, A to Z (" + n2.length + ")"); }
-  ok(!sheet().querySelector(".cmp-s-note").hidden, "logged out at 4: cap note shown");
+  ok(!sheet().querySelector(".cmp-s-warn").hidden && /Sign up free or log in/.test(sheet().querySelector(".cmp-s-warn").textContent), "logged out at 4: warning box shown");
   ok(!/small circle/i.test(sheet().textContent), "no desktop colour-circle wording");
   ok(["G7", "G20", "EU", "Asia-Pacific", "Americas"].every(n => sheet().querySelector('[data-preset="' + n + '"]')) && !!sheet().querySelector(".cmp-s-clear"), "presets and Clear all");
   ok(!!sheet().querySelector(".cmp-s-all") && sheet().querySelector(".cmp-s-presets").firstElementChild.classList.contains("cmp-s-all"), "Select all leads the quick picks");
   // reopen while open: still one layer
-  $("#cmpMChips .cmp-m-add").click(); await sleep(30);
+  $("#cmpMEdit").click(); await sleep(30);
   ok($$("#cmpMSheet").length === 1 && $$("#cmpMSheetBack").length === 1, "opening again never stacks a second layer");
   // remove, then add
   sheet().querySelector('.cmp-s-row[data-key="Japan"] .cmp-s-btn.rm').click(); await sleep(250);
   ok(api.getSelected().indexOf("Japan") === -1 && /Done \(3\)/.test(sheet().querySelector(".cmp-s-done").textContent), "minus removes a country, count updates");
-  ok(sheet().querySelector(".cmp-s-note").hidden, "cap note hides below 4");
+  ok(sheet().querySelector(".cmp-s-warn").hidden, "warning box hides below 4");
   { const f = sheet().querySelector(".cmp-s-find"); f.value = "fra"; f.dispatchEvent(new win.Event("input"));
     ok(names(secRows(2)).join() === "France", "search finds France: " + names(secRows(2)));
     sheet().querySelector('.cmp-s-row[data-key="France"] .cmp-s-btn.ad').click(); await sleep(250);
     ok(api.getSelected().indexOf("France") !== -1, "+ adds a country");
     f.value = ""; f.dispatchEvent(new win.Event("input")); }
-  // at cap, logged out: + asks to sign up instead of silently failing
+  // at cap, logged out: no forced log-in; the warning box is flagged and the sheet stays open (v1.9.86)
   { let asked = 0; win.EATLAS_OPEN_AUTH_MODAL = () => asked++;
     sheet().querySelector('.cmp-s-row[data-key="Italy"] .cmp-s-btn.ad').click(); await sleep(100);
-    ok(asked === 1 && !sheet() && api.getSelected().indexOf("Italy") === -1, "at the free cap, + closes the sheet and offers sign up");
-    $("#cmpMChips .cmp-m-add").click(); await sleep(30);
+    const w = () => sheet().querySelector(".cmp-s-warn");
+    ok(asked === 0 && !!sheet() && api.getSelected().indexOf("Italy") === -1, "at the free cap, + does not force a log-in and leaves the sheet open");
+    ok(!w().hidden && w().classList.contains("flag"), "the warning box is flagged");
+    w().classList.remove("flag");
     sheet().querySelector('[data-preset="G7"]').click(); await sleep(250);
-    ok(asked === 2 && !sheet() && api.getSelected().length === 4, "a 7-country preset logged out: first 4 kept, sign up offered"); }
+    ok(asked === 0 && !!sheet() && api.getSelected().length === 4 && !w().hidden, "a 7-country preset logged out: first 4 kept, warning shown, no log-in forced");
+    ok(w().classList.contains("flag"), "the cut-down preset flags the warning");
+    w().querySelector(".cmp-s-signup").click(); await sleep(40);
+    ok(asked === 1 && !sheet(), "the warning's Sign up or log in button closes the sheet and opens sign up"); }
   // Clear all
-  $("#cmpMChips .cmp-m-add").click(); await sleep(30);
+  $("#cmpMEdit").click(); await sleep(30);
   sheet().querySelector(".cmp-s-clear").click(); await sleep(250);
   ok(api.getSelected().length === 0 && /Done \(0\)/.test(sheet().querySelector(".cmp-s-done").textContent), "Clear all empties the selection");
   ok(/No countries yet/.test(sheet().textContent), "empty Selected says what to do");
@@ -143,22 +150,23 @@ const sorted = a => a.slice().sort((x, y) => x.localeCompare(y));
   win.dispatchEvent(new win.PopStateEvent("popstate", { state: null })); await sleep(30);
   ok(!sheet() && !$("#cmpMSheetBack") && !doc.body.classList.contains("cmp-sheet-open"), "Back closes the sheet");
   // backdrop + Escape
-  $("#cmpMChips .cmp-m-add").click(); await sleep(30); $("#cmpMSheetBack").click(); await sleep(30);
+  $("#cmpMEdit").click(); await sleep(30); $("#cmpMSheetBack").click(); await sleep(30);
   ok(!sheet(), "backdrop closes the sheet");
-  $("#cmpMChips .cmp-m-add").click(); await sleep(30); doc.dispatchEvent(new win.KeyboardEvent("keydown", { key: "Escape" })); await sleep(30);
+  $("#cmpMEdit").click(); await sleep(30); doc.dispatchEvent(new win.KeyboardEvent("keydown", { key: "Escape" })); await sleep(30);
   ok(!sheet(), "Escape closes the sheet");
   // switching sheets replaces, never stacks
-  $("#cmpMChips .cmp-m-add").click(); await sleep(30); $("#cmpMAddMetric").click(); await sleep(30);
+  $("#cmpMEdit").click(); await sleep(30); $("#cmpMAddMetric").click(); await sleep(30);
   ok($$("#cmpMSheet").length === 1 && sheet().dataset.mode === "metrics", "Countries then Metrics: one sheet");
-  { const h0 = win.history.length; $("#cmpMChips .cmp-m-add").click(); await sleep(30);
+  { const h0 = win.history.length; $("#cmpMEdit").click(); await sleep(30);
     ok(win.history.length === h0, "switching sheets adds no extra Back step"); }
   sheet().querySelector(".cmp-s-done").click(); await sleep(30);
 
   /* v1.9.85 Select all: logged out keeps 4 and offers sign up */
   { let asked = 0; win.EATLAS_OPEN_AUTH_MODAL = () => asked++;
-    $("#cmpMChips .cmp-m-add").click(); await sleep(30);
+    $("#cmpMEdit").click(); await sleep(30);
     sheet().querySelector(".cmp-s-all").click(); await sleep(250);
-    ok(asked === 1 && !sheet() && api.getSelected().length === 4, "Select all logged out: 4 kept, sign up offered"); }
+    ok(asked === 0 && !!sheet() && api.getSelected().length === 4 && !sheet().querySelector(".cmp-s-warn").hidden, "Select all logged out: 4 kept, warning shown, no log-in forced");
+    sheet().querySelector(".cmp-s-done").click(); await sleep(30); }
 
   /* rotate hint when wide */
   api.setSelected(["UK", "US", "Germany", "Japan"]); await sleep(250);
@@ -228,6 +236,7 @@ const sorted = a => a.slice().sort((x, y) => x.localeCompare(y));
   ok(/min-height:44px/.test(rule("  .cmp-m-tab")) && /height:44px/.test(rule("  .cmp-m-tab-x")), "tabs and x 44px tall");
   ok(/font-size:16px/.test(rule("  .cmp-s-find")), "search 16px (no iOS zoom)");
   ok(/touch-action:manipulation/.test(rule("  #cmpMSheet button, #cmpMBar button, .cmp-m-more, .cmp-m-fs")), "no double-tap zoom on sheet, bar and ranking buttons");
+  ok(/flex:none/.test(rule("  .cmp-m-edit")) && /min-width:0/.test(rule("  .cmp-m-chiprow > .cmp-m-chips")), "Edit fixed, chips scroll beside it");
   ok(/flex-wrap:wrap/.test(rule("  .cmp-s-presets")) && !/overflow-x/.test(rule("  .cmp-s-presets")), "quick picks wrap, all visible");
   ok(/z-index:1300/.test(rule("  #cmpMSheet")) && /z-index:1299/.test(rule("  #cmpMSheetBack")), "sheet above every other layer");
   ok(/@media \(orientation:landscape\)\{ #cmpMRotate\{ display:none !important; \} \}/.test(CSS), "rotate hint hidden in landscape");
@@ -235,7 +244,7 @@ const sorted = a => a.slice().sort((x, y) => x.localeCompare(y));
   ok(/order:2/.test(rule("  body.cmp-m .metric-card > .tpm-layout")), "ranking first");
   ok(/CMP_PHONE_START \? \["unemployment"\]/.test(HTML), "phone default in compare.html");
   { const cv = +(HTML.match(/mobile\.css\?v=(\d+)/) || [0, 0])[1], jv = +(HTML.match(/mobile\.js\?v=(\d+)/) || [0, 0])[1];
-    ok(cv >= 34 && jv >= 34, `compare on mobile.css/js >= v34 (v${cv} / v${jv})`); }
+    ok(cv >= 35 && jv >= 35, `compare on mobile.css/js >= v35 (v${cv} / v${jv})`); }
 
   console.log(`test_compare_mobile: ${checks - failures} ok, ${failures} failed`);
   process.exit(failures ? 1 : 0);
