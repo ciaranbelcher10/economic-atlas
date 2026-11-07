@@ -1186,9 +1186,10 @@
 <header class="mk-hero">
  <p class="mk-kicker"><span class="mk-pulse" aria-hidden="true"></span>Markets</p>
  <h1>Bond yields and exchange rates, economy by economy</h1>
- <p class="mk-sub">Official figures from central banks, finance ministries and statistics offices. Each one shows the date it covers and where it comes from.</p>
+ <p class="mk-sub">Official figures from central banks and statistics offices, each with its date and source.</p>
  <div class="mk-ticker" id="mkTicker" aria-label="Headline market figures"></div>
 </header>
+<nav class="mk-jump" id="mkJump" aria-label="Jump to a section"><button type="button" data-to="chart-yields">Bonds</button><button type="button" data-to="chart-fx">Currencies</button><button type="button" data-to="chart-daily">Daily yields</button><button type="button" data-to="tables">Tables</button></nav>
 <style>
 .mk-hero{position:relative; overflow:hidden; color:#fff; border-radius:20px; margin:18px 0 22px; padding:34px 34px 26px;
   background:radial-gradient(1200px 400px at 85% -10%, rgba(64,183,173,.35), transparent 60%), radial-gradient(900px 500px at -10% 120%, rgba(71,150,206,.35), transparent 60%), linear-gradient(135deg,#0B1F33 0%,#14324F 45%,#1E4566 100%);}
@@ -1237,17 +1238,76 @@ html[data-theme="dark"] table.mk td.up{color:#6FCB96;} html[data-theme="dark"] t
 .mk-empty{color:var(--ink2); font-size:14px;}
 table.mk a{color:inherit; text-decoration:none;}
 table.mk a.ea-cty{font-weight:700; border-bottom:none;}
+
+/* v1.9.94 Markets overhaul: jump bar, short charts, one table at a time, notes behind (i) */
+.mk-jump{position:sticky; top:0; z-index:20; display:flex; gap:8px; padding:10px 0; margin:-8px 0 12px; background:var(--paper); overflow-x:auto; scrollbar-width:none;}
+.mk-jump::-webkit-scrollbar, .mk-chips::-webkit-scrollbar, .mk-ticker::-webkit-scrollbar{display:none;}
+.mk-jump button, .mk-chips button, .mk-more{font:inherit; font-size:14px; font-weight:600; color:var(--ink); background:var(--panel); border:1px solid var(--hair); border-radius:999px; padding:8px 14px; cursor:pointer; white-space:nowrap; flex:0 0 auto;}
+.mk-jump button.on, .mk-chips button[aria-pressed="true"]{background:var(--ink); color:var(--paper); border-color:var(--ink);}
+.mk-chips{display:flex; flex-wrap:wrap; gap:6px; margin:6px 0 8px;}
+.mk-chips button{font-size:13px; padding:6px 12px;}
+.mk-more{display:block; margin:10px auto 0;}
+.mk-more[hidden]{display:none;}
+.mk-card h2, .mk-sec h2, .mk-full{display:flex; align-items:center; gap:6px;}
+.mk-i{flex:0 0 auto; display:inline-flex; align-items:center; justify-content:center; width:26px; height:26px; padding:0; border:none; background:none; cursor:pointer; color:var(--ink2);}
+.mk-i span{display:inline-flex; align-items:center; justify-content:center; width:18px; height:18px; border-radius:50%; border:1.5px solid currentColor; font:italic 700 11px Georgia,serif;}
+.mk-i[aria-expanded="true"]{color:var(--ink);}
+.mk-note[hidden]{display:none;}
+#chart-yields, #chart-fx, #chart-daily, #tables{scroll-margin-top:64px;}
+.mk-legend{color:var(--ink2); font-size:14px; margin:4px 0 12px;}
+.mk-legend .mk-led{margin-left:10px;} .mk-legend .mk-led:first-child{margin-left:0;}
+.mk-tbar{display:flex; flex-wrap:wrap; align-items:center; gap:8px 12px; margin:0 0 12px;}
+.mk-tbar .mk-chips{margin:0;}
+.mk-find{font:inherit; font-size:15px; color:var(--ink); background:var(--panel); border:1px solid var(--hair); border-radius:10px; padding:8px 12px; min-width:220px;}
+.mk-sec.mk-off{display:none;}
+.mk-none{color:var(--ink2); font-size:14px; margin:8px 0 0;}
+table.mk tbody tr:not(.mk-det){cursor:pointer;}
+table.mk tr.mk-hide{display:none;}
+table.mk tr.mk-open td{border-bottom-color:transparent;}
+table.mk tr.mk-det td{white-space:normal; padding:2px 8px 12px 23px; color:var(--ink2); font-size:13.5px; line-height:1.5;}
+table.mk tr.mk-det b{color:var(--ink); font-weight:600;}
+@media (max-width:760px){
+  .mk-hero{margin:8px 0 10px !important; padding:16px 16px 14px !important; border-radius:16px;}
+  .mk-kicker{display:none;}
+  .mk-hero h1{font-size:24px; line-height:1.15; margin:0 0 6px;}
+  .mk-sub{font-size:14px; margin:0 0 12px;}
+  .mk-ticker{display:flex; overflow-x:auto; scroll-snap-type:x mandatory; gap:8px; margin:0 -16px; padding:0 16px 2px; scrollbar-width:none;}
+  .mk-tick{flex:0 0 132px; scroll-snap-align:start; padding:9px 10px 7px;}
+  .mk-tick:hover{transform:none;}
+  .mk-tick .v{font-size:20px;} .mk-tick svg{height:22px;}
+  .mk-jump{top:var(--m-head-h,0px); margin:0 -16px 10px; padding:6px 16px;}
+  .mk-jump button{min-height:44px; padding:0 14px; font-size:15px;}
+  #chart-yields, #chart-fx, #chart-daily, #tables{scroll-margin-top:calc(var(--m-head-h,0px) + 64px);}
+  .mk-grid{gap:12px; margin:0 0 18px;}
+  .mk-card, .mk-sec{padding:14px; border-radius:14px;}
+  .mk-sec{margin:0 0 12px;}
+  .mk-card h2, .mk-sec h2{font-size:18px;}
+  .mk-full{font-size:20px;}
+  .mk-i{width:44px; height:44px; margin:-10px -10px -10px -6px;}
+  .mk-chips{flex-wrap:nowrap; overflow-x:auto; margin:4px -14px 6px; padding:0 14px; scrollbar-width:none;}
+  .mk-chips button{min-height:44px; padding:0 14px; font-size:14px;}
+  .mk-tbar{display:block;} .mk-tbar .mk-chips{margin:0 -16px 8px; padding:0 16px;}
+  .mk-find{display:block; width:100%; box-sizing:border-box; font-size:16px; min-height:44px; min-width:0;}
+  .mk-more{min-height:44px; width:100%;}
+  .mk-scroll{overflow:visible;}
+  table.mk{min-width:0; font-size:15px;}
+  table.mk td{padding:12px 6px;} table.mk th{padding:6px;}
+  table.mk tr.mk-det td{padding:0 6px 12px 21px;}
+}
 </style>
 <div class="mk-grid">
  <section class="mk-card mk-wide" id="chart-yields">
   <h2>Borrowing costs around the world</h2>
   <p class="mk-note">The 10-year government bond yield in each economy for the latest month or quarter. A higher yield means the government pays more to borrow for ten years. Select a bar to open that economy.</p>
+  <div class="mk-chips" id="mkYRegions" role="group" aria-label="Region"></div>
   <div id="cYields" class="mk-chart"></div>
+  <button type="button" class="mk-more" id="mkYMore" hidden></button>
  </section>
  <section class="mk-card" id="chart-fx">
   <h2>Currency scoreboard</h2>
   <p class="mk-note">Change against the US dollar over the past year, from the Federal Reserve's daily rates. Bars to the right of the line are currencies that buy more dollars than a year ago. Select a bar to open that economy.</p>
   <div id="cFx" class="mk-chart"></div>
+  <button type="button" class="mk-more" id="mkFMore" hidden></button>
  </section>
  <section class="mk-card" id="chart-daily">
   <h2>A year in daily 10-year yields</h2>
@@ -1256,8 +1316,10 @@ table.mk a.ea-cty{font-weight:700; border-bottom:none;}
  </section>
 </div>
 
-<h2 class="mk-full">The numbers in full</h2>
-<p class="mk-intro">Every row shows the date of its latest figure and where it comes from. The light beside each one is green when the figure is as recent as its source normally allows, amber when it is overdue, and red when it is well overdue. Select a column heading to sort.</p>
+<h2 class="mk-full" id="tables">The numbers in full</h2>
+<p class="mk-legend"><span class="mk-led green"></span>Up to date <span class="mk-led amber"></span>Overdue <span class="mk-led red"></span>Well overdue. Tap a row for more detail and its source; select a heading to sort.</p>
+<div class="mk-tbar"><div class="mk-chips" id="mkTabs" role="group" aria-label="Table"><button type="button" data-sec="yields" aria-pressed="true">10-year yields</button><button type="button" data-sec="policy" aria-pressed="false">Policy rates</button><button type="button" data-sec="yields-daily" aria-pressed="false">Daily yields</button><button type="button" data-sec="yields-other" aria-pressed="false">Other yields</button><button type="button" data-sec="fx" aria-pressed="false">Currencies</button><button type="button" data-sec="fx-annual" aria-pressed="false">Annual currencies</button></div><input type="search" class="mk-find" id="mkFind" placeholder="Find a country or currency" aria-label="Find a country or currency" autocomplete="off"></div>
+<p class="mk-none" id="mkNone" hidden>No rows match.</p>
 
 <section class="mk-sec" id="yields">
  <h2>10-year government bond yields</h2>
@@ -1364,6 +1426,7 @@ function render(id, rows, cols){
   tb.innerHTML = rows.map(function(r){ return "<tr>" + r.cells + "</tr>"; }).join("");
   var table = document.getElementById(id);
   table._rows = rows;
+  afterRows(id);
 }
 function sortable(id){
   var table = document.getElementById(id);
@@ -1377,9 +1440,128 @@ function sortable(id){
         return (typeof x === "number" ? x - y : String(x).localeCompare(String(y))) * dir;
       });
       table.querySelector("tbody").innerHTML = rows.map(function(r){ return "<tr>" + r.cells + "</tr>"; }).join("");
+      afterRows(id);
     });
   });
 }
+// Tables (v1.9.94): source column hidden, more columns hidden on phones;
+// tapping a row opens a detail line with whatever is hidden. One table shows
+// at a time (#mkTabs) and #mkFind filters its rows by the first cell.
+var PHONE_COLS = {tYields:[0,1,3], tPolicy:[0,1,5], tDaily:[0,1,3], tOther:[0,2,4], tFx:[0,1,5], tFxA:[0,1,3]};
+window.__mkPhoneCols = PHONE_COLS;
+function isPhone(){ return !!(window.matchMedia && window.matchMedia("(max-width:760px)").matches); }
+function hiddenCols(id){
+  var n = document.querySelectorAll("#" + id + " thead th").length, keep = isPhone() ? PHONE_COLS[id] : null, out = [];
+  for(var i = 0; i < n; i++){ if(keep ? keep.indexOf(i) < 0 : i === n - 1) out.push(i); }
+  return out;
+}
+(function(){
+  var css = "";
+  Object.keys(PHONE_COLS).forEach(function(id){
+    var n = document.querySelectorAll("#" + id + " thead th").length;
+    css += "#" + id + " th:nth-child(" + n + "),#" + id + " tr:not(.mk-det) td:nth-child(" + n + "){display:none}";
+  });
+  var ph = "";
+  Object.keys(PHONE_COLS).forEach(function(id){
+    var n = document.querySelectorAll("#" + id + " thead th").length;
+    for(var i = 0; i < n; i++){ if(PHONE_COLS[id].indexOf(i) < 0) ph += "#" + id + " th:nth-child(" + (i + 1) + "),#" + id + " tr:not(.mk-det) td:nth-child(" + (i + 1) + "){display:none}"; }
+  });
+  var st = document.createElement("style"); st.id = "mkColCss";
+  st.textContent = css + "@media (max-width:760px){" + ph + "}";
+  document.head.appendChild(st);
+})();
+function findText(){ var f = document.getElementById("mkFind"); return f ? f.value.trim().toLowerCase() : ""; }
+function applyFind(){
+  var q = findText(), sec = document.querySelector(".mk-sec:not(.mk-off)"), shown = 0, total = 0;
+  if(!sec) return;
+  Array.prototype.forEach.call(sec.querySelectorAll("tbody tr"), function(tr){
+    if(tr.classList.contains("mk-det")){ tr.classList.toggle("mk-hide", tr.previousElementSibling && tr.previousElementSibling.classList.contains("mk-hide")); return; }
+    if(tr.querySelector(".mk-empty")) return;
+    total++;
+    var hit = !q || tr.cells[0].textContent.toLowerCase().indexOf(q) >= 0;
+    tr.classList.toggle("mk-hide", !hit);
+    var det = tr.nextElementSibling; if(det && det.classList.contains("mk-det")) det.classList.toggle("mk-hide", !hit);
+    if(hit) shown++;
+  });
+  var none = document.getElementById("mkNone"); if(none) none.hidden = !(q && total && !shown);
+}
+function afterRows(id){
+  Array.prototype.forEach.call(document.querySelectorAll("#" + id + " tbody tr"), function(tr){
+    if(tr.querySelector(".mk-empty")) return;
+    tr.tabIndex = 0; tr.setAttribute("aria-expanded", "false");
+  });
+  applyFind();
+}
+function toggleRow(table, tr){
+  var det = tr.nextElementSibling;
+  if(det && det.classList.contains("mk-det")){ det.parentNode.removeChild(det); tr.classList.remove("mk-open"); tr.setAttribute("aria-expanded", "false"); return; }
+  var heads = table.querySelectorAll("thead th"), cols = hiddenCols(table.id);
+  var bits = cols.map(function(i){ var c = tr.cells[i]; return c ? "<b>" + esc(heads[i].textContent) + ":</b> " + esc(c.textContent.trim()) : ""; }).filter(Boolean);
+  var row = document.createElement("tr"); row.className = "mk-det";
+  row.innerHTML = '<td colspan="' + heads.length + '">' + bits.join("<br>") + "</td>";
+  tr.parentNode.insertBefore(row, tr.nextSibling);
+  tr.classList.add("mk-open"); tr.setAttribute("aria-expanded", "true");
+}
+Object.keys(PHONE_COLS).forEach(function(id){
+  var table = document.getElementById(id); if(!table) return;
+  var tb = table.querySelector("tbody");
+  tb.addEventListener("click", function(e){
+    if(e.target.closest("a")) return;
+    var tr = e.target.closest("tr"); if(!tr || tr.classList.contains("mk-det") || tr.querySelector(".mk-empty")) return;
+    toggleRow(table, tr);
+  });
+  tb.addEventListener("keydown", function(e){
+    if(e.key !== "Enter" && e.key !== " ") return;
+    var tr = e.target; if(!tr || tr.tagName !== "TR" || tr.classList.contains("mk-det")) return;
+    e.preventDefault(); toggleRow(table, tr);
+  });
+});
+(function(){
+  var tabs = document.getElementById("mkTabs"); if(!tabs) return;
+  function show(secId){
+    Array.prototype.forEach.call(tabs.querySelectorAll("button"), function(b){
+      var on = b.getAttribute("data-sec") === secId; b.setAttribute("aria-pressed", on ? "true" : "false");
+      var sec = document.getElementById(b.getAttribute("data-sec")); if(sec) sec.classList.toggle("mk-off", !on);
+    });
+    applyFind();
+  }
+  window.__mkShowTable = show;
+  tabs.addEventListener("click", function(e){ var b = e.target.closest("button"); if(b) show(b.getAttribute("data-sec")); });
+  var f = document.getElementById("mkFind"); if(f) f.addEventListener("input", applyFind);
+  show("yields");
+})();
+// Notes sit behind an (i) button beside each heading.
+Array.prototype.forEach.call(document.querySelectorAll(".mk-card > h2, .mk-sec > h2"), function(h, n){
+  var note = h.parentNode.querySelector(".mk-note"); if(!note) return;
+  note.id = note.id || "mkNote" + n; note.hidden = true;
+  var b = document.createElement("button");
+  b.type = "button"; b.className = "mk-i"; b.setAttribute("aria-expanded", "false"); b.setAttribute("aria-controls", note.id);
+  b.setAttribute("aria-label", "About " + h.textContent.trim()); b.innerHTML = "<span>i</span>";
+  b.addEventListener("click", function(){ note.hidden = !note.hidden; b.setAttribute("aria-expanded", note.hidden ? "false" : "true"); });
+  h.appendChild(b);
+});
+// Jump bar: buttons scroll to their section; the one in view is marked.
+(function(){
+  var bar = document.getElementById("mkJump"); if(!bar) return;
+  var btns = Array.prototype.slice.call(bar.querySelectorAll("button"));
+  function mark(id){ btns.forEach(function(b){ b.classList.toggle("on", b.getAttribute("data-to") === id); }); }
+  window.__mkJumpMark = mark;
+  bar.addEventListener("click", function(e){
+    var b = e.target.closest("button"); if(!b) return;
+    var t = document.getElementById(b.getAttribute("data-to")); if(!t) return;
+    mark(b.getAttribute("data-to"));
+    t.scrollIntoView({behavior: "smooth", block: "start"});
+  });
+  var tick = false;
+  window.addEventListener("scroll", function(){
+    if(tick) return; tick = true;
+    requestAnimationFrame(function(){
+      tick = false; var cur = null, lim = bar.getBoundingClientRect().bottom + 24;
+      btns.forEach(function(b){ var t = document.getElementById(b.getAttribute("data-to")); if(t && t.getBoundingClientRect().top <= lim) cur = b.getAttribute("data-to"); });
+      mark(cur);
+    });
+  }, {passive: true});
+})();
 function srcLine(sources, country, key){ var s = sources && sources[country] && sources[country][key]; return s && s.source; }
 
 var codes = Object.keys(C);
@@ -1524,57 +1706,98 @@ Promise.all([
     return '<a class="mk-tick" href="' + t.href + '"><div class="l">' + esc(t.l) + '</div><div class="v">' + t.v + '</div><div class="c ' + k + '">' + t.cs + '</div>' + spark(t.sp, k === "down" ? "#FF9A9A" : "#7FE0A8") + '<div class="d">' + t.d + '</div></a>';
   }).join("");
 
-  // Bar chart: every 10-year yield in the period-average table.
-  (function(){
-    var rows = [];
-    codes.forEach(function(cc){
-      var d = data[cc], sr = d && d.series && d.series.bond_yield_10y;
-      if(!sr || !sr.points || sr.points.length < 2) return;
-      var pts = sr.points.filter(function(p){ return p[1] != null; }), last = pts[pts.length-1];
-      var bsrc = srcLine(sources, C[cc][0], "bond_yield_10y") || "";
-      rows.push({cc: cc, name: C[cc][0], v: last[1], p: last[0], basis: /end of month|month-end/i.test(bsrc) ? ", end of month" : ""});
-    });
-    rows.sort(function(a, b){ return b.v - a.v; });
-    if(!rows.length) return;
-    var max = Math.ceil(rows[0].v), W = 900, L = 118, R = 190, rowH = 24, H = rows.length * rowH + 26;
+  // Bar chart (v1.9.94): highest and lowest ten by default, region chips, show all.
+  var REGION = {};
+  [["Europe","ez de fr it es nl dk ie no ch se at pl be pt fi gr cz hu ro sk hr bg lt ee lv si lu cy mt is uk"],
+   ["Americas","us ca mx br cl co ar pe"],
+   ["Asia-Pacific","jp in au kr id sg th cn my nz ph tw hk"],
+   ["Middle East and Africa","il za ma tr sa ng"]].forEach(function(r){ r[1].split(" ").forEach(function(cc){ REGION[cc] = r[0]; }); });
+  window.__mkRegion = REGION;
+  var YROWS = [], YCUT = 10, yState = {region: "All", all: false};
+  codes.forEach(function(cc){
+    var d = data[cc], sr = d && d.series && d.series.bond_yield_10y;
+    if(!sr || !sr.points || sr.points.length < 2) return;
+    var pts = sr.points.filter(function(p){ return p[1] != null; }), last = pts[pts.length-1];
+    var bsrc = srcLine(sources, C[cc][0], "bond_yield_10y") || "";
+    YROWS.push({cc: cc, name: C[cc][0], v: last[1], p: last[0], basis: /end of month|month-end/i.test(bsrc) ? ", end of month" : ""});
+  });
+  YROWS.sort(function(a, b){ return b.v - a.v; });
+  var yCommon = (function(){ var n = {}, best = null; YROWS.forEach(function(r){ var k = periodLabel(r.p) + r.basis; n[k] = (n[k] || 0) + 1; if(!best || n[k] > n[best]) best = k; }); return best; })();
+  function drawYields(){
+    var el = document.getElementById("cYields"); if(!el || !YROWS.length) return;
+    var phone = isPhone();
+    var rows = yState.region === "All" ? YROWS : YROWS.filter(function(r){ return REGION[r.cc] === yState.region; });
+    var cut = !yState.all && rows.length > 2 * YCUT + 4;
+    var shown = cut ? rows.slice(0, YCUT).concat([null], rows.slice(rows.length - YCUT)) : rows;
+    var max = Math.ceil(YROWS[0].v), W = phone ? 360 : 900, L = phone ? 86 : 118, R = phone ? 80 : 190, rowH = phone ? 30 : 24, H = shown.length * rowH + 26;
     var stops = ["#2E1E3B","#413D7B","#37659E","#348FA7","#40B7AD","#8AD9B1"];
     function col(v){ var t = Math.max(0, Math.min(1, v / max)); return stops[Math.min(stops.length - 1, Math.floor((1 - t) * stops.length))]; }
-    var g = "";
-    for(var x = 0; x <= max; x += max > 8 ? 2 : 1){
+    var g = "", step = phone ? (max > 8 ? 4 : 2) : (max > 8 ? 2 : 1);
+    for(var x = 0; x <= max; x += step){
       var gx = L + x / max * (W - L - R);
       g += '<line x1="' + gx + '" x2="' + gx + '" y1="0" y2="' + (H - 22) + '" stroke="currentColor" stroke-opacity=".12"/><text x="' + gx + '" y="' + (H - 6) + '" font-size="12" text-anchor="middle" fill="currentColor" fill-opacity=".6">' + x + '%</text>';
     }
-    rows.forEach(function(r, i){
-      var y = i * rowH, w = Math.max(2, r.v / max * (W - L - R));
-      g += '<a href="' + C[r.cc][1] + '"><title>' + esc(r.name) + ': ' + fmt(r.v, 2) + '% (' + periodLabel(r.p) + r.basis + ')</title>' +
-        '<text x="' + (L - 10) + '" y="' + (y + 16) + '" font-size="13" text-anchor="end" fill="currentColor">' + esc(r.name) + '</text>' +
-        '<rect x="' + L + '" y="' + (y + 4) + '" width="' + w.toFixed(1) + '" height="' + (rowH - 8) + '" rx="4" fill="' + col(r.v) + '"/>' +
-        '<text x="' + (L + w + 8).toFixed(1) + '" y="' + (y + 16) + '" font-size="13" font-weight="700" fill="currentColor">' + fmt(r.v, 2) + '%<tspan font-weight="400" fill-opacity=".55" font-size="11.5"> ' + periodLabel(r.p) + r.basis + '</tspan></text></a>';
+    shown.forEach(function(r, i){
+      var y = i * rowH, ty = y + rowH / 2 + 4.5;
+      if(!r){ g += '<text class="mk-gap" x="' + ((L + W - R) / 2) + '" y="' + ty + '" font-size="12.5" text-anchor="middle" fill="currentColor" fill-opacity=".6">' + (rows.length - 2 * YCUT) + ' more in between</text>'; return; }
+      var w = Math.max(2, r.v / max * (W - L - R)), per = periodLabel(r.p) + r.basis;
+      var tag = phone ? (per === yCommon ? "" : " " + per.replace(/ \d{4}/, "").replace(", end of month", ", end")) : " " + per;
+      g += '<a href="' + C[r.cc][1] + '"><title>' + esc(r.name) + ': ' + fmt(r.v, 2) + '% (' + per + ')</title>' +
+        '<text x="' + (L - 8) + '" y="' + ty + '" font-size="13" text-anchor="end" fill="currentColor">' + esc(r.name) + '</text>' +
+        '<rect x="' + L + '" y="' + (y + (phone ? 6 : 4)) + '" width="' + w.toFixed(1) + '" height="' + (rowH - (phone ? 12 : 8)) + '" rx="4" fill="' + col(r.v) + '"/>' +
+        '<text x="' + (L + w + 6).toFixed(1) + '" y="' + ty + '" font-size="13" font-weight="700" fill="currentColor">' + fmt(r.v, 2) + '%' + (tag ? '<tspan font-weight="400" fill-opacity=".55" font-size="11.5">' + esc(tag) + '</tspan>' : "") + '</text></a>';
     });
-    document.getElementById("cYields").innerHTML = '<svg viewBox="0 0 ' + W + ' ' + H + '" role="img" aria-label="Bar chart of 10-year government bond yields, highest ' + esc(rows[0].name) + ' at ' + fmt(rows[0].v, 2) + ' percent, lowest ' + esc(rows[rows.length-1].name) + ' at ' + fmt(rows[rows.length-1].v, 2) + ' percent.">' + g + '</svg>';
-  })();
-
-  // Diverging bars: one-year change against the US dollar (daily rates only).
+    el.innerHTML = '<svg viewBox="0 0 ' + W + ' ' + H + '" role="img" aria-label="Bar chart of 10-year government bond yields' + (yState.region === "All" ? "" : " in " + esc(yState.region)) + ', highest ' + esc(rows[0].name) + ' at ' + fmt(rows[0].v, 2) + ' percent, lowest ' + esc(rows[rows.length-1].name) + ' at ' + fmt(rows[rows.length-1].v, 2) + ' percent.">' + g + '</svg>';
+    var more = document.getElementById("mkYMore");
+    if(more){ more.hidden = rows.length <= 2 * YCUT + 4; more.textContent = cut ? "Show all " + rows.length : "Show highest and lowest " + YCUT; more.setAttribute("aria-expanded", cut ? "false" : "true"); }
+  }
   (function(){
-    var rows = fr.map(function(r){ return {label: r.keys[0].replace(/ \(.*\)$/, ""), full: r.keys[0], v: r.keys[5], href: r.href}; }).filter(function(r){ return r.v != null; });
-    rows.sort(function(a, b){ return b.v - a.v; });
-    if(!rows.length) return;
-    var m = Math.max.apply(null, rows.map(function(r){ return Math.abs(r.v); })); m = Math.ceil(m);
-    var W = 520, mid = W / 2, half = W / 2 - 92, rowH = 24, H = rows.length * rowH + 8, g = "";
+    var box = document.getElementById("mkYRegions"); if(!box || !YROWS.length) return;
+    var n = {}; YROWS.forEach(function(r){ var k = REGION[r.cc]; if(k) n[k] = (n[k] || 0) + 1; });
+    var names = ["All"].concat(["Europe","Americas","Asia-Pacific","Middle East and Africa"].filter(function(k){ return n[k]; }));
+    box.innerHTML = names.map(function(k){ return '<button type="button" data-region="' + esc(k) + '" aria-pressed="' + (k === "All") + '">' + esc(k) + " " + (k === "All" ? YROWS.length : n[k]) + '</button>'; }).join("");
+    box.addEventListener("click", function(e){
+      var b = e.target.closest("button"); if(!b) return;
+      yState.region = b.getAttribute("data-region"); yState.all = false;
+      Array.prototype.forEach.call(box.querySelectorAll("button"), function(x){ x.setAttribute("aria-pressed", x === b ? "true" : "false"); });
+      drawYields();
+    });
+    var more = document.getElementById("mkYMore");
+    if(more) more.addEventListener("click", function(){ yState.all = !yState.all; drawYields(); });
+  })();
+  drawYields();
+
+  // Diverging bars (v1.9.94): six biggest gains and six biggest falls by default.
+  var FROWS = fr.map(function(r){ return {label: r.keys[0].replace(/ \(.*\)$/, ""), full: r.keys[0], v: r.keys[5], href: r.href}; }).filter(function(r){ return r.v != null; });
+  FROWS.sort(function(a, b){ return b.v - a.v; });
+  var FCUT = 6, fState = {all: false};
+  function drawFx(){
+    var el = document.getElementById("cFx"); if(!el || !FROWS.length) return;
+    var phone = isPhone(), rows = FROWS;
+    var cut = !fState.all && rows.length > 2 * FCUT + 2;
+    var shown = cut ? rows.slice(0, FCUT).concat([null], rows.slice(rows.length - FCUT)) : rows;
+    var m = Math.ceil(Math.max.apply(null, rows.map(function(r){ return Math.abs(r.v); })));
+    var W = phone ? 360 : 520, mid = W / 2, half = phone ? W / 2 - 50 : W / 2 - 92, rowH = phone ? 30 : 24, H = shown.length * rowH + 8, g = "";
     g += '<line x1="' + mid + '" x2="' + mid + '" y1="0" y2="' + H + '" stroke="currentColor" stroke-opacity=".35"/>';
-    rows.forEach(function(r, i){
-      var y = i * rowH, w = Math.max(2, Math.abs(r.v) / m * half), up = r.v >= 0;
+    shown.forEach(function(r, i){
+      var y = i * rowH, ty = y + rowH / 2 + 4.5;
+      if(!r){ g += '<text class="mk-gap" x="' + mid + '" y="' + ty + '" font-size="12.5" text-anchor="middle" fill="currentColor" fill-opacity=".6" paint-order="stroke" stroke="var(--panel)" stroke-width="6">' + (rows.length - 2 * FCUT) + ' more in between</text>'; return; }
+      var w = Math.max(2, Math.abs(r.v) / m * half), up = r.v >= 0;
       var x = up ? mid : mid - w, c = up ? "#2FA36B" : "#C94545";
       g += '<a href="' + r.href + '"><title>' + esc(r.full) + ': ' + signed(r.v, 1, "%") + ' over the year</title>' +
-        '<rect x="' + x.toFixed(1) + '" y="' + (y + 4) + '" width="' + w.toFixed(1) + '" height="' + (rowH - 8) + '" rx="4" fill="' + c + '"/>' +
-        '<text x="' + (up ? mid - 8 : mid + 8) + '" y="' + (y + 16) + '" font-size="12.5" text-anchor="' + (up ? "end" : "start") + '" fill="currentColor">' + esc(r.label) + '</text>' +
-        '<text x="' + (up ? mid + w + 6 : mid - w - 6).toFixed(1) + '" y="' + (y + 16) + '" font-size="12.5" font-weight="700" text-anchor="' + (up ? "start" : "end") + '" fill="' + c + '">' + signed(r.v, 1, "%") + '</text></a>';
+        '<rect x="' + x.toFixed(1) + '" y="' + (y + (phone ? 6 : 4)) + '" width="' + w.toFixed(1) + '" height="' + (rowH - (phone ? 12 : 8)) + '" rx="4" fill="' + c + '"/>' +
+        '<text x="' + (up ? mid - 8 : mid + 8) + '" y="' + ty + '" font-size="' + (phone ? 13 : 12.5) + '" text-anchor="' + (up ? "end" : "start") + '" fill="currentColor">' + esc(r.label) + '</text>' +
+        '<text x="' + (up ? mid + w + 6 : mid - w - 6).toFixed(1) + '" y="' + ty + '" font-size="' + (phone ? 13 : 12.5) + '" font-weight="700" text-anchor="' + (up ? "start" : "end") + '" fill="' + c + '">' + signed(r.v, 1, "%") + '</text></a>';
     });
-    document.getElementById("cFx").innerHTML = '<svg viewBox="0 0 ' + W + ' ' + H + '" role="img" aria-label="One-year change of each currency against the US dollar. Biggest gain ' + esc(rows[0].full) + ' ' + signed(rows[0].v, 1, " percent") + ', biggest fall ' + esc(rows[rows.length-1].full) + ' ' + signed(rows[rows.length-1].v, 1, " percent") + '.">' + g + '</svg>';
-  })();
+    el.innerHTML = '<svg viewBox="0 0 ' + W + ' ' + H + '" role="img" aria-label="One-year change of each currency against the US dollar. Biggest gain ' + esc(rows[0].full) + ' ' + signed(rows[0].v, 1, " percent") + ', biggest fall ' + esc(rows[rows.length-1].full) + ' ' + signed(rows[rows.length-1].v, 1, " percent") + '.">' + g + '</svg>';
+    var more = document.getElementById("mkFMore");
+    if(more){ more.hidden = rows.length <= 2 * FCUT + 2; more.textContent = cut ? "Show all " + rows.length : "Show biggest gains and falls"; more.setAttribute("aria-expanded", cut ? "false" : "true"); }
+  }
+  (function(){ var more = document.getElementById("mkFMore"); if(more) more.addEventListener("click", function(){ fState.all = !fState.all; drawFx(); }); })();
+  drawFx();
 
   // Lines: daily 10-year yields over the past year.
-  (function(){
+  function drawDaily(){
     var COL = {us:"#4796CE", uk:"#C94545", jp:"#40B7AD", ca:"#D99A2B"}, ser = [];
     ["us","uk","jp","ca"].forEach(function(cc){ var b = bonds[cc]; if(b && b.key === "bond_yield_10y" && b.points && b.points.length) ser.push({cc: cc, pts: lastYear(b.points)}); });
     if(!ser.length) return;
@@ -1582,7 +1805,7 @@ Promise.all([
     var lo = Math.floor(Math.min.apply(null, all.map(function(p){ return p[1]; })) * 2) / 2;
     var hi = Math.ceil(Math.max.apply(null, all.map(function(p){ return p[1]; })) * 2) / 2;
     var d0 = Math.min.apply(null, all.map(function(p){ return Date.parse(p[0]); })), d1 = Math.max.apply(null, all.map(function(p){ return Date.parse(p[0]); }));
-    var W = 520, H = 300, L = 36, R = 124, T = 8, B = 26;
+    var phone = isPhone(), W = phone ? 360 : 520, H = phone ? 250 : 300, L = 34, R = phone ? 112 : 124, T = 8, B = 26;
     function X(t){ return L + (t - d0) / ((d1 - d0) || 1) * (W - L - R); }
     function Y(v){ return T + (hi - v) / ((hi - lo) || 1) * (H - T - B); }
     var g = "";
@@ -1597,7 +1820,14 @@ Promise.all([
     });
     labels.forEach(function(l){ var last = l.s.pts[l.s.pts.length-1]; g += '<circle cx="' + X(Date.parse(last[0])).toFixed(1) + '" cy="' + Y(last[1]).toFixed(1) + '" r="3.5" fill="' + COL[l.s.cc] + '"/><a href="' + C[l.s.cc][1] + '"><text x="' + (W - R + 8) + '" y="' + (l.y + 4).toFixed(1) + '" font-size="12.5" font-weight="700" fill="' + COL[l.s.cc] + '">' + esc(C[l.s.cc][0]) + ' ' + fmt(l.v, 2) + '%</text></a>'; });
     document.getElementById("cDaily").innerHTML = '<svg viewBox="0 0 ' + W + ' ' + H + '" role="img" aria-label="Line chart of daily 10-year government bond yields over the past year for ' + ser.map(function(s){ return C[s.cc][0]; }).join(", ") + '.">' + g + '</svg>';
-  })();
+  }
+  drawDaily();
+  var wasPhone = isPhone();
+  window.addEventListener("resize", function(){
+    var now = isPhone(); if(now === wasPhone) return; wasPhone = now;
+    drawYields(); drawFx(); drawDaily();
+    Array.prototype.forEach.call(document.querySelectorAll("tr.mk-det"), function(r){ var t = r.previousElementSibling; r.parentNode.removeChild(r); if(t){ t.classList.remove("mk-open"); t.setAttribute("aria-expanded", "false"); } });
+  });
 });
 })();
 </script>

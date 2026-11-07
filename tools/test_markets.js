@@ -50,6 +50,11 @@ setTimeout(() => {
   const ticks = d.querySelectorAll(".mk-tick");
   check("ticker has at least 5 cards", ticks.length >= 5, ticks.length);
   check("every ticker card dated", [...ticks].every(t => /\d{4}/.test(t.querySelector(".d").textContent)));
+  // v1.9.94: the charts open short (highest and lowest ten yields, six gains and six falls); "Show all" draws every row.
+  check("yield chart opens at 20 bars", d.querySelectorAll("#cYields svg rect").length === Math.min(20, y.length) || y.length <= 24);
+  check("currency chart opens at 12 bars", d.querySelectorAll("#cFx svg rect").length === 12 || fx.length <= 14);
+  const ym = d.getElementById("mkYMore"), fm = d.getElementById("mkFMore");
+  if (ym && !ym.hidden) ym.click(); if (fm && !fm.hidden) fm.click();
   const cy = d.querySelectorAll("#cYields svg rect").length;
   check("yield bars = yield table rows", cy === y.length, `${cy} vs ${y.length}`);
   check("Eurozone bar shows end of month", !ez || /end of month/.test([...d.querySelectorAll("#cYields text")].map(t => t.textContent).join(" ")));
