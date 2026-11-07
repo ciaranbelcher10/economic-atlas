@@ -805,7 +805,14 @@ footer.dash-foot{margin-top:36px; font-size:12.5px; color:var(--ink2); border-to
     var password = authPassword.value;
     if(mode === "signup"){
       authCall(authSubmitBtn, authMsg, function(){ return sb.auth.signUp({ email: email, password: password }); }, function(res){
-        if(res.error){
+        // v1.9.98: an email that already has an account comes back either as an "already registered" error
+        // or (with email confirmation on) as a user with no identities. Switch to Log in, keep what they typed.
+        var existing = (res.error && /already (registered|exists)/i.test(res.error.message || "")) ||
+          (!res.error && res.data && res.data.user && Array.isArray(res.data.user.identities) && res.data.user.identities.length === 0);
+        if(existing){
+          setMode("login"); authEmail.value = email; authPassword.value = password;
+          showMsg(authMsg, "You already have an account with this email. Press Log in to continue, or use Forgot password.", "success");
+        } else if(res.error){
           showMsg(authMsg, res.error.message, "error");
         } else if(res.data.user && !res.data.session){
           showMsg(authMsg, "Check your email to confirm your account before logging in.", "success");
