@@ -133,6 +133,12 @@ const wait = ms => new Promise(r => setTimeout(r, ms));
   // switching phone to desktop redraws and closes detail rows
   { const w = P.w, d = w.document; P.state.phone = false; w.dispatchEvent(new w.Event("resize"));
     ok(d.querySelector("#cYields svg").getAttribute("viewBox").split(" ")[2] === "900" && !d.querySelector("tr.mk-det"), "resize: phone to desktop redraws and closes detail rows"); }
+  // v1.9.95: jsdom has no layout, so guard the CSS that keeps the page one screen wide on phones
+  // (a 1fr grid track grew to the chip rows' full width and the whole page zoomed out).
+  ok(/\.mk-grid\{display:grid; grid-template-columns:minmax\(0,1fr\) minmax\(0,1fr\)/.test(HTML) && /max-width:820px\)\{\.mk-grid\{grid-template-columns:minmax\(0,1fr\);/.test(HTML), "grid tracks are minmax(0,1fr)");
+  ok(/\.mk-grid > \*\{min-width:0;\}/.test(HTML), "grid items can shrink");
+  ok(/html, body\{overflow-x:clip;\}/.test(HTML), "phones clip any stray horizontal overflow");
+  ok(!/\.mk-scroll\{overflow:visible;\}/.test(HTML), "wide tables scroll inside their card");
   // copy rules
   const nd = HTML.slice(HTML.indexOf('<header class="mk-hero">'), HTML.indexOf('<section class="mk-sec" id="yields">'));
   ok(!/\u2014/.test(nd), "no em dashes in new copy");
