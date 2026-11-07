@@ -1192,8 +1192,8 @@
 <div class="wrap">
 <header class="mk-hero">
  <p class="mk-kicker"><span class="mk-pulse" aria-hidden="true"></span>Markets</p>
- <h1>Bond yields and exchange rates, economy by economy</h1>
- <p class="mk-sub">Official figures from central banks and statistics offices, each with its date and source.</p>
+ <h1>Bond yields and exchange rates<span class="mk-dt">, economy by economy</span></h1>
+ <p class="mk-sub"><span class="mk-dt">Official figures from central banks and statistics offices, each with its date and source.</span><span class="mk-ph">Official figures, each with its date and source.</span></p>
  <div class="mk-ticker" id="mkTicker" aria-label="Headline market figures"></div>
 </header>
 <nav class="mk-jump" id="mkJump" aria-label="Jump to a section"><button type="button" data-to="chart-yields">Bonds</button><button type="button" data-to="chart-fx">Currencies</button><button type="button" data-to="chart-daily">Daily yields</button><button type="button" data-to="tables">Tables</button></nav>
@@ -1253,6 +1253,7 @@ table.mk a.ea-cty{font-weight:700; border-bottom:none;}
 .mk-jump button, .mk-chips button, .mk-more{font:inherit; font-size:14px; font-weight:600; color:var(--ink); background:var(--panel); border:1px solid var(--hair); border-radius:999px; padding:8px 14px; cursor:pointer; white-space:nowrap; flex:0 0 auto;}
 .mk-jump button.on, .mk-chips button[aria-pressed="true"]{background:var(--ink); color:var(--paper); border-color:var(--ink);}
 .mk-chips{display:flex; flex-wrap:wrap; gap:6px; margin:6px 0 8px;}
+.mk-ph{display:none;}
 .mk-chips button{font-size:13px; padding:6px 12px;}
 .mk-more{display:block; margin:10px auto 0;}
 .mk-more[hidden]{display:none;}
@@ -1277,15 +1278,17 @@ table.mk tr.mk-det b{color:var(--ink); font-weight:600;}
 @media (max-width:760px){
   .mk-hero{margin:8px 0 10px !important; padding:16px 16px 14px !important; border-radius:16px;}
   .mk-kicker{display:none;}
-  .mk-hero h1{font-size:24px; line-height:1.15; margin:0 0 6px;}
-  .mk-sub{font-size:14px; margin:0 0 12px;}
+  .mk-hero{padding:12px 14px 12px !important;}
+  .mk-hero h1{font-size:19px; line-height:1.2; margin:0 0 3px;}
+  .mk-sub{font-size:13px; margin:0 0 10px;}
+  .mk-dt{display:none;} .mk-ph{display:inline;}
   .mk-ticker{display:flex; overflow-x:auto; scroll-snap-type:x mandatory; gap:8px; margin:0 -16px; padding:0 16px 2px; scrollbar-width:none;}
-  .mk-tick{flex:0 0 132px; scroll-snap-align:start; padding:9px 10px 7px;}
+  .mk-tick{flex:0 0 112px; scroll-snap-align:start; padding:7px 9px 6px;}
   .mk-tick:hover{transform:none;}
-  .mk-tick .v{font-size:20px;} .mk-tick svg{height:22px;}
+  .mk-tick .v{font-size:17px;} .mk-tick svg{display:none;} .mk-tick .d{display:none;}
   .mk-jump{top:var(--m-head-h,0px); margin:0 -16px 10px; padding:6px 16px;}
-  .mk-jump button{min-height:44px; padding:0 14px; font-size:15px;}
-  #chart-yields, #chart-fx, #chart-daily, #tables{scroll-margin-top:calc(var(--m-head-h,0px) + 64px);}
+  .mk-jump button{min-height:36px; padding:0 13px; font-size:14px;}
+  #chart-yields, #chart-fx, #chart-daily, #tables{scroll-margin-top:calc(var(--m-head-h,0px) + 56px);}
   .mk-grid{gap:12px; margin:0 0 18px;}
   .mk-card, .mk-sec{padding:14px; border-radius:14px;}
   .mk-sec{margin:0 0 12px;}
@@ -1293,7 +1296,9 @@ table.mk tr.mk-det b{color:var(--ink); font-weight:600;}
   .mk-full{font-size:20px;}
   .mk-i{width:44px; height:44px; margin:-10px -10px -10px -6px;}
   .mk-chips{flex-wrap:nowrap; overflow-x:auto; margin:4px -14px 6px; padding:0 14px; scrollbar-width:none;}
-  .mk-chips button{min-height:44px; padding:0 14px; font-size:14px;}
+  .mk-chips button{min-height:34px; padding:0 12px; font-size:13px;}
+  .mk-jump, .mk-chips{-webkit-mask-image:linear-gradient(90deg,#000 calc(100% - 28px),transparent); mask-image:linear-gradient(90deg,#000 calc(100% - 28px),transparent);}
+  .mk-jump.mk-end, .mk-chips.mk-end{-webkit-mask-image:none; mask-image:none;}
   .mk-tbar{display:block;} .mk-tbar .mk-chips{margin:0 -16px 8px; padding:0 16px;}
   .mk-find{display:block; width:100%; box-sizing:border-box; font-size:16px; min-height:44px; min-width:0;}
   .mk-more{min-height:44px; width:100%;}
@@ -1550,6 +1555,14 @@ Array.prototype.forEach.call(document.querySelectorAll(".mk-card > h2, .mk-sec >
   b.addEventListener("click", function(){ note.hidden = !note.hidden; b.setAttribute("aria-expanded", note.hidden ? "false" : "true"); });
   h.appendChild(b);
 });
+// v1.9.99: phones fade the right edge of chip rows that scroll; the fade goes once at the end.
+(function(){
+  function edge(el){ el.classList.toggle("mk-end", el.scrollLeft + el.clientWidth >= el.scrollWidth - 2); }
+  window.__mkEdge = edge;
+  function wire(){ Array.prototype.forEach.call(document.querySelectorAll(".mk-jump, .mk-chips"), function(el){
+    if(el.__mkEdge) { edge(el); return; } el.__mkEdge = 1; el.addEventListener("scroll", function(){ edge(el); }, {passive: true}); edge(el); }); }
+  window.__mkEdgeWire = wire; window.addEventListener("resize", wire); setTimeout(wire, 0);
+})();
 // Jump bar: buttons scroll to their section; the one in view is marked.
 (function(){
   var bar = document.getElementById("mkJump"); if(!bar) return;
@@ -1742,7 +1755,8 @@ Promise.all([
     var shown = cut ? rows.slice(0, YCUT).concat([null], rows.slice(rows.length - YCUT)) : rows;
     var max = Math.ceil(YROWS[0].v), W = phone ? 360 : 900, L = phone ? 86 : 118, R = phone ? 80 : 190, rowH = phone ? 30 : 24, H = shown.length * rowH + 26;
     var stops = ["#2E1E3B","#413D7B","#37659E","#348FA7","#40B7AD","#8AD9B1"];
-    function col(v){ var t = Math.max(0, Math.min(1, v / max)); return stops[Math.min(stops.length - 1, Math.floor((1 - t) * stops.length))]; }
+    var lo = rows[rows.length - 1].v, hi = rows[0].v;
+    function col(v){ var t = hi > lo ? Math.max(0, Math.min(1, (v - lo) / (hi - lo))) : 1; return stops[Math.min(stops.length - 1, Math.floor((1 - t) * stops.length))]; }
     var g = "", step = phone ? (max > 8 ? 4 : 2) : (max > 8 ? 2 : 1);
     for(var x = 0; x <= max; x += step){
       var gx = L + x / max * (W - L - R);
@@ -1756,7 +1770,7 @@ Promise.all([
       g += '<a href="' + C[r.cc][1] + '"><title>' + esc(r.name) + ': ' + fmt(r.v, 2) + '% (' + per + ')</title>' +
         '<text x="' + (L - 8) + '" y="' + ty + '" font-size="13" text-anchor="end" fill="currentColor">' + esc(r.name) + '</text>' +
         '<rect x="' + L + '" y="' + (y + (phone ? 6 : 4)) + '" width="' + w.toFixed(1) + '" height="' + (rowH - (phone ? 12 : 8)) + '" rx="4" fill="' + col(r.v) + '"/>' +
-        '<text x="' + (L + w + 6).toFixed(1) + '" y="' + ty + '" font-size="13" font-weight="700" fill="currentColor">' + fmt(r.v, 2) + '%' + (tag ? '<tspan font-weight="400" fill-opacity=".55" font-size="11.5">' + esc(tag) + '</tspan>' : "") + '</text></a>';
+        '<text x="' + (L + w + 6).toFixed(1) + '" y="' + ty + '" font-size="13" font-weight="700" fill="currentColor" paint-order="stroke" stroke="var(--panel)" stroke-width="5" stroke-linejoin="round">' + fmt(r.v, 2) + '%' + (tag ? '<tspan font-weight="400" fill-opacity=".55" font-size="11.5">' + esc(tag) + '</tspan>' : "") + '</text></a>';
     });
     el.innerHTML = '<svg viewBox="0 0 ' + W + ' ' + H + '" role="img" aria-label="Bar chart of 10-year government bond yields' + (yState.region === "All" ? "" : " in " + esc(yState.region)) + ', highest ' + esc(rows[0].name) + ' at ' + fmt(rows[0].v, 2) + ' percent, lowest ' + esc(rows[rows.length-1].name) + ' at ' + fmt(rows[rows.length-1].v, 2) + ' percent.">' + g + '</svg>';
     var more = document.getElementById("mkYMore");
@@ -1777,6 +1791,7 @@ Promise.all([
     if(more) more.addEventListener("click", function(){ yState.all = !yState.all; drawYields(); });
   })();
   drawYields();
+  if(window.__mkEdgeWire) window.__mkEdgeWire();
 
   // Diverging bars (v1.9.94): six biggest gains and six biggest falls by default.
   var FROWS = fr.map(function(r){ return {label: r.keys[0].replace(/ \(.*\)$/, ""), full: r.keys[0], v: r.keys[5], href: r.href}; }).filter(function(r){ return r.v != null; });
@@ -1798,7 +1813,7 @@ Promise.all([
       g += '<a href="' + r.href + '"><title>' + esc(r.full) + ': ' + signed(r.v, 1, "%") + ' over the year</title>' +
         '<rect x="' + x.toFixed(1) + '" y="' + (y + (phone ? 6 : 4)) + '" width="' + w.toFixed(1) + '" height="' + (rowH - (phone ? 12 : 8)) + '" rx="4" fill="' + c + '"/>' +
         '<text x="' + (up ? mid - 8 : mid + 8) + '" y="' + ty + '" font-size="' + (phone ? 13 : 12.5) + '" text-anchor="' + (up ? "end" : "start") + '" fill="currentColor">' + esc(r.label) + '</text>' +
-        '<text x="' + (up ? mid + w + 6 : mid - w - 6).toFixed(1) + '" y="' + ty + '" font-size="' + (phone ? 13 : 12.5) + '" font-weight="700" text-anchor="' + (up ? "start" : "end") + '" fill="' + c + '">' + signed(r.v, 1, "%") + '</text></a>';
+        '<text x="' + (up ? mid + w + 6 : mid - w - 6).toFixed(1) + '" y="' + ty + '" font-size="' + (phone ? 13 : 12.5) + '" font-weight="700" text-anchor="' + (up ? "start" : "end") + '" fill="' + c + '" paint-order="stroke" stroke="var(--panel)" stroke-width="5" stroke-linejoin="round">' + signed(r.v, 1, "%") + '</text></a>';
     });
     el.innerHTML = '<svg viewBox="0 0 ' + W + ' ' + H + '" role="img" aria-label="One-year change of each currency against the US dollar. Biggest gain ' + esc(rows[0].full) + ' ' + signed(rows[0].v, 1, " percent") + ', biggest fall ' + esc(rows[rows.length-1].full) + ' ' + signed(rows[rows.length-1].v, 1, " percent") + '.">' + g + '</svg>';
     var more = document.getElementById("mkFMore");

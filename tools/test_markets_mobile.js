@@ -84,7 +84,23 @@ const wait = ms => new Promise(r => setTimeout(r, ms));
     ok(eu.getAttribute("aria-pressed") === "true" && chips[0].getAttribute("aria-pressed") === "false", tag + ": chip pressed state");
     const am = chips.find(c => c.dataset.region === "Americas"); am.click();
     ok(d.getElementById("mkYMore").hidden === (parseInt(am.textContent.match(/\d+$/)[0]) <= N + 4), tag + ": show all hidden for a short region");
+    // v1.9.99: palette runs from darkest (highest) to lightest (lowest) within whichever countries are shown
+    for (const c of chips) {
+      c.click(); const fills = [...d.querySelectorAll("#cYields svg rect")].map(r => r.getAttribute("fill"));
+      if (fills.length < 2) continue;
+      ok(fills[0] === "#2E1E3B" && fills[fills.length - 1] === "#8AD9B1", tag + ": " + c.dataset.region + " palette spans darkest to lightest (" + fills[0] + " .. " + fills[fills.length - 1] + ")");
+    }
     chips[0].click();
+    const vlab = [...d.querySelectorAll("#cYields svg text")].find(t => /%$/.test(t.firstChild && t.firstChild.nodeValue || "") && t.getAttribute("font-weight") === "700");
+    ok(vlab && vlab.getAttribute("paint-order") === "stroke" && vlab.getAttribute("stroke") === "var(--panel)", tag + ": yield value labels sit on the card colour");
+    const flab = [...d.querySelectorAll("#cFx svg text")].find(t => /%$/.test(t.textContent) && t.getAttribute("font-weight") === "700");
+    ok(flab && flab.getAttribute("paint-order") === "stroke", tag + ": currency value labels sit on the card colour");
+    // fade class follows scroll position
+    { const box = d.getElementById("mkYRegions");
+      Object.defineProperty(box, "scrollWidth", {configurable: true, value: 600}); Object.defineProperty(box, "clientWidth", {configurable: true, value: 300});
+      box.scrollLeft = 0; w.__mkEdge(box); const atStart = box.classList.contains("mk-end");
+      box.scrollLeft = 300; w.__mkEdge(box); const atEnd = box.classList.contains("mk-end");
+      ok(!atStart && atEnd, tag + ": chip row fade shows until scrolled to the end"); }
     // fx chart
     const fxRows = [...d.querySelectorAll("#tFx tbody tr")].filter(r => r.cells[5] && r.cells[5].textContent.trim() !== "n/a").length;
     const frects = () => d.querySelectorAll("#cFx svg rect").length;
@@ -158,6 +174,15 @@ const wait = ms => new Promise(r => setTimeout(r, ms));
   const nd = HTML.slice(HTML.indexOf('<header class="mk-hero">'), HTML.indexOf('<section class="mk-sec" id="yields">'));
   ok(!/\u2014/.test(nd), "no em dashes in new copy");
   ok(!/<a [^>]*>[^<]*<\/a>/.test(nd.replace(/<script[\s\S]*?<\/script>/g, "")), "no text links in hero, jump bar or table bar");
-  console.log(checks + " checks, " + failures + " failures");
+    // v1.9.99 static phone guards (jsdom has no layout)
+  { const PH = (HTML.match(/@media \(max-width:760px\)\{([\s\S]*?)\n\}/) || [])[1] || "";
+    ok(/\.mk-tick svg\{display:none;\}/.test(PH), "phone: hero tiles drop the sparkline");
+    ok(/\.mk-tick\{flex:0 0 112px;/.test(PH), "phone: hero tiles 112px wide");
+    ok(/\.mk-hero h1\{font-size:19px;/.test(PH) && /\.mk-dt\{display:none;\} \.mk-ph\{display:inline;\}/.test(PH), "phone: short hero title and intro");
+    ok(/\.mk-chips button\{min-height:34px;/.test(PH) && /\.mk-jump button\{min-height:36px;/.test(PH), "phone: shorter chips");
+    ok(/mask-image:linear-gradient\(90deg,#000 calc\(100% - 28px\),transparent\)/.test(PH) && /\.mk-end\{-webkit-mask-image:none; mask-image:none;\}/.test(PH), "phone: chip rows fade at the right edge");
+    ok(/\.mk-ph\{display:none;\}/.test(HTML.split("@media (max-width:760px)")[0]), "desktop: phone-only copy hidden");
+    ok(/<h1>Bond yields and exchange rates<span class="mk-dt">, economy by economy<\/span><\/h1>/.test(HTML), "desktop keeps the full hero title"); }
+console.log(checks + " checks, " + failures + " failures");
   process.exit(failures ? 1 : 0);
 })();
