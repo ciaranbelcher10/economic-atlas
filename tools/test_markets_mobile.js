@@ -36,25 +36,40 @@ const wait = ms => new Promise(r => setTimeout(r, ms));
     ok(!d.querySelector("#mkJump a"), tag + ": jump bar uses buttons, not links");
     jb[3].click();
     ok(w.__scrolled === d.getElementById("tables") && jb[3].classList.contains("on") && !jb[0].classList.contains("on"), tag + ": jump scrolls and marks its button");
+    // scrollspy: section reading area is the top 40% of the screen, last button at page bottom
+    { const tops = {"chart-yields": -900, "chart-fx": 300, "chart-daily": 1400, "tables": 2600};
+      const orig = w.Element.prototype.getBoundingClientRect;
+      w.Element.prototype.getBoundingClientRect = function(){ if(this.id === "mkJump") return {top:56,bottom:110,left:0,right:390,width:390,height:54}; if(tops[this.id] != null) return {top:tops[this.id],bottom:tops[this.id]+500,left:0,right:390,width:390,height:500}; return orig.call(this); };
+      Object.defineProperty(d.documentElement, "scrollHeight", {configurable:true, value: 99999});
+      w.innerHeight = 844; w.dispatchEvent(new w.Event("scroll")); await wait(60);
+      ok(jb[1].classList.contains("on") && !jb[0].classList.contains("on"), tag + ": scrollspy marks Currencies once its card is in the top 40%");
+      tops["chart-fx"] = 400; w.dispatchEvent(new w.Event("scroll")); await wait(60);
+      ok(jb[0].classList.contains("on"), tag + ": scrollspy keeps Bonds while Currencies is lower down");
+      Object.defineProperty(d.documentElement, "scrollHeight", {configurable:true, value: 844 + (w.scrollY || 0)});
+      w.dispatchEvent(new w.Event("scroll")); await wait(60);
+      ok(jb[3].classList.contains("on"), tag + ": scrollspy marks Tables at the bottom of the page");
+      Object.defineProperty(d.documentElement, "scrollHeight", {configurable:true, value: 99999});
+      w.Element.prototype.getBoundingClientRect = orig; }
     // yields chart
     const yRows = d.querySelectorAll("#tYields tbody tr").length;
     const vb = () => d.querySelector("#cYields svg").getAttribute("viewBox").split(" ")[2];
     ok(vb() === (phone ? "360" : "900"), tag + ": yields chart width " + vb());
     const rects = () => d.querySelectorAll("#cYields svg rect").length;
-    ok(rects() === 20, tag + ": yields open at 20 bars (" + rects() + ")");
+    const K = phone ? 5 : 10, N = 2 * K;
+    ok(rects() === N, tag + ": yields open at " + N + " bars (" + rects() + ")");
     const gap = d.querySelector("#cYields .mk-gap");
-    ok(gap && gap.textContent === (yRows - 20) + " more in between", tag + ": gap row counts the hidden bars");
+    ok(gap && gap.textContent === (yRows - N) + " more in between", tag + ": gap row counts the hidden bars");
     const names = [...d.querySelectorAll("#cYields svg text")].filter(t => t.getAttribute("text-anchor") === "end").map(t => t.textContent);
     const tRows = [...d.querySelectorAll("#tYields tbody tr")].map(r => r.cells[0].textContent.trim());
-    ok(names.slice(0, 10).join() === tRows.slice(0, 10).join() && names.slice(10).join() === tRows.slice(-10).join(), tag + ": shows the highest and lowest ten in order");
+    ok(names.slice(0, K).join() === tRows.slice(0, K).join() && names.slice(K).join() === tRows.slice(-K).join(), tag + ": shows the highest and lowest " + K + " in order");
     const tags = d.querySelectorAll("#cYields svg tspan").length;
-    ok(phone ? tags < 20 : tags === 20, tag + ": period tags " + (phone ? "only where they differ" : "on every bar") + " (" + tags + ")");
+    ok(phone ? tags < N : tags === N, tag + ": period tags " + (phone ? "only where they differ" : "on every bar") + " (" + tags + ")");
     const ym = d.getElementById("mkYMore");
     ok(!ym.hidden && ym.textContent === "Show all " + yRows && ym.getAttribute("aria-expanded") === "false", tag + ": show all button");
     ym.click();
     ok(rects() === yRows && !d.querySelector("#cYields .mk-gap") && ym.getAttribute("aria-expanded") === "true" && /^Show highest/.test(ym.textContent), tag + ": show all draws every bar");
     ym.click();
-    ok(rects() === 20, tag + ": show fewer returns to 20");
+    ok(rects() === N, tag + ": show fewer returns to " + N);
     // region chips
     const chips = [...d.querySelectorAll("#mkYRegions button")];
     const REG = w.__mkRegion;
@@ -65,10 +80,10 @@ const wait = ms => new Promise(r => setTimeout(r, ms));
     eu.click();
     const shownNames = [...d.querySelectorAll("#cYields svg a title")].map(t => t.textContent.split(":")[0]);
     const nameToCc = {}; Object.keys(REG).forEach(cc => { const m = HTML.match(new RegExp("[{,]" + cc + ':\\["([^"]+)"')); if(m) nameToCc[m[1]] = cc; });
-    ok(shownNames.length === Math.min(euN, euN > 24 ? 20 : euN) && shownNames.every(n => REG[nameToCc[n]] === "Europe"), tag + ": Europe chip shows only Europe (" + shownNames.length + ")");
+    ok(shownNames.length === (euN > N + 4 ? N : euN) && shownNames.every(n => REG[nameToCc[n]] === "Europe"), tag + ": Europe chip shows only Europe (" + shownNames.length + ")");
     ok(eu.getAttribute("aria-pressed") === "true" && chips[0].getAttribute("aria-pressed") === "false", tag + ": chip pressed state");
     const am = chips.find(c => c.dataset.region === "Americas"); am.click();
-    ok(d.getElementById("mkYMore").hidden === (parseInt(am.textContent.match(/\d+$/)[0]) <= 24), tag + ": show all hidden for a short region");
+    ok(d.getElementById("mkYMore").hidden === (parseInt(am.textContent.match(/\d+$/)[0]) <= N + 4), tag + ": show all hidden for a short region");
     chips[0].click();
     // fx chart
     const fxRows = [...d.querySelectorAll("#tFx tbody tr")].filter(r => r.cells[5] && r.cells[5].textContent.trim() !== "n/a").length;

@@ -1559,8 +1559,9 @@ Array.prototype.forEach.call(document.querySelectorAll(".mk-card > h2, .mk-sec >
   window.addEventListener("scroll", function(){
     if(tick) return; tick = true;
     requestAnimationFrame(function(){
-      tick = false; var cur = null, lim = bar.getBoundingClientRect().bottom + 24;
+      tick = false; var cur = null, lim = Math.max(bar.getBoundingClientRect().bottom + 24, window.innerHeight * 0.4);
       btns.forEach(function(b){ var t = document.getElementById(b.getAttribute("data-to")); if(t && t.getBoundingClientRect().top <= lim) cur = b.getAttribute("data-to"); });
+      if(window.innerHeight + window.scrollY >= document.documentElement.scrollHeight - 4) cur = btns[btns.length - 1].getAttribute("data-to");
       mark(cur);
     });
   }, {passive: true});
@@ -1728,7 +1729,7 @@ Promise.all([
   var yCommon = (function(){ var n = {}, best = null; YROWS.forEach(function(r){ var k = periodLabel(r.p) + r.basis; n[k] = (n[k] || 0) + 1; if(!best || n[k] > n[best]) best = k; }); return best; })();
   function drawYields(){
     var el = document.getElementById("cYields"); if(!el || !YROWS.length) return;
-    var phone = isPhone();
+    var phone = isPhone(); YCUT = phone ? 5 : 10;
     var rows = yState.region === "All" ? YROWS : YROWS.filter(function(r){ return REGION[r.cc] === yState.region; });
     var cut = !yState.all && rows.length > 2 * YCUT + 4;
     var shown = cut ? rows.slice(0, YCUT).concat([null], rows.slice(rows.length - YCUT)) : rows;
