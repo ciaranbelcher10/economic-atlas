@@ -16,6 +16,12 @@ async function boot(seed){
   vc.on("jsdomError", e => { const m = String(e && e.message || e).split("\n")[0]; if(!/Not implemented|supabase|EATLAS_PREFS/i.test(m)) errors.push(m); });
   const dom = new JSDOM(html, { runScripts: "dangerously", pretendToBeVisual: true, virtualConsole: vc, url: "https://theeconomicatlas.com/calendar",
     beforeParse(win){
+      // v1.9.97: these tests cover a signed-in reader, who has no country cap. Signed out, the picker is capped
+      // at 3 free countries (v1.9.90), which test_free_caps.js covers. Account prefs live in this browser's storage here.
+      // (Supabase is not loaded in jsdom, so the page's own EATLAS_PREFS never gets built; this stands in for it.)
+      win.EATLAS_PREFS = { isLoggedIn: () => true, isPro: () => true, onSettled(){}, onLogin(){}, registerBanner(){},
+        get: (k, d) => { const s = win.localStorage.getItem("eatlas_" + k); return s == null ? d : JSON.parse(s); },
+        set: (k, val) => win.localStorage.setItem("eatlas_" + k, JSON.stringify(val)) };
       if(seed) Object.keys(seed).forEach(k => win.localStorage.setItem(k, seed[k]));
       win.matchMedia = () => ({ matches: true, addListener(){}, removeListener(){}, addEventListener(){}, removeEventListener(){} });
       win.fetch = u => { const p = path.join(ROOT, String(u).split("/").pop().split("?")[0]);
@@ -95,7 +101,7 @@ async function boot(seed){
   ok($("#calCountriesModal").hidden, "Escape closes it");
   click($("#calCountriesBtn")); click($("#calPickAll"));
   eq($("#ctpCount").textContent.split(" of ")[0], $("#ctpCount").textContent.split(" of ")[1], "All ticks every country");
-  ok(/Log in to get email alerts/.test($("#calEmailAlertsRow").textContent), "logged-out email note");
+  ok(/Email me when something I track/.test($("#calEmailAlertsRow").textContent), "signed-in email alerts toggle");
   ok(!$("#calPickerGrid") && !doc.querySelector(".cal-picker-grid"), "old picker grid removed");
 
   // a saved selection from before the rebuild is respected

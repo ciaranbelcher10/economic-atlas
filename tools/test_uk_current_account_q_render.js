@@ -23,6 +23,9 @@ const read = f => fs.readFileSync(path.join(ROOT, f), "utf8");
 const LIB = {"d3.min.js": "d3/dist/d3.min.js", "chart.umd.min.js": "chart.js/dist/chart.umd.js", "topojson.min.js": "topojson/dist/topojson.min.js",
              "hammer.min.js": "hammerjs/hammer.min.js", "chartjs-plugin-zoom.min.js": "chartjs-plugin-zoom/dist/chartjs-plugin-zoom.min.js"};
 const SUPA = "window.supabase={createClient:function(){var q={select:function(){return q},eq:function(){return q},order:function(){return q},maybeSingle:function(){return Promise.resolve({data:null})},then:function(r){return Promise.resolve({data:null}).then(r)}};return {from:function(){return q},auth:{getSession:function(){return Promise.resolve({data:{session:null}})},onAuthStateChange:function(){return {data:{subscription:{unsubscribe:function(){}}}}}}}}}};";
+// v1.9.97: a missing library used to make this test exit 0 with no output (a silent pass). Fail loudly instead.
+{ const miss = Object.values(LIB).filter(f => !fs.existsSync(NM + f));
+  if (miss.length) { console.log("test_uk_current_account_q_render: missing " + miss.join(", ") + " in " + NM + " (npm i hammerjs chartjs-plugin-zoom in /tmp)"); process.exit(2); } }
 class Loader extends ResourceLoader {
   fetch(url) { const b = url.split("/").pop().split("?")[0];
     if (LIB[b]) return Promise.resolve(fs.readFileSync(NM + LIB[b]));

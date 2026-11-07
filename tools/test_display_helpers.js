@@ -102,6 +102,9 @@ for(const f of pages){
       && /EA_STEP_KEYS = new Set\(\[[^\]]*"ecb_rate"[^\]]*\]\)/.test(src) && /EA_STEP_KEYS = new Set\(\[[^\]]*"policy_rate"/.test(src)
       && !/EA_STEP_KEYS = new Set\(\[[^\]]*"bond_yield_10y"/.test(src));
   }
-  check(f+" style v54", src.includes("style.css?v=54") && !src.includes("style.css?v=53"));
+  // v1.9.97: compare against the live version on index.html rather than a hard-coded number, so asset bumps don't break this
+  { const STYLE_V = (fs.readFileSync(path.join(root, "index.html"), "utf8").match(/style\.css\?v=(\d+)/) || [])[1];
+    const vs = [...new Set((src.match(/style\.css\?v=\d+/g) || []))];
+    check(f+" style v"+STYLE_V+" (same as index.html)", STYLE_V && vs.length === 1 && vs[0] === "style.css?v="+STYLE_V, vs); }
 }
 console.log(checks+" checks, "+fails+" failures"); process.exit(fails?1:0);
