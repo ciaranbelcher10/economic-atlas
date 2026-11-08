@@ -20,7 +20,7 @@
 <link rel="preconnect" href="https://fonts.googleapis.com">
 <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
 <link href="https://fonts.googleapis.com/css2?family=Nunito+Sans:wght@400;600;700&display=swap" rel="stylesheet">
-<link rel="stylesheet" href="../style.css?v=58">
+<link rel="stylesheet" href="../style.css?v=60">
 <link rel="stylesheet" href="../mobile.css?v=40">
 <link rel="stylesheet" href="../indicator.css?v=10">
 <script type="application/ld+json">
@@ -475,10 +475,18 @@
   }
   function updateAuthUI(session){
     if(session && session.user){
-      authBtn.textContent = session.user.email;
+      var em = session.user.email || "";
+      var c0 = Array.from(em)[0] || "", up = c0.toUpperCase(), ln;
+      try { var bs = String.fromCharCode(92); ln = new RegExp("^[" + bs + "p{L}" + bs + "p{N}]$", "u"); } catch(e){ ln = /^[A-Za-z0-9]$/; }
+      var ini = ln.test(c0) ? (up.length === 1 ? up : c0) : "?";
+      authBtn.innerHTML = '<span class="acct-i" aria-hidden="true">' + ini + '</span>Account';
+      authBtn.title = "Signed in as " + em;
+      authBtn.setAttribute("aria-label", "Account, signed in as " + em);
       authBtn.classList.add("signed-in");
     } else {
       authBtn.textContent = "Sign Up";
+      authBtn.removeAttribute("title");
+      authBtn.removeAttribute("aria-label");
       authBtn.classList.remove("signed-in");
     }
     if(window.EATLAS_DOWNLOAD) window.EATLAS_DOWNLOAD.setAuthState(!!(session && session.user));
@@ -1194,7 +1202,7 @@
       <p class="ind-adj">Seasonally adjusted</p>
     </div>
   </div>
-  <p class="lightskey"><span><span class="led green" aria-hidden="true"></span>Matches the latest release</span><span><span class="led orange" aria-hidden="true"></span>Not refreshed recently, awaiting the next release</span></p>
+  <p class="lightskey"><span><span class="led green" aria-hidden="true"></span>Up to date</span><span><span class="led orange" aria-hidden="true"></span>Awaiting update</span></p>
   <a class="glow-cta" href="../colombia"><span class="glow-inner"><span class="glow-text"><span class="glow-title">Explore the full Colombia economy</span><span class="glow-sub">17 live indicators on one dashboard, from growth and prices to jobs, trade and public finances. Updated automatically from official sources.</span></span><span class="glow-go"><svg viewBox="0 0 20 20" fill="none" aria-hidden="true"><path d="M4 10h11m-4.5-4.5L15 10l-4.5 4.5" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"/></svg></span></span></a>
   
   <section class="panel ind-panel" aria-labelledby="chartTitle">
@@ -1249,7 +1257,7 @@
 <a href="colombia-current-account-to-gdp"><span class="r-name">Current Account (% of GDP)</span><span class="r-val">−2.4%</span><span class="r-per">2025</span></a>
 <a href="colombia-foreign-direct-investment"><span class="r-name">Foreign Direct Investment (% of GDP)</span><span class="r-val">2.5%</span><span class="r-per">2025</span></a>
 <div class="ind-cat">Public finances</div>
-<a href="colombia-government-debt"><span class="r-name">Government Debt (% of GDP)</span><span class="r-val">59.9%</span><span class="r-per">2025</span></a>
+<a href="colombia-government-debt"><span class="r-name">Government Debt (% of GDP)</span><span class="r-val">61.0%</span><span class="r-per">2024</span></a>
 <a href="colombia-government-budget"><span class="r-name">Government Budget Balance (% of GDP)</span><span class="r-val">−5.8%</span><span class="r-per">2025</span></a>
 <div class="ind-cat">Business</div>
 <a href="colombia-business-confidence"><span class="r-name">Business Confidence</span><span class="r-val">100.9</span><span class="r-per">Aug 2026</span></a>
