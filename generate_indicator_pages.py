@@ -44,7 +44,7 @@ SITE_URL = "https://theeconomicatlas.com"
 # underlying official statistics, which stay with their publishers.
 CREATOR = {"@type": "Organization", "name": "The Economic Atlas", "url": SITE_URL}
 LICENSE = f"{SITE_URL}/terms"
-KIT_VERSION = "9"
+KIT_VERSION = "10"
 
 # country display name -> (data-file code, page slug, alpha-2, region)
 COUNTRIES = {
@@ -2395,7 +2395,7 @@ def render_rankings_index(ranking_pages, rankings_meta):
     html_out += f"""<main class="ind-wrap rk-wrap">
   <header class="ind-head">
     <h1>Economic Rankings by Country</h1>
-    <p class="ind-lede">Every country we track, ranked side by side on the measures that can be compared like for like. Rates and stocks show each country's latest reading; flows such as GDP show the last completed year. Updated automatically from official sources.</p>
+    <p class="ind-lede"><span class="ind-dt">Every country we track, ranked side by side on the measures that can be compared like for like. Rates and stocks show each country's latest reading; flows such as GDP show the last completed year. Updated automatically from official sources.</span><span class="ind-ph">Every economy ranked on like-for-like measures.</span></p>
   </header>
   <div style="height:26px"></div>
   <div class="rkx-grid">{''.join(cards)}</div>
