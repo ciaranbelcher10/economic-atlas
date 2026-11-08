@@ -1092,7 +1092,9 @@ HEADER_HTML_BASE = """<script>(function(){
   function updateAuthUI(session){
     if(session && session.user){
       var em = session.user.email || "";
-      var ini = (em.charAt(0) || "?").toUpperCase().replace(/[^A-Z0-9]/, "?");
+      var c0 = Array.from(em)[0] || "", up = c0.toUpperCase(), ln;
+      try { var bs = String.fromCharCode(92); ln = new RegExp("^[" + bs + "p{L}" + bs + "p{N}]$", "u"); } catch(e){ ln = /^[A-Za-z0-9]$/; }
+      var ini = ln.test(c0) ? (up.length === 1 ? up : c0) : "?";
       authBtn.innerHTML = '<span class="acct-i" aria-hidden="true">' + ini + '</span>Account';
       authBtn.title = "Signed in as " + em;
       authBtn.setAttribute("aria-label", "Account, signed in as " + em);
@@ -1290,7 +1292,7 @@ def head_html(title, desc, canonical, og_image, jsonld, extra_css=""):
 <link rel="preconnect" href="https://fonts.googleapis.com">
 <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
 <link href="https://fonts.googleapis.com/css2?family=Nunito+Sans:wght@400;600;700&display=swap" rel="stylesheet">
-<link rel="stylesheet" href="../style.css?v=59">
+<link rel="stylesheet" href="../style.css?v=60">
 <link rel="stylesheet" href="../mobile.css?v=40">
 <link rel="stylesheet" href="../indicator.css?v={KIT_VERSION}">
 <script type="application/ld+json">
@@ -2401,7 +2403,7 @@ def render_rankings_index(ranking_pages, rankings_meta):
     html_out += f"""<main class="ind-wrap rk-wrap">
   <header class="ind-head">
     <h1>Economic Rankings by Country</h1>
-    <p class="ind-lede"><span class="ind-dt">Every country we track, ranked side by side on the measures that can be compared like for like. Rates and stocks show each country's latest reading; flows such as GDP show the last completed year. Updated automatically from official sources.</span><span class="ind-ph">Every economy ranked on like-for-like measures.</span></p>
+    <p class="ind-lede"><span class="ind-dt">Every economy we track, ranked on like-for-like measures and updated automatically from official sources.</span><span class="ind-ph">Every economy ranked on like-for-like measures.</span></p>
   </header>
   <div style="height:26px"></div>
   <div class="rkx-grid">{''.join(cards)}</div>

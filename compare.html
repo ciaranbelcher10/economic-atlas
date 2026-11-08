@@ -32,7 +32,7 @@
 <link href="https://fonts.googleapis.com/css2?family=Nunito+Sans:wght@400;600;700&display=swap" rel="stylesheet">
 <link rel="icon" type="image/png" sizes="32x32" href="favicon-32.png">
 <link rel="apple-touch-icon" href="apple-touch-icon.png">
-<link rel="stylesheet" href="style.css?v=59">
+<link rel="stylesheet" href="style.css?v=60">
 <style>
 :root{ --map-nodata: #E9EBE7; }
 /* ---- info button + popover (per-card data source & methodology) ---- */
@@ -865,7 +865,9 @@ footer.cmp-foot{margin-top:36px; font-size:12.5px; color:var(--ink2); border-top
   function updateAuthUI(session){
     if(session && session.user){
       var em = session.user.email || "";
-      var ini = (em.charAt(0) || "?").toUpperCase().replace(/[^A-Z0-9]/, "?");
+      var c0 = Array.from(em)[0] || "", up = c0.toUpperCase(), ln;
+      try { var bs = String.fromCharCode(92); ln = new RegExp("^[" + bs + "p{L}" + bs + "p{N}]$", "u"); } catch(e){ ln = /^[A-Za-z0-9]$/; }
+      var ini = ln.test(c0) ? (up.length === 1 ? up : c0) : "?";
       authBtn.innerHTML = '<span class="acct-i" aria-hidden="true">' + ini + '</span>Account';
       authBtn.title = "Signed in as " + em;
       authBtn.setAttribute("aria-label", "Account, signed in as " + em);
@@ -1619,8 +1621,7 @@ footer.cmp-foot{margin-top:36px; font-size:12.5px; color:var(--ink2); border-top
  <button type="button" class="savebar-close" id="saveBarClose" aria-label="Dismiss">&times;</button>
  </div>
  <h1 style="margin-bottom:6px;">Compare and Rank Countries</h1>
- <p style="color:var(--ink2); font-size:14.5px; margin:8px 0 0;">Rank and compare all 62 tracked economies across GDP, inflation, unemployment, debt, trade, rates and more, side by side, for one year or over the last 1, 2, 5 or 10 years.</p>
- <p style="color:var(--ink2); font-size:13px; margin:6px 0 0;">Looking for a single ranking, such as GDP, inflation or unemployment by country? Each one has its own page, linked under Rankings at the bottom of this page.</p>
+ <p style="color:var(--ink2); font-size:14.5px; margin:8px 0 0;">Rank and compare 62 economies on GDP, inflation, jobs, debt, trade and rates, for one year or over the last 10.</p>
  <p class="loadmsg" id="loadMsg">Loading every country&#39;s data&hellip;</p>
  <div id="mainContent" style="display:none; position:relative;">
  <button type="button" id="countriesToggleBtn" style="display:block; width:100%; text-align:center;
@@ -4182,7 +4183,7 @@ function updateCountriesToggleBtn(){
   var btn = document.getElementById("countriesToggleBtn");
   if(!btn) return;
   var n = selected.length;
-  var label = n === 0 ? "Choose countries" : n + " " + (n === 1 ? "country" : "countries") + " selected, tap to change";
+  var label = n === 0 ? "Choose countries" : n + " " + (n === 1 ? "country" : "countries") + " selected, " + (window.matchMedia && window.matchMedia("(hover:none)").matches ? "tap" : "click") + " to change";
   btn.textContent = label + (countriesPanelExpanded ? "  \u25B4" : "  \u25BE");
 }
 // Anchors the dropdown to the toggle button's actual current on-screen

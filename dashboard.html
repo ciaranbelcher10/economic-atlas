@@ -32,7 +32,7 @@
 <link href="https://fonts.googleapis.com/css2?family=Nunito+Sans:wght@400;600;700&display=swap" rel="stylesheet">
 <link rel="icon" type="image/png" sizes="32x32" href="favicon-32.png">
 <link rel="apple-touch-icon" href="apple-touch-icon.png">
-<link rel="stylesheet" href="style.css?v=59">
+<link rel="stylesheet" href="style.css?v=60">
 <script src="https://cdnjs.cloudflare.com/ajax/libs/Chart.js/4.4.1/chart.umd.min.js"></script>
 <script src="https://cdnjs.cloudflare.com/ajax/libs/hammer.js/2.0.8/hammer.min.js"></script>
 <script src="https://cdnjs.cloudflare.com/ajax/libs/chartjs-plugin-zoom/2.0.1/chartjs-plugin-zoom.min.js"></script>
@@ -775,7 +775,9 @@ footer.dash-foot{margin-top:36px; font-size:12.5px; color:var(--ink2); border-to
   function updateAuthUI(session){
     if(session && session.user){
       var em = session.user.email || "";
-      var ini = (em.charAt(0) || "?").toUpperCase().replace(/[^A-Z0-9]/, "?");
+      var c0 = Array.from(em)[0] || "", up = c0.toUpperCase(), ln;
+      try { var bs = String.fromCharCode(92); ln = new RegExp("^[" + bs + "p{L}" + bs + "p{N}]$", "u"); } catch(e){ ln = /^[A-Za-z0-9]$/; }
+      var ini = ln.test(c0) ? (up.length === 1 ? up : c0) : "?";
       authBtn.innerHTML = '<span class="acct-i" aria-hidden="true">' + ini + '</span>Account';
       authBtn.title = "Signed in as " + em;
       authBtn.setAttribute("aria-label", "Account, signed in as " + em);
@@ -1486,7 +1488,7 @@ footer.dash-foot{margin-top:36px; font-size:12.5px; color:var(--ink2); border-to
  <div class="dash-sidebar-list" id="dashSidebarList" role="navigation" aria-label="Your dashboards"></div>
  </aside>
  <div class="dash-mobile-tabs" id="dashMobileTabs" hidden></div>
-<div class="wrap" id="dashMainWrap" style="max-width:1080px; padding:30px 24px 60px;">
+<div class="wrap" id="dashMainWrap" style="padding:30px 24px 60px;">
  <div class="savebar" id="saveBar" hidden>
  <span class="savebar-icon" aria-hidden="true">&#9888;&#65039;</span>
  <p>Everything you pin here resets the moment you leave. A free account (10 seconds) keeps it saved for next time.</p>
@@ -1502,7 +1504,8 @@ footer.dash-foot{margin-top:36px; font-size:12.5px; color:var(--ink2); border-to
  <button type="button" class="mtoggle" id="dollariseBtn" aria-pressed="false">
  <span class="mtoggle-switch" aria-hidden="true"></span>Dollarise
  </button>
- <span class="mtoggle-note">"Make it real" shows GDP level tiles inflation-adjusted. Dollarise shows currency figures (GDP, debt, trade) in USD, using the same FX rates as each country's own page: each period at its own rate, and real GDP at its latest year's rate so its growth matches the published figure. Years before a currency had a market rate are left out.</span>
+ <button type="button" class="dash-d-info" id="dashInfoBtn" aria-label="What these switches do" aria-expanded="false" aria-controls="dashToggleNote">i</button>
+ <span class="mtoggle-note" id="dashToggleNote">"Make it real" shows GDP level tiles inflation-adjusted. Dollarise shows currency figures (GDP, debt, trade) in USD, using the same FX rates as each country's own page: each period at its own rate, and real GDP at its latest year's rate so its growth matches the published figure. Years before a currency had a market rate are left out.</span>
  <span id="mtoggleAnnounce" class="sr-only" role="status" aria-live="polite"></span>
  <button type="button" class="dashexportbtn" id="exportDashboardBtn" style="margin-left:auto;">Export dashboard (PNG)</button>
  </div>
@@ -5333,5 +5336,10 @@ window.EATLAS_SAVED_CHARTS = (function(){
 })();
 </script>
 <script src="mobile.js?v=38" defer></script>
+<script>
+/* v1.9.104: on desktop the Make it real / Dollarise explanation sits behind an (i), like on phones */
+(function(){var b=document.getElementById("dashInfoBtn"); if(!b) return; var tg=b.parentNode;
+  b.addEventListener("click",function(){var open=!tg.classList.contains("note-open"); tg.classList.toggle("note-open",open); b.setAttribute("aria-expanded",open?"true":"false");});})();
+</script>
 </body>
 </html>

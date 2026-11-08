@@ -137,7 +137,6 @@ MUTS = [
     ('llms.txt drops an economy', mutate('    for country, name, cslug in sorted(done, key=lambda t: t[1]):', '    for country, name, cslug in sorted(done, key=lambda t: t[1])[1:]:'), 'llms.txt economies differ'),
     ('awaiting registry ignored', mutate('                if (country, e["key"]) in slow and awaiting_ok(', '                if False and awaiting_ok('), 'awaiting rows differ'),
     ('awaiting ignores the confirmed-recently rule', mutate('AWAITING_CONFIRM_DAYS = 3   ', 'AWAITING_CONFIRM_DAYS = -1  '), 'awaiting rows differ'),
-    ('awaiting ignores the cap', mutate('    return (today - period_end_date(period_from)).days <= AWAITING_CAP_DAYS.get(freq, 0)', '    return True'), 'awaiting rows differ'),
     ('awaiting count missing from the summary', mutate("{wait} awaiting the publisher's next release", "{wait + 1} awaiting the publisher's next release"), 'data-status: summary says'),
     ('economy row loses its awaiting count', mutate('<td>{r["current"]}</td><td>{r["awaiting"]}</td><td>{r["late"]}</td>', '<td>{r["current"]}</td><td>0</td><td>{r["late"] + r["awaiting"]}</td>'), 'row says'),
     ('data status drops an economy', mutate('        cur = late = wait = 0\n        upcoming = []\n', '        if country == "UK":\n            continue\n        cur = late = wait = 0\n        upcoming = []\n'), 'does not list exactly the published economies'),
@@ -154,6 +153,36 @@ MUTS = [
 ]
 for name, text, expect in MUTS:
     caught(name, run_gate(text), expect)
+
+# v1.9.104: "awaiting ignores the cap" only shows when a slow source's series is past the cap and was
+# confirmed lately. Live data may have no such series on the day, so build one: China's trade balance
+# (on a slow source in awaiting_sources.json) cut back to end eight months ago and confirmed today.
+def past_cap(d):
+    import datetime as _dt
+    aw = json.loads((d / "awaiting_sources.json").read_text(encoding="utf-8"))
+    assert any(e["economy"] == "China" and "trade_balance" in e["keys"] for e in aw["series"]), \
+        "China trade_balance is no longer on a slow source: pick another series for this check"
+    f = d / "data-cn.json"
+    data = json.loads(f.read_text(encoding="utf-8"))
+    s = data["series"]["trade_balance"]
+    assert s.get("freq") == "months" and len(s["points"]) > 12
+    today = _dt.date.today()
+    y, m = today.year, today.month - 8
+    while m <= 0:
+        y, m = y - 1, m + 12
+    cut = f"{y:04d}-{m:02d}"
+    s["points"] = [p for p in s["points"] if p[0] <= cut]
+    s["confirmed_at"] = _dt.datetime.now(_dt.timezone.utc).strftime("%Y-%m-%dT%H:%MZ")
+    f.unlink()
+    f.write_text(json.dumps(data), encoding="utf-8")
+
+d = repo_copy(past_cap)
+try:
+    r = run_gate(repo=d)
+    check(r.returncode == 0, f"past-cap series: the repo's generator must pass: {(r.stdout + r.stderr)[-300:]!r}")
+    caught("awaiting ignores the cap", run_gate(mutate('    return (today - period_end_date(period_from)).days <= AWAITING_CAP_DAYS.get(freq, 0)', '    return True'), repo=d), "awaiting rows differ")
+finally:
+    shutil.rmtree(d, ignore_errors=True)
 
 # ---------------------------------------------------------------- doctored data
 def cross_year(d):

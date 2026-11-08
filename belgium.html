@@ -81,7 +81,7 @@
 <link href="https://fonts.googleapis.com/css2?family=Nunito+Sans:wght@400;600;700&display=swap" rel="stylesheet">
 <link rel="icon" type="image/png" sizes="32x32" href="favicon-32.png">
 <link rel="apple-touch-icon" href="apple-touch-icon.png">
-<link rel="stylesheet" href="style.css?v=59">
+<link rel="stylesheet" href="style.css?v=60">
 <style>
 .led{display:inline-block; width:9px; height:9px; border-radius:50%;
   margin-right:9px; vertical-align:middle; position:relative; top:-3px;}
@@ -820,7 +820,9 @@ button.mtoggle.fx-both{background:#2FA463; border-color:#2FA463; color:#fff;}
   function updateAuthUI(session){
     if(session && session.user){
       var em = session.user.email || "";
-      var ini = (em.charAt(0) || "?").toUpperCase().replace(/[^A-Z0-9]/, "?");
+      var c0 = Array.from(em)[0] || "", up = c0.toUpperCase(), ln;
+      try { var bs = String.fromCharCode(92); ln = new RegExp("^[" + bs + "p{L}" + bs + "p{N}]$", "u"); } catch(e){ ln = /^[A-Za-z0-9]$/; }
+      var ini = ln.test(c0) ? (up.length === 1 ? up : c0) : "?";
       authBtn.innerHTML = '<span class="acct-i" aria-hidden="true">' + ini + '</span>Account';
       authBtn.title = "Signed in as " + em;
       authBtn.setAttribute("aria-label", "Account, signed in as " + em);
