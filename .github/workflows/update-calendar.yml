@@ -261,4 +261,13 @@ jobs:
           git config user.email "actions@github.com"
           git add data-calendar-*.json
           git diff --cached --quiet || git commit -m "Refresh calendar data"
-          git push
+          # v1.9.102: main can move while this job runs (another bot or a release push).
+          # Rebase onto it and retry instead of failing; only bot-owned files are in this commit.
+          n=0
+          until git push; do
+            n=$((n+1))
+            if [ "$n" -ge 3 ]; then echo "::error::push still rejected after 3 rebases"; exit 1; fi
+            echo "Push rejected because main moved on. Rebasing (attempt $n)."
+            git pull --rebase origin main || { git rebase --abort; echo "::error::rebase hit a conflict"; exit 1; }
+            sleep $((n*5))
+          done
