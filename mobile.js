@@ -508,7 +508,6 @@
       if(activeIdx === -1) return;
       var name = btns[activeIdx].textContent.trim();
       var txt = (activeIdx + 1) + " of " + btns.length + ": " + name;
-      if(prog.classList.contains("first-visit")) txt += ". Swipe left or right for other sections";
       prog.innerHTML = '<span class="ar' + (activeIdx > 0 ? "" : " off") + '" aria-hidden="true">\u2039</span><span class="t"></span><span class="ar' + (activeIdx < btns.length - 1 ? "" : " off") + '" aria-hidden="true">\u203A</span>';
       prog.querySelector(".t").textContent = txt;
     }
@@ -1226,11 +1225,11 @@
     if(!card.querySelector(".cmp-m-key")){
       var k = document.createElement("p");
       k.className = "cmp-m-key";
-      k.innerHTML = '<span><span class="led green" aria-hidden="true"></span>Latest data</span><span><span class="led orange" aria-hidden="true"></span>Awaiting next update</span>';
+      k.innerHTML = '<span><span class="led green" aria-hidden="true"></span>Up to date</span><span><span class="led orange" aria-hidden="true"></span>Awaiting update</span>';
       card.appendChild(k);
     }
   }
-  var CMP_SHORT_LEDE = "Rank the 62 economies side by side, for one year or over time.";
+  var CMP_SHORT_LEDE = "Rank 62 economies side by side.";
   var CMP_SHORT_SAVE = "Sign up free to keep this comparison.";
   function compactCompareTop(on){
     var h1 = document.querySelector("h1");
@@ -1894,8 +1893,37 @@
     safeCall(initCompareMobile);
     safeCall(initRankingsTools);
     safeCall(chartmakerGate);
+    safeCall(densityTwo);
   }
 
+
+  // v1.9.105 density part 2 (phones): one-line home intro, short Dashboard banner and footer.
+  function densityTwo(){
+    var on = window.matchMedia && window.matchMedia("(max-width:760px)").matches;
+    var swaps = [
+      [document.querySelector(".hero-h1") && document.querySelector(".hero-h1").nextElementSibling, "Official data for 62 economies."],
+      [document.querySelector("#dashMainWrap #saveBar p"), "Sign up free to keep this dashboard."],
+      [document.querySelector("footer.dash-foot"), null]
+    ];
+    swaps.forEach(function(sw){
+      var el = sw[0];
+      if(!el) return;
+      if(sw[1] === null){
+        // footer: the text node before the button row
+        var tn = null;
+        for(var i = 0; i < el.childNodes.length; i++){ if(el.childNodes[i].nodeType === 3 && el.childNodes[i].textContent.trim()){ tn = el.childNodes[i]; break; } }
+        if(!tn) return;
+        if(el.dataset.full === undefined) el.dataset.full = tn.textContent;
+        var want = on ? " Figures are read live from each country's own data. Signed in, your tiles are saved. " : el.dataset.full;
+        if(tn.textContent !== want) tn.textContent = want;
+        return;
+      }
+      if(el.tagName !== "P") return;
+      if(el.dataset.full === undefined) el.dataset.full = el.textContent;
+      var w = on ? sw[1] : el.dataset.full;
+      if(el.textContent !== w) el.textContent = w;
+    });
+  }
   if(document.readyState === "loading"){
     document.addEventListener("DOMContentLoaded", init);
   } else {
@@ -1905,7 +1933,7 @@
   window.addEventListener("resize", function(){
     addTradeNote(); tableToCards(); chartmakerGate(); simplifyComparePage(); simplifyCalendarCopy();
     safeCall(initDashOptions); safeCall(fixReasonBar); safeCall(initCompareMobile); safeCall(initRankingsTools);
-    alignCountryMapWithSearch();
+    alignCountryMapWithSearch(); safeCall(densityTwo);
   });
   window.addEventListener("load", function(){
     setTimeout(init, 400); // second pass after country/compare/calendar data fetches resolve

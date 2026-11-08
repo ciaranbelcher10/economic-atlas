@@ -191,7 +191,7 @@ async function loaded(win, extra){
   if(prog && nav){
     const btns = [...nav.querySelectorAll("button")];
     ok(new RegExp("^\\d+ of " + btns.length + ": ").test(prog.querySelector(".t").textContent), "progress reads n of N: " + prog.querySelector(".t").textContent);
-    ok(prog.classList.contains("first-visit") && /Swipe left or right/.test(prog.textContent), "first visit shows the swipe hint");
+    ok(!/Swipe left or right/.test(prog.textContent) && /^\d+ of \d+: [^.]+$/.test(prog.querySelector(".t").textContent), "v1.9.105: swipe hint stays short (n of N: name, with arrows)");
     ok(uk.store.ea_swipe_hint_seen === "1", "hint marked as seen");
     const target = btns[2];
     if(target && typeof uw.showSec === "function"){
