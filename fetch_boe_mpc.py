@@ -74,6 +74,11 @@ HISTORY_LIMIT = 400  # generous cap, not a real limit -- the spreadsheet's full
 # hand over everything available.
 
 
+def _rate_key(pct: float) -> str:
+    """4.0 -> "4", 4.25 -> "4.25", 0.1 -> "0.1": the label the page shows."""
+    return f"{round(pct, 4):g}"
+
+
 def _to_float(v):
     if v is None:
         return None
@@ -193,9 +198,17 @@ def fetch_and_parse() -> list[dict] | None:
                 else:
                     cut += 1
         total_votes = hold + hike + cut
+        # v1.9.102: how many members voted for each rate, counts only (no
+        # names), so the page can say "8-1 to raise to 4%, 1 preferred 4.25%".
+        # Keys are the rate as a short string ("4", "4.25"), highest first.
+        rate_votes = {}
+        for voted_pct in sorted(rm["votes"].values(), reverse=True):
+            k = _rate_key(voted_pct)
+            rate_votes[k] = rate_votes.get(k, 0) + 1
         meetings.append({
             "date": rm["date"], "decision_rate": rm["decision_rate"], "previous_rate": prev_rate,
             "hold": hold, "hike": hike, "cut": cut, "total_votes": total_votes,
+            "rate_votes": rate_votes,
         })
         prev_rate = rm["decision_rate"]
 

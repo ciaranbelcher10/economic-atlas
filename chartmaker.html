@@ -32,7 +32,7 @@
 <link href="https://fonts.googleapis.com/css2?family=Nunito+Sans:wght@400;600;700&display=swap" rel="stylesheet">
 <link rel="icon" type="image/png" sizes="32x32" href="favicon-32.png">
 <link rel="apple-touch-icon" href="apple-touch-icon.png">
-<link rel="stylesheet" href="style.css?v=57">
+<link rel="stylesheet" href="style.css?v=58">
 <link rel="stylesheet" href="mobile.css?v=40">
 </head>
 <body>
@@ -1385,6 +1385,8 @@ button.mtoggle.fx-both{background:#2FA463; border-color:#2FA463; color:#fff;}
 .cm-exportbar button:hover:not(:disabled){border-color:var(--navy); color:var(--navy);}
 .cm-exportbar button:disabled{opacity:.4; cursor:not-allowed;}
 .cm-exportbar .seg{width:130px;}
+.cm-pnglbl{font-size:12px; font-weight:700; color:var(--ink2); text-transform:uppercase; letter-spacing:.06em; margin-right:-4px;}
+[data-theme="dark"] .cm-chart-outer{background:#12181A;}
 .cm-swatch{width:22px; height:22px; border-radius:50%; flex:0 0 auto; border:2px solid rgba(255,255,255,.5); cursor:pointer; padding:0;}
 .cm-swatch.clash{border-color:#D65A3C;}
 .cm-colorrow{display:flex; align-items:center; gap:11px; padding:8px 0; border-bottom:1px solid var(--hair); position:relative;}
@@ -1579,7 +1581,8 @@ button.mtoggle.fx-both{background:#2FA463; border-color:#2FA463; color:#fff;}
  <div id="cmSvgBox" style="display:none; width:100%; height:100%;"></div>
  </div>
  <div class="cm-exportbar">
- <div class="seg" id="cmThemeSeg">
+ <span class="cm-pnglbl" id="cmThemeLbl">PNG</span>
+ <div class="seg" id="cmThemeSeg" role="group" aria-labelledby="cmThemeLbl">
  <button type="button" data-theme="light" class="active" style="flex:1;">Light</button>
  <button type="button" data-theme="dark" style="flex:1;">Dark</button>
  </div>
@@ -2749,6 +2752,15 @@ document.getElementById("dollariseToggle").addEventListener("click", function(){
 var annotations = [];
 var chart = null;
 var exportTheme = "light";
+// v1.9.102: the on-screen chart follows the site's light/dark mode; the
+// Light/Dark switch under it only sets the PNG background (default white).
+function cmPreviewTheme(){
+  return document.documentElement.getAttribute("data-theme") === "dark" ? "dark" : "light";
+}
+if(window.MutationObserver){
+  new MutationObserver(function(){ if(typeof renderChart === "function") renderChart(); })
+    .observe(document.documentElement, {attributes:true, attributeFilter:["data-theme"]});
+}
 var pendingCountry = null;
 var pendingNudgeMetric = null; // metric key just added, drives the inline nudge banner in the metric modal
 
@@ -3841,10 +3853,7 @@ document.getElementById("cmThemeSeg").querySelectorAll("button").forEach(functio
   b.addEventListener("click", function(){
     document.getElementById("cmThemeSeg").querySelectorAll("button").forEach(function(x){x.classList.toggle("active", x===b);});
     exportTheme = b.dataset.theme;
-    // No CSS dark-preview toggle needed any more -- the SVG paints its
-    // own background rect for whichever theme is chosen, same as the
-    // real preview.
-    renderChart();
+    // v1.9.102: PNG background only; the preview follows the site theme.
   });
 });
 
@@ -5172,7 +5181,7 @@ function renderChart(){
   document.getElementById("cmYStartSeg").style.opacity = yStartDisabled ? ".45" : "1";
   document.getElementById("cmYStartValue").disabled = yStartDisabled;
 
-  svgBoxEl.innerHTML = chartType === "bar" ? czmBuildBars(exportTheme, false) : czmBuildSVG(exportTheme, false);
+  svgBoxEl.innerHTML = chartType === "bar" ? czmBuildBars(cmPreviewTheme(), false) : czmBuildSVG(cmPreviewTheme(), false);
   if(phone) cmCropPhoneFooter();
   wireDragHandles();
 }
@@ -5205,7 +5214,7 @@ function wireDragHandles(){
   function currentBuilder(theme, forExport){ return chartType === "bar" ? czmBuildBars(theme, forExport) : czmBuildSVG(theme, forExport); }
   function refreshGroup(ai){
     var gm = currentGm();
-    var t = THEMES[exportTheme];
+    var t = THEMES[cmPreviewTheme()];
     var group = svgEl.querySelector("[data-cz-annot-group='" + ai + "']");
     if(!group) return;
     var temp = document.createElementNS("http://www.w3.org/2000/svg", "g");
@@ -5296,7 +5305,7 @@ function openInlineEditor(ai){
   overlay.style.fontSize = Math.max(10, (a.fontSize||11) * scale) + "px";
   overlay.style.fontWeight = "600";
   overlay.style.fontFamily = CZ_FONT();
-  overlay.style.color = THEMES[exportTheme].annotText;
+  overlay.style.color = THEMES[cmPreviewTheme()].annotText;
   overlay.style.textAlign = a.align === "left" ? "right" : a.align === "right" ? "left" : "center";
   document.body.appendChild(overlay);
   overlay.focus();

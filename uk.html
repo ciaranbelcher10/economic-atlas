@@ -81,7 +81,7 @@
 <link href="https://fonts.googleapis.com/css2?family=Nunito+Sans:wght@400;600;700&display=swap" rel="stylesheet">
 <link rel="icon" type="image/png" sizes="32x32" href="favicon-32.png">
 <link rel="apple-touch-icon" href="apple-touch-icon.png">
-<link rel="stylesheet" href="style.css?v=57">
+<link rel="stylesheet" href="style.css?v=58">
 <style>
 .led{display:inline-block; width:9px; height:9px; border-radius:50%;
   margin-right:9px; vertical-align:middle; position:relative; top:-3px;}
@@ -361,6 +361,7 @@ nav.viztoggle label{font-size:12.5px; color:var(--ink2); font-weight:600; margin
   letter-spacing:.03em; margin:0 0 4px;}
 .mpc-stat .v{font-size:26px; font-weight:700; color:var(--navy); line-height:1.1;}
 .mpc-stat .v small{font-size:14px; font-weight:600; color:var(--ink2);}
+.mpc-vote{flex-basis:220px;}
 .mpc-votebar{display:flex; height:34px; border-radius:8px; overflow:hidden; flex:1 1 260px;
   min-width:220px;}
 .mpc-votebar div{display:flex; align-items:center; justify-content:center;
@@ -3827,6 +3828,31 @@ function decisionFor(m){
   if(m.previous_rate == null || m.decision_rate === m.previous_rate) return "hold";
   return m.decision_rate > m.previous_rate ? "hike" : "cut";
 }
+// v1.9.102: Bank-style vote wording from the per-rate tally
+// (rate_votes, counts only): "8\u20131 to raise to 4%, 1 preferred 4.25%".
+// Returns null when the tally is missing or doesn't fit the decision, so
+// callers fall back to plain counts rather than guessing.
+function mpcRateKey(r){ return String(+(+r).toFixed(4)); }
+function mpcVoteSplit(m){
+  var rv = m && m.rate_votes;
+  if(!rv || typeof rv !== "object") return null;
+  var key = mpcRateKey(m.decision_rate), maj = +rv[key] || 0, total = 0, others = [];
+  Object.keys(rv).forEach(function(k){
+    var n = +rv[k] || 0; total += n;
+    if(k !== key && n > 0) others.push({rate: +k, label: k, n: n});
+  });
+  if(!maj || !total) return null;
+  others.sort(function(a, b){ return b.rate - a.rate; });
+  var d = decisionFor(m);
+  var what = d === "hike" ? "to raise to " : d === "cut" ? "to cut to " : "to hold at ";
+  what += key + "%";
+  var pref = others.map(function(o){ return ", " + o.n + " preferred " + o.label + "%"; }).join("");
+  return { score: maj + "\u2013" + (total - maj), what: what, pref: pref,
+           text: maj + "\u2013" + (total - maj) + " " + what + pref };
+}
+function mpcVoteCounts(m){
+  return m.hike + " to raise, " + m.hold + " to hold, " + m.cut + " to cut";
+}
 function renderMPC(meetings){
   if(!meetings || !meetings.length) return;
   lastRenderedMeetings = meetings;
@@ -3842,14 +3868,15 @@ function renderMPC(meetings){
     if(latest.cut) voteSegs += "<div class=\"mpc-seg-cut" + (latestDecision === "cut" ? " bold" : "") + "\" style=\"flex:" + latest.cut + "\"><span class=\"mpc-arrow\">\u2193</span> " + latest.cut + " cut</div>";
     if(latest.hold) voteSegs += "<div class=\"mpc-seg-hold" + (latestDecision === "hold" ? " bold" : "") + "\" style=\"flex:" + latest.hold + "\"><span class=\"mpc-arrow\">=</span> " + latest.hold + " hold</div>";
     if(latest.hike) voteSegs += "<div class=\"mpc-seg-hike" + (latestDecision === "hike" ? " bold" : "") + "\" style=\"flex:" + latest.hike + "\"><span class=\"mpc-arrow\">\u2191</span> " + latest.hike + " hike</div>";
-    var voteLabel = latest.hike && !latest.cut ? (latest.hold + "\u2013" + latest.hike)
-      : latest.cut && !latest.hike ? (latest.hold + "\u2013" + latest.cut)
-      : (latest.cut + "\u2013" + latest.hold + "\u2013" + latest.hike);
+    var split = mpcVoteSplit(latest);
+    var voteHtml = split
+      ? "<p class=\"v\">" + split.score + " <small>" + split.what + split.pref + "</small></p>"
+      : "<p class=\"v\" style=\"font-size:15px;\">" + mpcVoteCounts(latest) + "</p>";
     var ctxText = contextText(latest.date);
     latestEl.innerHTML =
       "<div class=\"mpc-stat\"><p class=\"k\">Meeting ending</p><p class=\"v\">" + fmtDate(latest.date) + "</p></div>" +
       "<div class=\"mpc-stat\"><p class=\"k\">Bank Rate</p><p class=\"v\">" + latest.decision_rate.toFixed(2) + "% <small>" + action + "</small></p></div>" +
-      "<div class=\"mpc-stat\"><p class=\"k\">Vote</p><p class=\"v\">" + voteLabel + "</p></div>" +
+      "<div class=\"mpc-stat mpc-vote\"><p class=\"k\">Vote</p>" + voteHtml + "</div>" +
       (ctxText ? "<div class=\"mpc-stat\"><p class=\"k\">Economic context</p><p class=\"v\" style=\"font-size:15px;\">" + ctxText + "</p></div>" : "") +
       "<div class=\"mpc-votebar\" role=\"img\" aria-label=\"" + latest.cut + " members voted to cut, " + latest.hold + " to hold, " + latest.hike + " to raise\">" + voteSegs + "</div>" +
       "<div class=\"mpc-legend\">" +
@@ -3880,7 +3907,9 @@ function renderMPCHistory(){
       } else {
         resultText = "held at <strong>" + m.decision_rate.toFixed(2) + "%</strong>";
       }
-      var votePart = m.hike && !m.cut ? (m.hold + "\u2013" + m.hike)
+      var hsplit = mpcVoteSplit(m);
+      var votePart = hsplit ? hsplit.score
+        : m.hike && !m.cut ? (m.hold + "\u2013" + m.hike)
         : m.cut && !m.hike ? (m.hold + "\u2013" + m.cut)
         : (m.hold + "\u2013" + m.hike + "\u2013" + m.cut);
       var ctx = contextText(m.date);
