@@ -1,5 +1,6 @@
 #!/usr/bin/env node
-/* v1.9.82: phones open straight on Policy Rates (never the UK CPI starter), no chip row for a single
+/* v1.9.107: gallery is three of Ciaran's saved charts (Policy rates first, chip row shown).
+ * v1.9.82: phones open straight on Policy Rates (never the UK CPI starter), no chip row for a single
  * example, narrower phone canvas with bigger axis text, at most 5 x labels, footer band cropped; desktop unchanged.
  * v1.9.81: gallery is one placeholder (Ciaran's Policy Rates chart, loaded as styled); footer wrap
  * reserves the "Source: " prefix; an auto snapshot-date legend title clears when leaving Bar.
@@ -47,27 +48,27 @@ const seriesNames = d => [...d.querySelectorAll("#cmSeriesList .cm-seriesitem")]
   const { win, doc, errs } = await boot();
   const $ = s => doc.querySelector(s), $$ = s => [...doc.querySelectorAll(s)];
   ok(errs.length === 0, "no page errors: " + errs.join("; "));
-  ok(win.EA_CM && win.EA_CM.ready && win.EA_CM.examples.length === 1 && win.EA_CM.examples[0].key === "policy-rates", "page exposes the one Policy rates example");
+  ok(win.EA_CM && win.EA_CM.ready && win.EA_CM.examples.length === 3 && win.EA_CM.examples[0].key === "policy-rates", "page exposes three examples, Policy rates first");
   ok(doc.body.classList.contains("cm-m"), "phone mode on");
   const gate = $("#cmMobileGate");
   ok(gate && !/bigger screen\b(?! )/.test("") && !/needs a bigger screen/i.test(gate.textContent), "no dead-end message");
   const chips = $$(".cm-m-chip");
-  ok(chips.length === 1 && chips.map(c => c.textContent).join("|") === win.EA_CM.examples.map(e => e.title).join("|"), "one chip per example");
+  ok(chips.length === 3 && chips.map(c => c.textContent).join("|") === win.EA_CM.examples.map(e => e.title).join("|"), "one chip per example");
   ok(win.EA_CM.current === "policy-rates" && chips[0].getAttribute("aria-pressed") === "true", "phone opens straight on Policy Rates");
   ok(seriesNames(doc).length === 3 && !seriesNames(doc).some(n => /CPI|inflation/i.test(n)), "no UK starter chart on phones: " + seriesNames(doc).join("|"));
-  ok($(".cm-m-ex").hidden === true, "single example: chip row hidden");
+  ok($(".cm-m-ex").hidden === false, "three examples: chip row shown");
   const vb = ($("#cmSvgBox svg") || { getAttribute: () => "" }).getAttribute("viewBox").split(" ").map(Number);
   ok(vb[2] === 520 && vb[3] > 200 && vb[3] < 507, "phone canvas narrow and footer band cropped: " + vb.join(" "));
-  const xl = [...doc.querySelectorAll("#cmSvgBox svg text")].map(t => t.textContent).filter(t => /^[A-Z][a-z]{2} \d{4}$/.test(t));
+  const xl = [...doc.querySelectorAll("#cmSvgBox svg text")].map(t => t.textContent).filter(t => /^([A-Z][a-z]{2} )?\d{4}$/.test(t));   // v1.9.107: Policy rates uses Year only labels
   ok(xl.length >= 2 && xl.length <= 5, "phone x labels thinned to 5 or fewer: " + xl.length);
   ok([...doc.querySelectorAll("#cmSvgBox svg text")].some(t => xl.includes(t.textContent) && +t.getAttribute("font-size") >= 14), "phone axis text at least 14");
   ok($("#cmSvgBox").style.display !== "none", "the live chart is drawn");
   chips[0].click(); await sleep(150);
   ok(win.EA_CM.current === "policy-rates" && chips[0].getAttribute("aria-pressed") === "true", "example policy-rates selected");
   const svgH = $("#cmSvgBox").innerHTML;
-  ok(seriesNames(doc).length === 3 && /ECB Policy Rate/.test(svgH) && /BoE Base Rate/.test(svgH) && /Fed Policy rate/.test(svgH), "Policy Rates loads with Ciaran's three labels");
-  ok($("#cmChartTitle").value === "Policy Rates", "title as styled");
-  ok($("#cmSvgBox").style.display !== "none" && /Policy Rates/.test($("#cmSvgBox").innerHTML) && /ECB Policy Rate/.test($("#cmSvgBox").innerHTML), "chart rendered with title and legend");
+  ok(seriesNames(doc).length === 3 && /ECB Policy Rate/.test(svgH) && /BoE Policy rate/.test(svgH) && /Fed Policy rate/.test(svgH), "Policy Rates loads with Ciaran's three labels");
+  ok($("#cmChartTitle").value === "ECB, Fed, BoE Policy Rates", "title as styled");
+  ok($("#cmSvgBox").style.display !== "none" && /ECB, Fed, BoE Policy Rates/.test($("#cmSvgBox").innerHTML) && /ECB Policy Rate/.test($("#cmSvgBox").innerHTML), "chart rendered with title and legend");
   ok(!/July 20/.test($("#cmSvgBox").innerHTML), "no stray snapshot date under the axis");
   // send to desktop: no share -> clipboard
   chips[0].click(); await sleep(100);
@@ -77,7 +78,7 @@ const seriesNames = d => [...d.querySelectorAll("#cmSeriesList .cm-seriesitem")]
   ok($(".cm-m-saved").hidden, "signed out: no saved charts button");
   ok($$("#cmMobileGate").length === 1, "one gallery");
   win.dispatchEvent(new win.Event("resize")); await sleep(50);
-  ok($$("#cmMobileGate").length === 1 && $$(".cm-m-chip").length === 1, "re-runs keep one gallery");
+  ok($$("#cmMobileGate").length === 1 && $$(".cm-m-chip").length === 3, "re-runs keep one gallery");
 
   // with share sheet + signed in
   const b = await boot({ share: true, loggedIn: true });
