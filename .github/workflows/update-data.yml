@@ -508,7 +508,16 @@ jobs:
           git add data-uk-spending-cofog.json 2>/dev/null || true
           git add data-uk-age-breakdown.json 2>/dev/null || true
           git diff --cached --quiet || git commit -m "Refresh data"
-          git push
+          # v1.9.102: main can move while this job runs (another bot or a release push).
+          # Rebase onto it and retry instead of failing; only bot-owned files are in this commit.
+          n=0
+          until git push; do
+            n=$((n+1))
+            if [ "$n" -ge 3 ]; then echo "::error::push still rejected after 3 rebases"; exit 1; fi
+            echo "Push rejected because main moved on. Rebasing (attempt $n)."
+            git pull --rebase origin main || { git rebase --abort; echo "::error::rebase hit a conflict"; exit 1; }
+            sleep $((n*5))
+          done
       - name: Regenerate indicator pages and OG cards
         continue-on-error: true
         run: |
@@ -521,7 +530,16 @@ jobs:
           # v1.9.28: the generated key-figures block inside each country page, the per-country feeds and llms.txt
           git add feeds/ llms.txt argentina.html australia.html austria.html belgium.html brazil.html bulgaria.html canada.html chile.html china.html colombia.html croatia.html cyprus.html czechia.html denmark.html egypt.html estonia.html eurozone.html finland.html france.html germany.html greece.html hong-kong.html hungary.html iceland.html india.html indonesia.html ireland.html israel.html italy.html japan.html latvia.html lithuania.html luxembourg.html malaysia.html malta.html mexico.html morocco.html netherlands.html newzealand.html nigeria.html norway.html pakistan.html peru.html philippines.html poland.html portugal.html romania.html saudiarabia.html singapore.html slovakia.html slovenia.html southafrica.html southkorea.html spain.html sweden.html switzerland.html taiwan.html thailand.html turkey.html uk.html us.html vietnam.html
           git diff --cached --quiet || git commit -m "Regenerate indicator pages and OG cards"
-          git push
+          # v1.9.102: main can move while this job runs (another bot or a release push).
+          # Rebase onto it and retry instead of failing; only bot-owned files are in this commit.
+          n=0
+          until git push; do
+            n=$((n+1))
+            if [ "$n" -ge 3 ]; then echo "::error::push still rejected after 3 rebases"; exit 1; fi
+            echo "Push rejected because main moved on. Rebasing (attempt $n)."
+            git pull --rebase origin main || { git rebase --abort; echo "::error::rebase hit a conflict"; exit 1; }
+            sleep $((n*5))
+          done
       - name: Check data freshness
         run: python check_data_freshness.py
       - name: Send pipeline alert email
