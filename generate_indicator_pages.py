@@ -1091,10 +1091,16 @@ HEADER_HTML_BASE = """<script>(function(){
   }
   function updateAuthUI(session){
     if(session && session.user){
-      authBtn.textContent = session.user.email;
+      var em = session.user.email || "";
+      var ini = (em.charAt(0) || "?").toUpperCase().replace(/[^A-Z0-9]/, "?");
+      authBtn.innerHTML = '<span class="acct-i" aria-hidden="true">' + ini + '</span>Account';
+      authBtn.title = "Signed in as " + em;
+      authBtn.setAttribute("aria-label", "Account, signed in as " + em);
       authBtn.classList.add("signed-in");
     } else {
       authBtn.textContent = "Sign Up";
+      authBtn.removeAttribute("title");
+      authBtn.removeAttribute("aria-label");
       authBtn.classList.remove("signed-in");
     }
     if(window.EATLAS_DOWNLOAD) window.EATLAS_DOWNLOAD.setAuthState(!!(session && session.user));
@@ -1284,7 +1290,7 @@ def head_html(title, desc, canonical, og_image, jsonld, extra_css=""):
 <link rel="preconnect" href="https://fonts.googleapis.com">
 <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
 <link href="https://fonts.googleapis.com/css2?family=Nunito+Sans:wght@400;600;700&display=swap" rel="stylesheet">
-<link rel="stylesheet" href="../style.css?v=58">
+<link rel="stylesheet" href="../style.css?v=59">
 <link rel="stylesheet" href="../mobile.css?v=40">
 <link rel="stylesheet" href="../indicator.css?v={KIT_VERSION}">
 <script type="application/ld+json">
@@ -1322,8 +1328,8 @@ def page_tail(extra_js="", extra_html=""):
 """
 
 LIGHTS_KEY = ('<p class="lightskey"><span><span class="led green" aria-hidden="true"></span>'
-              'Matches the latest release</span><span><span class="led orange" aria-hidden="true"></span>'
-              'Not refreshed recently, awaiting the next release</span></p>')
+              'Up to date</span><span><span class="led orange" aria-hidden="true"></span>'
+              'Awaiting update</span></p>')
 
 def glow_cta(href, title, sub, compact=False):
     return (f'<a class="glow-cta{" compact" if compact else ""}" href="{href}">'

@@ -81,7 +81,7 @@
 <link href="https://fonts.googleapis.com/css2?family=Nunito+Sans:wght@400;600;700&display=swap" rel="stylesheet">
 <link rel="icon" type="image/png" sizes="32x32" href="favicon-32.png">
 <link rel="apple-touch-icon" href="apple-touch-icon.png">
-<link rel="stylesheet" href="style.css?v=58">
+<link rel="stylesheet" href="style.css?v=59">
 <style>
 .led{display:inline-block; width:9px; height:9px; border-radius:50%;
   margin-right:9px; vertical-align:middle; position:relative; top:-3px;}
@@ -819,10 +819,16 @@ button.mtoggle.fx-both{background:#2FA463; border-color:#2FA463; color:#fff;}
   }
   function updateAuthUI(session){
     if(session && session.user){
-      authBtn.textContent = session.user.email;
+      var em = session.user.email || "";
+      var ini = (em.charAt(0) || "?").toUpperCase().replace(/[^A-Z0-9]/, "?");
+      authBtn.innerHTML = '<span class="acct-i" aria-hidden="true">' + ini + '</span>Account';
+      authBtn.title = "Signed in as " + em;
+      authBtn.setAttribute("aria-label", "Account, signed in as " + em);
       authBtn.classList.add("signed-in");
     } else {
       authBtn.textContent = "Sign Up";
+      authBtn.removeAttribute("title");
+      authBtn.removeAttribute("aria-label");
       authBtn.classList.remove("signed-in");
     }
     if(window.EATLAS_DOWNLOAD) window.EATLAS_DOWNLOAD.setAuthState(!!(session && session.user));
@@ -1681,32 +1687,32 @@ document.addEventListener("DOMContentLoaded", function(){
 <section class="sec" id="sec-headline">
  <div class="hero" id="hero" aria-label="Headline figures"></div>
  <p class="lightskey" aria-label="Key to freshness lights">
- <span><span class="led green" aria-hidden="true"></span>&nbsp;matches latest release</span>
- <span><span class="led orange" aria-hidden="true"></span>&nbsp;not refreshed recently</span>
+ <span><span class="led green" aria-hidden="true"></span>&nbsp;Up to date</span>
+ <span><span class="led orange" aria-hidden="true"></span>&nbsp;Awaiting update</span>
  </p>
  <div class="grid" id="charts-headline"></div>
 </section>
 <section class="sec" id="sec-gdp" hidden>
  <div class="hero mini" id="tiles-gdp"></div>
- <p class="lightskey compact" aria-label="Key to freshness lights"><span><span class="led green" aria-hidden="true"></span>&nbsp;matches latest release</span><span><span class="led orange" aria-hidden="true"></span>&nbsp;not refreshed recently</span></p>
+ <p class="lightskey compact" aria-label="Key to freshness lights"><span><span class="led green" aria-hidden="true"></span>&nbsp;Up to date</span><span><span class="led orange" aria-hidden="true"></span>&nbsp;Awaiting update</span></p>
  <div class="grid" id="charts-gdp"></div>
  <p class="secnote">GDP is Eurostat's quarterly national accounts, seasonally and calendar adjusted. Figures before Bulgaria joined the euro in 2026 are converted from lev at the fixed rate of 1.95583 lev per euro.</p>
 </section>
 <section class="sec" id="sec-inflation" hidden>
  <div class="hero mini" id="tiles-inflation"></div>
- <p class="lightskey compact" aria-label="Key to freshness lights"><span><span class="led green" aria-hidden="true"></span>&nbsp;matches latest release</span><span><span class="led orange" aria-hidden="true"></span>&nbsp;not refreshed recently</span></p>
+ <p class="lightskey compact" aria-label="Key to freshness lights"><span><span class="led green" aria-hidden="true"></span>&nbsp;Up to date</span><span><span class="led orange" aria-hidden="true"></span>&nbsp;Awaiting update</span></p>
  <div class="grid" id="charts-inflation"></div>
  <p class="secnote">Inflation is the EU's harmonised index (HICP), the measure the ECB targets; the National Statistical Institute headlines its national CPI, which can differ by a few tenths. The series is shown from 2000: the late 1990s carry the tail of Bulgaria's 1997 hyperinflation, with annual rates in the hundreds of percent. Bulgaria joined the euro on 1 January 2026 and has had no policy rate of its own since: the rate shown is the European Central Bank's deposit facility rate, from that date. Before 2026 the lev was tied to the euro under a currency board run by the Bulgarian National Bank, which is not shown.</p>
 </section>
 <section class="sec" id="sec-labour" hidden>
  <div class="hero mini" id="tiles-labour"></div>
- <p class="lightskey compact" aria-label="Key to freshness lights"><span><span class="led green" aria-hidden="true"></span>&nbsp;matches latest release</span><span><span class="led orange" aria-hidden="true"></span>&nbsp;not refreshed recently</span></p>
+ <p class="lightskey compact" aria-label="Key to freshness lights"><span><span class="led green" aria-hidden="true"></span>&nbsp;Up to date</span><span><span class="led orange" aria-hidden="true"></span>&nbsp;Awaiting update</span></p>
  <div class="grid" id="charts-labour"></div>
  <p class="secnote">Unemployment is Eurostat's monthly, seasonally adjusted rate (ILO definition, ages 15 to 74). Bulgarian news often quotes the Employment Agency's registered unemployment rate instead, a different measure. Employment and participation rates are Eurostat's seasonally adjusted Labour Force Survey figures for ages 15 to 64, from 2009.</p>
 </section>
 <section class="sec" id="sec-trade" hidden>
  <div class="hero mini" id="tiles-trade"></div>
- <p class="lightskey compact" aria-label="Key to freshness lights"><span><span class="led green" aria-hidden="true"></span>&nbsp;matches latest release</span><span><span class="led orange" aria-hidden="true"></span>&nbsp;not refreshed recently</span></p>
+ <p class="lightskey compact" aria-label="Key to freshness lights"><span><span class="led green" aria-hidden="true"></span>&nbsp;Up to date</span><span><span class="led orange" aria-hidden="true"></span>&nbsp;Awaiting update</span></p>
  <div class="grid" id="charts-trade"></div>
  <p class="secnote">Goods trade is Eurostat's monthly total with the rest of the world, in euros. Bulgaria usually imports more goods than it exports.</p>
  <div id="tpmBlock"><div class="tpm-head"><h3>Bulgaria goods trade: top partners</h3></div>
@@ -1755,13 +1761,13 @@ document.addEventListener("DOMContentLoaded", function(){
 </section>
 <section class="sec" id="sec-public" hidden>
  <div class="hero mini" id="tiles-public"></div>
- <p class="lightskey compact" aria-label="Key to freshness lights"><span><span class="led green" aria-hidden="true"></span>&nbsp;matches latest release</span><span><span class="led orange" aria-hidden="true"></span>&nbsp;not refreshed recently</span></p>
+ <p class="lightskey compact" aria-label="Key to freshness lights"><span><span class="led green" aria-hidden="true"></span>&nbsp;Up to date</span><span><span class="led orange" aria-hidden="true"></span>&nbsp;Awaiting update</span></p>
  <div class="grid" id="charts-public"></div>
  <p class="secnote">Debt and the budget balance are Eurostat's excessive deficit procedure figures for general government, calendar years, so the latest year is a year ahead of the IMF's.</p>
 </section>
 <section class="sec" id="sec-markets" hidden>
  <div class="hero mini" id="tiles-markets"></div>
- <p class="lightskey compact" aria-label="Key to freshness lights"><span><span class="led green" aria-hidden="true"></span>&nbsp;matches latest release</span><span><span class="led orange" aria-hidden="true"></span>&nbsp;not refreshed recently</span></p>
+ <p class="lightskey compact" aria-label="Key to freshness lights"><span><span class="led green" aria-hidden="true"></span>&nbsp;Up to date</span><span><span class="led orange" aria-hidden="true"></span>&nbsp;Awaiting update</span></p>
  <div class="grid" id="charts-markets"></div>
  <p class="secnote">The 10-year yield is Eurostat's monthly long-term interest rate for convergence purposes (the EU's benchmark Bulgarian government yield), which runs about a month behind. Bulgaria's benchmark bond trades thinly, so the published rate often stays unchanged for months at a time. The exchange rates are the Federal Reserve's daily euro rates, shared with every euro area page.</p>
 </section>

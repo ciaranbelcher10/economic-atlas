@@ -211,7 +211,7 @@ def page_edit(name, old, new):
     return edit
 
 
-PRIV = '<a href="privacy">Privacy</a> &middot; '
+PRIV = '<a class="ea-btn sm" href="privacy">Privacy</a>'  # v1.9.103: footer links are buttons since the no-text-links migration
 REPO_MUTS = [
     ("consent.js: GA loads on every page load", cjs_edit('if (consent === "granted") {\n    loadGA();', 'loadGA();\n  if (consent === "granted") {\n    loadGA();'), "calls loadGA()"),
     ("consent.js: a denied choice also loads GA", cjs_edit('consent === "granted"', 'consent !== "x"'), "not guarded by a saved 'granted'"),

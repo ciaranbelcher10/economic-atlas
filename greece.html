@@ -81,7 +81,7 @@
 <link href="https://fonts.googleapis.com/css2?family=Nunito+Sans:wght@400;600;700&display=swap" rel="stylesheet">
 <link rel="icon" type="image/png" sizes="32x32" href="favicon-32.png">
 <link rel="apple-touch-icon" href="apple-touch-icon.png">
-<link rel="stylesheet" href="style.css?v=58">
+<link rel="stylesheet" href="style.css?v=59">
 <style>
 .led{display:inline-block; width:9px; height:9px; border-radius:50%;
   margin-right:9px; vertical-align:middle; position:relative; top:-3px;}
@@ -819,10 +819,16 @@ button.mtoggle.fx-both{background:#2FA463; border-color:#2FA463; color:#fff;}
   }
   function updateAuthUI(session){
     if(session && session.user){
-      authBtn.textContent = session.user.email;
+      var em = session.user.email || "";
+      var ini = (em.charAt(0) || "?").toUpperCase().replace(/[^A-Z0-9]/, "?");
+      authBtn.innerHTML = '<span class="acct-i" aria-hidden="true">' + ini + '</span>Account';
+      authBtn.title = "Signed in as " + em;
+      authBtn.setAttribute("aria-label", "Account, signed in as " + em);
       authBtn.classList.add("signed-in");
     } else {
       authBtn.textContent = "Sign Up";
+      authBtn.removeAttribute("title");
+      authBtn.removeAttribute("aria-label");
       authBtn.classList.remove("signed-in");
     }
     if(window.EATLAS_DOWNLOAD) window.EATLAS_DOWNLOAD.setAuthState(!!(session && session.user));
@@ -1681,31 +1687,31 @@ document.addEventListener("DOMContentLoaded", function(){
 <section class="sec" id="sec-headline">
  <div class="hero" id="hero" aria-label="Headline figures"></div>
  <p class="lightskey" aria-label="Key to freshness lights">
- <span><span class="led green" aria-hidden="true"></span>&nbsp;matches latest release</span>
- <span><span class="led orange" aria-hidden="true"></span>&nbsp;not refreshed recently</span>
+ <span><span class="led green" aria-hidden="true"></span>&nbsp;Up to date</span>
+ <span><span class="led orange" aria-hidden="true"></span>&nbsp;Awaiting update</span>
  </p>
  <div class="grid" id="charts-headline"></div>
 </section>
 <section class="sec" id="sec-gdp" hidden>
  <div class="hero mini" id="tiles-gdp"></div>
- <p class="lightskey compact" aria-label="Key to freshness lights"><span><span class="led green" aria-hidden="true"></span>&nbsp;matches latest release</span><span><span class="led orange" aria-hidden="true"></span>&nbsp;not refreshed recently</span></p>
+ <p class="lightskey compact" aria-label="Key to freshness lights"><span><span class="led green" aria-hidden="true"></span>&nbsp;Up to date</span><span><span class="led orange" aria-hidden="true"></span>&nbsp;Awaiting update</span></p>
  <div class="grid" id="charts-gdp"></div>
 </section>
 <section class="sec" id="sec-inflation" hidden>
  <div class="hero mini" id="tiles-inflation"></div>
- <p class="lightskey compact" aria-label="Key to freshness lights"><span><span class="led green" aria-hidden="true"></span>&nbsp;matches latest release</span><span><span class="led orange" aria-hidden="true"></span>&nbsp;not refreshed recently</span></p>
+ <p class="lightskey compact" aria-label="Key to freshness lights"><span><span class="led green" aria-hidden="true"></span>&nbsp;Up to date</span><span><span class="led orange" aria-hidden="true"></span>&nbsp;Awaiting update</span></p>
  <div class="grid" id="charts-inflation"></div>
  <p class="secnote">Inflation is the EU's harmonised index (HICP), the measure the ECB targets. ELSTAT's national CPI can differ by a few tenths: HICP weights include spending in Greece by visitors, which matters in a tourism economy, while the national CPI covers resident households only. Greece has used the euro since 2001, so the rate shown is the European Central Bank's deposit facility rate from 2001; before then the Bank of Greece set rates.</p>
 </section>
 <section class="sec" id="sec-labour" hidden>
  <div class="hero mini" id="tiles-labour"></div>
- <p class="lightskey compact" aria-label="Key to freshness lights"><span><span class="led green" aria-hidden="true"></span>&nbsp;matches latest release</span><span><span class="led orange" aria-hidden="true"></span>&nbsp;not refreshed recently</span></p>
+ <p class="lightskey compact" aria-label="Key to freshness lights"><span><span class="led green" aria-hidden="true"></span>&nbsp;Up to date</span><span><span class="led orange" aria-hidden="true"></span>&nbsp;Awaiting update</span></p>
  <div class="grid" id="charts-labour"></div>
  <p class="secnote">Unemployment is Eurostat's monthly, seasonally adjusted rate (ILO definition, ages 15 to 74), which peaked near 28% in 2013. Employment and participation rates are the OECD's quarterly figures for ages 15 to 64. The labour force survey changed method in 2021 under a new EU regulation, so figures before and after are not perfectly comparable.</p>
 </section>
 <section class="sec" id="sec-trade" hidden>
  <div class="hero mini" id="tiles-trade"></div>
- <p class="lightskey compact" aria-label="Key to freshness lights"><span><span class="led green" aria-hidden="true"></span>&nbsp;matches latest release</span><span><span class="led orange" aria-hidden="true"></span>&nbsp;not refreshed recently</span></p>
+ <p class="lightskey compact" aria-label="Key to freshness lights"><span><span class="led green" aria-hidden="true"></span>&nbsp;Up to date</span><span><span class="led orange" aria-hidden="true"></span>&nbsp;Awaiting update</span></p>
  <div class="grid" id="charts-trade"></div>
  <p class="secnote">Goods trade is Eurostat's monthly total with the rest of the world, in euros. Greece imports far more goods than it exports, much of it fuel; tourism and shipping, which count as services, are not included here.</p>
  <div id="tpmBlock"><div class="tpm-head"><h3>Greece goods trade: top partners</h3></div>
@@ -1754,13 +1760,13 @@ document.addEventListener("DOMContentLoaded", function(){
 </section>
 <section class="sec" id="sec-public" hidden>
  <div class="hero mini" id="tiles-public"></div>
- <p class="lightskey compact" aria-label="Key to freshness lights"><span><span class="led green" aria-hidden="true"></span>&nbsp;matches latest release</span><span><span class="led orange" aria-hidden="true"></span>&nbsp;not refreshed recently</span></p>
+ <p class="lightskey compact" aria-label="Key to freshness lights"><span><span class="led green" aria-hidden="true"></span>&nbsp;Up to date</span><span><span class="led orange" aria-hidden="true"></span>&nbsp;Awaiting update</span></p>
  <div class="grid" id="charts-public"></div>
  <p class="secnote">Debt and the budget balance are Eurostat's excessive deficit procedure figures for general government, calendar years, so the latest year is a year ahead of the IMF's. Debt fell in 2012 when private bondholders accepted losses in a debt exchange.</p>
 </section>
 <section class="sec" id="sec-markets" hidden>
  <div class="hero mini" id="tiles-markets"></div>
- <p class="lightskey compact" aria-label="Key to freshness lights"><span><span class="led green" aria-hidden="true"></span>&nbsp;matches latest release</span><span><span class="led orange" aria-hidden="true"></span>&nbsp;not refreshed recently</span></p>
+ <p class="lightskey compact" aria-label="Key to freshness lights"><span><span class="led green" aria-hidden="true"></span>&nbsp;Up to date</span><span><span class="led orange" aria-hidden="true"></span>&nbsp;Awaiting update</span></p>
  <div class="grid" id="charts-markets"></div>
  <p class="secnote">The 10-year yield is the OECD's monthly average of the Greek government yield, which peaked near 29% in early 2012; there is no value for July 2015, when Greek markets were closed during the bank holiday and capital controls. The exchange rates are the Federal Reserve's daily euro rates, shared with every euro area page.</p>
 </section>

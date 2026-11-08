@@ -32,7 +32,7 @@
 <link href="https://fonts.googleapis.com/css2?family=Nunito+Sans:wght@400;600;700&display=swap" rel="stylesheet">
 <link rel="icon" type="image/png" sizes="32x32" href="favicon-32.png">
 <link rel="apple-touch-icon" href="apple-touch-icon.png">
-<link rel="stylesheet" href="style.css?v=58">
+<link rel="stylesheet" href="style.css?v=59">
 <link rel="stylesheet" href="mobile.css?v=40">
 </head>
 <body>
@@ -527,10 +527,16 @@
   }
   function updateAuthUI(session){
     if(session && session.user){
-      authBtn.textContent = session.user.email;
+      var em = session.user.email || "";
+      var ini = (em.charAt(0) || "?").toUpperCase().replace(/[^A-Z0-9]/, "?");
+      authBtn.innerHTML = '<span class="acct-i" aria-hidden="true">' + ini + '</span>Account';
+      authBtn.title = "Signed in as " + em;
+      authBtn.setAttribute("aria-label", "Account, signed in as " + em);
       authBtn.classList.add("signed-in");
     } else {
       authBtn.textContent = "Sign Up";
+      authBtn.removeAttribute("title");
+      authBtn.removeAttribute("aria-label");
       authBtn.classList.remove("signed-in");
     }
     if(window.EATLAS_DOWNLOAD) window.EATLAS_DOWNLOAD.setAuthState(!!(session && session.user));
@@ -1306,7 +1312,6 @@ button.mtoggle.fx-both{background:#2FA463; border-color:#2FA463; color:#fff;}
 .cm-savedbtns .del:hover{color:#D65A3C; border-color:#D65A3C !important;}
 
 /* ---- ChartMaker layout ---- */
-.cm-wrap{max-width:1520px;}
 .cm-layout{display:none; margin-top:8px;}
 .cm-layout.show{display:block;}
 .cm-toprow{display:grid; grid-template-columns:270px 1fr 290px; gap:20px; align-items:start;}

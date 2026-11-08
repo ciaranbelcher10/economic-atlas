@@ -32,7 +32,7 @@
 <link href="https://fonts.googleapis.com/css2?family=Nunito+Sans:wght@400;600;700&display=swap" rel="stylesheet">
 <link rel="icon" type="image/png" sizes="32x32" href="favicon-32.png">
 <link rel="apple-touch-icon" href="apple-touch-icon.png">
-<link rel="stylesheet" href="style.css?v=58">
+<link rel="stylesheet" href="style.css?v=59">
 <style>
 :root{ --map-nodata: #E9EBE7; }
 /* ---- info button + popover (per-card data source & methodology) ---- */
@@ -864,10 +864,16 @@ footer.cmp-foot{margin-top:36px; font-size:12.5px; color:var(--ink2); border-top
   }
   function updateAuthUI(session){
     if(session && session.user){
-      authBtn.textContent = session.user.email;
+      var em = session.user.email || "";
+      var ini = (em.charAt(0) || "?").toUpperCase().replace(/[^A-Z0-9]/, "?");
+      authBtn.innerHTML = '<span class="acct-i" aria-hidden="true">' + ini + '</span>Account';
+      authBtn.title = "Signed in as " + em;
+      authBtn.setAttribute("aria-label", "Account, signed in as " + em);
       authBtn.classList.add("signed-in");
     } else {
       authBtn.textContent = "Sign Up";
+      authBtn.removeAttribute("title");
+      authBtn.removeAttribute("aria-label");
       authBtn.classList.remove("signed-in");
     }
     if(window.EATLAS_DOWNLOAD) window.EATLAS_DOWNLOAD.setAuthState(!!(session && session.user));
@@ -1605,7 +1611,7 @@ footer.cmp-foot{margin-top:36px; font-size:12.5px; color:var(--ink2); border-top
   })();
 })();
 </script>
-<div class="wrap" style="max-width:1080px; padding:30px 24px 60px;">
+<div class="wrap" style="padding:30px 24px 60px;">
  <div class="savebar" id="saveBar" hidden>
  <span class="savebar-icon" aria-hidden="true">&#9888;&#65039;</span>
  <p>Every comparison you build here resets the moment you leave. A free account (10 seconds) keeps it saved for next time.</p>
@@ -1650,8 +1656,8 @@ footer.cmp-foot{margin-top:36px; font-size:12.5px; color:var(--ink2); border-top
  </p>
  </div>
  <p class="lightskey" aria-label="Key to freshness lights">
- <span><span class="led green" aria-hidden="true"></span>Latest version of the data is live</span>
- <span><span class="led orange" aria-hidden="true"></span>Data may be outdated, awaiting next update</span>
+ <span><span class="led green" aria-hidden="true"></span>Up to date</span>
+ <span><span class="led orange" aria-hidden="true"></span>Awaiting update</span>
  </p>
  <!-- Point-in-time vs Change-over-time is now a per-card control (see
        buildCardShell()), not a single page-wide toggle -- each metric
