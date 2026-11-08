@@ -5124,6 +5124,98 @@ function buildSeriesList(){
 // to whatever's currently on the chart since it's rebuilt from `series`
 // on every render, same as the line view.
 var lastBarChartThinned = false;
+// ---- v1.9.108: combining periods for long single-series bar charts ----
+var BAR_MAX = 90;
+// Flows add up over time; a series published at an annual rate (US and Japan GDP, SAAR) is already a
+// yearly figure, so it is averaged like a rate. Stocks are taken at the end of each period.
+var BAR_FLOW_METRICS = { trade_balance:1, exports:1, imports:1, gdp_level:1, gdp_real:1, debt_interest:1 };
+var BAR_STOCK_METRICS = { net_debt:1 };
+function barAggRule(country, metric, transform){
+  if(transform && transform !== "raw") return "mean";
+  if(BAR_STOCK_METRICS[metric]) return "last";
+  if(BAR_FLOW_METRICS[metric]) return /annual rate|\bSAAR\b|annuali[sz]ed/i.test(servedLabel(country, metric) || "") ? "mean" : "sum";
+  return "mean";
+}
+function barPeriodFreq(x){
+  x = String(x);
+  if(/^\d{4}-\d{2}-\d{2}$/.test(x)) return "day";
+  if(/^\d{4}-\d{2}$/.test(x)) return "month";
+  if(/^\d{4}-Q\d$/.test(x)) return "quarter";
+  if(/^\d{4}$/.test(x)) return "year";
+  return null;
+}
+function barGroupKey(x, level){
+  x = String(x);
+  if(level === "year") return x.slice(0, 4);
+  if(level === "quarter"){
+    if(/^\d{4}-Q\d$/.test(x)) return x;
+    return x.slice(0, 4) + "-Q" + Math.ceil(+x.slice(5, 7) / 3);
+  }
+  return x.slice(0, 7);   // month, from days
+}
+// Is this group of points a whole period? Months and quarters must all be there; daily data must reach
+// both ends of the period (within a week), since trading days vary.
+function barGroupComplete(xs, freq, level){
+  if(freq === "month") return xs.length === (level === "quarter" ? 3 : 12);
+  if(freq === "quarter") return xs.length === 4;
+  if(freq === "day"){
+    var first = xs[0], last = xs[xs.length - 1], key = barGroupKey(first, level);
+    var startM, endM;
+    if(level === "month"){ startM = endM = +key.slice(5, 7); }
+    else if(level === "quarter"){ var q = +key.slice(-1); startM = q * 3 - 2; endM = q * 3; }
+    else { startM = 1; endM = 12; }
+    var y = +key.slice(0, 4), endDay = new Date(Date.UTC(y, endM, 0)).getUTCDate();
+    var s0 = first.slice(5, 7) === ("0" + startM).slice(-2) && +first.slice(8, 10) <= 7;
+    var e0 = last.slice(5, 7) === ("0" + endM).slice(-2) && +last.slice(8, 10) >= endDay - 6;
+    return s0 && e0;
+  }
+  return true;
+}
+// Returns { points, level, rule, freq, dropped: [labels] }; level is null when nothing was combined.
+function aggregateBarPoints(pts, country, metric, transform){
+  var out = { points: pts, level: null, rule: null, freq: null, dropped: [] };
+  if(pts.length <= BAR_MAX) return out;
+  var freq = barPeriodFreq(pts[0].x);
+  var levels = { day: ["month", "quarter", "year"], month: ["quarter", "year"], quarter: ["year"] }[freq];
+  if(!levels) return out;
+  var level = levels[levels.length - 1];
+  for(var i = 0; i < levels.length; i++){
+    var keys = {}; pts.forEach(function(p){ keys[barGroupKey(p.x, levels[i])] = 1; });
+    if(Object.keys(keys).length <= BAR_MAX){ level = levels[i]; break; }
+  }
+  var rule = barAggRule(country, metric, transform);
+  var groups = [], byKey = {};
+  pts.forEach(function(p){
+    if(p.y == null || !isFinite(p.y)) return;
+    var k = barGroupKey(p.x, level);
+    if(!byKey[k]){ byKey[k] = { key: k, xs: [], ys: [] }; groups.push(byKey[k]); }
+    byKey[k].xs.push(String(p.x)); byKey[k].ys.push(p.y);
+  });
+  var kept = [];
+  groups.forEach(function(g){
+    if(!barGroupComplete(g.xs, freq, level)){
+      var yr = g.key.slice(0, 4), sameYr = g.xs[0].slice(0, 4) === yr && g.xs[g.xs.length - 1].slice(0, 4) === yr;
+      var lab = function(x){ var t = fmtPeriod(x); return sameYr ? t.replace(" " + yr, "") : t; };   // "2026 (Jan to Aug only)"
+      out.dropped.push(fmtPeriod(g.key) + " (" + (g.xs.length === 1 ? lab(g.xs[0]) : lab(g.xs[0]) + " to " + lab(g.xs[g.xs.length - 1])) + " only)");
+      return;
+    }
+    var v = rule === "sum" ? g.ys.reduce(function(a, b){ return a + b; }, 0)
+      : rule === "last" ? g.ys[g.ys.length - 1]
+      : g.ys.reduce(function(a, b){ return a + b; }, 0) / g.ys.length;
+    kept.push({ x: g.key, y: v });
+  });
+  out.points = kept; out.level = level; out.rule = rule; out.freq = freq;
+  return out;
+}
+function barAggNote(a){
+  var lv = { month: "monthly", quarter: "quarterly", year: "yearly" }[a.level];
+  var fr = { day: "daily", month: "monthly", quarter: "quarterly" }[a.freq];
+  var how = a.rule === "sum" ? "totals" : a.rule === "last" ? "end-of-period figures" : "averages";
+  var t = "This date range has too many periods for one bar each, so each bar is a " + (lv === "yearly" ? "year" : lv === "quarterly" ? "quarter" : "month") +
+    ": " + lv + " " + how + " of the " + fr + " data.";
+  if(a.dropped.length) t += " Incomplete periods are left out: " + a.dropped.join("; ") + ".";
+  return t + " Narrow the date range to see every " + ({ day: "day", month: "month", quarter: "quarter" }[a.freq]) + "; the CSV has every original period.";
+}
 // v1.9.106: "Hide countries with no data" leaves out the grey No data bars a group (G7, EU) brings in
 function dropNoDataRows(rows){
   if(!style.hideNoData || series.length < 2) return rows;
@@ -5139,20 +5231,12 @@ function buildSnapshotRows(){
   if(series.length === 1){
     var only = series[0];
     var pts = applyTransform(only.rawPoints, only.transform).filter(function(p){ return p.x >= fromV && p.x <= toV; });
-    // A long-running single series (decades of quarterly or monthly
-    // data) can easily have 200+ periods -- cramming that many bars
-    // into ~736px of plot width drops each one below ~2px, which
-    // doesn't read as individual bars any more, just a solid mass (and
-    // makes threshold above/below colouring invisible, since adjacent
-    // colours blur together at that density). Thin to a real maximum
-    // bar count that stays legibly bar-shaped, same principle as the
-    // x-axis label thinning below, applied to the bars themselves.
-    var maxBars = 90;
-    lastBarChartThinned = pts.length > maxBars;
-    if(lastBarChartThinned){
-      var step = Math.ceil(pts.length / maxBars);
-      pts = pts.filter(function(p, i){ return i % step === 0 || i === pts.length - 1; });
-    }
+    // v1.9.108: a range with more than BAR_MAX periods is combined into quarters or years (totals for
+    // flows, averages for rates and indices, end-of-period for stocks), never sampled: sampling used to
+    // drop most months without saying so. Incomplete periods are left out and named in the note.
+    var agg = aggregateBarPoints(pts, only.country, only.metric, only.transform);
+    lastBarChartThinned = agg.level ? agg : false;
+    pts = agg.points;
     return pts.map(function(p){ return { country: fmtPeriod(p.x), period: p.x, value: p.y, color: only.color }; });
   }
   lastBarChartThinned = false;
@@ -5483,6 +5567,7 @@ function buildChartCSV(){
       : (getSourceNote(s.country, displayMetric(s)) || "See theeconomicatlas.com/methodology") + (s.converted ? " (converted to USD)" : "");
     rows.push([seriesLabel(s), s.missing ? "" : csvUnit(s), transformLabel(s.transform || "raw"), src].map(csvCell).join(","));
   });
+  if(chartType === "bar" && series.length === 1 && lastBarChartThinned) rows.push(csvCell("The bar chart combines periods: " + barAggNote(lastBarChartThinned).replace(/ Narrow the date range.*$/, "") + " This file has the original periods."));   // v1.9.108
   rows.push(csvCell("Downloaded from The Economic Atlas (theeconomicatlas.com) on " + new Date().toISOString().slice(0, 10) + ". Periods " + fromV + " to " + toV + "."));
   return rows.join("\n") + "\n";
 }
@@ -5559,7 +5644,7 @@ function syncBarModeVisibility(){
   if(isBar){
     noteEl.textContent = series.length === 1
       ? (lastBarChartThinned
-          ? "With a single metric, Bar shows its history as a time series of bars. This date range has more periods than can be shown as individual bars legibly, so it's sampled down to a representative subset, narrow the date range to see every period."
+          ? barAggNote(lastBarChartThinned)
           : "With a single metric, Bar shows its full history as a time series of bars, one per period in the selected date range.")
       : "One bar per country, each at its figure for the period chosen in Compare at. A bar from an earlier period says which, and a country without the figure shows No data.";
   }
@@ -5689,8 +5774,10 @@ function renderThumb(container, item){
       var at = (snap.snapshotAt && snap.snapshotAt >= from && snap.snapshotAt <= to) ? snap.snapshotAt : to;
       var brows;
       if(thumbSeries.length === 1){
-        brows = thumbSeries[0].points.filter(function(p){ return p[0] >= from && p[0] <= to; })
-          .map(function(p){ return { country: fmtPeriod(p[0]), value: p[1], color: thumbSeries[0].color }; });
+        var ss0 = item.seriesSpec.filter(function(x){ return getSeries(x.country, x.metric); })[0] || {};
+        var tpts = thumbSeries[0].points.filter(function(p){ return p[0] >= from && p[0] <= to; }).map(function(p){ return { x: p[0], y: p[1] }; });
+        brows = aggregateBarPoints(tpts, ss0.country, ss0.metric, ss0.transform || "raw").points   // v1.9.108: as the chart itself
+          .map(function(p){ return { country: fmtPeriod(p.x), period: p.x, value: p.y, color: thumbSeries[0].color }; });
       } else {
         brows = thumbSeries.map(function(ts, i){
           var pts = ts.points.filter(function(p){ return p[0] >= from && p[0] <= at; });
