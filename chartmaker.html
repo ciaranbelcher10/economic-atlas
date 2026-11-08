@@ -1392,6 +1392,9 @@ button.mtoggle.fx-both{background:#2FA463; border-color:#2FA463; color:#fff;}
 .cm-exportbar button:hover:not(:disabled){border-color:var(--navy); color:var(--navy);}
 .cm-exportbar button:disabled{opacity:.4; cursor:not-allowed;}
 .cm-exportbar .seg{width:130px;}
+.cm-status-row{display:flex; align-items:center; justify-content:space-between; gap:10px;}
+.cm-clearall{background:none; border:0; padding:6px 2px; font:inherit; font-size:12.5px; font-weight:600; color:var(--blue); cursor:pointer;}
+.cm-clearall:hover{text-decoration:underline;}
 .cm-pnglbl{font-size:12px; font-weight:700; color:var(--ink2); text-transform:uppercase; letter-spacing:.06em; margin-right:-4px;}
 [data-theme="dark"] .cm-chart-outer{background:#12181A;}
 .cm-swatch{width:22px; height:22px; border-radius:50%; flex:0 0 auto; border:2px solid rgba(255,255,255,.5); cursor:pointer; padding:0;}
@@ -1532,7 +1535,7 @@ button.mtoggle.fx-both{background:#2FA463; border-color:#2FA463; color:#fff;}
  <p class="cm-starternote" id="cmStarterNote" hidden>This is an example. Add a metric to start your own chart; the example clears when you do.</p>
  <div id="cmMeasureNotice" hidden></div>
  <ul class="cm-serieslist" id="cmSeriesList"></ul>
- <div class="cm-status" id="cmStatus">No metrics added yet.</div>
+ <div class="cm-status-row"><div class="cm-status" id="cmStatus">No metrics added yet.</div><button type="button" class="cm-clearall" id="cmClearAll" hidden>Clear all</button></div>
  <div class="cmx-dates">
  <div style="display:flex; gap:10px;">
  <div style="flex:1;"><label style="display:block; font-size:12.5px; font-weight:700; color:var(--ink2); margin-bottom:5px;" for="cmFromPeriod">From</label><select class="cm-dateselect" id="cmFromPeriod"></select></div>
@@ -1560,6 +1563,7 @@ button.mtoggle.fx-both{background:#2FA463; border-color:#2FA463; color:#fff;}
  <label for="cmSnapshotAt">Compare at</label>
  <select id="cmSnapshotAt"></select>
  </div>
+ <label class="cmx-chk" id="cmHideNoDataRow" style="display:none;"><input type="checkbox" id="cmHideNoData"><span>Hide countries with no data</span></label>
 </div>
  <div class="metric-toggles cmx-adjust" aria-label="Adjust figures">
  <button type="button" class="mtoggle" id="makeRealToggle" aria-label="Make it real: show GDP level as real, inflation-adjusted GDP" aria-pressed="false">
@@ -1651,6 +1655,13 @@ button.mtoggle.fx-both{background:#2FA463; border-color:#2FA463; color:#fff;}
  <button type="button" data-angle="diagonal" style="flex:1;">Diagonal</button>
  <button type="button" data-angle="vertical" style="flex:1;">Vertical</button>
  </div></div>
+ <div id="cmXDateGroup"><div class="cm-row" style="margin:10px 0 0;">
+ <span>Date labels</span>
+ </div>
+ <div class="seg fullwidth" id="cmXDateSeg" style="width:100%; margin-top:6px;">
+ <button type="button" data-fmt="auto" class="active" style="flex:1;">Month and year</button>
+ <button type="button" data-fmt="year" style="flex:1;">Year only</button>
+ </div></div>
  </div>
  <div class="cmx-group" id="cmColorsPanel"><h4 id="cmColorsTitle">Line colours</h4>
  <p id="cmColorsExplain" style="font-size:11.5px; color:var(--ink2); margin:0 0 10px; line-height:1.5;">Each country keeps its usual colour; several metrics for one country use a Mako gradient. Recolour any one below, or choose a palette for all of them.</p>
@@ -1688,7 +1699,7 @@ button.mtoggle.fx-both{background:#2FA463; border-color:#2FA463; color:#fff;}
  </div>
  <p id="cmYStartBarNote" style="font-size:11px; color:var(--ink2); margin:2px 0 10px; display:none;">Bars always start at zero, same as Compare's Bar view.</p>
  <div class="cm-row">
- <span>Y-axis labels</span>
+ <span id="cmYTickLbl">Y-axis labels</span>
  <div style="display:flex; align-items:center; gap:7px;"><button type="button" class="cm-fs-btn" id="cmYTickMinus">&minus;</button><span id="cmYTickVal" style="display:none;">5</span><button type="button" class="cm-fs-btn" id="cmYTickPlus">+</button></div>
  </div>
  <div class="cm-row" id="cmXTickRow">
@@ -2775,7 +2786,7 @@ var style = {
   chartTitle: "", yAxisTitle: "", legendTitle: "", yTitlePos: "along",
   showFill: false, showPoints: false,
   refLine: { enabled:false, value:0 }, centerAroundRef: false, thresholdShadeBars: false,
-  logScale: false, xTicks: 8, xLabelAngle: "straight",
+  logScale: false, xTicks: 8, xLabelAngle: "straight", xDateFmt: "auto", hideNoData: false,
   yStartMode: "auto", yStartValue: 0,
   sortMode: "value_desc",   // v1.9.34: highest first by default, everywhere countries are ranked
   axisFontSize: 11, font: "helvetica",
@@ -2799,6 +2810,7 @@ function CZ_FONT(){ return CHART_FONTS[(czmState && czmState.font) || "helvetica
 /* ---- element refs ---- */
 var seriesListEl = document.getElementById("cmSeriesList");
 var statusEl = document.getElementById("cmStatus");
+document.getElementById("cmClearAll").addEventListener("click", function(){ clearAllSeries(); });
 var addBtn = document.getElementById("cmAddBtn");
 var colorsListEl = document.getElementById("cmColorsList");
 var colorsEmptyEl = document.getElementById("cmColorsEmpty");
@@ -3213,6 +3225,11 @@ function clearChartTitle(){
   style.chartTitle = "";
   var el = document.getElementById("cmChartTitle"); if(el) el.value = "";
 }
+// v1.9.106: one tap empties the chart (styling stays; the title clears as it does when the last metric goes)
+function clearAllSeries(){
+  series = [];
+  removeSeries(null);
+}
 function removeSeries(id){
   series = series.filter(function(s){ return s.id !== id; });
   if(!series.length) starterActive = false;
@@ -3495,6 +3512,7 @@ function renderSeriesList(){
     seriesListEl.appendChild(li);
   });
   statusEl.textContent = series.length ? (series.length + " metric" + (series.length===1?"":"s") + " on the chart") : "No metrics added yet.";
+  var ca = document.getElementById("cmClearAll"); if(ca) ca.hidden = series.length < 2;
 }
 
 /* ---- colours panel (with clash detection) ---- */
@@ -3757,6 +3775,25 @@ function syncAutoYAxisTitle(){
 }
 document.getElementById("cmYAxisTitle").addEventListener("input", function(e){ yAxisTitleTouched = true; style.yAxisTitle = e.target.value; renderChart(); });
 var legendTitleTouched = false;
+// v1.9.106: a saved bar chart's legend title is the period it was compared at ("June 2026"); that was
+// filled in automatically, so it keeps following the period after reopening. Only a title the person
+// typed stays put. Charts saved from now on record which it was.
+var AUTO_PERIOD_RE = /^(?:(?:January|February|March|April|May|June|July|August|September|October|November|December) \d{4}|Q[1-4] \d{4}|\d{4})$/;
+function legendTouchedFromSnap(sn){
+  if(!sn) return false;
+  if(typeof sn.legendTitleTouched === "boolean") return sn.legendTitleTouched;
+  return !!sn.legendTitle && !AUTO_PERIOD_RE.test(String(sn.legendTitle).trim());
+}
+// The period the bar chart last showed, so a chart title that names it ("EU unemployment, June 2026")
+// moves with the period too.
+var lastAutoPeriodText = "";
+function followPeriodInTitle(newText){
+  var old = lastAutoPeriodText;
+  lastAutoPeriodText = newText;
+  if(!old || !newText || old === newText || !style.chartTitle || style.chartTitle.indexOf(old) === -1) return;
+  style.chartTitle = style.chartTitle.split(old).join(newText);
+  var el = document.getElementById("cmChartTitle"); if(el) el.value = style.chartTitle;
+}
 document.getElementById("cmLegendTitle").addEventListener("input", function(e){ legendTitleTouched = true; style.legendTitle = e.target.value; renderChart(); });
 // Bar mode replaces the "per country" legend with one bar per metric, so
 // the legend title is free real estate -- auto-filled with the period
@@ -3791,6 +3828,7 @@ function syncSnapshotAtUI(){
 }
 function syncBarLegendTitle(){
   syncSnapshotAtUI();
+  if(chartType === "bar" && series.length > 1) followPeriodInTitle(fmtPeriodLong(snapshotPeriod()));
   if(legendTitleTouched) return;
   // v1.9.81: the snapshot date is only meaningful on a multi-country bar.
   // Switching back to Line left it behind ("July 2026" under a time axis).
@@ -4193,16 +4231,34 @@ function czmLogAvailable(vals, refLineEnabled, refLineValue){
 function czmTrimAxisZeros(str){
   return str.replace(/(\.\d*[1-9])0+(?!\d)|\.0+(?!\d)/g, function(m, keep){ return keep || ""; });
 }
+// v1.9.106: "Year only" date labels: one label at the first period of a year, every 1, 2, 5, 10...
+// years so about as many labels as the X-axis labels setting asks for. A partial first year is skipped.
+function czmYearTicks(periods, count){
+  var starts = [], seen = {};
+  periods.forEach(function(d, i){
+    var m = /^(\d{4})(?:-|$)/.exec(String(d || ""));
+    if(m && !seen[m[1]]){ seen[m[1]] = true; starts.push({ idx:i, y:+m[1], p:String(d) }); }
+  });
+  if(starts.length > 1 && !/^\d{4}$|-(01|Q1)$/.test(starts[0].p)) starts.shift();
+  if(!starts.length) return null;
+  var want = Math.max(2, count || 8), step = 1;
+  [1, 2, 5, 10, 20, 25, 50, 100].some(function(n){ step = n; return Math.ceil(starts.length / n) <= want; });
+  var out = starts.filter(function(st){ return st.y % step === 0; });
+  if(out.length < 2) out = starts.filter(function(st, i){ return i % step === 0; });
+  return out.map(function(st){ return { idx:st.idx, label:String(st.y) }; });
+}
+function czmYearMode(){ return czmState && czmState.xDateFmt === "year"; }
 function czmAxisTickLabel(v, allTicks, fmtY){
   var raw = Math.round(v * 100) / 100;
   if(raw !== 0) return czmTrimAxisZeros(fmtY(raw));
   var refVal = allTicks.reduce(function(best, t){ return Math.abs(t) > Math.abs(best) ? t : best; }, allTicks[0]);
   if(refVal === 0) return czmTrimAxisZeros(fmtY(0));
   var refLabel = fmtY(Math.round(refVal * 100) / 100);
+  // v1.9.106: built from the largest tick's label, so drop its minus sign ("−£0bn" read as a negative zero)
   return czmTrimAxisZeros(refLabel.replace(/[\d.,]+/, function(numStr){
     var decMatch = numStr.match(/\.(\d+)/);
     return decMatch ? "0." + "0".repeat(decMatch[1].length) : "0";
-  }));
+  }).replace(/^[\u2212-]/, ""));
 }
 function buildUnifiedDates(){
   var set = {};
@@ -4574,6 +4630,8 @@ function czmBuildSVGSnapshot(theme, forExport){
   // on the X-axis label angle control (Straight/Diagonal/Vertical) to
   // keep many labels legible rather than silently hiding most of them.
   var labelStep = series.length > 1 ? 1 : Math.max(1, Math.ceil(rows.length / czmState.xTicks));
+  var barYear = (series.length === 1 && czmYearMode()) ? czmYearTicks(rows.map(function(r){ return r.period; }), czmState.xTicks) : null;
+  var barYearLab = {}; if(barYear) barYear.forEach(function(tk){ barYearLab[tk.idx] = tk.label; });
   rows.forEach(function(r, i){
     var bx = gm.xForIndex(i);
     if(r.value == null){
@@ -4589,9 +4647,9 @@ function czmBuildSVGSnapshot(theme, forExport){
       svg.push("<rect x=\'" + (bx - gm.barWidth / 2).toFixed(1) + "\' y=\'" + top.toFixed(1) + "\' width=\'" + gm.barWidth.toFixed(1) + "\' height=\'" + h.toFixed(1) + "\' rx=\'3\' fill=\'" + barColor + "\'/>");
       if(czmState.dataLabels) svg.push(czmDataLabelV(bx, top, h, r.value, t));
     }
-    if(i % labelStep === 0){
+    if(barYear ? barYearLab[i] !== undefined : i % labelStep === 0){
       svg.push("<line x1=\'" + bx.toFixed(1) + "\' y1=\'" + axisBottomY + "\' x2=\'" + bx.toFixed(1) + "\' y2=\'" + (axisBottomY + 5) + "\' stroke=\'" + axisColor + "\' stroke-width=\'1.3\'/>");
-      svg.push(czmXAxisLabelSVG(bx, axisBottomY + bl.oLabels, r.country, t.ink2));
+      svg.push(czmXAxisLabelSVG(bx, axisBottomY + bl.oLabels, barYear ? barYearLab[i] : r.country, t.ink2));
     }
   });
   // Bar mode repurposes "legend title" as a period label (auto-filled
@@ -4726,21 +4784,27 @@ function czmBuildSVG(theme, forExport){
     svg.push("<text x='" + yTitleX + "' y='" + yTitleY + "' font-size='11.5' font-weight='600' fill='" + t.ink2 + "' text-anchor='middle' transform='rotate(-90 " + yTitleX + " " + yTitleY + ")'>" + escapeXML(czmState.yTitle) + "</text>");
   }
   var xTickCount = Math.min(czmState.xTicks, UNIFIED_DATES.length);
-  var xTickIdxs = [];
-  for(var k = 0; k < xTickCount; k++){
-    xTickIdxs.push(Math.round((k / Math.max(1, xTickCount - 1)) * (UNIFIED_DATES.length - 1)));
+  var xTickIdxs = [], xTickLab = {};
+  var yearTicks = czmYearMode() ? czmYearTicks(UNIFIED_DATES, czmState.xTicks) : null;
+  if(yearTicks){
+    yearTicks.forEach(function(tk){ xTickIdxs.push(tk.idx); xTickLab[tk.idx] = tk.label; });
+  } else {
+    for(var k = 0; k < xTickCount; k++){
+      xTickIdxs.push(Math.round((k / Math.max(1, xTickCount - 1)) * (UNIFIED_DATES.length - 1)));
+    }
+    xTickIdxs = xTickIdxs.filter(function(v, i, arr){ return arr.indexOf(v) === i; });
   }
-  xTickIdxs = xTickIdxs.filter(function(v, i, arr){ return arr.indexOf(v) === i; });
+  function xLab(idx){ return xTickLab[idx] || fmtPeriod(UNIFIED_DATES[idx]); }
   var cursorY = axisBottomY + 26 + (AFS() - 11);
   xTickIdxs.forEach(function(idx, pos){
     var isFirst = pos === 0, isLast = pos === xTickIdxs.length - 1;
     var tx = gm.xForIndex(idx);
     svg.push("<line x1='" + tx.toFixed(1) + "' y1='" + axisBottomY + "' x2='" + tx.toFixed(1) + "' y2='" + (axisBottomY + 5) + "' stroke='" + axisColor + "' stroke-width='1.3'/>");
     if((czmState.xLabelAngle || "straight") === "straight"){
-      var anchor = isFirst ? "start" : isLast ? "end" : "middle";
-      svg.push("<text x='" + tx.toFixed(1) + "' y='" + cursorY + "' font-size='" + AFS() + "' fill='" + t.ink2 + "' text-anchor='" + anchor + "'>" + fmtPeriod(UNIFIED_DATES[idx]) + "</text>");
+      var anchor = yearTicks ? "middle" : isFirst ? "start" : isLast ? "end" : "middle";
+      svg.push("<text x='" + tx.toFixed(1) + "' y='" + cursorY + "' font-size='" + AFS() + "' fill='" + t.ink2 + "' text-anchor='" + anchor + "'>" + xLab(idx) + "</text>");
     } else {
-      svg.push(czmXAxisLabelSVG(tx, cursorY, fmtPeriod(UNIFIED_DATES[idx]), t.ink2));
+      svg.push(czmXAxisLabelSVG(tx, cursorY, xLab(idx), t.ink2));
     }
   });
   var hasLegend = SERIES_LIST.length > 1;
@@ -5035,6 +5099,7 @@ function buildCzmState(){
     yTickStepIdx: yTickStepIdx,
     xTicks: style.xTicks,
     xLabelAngle: style.xLabelAngle,
+    xDateFmt: style.xDateFmt,
     axisFontSize: style.axisFontSize, font: style.font,
     barOrient: style.barOrient, dataLabels: style.dataLabels, dataLabelSize: style.dataLabelSize,
     from: fromPeriodSel.value,
@@ -5059,6 +5124,16 @@ function buildSeriesList(){
 // to whatever's currently on the chart since it's rebuilt from `series`
 // on every render, same as the line view.
 var lastBarChartThinned = false;
+// v1.9.106: "Hide countries with no data" leaves out the grey No data bars a group (G7, EU) brings in
+function dropNoDataRows(rows){
+  if(!style.hideNoData || series.length < 2) return rows;
+  var kept = rows.filter(function(r){ return r.value != null; });
+  return kept.length ? kept : rows;
+}
+function syncHideNoDataRow(){
+  var row = document.getElementById("cmHideNoDataRow");
+  if(row) row.style.display = (chartType === "bar" && series.length > 1 && buildSnapshotRows().some(function(r){ return r.value == null; })) ? "" : "none";
+}
 function buildSnapshotRows(){
   var fromV = fromPeriodSel.value, toV = toPeriodSel.value;
   if(series.length === 1){
@@ -5078,7 +5153,7 @@ function buildSnapshotRows(){
       var step = Math.ceil(pts.length / maxBars);
       pts = pts.filter(function(p, i){ return i % step === 0 || i === pts.length - 1; });
     }
-    return pts.map(function(p){ return { country: fmtPeriod(p.x), value: p.y, color: only.color }; });
+    return pts.map(function(p){ return { country: fmtPeriod(p.x), period: p.x, value: p.y, color: only.color }; });
   }
   lastBarChartThinned = false;
   var sameMetric = series.every(function(s2){ return s2.metric === series[0].metric; });
@@ -5119,6 +5194,7 @@ function renderChart(){
   btnPng.disabled = false; btnCsv.disabled = false;
   scheduleDraftSave();
   if(!rankColorsApply()) assignColors();   // v1.9.34: each country's own colour outside ranked bars
+  syncHideNoDataRow();
   if(chartType === "bar") applyBarRankColors(buildSnapshotRows());
   renderColorsPanel();
 
@@ -5132,7 +5208,7 @@ function renderChart(){
   }
   var allVals;
   if(chartType === "bar"){
-    SNAPSHOT_ROWS = buildSnapshotRows();
+    SNAPSHOT_ROWS = dropNoDataRows(buildSnapshotRows());
     applyBarRankColors(SNAPSHOT_ROWS);
     if(series.length > 1) SNAPSHOT_ROWS = sortRowsByMode(SNAPSHOT_ROWS, function(r){ return r.value; }, style.sortMode);
     syncBarModeVisibility(); syncBarLegendTitle();
@@ -5345,7 +5421,7 @@ btnPng.addEventListener("click", function(){
   var svgStr;
   if(chartType === "bar"){
     if(!rankColorsApply()) assignColors();
-    SNAPSHOT_ROWS = buildSnapshotRows();
+    SNAPSHOT_ROWS = dropNoDataRows(buildSnapshotRows());
     applyBarRankColors(SNAPSHOT_ROWS);
     if(series.length > 1) SNAPSHOT_ROWS = sortRowsByMode(SNAPSHOT_ROWS, function(r){ return r.value; }, style.sortMode);
     svgStr = czmBuildBars(exportTheme, true);
@@ -5429,6 +5505,10 @@ function syncBarOptionsUI(){
   var isBar = chartType === "bar";
   var yl = document.getElementById("cmYAxisTitleLabel");
   if(yl) yl.textContent = (isBar && style.barOrient === "horizontal") ? "Value axis title (along the bottom)" : "Y-axis title";
+  var xdg = document.getElementById("cmXDateGroup");
+  if(xdg) xdg.style.display = (isBar && series.length > 1) ? "none" : "";
+  var ytl = document.getElementById("cmYTickLbl");
+  if(ytl) ytl.textContent = (isBar && style.barOrient === "horizontal") ? "X-axis labels" : "Y-axis labels";
   document.getElementById("cmBarOptions").style.display = isBar ? "" : "none";
   document.querySelectorAll("#cmBarOrientSeg button").forEach(function(b){ b.classList.toggle("active", b.dataset.orient === style.barOrient); });
   document.getElementById("cmDataLabelsToggle").checked = !!style.dataLabels;
@@ -5439,6 +5519,14 @@ function syncBarOptionsUI(){
 }
 document.querySelectorAll("#cmBarOrientSeg button").forEach(function(b){
   b.addEventListener("click", function(){ style.barOrient = b.dataset.orient; syncBarOptionsUI(); renderChart(); });
+});
+document.getElementById("cmHideNoData").addEventListener("change", function(e){ style.hideNoData = e.target.checked; renderChart(); });
+document.querySelectorAll("#cmXDateSeg button").forEach(function(b){
+  b.addEventListener("click", function(){
+    style.xDateFmt = b.dataset.fmt;
+    document.querySelectorAll("#cmXDateSeg button").forEach(function(x){ x.classList.toggle("active", x === b); });
+    renderChart();
+  });
 });
 document.getElementById("cmSnapshotAt").addEventListener("change", function(e){ style.snapshotAt = e.target.value; syncBarLegendTitle(); renderChart(); });
 document.getElementById("cmDataLabelsToggle").addEventListener("change", function(e){ style.dataLabels = e.target.checked; syncBarOptionsUI(); renderChart(); });
@@ -5835,7 +5923,7 @@ function loadSavedChart(row){
   userRealPreference = !!(row.snapshot && row.snapshot.real);
   refreshToggleState();
   var snap0 = row.snapshot || {};
-  yAxisTitleTouched = !!snap0.yAxisTitle; legendTitleTouched = !!snap0.legendTitle;
+  yAxisTitleTouched = !!snap0.yAxisTitle; legendTitleTouched = legendTouchedFromSnap(snap0);
   if(!row.snapshot){
     // v1.9.34: a chart saved on Compare or a country page has no ChartMaker settings, so start from the
     // defaults instead of keeping the previous chart's titles, axis and options
@@ -5852,7 +5940,7 @@ function loadSavedChart(row){
     style.chartTitle = snap.chartTitle || ""; document.getElementById("cmChartTitle").value = style.chartTitle;
     style.yAxisTitle = snap.yAxisTitle || ""; document.getElementById("cmYAxisTitle").value = style.yAxisTitle;
     style.legendTitle = snap.legendTitle || ""; document.getElementById("cmLegendTitle").value = style.legendTitle;
-    if(snap.legendTitle) legendTitleTouched = true;
+    legendTitleTouched = legendTouchedFromSnap(snap);
     style.yTitlePos = snap.yTitlePos || "along";
     document.querySelectorAll("#cmYTitlePosSeg button").forEach(function(b){ b.classList.toggle("active", b.dataset.pos===style.yTitlePos); });
     style.showFill = !!snap.showFill; document.getElementById("cmFillToggle").checked = style.showFill;
@@ -5888,6 +5976,10 @@ function loadSavedChart(row){
       document.querySelectorAll("#cmThemeSeg button").forEach(function(b){ b.classList.toggle("active", b.dataset.theme === exportTheme); });
     }
     style.xTicks = snap.xTicks || 8;
+    style.xDateFmt = snap.xDateFmt === "year" ? "year" : "auto";
+    style.hideNoData = !!snap.hideNoData;
+    document.getElementById("cmHideNoData").checked = style.hideNoData;
+    document.querySelectorAll("#cmXDateSeg button").forEach(function(b){ b.classList.toggle("active", b.dataset.fmt === style.xDateFmt); });
     style.xLabelAngle = snap.xLabelAngle || "straight";
     document.querySelectorAll("#cmXAngleSeg button").forEach(function(b){ b.classList.toggle("active", b.dataset.angle===style.xLabelAngle); });
     style.sortMode = snap.sortMode || "value_desc";
@@ -5903,6 +5995,7 @@ function loadSavedChart(row){
   setNearestPeriod(fromPeriodSel, row.from_period, "from");
   setNearestPeriod(toPeriodSel, row.to_period, "to");
   restoreTickStep(savedTickStep, savedTickIdx);
+  lastAutoPeriodText = "";
   syncBarLegendTitle();
   renderChart();
   // Saved rows only carry date/label/type/align/seriesIndex, same as the
@@ -5954,7 +6047,7 @@ function buildSavePayload(name){
         yTickStepIdx: yTickStepIdx, yTickStep: currentYTickStep(), xTicks: style.xTicks, xLabelAngle: style.xLabelAngle,
         theme: exportTheme, axisFontSize: style.axisFontSize, font: style.font,
         barOrient: style.barOrient, dataLabels: style.dataLabels, dataLabelSize: style.dataLabelSize, snapshotAt: style.snapshotAt,
-        sortMode: style.sortMode,
+        sortMode: style.sortMode, legendTitleTouched: legendTitleTouched, xDateFmt: style.xDateFmt, hideNoData: !!style.hideNoData,
         real: userRealPreference, dollar: userDollarPreference
       }
     }
