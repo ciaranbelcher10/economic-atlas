@@ -112,7 +112,7 @@ COUNTRIES = {
     "Turkey":        ("tr", "turkey", "TR", "Europe"),
 }
 
-CATEGORIES = ["GDP & growth", "Prices", "Labour market", "Interest rates", "Trade", "Public finances", "Business"]
+CATEGORIES = ["GDP & growth", "Prices", "Labour market", "Interest rates", "Trade", "Public finances", "Business", "Population"]
 
 # One entry per indicator PAGE. "keys" lists the data keys that can feed it, in
 # priority order (e.g. five differently-named central bank rates all feed
@@ -157,6 +157,8 @@ METRICS = [
     dict(slug="government-budget", keys=["deficit"], title="Government Budget Balance", cat="Public finances", up=True, chart="bar"),
     dict(slug="government-debt-interest", keys=["debt_interest"], title="Government Debt Interest", cat="Public finances", up=False, chart="bar"),
     dict(slug="business-confidence", keys=["business_confidence"], title="Business Confidence", cat="Business", up=True, chart="line"),
+    # v1.9.115: World Bank total population (merged into each data file by merge_population.py).
+    dict(slug="population", keys=["population"], title="Population", cat="Population", up=True, chart="line"),
 ]
 METRIC_BY_SLUG = {m["slug"]: m for m in METRICS}
 
@@ -217,6 +219,8 @@ RANKINGS = [
          lede="Money invested into each economy's businesses from abroad, as a share of GDP."),
     dict(slug="business-confidence-by-country", metric="business-confidence", title="Business Confidence by Country", col="Index (average = 100)",
          lede="The OECD's survey measure of how optimistic firms are. 100 is each country's long-run average."),
+    dict(slug="population-by-country", metric="population", title="Population by Country", col="Population", freqs=["years"],
+         lede="How many people live in each economy, from the World Bank's mid-year estimates for the latest published year."),
 ]
 RANKING_BY_METRIC = {r["metric"]: r for r in RANKINGS}
 # Maps a ranking's own metric slug to the concept key Compare's own
@@ -2635,6 +2639,13 @@ def add_derived(country, data, sources):
             sources["trade_intensity"] = {
                 "description": "Exports plus imports as a share of GDP over each calendar year: how open the economy is to trade.",
                 "source": "Calculated: a full year's exports plus imports, divided by that year's GDP. Exports: " + srcs[0] + " Imports: " + srcs[1] + " GDP: " + srcs[2]}
+    # v1.9.115: population, merged into every data file by merge_population.py from one World
+    # Bank series; its citation is the same everywhere, so it is built here rather than added
+    # 61 times to data-metric-sources.json.
+    if "population" in series and "population" not in sources:
+        sources["population"] = {
+            "description": "The total number of people living in the economy at mid-year, from the World Bank's estimates (everyone counted, whatever their legal status or citizenship).",
+            "source": "World Bank \u00b7 Population, total (SP.POP.TOTL), mid-year estimates, annual."}
     data = dict(data, series=series)
     return data, sources
 
