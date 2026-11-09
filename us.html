@@ -2242,7 +2242,7 @@ function statTile(el, key, title, series, opts){
   el.appendChild(div);
 }
 // Every metric with its own /indicators/ page for this country (v1.6.1: all of them, not just four).
-const INDICATOR_PAGE_SLUGS = {population:"population", gdp_growth_yoy:"gdp-annual-growth-rate", trade_intensity:"trade-intensity", cpi_qoq:"inflation-rate-qoq", gdp_level:"gdp", gdp_real:"real-gdp", gdp_growth:"gdp-growth-rate", productivity:"productivity", cpi:"inflation-rate", cpi_mom:"inflation-rate-mom", cpi_mom_sa:"inflation-rate-mom-seasonally-adjusted", core_cpi:"core-inflation-rate", pce:"pce-inflation-rate", ppi:"producer-price-inflation", unemployment:"unemployment-rate", employment:"employment-rate", participation:"labour-force-participation-rate", fed_funds:"interest-rate", trade_balance:"balance-of-trade", exports:"exports", imports:"imports", current_account:"current-account-to-gdp", fdi:"foreign-direct-investment", debt_gdp:"government-debt", net_debt:"government-net-debt", deficit:"government-budget", business_confidence:"business-confidence", bond_yield_10y:"10-year-government-bond-yield"};
+const INDICATOR_PAGE_SLUGS = {gdp_per_capita:"gdp-per-capita", population:"population", gdp_growth_yoy:"gdp-annual-growth-rate", trade_intensity:"trade-intensity", cpi_qoq:"inflation-rate-qoq", gdp_level:"gdp", gdp_real:"real-gdp", gdp_growth:"gdp-growth-rate", productivity:"productivity", cpi:"inflation-rate", cpi_mom:"inflation-rate-mom", cpi_mom_sa:"inflation-rate-mom-seasonally-adjusted", core_cpi:"core-inflation-rate", pce:"pce-inflation-rate", ppi:"producer-price-inflation", unemployment:"unemployment-rate", employment:"employment-rate", participation:"labour-force-participation-rate", fed_funds:"interest-rate", trade_balance:"balance-of-trade", exports:"exports", imports:"imports", current_account:"current-account-to-gdp", fdi:"foreign-direct-investment", debt_gdp:"government-debt", net_debt:"government-net-debt", deficit:"government-budget", business_confidence:"business-confidence", bond_yield_10y:"10-year-government-bond-yield"};
 // Keeps only the bases this country actually serves, so the selector never
 // offers something the source cannot support and never appears at all when
 // there is only one basis. Order is preserved: the first survivor is default.
@@ -2765,18 +2765,18 @@ function render(data){
     {fmt:pct,fmtD:pp,upIsGood:true,source:"World Bank · % of GDP, annual"});
   if(s.trade_balance) statTile(hero,"trade_balance","Trade balance",s.trade_balance,
     {fmt:v=>curFmt(v,s.trade_balance.unit,1,true),fmtD:v=>curFmt(v,s.trade_balance.unit,1,true),upIsGood:true,source:"FRED · BOPGSTB (BEA/Census), SA"});
+  /* v1.9.116 gdp per capita */
+  const perHeadSym=u=>curFmt(1,u+"m",0).replace(/^\u2212/,"").replace(/1m$/,"");
+  const fmtPerHead=v=>{const g=v<0?"\u2212":"";return g+perHeadSym(s.gdp_per_capita?s.gdp_per_capita.unit:"")+Math.round(Math.abs(v)).toLocaleString("en-GB");};
+  if(s.gdp_per_capita) chartPanel("gdp_per_capita","charts-gdp","GDP per capita",
+    "The economy's output in a full calendar year divided by the number of people living there that year.",
+    s.gdp_per_capita,"line",fmtPerHead,fmtPerHead,"Calculated: complete calendar years of GDP divided by that year's population (World Bank)");
   /* v1.9.115 population */
   const fmtPeople=v=>{const a=Math.abs(v),g=v<0?"\u2212":"";return g+(a>=1e9?(a/1e9).toFixed(2)+"bn":a>=1e6?(a/1e6).toFixed(1)+"m":a>=1e3?(a/1e3).toFixed(0)+"k":a.toFixed(0));};
   if(s.population) chartPanel("population","charts-gdp","Population",
     "The total number of people living in the economy at mid-year.",
     s.population,"line",fmtPeople,fmtPeople,"World Bank \u00b7 Population, total (SP.POP.TOTL), mid-year estimates, annual");
   const tg=document.getElementById("tiles-gdp");
-  if(s.population) statTile(tg,"population","Population",s.population,
-    {fmt:fmtPeople,fmtD:fmtPeople,upIsGood:true,source:"World Bank \u00b7 SP.POP.TOTL"});
-  else if(tg){ const na=document.createElement("div"); na.className="stat stat-na";
-    na.innerHTML='<p class="label">Population</p><p class="figure">Not available</p>'
-      +'<p class="delta">The World Bank does not publish a population figure for this economy.</p>';
-    tg.appendChild(na); }
   if(s.gdp_level) statTile(tg,"gdp_level","GDP (annual rate)",s.gdp_level,
     {fmt:v=>curFmt(v,s.gdp_level.unit,1,true),fmtD:v=>curFmt(v,s.gdp_level.unit,0),upIsGood:true,source:"FRED · GDP"});
   if(s.gdp_growth) statTile(tg,"gdp_growth","Growth (QoQ, ann.)",s.gdp_growth,
@@ -2786,6 +2786,14 @@ function render(data){
   // Served and charted but had no tile; every served metric gets both.
   if(s.productivity) statTile(tg,"productivity","Productivity",s.productivity,
     {fmt:idx,fmtD:v=>(v>0?"+":"")+v.toFixed(1),upIsGood:true,source:"FRED \u00b7 OPHNFB"});
+  if(s.gdp_per_capita) statTile(tg,"gdp_per_capita","GDP per capita",s.gdp_per_capita,
+    {fmt:fmtPerHead,fmtD:fmtPerHead,upIsGood:true,source:"GDP \u00f7 World Bank population"});
+  if(s.population) statTile(tg,"population","Population",s.population,
+    {fmt:fmtPeople,fmtD:fmtPeople,upIsGood:true,source:"World Bank \u00b7 SP.POP.TOTL"});
+  else if(tg){ const na=document.createElement("div"); na.className="stat stat-na";
+    na.innerHTML='<p class="label">Population</p><p class="figure">Not available</p>'
+      +'<p class="delta">The World Bank does not publish a population figure for this economy.</p>';
+    tg.appendChild(na); }
   const tinf=document.getElementById("tiles-inflation");
   if(s.cpi) statTile(tinf,"cpi","CPI (YoY)",s.cpi,
     {fmt:pct,fmtD:pp,upIsGood:false,source:"FRED · CPIAUCNS"});
@@ -2856,7 +2864,7 @@ function render(data){
 /* ---------------------- Convert to USD$ / Adjust for inflation ---------------------- */
 let PAGE_DATA = null;
 const TOGGLE_STATE = { real:false, dollar:false };
-const CURRENCY_KEYS = ["gdp_level","gdp_real","net_debt","deficit","debt_interest","trade_balance","exports","imports"];
+const CURRENCY_KEYS = ["gdp_level","gdp_real","net_debt","deficit","debt_interest","trade_balance","exports","imports","gdp_per_capita"];
 const CONTAINER_IDS = ["hero","tiles-gdp","tiles-inflation","tiles-labour","tiles-trade","tiles-public","tiles-markets",
                         "charts-headline","charts-gdp","charts-inflation","charts-labour","charts-trade","charts-public","charts-markets"];
 function scaleOf(unitStr){

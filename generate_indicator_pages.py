@@ -123,6 +123,8 @@ CATEGORIES = ["GDP & growth", "Prices", "Labour market", "Interest rates", "Trad
 METRICS = [
     dict(slug="gdp", keys=["gdp_level"], title="GDP", cat="GDP & growth", up=True, chart="line", ann=True),
     dict(slug="real-gdp", keys=["gdp_real"], title="Real GDP", cat="GDP & growth", up=True, chart="line", ann=True),
+    # v1.9.116: complete calendar years of GDP divided by that year's World Bank population (merge_population.py).
+    dict(slug="gdp-per-capita", keys=["gdp_per_capita"], title="GDP per Capita", cat="GDP & growth", up=True, chart="line"),
     dict(slug="gdp-growth-rate", keys=["gdp_growth"], title="GDP Growth Rate", cat="GDP & growth", up=True, chart="bar"),
     dict(slug="gdp-annual-growth-rate", keys=["gdp_growth_yoy"], title="GDP Annual Growth Rate", cat="GDP & growth", up=True, chart="bar"),
     dict(slug="productivity", keys=["productivity"], title="Productivity", cat="GDP & growth", up=True, chart="line"),
@@ -219,6 +221,8 @@ RANKINGS = [
          lede="Money invested into each economy's businesses from abroad, as a share of GDP."),
     dict(slug="business-confidence-by-country", metric="business-confidence", title="Business Confidence by Country", col="Index (average = 100)",
          lede="The OECD's survey measure of how optimistic firms are. 100 is each country's long-run average."),
+    dict(slug="gdp-per-capita-by-country", metric="gdp-per-capita", title="GDP per Capita by Country", col="GDP per person (US$)", usd=True, freqs=["years"],
+         lede="Each economy's output per person over its latest complete calendar year, converted to US dollars at that year's average exchange rate."),
     dict(slug="population-by-country", metric="population", title="Population by Country", col="Population", freqs=["years"],
          lede="How many people live in each economy, from the World Bank's mid-year estimates for the latest published year."),
 ]
@@ -388,7 +392,7 @@ GDP_RAW_COUNTRIES = {"US", "Japan"}          # already published at an annual ra
 GDP_ALREADY_USD = {"US", "Switzerland"}      # no Convert to USD$; no FX conversion
 RATE_KEYS = {"boe_rate", "fed_funds", "ecb_rate", "boj_rate", "overnight_rate", "policy_rate", "bond_yield_10y"}
 NATIVE_DOLLAR = {"Australia": "A$", "Brazil": "R$", "Canada": "C$", "Mexico": "MX$", "South Africa": "R"}
-NATIVE_KEYS = {"gdp_level", "gdp_real", "trade_balance", "exports", "imports"}
+NATIVE_KEYS = {"gdp_level", "gdp_real", "trade_balance", "exports", "imports", "gdp_per_capita"}
 STALE_DAYS = {"months": 75, "quarters": 150, "years": 660}
 MONTH_NAMES = ["Jan","Feb","Mar","Apr","May","Jun","Jul","Aug","Sep","Oct","Nov","Dec"]
 MINUS = "\u2212"
@@ -2642,6 +2646,12 @@ def add_derived(country, data, sources):
     # v1.9.115: population, merged into every data file by merge_population.py from one World
     # Bank series; its citation is the same everywhere, so it is built here rather than added
     # 61 times to data-metric-sources.json.
+    if "gdp_per_capita" in series and "gdp_per_capita" not in sources:
+        gsrc = (sources.get("gdp_level") or {}).get("source", "")
+        sources["gdp_per_capita"] = {
+            "description": "The economy's output in a full calendar year divided by the number of people living there that year: the usual measure of average living standards.",
+            "source": "Calculated: GDP for each complete calendar year divided by that year's population. GDP: " + gsrc
+                      + " Population: World Bank \u00b7 Population, total (SP.POP.TOTL)."}
     if "population" in series and "population" not in sources:
         sources["population"] = {
             "description": "The total number of people living in the economy at mid-year, from the World Bank's estimates (everyone counted, whatever their legal status or citizenship).",
