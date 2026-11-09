@@ -84,7 +84,7 @@ async function loaded(win, extra){
   { const r = sel => (CSS.match(new RegExp(sel.replace(/[.#()\[\]"=>*+]/g, "\\$&") + "\\{([^}]*)\\}")) || [])[1] || "";
     ok(/display:none !important/.test(r("  body.dash-m .metric-toggles .mtoggle-note")) && /display:block/.test(r("  body.dash-m .metric-toggles.note-open .mtoggle-note")), "explainer hidden until (i)");
     ok(/display:none !important/.test(r("  body.dash-m #dashLightskey")), "two-line key hidden on phones");
-    ok(/font-size:24px !important/.test(r("  body.mob-tabbar h1:not(.hero-h1)")) && !/font-size/.test(r("  body.dash-m #dashMainWrap h1")), "every title 24px like Compare (hero excluded); Dashboard has no size of its own");
+    ok(/font-size:24px !important/.test(r("  body:has(> nav.top) h1:not(.hero-h1)")) && !/font-size/.test(r("  body.dash-m #dashMainWrap h1")), "every title 24px like Compare (hero excluded); Dashboard has no size of its own");
     ok(/--m-tabbar:48px/.test(CSS) && /font-size:18px/.test(r("  #mobToolbar a .ic")), "bottom bar 48px, 18px icons");
     ok(/padding-top:12px !important/.test(r('  .wrap[style*="padding:30px 24px 60px"]')) && /padding-top:12px !important/.test(r("  header.page")) && /padding-top:12px !important/.test(r("  .ind-wrap")) && /margin-top:8px !important/.test(r("  .mk-hero")), "titles close under the top bar on every page type"); }
 

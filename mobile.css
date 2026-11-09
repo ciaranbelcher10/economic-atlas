@@ -40,12 +40,25 @@
    All breakpoints. Widths are capped and centered above ~640px so these
    don't look like stretched mobile components on a desktop screen.
    --------------------------------------------------------------------- */
-#homeQuickNav{ margin:10px 0 6px; max-width:640px; }
+#homeQuickNav{ margin:0 0 6px; padding-top:10px; max-width:640px; }  /* v1.9.111: padding, not margin: a collapsing margin moved the whole page */
 /* Tightens the header's own generous top padding specifically where our
    search box now sits right above it, so "Welcome to..." / the country
    name sit noticeably higher rather than leaving the original gap meant
    for a page that starts directly with nav. */
 #homeQuickNav + header.page{ padding-top:16px !important; }
+body .rangepresets button.active{ color:#0b1d2c; }  /* v1.9.111: dark text on the light blue (6.6:1; white was 2.6:1) */
+.subline .sl-short{ display:none; }  /* v1.9.111: phone gets the short intro from first paint */
+header.page:has(> .hero-h1):not(:has(#homeTicker)) > .subline{ padding-bottom:57px; }  /* v1.9.111: room for the Latest ticker */
+/* v1.9.111: hold the search box's space from first paint, so the page does not jump
+   when mobile.js inserts it (same total offset either way). */
+header.page.with-map:not(#homeQuickNav + header.page), header.page:has(> .hero-h1):not(#homeQuickNav + header.page){ padding-top:16px !important; }
+.wrap:has(> header.page.with-map):not(:has(> #homeQuickNav))::before,
+.wrap:has(> header.page > .hero-h1):not(:has(> #homeQuickNav))::before{ content:""; display:block; height:62px; }
+@media (min-width:901px){
+  #homeQuickNav{ margin-top:0 !important; padding-top:24px; }  /* style.css's 24px margin as padding (no collapse) */
+  .wrap:has(> header.page.with-map):not(:has(> #homeQuickNav))::before,
+  .wrap:has(> header.page > .hero-h1):not(:has(> #homeQuickNav))::before{ height:76px; }
+}
 .hqn-searchwrap{ position:relative; }
 #hqnSearch{
   width:100%; padding:12px 14px; border-radius:11px; border:1px solid var(--hair);
@@ -145,6 +158,10 @@ html[data-theme="dark"] .ht-item{ color:#8FE3B0 !important; }
 
 
 @media (max-width:760px){
+  nav.cat:not(:has(+ .sec-swipehint)){ margin-bottom:55px !important; }  /* v1.9.111: room for the swipe dots and section line */
+  header.page:has(> .hero-h1):not(:has(#homeTicker)) > .subline{ padding-bottom:60px; }
+  .subline .sl-full{ display:none; } .subline .sl-short{ display:inline; }
+  #hero:empty{ min-height:max(0px, calc(var(--hero-rows, 0) * 143px + (var(--hero-rows, 0) - 1) * 8px)); }  /* v1.9.111: room for the headline tiles before they render */
 
   /* ---------------------------------------------------------------------
      1. PERSISTENT MOBILE TOOL BAR
@@ -177,7 +194,7 @@ html[data-theme="dark"] .ht-item{ color:#8FE3B0 !important; }
     display:flex; flex-direction:column; align-items:center; justify-content:center;
     gap:1px; min-height:var(--m-tabbar); padding:3px 2px; min-width:0;
     font-size:10px; font-weight:600; letter-spacing:.01em;
-    color:rgba(255,255,255,.66); text-decoration:none; white-space:nowrap;
+    color:rgba(255,255,255,.84); text-decoration:none; white-space:nowrap;  /* v1.9.111: 5.4:1 contrast */
     overflow:hidden; text-overflow:ellipsis; border-top:2.5px solid transparent;
   }
   #mobToolbar a .ic{ font-size:18px; line-height:1; }
@@ -185,9 +202,9 @@ html[data-theme="dark"] .ht-item{ color:#8FE3B0 !important; }
   body.mob-tabbar{ padding-bottom:calc(var(--m-tabbar) + env(safe-area-inset-bottom, 0px)) !important; }
 
   /* v1.9.90: every page title matches Compare's (24px); the home hero keeps its own size */
-  body.mob-tabbar h1:not(.hero-h1){ font-size:24px !important; line-height:1.2 !important; }
+  body:has(> nav.top) h1:not(.hero-h1){ font-size:24px !important; line-height:1.2 !important; }
   /* v1.9.92: the home hero headline, 30px to 26px on phones (still the largest title on the site) */
-  body.mob-tabbar h1.hero-h1{ font-size:26px !important; line-height:1.15 !important; gap:10px !important; }
+  body:has(> nav.top) h1.hero-h1{ font-size:26px !important; line-height:1.15 !important; gap:10px !important; }
   /* v1.9.91: sheet and picker titles match too */
   .cmp-s-head h2, .ctp-head h2, .modal-content h2{ font-size:24px !important; line-height:1.2 !important; }
   /* v1.9.89: page titles sit close under the top bar */
@@ -367,7 +384,7 @@ html[data-theme="dark"] .ht-item{ color:#8FE3B0 !important; }
   .hero .stat .period{ font-size:11px !important; margin-top:3px !important; color:var(--ink2); }
   .hero .stat .source{ font-size:10px !important; margin-top:3px !important; line-height:1.3;
     display:-webkit-box; -webkit-line-clamp:2; -webkit-box-orient:vertical; overflow:hidden; }
-  .hero .stat .statPageLink{ top:7px !important; right:7px !important; width:22px !important; height:22px !important; }
+  .hero .stat .statPageLink{ top:6px !important; right:6px !important; width:24px !important; height:24px !important; }  /* v1.9.111: 24px tap target */
   .hero .stat .figure .fxper{ font-size:.5em !important; }
 
   /* Data tiles (GDP, CPI, etc.) — 2 per row instead of stacked singly,
@@ -795,6 +812,8 @@ html[data-theme="dark"] .ht-item{ color:#8FE3B0 !important; }
   body.cm-m .cm-chartarea{ padding:12px 10px !important; }
   body.cm-m .cm-chart-outer{ height:auto !important; min-height:0; aspect-ratio:auto !important; }  /* v1.9.82: card takes the cropped chart's own shape */
   body.cm-m #cmSvgBox{ height:auto !important; }
+  body.cm-m .cm-chart-outer{ min-height:300px; }  /* v1.9.111: room for the example chart before it draws (no jump) */
+  .cm-m-ex:not([hidden]):empty{ min-height:40px; }
   body.cm-m #cmSvgBox svg{ display:block; width:100%; height:auto; }
   .cm-m-ex[hidden]{ display:none; }
   #cmMobileGate{ display:flex; flex-direction:column; gap:10px; margin:0 0 12px; }
@@ -803,10 +822,10 @@ html[data-theme="dark"] .ht-item{ color:#8FE3B0 !important; }
   .cm-m-ex::-webkit-scrollbar{ display:none; }
   .cm-m-chip{ flex:none; min-height:40px; padding:0 14px; border:1px solid var(--hair); border-radius:999px; background:var(--panel);
     color:var(--ink); font:inherit; font-size:13px; font-weight:600; white-space:nowrap; cursor:pointer; }
-  .cm-m-chip[aria-pressed="true"]{ background:var(--blue,#37659E); border-color:var(--blue,#37659E); color:#fff; }
+  .cm-m-chip[aria-pressed="true"]{ background:var(--blue,#37659E); border-color:var(--blue,#37659E); color:#0b1d2c; }
   .cm-m-actions{ display:flex; gap:8px; }
   .cm-m-send, .cm-m-saved{ flex:1; min-height:44px; border-radius:12px; font:inherit; font-size:14px; font-weight:700; cursor:pointer; }
-  .cm-m-send{ border:none; background:var(--blue,#37659E); color:#fff; }
+  .cm-m-send{ border:none; background:var(--blue,#37659E); color:#0b1d2c; }
   .cm-m-saved{ border:1px solid var(--blue,#37659E); background:transparent; color:var(--blue,#37659E); }
   .cm-m-saved[hidden]{ display:none; }
   .cm-m-msg{ margin:0; font-size:12.5px; color:var(--ink2); }

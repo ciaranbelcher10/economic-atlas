@@ -176,7 +176,7 @@ async function bootCal(phone, store){
     const MC = fs.readFileSync(path.join(ROOT, "mobile.css"), "utf8");
     ok(/\.cap-signup, \.cap-login, \.cap-slim-go\{ min-height:44px !important; \}/.test(MC), "phone buttons keep 44pt targets");
     ok(/\.cmp-s-head h2, \.ctp-head h2, \.modal-content h2\{ font-size:24px !important/.test(MC), "sheet and picker titles 24px like Compare");
-    ok(/body\.mob-tabbar h1\.hero-h1\{ font-size:26px !important/.test(MC), "home hero 26px on phones"); }
+    ok(/body:has\(> nav\.top\) h1\.hero-h1\{ font-size:26px !important/.test(MC), "home hero 26px on phones"); }
   console.log("test_free_caps: " + (checks - failures) + " ok, " + failures + " failed");
   process.exit(failures ? 1 : 0);
 })().catch(e => { console.log("  FAIL  crashed: " + e.stack); console.log("test_free_caps: " + (checks - failures) + " ok, " + (failures + 1) + " failed"); process.exit(1); });

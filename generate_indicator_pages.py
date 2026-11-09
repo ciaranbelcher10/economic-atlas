@@ -1293,9 +1293,11 @@ def head_html(title, desc, canonical, og_image, jsonld, extra_css=""):
 <link rel="apple-touch-icon" href="../apple-touch-icon.png">
 <link rel="preconnect" href="https://fonts.googleapis.com">
 <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
-<link href="https://fonts.googleapis.com/css2?family=Nunito+Sans:wght@400;600;700&display=swap" rel="stylesheet">
+<link rel="preload" as="style" href="https://fonts.googleapis.com/css2?family=Nunito+Sans:wght@400;600;700&display=swap">
+<link href="https://fonts.googleapis.com/css2?family=Nunito+Sans:wght@400;600;700&display=swap" rel="stylesheet" media="print" onload="this.media='all'">
+<noscript><link href="https://fonts.googleapis.com/css2?family=Nunito+Sans:wght@400;600;700&display=swap" rel="stylesheet"></noscript>
 <link rel="stylesheet" href="../style.css?v=60">
-<link rel="stylesheet" href="../mobile.css?v=41">
+<link rel="stylesheet" href="../mobile.css?v=42">
 <link rel="stylesheet" href="../indicator.css?v={KIT_VERSION}">
 <script type="application/ld+json">
 {jsonld}
@@ -1324,7 +1326,7 @@ def page_tail(extra_js="", extra_html=""):
 <script src="https://cdnjs.cloudflare.com/ajax/libs/Chart.js/4.4.1/chart.umd.min.js"></script>
 <script src="../indicator-kit.js?v={KIT_VERSION}"></script>
 {extra_js}
-<script src="../mobile.js?v=39"></script>
+<script src="../mobile.js?v=40"></script>
 {CONSENT_HTML}
 <script src="../consent.js?v=1" defer></script>
 </body>

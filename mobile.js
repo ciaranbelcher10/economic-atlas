@@ -1007,7 +1007,10 @@
       return;
     }
     document.body.classList.add("cm-m");
-    if(gate){ gate.style.display = ""; syncCmGate(); return; }
+    if(gate && gate.dataset.wired){ gate.style.display = ""; syncCmGate(); return; }
+    // v1.9.111: the gate's markup ships in chartmaker.html so the phone layout paints
+    // in place; build it here only if a page lacks it.
+    if(!gate){
     gate = document.createElement("div");
     gate.id = "cmMobileGate";
     gate.innerHTML =
@@ -1019,6 +1022,8 @@
       '</div>' +
       '<p class="cm-m-msg" aria-live="polite"></p>';
     layout.insertAdjacentElement("beforebegin", gate);
+    }
+    gate.dataset.wired = "1"; gate.style.display = "";
     var send = gate.querySelector(".cm-m-send"), msg = gate.querySelector(".cm-m-msg");
     send.addEventListener("click", function(){
       var cm = window.EA_CM || {};
@@ -1919,6 +1924,7 @@
         return;
       }
       if(el.tagName !== "P") return;
+      if(el.querySelector(".sl-short")) return;  // v1.9.111: page ships both texts; CSS picks one (no jump)
       if(el.dataset.full === undefined) el.dataset.full = el.textContent;
       var w = on ? sw[1] : el.dataset.full;
       if(el.textContent !== w) el.textContent = w;
