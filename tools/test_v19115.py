@@ -42,13 +42,14 @@ pages = [f for f in glob.glob(os.path.join(ROOT, "*.html")) if os.path.basename(
 check(len(pages) >= 62, f"62 country pages (found {len(pages)})")
 for f in pages:
     s = open(f, encoding="utf-8").read(); n = os.path.basename(f)
-    check(s.count('chartPanel("population","charts-gdp"') == 1, f"{n}: population chart in the GDP section")
-    check(s.count('statTile(tg,"population","Population",s.population,') == 1, f"{n}: population tile in the GDP tiles")
+    check(len(re.findall(r'chartPanel\("population","charts-(gdp|misc)"', s)) == 1, f"{n}: one population chart (GDP, or Miscellaneous since v1.9.117)")
+    check(len(re.findall(r'statTile\((tg|tmisc),"population","Population",s\.population,', s)) == 1, f"{n}: one population tile (GDP, or Miscellaneous since v1.9.117)")
     check("fmtD:fmtPeople," in s and "fmtPeopleD" not in s, f"{n}: delta formatter leaves the sign to statTile")
     check('Not available</p>' in s and 'World Bank does not publish a population figure' in s, f'{n}: Not available fallback')
     _m = re.search(r"const INDICATOR_PAGE_SLUGS = \{([^}]*)\}", s)
     check(bool(_m) and 'population:"population"' in _m.group(1), f"{n}: tile links to its page")
-    check(s.index('chartPanel("population"') < s.index('statTile(tg,"population"'), f"{n}: chart before tile")
+    _t = re.search(r'statTile\((tg|tmisc),"population"', s)
+    check(bool(_t) and s.index('chartPanel("population"') < _t.start(), f"{n}: chart before tile")
 
 # workflow
 wf = read(".github/workflows/update-data.yml")

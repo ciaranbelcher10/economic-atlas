@@ -138,14 +138,26 @@ html[data-theme="dark"] .ht-item{ color:#8FE3B0 !important; }
 #mkYRegions:empty{ min-height:34px; }
 #mkTicker:empty{ min-height:147px; }
 @media (max-width:1180px){ #mkTicker:empty{ min-height:304px; } }
+/* v1.9.117: one tile size everywhere. A fixed-column grid with equal row heights replaces the
+   centred, growing flex rows, so a short last row lines up under the first tile instead of
+   stretching or floating in the middle. Phones keep their two-column grid (below). */
+@media (min-width:761px){
+  body .hero, body .hero.mini{ display:grid !important; grid-template-columns:repeat(5,minmax(0,1fr)); grid-auto-rows:1fr; gap:14px; justify-content:stretch; }
+  body .hero .stat, body .hero.mini .stat{ flex:none !important; width:auto !important; min-width:0; max-width:none; margin:0; }
+}
+@media (min-width:761px) and (max-width:1180px){ body .hero, body .hero.mini{ grid-template-columns:repeat(4,minmax(0,1fr)); } }
+@media (min-width:761px) and (max-width:960px){ body .hero, body .hero.mini{ grid-template-columns:repeat(3,minmax(0,1fr)); } }
 @media (max-width:760px){
+  /* v1.9.117: one tile size on phones too: every tile 176px (the tallest content, measured on all 62 pages) */
+  body .hero, body .hero.mini{ grid-auto-rows:176px; }
+  body .hero .stat, body .hero.mini .stat{ height:176px; box-sizing:border-box; overflow:hidden; }
   #cYields:empty{ aspect-ratio:360/356; } #cFx:empty{ aspect-ratio:360/398; } #cDaily:empty{ aspect-ratio:360/250; }
   #mkTicker:empty{ min-height:82px; }
   #cYields, #cFx{ --mk-more-h:54px; }
   nav.cat:not(:has(+ .sec-swipehint)){ margin-bottom:55px !important; }  /* v1.9.111: room for the swipe dots and section line */
   header.page:has(> .hero-h1):not(:has(#homeTicker)) > .subline{ padding-bottom:60px; }
   .subline .sl-full{ display:none; } .subline .sl-short{ display:inline; }
-  #hero:empty{ min-height:max(0px, calc(var(--hero-rows, 0) * 143px + (var(--hero-rows, 0) - 1) * 8px)); }  /* v1.9.111: room for the headline tiles before they render */
+  #hero:empty{ min-height:max(0px, calc(var(--hero-rows, 0) * 176px + (var(--hero-rows, 0) - 1) * 8px)); }  /* v1.9.111: room for the headline tiles before they render */
 
   /* ---------------------------------------------------------------------
      1. PERSISTENT MOBILE TOOL BAR
