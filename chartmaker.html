@@ -1591,6 +1591,7 @@ button.mtoggle.fx-both{background:#2FA463; border-color:#2FA463; color:#fff;}
  <div class="cm-empty" id="cmEmptyState">Add a metric on the left to start building a chart.</div>
  <div id="cmSvgBox" style="display:none; width:100%; height:100%;"></div>
  </div>
+ <p id="cmAggCaption" hidden style="margin:8px 2px 0; font-size:12.5px; color:var(--ink2); line-height:1.45;"></p>
  <div class="cm-exportbar">
  <span class="cm-pnglbl" id="cmThemeLbl">PNG</span>
  <div class="seg" id="cmThemeSeg" role="group" aria-labelledby="cmThemeLbl">
@@ -5207,6 +5208,25 @@ function aggregateBarPoints(pts, country, metric, transform){
   out.points = kept; out.level = level; out.rule = rule; out.freq = freq;
   return out;
 }
+// v1.9.109: the short version for phones, where the editor note above the chart is hidden
+function barAggCaption(a){
+  var lv = { month: "Monthly", quarter: "Quarterly", year: "Yearly" }[a.level];
+  var fr = { day: "daily", month: "monthly", quarter: "quarterly" }[a.freq];
+  var how = a.rule === "sum" ? "totals" : a.rule === "last" ? "end-of-period figures" : "averages";
+  var t = lv + " " + how + " of " + fr + " data.";
+  if(a.dropped.length){
+    var d = a.dropped.map(function(x){ return x.replace(/ only\)$/, ")"); });
+    t += " " + (d.length === 1 ? d[0] : d.slice(0, -1).join(", ") + " and " + d[d.length - 1]) + " not shown: incomplete.";
+  }
+  return t;
+}
+function syncAggCaption(){
+  var el = document.getElementById("cmAggCaption");
+  if(!el) return;
+  var a = (chartType === "bar" && series.length === 1 && cmPhone()) ? lastBarChartThinned : false;
+  el.textContent = a ? barAggCaption(a) : "";
+  el.hidden = !a;
+}
 function barAggNote(a){
   var lv = { month: "monthly", quarter: "quarterly", year: "yearly" }[a.level];
   var fr = { day: "daily", month: "monthly", quarter: "quarterly" }[a.freq];
@@ -5271,12 +5291,14 @@ function renderChart(){
     svgBoxEl.style.display = "none";
     btnPng.disabled = true; btnCsv.disabled = true;
     renderColorsPanel();
+    syncAggCaption();
     return;
   }
   emptyStateEl.style.display = "none";
   svgBoxEl.style.display = "block";
   btnPng.disabled = false; btnCsv.disabled = false;
   scheduleDraftSave();
+  if(chartType !== "bar") syncAggCaption();   // v1.9.109: bar charts set it once their rows are built
   if(!rankColorsApply()) assignColors();   // v1.9.34: each country's own colour outside ranked bars
   syncHideNoDataRow();
   if(chartType === "bar") applyBarRankColors(buildSnapshotRows());
@@ -5296,6 +5318,7 @@ function renderChart(){
     applyBarRankColors(SNAPSHOT_ROWS);
     if(series.length > 1) SNAPSHOT_ROWS = sortRowsByMode(SNAPSHOT_ROWS, function(r){ return r.value; }, style.sortMode);
     syncBarModeVisibility(); syncBarLegendTitle();
+    syncAggCaption();
     allVals = SNAPSHOT_ROWS.map(function(r){ return r.value; }).filter(function(v){ return v != null; });
   } else {
     SERIES_LIST = buildSeriesList();
