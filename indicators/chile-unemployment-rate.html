@@ -19,9 +19,11 @@
 <link rel="apple-touch-icon" href="../apple-touch-icon.png">
 <link rel="preconnect" href="https://fonts.googleapis.com">
 <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
-<link href="https://fonts.googleapis.com/css2?family=Nunito+Sans:wght@400;600;700&display=swap" rel="stylesheet">
+<link rel="preload" as="style" href="https://fonts.googleapis.com/css2?family=Nunito+Sans:wght@400;600;700&display=swap">
+<link href="https://fonts.googleapis.com/css2?family=Nunito+Sans:wght@400;600;700&display=swap" rel="stylesheet" media="print" onload="this.media='all'">
+<noscript><link href="https://fonts.googleapis.com/css2?family=Nunito+Sans:wght@400;600;700&display=swap" rel="stylesheet"></noscript>
 <link rel="stylesheet" href="../style.css?v=60">
-<link rel="stylesheet" href="../mobile.css?v=41">
+<link rel="stylesheet" href="../mobile.css?v=43">
 <link rel="stylesheet" href="../indicator.css?v=10">
 <script type="application/ld+json">
 {
@@ -597,6 +599,8 @@
   });
   sb.auth.getSession().then(function(res){
     updateAuthUI(res.data.session);
+    // v1.9.110: record when a signed-in user last used the site (the server writes at most hourly).
+    if(res.data.session){ sb.rpc("touch_last_seen").then(function(){}, function(){}); }
   });
   // Expose so any chart on this page can send someone straight into the
   // signup/login flow when they click a download button while logged out.
@@ -1260,7 +1264,7 @@
 <a href="chile-current-account-to-gdp"><span class="r-name">Current Account (% of GDP)</span><span class="r-val">−1.2%</span><span class="r-per">2025</span></a>
 <a href="chile-foreign-direct-investment"><span class="r-name">Foreign Direct Investment (% of GDP)</span><span class="r-val">4.1%</span><span class="r-per">2025</span></a>
 <div class="ind-cat">Public finances</div>
-<a href="chile-government-debt"><span class="r-name">Government Debt (% of GDP)</span><span class="r-val">41.8%</span><span class="r-per">2025</span></a>
+<a href="chile-government-debt"><span class="r-name">Government Debt (% of GDP)</span><span class="r-val">42.7%</span><span class="r-per">2025</span></a>
 <a href="chile-government-budget"><span class="r-name">Government Budget Balance (% of GDP)</span><span class="r-val">−2.8%</span><span class="r-per">2025</span></a>
 <div class="ind-cat">Business</div>
 <a href="chile-business-confidence"><span class="r-name">Business Confidence</span><span class="r-val">99.3</span><span class="r-per">Sep 2026</span></a>
@@ -2713,7 +2717,7 @@
   });
 })();
 </script>
-<script src="../mobile.js?v=39"></script>
+<script src="../mobile.js?v=42"></script>
 <div id="cookieBanner" role="region" aria-label="Cookie consent">
  <div class="cookie-inner">
  <div>

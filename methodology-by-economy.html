@@ -19,9 +19,11 @@
 <link rel="apple-touch-icon" href="apple-touch-icon.png">
 <link rel="preconnect" href="https://fonts.googleapis.com">
 <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
-<link href="https://fonts.googleapis.com/css2?family=Nunito+Sans:wght@400;600;700&display=swap" rel="stylesheet">
+<link rel="preload" as="style" href="https://fonts.googleapis.com/css2?family=Nunito+Sans:wght@400;600;700&display=swap">
+<link href="https://fonts.googleapis.com/css2?family=Nunito+Sans:wght@400;600;700&display=swap" rel="stylesheet" media="print" onload="this.media='all'">
+<noscript><link href="https://fonts.googleapis.com/css2?family=Nunito+Sans:wght@400;600;700&display=swap" rel="stylesheet"></noscript>
 <link rel="stylesheet" href="style.css?v=60">
-<link rel="stylesheet" href="mobile.css?v=41">
+<link rel="stylesheet" href="mobile.css?v=43">
 <link rel="stylesheet" href="indicator.css?v=10">
 <script type="application/ld+json">
 {
@@ -595,6 +597,8 @@
   });
   sb.auth.getSession().then(function(res){
     updateAuthUI(res.data.session);
+    // v1.9.110: record when a signed-in user last used the site (the server writes at most hourly).
+    if(res.data.session){ sb.rpc("touch_last_seen").then(function(){}, function(){}); }
   });
 })();
 </script>
@@ -1886,7 +1890,7 @@
 <tr><th scope="row"><a class="rk-cty" href="indicators/poland-government-budget">Government Budget Balance (% of GDP)</a></th><td>General government net lending/borrowing, % of GDP (Eurostat)</td><td>Annual</td><td>Not applicable</td></tr>
 </tbody></table></div>
 <p class="mb-gaps"><strong>Not tracked:</strong> Current account.</p>
-<ul class="mb-notes"><li>The trade balance is Eurostat&#x27;s goods balance (exports minus imports) in euros. It is left in euros when Dollarise is switched on.</li></ul>
+<ul class="mb-notes"><li>The trade balance is Eurostat&#x27;s goods balance (exports minus imports) in euros. It is left in euros when Convert to USD$ is switched on.</li></ul>
 </section>
 <section class="panel ind-panel doc-sec mb-econ" id="portugal" data-name="Portugal" data-region="Europe">
 <div class="ind-panelhead"><h2>Portugal</h2><span class="mb-meta">Europe · 15 indicators</span></div>
@@ -2375,7 +2379,7 @@
 </div>
 
 
-<script src="mobile.js?v=39"></script>
+<script src="mobile.js?v=42"></script>
 <div id="cookieBanner" role="region" aria-label="Cookie consent">
  <div class="cookie-inner">
  <div>
