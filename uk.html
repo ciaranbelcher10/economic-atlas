@@ -112,7 +112,7 @@ nav.cat button.active{background:var(--blue); border-color:var(--blue); color:#f
 /* Depth-pass modules: inactivity-by-reason, spending-by-category (v9.4.0) */
 .secsub2{color:var(--ink2); font-size:13.5px; margin:0 0 14px; max-width:70ch;}
 /* ---- toggle-affected metric highlighting (Aug 2026: historical FX pass) ----
-   Yellow = "Make it real" changed this metric's series; blue = "Dollarise"
+   Yellow = "Adjust for inflation" changed this metric's series; blue = "Convert to USD$"
    converted it; green = both toggles are affecting it at once. Colours are
    deliberately distinct from the site's existing palette (navy/blue links,
    green/orange freshness LEDs) so they read as a new, temporary "this is
@@ -1829,10 +1829,10 @@ document.addEventListener("DOMContentLoaded", function(){
 </nav>
 <div class="metric-toggles" aria-label="Display options">
  <button type="button" class="mtoggle" id="toggleReal" onclick="toggleMetric('real',this)" aria-pressed="false">
- <span class="mtoggle-switch" aria-hidden="true"></span>Make it real
+ <span class="mtoggle-switch" aria-hidden="true"></span>Adjust for inflation
  </button>
  <button type="button" class="mtoggle" id="toggleDollar" onclick="toggleMetric('dollar',this)" aria-pressed="false">
- <span class="mtoggle-switch" aria-hidden="true"></span>Dollarise
+ <span class="mtoggle-switch" aria-hidden="true"></span>Convert to USD$
  </button>
  <span class="mtoggle-note" id="mtoggleNote"></span>
  <span id="mtoggleAnnounce" class="sr-only" role="status" aria-live="polite"></span>
@@ -2171,7 +2171,7 @@ function EA_subLabel(lab){
   const n = +r;
   return (n>=1 && n<=12) ? ["Jan","Feb","Mar","Apr","May","Jun","Jul","Aug","Sep","Oct","Nov","Dec"][n-1]+" "+y : y;
 }
-// Dollarise note: 5 significant figures, never a raw float.
+// Convert to USD$ note: 5 significant figures, never a raw float.
 function fxRateTxt(r){ return (typeof r==="number" && isFinite(r)) ? String(Number(r.toPrecision(5))) : r; }
 // Tile titles: keep the last word and the (i) icon together, and show
 // rate-of-change tags in their intended case (q/q, y/y, m/m).
@@ -2642,7 +2642,7 @@ function render(data){
   /* Trade intensity is pinned to the raw nominal series (8.3.0): "Make it
      real" has no real-terms exports/imports to pair with a real-GDP
      denominator (nominal trade ÷ real GDP is economically meaningless), and
-     Dollarise cancels out of the ratio anyway; both toggles are deliberate
+     Convert to USD$ cancels out of the ratio anyway; both toggles are deliberate
      no-ops for this metric. */
   const tiSrc = (PAGE_DATA && PAGE_DATA.series) ? PAGE_DATA.series : s;
   const ti = (tiSrc.exports&&tiSrc.imports&&tiSrc.gdp_level)
@@ -2653,7 +2653,7 @@ function render(data){
   /* Currency formatting (tn/bn/m, correct symbol) is handled dynamically
      by curFmt(value, unit, decimals), defined in the toggle script below --
      it reads whatever unit the series currently has, so it stays correct
-     whether or not Dollarise has converted it. */
+     whether or not Convert to USD$ has converted it. */
   /* --------------- charts first, so tiles know their targets ----------- */
   if(s.business_confidence) chartPanel("business_confidence","charts-headline","Business confidence",
     "How optimistic firms are about the months ahead. 100 is the long-run average; above it, firms expect better times.",
@@ -2837,14 +2837,14 @@ function render(data){
   renderLastUpdated(data.updated);
   fitFigures();
 }
-/* ---------------------- Dollarise / Make it real ---------------------- */
+/* ---------------------- Convert to USD$ / Adjust for inflation ---------------------- */
 let PAGE_DATA = null;
 const TOGGLE_STATE = { real:false, dollar:false };
 const CURRENCY_KEYS = ["gdp_level","gdp_real","net_debt","deficit","debt_interest","trade_balance","exports","imports"];
 /* ---------------------------- info panel content ---------------------------
    Per-metric reference content for the (i) info button on every tile and
    chart panel: what the metric is, its official source, and -- critically,
-   per this round's brief -- exactly how "Make it real" and "Dollarise"
+   per this round's brief -- exactly how "Adjust for inflation" and "Convert to USD$"
    affect THIS specific metric, so a reader knows what they're looking at
    before reusing a figure elsewhere. Only metrics actually affected by a
    toggle get that toggle's text; metrics untouched by a toggle say so
@@ -2967,7 +2967,7 @@ const INFO_CONTENT = {
   debt_interest: {
     description: "What the government pays each month to service its existing debt, mostly to holders of UK government bonds (gilts).",
     source: "ONS series NMFX (PUSF) · central government, net interest payable, not seasonally adjusted.",
-    dollar: "Each historical point is converted at its own contemporaneous GBP/USD rate (monthly resolution from FRED's DEXUSUK, 1971 onward), with the same pre-1971 earliest-rate fallback as GDP, see the GDP entry for detail. Note: debt_interest is not currently included in the automatic Dollarise conversion list on this page, shown here for completeness in case that changes."
+    dollar: "Each historical point is converted at its own contemporaneous GBP/USD rate (monthly resolution from FRED's DEXUSUK, 1971 onward), with the same pre-1971 earliest-rate fallback as GDP, see the GDP entry for detail. Note: debt_interest is not currently included in the automatic Convert to USD$ conversion list on this page, shown here for completeness in case that changes."
   },
   deficit: {
     description: "How much the government borrows each month to cover the gap between spending and tax revenue. Seasonal swings (e.g. around January self-assessment tax receipts) are normal.",
@@ -3018,13 +3018,13 @@ function openInfoPopover(btn, infoKey, title){
   if(content.real){
     const p = document.createElement("p");
     p.className = "infoPopoverToggleNote real";
-    p.innerHTML = `<strong>Make it real:</strong> ${content.real}`;
+    p.innerHTML = `<strong>Adjust for inflation:</strong> ${content.real}`;
     togglesEl.appendChild(p);
   }
   if(content.dollar){
     const p = document.createElement("p");
     p.className = "infoPopoverToggleNote dollar";
-    p.innerHTML = `<strong>Dollarise:</strong> ${content.dollar}`;
+    p.innerHTML = `<strong>Convert to USD$:</strong> ${content.dollar}`;
     togglesEl.appendChild(p);
   }
   el.hidden = false;
@@ -3066,7 +3066,7 @@ function scaleOf(unitStr){
   // checking the scale marker -- several countries' gdp_real unit
   // strings (e.g. "$m (2021 prices)", "PLNbn (2010 prices)") have this,
   // and the old end-anchored-only regex silently failed to match them,
-  // making "Make it real" display values roughly 1,000,000x too small
+  // making "Adjust for inflation" display values roughly 1,000,000x too small
   // (e.g. Thailand showing "$1m" instead of the real ~$1.5tn figure).
   // Stripping the parenthetical first restores exact backward
   // compatibility with every plain unit string ("$m", "PLNbn", "¥bn"
@@ -3117,7 +3117,7 @@ function isCurrencyUnit(u){
 function isAlreadyUSD(u, key){
   // Some series (e.g. World-Bank-sourced gdp_level for several countries)
   // are authored directly in USD rather than local currency -- converting
-  // those again through the local FX rate on "Dollarise" produces a
+  // those again through the local FX rate on "Convert to USD$" produces a
   // silently wrong, double-converted figure. This guard catches that.
   //
   // It has to be series-aware, not just page-aware: a few countries (AUD/
@@ -3159,7 +3159,7 @@ function convertSeriesToUSD(series, fx){
   // rateForPeriod() below. Falls back to fx.rate (today's rate) only if no
   // history is available at all -- e.g. a page whose fetch script hasn't
   // been updated to include history yet -- so this degrades gracefully
-  // rather than breaking Dollarise entirely on pages not yet migrated.
+  // rather than breaking Convert to USD$ entirely on pages not yet migrated.
   const toUSD = (v, period) => {
     const rate = fx.history ? rateForPeriod(period, fx.history) : fx.rate;
     return fx.direction==="multiply" ? v*rate : v/rate;
@@ -3301,7 +3301,7 @@ function buildDisplaySeries(rawSeries){
 function announceToggle(which, on){
   const el = document.getElementById("mtoggleAnnounce");
   if(!el) return;
-  const label = which === "real" ? "Make it real" : "Dollarise";
+  const label = which === "real" ? "Adjust for inflation" : "Convert to USD$";
   el.textContent = label + ": " + (on ? "on" : "off");
 }
 function toggleMetric(which, el){
@@ -3387,9 +3387,9 @@ function rerender(){
 /* --------------------- toggle-affected metric highlighting ---------------
    Per this round's brief: metrics actually changed by a toggle should
    visibly show it, not just via the small text note at the top of the
-   page. "Make it real" only ever swaps gdp_level's series (see
+   page. "Adjust for inflation" only ever swaps gdp_level's series (see
    buildDisplaySeries above) so it's the only key that ever gets the
-   "real" highlight; "Dollarise" affects every key in CURRENCY_KEYS. Where
+   "real" highlight; "Convert to USD$" affects every key in CURRENCY_KEYS. Where
    both apply to the same key (gdp_level, when both toggles are on) it
    gets the combined "both" colour instead of layering two colours. Applied
    to both .stat tiles and .panel chart cards via their shared data-key
@@ -5653,6 +5653,6 @@ fetch("data-uk-spending-cofog.json", {cache: "no-cache"})
   });
 })();
 </script>
-<script src="mobile.js?v=41" defer></script>
+<script src="mobile.js?v=42" defer></script>
 </body>
 </html>

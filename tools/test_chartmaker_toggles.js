@@ -1,12 +1,12 @@
 #!/usr/bin/env node
-/* ChartMaker's "Make it real" and "Dollarise" toggles, matched to the country pages and the Dashboard.
+/* ChartMaker's "Adjust for inflation" and "Convert to USD$" toggles, matched to the country pages and the Dashboard.
  *
  * Layer 1 (vm, every country's real data file): the pure display logic.
- *   - Make it real alone gives exactly the real GDP series, in its own unit
+ *   - Adjust for inflation alone gives exactly the real GDP series, in its own unit
  *   - real GDP in dollars grows exactly as the published real series (one rate)
  *   - nominal dollars equal the Dashboard's conversion point for point (same rates, same floor)
  *   - already-dollar series are not "converted"
- *   - when Dollarise is forced / has nothing to do
+ *   - when Convert to USD$ is forced / has nothing to do
  *   - a source note cites the series actually shown, and says when it was converted
  *   - currency names and native "$" symbols exist for every country and match the Dashboard
  * Layer 2 (jsdom, the real page driven through the DOM): buttons, labels, highlighting, axis title,
@@ -77,7 +77,7 @@ for(const [country, file] of Object.entries(FILES)){
   tested++;
   const nomPts = toObj(nom.points);
 
-  // 1. Make it real alone: exactly the real series, in its own unit; nothing else changes
+  // 1. Adjust for inflation alone: exactly the real series, in its own unit; nothing else changes
   const r = cm.computeDisplay(country, "gdp_level", nom.unit, nomPts, true, false);
   ok(r.realView === true && r.converted === false && r.inUSD === false, `${country}: real alone is a real view, unconverted`);
   ok(r.unit === real.unit && r.pts.length === real.points.length && r.pts.every((p, i) => p.x === real.points[i][0] && p.y === real.points[i][1]),
@@ -87,7 +87,7 @@ for(const [country, file] of Object.entries(FILES)){
   // a non-GDP metric is never swapped
   if(s.unemployment){
     const u = cm.computeDisplay(country, "unemployment", s.unemployment.unit, toObj(s.unemployment.points), true, true);
-    ok(u.realView === false && u.inUSD === false, `${country}: Make it real and Dollarise leave a % series alone`);
+    ok(u.realView === false && u.inUSD === false, `${country}: Adjust for inflation and Convert to USD$ leave a % series alone`);
   }
   if(country === "US" || !fx) continue;
 
@@ -123,7 +123,7 @@ ok(tested >= 60, `checked ${tested} countries`);
 // forced / no-op rules
 const B = (items, pref) => cm.dollarBasis(items, pref);
 const g = (country, metric) => ({ country, metric: metric || "gdp_level" });
-let b = B([g("US")], true);   ok(b.noOp && !b.forced && b.dollar === false, "US only: nothing to convert, Dollarise has no effect");
+let b = B([g("US")], true);   ok(b.noOp && !b.forced && b.dollar === false, "US only: nothing to convert, Convert to USD$ has no effect");
 b = B([g("UK")], true);       ok(!b.noOp && !b.forced && b.dollar === true, "one country: the person's choice (on)");
 b = B([g("UK")], false);      ok(!b.forced && b.dollar === false, "one country: the person's choice (off)");
 b = B([g("UK"), g("US")], false); ok(b.forced && b.dollar === true, "UK and US: forced on whatever the choice");
@@ -229,9 +229,9 @@ const sleep = ms => new Promise(r => setTimeout(r, ms));
 
   // buttons exist in the site's order, off, with a note area and a live region
   const btns = [...doc.querySelectorAll(".metric-toggles button.mtoggle")].map(b => b.textContent.trim());
-  eq(btns.join(" | "), "Make it real | Dollarise", "toggle order matches the country pages and Dashboard");
-  eq(real().getAttribute("aria-pressed"), "false", "Make it real starts off");
-  eq(dol().getAttribute("aria-pressed"), "false", "Dollarise starts off");
+  eq(btns.join(" | "), "Adjust for inflation | Convert to USD$", "toggle order matches the country pages and Dashboard");
+  eq(real().getAttribute("aria-pressed"), "false", "Adjust for inflation starts off");
+  eq(dol().getAttribute("aria-pressed"), "false", "Convert to USD$ starts off");
   ok(!!$("#mtoggleAnnounce") && $("#mtoggleAnnounce").getAttribute("aria-live") === "polite", "a polite live region announces changes");
 
   // UK, nominal
@@ -240,16 +240,16 @@ const sleep = ms => new Promise(r => setTimeout(r, ms));
   ok(svgText().includes("\u00a3"), "UK nominal ticks carry the pound sign");
   eq($("#cmYAxisTitle").value, "Pounds sterling", "UK nominal axis names the currency");
 
-  // Make it real
+  // Adjust for inflation
   await toggle(real());
-  eq(labels()[0], "UK, Real GDP level", "Make it real renames the series to what it shows");
-  ok(real().classList.contains("on") && real().classList.contains("fx-real") && real().getAttribute("aria-pressed") === "true", "Make it real button is on and yellow");
+  eq(labels()[0], "UK, Real GDP level", "Adjust for inflation renames the series to what it shows");
+  ok(real().classList.contains("on") && real().classList.contains("fx-real") && real().getAttribute("aria-pressed") === "true", "Adjust for inflation button is on and yellow");
   ok(rows()[0].classList.contains("fx-real"), "the swapped series row glows yellow");
   ok(/GDP shown in real terms/.test($("#mtoggleNote").textContent), "the note says GDP is shown in real terms");
-  eq($("#mtoggleAnnounce").textContent, "Make it real: on", "screen readers are told");
+  eq($("#mtoggleAnnounce").textContent, "Adjust for inflation: on", "screen readers are told");
   ok(!/US dollars/.test($("#cmYAxisTitle").value), "real alone does not claim dollars");
 
-  // plus Dollarise
+  // plus Convert to USD$
   await toggle(dol());
   eq(labels()[0], "UK, Real GDP level (USD)", "dollarised real series says (USD)");
   ok(real().classList.contains("fx-both") && dol().classList.contains("fx-both") && dol().classList.contains("on"), "both buttons go green when both are on");
@@ -258,9 +258,9 @@ const sleep = ms => new Promise(r => setTimeout(r, ms));
      "the note explains the conversion, the one-rate real GDP rule and market rates");
   eq($("#cmYAxisTitle").value, "US dollars", "dollar axis is named");
   ok(svgText().includes("$") && !svgText().includes("\u00a3"), "ticks switch to dollars");
-  eq($("#mtoggleAnnounce").textContent, "Dollarise: on", "Dollarise announced");
+  eq($("#mtoggleAnnounce").textContent, "Convert to USD$: on", "Convert to USD$ announced");
 
-  // Make it real off again
+  // Adjust for inflation off again
   await toggle(real());
   eq(labels()[0], "UK, GDP level (USD)", "real off returns to nominal, still dollars");
   ok(!real().classList.contains("on") && !real().classList.contains("fx-real") && dol().classList.contains("fx-dollar") && rows()[0].classList.contains("fx-dollar"), "colours return to blue only");
@@ -276,8 +276,8 @@ const sleep = ms => new Promise(r => setTimeout(r, ms));
   // forced: UK + US
   nameInput.value = ""; nameInput.dispatchEvent(new win.Event("input", { bubbles: true })); await sleep(60);
   await add("US", "GDP level");
-  ok(dol().disabled && dol().getAttribute("aria-disabled") === "true", "different currencies: Dollarise is disabled");
-  ok(!dol().classList.contains("on") && dol().title === "Needed to compare different currencies", "forced Dollarise looks off and says why");
+  ok(dol().disabled && dol().getAttribute("aria-disabled") === "true", "different currencies: Convert to USD$ is disabled");
+  ok(!dol().classList.contains("on") && dol().title === "Needed to compare different currencies", "forced Convert to USD$ looks off and says why");
   ok(/^Converted to US dollars automatically/.test($("#mtoggleNote").textContent), "the note explains the automatic conversion");
   ok(labels().every(l => /\(USD\)$/.test(l)), "every series on a dollar chart says (USD): " + labels().join(" / "));
   ok(rows().filter(r => r.classList.contains("fx-dollar")).length === 1, "only the series actually converted (UK) glows; the US one was already dollars");
@@ -289,7 +289,7 @@ const sleep = ms => new Promise(r => setTimeout(r, ms));
   const ukRemove = [...ukRow.querySelectorAll("button")].filter(b => /remove|\u00d7/i.test(b.getAttribute("aria-label") || b.title || b.textContent))[0] || ukRow.querySelector("button:last-of-type");
   click(ukRemove); await sleep(180);
   eq(rows().length, 1, "UK removed");
-  ok(dol().disabled && dol().title === "Already in US dollars", "US only: Dollarise is disabled as already in US dollars");
+  ok(dol().disabled && dol().title === "Already in US dollars", "US only: Convert to USD$ is disabled as already in US dollars");
   eq($("#mtoggleNote").textContent, "", "US only: no conversion note");
   ok(!/\(USD\)/.test(labels()[0]), "US only: no (USD) marker, nothing was converted");
   eq($("#cmYAxisTitle").value, "US dollars", "US only: axis still names the currency");
@@ -325,7 +325,7 @@ const sleep = ms => new Promise(r => setTimeout(r, ms));
   click($("#cmSaveConfirmBtn")); await sleep(300);
   eq(savedPayloads.length, 1, "chart was saved");
   const snap = savedPayloads[0] && savedPayloads[0].style.snapshot;
-  ok(snap && snap.real === true && snap.dollar === true, "the saved chart records Make it real and Dollarise: " + JSON.stringify(snap && { real: snap.real, dollar: snap.dollar }));
+  ok(snap && snap.real === true && snap.dollar === true, "the saved chart records Adjust for inflation and Convert to USD$: " + JSON.stringify(snap && { real: snap.real, dollar: snap.dollar }));
   // an older chart, saved before the toggles existed, and this one
   const olderStyle = JSON.parse(JSON.stringify(savedPayloads[0].style)); delete olderStyle.snapshot.real; delete olderStyle.snapshot.dollar;
   savedRows = [

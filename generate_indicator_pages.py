@@ -381,7 +381,7 @@ LEGACY_RANKING_REDIRECTS = {
 }
 
 GDP_RAW_COUNTRIES = {"US", "Japan"}          # already published at an annual rate
-GDP_ALREADY_USD = {"US", "Switzerland"}      # no Dollarise; no FX conversion
+GDP_ALREADY_USD = {"US", "Switzerland"}      # no Convert to USD$; no FX conversion
 RATE_KEYS = {"boe_rate", "fed_funds", "ecb_rate", "boj_rate", "overnight_rate", "policy_rate", "bond_yield_10y"}
 NATIVE_DOLLAR = {"Australia": "A$", "Brazil": "R$", "Canada": "C$", "Mexico": "MX$", "South Africa": "R"}
 NATIVE_KEYS = {"gdp_level", "gdp_real", "trade_balance", "exports", "imports"}
@@ -1326,7 +1326,7 @@ def page_tail(extra_js="", extra_html=""):
 <script src="https://cdnjs.cloudflare.com/ajax/libs/Chart.js/4.4.1/chart.umd.min.js"></script>
 <script src="../indicator-kit.js?v={KIT_VERSION}"></script>
 {extra_js}
-<script src="../mobile.js?v=41"></script>
+<script src="../mobile.js?v=42"></script>
 {CONSENT_HTML}
 <script src="../consent.js?v=1" defer></script>
 </body>
@@ -1750,7 +1750,7 @@ def render_indicator(country, info, entry, rank_info, all_rankings_meta, n_indic
     led_title = f"Latest release: {plab(latest_p)}" if fresh else f"Awaiting next release. Last data: {plab(latest_p)}"
     updated = (info["data"].get("updated") or "")[:10]
 
-    # Dollarise / Make it real: GDP only, as on the country pages.
+    # Convert to USD$ / Adjust for inflation: GDP only, as on the country pages.
     toggles_html, real_pts, real_unit, fx = "", None, None, None
     if m["slug"] == "gdp":
         rr = resolve(country, info["data"]["series"], sources, METRIC_BY_SLUG["real-gdp"])
@@ -1760,9 +1760,9 @@ def render_indicator(country, info, entry, rank_info, all_rankings_meta, n_indic
             fx = info["data"].get("fx_to_usd")
         btns = []
         if real_pts:
-            btns.append('<button type="button" class="mtoggle" id="indToggleReal" aria-pressed="false"><span class="mtoggle-switch" aria-hidden="true"></span>Make it real</button>')
+            btns.append('<button type="button" class="mtoggle" id="indToggleReal" aria-pressed="false"><span class="mtoggle-switch" aria-hidden="true"></span>Adjust for inflation</button>')
         if fx:
-            btns.append('<button type="button" class="mtoggle" id="indToggleDollar" aria-pressed="false"><span class="mtoggle-switch" aria-hidden="true"></span>Dollarise</button>')
+            btns.append('<button type="button" class="mtoggle" id="indToggleDollar" aria-pressed="false"><span class="mtoggle-switch" aria-hidden="true"></span>Convert to USD$</button>')
         if btns:
             toggles_html = '<div class="ind-toggles" aria-label="Display options">' + "".join(btns) + "</div>"
 

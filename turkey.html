@@ -1681,10 +1681,10 @@ document.addEventListener("DOMContentLoaded", function(){
 </nav>
 <div class="metric-toggles" aria-label="Display options">
  <button type="button" class="mtoggle" id="toggleReal" onclick="toggleMetric('real',this)" aria-pressed="false">
- <span class="mtoggle-switch" aria-hidden="true"></span>Make it real
+ <span class="mtoggle-switch" aria-hidden="true"></span>Adjust for inflation
  </button>
  <button type="button" class="mtoggle" id="toggleDollar" onclick="toggleMetric('dollar',this)" aria-pressed="false">
- <span class="mtoggle-switch" aria-hidden="true"></span>Dollarise
+ <span class="mtoggle-switch" aria-hidden="true"></span>Convert to USD$
  </button>
  <span class="mtoggle-note" id="mtoggleNote"></span>
  <span id="mtoggleAnnounce" class="sr-only" role="status" aria-live="polite"></span>
@@ -1981,7 +1981,7 @@ function EA_subLabel(lab){
   const n = +r;
   return (n>=1 && n<=12) ? ["Jan","Feb","Mar","Apr","May","Jun","Jul","Aug","Sep","Oct","Nov","Dec"][n-1]+" "+y : y;
 }
-// Dollarise note: 5 significant figures, never a raw float.
+// Convert to USD$ note: 5 significant figures, never a raw float.
 function fxRateTxt(r){ return (typeof r==="number" && isFinite(r)) ? String(Number(r.toPrecision(5))) : r; }
 // Tile titles: keep the last word and the (i) icon together, and show
 // rate-of-change tags in their intended case (q/q, y/y, m/m).
@@ -2541,7 +2541,7 @@ function render(data){
   renderLastUpdated(data.updated);
   fitFigures();
 }
-/* ---------------------- Dollarise / Make it real ---------------------- */
+/* ---------------------- Convert to USD$ / Adjust for inflation ---------------------- */
 let PAGE_DATA = null;
 const TOGGLE_STATE = { real:false, dollar:false };
 const CURRENCY_KEYS = ["gdp_level","gdp_real","net_debt","deficit","debt_interest","trade_balance","exports","imports"];
@@ -2552,7 +2552,7 @@ function scaleOf(unitStr){
   // checking the scale marker -- several countries' gdp_real unit
   // strings (e.g. "$m (2021 prices)", "PLNbn (2010 prices)") have this,
   // and the old end-anchored-only regex silently failed to match them,
-  // making "Make it real" display values roughly 1,000,000x too small
+  // making "Adjust for inflation" display values roughly 1,000,000x too small
   // (e.g. Thailand showing "$1m" instead of the real ~$1.5tn figure).
   // Stripping the parenthetical first restores exact backward
   // compatibility with every plain unit string ("$m", "PLNbn", "¥bn"
@@ -2603,7 +2603,7 @@ function isCurrencyUnit(u){
 function isAlreadyUSD(u, key){
   // Some series (e.g. World-Bank-sourced gdp_level for several countries)
   // are authored directly in USD rather than local currency -- converting
-  // those again through the local FX rate on "Dollarise" produces a
+  // those again through the local FX rate on "Convert to USD$" produces a
   // silently wrong, double-converted figure. This guard catches that.
   //
   // It has to be series-aware, not just page-aware: a few countries (AUD/
@@ -2765,7 +2765,7 @@ function hasPreHistoryPoints(series, fx){
    this page's citation-fallback check had never been fixed to read
    the pre-toggle unit (found and fixed in this same pass, see
    rerender()). SEPARATELY from the data-source fix: combining "Make it
-   real" (constant-price GDP) with "Dollarise" (converting through a
+   real" (constant-price GDP) with "Convert to USD$" (converting through a
    nominal exchange rate) is flagged sitewide as producing
    economically borderline-meaningless results for high-inflation
    currencies -- gdp_level's dollar note below explains this, and
@@ -2776,7 +2776,7 @@ const INFO_CONTENT = {
     description: "The total value of everything Turkey produces in a year, at current prices, on a rolling four-quarter basis.",
     source: "FRED series NGDPSAXDCTRQ \u00b7 IMF International Financial Statistics, trailing 4-quarter sum (falls back to World Bank current US$, annual, only if the live TRY series is unavailable on a given run).",
     real: "\u201cMake it real\u201d swaps this to Turkey's real (inflation-adjusted) GDP series. This strips out the effect of price changes, so it shows genuine output growth rather than growth that's really just inflation.",
-    dollar: "When this series is on its normal live (TRY) path, \u201cDollarise\u201d converts each historical point using that year's own average TRY/USD rate (World Bank PA.NUS.FCRF, annual resolution, coarser than most other countries here, since no live monthly or daily source exists for the lira). On the rarer occasion this falls back to the World-Bank USD series, it's already in dollars and Dollarise correctly has no further effect. Note: combining \u201cMake it real\u201d with \u201cDollarise\u201d on this page specifically is flagged with an on-page warning, converting a constant-price (inflation-stripped) real GDP figure through today's or any single year's nominal exchange rate does not produce a economically meaningful number for a currency with Turkey's inflation history. Each toggle is more reliable used on its own."
+    dollar: "When this series is on its normal live (TRY) path, \u201cDollarise\u201d converts each historical point using that year's own average TRY/USD rate (World Bank PA.NUS.FCRF, annual resolution, coarser than most other countries here, since no live monthly or daily source exists for the lira). On the rarer occasion this falls back to the World-Bank USD series, it's already in dollars and Convert to USD$ correctly has no further effect. Note: combining \u201cMake it real\u201d with \u201cDollarise\u201d on this page specifically is flagged with an on-page warning, converting a constant-price (inflation-stripped) real GDP figure through today's or any single year's nominal exchange rate does not produce a economically meaningful number for a currency with Turkey's inflation history. Each toggle is more reliable used on its own."
   },
   gdp_real: {
     description: "GDP adjusted for inflation, the same production, valued at constant prices, so changes reflect real output growth rather than price changes. Note: this series is held at an old constant-price base year, so the level reads far smaller than GDP at current prices. That gap is expected for this series, not a data error; growth rates are unaffected.",
@@ -2875,13 +2875,13 @@ function openInfoPopover(btn, infoKey, title){
   if(content.real){
     const p = document.createElement("p");
     p.className = "infoPopoverToggleNote real";
-    p.innerHTML = `<strong>Make it real:</strong> ${content.real}`;
+    p.innerHTML = `<strong>Adjust for inflation:</strong> ${content.real}`;
     togglesEl.appendChild(p);
   }
   if(content.dollar){
     const p = document.createElement("p");
     p.className = "infoPopoverToggleNote dollar";
-    p.innerHTML = `<strong>Dollarise:</strong> ${content.dollar}`;
+    p.innerHTML = `<strong>Convert to USD$:</strong> ${content.dollar}`;
     togglesEl.appendChild(p);
   }
   el.hidden = false;
@@ -2948,7 +2948,7 @@ function buildDisplaySeries(rawSeries){
 function announceToggle(which, on){
   const el = document.getElementById("mtoggleAnnounce");
   if(!el) return;
-  const label = which === "real" ? "Make it real" : "Dollarise";
+  const label = which === "real" ? "Adjust for inflation" : "Convert to USD$";
   el.textContent = label + ": " + (on ? "on" : "off");
 }
 function toggleMetric(which, el){
@@ -3020,8 +3020,8 @@ function rerender(){
     });
   }
   if(TOGGLE_STATE.real) notes.push("GDP shown in real terms (chained volume / constant prices)");
-  // Turkey-specific: combining "Make it real" (constant-price GDP) with
-  // "Dollarise" (converting through a nominal exchange rate) is flagged
+  // Turkey-specific: combining "Adjust for inflation" (constant-price GDP) with
+  // "Convert to USD$" (converting through a nominal exchange rate) is flagged
   // sitewide as producing economically borderline-meaningless results
   // for high-inflation currencies -- shown as a visible warning here
   // rather than silently letting the combination through, since the
@@ -3052,16 +3052,16 @@ function rerender(){
 }
 /* --------------------- toggle-affected metric highlighting ---------------
    Same mechanism as uk.html/us.html/germany.html, with one refinement:
-   "Dollarise" highlighting now checks isAlreadyUSD() against each key's
+   "Convert to USD$" highlighting now checks isAlreadyUSD() against each key's
    RAW (pre-toggle) unit, not just CURRENCY_KEYS membership. Found via
    Spain: its gdp_level/gdp_real are genuinely World-Bank-sourced in USD
    (unlike every other Eurozone page here, which are native-EUR IMF/
-   Eurostat series), so isAlreadyUSD() already correctly no-ops Dollarise
+   Eurostat series), so isAlreadyUSD() already correctly no-ops Convert to USD$
    on those two keys -- but a highlight check that only asked "is this
    key in CURRENCY_KEYS" would have blue-glowed them anyway, falsely
    implying a conversion happened. Checking the actual raw series unit
    keeps the highlight honest regardless of which country's data
-   happens to already be dollar-denominated. "Make it real" only ever
+   happens to already be dollar-denominated. "Adjust for inflation" only ever
    swaps gdp_level's series (see buildDisplaySeries above) so it's the
    only key that ever gets the "real" highlight. Applied to both .stat
    tiles and .panel chart cards via their shared data-key attribute, and
@@ -4888,6 +4888,6 @@ document.querySelectorAll(".mtbtn").forEach(function(btn){
   });
 })();
 </script>
-<script src="mobile.js?v=41" defer></script>
+<script src="mobile.js?v=42" defer></script>
 </body>
 </html>

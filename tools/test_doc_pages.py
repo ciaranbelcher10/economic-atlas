@@ -86,7 +86,7 @@ check(re.search(r'<a class="btn" href="contact">', main), "methodology.html must
 prose = re.sub(r'<nav class="panel ind-panel doc-toc".*?</nav>', "", main, flags=re.S)
 stray = re.findall(r'<(p|li)\b[^>]*>(?:(?!</\1>).)*?<a\s(?![^>]*class="btn)[^>]*>(.*?)</a>', prose, re.S)
 check(not stray, f"methodology.html has hyperlinks inside running text (use a button): {[x[1][:40] for x in stray][:3]}")
-for key in ("Known limitations", "Dollarise", "Make it real", "Seasonal adjustment", "Where the data comes from"):
+for key in ("Known limitations", "Convert to USD$", "Adjust for inflation", "Seasonal adjustment", "Where the data comes from"):
     check(key in main, f"methodology.html lost its '{key}' content")
 for ref in re.findall(r'(?:href|src)="([^"#][^"]*)"', main + h[b:b + 600]):
     if re.match(r"(https?:|mailto:|tel:|data:|javascript:|//)", ref):

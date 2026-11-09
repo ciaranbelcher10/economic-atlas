@@ -1681,10 +1681,10 @@ document.addEventListener("DOMContentLoaded", function(){
 </nav>
 <div class="metric-toggles" aria-label="Display options">
  <button type="button" class="mtoggle" id="toggleReal" onclick="toggleMetric('real',this)" aria-pressed="false">
- <span class="mtoggle-switch" aria-hidden="true"></span>Make it real
+ <span class="mtoggle-switch" aria-hidden="true"></span>Adjust for inflation
  </button>
  <button type="button" class="mtoggle" id="toggleDollar" onclick="toggleMetric('dollar',this)" aria-pressed="false">
- <span class="mtoggle-switch" aria-hidden="true"></span>Dollarise
+ <span class="mtoggle-switch" aria-hidden="true"></span>Convert to USD$
  </button>
  <span class="mtoggle-note" id="mtoggleNote"></span>
  <span id="mtoggleAnnounce" class="sr-only" role="status" aria-live="polite"></span>
@@ -1979,7 +1979,7 @@ function EA_subLabel(lab){
   const n = +r;
   return (n>=1 && n<=12) ? ["Jan","Feb","Mar","Apr","May","Jun","Jul","Aug","Sep","Oct","Nov","Dec"][n-1]+" "+y : y;
 }
-// Dollarise note: 5 significant figures, never a raw float.
+// Convert to USD$ note: 5 significant figures, never a raw float.
 function fxRateTxt(r){ return (typeof r==="number" && isFinite(r)) ? String(Number(r.toPrecision(5))) : r; }
 // Tile titles: keep the last word and the (i) icon together, and show
 // rate-of-change tags in their intended case (q/q, y/y, m/m).
@@ -2429,7 +2429,7 @@ function render(data){
   const SRC_GDP_REAL="FRED series CLVMNACSAB1GQCH \u00b7 Eurostat (Statistical Office of the European Communities), quarterly, seasonally adjusted. Switzerland is not an EU member but this series is Eurostat-sourced via a bilateral data-sharing arrangement, unlike the IMF IFS series used for most other non-EU pages on this site.";
   const SRC_GDP_REAL_ANNUAL="FRED series CLVMNACSAB1GQCH \u00b7 Eurostat, quarterly, seasonally adjusted, shown here as a trailing 4-quarter sum to give a genuinely annual figure, since the underlying series is a single quarter's real GDP, not annualized.";
   // GDP level citation swaps between the two sources above depending on
-  // "Make it real" -- gdp_level itself gets swapped for gdp_real in
+  // "Adjust for inflation" -- gdp_level itself gets swapped for gdp_real in
   // buildDisplaySeries() when the toggle is on, but every citation for it
   // (both stat tiles and the chart panel) was hardcoded to always show
   // SRC_GDP_LEVEL regardless, so the displayed number and its stated
@@ -2528,7 +2528,7 @@ function render(data){
   renderLastUpdated(data.updated);
   fitFigures();
 }
-/* ---------------------- Dollarise / Make it real ---------------------- */
+/* ---------------------- Convert to USD$ / Adjust for inflation ---------------------- */
 let PAGE_DATA = null;
 const TOGGLE_STATE = { real:false, dollar:false };
 const CURRENCY_KEYS = ["gdp_level","gdp_real","net_debt","deficit","debt_interest","trade_balance","exports","imports"];
@@ -2539,7 +2539,7 @@ function scaleOf(unitStr){
   // checking the scale marker -- several countries' gdp_real unit
   // strings (e.g. "$m (2021 prices)", "PLNbn (2010 prices)") have this,
   // and the old end-anchored-only regex silently failed to match them,
-  // making "Make it real" display values roughly 1,000,000x too small
+  // making "Adjust for inflation" display values roughly 1,000,000x too small
   // (e.g. Thailand showing "$1m" instead of the real ~$1.5tn figure).
   // Stripping the parenthetical first restores exact backward
   // compatibility with every plain unit string ("$m", "PLNbn", "¥bn"
@@ -2590,7 +2590,7 @@ function isCurrencyUnit(u){
 function isAlreadyUSD(u, key){
   // Some series (e.g. World-Bank-sourced gdp_level for several countries)
   // are authored directly in USD rather than local currency -- converting
-  // those again through the local FX rate on "Dollarise" produces a
+  // those again through the local FX rate on "Convert to USD$" produces a
   // silently wrong, double-converted figure. This guard catches that.
   //
   // It has to be series-aware, not just page-aware: a few countries (AUD/
@@ -2740,12 +2740,12 @@ function hasPreHistoryPoints(series, fx){
    unlike every other country on this rollout: gdp_level (nominal) is
    natively World Bank USD -- fixed Aug 2026 to stop being pre-converted
    to CHF at a single current rate at ingestion time (that pre-
-   conversion predated the site's historical-FX-matching Dollarise
-   feature and was actively counterproductive once Dollarise could do
+   conversion predated the site's historical-FX-matching Convert to USD$
+   feature and was actively counterproductive once Convert to USD$ could do
    genuine point-by-point historical conversion -- see fetch_ch.py).
-   gdp_real is genuinely CHF (Eurostat). So "Make it real" doesn't just
+   gdp_real is genuinely CHF (Eurostat). So "Adjust for inflation" doesn't just
    change which prices are used here, it also changes which CURRENCY
-   the figure is natively in -- and Dollarise is correctly a no-op on
+   the figure is natively in -- and Convert to USD$ is correctly a no-op on
    gdp_level (already USD, protected by isAlreadyUSD()) but genuinely
    converts gdp_real via historical DEXSZUS rate-matching. Switzerland's
    OWN GDP series starts 1960, before DEXSZUS's 1971-01-04 start, so the
@@ -2759,7 +2759,7 @@ const INFO_CONTENT = {
     description: "The total value of everything Switzerland produces in a year, at current prices.",
     source: "World Bank NY.GDP.MKTP.CD \u00b7 current US$, annual. This is the only live source for Switzerland's nominal GDP, so it's shown in its native currency (USD) rather than converted.",
     real: "\u201cMake it real\u201d swaps this to Switzerland's real GDP series, which is both inflation-adjusted AND genuinely CHF-denominated (Eurostat CLVMNACSAB1GQCH), unlike most other countries on this site, toggling \u201cMake it real\u201d here also changes which currency the figure is natively in.",
-    dollar: "This series is already in US dollars, \u201cDollarise\u201d has no effect on it. Toggle \u201cMake it real\u201d first if you want to see the genuinely CHF-denominated real GDP series, which Dollarise CAN meaningfully convert."
+    dollar: "This series is already in US dollars, \u201cDollarise\u201d has no effect on it. Toggle \u201cMake it real\u201d first if you want to see the genuinely CHF-denominated real GDP series, which Convert to USD$ CAN meaningfully convert."
   },
   gdp_real: {
     description: "Real GDP (inflation-adjusted), genuinely denominated in Swiss francs, unlike gdp_level (nominal) on this page, which is natively USD.",
@@ -2853,13 +2853,13 @@ function openInfoPopover(btn, infoKey, title){
   if(content.real){
     const p = document.createElement("p");
     p.className = "infoPopoverToggleNote real";
-    p.innerHTML = `<strong>Make it real:</strong> ${content.real}`;
+    p.innerHTML = `<strong>Adjust for inflation:</strong> ${content.real}`;
     togglesEl.appendChild(p);
   }
   if(content.dollar){
     const p = document.createElement("p");
     p.className = "infoPopoverToggleNote dollar";
-    p.innerHTML = `<strong>Dollarise:</strong> ${content.dollar}`;
+    p.innerHTML = `<strong>Convert to USD$:</strong> ${content.dollar}`;
     togglesEl.appendChild(p);
   }
   el.hidden = false;
@@ -2923,7 +2923,7 @@ function buildDisplaySeries(rawSeries){
 function announceToggle(which, on){
   const el = document.getElementById("mtoggleAnnounce");
   if(!el) return;
-  const label = which === "real" ? "Make it real" : "Dollarise";
+  const label = which === "real" ? "Adjust for inflation" : "Convert to USD$";
   el.textContent = label + ": " + (on ? "on" : "off");
 }
 function toggleMetric(which, el){
@@ -3006,16 +3006,16 @@ function rerender(){
 }
 /* --------------------- toggle-affected metric highlighting ---------------
    Same mechanism as uk.html/us.html/germany.html, with one refinement:
-   "Dollarise" highlighting now checks isAlreadyUSD() against each key's
+   "Convert to USD$" highlighting now checks isAlreadyUSD() against each key's
    RAW (pre-toggle) unit, not just CURRENCY_KEYS membership. Found via
    Spain: its gdp_level/gdp_real are genuinely World-Bank-sourced in USD
    (unlike every other Eurozone page here, which are native-EUR IMF/
-   Eurostat series), so isAlreadyUSD() already correctly no-ops Dollarise
+   Eurostat series), so isAlreadyUSD() already correctly no-ops Convert to USD$
    on those two keys -- but a highlight check that only asked "is this
    key in CURRENCY_KEYS" would have blue-glowed them anyway, falsely
    implying a conversion happened. Checking the actual raw series unit
    keeps the highlight honest regardless of which country's data
-   happens to already be dollar-denominated. "Make it real" only ever
+   happens to already be dollar-denominated. "Adjust for inflation" only ever
    swaps gdp_level's series (see buildDisplaySeries above) so it's the
    only key that ever gets the "real" highlight. Applied to both .stat
    tiles and .panel chart cards via their shared data-key attribute, and
@@ -4842,6 +4842,6 @@ document.querySelectorAll(".mtbtn").forEach(function(btn){
   });
 })();
 </script>
-<script src="mobile.js?v=41" defer></script>
+<script src="mobile.js?v=42" defer></script>
 </body>
 </html>

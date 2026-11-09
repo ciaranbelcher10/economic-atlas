@@ -1681,10 +1681,10 @@ document.addEventListener("DOMContentLoaded", function(){
 </nav>
 <div class="metric-toggles" aria-label="Display options">
  <button type="button" class="mtoggle" id="toggleReal" onclick="toggleMetric('real',this)" aria-pressed="false">
- <span class="mtoggle-switch" aria-hidden="true"></span>Make it real
+ <span class="mtoggle-switch" aria-hidden="true"></span>Adjust for inflation
  </button>
  <button type="button" class="mtoggle" id="toggleDollar" onclick="toggleMetric('dollar',this)" aria-pressed="false">
- <span class="mtoggle-switch" aria-hidden="true"></span>Dollarise
+ <span class="mtoggle-switch" aria-hidden="true"></span>Convert to USD$
  </button>
  <span class="mtoggle-note" id="mtoggleNote"></span>
  <span id="mtoggleAnnounce" class="sr-only" role="status" aria-live="polite"></span>
@@ -1980,7 +1980,7 @@ function EA_subLabel(lab){
   const n = +r;
   return (n>=1 && n<=12) ? ["Jan","Feb","Mar","Apr","May","Jun","Jul","Aug","Sep","Oct","Nov","Dec"][n-1]+" "+y : y;
 }
-// Dollarise note: 5 significant figures, never a raw float.
+// Convert to USD$ note: 5 significant figures, never a raw float.
 function fxRateTxt(r){ return (typeof r==="number" && isFinite(r)) ? String(Number(r.toPrecision(5))) : r; }
 // Tile titles: keep the last word and the (i) icon together, and show
 // rate-of-change tags in their intended case (q/q, y/y, m/m).
@@ -2541,11 +2541,11 @@ function render(data){
   renderLastUpdated(data.updated);
   fitFigures();
 }
-/* ---------------------- Dollarise / Make it real ---------------------- */
+/* ---------------------- Convert to USD$ / Adjust for inflation ---------------------- */
 let PAGE_DATA = null;
 const TOGGLE_STATE = { real:false, dollar:false };
 // NOTE: gdp_real used to be Penn World Table's rgdpna (PPP-benchmarked,
-// NOT comparable to gdp_level), which required disabling "Make it real"
+// NOT comparable to gdp_level), which required disabling "Adjust for inflation"
 // entirely -- see fetch_th.py's build notes. gdp_real is now World Bank
 // NY.GDP.MKTP.KN (constant LCU), on the same basis as gdp_level, so the
 // toggle is enabled normally like every other country.
@@ -2557,7 +2557,7 @@ function scaleOf(unitStr){
   // checking the scale marker -- several countries' gdp_real unit
   // strings (e.g. "$m (2021 prices)", "PLNbn (2010 prices)") have this,
   // and the old end-anchored-only regex silently failed to match them,
-  // making "Make it real" display values roughly 1,000,000x too small
+  // making "Adjust for inflation" display values roughly 1,000,000x too small
   // (e.g. Thailand showing "$1m" instead of the real ~$1.5tn figure).
   // Stripping the parenthetical first restores exact backward
   // compatibility with every plain unit string ("$m", "PLNbn", "¥bn"
@@ -2608,7 +2608,7 @@ function isCurrencyUnit(u){
 function isAlreadyUSD(u, key){
   // Some series (e.g. World-Bank-sourced gdp_level for several countries)
   // are authored directly in USD rather than local currency -- converting
-  // those again through the local FX rate on "Dollarise" produces a
+  // those again through the local FX rate on "Convert to USD$" produces a
   // silently wrong, double-converted figure. This guard catches that.
   //
   // It has to be series-aware, not just page-aware: a few countries (AUD/
@@ -2757,7 +2757,7 @@ function hasPreHistoryPoints(series, fx){
    Mirrors uk.html's pattern. Thailand's gdp_level already has the
    dollarise-fallback-citation fix applied from a prior session
    (reading data.rawGdpLevelUnit, not the post-toggle unit) -- confirmed
-   present and left untouched, not re-applied. Dollarise converts every
+   present and left untouched, not re-applied. Convert to USD$ converts every
    key in CURRENCY_KEYS using DEXTHUS (Federal Reserve H.10) -- fetched
    via the FRED_SERIES tuple with freq "m" rather than a direct freq "d"
    call like most other countries, but confirmed this makes no
@@ -2778,7 +2778,7 @@ const INFO_CONTENT = {
   gdp_level: {
     description: "The total value of everything Thailand produces in a year, at current prices.",
     source: "World Bank NY.GDP.MKTP.CN.AD \u00b7 GDP, current prices, linked series, local currency units, annual (falls back to World Bank NY.GDP.MKTP.CD, current US$, only if the THB linked series is unavailable on a given run).",
-    dollar: "When this series is on its normal (THB) path, \u201cDollarise\u201d converts each historical point using that point's OWN contemporaneous THB/USD rate (monthly resolution, from FRED's DEXTHUS series, which starts 1971-01). On the rarer occasion this falls back to the World-Bank USD series, it's already in dollars and Dollarise correctly has no further effect."
+    dollar: "When this series is on its normal (THB) path, \u201cDollarise\u201d converts each historical point using that point's OWN contemporaneous THB/USD rate (monthly resolution, from FRED's DEXTHUS series, which starts 1971-01). On the rarer occasion this falls back to the World-Bank USD series, it's already in dollars and Convert to USD$ correctly has no further effect."
   },
   gdp_growth: {
     description: "How much the economy grew or shrank compared with the previous year. Thailand's real GDP growth is only available annually here, not quarterly like most other pages on this site, a genuine data-availability difference, not an oversight.",
@@ -2858,13 +2858,13 @@ function openInfoPopover(btn, infoKey, title){
   if(content.real){
     const p = document.createElement("p");
     p.className = "infoPopoverToggleNote real";
-    p.innerHTML = `<strong>Make it real:</strong> ${content.real}`;
+    p.innerHTML = `<strong>Adjust for inflation:</strong> ${content.real}`;
     togglesEl.appendChild(p);
   }
   if(content.dollar){
     const p = document.createElement("p");
     p.className = "infoPopoverToggleNote dollar";
-    p.innerHTML = `<strong>Dollarise:</strong> ${content.dollar}`;
+    p.innerHTML = `<strong>Convert to USD$:</strong> ${content.dollar}`;
     togglesEl.appendChild(p);
   }
   el.hidden = false;
@@ -2921,7 +2921,7 @@ function buildDisplaySeries(rawSeries){
 function announceToggle(which, on){
   const el = document.getElementById("mtoggleAnnounce");
   if(!el) return;
-  const label = which === "real" ? "Make it real" : "Dollarise";
+  const label = which === "real" ? "Adjust for inflation" : "Convert to USD$";
   el.textContent = label + ": " + (on ? "on" : "off");
 }
 function toggleMetric(which, el){
@@ -3012,16 +3012,16 @@ function rerender(){
 }
 /* --------------------- toggle-affected metric highlighting ---------------
    Same mechanism as uk.html/us.html/germany.html, with one refinement:
-   "Dollarise" highlighting now checks isAlreadyUSD() against each key's
+   "Convert to USD$" highlighting now checks isAlreadyUSD() against each key's
    RAW (pre-toggle) unit, not just CURRENCY_KEYS membership. Found via
    Spain: its gdp_level/gdp_real are genuinely World-Bank-sourced in USD
    (unlike every other Eurozone page here, which are native-EUR IMF/
-   Eurostat series), so isAlreadyUSD() already correctly no-ops Dollarise
+   Eurostat series), so isAlreadyUSD() already correctly no-ops Convert to USD$
    on those two keys -- but a highlight check that only asked "is this
    key in CURRENCY_KEYS" would have blue-glowed them anyway, falsely
    implying a conversion happened. Checking the actual raw series unit
    keeps the highlight honest regardless of which country's data
-   happens to already be dollar-denominated. "Make it real" only ever
+   happens to already be dollar-denominated. "Adjust for inflation" only ever
    swaps gdp_level's series (see buildDisplaySeries above) so it's the
    only key that ever gets the "real" highlight. Applied to both .stat
    tiles and .panel chart cards via their shared data-key attribute, and
@@ -4850,6 +4850,6 @@ document.querySelectorAll(".mtbtn").forEach(function(btn){
   });
 })();
 </script>
-<script src="mobile.js?v=41" defer></script>
+<script src="mobile.js?v=42" defer></script>
 </body>
 </html>

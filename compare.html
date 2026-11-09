@@ -1203,7 +1203,7 @@ footer.cmp-foot{margin-top:36px; font-size:12.5px; color:var(--ink2); border-top
         // Not logged in -- Supabase has nowhere to save this, but that
         // shouldn't mean nothing persists at all. Fall back to plain
         // per-device localStorage (same pattern already used elsewhere
-        // on this page for the Dollarise/Make-it-real toggles) so a
+        // on this page for the Convert to USD$/Make-it-real toggles) so a
         // logged-out user's selected countries, sort mode, etc. survive
         // a page reload instead of silently resetting to the hardcoded
         // defaults every visit. Once they log in, Supabase takes over
@@ -1960,7 +1960,7 @@ function scaleOf(unitStr){
   // checking the scale marker -- several countries' gdp_real unit
   // strings (e.g. "$m (2021 prices)", "PLNbn (2010 prices)") have this,
   // and the old end-anchored-only regex silently failed to match them,
-  // making "Make it real" display values roughly 1,000,000x too small
+  // making "Adjust for inflation" display values roughly 1,000,000x too small
   // (e.g. Thailand showing "$1m" instead of the real ~$1.5tn figure).
   // Stripping the parenthetical first restores exact backward
   // compatibility with every plain unit string ("$m", "PLNbn", "¥bn"
@@ -3095,7 +3095,7 @@ var REGISTRY = {}; // REGISTRY[country][key] = {label, unit, freq, points}
 var FX_RATES = {};
 // Historical FX period-matching, verbatim from the same rateForPeriod()/
 // monthKey() logic already used site-wide on individual country pages'
-// Dollarise toggle (see e.g. germany.html) -- ported here so compare.html
+// Convert to USD$ toggle (see e.g. germany.html) -- ported here so compare.html
 // and dashboard.html follow the same "each point converts at its own
 // contemporaneous rate" approach, not a single current rate applied
 // uniformly across history. That flat-rate approach is exactly the bug
@@ -3143,7 +3143,7 @@ function rateForPeriod(period, history){
 // Converts a raw currency-denominated value (still in the country's own
 // native units, e.g. millions of GBP) into the equivalent raw value in
 // USD, using the same current spot rate and multiply/divide convention
-// already established for the site's own Dollarise toggle. Returns null
+// already established for the site's own Convert to USD$ toggle. Returns null
 // if no rate is available for that country (e.g. Morocco, which has no
 // live FX source) -- distinguished from "US, which needs no conversion
 // at all" by checking the country name explicitly.
@@ -7597,6 +7597,6 @@ window.EATLAS_COMPARE = {
   })();
 })();
 </script>
-<script src="mobile.js?v=41" defer></script>
+<script src="mobile.js?v=42" defer></script>
 </body>
 </html>

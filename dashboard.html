@@ -87,7 +87,7 @@
 .tile.expanded{grid-column:1 / -1;}
 /* ---- toggle-affected metric highlighting (ported exactly from country
    pages: Aug 2026 historical FX pass) ----
-   Yellow = "Make it real" changed this tile's series; blue = "Dollarise"
+   Yellow = "Adjust for inflation" changed this tile's series; blue = "Convert to USD$"
    converted it; green = both at once. Border-color + box-shadow only --
    NOT background -- since a background-gradient approach silently failed
    specifically on country pages' .stat tiles because a dark-theme rule
@@ -1503,13 +1503,13 @@ footer.dash-foot{margin-top:36px; font-size:12.5px; color:var(--ink2); border-to
  <p style="color:var(--ink2); font-size:14.5px; margin:8px 0 0;">Pin any metric from any of the 62 tracked economies into one personal view, with a chart on demand for any tile.</p>
  <div class="metric-toggles" aria-label="Display options">
  <button type="button" class="mtoggle" id="makeRealBtn" aria-pressed="false">
- <span class="mtoggle-switch" aria-hidden="true"></span>Make it real
+ <span class="mtoggle-switch" aria-hidden="true"></span>Adjust for inflation
  </button>
  <button type="button" class="mtoggle" id="dollariseBtn" aria-pressed="false">
- <span class="mtoggle-switch" aria-hidden="true"></span>Dollarise
+ <span class="mtoggle-switch" aria-hidden="true"></span>Convert to USD$
  </button>
  <button type="button" class="dash-d-info" id="dashInfoBtn" aria-label="What these switches do" aria-expanded="false" aria-controls="dashToggleNote">i</button>
- <span class="mtoggle-note" id="dashToggleNote">"Make it real" shows GDP level tiles inflation-adjusted. Dollarise shows currency figures (GDP, debt, trade) in USD, using the same FX rates as each country's own page: each period at its own rate, and real GDP at its latest year's rate so its growth matches the published figure. Years before a currency had a market rate are left out.</span>
+ <span class="mtoggle-note" id="dashToggleNote">"Adjust for inflation" shows GDP level tiles inflation-adjusted. Convert to USD$ shows currency figures (GDP, debt, trade) in USD, using the same FX rates as each country's own page: each period at its own rate, and real GDP at its latest year's rate so its growth matches the published figure. Years before a currency had a market rate are left out.</span>
  <span id="mtoggleAnnounce" class="sr-only" role="status" aria-live="polite"></span>
  <button type="button" class="dashexportbtn" id="exportDashboardBtn" style="margin-left:auto;">Export dashboard (PNG)</button>
  </div>
@@ -3162,7 +3162,7 @@ var REGISTRY = {}; // REGISTRY[country][key] = {label, unit, freq, points}
 var FX_RATES = {}; // FX_RATES[country] = {pair, rate, as_of, direction, history} or undefined (e.g. US, already USD)
 // Historical FX period-matching, verbatim from the same rateForPeriod()/
 // monthKey() logic already used site-wide on individual country pages'
-// Dollarise toggle (see e.g. germany.html) -- ported here (and to
+// Convert to USD$ toggle (see e.g. germany.html) -- ported here (and to
 // compare.html) so Dashboard follows the same "each point converts at
 // its own contemporaneous rate" approach, not a single current rate
 // applied uniformly across history.
@@ -3277,6 +3277,8 @@ function ensureInfoPopover(){
 function closeInfoPopover(){
   if(INFO_POPOVER_EL) INFO_POPOVER_EL.hidden = true;
 }
+function eaRelabel(t){ /* v1.9.113: notes in data-metric-sources.json use the old toggle names */
+  return String(t).replace(/Dollari[s]e/g, function(){ return "Convert to USD$"; }).replace(/Make it rea[l]/g, function(){ return "Adjust for inflation"; }); }
 function openInfoPopover(btn, country, key){
   var info = metricInfo(country, key);
   var el = ensureInfoPopover();
@@ -3288,13 +3290,13 @@ function openInfoPopover(btn, country, key){
   if(info && info.dollar){
     var p1 = document.createElement("p");
     p1.className = "infoPopoverCaveat";
-    p1.innerHTML = "<strong>Dollarise:</strong> " + escapeHtmlDash(info.dollar);
+    p1.innerHTML = "<strong>Convert to USD$:</strong> " + escapeHtmlDash(eaRelabel(info.dollar));
     caveatsEl.appendChild(p1);
   }
   if(info && info.real){
     var p2 = document.createElement("p");
     p2.className = "infoPopoverCaveat";
-    p2.innerHTML = "<strong>Make it real:</strong> " + escapeHtmlDash(info.real);
+    p2.innerHTML = "<strong>Adjust for inflation:</strong> " + escapeHtmlDash(eaRelabel(info.real));
     caveatsEl.appendChild(p2);
   }
   el.hidden = false;
@@ -4001,7 +4003,7 @@ function resolveInflationKey(id, country, key){
 function tileFromId(id){
   var parts = id.split("::");
   var country = parts[0], key = parts.slice(1).join("::");
-  // "Make it real" chooses which underlying series to read from --
+  // "Adjust for inflation" chooses which underlying series to read from --
   // preferring the country's own pre-annualized real-GDP figure
   // (gdp_real_annual) when it exists, exactly matching the preference
   // country pages themselves use (confirmed via switzerland.html's own
@@ -4055,7 +4057,7 @@ function scaleOf(unitStr){
   // checking the scale marker -- several countries' gdp_real unit
   // strings (e.g. "$m (2021 prices)", "PLNbn (2010 prices)") have this,
   // and the old end-anchored-only regex silently failed to match them,
-  // making "Make it real" display values roughly 1,000,000x too small
+  // making "Adjust for inflation" display values roughly 1,000,000x too small
   // (e.g. Thailand showing "$1m" instead of the real ~$1.5tn figure).
   // Stripping the parenthetical first restores exact backward
   // compatibility with every plain unit string ("$m", "PLNbn", "¥bn"
@@ -4136,11 +4138,11 @@ function fmtVal(v, unit, key, country){
   if(unit === "index") return v.toFixed(1) + " index";
   return v + " " + unit;
 }
-/* -------------------------------- Dollarise --------------------------------- */
+/* -------------------------------- Convert to USD$ --------------------------------- */
 var DOLLARISE_KEY = "eatlas_dashboard_dollarise";
 var dollarise = false;
 try { dollarise = localStorage.getItem(DOLLARISE_KEY) === "1"; } catch(e){}
-/* ------------------------------ Make it real --------------------------------
+/* ------------------------------ Adjust for inflation --------------------------------
    Ported from country pages: swaps a GDP-level tile's underlying series
    to the inflation-adjusted (real) figure instead of nominal, while
    keeping the tile's own identity/label as "GDP level" -- exactly the
@@ -4764,13 +4766,13 @@ function renderDash(){
   grid.appendChild(addTile);
   // The map always mirrors whatever's currently pinned, so it re-renders
   // (or hides itself) on every single call to renderDash -- add a metric,
-  // remove one, or toggle Dollarise, and the map is never out of sync.
+  // remove one, or toggle Convert to USD$, and the map is never out of sync.
   renderMapCard();
   applyDashToggleHighlighting();
 }
 // Ported from country pages' applyToggleHighlighting(): a tile actually
 // changed by a toggle should visibly show it, not just be inferred from
-// the small "(USD)" suffix in its label. "Dollarise" reuses the exact
+// the small "(USD)" suffix in its label. "Convert to USD$" reuses the exact
 // same check the tile's own "(USD)" suffix already relies on (does the
 // displayed unit differ from the raw series unit after conversion) so
 // the glow can never disagree with what the tile itself is showing.
@@ -4967,7 +4969,7 @@ loadAll().then(function(){
   function announceToggle(which, on){
     var el = document.getElementById("mtoggleAnnounce");
     if(!el) return;
-    var label = which === "real" ? "Make it real" : "Dollarise";
+    var label = which === "real" ? "Adjust for inflation" : "Convert to USD$";
     el.textContent = label + ": " + (on ? "on" : "off");
   }
   var dollarBtn = document.getElementById("dollariseBtn");
@@ -5000,7 +5002,7 @@ loadAll().then(function(){
     try { localStorage.setItem(MAKE_REAL_KEY, makeItReal ? "1" : "0"); } catch(e){}
     updateRealBtn();
     announceToggle("real", makeItReal);
-    // Same reasoning as Dollarise's own handler just above: the
+    // Same reasoning as Convert to USD$'s own handler just above: the
     // underlying series a GDP-level tile points to changes entirely
     // (nominal vs real), so any already-open chart needs tearing down
     // and rebuilding against the newly-swapped data, not just a value
@@ -5339,9 +5341,9 @@ window.EATLAS_SAVED_CHARTS = (function(){
 })();
 })();
 </script>
-<script src="mobile.js?v=41" defer></script>
+<script src="mobile.js?v=42" defer></script>
 <script>
-/* v1.9.104: on desktop the Make it real / Dollarise explanation sits behind an (i), like on phones */
+/* v1.9.104: on desktop the Adjust for inflation / Convert to USD$ explanation sits behind an (i), like on phones */
 (function(){var b=document.getElementById("dashInfoBtn"); if(!b) return; var tg=b.parentNode;
   b.addEventListener("click",function(){var open=!tg.classList.contains("note-open"); tg.classList.toggle("note-open",open); b.setAttribute("aria-expanded",open?"true":"false");});})();
 </script>

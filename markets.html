@@ -1273,6 +1273,8 @@ table.mk a.ea-cty{font-weight:700; border-bottom:none;}
 .mk-i{flex:0 0 auto; display:inline-flex; align-items:center; justify-content:center; width:26px; height:26px; padding:0; border:none; background:none; cursor:pointer; color:var(--ink2);}
 .mk-i span{display:inline-flex; align-items:center; justify-content:center; width:18px; height:18px; border-radius:50%; border:1.5px solid currentColor; font:italic 700 11px Georgia,serif;}
 .mk-i[aria-expanded="true"]{color:var(--ink);}
+.mk-rowbtn{position:absolute; width:1px; height:1px; padding:0; margin:-1px; overflow:hidden; clip:rect(0 0 0 0); border:0; white-space:nowrap;}
+.mk-rowbtn:focus-visible{position:static; width:auto; height:auto; margin:0 0 0 6px; clip:auto; overflow:visible; padding:2px 6px; border-radius:6px; font:inherit; font-size:12px; background:var(--panel); color:var(--ink); outline:2px solid var(--blue);}
 .mk-note[hidden]{display:none;}
 #chart-yields, #chart-fx, #chart-daily, #tables{scroll-margin-top:64px;}
 .mk-legend{color:var(--ink2); font-size:14px; margin:4px 0 12px;}
@@ -1434,7 +1436,7 @@ function led(p, freq){
   var age = (Date.now() - end.getTime()) / 864e5;
   var c = age <= a[0] ? "green" : (age <= a[1] ? "amber" : "red");
   var t = c === "green" ? "As recent as the source normally allows" : (c === "amber" ? "Overdue for an update" : "Well overdue for an update");
-  return '<span class="mk-led ' + c + '" title="' + t + '" aria-label="' + t + '"></span>';
+  return '<span class="mk-led ' + c + '" role="img" title="' + t + '" aria-label="' + t + '"></span>';
 }
 function countryCell(cc, label){
   return led.apply(null, label) + '<a class="ea-cty" href="' + C[cc][1] + '">' + esc(C[cc][0]) + '</a>';
@@ -1515,19 +1517,23 @@ function applyFind(){
 function afterRows(id){
   Array.prototype.forEach.call(document.querySelectorAll("#" + id + " tbody tr"), function(tr){
     if(tr.querySelector(".mk-empty")) return;
-    tr.tabIndex = 0; tr.setAttribute("aria-expanded", "false");
+    /* v1.9.113: the expanded state lives on a real button (a table row may not carry it) */
+    if(!tr.querySelector(".mk-rowbtn")){ var b = document.createElement("button"); b.type = "button"; b.className = "mk-rowbtn";
+      b.setAttribute("aria-expanded", "false"); b.textContent = "Details for " + (tr.cells[0] ? tr.cells[0].textContent.trim() : "this row");
+      if(tr.cells[0]) tr.cells[0].appendChild(b); }
   });
   applyFind();
 }
+function mkRowState(tr, open){ var b = tr.querySelector(".mk-rowbtn"); if(b) b.setAttribute("aria-expanded", open ? "true" : "false"); }
 function toggleRow(table, tr){
   var det = tr.nextElementSibling;
-  if(det && det.classList.contains("mk-det")){ det.parentNode.removeChild(det); tr.classList.remove("mk-open"); tr.setAttribute("aria-expanded", "false"); return; }
+  if(det && det.classList.contains("mk-det")){ det.parentNode.removeChild(det); tr.classList.remove("mk-open"); mkRowState(tr, false); return; }
   var heads = table.querySelectorAll("thead th"), cols = hiddenCols(table.id);
   var bits = cols.map(function(i){ var c = tr.cells[i]; return c ? "<b>" + esc(heads[i].textContent) + ":</b> " + esc(c.textContent.trim()) : ""; }).filter(Boolean);
   var row = document.createElement("tr"); row.className = "mk-det";
   row.innerHTML = '<td colspan="' + heads.length + '">' + bits.join("<br>") + "</td>";
   tr.parentNode.insertBefore(row, tr.nextSibling);
-  tr.classList.add("mk-open"); tr.setAttribute("aria-expanded", "true");
+  tr.classList.add("mk-open"); mkRowState(tr, true);
 }
 Object.keys(PHONE_COLS).forEach(function(id){
   var table = document.getElementById(id); if(!table) return;
@@ -1864,7 +1870,7 @@ Promise.all([
   window.addEventListener("resize", function(){
     var now = isPhone(); if(now === wasPhone) return; wasPhone = now;
     drawYields(); drawFx(); drawDaily();
-    Array.prototype.forEach.call(document.querySelectorAll("tr.mk-det"), function(r){ var t = r.previousElementSibling; r.parentNode.removeChild(r); if(t){ t.classList.remove("mk-open"); t.setAttribute("aria-expanded", "false"); } });
+    Array.prototype.forEach.call(document.querySelectorAll("tr.mk-det"), function(r){ var t = r.previousElementSibling; r.parentNode.removeChild(r); if(t){ t.classList.remove("mk-open"); mkRowState(t, false); } });
   });
 });
 })();
@@ -1873,6 +1879,6 @@ Promise.all([
  <div class="lnk-row"><a class="ea-btn sm" href="privacy">Privacy</a><a class="ea-btn sm" href="terms">Terms</a></div>
 </footer>
 </div>
-<script src="mobile.js?v=41" defer></script>
+<script src="mobile.js?v=42" defer></script>
 </body>
 </html>

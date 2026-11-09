@@ -1695,8 +1695,8 @@
      Delete, From template and Add, routed through the page's own sidebar
      controls so behaviour (prompts, Pro limits, RLS) stays identical.
      ------------------------------------------------------------------ */
-  /* v1.9.75: on phones Export leaves the toggles row (Make it real and
-     Dollarise get the full width) and sits under the tiles as a labelled
+  /* v1.9.75: on phones Export leaves the toggles row (Adjust for inflation and
+     Convert to USD$ get the full width) and sits under the tiles as a labelled
      button, shown only when there is something to export. Desktop keeps it
      at the end of the toggles row. The real button node moves, so its own
      click handler and "Exporting..." labels keep working. */

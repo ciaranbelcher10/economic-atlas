@@ -1681,10 +1681,10 @@ document.addEventListener("DOMContentLoaded", function(){
 </nav>
 <div class="metric-toggles" aria-label="Display options">
  <button type="button" class="mtoggle" id="toggleReal" onclick="toggleMetric('real',this)" aria-pressed="false">
- <span class="mtoggle-switch" aria-hidden="true"></span>Make it real
+ <span class="mtoggle-switch" aria-hidden="true"></span>Adjust for inflation
  </button>
  <button type="button" class="mtoggle" id="toggleDollar" onclick="toggleMetric('dollar',this)" aria-pressed="false">
- <span class="mtoggle-switch" aria-hidden="true"></span>Dollarise
+ <span class="mtoggle-switch" aria-hidden="true"></span>Convert to USD$
  </button>
  <span class="mtoggle-note" id="mtoggleNote"></span>
  <span id="mtoggleAnnounce" class="sr-only" role="status" aria-live="polite"></span>
@@ -1981,7 +1981,7 @@ function EA_subLabel(lab){
   const n = +r;
   return (n>=1 && n<=12) ? ["Jan","Feb","Mar","Apr","May","Jun","Jul","Aug","Sep","Oct","Nov","Dec"][n-1]+" "+y : y;
 }
-// Dollarise note: 5 significant figures, never a raw float.
+// Convert to USD$ note: 5 significant figures, never a raw float.
 function fxRateTxt(r){ return (typeof r==="number" && isFinite(r)) ? String(Number(r.toPrecision(5))) : r; }
 // Tile titles: keep the last word and the (i) icon together, and show
 // rate-of-change tags in their intended case (q/q, y/y, m/m).
@@ -2529,7 +2529,7 @@ function render(data){
   renderLastUpdated(data.updated);
   fitFigures();
 }
-/* ---------------------- Dollarise / Make it real ---------------------- */
+/* ---------------------- Convert to USD$ / Adjust for inflation ---------------------- */
 let PAGE_DATA = null;
 const TOGGLE_STATE = { real:false, dollar:false };
 const CURRENCY_KEYS = ["gdp_level","gdp_real","net_debt","deficit","debt_interest","trade_balance","exports","imports"];
@@ -2540,7 +2540,7 @@ function scaleOf(unitStr){
   // checking the scale marker -- several countries' gdp_real unit
   // strings (e.g. "$m (2021 prices)", "PLNbn (2010 prices)") have this,
   // and the old end-anchored-only regex silently failed to match them,
-  // making "Make it real" display values roughly 1,000,000x too small
+  // making "Adjust for inflation" display values roughly 1,000,000x too small
   // (e.g. Thailand showing "$1m" instead of the real ~$1.5tn figure).
   // Stripping the parenthetical first restores exact backward
   // compatibility with every plain unit string ("$m", "PLNbn", "¥bn"
@@ -2591,7 +2591,7 @@ function isCurrencyUnit(u){
 function isAlreadyUSD(u, key){
   // Some series (e.g. World-Bank-sourced gdp_level for several countries)
   // are authored directly in USD rather than local currency -- converting
-  // those again through the local FX rate on "Dollarise" produces a
+  // those again through the local FX rate on "Convert to USD$" produces a
   // silently wrong, double-converted figure. This guard catches that.
   //
   // It has to be series-aware, not just page-aware: a few countries (AUD/
@@ -2740,7 +2740,7 @@ function hasPreHistoryPoints(series, fx){
    Mirrors uk.html's pattern. Argentina's gdp_level already has the
    dollarise-fallback-citation fix applied from a prior session
    (reading data.rawGdpLevelUnit, not the post-toggle unit) -- confirmed
-   present and left untouched. Dollarise now uses World Bank PA.NUS.FCRF
+   present and left untouched. Convert to USD$ now uses World Bank PA.NUS.FCRF
    (Aug 2026 switch, see fetch_ar.py) -- the previous OECD monthly
    series was confirmed discontinued, and no live FRED alternative of
    any resolution exists for the peso. PA.NUS.FCRF is genuine and live,
@@ -2750,8 +2750,8 @@ function hasPreHistoryPoints(series, fx){
    Argentina's GDP series starts 2004, well after PA.NUS.FCRF's 1960
    start, so the pre-history caveat should not fire in practice.
    SEPARATELY from the data-source fix: Argentina is named alongside
-   Turkey as the standing example of the sitewide "Make it real +
-   Dollarise" validity problem for high-inflation currencies -- the
+   Turkey as the standing example of the sitewide "Adjust for inflation +
+   Convert to USD$" validity problem for high-inflation currencies -- the
    same visible warning built for Turkey is added here too, shown only
    when both toggles are active together (see rerender()). Argentina's
    real GDP series already carries its own honest caveat about being
@@ -2762,7 +2762,7 @@ const INFO_CONTENT = {
     description: "The total value of everything Argentina produces in a year, at current prices, on a rolling four-quarter basis.",
     source: "FRED series NGDPSAXDCARQ \u00b7 IMF International Financial Statistics, trailing 4-quarter sum, seasonally adjusted, with the latest quarters from the OECD quarterly national accounts (falls back to World Bank current US$, annual, only if the live ARS series is unavailable on a given run). Note: this nominal series is seasonally adjusted while the real GDP series on this page is not, so the two are not on a like-for-like basis; compare their growth rates rather than reading a deflator off the gap between them.",
     real: "\u201cMake it real\u201d swaps this to Argentina's real (constant-price) GDP series. After decades of very high inflation, this figure is genuinely tiny in current-ARS terms compared with nominal GDP, that's expected for this series, not a data error.",
-    dollar: "When this series is on its normal live (ARS) path, \u201cDollarise\u201d converts each historical point using that year's own average ARS/USD rate (World Bank PA.NUS.FCRF, annual resolution). On the rarer occasion this falls back to the World-Bank USD series, it's already in dollars and Dollarise correctly has no further effect. Note: combining \u201cMake it real\u201d with \u201cDollarise\u201d on this page specifically is flagged with an on-page warning, converting a constant-price (inflation-stripped, old-base-year) real GDP figure through today's or any single year's nominal exchange rate does not produce an economically meaningful number for a currency with Argentina's inflation history. Each toggle is more reliable used on its own."
+    dollar: "When this series is on its normal live (ARS) path, \u201cDollarise\u201d converts each historical point using that year's own average ARS/USD rate (World Bank PA.NUS.FCRF, annual resolution). On the rarer occasion this falls back to the World-Bank USD series, it's already in dollars and Convert to USD$ correctly has no further effect. Note: combining \u201cMake it real\u201d with \u201cDollarise\u201d on this page specifically is flagged with an on-page warning, converting a constant-price (inflation-stripped, old-base-year) real GDP figure through today's or any single year's nominal exchange rate does not produce an economically meaningful number for a currency with Argentina's inflation history. Each toggle is more reliable used on its own."
   },
   gdp_real: {
     description: "GDP adjusted for inflation, at constant prices from an old base year. After decades of very high inflation, this figure is genuinely tiny in current-ARS terms compared with nominal GDP, that's expected for this series, not a data error.",
@@ -2857,13 +2857,13 @@ function openInfoPopover(btn, infoKey, title){
   if(content.real){
     const p = document.createElement("p");
     p.className = "infoPopoverToggleNote real";
-    p.innerHTML = `<strong>Make it real:</strong> ${content.real}`;
+    p.innerHTML = `<strong>Adjust for inflation:</strong> ${content.real}`;
     togglesEl.appendChild(p);
   }
   if(content.dollar){
     const p = document.createElement("p");
     p.className = "infoPopoverToggleNote dollar";
-    p.innerHTML = `<strong>Dollarise:</strong> ${content.dollar}`;
+    p.innerHTML = `<strong>Convert to USD$:</strong> ${content.dollar}`;
     togglesEl.appendChild(p);
   }
   el.hidden = false;
@@ -2920,7 +2920,7 @@ function buildDisplaySeries(rawSeries){
 function announceToggle(which, on){
   const el = document.getElementById("mtoggleAnnounce");
   if(!el) return;
-  const label = which === "real" ? "Make it real" : "Dollarise";
+  const label = which === "real" ? "Adjust for inflation" : "Convert to USD$";
   el.textContent = label + ": " + (on ? "on" : "off");
 }
 function toggleMetric(which, el){
@@ -2992,7 +2992,7 @@ function rerender(){
     });
   }
   if(TOGGLE_STATE.real) notes.push("GDP shown in real terms (chained volume / constant prices)");
-  // Argentina-specific: same high-inflation "Make it real" + "Dollarise"
+  // Argentina-specific: same high-inflation "Adjust for inflation" + "Convert to USD$"
   // warning built for Turkey -- Argentina is named alongside it as the
   // standing sitewide example of this validity problem. Shown only when
   // both toggles are active together; each toggle individually remains
@@ -3019,16 +3019,16 @@ function rerender(){
 }
 /* --------------------- toggle-affected metric highlighting ---------------
    Same mechanism as uk.html/us.html/germany.html, with one refinement:
-   "Dollarise" highlighting now checks isAlreadyUSD() against each key's
+   "Convert to USD$" highlighting now checks isAlreadyUSD() against each key's
    RAW (pre-toggle) unit, not just CURRENCY_KEYS membership. Found via
    Spain: its gdp_level/gdp_real are genuinely World-Bank-sourced in USD
    (unlike every other Eurozone page here, which are native-EUR IMF/
-   Eurostat series), so isAlreadyUSD() already correctly no-ops Dollarise
+   Eurostat series), so isAlreadyUSD() already correctly no-ops Convert to USD$
    on those two keys -- but a highlight check that only asked "is this
    key in CURRENCY_KEYS" would have blue-glowed them anyway, falsely
    implying a conversion happened. Checking the actual raw series unit
    keeps the highlight honest regardless of which country's data
-   happens to already be dollar-denominated. "Make it real" only ever
+   happens to already be dollar-denominated. "Adjust for inflation" only ever
    swaps gdp_level's series (see buildDisplaySeries above) so it's the
    only key that ever gets the "real" highlight. Applied to both .stat
    tiles and .panel chart cards via their shared data-key attribute, and
@@ -4855,6 +4855,6 @@ document.querySelectorAll(".mtbtn").forEach(function(btn){
   });
 })();
 </script>
-<script src="mobile.js?v=41" defer></script>
+<script src="mobile.js?v=42" defer></script>
 </body>
 </html>

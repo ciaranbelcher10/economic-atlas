@@ -152,7 +152,7 @@ NOTES = [
      lambda c: "CLVMNACSAB1GQCH" in c.label("Switzerland", "gdp_growth")),
     ("Poland",
      "The trade balance is Eurostat's goods balance (exports minus imports) in euros. It is left in euros when "
-     "Dollarise is switched on.",
+     "Convert to USD$ is switched on.",
      lambda c: "Eurostat" in c.label("Poland", "trade_balance") and "\u20ac" in c.unit("Poland", "trade_balance")),
     ("Argentina",
      "GDP is not seasonally adjusted, so growth is shown year on year: a quarter-on-quarter rate would mostly "

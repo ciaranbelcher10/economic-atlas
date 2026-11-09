@@ -1215,13 +1215,13 @@
 })();
 </script>
 <style>
-/* ---- Dollarise toggle: reuses the shared .mtoggle switch styling from
+/* ---- Convert to USD$ toggle: reuses the shared .mtoggle switch styling from
    style.css, plus the same .fx-dollar blue override country pages apply
    on top of it (see e.g. uk.html) -- both classes together, exactly as
    the real toggle does, not a new combination invented for this page. ---- */
 button.mtoggle.fx-dollar{background:var(--blue); border-color:var(--blue); color:#fff;}
 /* ---- toggle-affected highlighting, the same colours the Dashboard and the country pages use:
-   yellow = "Make it real" changed this series, blue = "Dollarise" converted it, green = both.
+   yellow = "Adjust for inflation" changed this series, blue = "Convert to USD$" converted it, green = both.
    Border-color and box-shadow only, never background (a themed background rule can win with !important). ---- */
 button.mtoggle.fx-real{background:#E3B341; border-color:#E3B341; color:#171B1E;}
 button.mtoggle.fx-both{background:#2FA463; border-color:#2FA463; color:#fff;}
@@ -1501,7 +1501,7 @@ body:not(.cm-m) #cmMobileGate{display:none;}
 .cmx-tnote:empty{display:none;}
 #cmChartTypeNote{margin:0 0 10px !important;}
 .cmx-spacer{flex:1;}
-/* Make it real and Dollarise as buttons: navy when on, greyed when not relevant */
+/* Adjust for inflation and Convert to USD$ as buttons: navy when on, greyed when not relevant */
 .cmx-adjust .mtoggle{border-radius:999px; padding:7px 14px; font-weight:700; font-size:13px; background:var(--paper);}
 .cmx-adjust .mtoggle .mtoggle-switch{display:none;}
 .cmx-adjust .mtoggle.on, .cmx-adjust .mtoggle.fx-real, .cmx-adjust .mtoggle.fx-dollar, .cmx-adjust .mtoggle.fx-both{background:var(--navy); border-color:var(--navy); color:#fff;}
@@ -1573,11 +1573,11 @@ body:not(.cm-m) #cmMobileGate{display:none;}
  <label class="cmx-chk" id="cmHideNoDataRow" style="display:none;"><input type="checkbox" id="cmHideNoData"><span>Hide countries with no data</span></label>
 </div>
  <div class="metric-toggles cmx-adjust" aria-label="Adjust figures">
- <button type="button" class="mtoggle" id="makeRealToggle" aria-label="Make it real: show GDP level as real, inflation-adjusted GDP" aria-pressed="false">
- <span class="mtoggle-switch" aria-hidden="true"></span>Make it real
+ <button type="button" class="mtoggle" id="makeRealToggle" aria-label="Adjust for inflation: show GDP level as real, inflation-adjusted GDP" aria-pressed="false">
+ <span class="mtoggle-switch" aria-hidden="true"></span>Adjust for inflation
  </button>
- <button type="button" class="mtoggle" id="dollariseToggle" aria-label="Dollarise: convert currency series to US dollars" aria-pressed="false">
- <span class="mtoggle-switch" aria-hidden="true"></span>Dollarise
+ <button type="button" class="mtoggle" id="dollariseToggle" aria-label="Convert to USD$: convert currency series to US dollars" aria-pressed="false">
+ <span class="mtoggle-switch" aria-hidden="true"></span>Convert to USD$
  </button>
  <span id="mtoggleAnnounce" class="sr-only" role="status" aria-live="polite"></span>
  </div>
@@ -2059,9 +2059,9 @@ var FILES = {
 var ALL_COUNTRIES = Object.keys(FILES);
 var REGISTRY = {};
 var FX_RATES = {};
-// Dollarise infrastructure -- ported verbatim from compare.html, which
+// Convert to USD$ infrastructure -- ported verbatim from compare.html, which
 // itself ported the historical-rate-matching approach from the country
-// pages' own Dollarise toggle (see e.g. germany.html). Each point
+// pages' own Convert to USD$ toggle (see e.g. germany.html). Each point
 // converts at its own contemporaneous rate via rateForPeriod(), not a
 // single current rate applied uniformly across history.
 function monthKey(period){
@@ -2540,13 +2540,13 @@ var MAX_ANNOTATIONS = 6;
 
 var series = [];
 // Display toggles, matching the country pages and the Dashboard:
-//  - "Make it real" swaps a GDP level series for real (chain-linked volume) GDP and changes
+//  - "Adjust for inflation" swaps a GDP level series for real (chain-linked volume) GDP and changes
 //    nothing else.
-//  - "Dollarise" converts currency series to US dollars at each period's own rate; real GDP
+//  - "Convert to USD$" converts currency series to US dollars at each period's own rate; real GDP
 //    converts at ONE rate (its latest year's average) so its dollar growth stays the published
 //    real growth.
 // The person's own choices (userRealPreference, userDollarPreference) are kept apart from what
-// is applied (TOGGLE_STATE): Dollarise can be forced on (different currencies need a common
+// is applied (TOGGLE_STATE): Convert to USD$ can be forced on (different currencies need a common
 // unit) or have nothing to do (the US's own figures are already dollars).
 var TOGGLE_STATE = { real: false, dollar: false };
 var userDollarPreference = false;
@@ -2580,7 +2580,7 @@ function toUSDMillions(country, rawValue, unitStr, concept, period, realYear){
   return toUSDValue(country, normalized, period, realYear);
 }
 function isCurrencySeries(s){ return CONCEPT_UNIT[s.metric] === "currency"; }
-// Whether Dollarise is a free choice, a requirement, or has nothing to do. Pure, so a saved
+// Whether Convert to USD$ is a free choice, a requirement, or has nothing to do. Pure, so a saved
 // chart's thumbnail decides exactly as the live chart does. items: [{country, metric}].
 //  - forced: 2+ currency series from countries with DIFFERENT native currencies (UK and US):
 //    converting is the only way the chart means anything.
@@ -2698,7 +2698,7 @@ function buildToggleNote(){
 function announceToggle(which, on){
   var el = document.getElementById("mtoggleAnnounce");
   if(!el) return;
-  el.textContent = (which === "real" ? "Make it real" : "Dollarise") + ": " + (on ? "on" : "off");
+  el.textContent = (which === "real" ? "Adjust for inflation" : "Convert to USD$") + ": " + (on ? "on" : "off");
 }
 function updateToggleUI(){
   var realBtn = document.getElementById("makeRealToggle");
@@ -3252,7 +3252,7 @@ function removeSeries(id){
   populateDateRange();
   renderChart();
 }
-// What the series actually shows: "Make it real" turns a GDP level series into real GDP, so it is
+// What the series actually shows: "Adjust for inflation" turns a GDP level series into real GDP, so it is
 // named that, and a series drawn in dollars says so, the way the Dashboard marks converted figures.
 function displayMetric(s){ return s.realView ? "gdp_real" : s.metric; }
 function defaultSeriesLabel(s){ return s.country + ", " + conceptLabelFor(s.country, displayMetric(s)) + (s.inUSD ? " (USD)" : ""); }
@@ -3401,7 +3401,7 @@ function renderSeriesList(){
   seriesListEl.innerHTML = "";
   series.forEach(function(s){
     var li = document.createElement("li"); li.className = "cm-seriesitem";
-    // Same rule as the Dashboard's tiles: yellow if Make it real swapped it, blue if Dollarise
+    // Same rule as the Dashboard's tiles: yellow if Adjust for inflation swapped it, blue if Convert to USD$
     // actually converted it (an already-dollar series is not "converted"), green if both.
     if(s.realView && s.converted) li.className += " fx-both";
     else if(s.realView) li.className += " fx-real";
@@ -3750,7 +3750,7 @@ function currencyAxisTitle(){
     if(!isCurrencySeries(s)) return;
     any = true;
     // By the unit actually drawn: Switzerland's nominal GDP is already in dollars (World Bank), so its
-    // axis is dollars, not francs, until "Make it real" swaps it to the franc series.
+    // axis is dollars, not francs, until "Adjust for inflation" swaps it to the franc series.
     codes[(s.inUSD || isAlreadyUSDUnit(s.unit, s.country, s.metric)) ? "USD" : (COUNTRY_CURRENCY[s.country] || "?")] = true;
   });
   var keys = Object.keys(codes);
@@ -6324,6 +6324,6 @@ loadAllCountryData().then(function(){
 })();
 </script>
 
-<script src="mobile.js?v=41" defer></script>
+<script src="mobile.js?v=42" defer></script>
 </body>
 </html>
