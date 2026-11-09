@@ -338,51 +338,6 @@
     }, 2600);
   }
 
-  function initScrollCatch(){
-    if(!document.querySelector(".hero-h1")) return;
-    if(localStorage.getItem("eatlas_scrollcatch_seen")) return;
-    if(window._mobScrollCatchAttached) return;
-    window._mobScrollCatchAttached = true;
-    var shown = false;
-    window.addEventListener("scroll", function onScroll(){
-      if(shown) return;
-      if(window.scrollY < window.innerHeight * 0.9) return;
-      shown = true;
-      window.removeEventListener("scroll", onScroll);
-
-      var links = $all("#macroPanel a[href]").filter(function(a){ return a.getAttribute("href") !== "index"; });
-
-      var bar = document.createElement("div");
-      bar.id = "homeScrollCatch";
-      bar.innerHTML =
-        '<div class="sc-results" id="scrollCatchResults" hidden></div>' +
-        '<div class="sc-row">' +
-          '<input type="text" id="scrollCatchInput" placeholder="Jump to a country\u2026" autocomplete="off">' +
-          '<button type="button" id="scrollCatchClose" aria-label="Dismiss">&times;</button>' +
-        '</div>';
-      document.body.appendChild(bar);
-      requestAnimationFrame(function(){ bar.classList.add("visible"); });
-
-      var input = document.getElementById("scrollCatchInput");
-      var results = document.getElementById("scrollCatchResults");
-      input.addEventListener("input", function(){
-        var q = input.value.trim().toLowerCase();
-        if(!q){ results.hidden = true; results.innerHTML = ""; return; }
-        var matches = links.filter(function(a){ return countryMatches(a.textContent, q); }).slice(0, 6);
-        results.innerHTML = matches.length
-          ? matches.map(function(a){ return '<a href="'+a.getAttribute("href")+'">'+a.textContent+'</a>'; }).join("")
-          : '<p class="sc-none">No matching country.</p>';
-        results.hidden = false;
-      });
-
-      document.getElementById("scrollCatchClose").addEventListener("click", function(){
-        bar.classList.remove("visible");
-        setTimeout(function(){ bar.remove(); }, 250);
-        localStorage.setItem("eatlas_scrollcatch_seen", "1");
-      });
-    }, {passive:true});
-  }
-
   /* ------------------------------------------------------------------
      3. COUNTRY PAGES — swipe between sections, dot indicator
      Hooks into the page's own global showSec(name) function rather
@@ -1877,7 +1832,6 @@
     safeCall(alignCountryMapWithSearch);
     safeCall(initHomeTicker);
     safeCall(initSearchPlaceholderRotation);
-    safeCall(initScrollCatch);
     safeCall(initCountrySwipe);
     safeCall(initMapCollapse);
     safeCall(addTradeNote);
