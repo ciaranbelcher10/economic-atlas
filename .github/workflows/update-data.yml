@@ -491,6 +491,11 @@ jobs:
         run: |
           echo ">>> RUNNING fetch_bonds_daily.py" >> pipeline_log.txt
           python fetch_bonds_daily.py 2>&1 | tee -a pipeline_log.txt
+      - name: Run fetch_population.py
+        continue-on-error: true
+        run: |
+          echo ">>> RUNNING fetch_population.py" >> pipeline_log.txt
+          python fetch_population.py 2>&1 | tee -a pipeline_log.txt
       - name: Stamp exchange-rate blocks
         continue-on-error: true
         run: |
@@ -507,6 +512,7 @@ jobs:
           git add data-uk-inactivity-reasons.json 2>/dev/null || true
           git add data-uk-spending-cofog.json 2>/dev/null || true
           git add data-uk-age-breakdown.json 2>/dev/null || true
+          git add data-population.json 2>/dev/null || true
           git diff --cached --quiet || git commit -m "Refresh data"
           # v1.9.102: main can move while this job runs (another bot or a release push).
           # Rebase onto it and retry instead of failing; only bot-owned files are in this commit.
