@@ -1213,6 +1213,8 @@ HEADER_HTML_BASE = """<script>(function(){
   });
   sb.auth.getSession().then(function(res){
     updateAuthUI(res.data.session);
+    // v1.9.110: record when a signed-in user last used the site (the server writes at most hourly).
+    if(res.data.session){ sb.rpc("touch_last_seen").then(function(){}, function(){}); }
   });
 })();
 </script>

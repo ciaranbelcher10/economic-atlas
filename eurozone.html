@@ -861,6 +861,8 @@ button.mtoggle.fx-both{background:#2FA463; border-color:#2FA463; color:#fff;}
   });
   sb.auth.getSession().then(function(res){
     updateAuthUI(res.data.session);
+    // v1.9.110: record when a signed-in user last used the site (the server writes at most hourly).
+    if(res.data.session){ sb.rpc("touch_last_seen").then(function(){}, function(){}); }
   });
   // Expose so any chart on this page can send someone straight into the
   // signup/login flow when they click a download button while logged out.
