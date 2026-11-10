@@ -289,6 +289,15 @@ html[data-theme="dark"] .tpm-scopenote strong{color:var(--blue);}
 button.mtoggle.fx-real{background:#E3B341; border-color:#E3B341; color:#171B1E;}
 button.mtoggle.fx-dollar{background:var(--blue); border-color:var(--blue); color:#fff;}
 button.mtoggle.fx-both{background:#2FA463; border-color:#2FA463; color:#fff;}
+/* v1.9.122 per capita: coral on its own; orange with inflation, purple with USD$, brown with all three */
+.stat.fx-pc, .panel.fx-pc{border-color:#E06A5A !important; box-shadow:0 0 0 2px rgba(224,106,90,.35);}
+.stat.fx-real-pc, .panel.fx-real-pc{border-color:#E8853A !important; box-shadow:0 0 0 2px rgba(232,133,58,.35);}
+.stat.fx-dollar-pc, .panel.fx-dollar-pc{border-color:#8E63C9 !important; box-shadow:0 0 0 2px rgba(142,99,201,.35);}
+.stat.fx-all, .panel.fx-all{border-color:#8A5A3C !important; box-shadow:0 0 0 2px rgba(138,90,60,.35);}
+button.mtoggle.fx-pc{background:#E06A5A; border-color:#E06A5A; color:#fff;}
+button.mtoggle.fx-real-pc{background:#E8853A; border-color:#E8853A; color:#171B1E;}
+button.mtoggle.fx-dollar-pc{background:#8E63C9; border-color:#8E63C9; color:#fff;}
+button.mtoggle.fx-all{background:#8A5A3C; border-color:#8A5A3C; color:#fff;}
 /* ---- info button + popover ---- */
 .infoBtn{display:inline-flex; align-items:center; justify-content:center;
   width:16px; height:16px; margin-left:6px; padding:0; border:none;
@@ -1687,6 +1696,9 @@ document.addEventListener("DOMContentLoaded", function(){
  <button type="button" class="mtoggle" id="toggleDollar" onclick="toggleMetric('dollar',this)" aria-pressed="false">
  <span class="mtoggle-switch" aria-hidden="true"></span>Convert to USD$
  </button>
+ <button type="button" class="mtoggle" id="toggleCapita" onclick="toggleMetric('capita',this)" aria-pressed="false">
+ <span class="mtoggle-switch" aria-hidden="true"></span>Per capita
+ </button>
  <span class="mtoggle-note" id="mtoggleNote"></span>
  <span id="mtoggleAnnounce" class="sr-only" role="status" aria-live="polite"></span>
 </div>
@@ -2173,6 +2185,10 @@ function tileNum(s){
   return s.replace(/(^|[^\w.])-(?=[\d.\u20ac$\u00a3\u00a5])/g,"$1\u2212");
 }
 function statTile(el, key, title, series, opts){
+  // v1.9.122: with Per capita on, the GDP tile is the latest complete calendar year, the same
+  // figure as the GDP per capita tile and Compare (never a part year, never one quarter's rate)
+  if(key === "gdp_level" && typeof PC_APPLIED !== "undefined" && PC_APPLIED.has("gdp_level") && series)
+    series = pcCalendarYears(PC_GDP_SERIES || series);
   // Headline section: 10 tiles at most, a hard limit (v1.6.2). Tiles are
   // added in priority order, so anything past the tenth is dropped.
   if(el && el.id === "hero" && el.querySelectorAll(":scope > .stat").length >= 10) return;
@@ -2230,7 +2246,7 @@ function statTile(el, key, title, series, opts){
         aria-label="${ledTitle}"></span>${tileNum(opts.fmt(last[1]))}</p>
       <p class="delta ${dir}"><span class="arrow" aria-hidden="true">${arrow}</span>
         ${(d=>((dShow>0&&!opts.signed&&String(d).charAt(0)!=="+")?"+":"")+tileNum(d))(opts.fmtD(dShow))} ${opts.vsText||"vs prior"}</p>
-      <p class="period">${fmtPeriod(last[0])}</p>
+      <p class="period">${fmtPeriod(last[0])}${(typeof PC_APPLIED !== "undefined" && PC_APPLIED.has(key)) ? " \u00b7 per person, " + String(last[0]).slice(0, 4) + " population" : ""}</p>
       <p class="source">${opts.source}</p>`;
   el.appendChild(div);
 }
@@ -2698,7 +2714,17 @@ function render(data){
 }
 /* ---------------------- Convert to USD$ / Adjust for inflation ---------------------- */
 let PAGE_DATA = null;
-const TOGGLE_STATE = { real:false, dollar:false };
+const TOGGLE_STATE = { real:false, dollar:false, capita:false };
+/* v1.9.122 per capita: keys whose displayed series is currently divided by population */
+const PC_APPLIED = new Set();
+function pcEligibleKeys(){ return (window.EA_PC && window.EA_PC.ELIGIBLE) || []; }
+function pcPopulation(){ const p = PAGE_DATA && PAGE_DATA.series && PAGE_DATA.series.population; return (p && p.points) || []; }
+// [[period, value], ...] -> per person, each period divided by its own year's population only.
+function pcSeries(series){
+  const r = window.EA_PC.divide(series.points.map(([x, y]) => ({x, y})), series.unit, pcPopulation());
+  return { series: {...series, points: r.pts.map(p => [p.x, p.y]), unit: r.unit}, dropped: r.droppedYears };
+}
+let PC_DROPPED = [], PC_GDP_SERIES = null;
 const CURRENCY_KEYS = ["gdp_level","gdp_real","net_debt","deficit","debt_interest","trade_balance","exports","imports","gdp_per_capita"];
 const CONTAINER_IDS = ["hero","tiles-gdp","tiles-inflation","tiles-labour","tiles-trade","tiles-public","tiles-markets",
                         "charts-headline","charts-gdp","charts-inflation","charts-labour","charts-trade","charts-public","charts-markets"];
@@ -2743,6 +2769,13 @@ const NATIVE_SYMBOL_OVERRIDE = null; // BUG FIX (Aug 2026 methodical pass): the
 // indicator-kit.js and generate_indicator_pages.py.
 function EA_group(s){ return String(s).replace(/^\d+/, function(n){ return n.replace(/\B(?=(\d{3})+(?!\d))/g, ","); }); }
 function curFmt(rawValue, unitStr, decimals){
+  // v1.9.122: per person values are whole currency units ("\u00a343,815"), never "\u00a30m"
+  if(/ per person$/.test(String(unitStr || ""))){
+    // the page's own symbol rules (A$, dollarised $) via its normal path: "A$1m" -> "A$"
+    const sym = curFmt(1, String(unitStr).replace(/ per person$/, "m"), 0).replace(/1m$/, "");
+    if(rawValue === 0) return sym + "0";
+    return (rawValue < 0 ? "\u2212" : "") + sym + Math.round(Math.abs(rawValue)).toLocaleString("en-GB");
+  }
   const scale = scaleOf(unitStr);
   let symbol = currencySymbol(unitStr);
   const isDollarised = TOGGLE_STATE.dollar && PAGE_DATA && PAGE_DATA.fx_to_usd;
@@ -3113,6 +3146,21 @@ function buildDisplaySeries(rawSeries){
     if(isCurrencyUnit(gu) && !isAlreadyUSD(gu, "gdp_level") && !foreignCurrencyOf(gu, PAGE_DATA.fx_to_usd))
       out.gdp_per_capita = {...convertSeriesToUSD(out.gdp_per_capita, PAGE_DATA.fx_to_usd), unit:"$"};
   }
+  // v1.9.122 per capita: last, after inflation and USD$, so it divides what is shown
+  PC_APPLIED.clear(); PC_DROPPED = []; PC_GDP_SERIES = null;
+  // Poland, Turkey: gdp_level may already be a trailing four-quarter sum (gdp_level_annual / gdp_real_annual)
+  const pcRolling = !!out.gdp_level && /trailing 4-quarter sum/i.test(String(out.gdp_level.label || ""));
+  if(TOGGLE_STATE.capita && window.EA_PC && pcPopulation().length){
+    const dropped = new Set();
+    pcEligibleKeys().forEach(k=>{
+      if(!out[k] || !Array.isArray(out[k].points) || !/(m|bn|tn)$/.test(String(out[k].unit || "").replace(/\s*\(.*\)\s*$/, ""))) return;
+      const r = pcSeries(out[k]);
+      if(!r.series.points.length) return;
+      out[k] = r.series; PC_APPLIED.add(k); r.dropped.forEach(y => dropped.add(y));
+    });
+    PC_DROPPED = [...dropped].sort();
+    if(PC_APPLIED.has("gdp_level")) PC_GDP_SERIES = {...out.gdp_level, pcRolling};   // the per person series the page shows
+  }
   return out;
 }
 // Announces the new on/off state via the visually-hidden live region
@@ -3123,7 +3171,7 @@ function buildDisplaySeries(rawSeries){
 function announceToggle(which, on){
   const el = document.getElementById("mtoggleAnnounce");
   if(!el) return;
-  const label = which === "real" ? "Adjust for inflation" : "Convert to USD$";
+  const label = which === "real" ? "Adjust for inflation" : which === "capita" ? "Per capita" : "Convert to USD$";
   el.textContent = label + ": " + (on ? "on" : "off");
 }
 function toggleMetric(which, el){
@@ -3195,14 +3243,27 @@ function rerender(){
     });
   }
   if(TOGGLE_STATE.real) notes.push("GDP shown in real terms (chained volume / constant prices)");
+  // v1.9.122 per capita: the button is off where there is no population (Taiwan); the note names dropped years
+  const capitaBtn = document.getElementById("toggleCapita");
+  if(capitaBtn){
+    const noPop = !pcPopulation().length || !window.EA_PC;
+    capitaBtn.disabled = noPop; capitaBtn.classList.toggle("disabled", noPop);
+    if(noPop){ capitaBtn.setAttribute("aria-disabled", "true"); capitaBtn.title = "Population not available for this economy"; TOGGLE_STATE.capita = false; capitaBtn.classList.remove("on"); capitaBtn.setAttribute("aria-pressed", "false"); }
+    else { capitaBtn.removeAttribute("aria-disabled"); capitaBtn.title = ""; }
+  }
   note.textContent = notes.join(" · ");
   CONTAINER_IDS.forEach(id=>{
     const el = document.getElementById(id);
     if(el) el.innerHTML = "";
   });
   const displaySeries = buildDisplaySeries(s);
+  if(TOGGLE_STATE.capita && window.EA_PC){
+    const pcNote = window.EA_PC.note(PC_DROPPED, window.EA_PC.latestYear(pcPopulation()), !pcPopulation().length);
+    note.textContent = note.textContent ? note.textContent + " \u00b7 " + pcNote : pcNote;
+  }
   render({...PAGE_DATA, series: displaySeries});
   applyToggleHighlighting();
+  applyPerCapitaHighlighting();
 }
 /* --------------------- toggle-affected metric highlighting ---------------
    Same mechanism as uk.html/us.html/germany.html, with one refinement:
@@ -3221,6 +3282,45 @@ function rerender(){
    tiles and .panel chart cards via their shared data-key attribute, and
    to the toggle buttons themselves. */
 const REAL_AFFECTED_KEYS = ["gdp_level"];
+/* v1.9.122 per capita glow, layered on applyToggleHighlighting's classes:
+   none -> coral, inflation -> orange, USD$ -> purple, inflation + USD$ -> brown. */
+function applyPerCapitaHighlighting(){
+  const on = TOGGLE_STATE.capita;
+  const combo = {"": "fx-pc", "fx-real": "fx-real-pc", "fx-dollar": "fx-dollar-pc", "fx-both": "fx-all"};
+  const prev = el => ["fx-real","fx-dollar","fx-both"].find(c => el.classList.contains(c)) || "";
+  document.querySelectorAll(".stat[data-key], .panel[data-key]").forEach(el=>{
+    el.classList.remove("fx-pc","fx-real-pc","fx-dollar-pc","fx-all");
+    if(!on || !PC_APPLIED.has(el.dataset.key)) return;
+    const p = prev(el); if(p) el.classList.remove(p);
+    el.classList.add(combo[p]);
+  });
+  const btns = ["toggleReal","toggleDollar","toggleCapita"].map(id => document.getElementById(id)).filter(Boolean);
+  btns.forEach(b => b.classList.remove("fx-pc","fx-real-pc","fx-dollar-pc","fx-all"));
+  if(!on) return;
+  const r = TOGGLE_STATE.real, d = TOGGLE_STATE.dollar;
+  const cls = r && d ? "fx-all" : r ? "fx-real-pc" : d ? "fx-dollar-pc" : "fx-pc";
+  btns.forEach(b => { if(b.id === "toggleCapita" || (b.id === "toggleReal" && r) || (b.id === "toggleDollar" && d)){ b.classList.remove("fx-real","fx-dollar","fx-both"); b.classList.add(cls); } });
+}
+/* v1.9.122: {year: GDP per person} for complete years only, as merge_population.py's
+   calendar_year_gdp: an annual figure, or all four quarters summed (averaged where quarters are
+   published at an annual rate: US, Japan). Each quarter was already divided by its own year's
+   population, so the sum or mean equals the year's GDP over that year's population. */
+const PC_ANNUAL_RATE = ["US", "Japan"];
+function pcCalendarYears(series){
+  const pts = (series.points || []).filter(p => p && p[1] != null && isFinite(p[1]));
+  if(series.freq === "years" || pts.every(p => /^\d{4}$/.test(String(p[0])))) return series;
+  if(series.pcRolling){   // a trailing four-quarter sum at Q4 is that calendar year
+    const q4 = pts.filter(p => /^\d{4}-Q4$/.test(String(p[0]))).map(p => [String(p[0]).slice(0, 4), p[1]]);
+    return q4.length ? {...series, points: q4, freq: "years"} : series;
+  }
+  const by = {};
+  pts.forEach(([per, v]) => { const m = /^(\d{4})-Q([1-4])$/.exec(String(per)); if(m) (by[m[1]] = by[m[1]] || {})[m[2]] = v; });
+  const out = Object.keys(by).sort().filter(y => Object.keys(by[y]).length === 4).map(y => {
+    const tot = Object.values(by[y]).reduce((a, b) => a + b, 0);
+    return [y, PC_ANNUAL_RATE.includes(COUNTRY_LABEL) ? tot / 4 : tot];
+  });
+  return out.length ? {...series, points: out, freq: "years"} : series;
+}
 function applyToggleHighlighting(){
   const realOn = TOGGLE_STATE.real, dollarOn = TOGGLE_STATE.dollar;
   const rawSeries = PAGE_DATA && PAGE_DATA.series;
@@ -5042,6 +5142,7 @@ document.querySelectorAll(".mtbtn").forEach(function(btn){
   });
 })();
 </script>
+<script src="percapita.js?v=3"></script>
 <script src="mobile.js?v=42" defer></script>
 </body>
 </html>

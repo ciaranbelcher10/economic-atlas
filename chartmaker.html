@@ -4583,6 +4583,7 @@ function czmSnapshotGeomH(){
   };
 }
 function czmBuildSVGSnapshotH(theme, forExport){
+  G.padL = CZM_BASE_PADL;   // v1.9.122: never inherit a widened margin from a vertical chart
   var t = THEMES[theme];
   var gm = czmSnapshotGeomH();
   var rows = czmEffectiveSnapshotRows();
@@ -4648,10 +4649,28 @@ function czmBuildBars(theme, forExport){
   return czmState.barOrient === "horizontal" ? czmBuildSVGSnapshotH(theme, forExport) : czmBuildSVGSnapshot(theme, forExport);
 }
 function czmBarGeom(){ return czmState && czmState.barOrient === "horizontal" ? czmSnapshotGeomH() : czmSnapshotGeom(); }
+// v1.9.122: the left margin grows to fit the widest y tick label, and the rotated axis title sits
+// clear of the labels ("Pounds sterling per person" ran through "\u00a340,000"). Screen and PNG share it.
+var CZM_BASE_PADL = 60;
+function czmYLabelWidth(gm){
+  var w = 0;
+  (gm.yTickValues || []).forEach(function(v){ w = Math.max(w, estProseWidth(czmAxisTickLabel(v, gm.yTickValues, czmState.fmtY), AFS())); });
+  return w;
+}
+function czmFitLeftPad(getGm){
+  G.padL = CZM_BASE_PADL;
+  var gm = getGm(), w = czmYLabelWidth(gm);
+  var titled = !!czmState.yTitle && czmState.yTitlePos !== "above";
+  var need = Math.ceil(w + (titled ? 36 : 16));
+  if(need > G.padL){ G.padL = need; gm = getGm(); w = czmYLabelWidth(gm); }
+  gm.yLabelW = w;
+  return gm;
+}
+function czmYTitleX(gm){ return Math.max(8, Math.min(16, G.padL - 10 - (gm.yLabelW || 0) - 10)); }
 function czmBuildSVGSnapshot(theme, forExport){
   var t = THEMES[theme];
   czmSetDataLabelDecimals(czmEffectiveSnapshotRows());
-  var gm = czmSnapshotGeom();
+  var gm = czmFitLeftPad(czmSnapshotGeom);
   var rows = czmEffectiveSnapshotRows();
   if(rows.length === 0) return "<svg xmlns=\'http://www.w3.org/2000/svg\' viewBox=\'0 0 " + G.W + " " + G.H + "\'></svg>";
   var svg = [];
@@ -4673,7 +4692,7 @@ function czmBuildSVGSnapshot(theme, forExport){
   if(czmState.yTitlePos === "above"){
     svg.push("<text x=\'4\' y=\'18\' font-size=\'11.5\' font-weight=\'600\' fill=\'" + t.ink2 + "\'>" + escapeXML(czmState.yTitle) + "</text>");
   } else {
-    var yTitleX = 16, yTitleY = gm.padT + gm.plotH / 2;
+    var yTitleX = czmYTitleX(gm), yTitleY = gm.padT + gm.plotH / 2;
     svg.push("<text x=\'" + yTitleX + "\' y=\'" + yTitleY + "\' font-size=\'11.5\' font-weight=\'600\' fill=\'" + t.ink2 + "\' text-anchor=\'middle\' transform=\'rotate(-90 " + yTitleX + " " + yTitleY + ")\'>" + escapeXML(czmState.yTitle) + "</text>");
   }
   if(czmState.refLine.enabled){
@@ -4828,7 +4847,7 @@ function czmAnnotationSVG(a, ai, gm, t, forExport){
 var cmxThumbSeq = 0; // thumbnails get their own clip ids; the main chart keeps a fixed one so its SVG is repeatable
 function czmBuildSVG(theme, forExport){
   var t = THEMES[theme];
-  var gm = czmGeom();
+  var gm = czmFitLeftPad(czmGeom);
   if(UNIFIED_DATES.length === 0) return "<svg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 " + G.W + " " + G.H + "'></svg>";
   var svg = [];
   // Deliberate, verbatim match to the real engine: it uses plain
@@ -4861,7 +4880,7 @@ function czmBuildSVG(theme, forExport){
   if(czmState.yTitlePos === "above"){
     svg.push("<text x='4' y='18' font-size='11.5' font-weight='600' fill='" + t.ink2 + "'>" + escapeXML(czmState.yTitle) + "</text>");
   } else {
-    var yTitleX = 16, yTitleY = gm.padT + gm.plotH / 2;
+    var yTitleX = czmYTitleX(gm), yTitleY = gm.padT + gm.plotH / 2;
     svg.push("<text x='" + yTitleX + "' y='" + yTitleY + "' font-size='11.5' font-weight='600' fill='" + t.ink2 + "' text-anchor='middle' transform='rotate(-90 " + yTitleX + " " + yTitleY + ")'>" + escapeXML(czmState.yTitle) + "</text>");
   }
   var xTickCount = Math.min(czmState.xTicks, UNIFIED_DATES.length);
@@ -6414,7 +6433,7 @@ loadAllCountryData().then(function(){
 })();
 </script>
 
-<script src="percapita.js?v=2"></script>
+<script src="percapita.js?v=3"></script>
 <script src="mobile.js?v=42" defer></script>
 </body>
 </html>

@@ -14,7 +14,8 @@
   "use strict";
 
   // Currency amounts only: per person makes no sense for rates, indices or percentages.
-  var ELIGIBLE = ["gdp_level", "gdp_real", "exports", "imports", "trade_balance", "net_debt", "debt_interest"];
+  // v1.9.122: deficit (government borrowing) added, decided 10 Nov 2026.
+  var ELIGIBLE = ["gdp_level", "gdp_real", "exports", "imports", "trade_balance", "net_debt", "debt_interest", "deficit"];
 
   function eligible(metric){ return ELIGIBLE.indexOf(metric) !== -1; }
 
