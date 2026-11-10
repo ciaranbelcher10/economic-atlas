@@ -19,6 +19,7 @@ for c, info in cat.items():
                 cases.append([v, e["unit"], e["key"], c, mode, out])
                 # display rules
                 k = g.unit_kind(e["unit"])
+                if e["unit"] == "people": k = "people"   # v1.9.124: population (v1.9.118) is a head count, not money
                 if k == "pct" and mode in ("value", "tip", "cell") and not out.endswith("%"): problems.append((c, e["key"], out))
                 if k == "pct" and mode == "delta" and not out.endswith("pp"): problems.append((c, e["key"], out))
                 if k == "cur" and mode != "delta" and not re.search(r"(tn|bn|m|k|\d)$", out): problems.append((c, e["key"], out))

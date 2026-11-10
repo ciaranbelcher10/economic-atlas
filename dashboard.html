@@ -100,6 +100,15 @@
 .tile.fx-both{ border-color:#2FA463 !important; box-shadow:0 0 0 2px rgba(47,164,99,.35); }
 button.mtoggle.fx-real{background:#E3B341; border-color:#E3B341; color:#171B1E;}
 button.mtoggle.fx-dollar{background:var(--blue); border-color:var(--blue); color:#fff;}
+/* v1.9.124 per capita: coral alone, orange with inflation, purple with USD$, brown with all three (as on country pages) */
+.tile.fx-pc{ border-color:#E06A5A !important; box-shadow:0 0 0 2px rgba(224,106,90,.35); }
+.tile.fx-real-pc{ border-color:#E8853A !important; box-shadow:0 0 0 2px rgba(232,133,58,.35); }
+.tile.fx-dollar-pc{ border-color:#8E63C9 !important; box-shadow:0 0 0 2px rgba(142,99,201,.35); }
+.tile.fx-all{ border-color:#8A5A3C !important; box-shadow:0 0 0 2px rgba(138,90,60,.35); }
+button.mtoggle.fx-pc{background:#E06A5A; border-color:#E06A5A; color:#fff;}
+button.mtoggle.fx-real-pc{background:#E8853A; border-color:#E8853A; color:#171B1E;}
+button.mtoggle.fx-dollar-pc{background:#8E63C9; border-color:#8E63C9; color:#fff;}
+button.mtoggle.fx-all{background:#8A5A3C; border-color:#8A5A3C; color:#fff;}
 button.mtoggle.fx-both{background:#2FA463; border-color:#2FA463; color:#fff;}
 .tile .remove{position:absolute; top:10px; right:10px; width:22px; height:22px; border-radius:50%;
   border:1px solid var(--hair); background:var(--paper); color:var(--ink2); font-size:13px; cursor:pointer;
@@ -612,6 +621,7 @@ footer.dash-foot{margin-top:36px; font-size:12.5px; color:var(--ink2); border-to
 </script>
 <script src="https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2.116.0"></script>
 <script src="chooser.js?v=2"></script>
+<script src="percapita.js?v=3"></script>
 <script>
 (function(){
   var SUPABASE_URL = "https://skluvrxnuibkordzgtmu.supabase.co";
@@ -1508,8 +1518,11 @@ footer.dash-foot{margin-top:36px; font-size:12.5px; color:var(--ink2); border-to
  <button type="button" class="mtoggle" id="dollariseBtn" aria-pressed="false">
  <span class="mtoggle-switch" aria-hidden="true"></span>Convert to USD$
  </button>
+ <button type="button" class="mtoggle" id="perCapitaBtn" aria-pressed="false">
+ <span class="mtoggle-switch" aria-hidden="true"></span>Per capita
+ </button>
  <button type="button" class="dash-d-info" id="dashInfoBtn" aria-label="What these switches do" aria-expanded="false" aria-controls="dashToggleNote">i</button>
- <span class="mtoggle-note" id="dashToggleNote">"Adjust for inflation" shows GDP level tiles inflation-adjusted. Convert to USD$ shows currency figures (GDP, debt, trade) in USD, using the same FX rates as each country's own page: each period at its own rate, and real GDP at its latest year's rate so its growth matches the published figure. Years before a currency had a market rate are left out.</span>
+ <span class="mtoggle-note" id="dashToggleNote">"Adjust for inflation" shows GDP level tiles inflation-adjusted. Convert to USD$ shows currency figures (GDP, debt, trade) in USD, using the same FX rates as each country's own page: each period at its own rate, and real GDP at its latest year's rate so its growth matches the published figure. Years before a currency had a market rate are left out. Per capita divides GDP, trade, debt and borrowing tiles by that same year's population (World Bank); GDP shows the latest complete calendar year, and years without a population figure are left out.</span>
  <span id="mtoggleAnnounce" class="sr-only" role="status" aria-live="polite"></span>
  <button type="button" class="dashexportbtn" id="exportDashboardBtn" style="margin-left:auto;">Export dashboard (PNG)</button>
  </div>
@@ -4130,7 +4143,9 @@ function isCurrencyUnit(u){
   // instead of curFmt's tn/bn/m auto-tiering -- this now recognises
   // both: an explicit scale suffix, OR a unit that's just a bare
   // currency symbol (starts with a non-alphanumeric character).
-  return /(m|bn|tn)$/.test(u) || /^[^a-zA-Z0-9]/.test(u);
+  // v1.9.124: or a bare ISO code ("RON", "PLN": GDP per capita in whole local units). Without this
+  // the GDP per capita tile printed "101467 RON" and was never converted by Convert to USD$.
+  return /(m|bn|tn)$/.test(u) || /^[^a-zA-Z0-9]/.test(u) || /^[A-Z]{3}$/.test(u);
 }
 // Rates and yields specifically use 2 decimal places everywhere on the
 // site (confirmed across all 8 country pages: boe_rate, fed_funds,
@@ -4142,6 +4157,10 @@ function isCurrencyUnit(u){
 var TWO_DECIMAL_KEYS = {boe_rate: 1, fed_funds: 1, ecb_rate: 1, boj_rate: 1, overnight_rate: 1, policy_rate: 1, bond_yield_10y: 1};
 function fmtVal(v, unit, key, country){
   if(!unit) return String(v);
+  if(/ per person$/.test(unit)){   // v1.9.124: whole currency units, the tile's own symbol
+    var sym = curFmt(1, unit.replace(/ per person$/, "m"), 1, country).replace(/1(\.0)?m$/, "");
+    return (v < 0 ? "\u2212" : "") + sym + Math.round(Math.abs(v)).toLocaleString("en-GB");
+  }
   if(/ per /.test(unit)) return fxFmtValue(v, unit.split(" per ")[0]);   // unit named in the tile title
   if(unit === "%") return v.toFixed(key && TWO_DECIMAL_KEYS[key] ? 2 : 1) + "%";
   if(unit === "people") return peopleFmt(v);
@@ -4168,6 +4187,38 @@ var MAKE_REAL_KEY = "eatlas_dashboard_make_real";
 var makeItReal = false;
 try { makeItReal = localStorage.getItem(MAKE_REAL_KEY) === "1"; } catch(e){}
 var REAL_AFFECTED_KEYS = ["gdp_level"];
+/* ------------------------------- Per capita (v1.9.124) -------------------------------
+   Same rule as the country pages, Compare and Chartmaker (percapita.js): each period is divided by
+   THAT year's population only; years without one are left out. Applied last, after inflation and
+   USD$. A GDP tile shows the latest complete calendar year, so it equals the GDP per capita tile. */
+var PER_CAPITA_KEY = "eatlas_dashboard_percapita";
+var perCapita = false;
+try { perCapita = localStorage.getItem(PER_CAPITA_KEY) === "1"; } catch(e){}
+function pcPopulation(country){
+  var p = REGISTRY[country] && REGISTRY[country].population;
+  return (p && p.points) || [];
+}
+function pcApplies(m){
+  var k = m.dataKey || m.key;
+  return !!(perCapita && window.EA_PC && window.EA_PC.eligible(m.key) && pcPopulation(m.country).length &&
+            isCurrencyUnit(m.series.unit) && !/ per /.test(String(m.series.unit)));
+}
+// [[period, value]] in display units -> per person; GDP keys reduced to complete calendar years first
+function pcPoints(m, pts, unit, calendar){
+  if(calendar && (m.key === "gdp_level" || m.key === "gdp_real")){
+    var q = pts.filter(function(p){ return /^\d{4}-Q[1-4]$/.test(String(p[0])); });
+    if(q.length){
+      var by = {};
+      q.forEach(function(p){ var y = String(p[0]).slice(0, 4); (by[y] = by[y] || {})[String(p[0]).slice(6)] = p[1]; });
+      var saar = SAAR_COUNTRIES[m.country];
+      pts = Object.keys(by).sort().filter(function(y){ return saar ? Object.keys(by[y]).length === 4 : by[y]["4"] != null; })
+        .map(function(y){ var v = Object.keys(by[y]).map(function(k){ return by[y][k]; });
+          return [y, saar ? v.reduce(function(a, b){ return a + b; }, 0) / v.length : by[y]["4"]]; });
+    }
+  }
+  var r = window.EA_PC.divide(pts.map(function(p){ return {x: p[0], y: p[1]}; }), unit, pcPopulation(m.country));
+  return {pts: r.pts.map(function(p){ return [p.x, p.y]; }), unit: r.unit, dropped: r.droppedYears};
+}
 // Converts a currency value from its own local unit to USD using that
 // country's real FX rate (same rate already used elsewhere on the
 // site), swapping the currency symbol but keeping the scale suffix
@@ -4185,7 +4236,7 @@ var REAL_AFFECTED_KEYS = ["gdp_level"];
 var DOLLAR_GLYPH_LOCAL_CURRENCY_COUNTRIES = {Australia:1, Canada:1, Mexico:1, "South Africa":1, Brazil:1};
 function isAlreadyUSD(unit, country, key){
   if((key === "gdp_level" || key === "gdp_real" || key === "gdp_real_annual" || key === "trade_balance" ||
-      key === "exports" || key === "imports") &&
+      key === "exports" || key === "imports" || key === "gdp_per_capita") &&   // v1.9.124: GDP per capita is local currency too
      country && DOLLAR_GLYPH_LOCAL_CURRENCY_COUNTRIES[country]){
     return false;
   }
@@ -4201,7 +4252,7 @@ function toDisplayUnit(value, unit, country, key, period){
   // (CLPm, COPm, PLNm, etc), same bug already found and fixed on every
   // individual country page's convertSeriesToUSD(). Never touched here
   // until now.
-  var scaleSuffix = unit.replace(/^(?:[A-Za-z]+(?=(?:m|bn|tn)$)|[^a-zA-Z0-9]+)/, "");
+  var scaleSuffix = unit.replace(/^(?:[A-Z]{3}$|[A-Za-z]+(?=(?:m|bn|tn)$)|[^a-zA-Z0-9]+)/, "");   // v1.9.124: bare code too
   var rate = usdRateFor(country, key, period);
   if(rate === null) return {value: null, unit: "$" + scaleSuffix};
   var converted = fx.direction === "multiply" ? value * rate : value / rate;
@@ -4363,6 +4414,7 @@ function expandTile(tile, id, m){
     var dk = m.dataKey || m.key;
     var pts = toDisplayPoints(effectivePoints(m.country, dk, m.series), m.series.unit, m.country, dk);
     var chartUnit = toDisplayUnit(0, m.series.unit, m.country, dk, m.period).unit;
+    if(pcApplies(m)){ var pcc = pcPoints(m, pts, chartUnit, false); pts = pcc.pts; chartUnit = pcc.unit; }   // v1.9.124
     var kind = BAR_KEYS[m.key] ? "bar" : "line";
     var refLine = REF_LINE_FOR[m.key] == null ? null : REF_LINE_FOR[m.key];
     var fmt = function(v){ return fmtVal(v, chartUnit, m.key, m.country); };
@@ -4644,6 +4696,22 @@ function renderDash(){
     var m = tileFromId(id);
     if(!m) return;
     var disp = toDisplayUnit(m.value, m.series.unit, m.country, m.dataKey || m.key, m.period);
+    var pcPeriod = null;
+    if(pcApplies(m)){
+      var pdk = m.dataKey || m.key;
+      var pc = pcPoints(m, toDisplayPoints(effectivePoints(m.country, pdk === "gdp_real_annual" ? "gdp_real" : pdk, m.series), m.series.unit, m.country, pdk), disp.unit, true);
+      var pl = pc.pts[pc.pts.length - 1];
+      // In US$, GDP per person is the local-currency figure converted at that year's average rate,
+      // the same number as the GDP per capita tile, Compare and the country page (never a sum of
+      // quarters each at its own rate, and never a trailing sum at one quarter's rate).
+      if(pl && /^gdp_level$/.test(m.key) && !makeItReal && dollarise && isCurrencyUnit(m.series.unit) && !isAlreadyUSD(m.series.unit, m.country, pdk)){
+        var nat = pcPoints(m, effectivePoints(m.country, pdk, m.series), m.series.unit, true);
+        var nl = nat.pts[nat.pts.length - 1], fx = FX_RATES[m.country], rate = nl ? usdRateFor(m.country, pdk, nl[0]) : null;
+        pl = (nl && fx && rate != null) ? [nl[0], fx.direction === "multiply" ? Math.round(nl[1]) * rate : Math.round(nl[1]) / rate] : null;   // whole local units first, as stored
+        pc.unit = "$ per person";
+      }
+      if(pl){ disp = {value: pl[1], unit: pc.unit}; pcPeriod = pl[0]; }
+    }
     var led = freshness(m.series);
     var ledTitle = freshnessTitle(m.series);
     // "Did this tile actually get converted?" must be checked the same
@@ -4667,7 +4735,7 @@ function renderDash(){
       + "<p class=\"country\">" + m.country + "</p>"
       + "<div class=\"tile-label-row\" style=\"display:flex; align-items:center; gap:2px;\"><p class=\"label\" style=\"margin:0;\">" + m.series.label + (actuallyConverted ? " (USD)" : "") + "</p>" + infoIconHtml(m.country, m.dataKey || m.key) + "</div>"
       + "<p class=\"value\"><span class=\"led " + led + "\" title=\"" + ledTitle + "\" role=\"img\" aria-label=\"" + ledTitle + "\"></span>" + fmtVal(disp.value, disp.unit, m.key, m.country) + "</p>"
-      + "<p class=\"period\">" + fmtPeriod(m.period) + "</p>"
+      + "<p class=\"period\">" + (pcPeriod ? fmtPeriod(pcPeriod) + " \u00b7 per person, " + String(pcPeriod).slice(0, 4) + " population" : fmtPeriod(m.period)) + "</p>"
       + "<div class=\"chartactions\">"
       + "<button type=\"button\" class=\"chartbtn\">&#128200; View chart</button>"
       + "<button type=\"button\" class=\"fullscreenbtn\" aria-label=\"Fullscreen chart\" title=\"Fullscreen\">&#9974; Fullscreen</button>"
@@ -4805,7 +4873,9 @@ function applyDashToggleHighlighting(){
     if(!m) return;
     var dollarHit = dollarise && isCurrencyUnit(m.series.unit) && !isAlreadyUSD(m.series.unit, m.country, m.dataKey || m.key);
     var realHit = makeItReal && REAL_AFFECTED_KEYS.indexOf(key) !== -1;
-    if(realHit && dollarHit) tile.classList.add("fx-both");
+    tile.classList.remove("fx-pc", "fx-real-pc", "fx-dollar-pc", "fx-all");
+    if(pcApplies(m)) tile.classList.add(realHit && dollarHit ? "fx-all" : realHit ? "fx-real-pc" : dollarHit ? "fx-dollar-pc" : "fx-pc");
+    else if(realHit && dollarHit) tile.classList.add("fx-both");
     else if(realHit) tile.classList.add("fx-real");
     else if(dollarHit) tile.classList.add("fx-dollar");
   });
@@ -4818,6 +4888,13 @@ function applyDashToggleHighlighting(){
   } else {
     if(makeItReal && realBtn) realBtn.classList.add("fx-real");
     if(dollarise && dollarBtn) dollarBtn.classList.add("fx-dollar");
+  }
+  var pcBtn = document.getElementById("perCapitaBtn");
+  [realBtn, dollarBtn, pcBtn].forEach(function(b){ if(b) b.classList.remove("fx-pc", "fx-real-pc", "fx-dollar-pc", "fx-all"); });
+  if(perCapita && pcBtn){
+    var pcc = makeItReal && dollarise ? "fx-all" : makeItReal ? "fx-real-pc" : dollarise ? "fx-dollar-pc" : "fx-pc";
+    [pcBtn, makeItReal ? realBtn : null, dollarise ? dollarBtn : null].forEach(function(b){
+      if(b){ b.classList.remove("fx-real", "fx-dollar", "fx-both"); b.classList.add(pcc); } });
   }
 }
 /* -------------------------------- picker ----------------------------------- */
@@ -4894,6 +4971,7 @@ loadAll().then(function(){
       var xdk = m.dataKey || m.key;
       var pts = toDisplayPoints(effectivePoints(m.country, xdk, m.series), m.series.unit, m.country, xdk);
       var chartUnit = toDisplayUnit(0, m.series.unit, m.country, xdk, m.period).unit;
+      if(pcApplies(m)){ var pcc = pcPoints(m, pts, chartUnit, false); pts = pcc.pts; chartUnit = pcc.unit; }   // v1.9.124
       var kind = BAR_KEYS[m.key] ? "bar" : "line";
       var refLine = REF_LINE_FOR[m.key] == null ? null : REF_LINE_FOR[m.key];
       var fmt = function(v){ return fmtVal(v, chartUnit, m.key, m.country); };
@@ -4983,7 +5061,7 @@ loadAll().then(function(){
   function announceToggle(which, on){
     var el = document.getElementById("mtoggleAnnounce");
     if(!el) return;
-    var label = which === "real" ? "Adjust for inflation" : "Convert to USD$";
+    var label = which === "real" ? "Adjust for inflation" : which === "capita" ? "Per capita" : "Convert to USD$";
     el.textContent = label + ": " + (on ? "on" : "off");
   }
   var dollarBtn = document.getElementById("dollariseBtn");
@@ -5001,6 +5079,21 @@ loadAll().then(function(){
     // already open needs its chart torn down and rebuilt with the newly
     // converted (or reverted) points -- simplest correct way to do that
     // is to re-render the whole grid, same as adding or removing a tile.
+    Object.keys(tileCharts).forEach(function(id){ tileCharts[id].destroy(); });
+    tileCharts = {};
+    renderDash();
+  });
+  var pcBtnEl = document.getElementById("perCapitaBtn");
+  function updatePcBtn(){
+    pcBtnEl.classList.toggle("on", perCapita);
+    pcBtnEl.setAttribute("aria-pressed", String(perCapita));
+  }
+  updatePcBtn();
+  pcBtnEl.addEventListener("click", function(){
+    perCapita = !perCapita;
+    try { localStorage.setItem(PER_CAPITA_KEY, perCapita ? "1" : "0"); } catch(e){}
+    updatePcBtn();
+    announceToggle("capita", perCapita);
     Object.keys(tileCharts).forEach(function(id){ tileCharts[id].destroy(); });
     tileCharts = {};
     renderDash();

@@ -20,7 +20,7 @@
   var MINUS = "\u2212";
   var RATE_KEYS = {boe_rate:1, fed_funds:1, ecb_rate:1, boj_rate:1, overnight_rate:1, policy_rate:1, bond_yield_10y:1};
   var NATIVE_DOLLAR = {Australia:"A$", Brazil:"R$", Canada:"C$", Mexico:"MX$", "South Africa":"R"};
-  var NATIVE_KEYS = {gdp_level:1, gdp_real:1, trade_balance:1, exports:1, imports:1};
+  var NATIVE_KEYS = {gdp_level:1, gdp_real:1, trade_balance:1, exports:1, imports:1, gdp_per_capita:1};   // v1.9.124: as the Python NATIVE_KEYS
   var STALE_DAYS = {months:75, quarters:150, years:660};
 
   function cleanUnit(u){ return String(u || "").replace(/\s*\([^)]*\)\s*$/, "").trim(); }
@@ -211,8 +211,19 @@
       var pts = state.real_on && state.real ? state.real : state.nominal;
       var unit = state.real_on && state.real ? (cfg.realUnit || cfg.unit) : cfg.unit;
       var dollarised = false;
-      if(state.dollar_on && state.fx){ pts = toUSD(pts, state.fx); unit = usdUnit(unit); dollarised = true; }
+      var pcUsdYear = !!(state.pc_on && cfg.population && window.EA_PC && cfg.annualise && cfg.key === "gdp_level" &&
+                         !(state.real_on && state.real) && state.dollar_on && state.fx);
+      if(state.dollar_on && state.fx && !pcUsdYear){ pts = toUSD(pts, state.fx); unit = usdUnit(unit); dollarised = true; }
       var pcNote = null;
+      if(pcUsdYear){
+        // v1.9.124: GDP per person in US$ = the calendar-year local figure at that year's average rate,
+        // the same number as the GDP per capita page, Compare, the Dashboard and the country page.
+        var ry = window.EA_PC.divide(calendarYears(pts, cfg.gdpRaw).map(function(p){ return {x: p[0], y: p[1]}; }), unit, cfg.population);
+        pts = toUSD(ry.pts.map(function(p){ return [p.x, Math.round(p.y)]; }), state.fx);   // whole local units first, as stored
+        unit = "$ per person"; dollarised = true;
+        pcNote = window.EA_PC.note(ry.droppedYears, window.EA_PC.latestYear(cfg.population), false);
+        return {pts: pts, unit: unit, dollarised: dollarised, pcNote: pcNote};
+      }
       if(state.pc_on && cfg.population && window.EA_PC){
         // GDP pages show annual figures: per capita uses complete calendar years only, the same
         // figure as the GDP per capita page and the country page tile (trailing four-quarter sum

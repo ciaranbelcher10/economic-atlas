@@ -3842,7 +3842,12 @@ function getSnapshotValue(country, concept, year){
     if(percapOn(concept)){
       var pop = popForYear(country, year);
       if(!pop) return null;
-      usdVal = usdVal / pop; perPerson = true;
+      // v1.9.124: whole local units per person first, then the card's currency, exactly as the stored
+      // GDP per capita series and every other surface do, so all print the same dollar figure.
+      var sc = EA_PC.scaleOf(agg.unit);
+      usdVal = toCardMillions(country, Math.round(agg.value * sc / pop) / sc, agg.unit, concept, String(year));
+      if(usdVal == null) return null;
+      perPerson = true;
     }
     // Per-person figures stay in $m units (curFmt prints them whole), so keep full precision.
     return {value: perPerson ? usdVal : Math.round(usdVal*100)/100, isDelta:false, isCumulative:false, year: year, unit: "currency", rawUnit: cardUnit(concept), perPerson: perPerson};

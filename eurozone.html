@@ -2072,7 +2072,7 @@ function statTile(el, key, title, series, opts){
   // v1.9.122: with Per capita on, the GDP tile is the latest complete calendar year, the same
   // figure as the GDP per capita tile and Compare (never a part year, never one quarter's rate)
   if(key === "gdp_level" && typeof PC_APPLIED !== "undefined" && PC_APPLIED.has("gdp_level") && series)
-    series = pcCalendarYears(PC_GDP_SERIES || series);
+    series = PC_GDP_CAL || pcCalendarYears(PC_GDP_SERIES || series);
   // Headline section: 10 tiles at most, a hard limit (v1.6.2). Tiles are
   // added in priority order, so anything past the tenth is dropped.
   if(el && el.id === "hero" && el.querySelectorAll(":scope > .stat").length >= 10) return;
@@ -2606,7 +2606,7 @@ function pcSeries(series){
   const r = window.EA_PC.divide(series.points.map(([x, y]) => ({x, y})), series.unit, pcPopulation());
   return { series: {...series, points: r.pts.map(p => [p.x, p.y]), unit: r.unit}, dropped: r.droppedYears };
 }
-let PC_DROPPED = [], PC_GDP_SERIES = null;
+let PC_DROPPED = [], PC_GDP_SERIES = null, PC_GDP_CAL = null;
 const CURRENCY_KEYS = ["gdp_level","gdp_real","net_debt","deficit","debt_interest","trade_balance","exports","imports","gdp_per_capita"];
 const CONTAINER_IDS = ["hero","tiles-gdp","tiles-inflation","tiles-labour","tiles-trade","tiles-public","tiles-markets",
                         "charts-headline","charts-gdp","charts-inflation","charts-labour","charts-trade","charts-public","charts-markets"];
@@ -3006,7 +3006,7 @@ function buildDisplaySeries(rawSeries){
       out.gdp_per_capita = {...convertSeriesToUSD(out.gdp_per_capita, PAGE_DATA.fx_to_usd), unit:"$"};
   }
   // v1.9.122 per capita: last, after inflation and USD$, so it divides what is shown
-  PC_APPLIED.clear(); PC_DROPPED = []; PC_GDP_SERIES = null;
+  PC_APPLIED.clear(); PC_DROPPED = []; PC_GDP_SERIES = null; PC_GDP_CAL = null;
   // Poland, Turkey: gdp_level may already be a trailing four-quarter sum (gdp_level_annual / gdp_real_annual)
   const pcRolling = !!out.gdp_level && /trailing 4-quarter sum/i.test(String(out.gdp_level.label || ""));
   if(TOGGLE_STATE.capita && window.EA_PC && pcPopulation().length){
@@ -3019,6 +3019,16 @@ function buildDisplaySeries(rawSeries){
     });
     PC_DROPPED = [...dropped].sort();
     if(PC_APPLIED.has("gdp_level")) PC_GDP_SERIES = {...out.gdp_level, pcRolling};   // the per person series the page shows
+    // v1.9.124 per capita US$: nominal GDP per person in US$ = the calendar-year local figure at that year's average
+    // rate (the GDP per capita tile's own conversion), not a sum of quarters each at its own rate.
+    if(PC_GDP_SERIES && TOGGLE_STATE.dollar && !TOGGLE_STATE.real && PAGE_DATA.fx_to_usd){
+      const g0 = (pcRolling && rawSeries.gdp_level_annual) ? rawSeries.gdp_level_annual : rawSeries.gdp_level;
+      if(g0 && isCurrencyUnit(g0.unit) && !isAlreadyUSD(g0.unit, "gdp_level") && !foreignCurrencyOf(g0.unit, PAGE_DATA.fx_to_usd)){
+        const cal = pcCalendarYears({...pcSeries(g0).series, pcRolling});
+        // whole local units first, as the stored GDP per capita series is, so the dollar figure matches to the dollar
+        if(cal.freq === "years") PC_GDP_CAL = {...convertSeriesToUSD({...cal, unit: "\u00a4", points: cal.points.map(([p, v]) => [p, Math.round(v)])}, PAGE_DATA.fx_to_usd), unit: "$ per person"};
+      }
+    }
   }
   return out;
 }

@@ -37,7 +37,9 @@ const read = f => fs.readFileSync(path.join(ROOT, f), "utf8");
     const file = { UK: "data-uk.json", US: "data-us.json", Germany: "data-de.json", Japan: "data-jp.json" }[c];
     const pop = PC.popIndex(JSON.parse(read(file)).series.population.points)[String(t.year)];
     if (!pop) { ok(dv == null, `Compare: ${c} ${t.year} has no population, so no per-person figure`); continue; }
-    ok(dv && Math.abs(dv.value - t.value / pop) <= Math.abs(t.value / pop) * 1e-6, `Compare: ${c} ${t.year} = total / that year's population (${dv && dv.value} vs ${t.value / pop})`);
+    // v1.9.124: per person is rounded to whole local units before conversion (as the stored GDP per capita
+    // series is), so allow up to one dollar ($m units) rather than 1e-6 relative.
+    ok(dv && Math.abs(dv.value - t.value / pop) <= 1e-6, `Compare: ${c} ${t.year} = total / that year's population (${dv && dv.value} vs ${t.value / pop})`);
     const s = api.displayString(dv);
     ok(/^\$\d{1,3}(,\d{3})+$/.test(s), `Compare: ${c} per-person figure printed whole (${s})`);
     compared++;
