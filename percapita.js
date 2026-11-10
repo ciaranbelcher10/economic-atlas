@@ -70,9 +70,18 @@
   }
 
   // "2026" / "2025 and 2026" / "2024, 2025 and 2026"
+  // v1.9.121: a run of three or more consecutive years reads "1955 to 1959"; every missing year is still named.
   function listYears(ys){
-    if(ys.length <= 1) return ys.join("");
-    return ys.slice(0, -1).join(", ") + " and " + ys[ys.length - 1];
+    var parts = [], i = 0;
+    while(i < ys.length){
+      var j = i;
+      while(j + 1 < ys.length && Number(ys[j + 1]) === Number(ys[j]) + 1) j++;
+      if(j - i >= 2) parts.push(ys[i] + " to " + ys[j]);
+      else for(var k = i; k <= j; k++) parts.push(ys[k]);
+      i = j + 1;
+    }
+    if(parts.length <= 1) return parts.join("");
+    return parts.slice(0, -1).join(", ") + " and " + parts[parts.length - 1];
   }
 
   /* The note shown under a chart or table when per capita is on.
@@ -92,7 +101,7 @@
     return ks.length ? ks[ks.length - 1] : null;
   }
 
-  var api = { ELIGIBLE: ELIGIBLE, eligible: eligible, scaleOf: scaleOf, unitLabel: unitLabel,
+  var api = { listYears: listYears, ELIGIBLE: ELIGIBLE, eligible: eligible, scaleOf: scaleOf, unitLabel: unitLabel,
               popIndex: popIndex, divide: divide, note: note, latestYear: latestYear };
   if(typeof module !== "undefined" && module.exports) module.exports = api;
   else root.EA_PC = api;

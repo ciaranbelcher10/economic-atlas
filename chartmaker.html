@@ -3845,6 +3845,9 @@ function syncAutoYAxisTitle(){
   if(unitKeys.length === 1){
     text = UNIT_AXIS_LABEL[unitKeys[0]] || (series.every(function(s){ return isCurrencySeries(s) && s.transform === "raw"; }) ? currencyAxisTitle() : "");
   }
+  // v1.9.121: a per capita axis says so, so the line is never read as the total
+  var live = series.filter(function(s){ return !s.missing; });
+  if(text && live.length && live.every(function(s){ return s.display && s.display.perCapita; })) text += " per person";
   style.yAxisTitle = text;
   document.getElementById("cmYAxisTitle").value = text;
 }
@@ -4283,6 +4286,9 @@ function czmAxisBounds(rawMin, rawMax, stepIdx, useLog, centerAroundRef, refLine
   }
   var stepCandidates = niceStepCandidates(rawMin, rawMax);
   var sIdx = Math.max(0, Math.min(stepCandidates.length - 1, stepIdx));
+  // v1.9.121: never an axis of just two labels (e.g. £0 and £100,000 under a per capita line): an index
+  // left over from other magnitudes, or reset while data was still loading, falls back to the default
+  if(niceTicksFromStep(rawMin, rawMax, stepCandidates[sIdx]).ticks.length < 3) sIdx = defaultStepIdxFor(rawMin, rawMax, 5);
   var nice = niceTicksFromStep(rawMin, rawMax, stepCandidates[sIdx]);
   return { minV: nice.min, maxV: nice.max, ticks: nice.ticks };
 }
@@ -5092,7 +5098,9 @@ function currentYTickStep(){
   var r = currentAxisRange();
   if(!r) return null;
   var c = niceStepCandidates(r.lo, r.hi);
-  return c[Math.max(0, Math.min(c.length - 1, yTickStepIdx))];
+  var i = Math.max(0, Math.min(c.length - 1, yTickStepIdx));
+  if(niceTicksFromStep(r.lo, r.hi, c[i]).ticks.length < 3) i = defaultStepIdxFor(r.lo, r.hi, 5);   // v1.9.121: as czmAxisBounds
+  return c[i];
 }
 // Put the axis back the way it was saved: the saved step if today's candidates still offer it (or the
 // nearest), else the saved index, else the sensible default for this range.
@@ -6406,7 +6414,7 @@ loadAllCountryData().then(function(){
 })();
 </script>
 
-<script src="percapita.js?v=1"></script>
+<script src="percapita.js?v=2"></script>
 <script src="mobile.js?v=42" defer></script>
 </body>
 </html>
