@@ -44,7 +44,10 @@ SITE_URL = "https://theeconomicatlas.com"
 # underlying official statistics, which stay with their publishers.
 CREATOR = {"@type": "Organization", "name": "The Economic Atlas", "url": SITE_URL}
 LICENSE = f"{SITE_URL}/terms"
-KIT_VERSION = "10"
+KIT_VERSION = "11"
+PERCAPITA_VERSION = "3"
+# v1.9.123: must match percapita.js ELIGIBLE
+PC_ELIGIBLE = {"gdp_level", "gdp_real", "exports", "imports", "trade_balance", "net_debt", "debt_interest", "deficit"}
 
 # country display name -> (data-file code, page slug, alpha-2, region)
 COUNTRIES = {
@@ -1774,9 +1777,26 @@ def render_indicator(country, info, entry, rank_info, all_rankings_meta, n_indic
         if btns:
             toggles_html = '<div class="ind-toggles" aria-label="Display options">' + "".join(btns) + "</div>"
 
+    # v1.9.123 Per capita: currency metrics only (percapita.js ELIGIBLE), where population exists.
+    # Each period is divided by that year's population only; years without one are dropped and named.
+    pc_pop = None
+    if key in PC_ELIGIBLE and re.search(r"(tn|bn|m|k)$", re.sub(r"\s*\(.*\)\s*$", "", str(unit or ""))):
+        pop = (info["data"].get("series", {}).get("population") or {}).get("points") or []
+        pop = [[str(y), v] for y, v in pop if v]
+        if pop:
+            pc_pop = pop
+            pc_btn = ('<button type="button" class="mtoggle" id="indTogglePc" aria-pressed="false">'
+                      '<span class="mtoggle-switch" aria-hidden="true"></span>Per capita</button>')
+            if toggles_html:
+                toggles_html = toggles_html[:-len("</div>")] + pc_btn + "</div>"
+            else:
+                toggles_html = '<div class="ind-toggles" aria-label="Display options">' + pc_btn + "</div>"
+            toggles_html += '<p class="ind-pc-note" id="indPcNote" style="margin:-6px 0 14px;font-size:13px;color:var(--ink2,#5A6167)" hidden></p>'
+
     cfg = dict(key=key, country=country, unit=unit, freq=freq, upIsGood=entry["up"], chart=m["chart"],
                annualise=bool(m.get("ann")), gdpRaw=country in GDP_RAW_COUNTRIES, dataUrl=f"../{data_file}",
-               points=pts, realPoints=real_pts, realUnit=real_unit, realKey=("gdp_real" if real_pts else None), fx=fx)
+               points=pts, realPoints=real_pts, realUnit=real_unit, realKey=("gdp_real" if real_pts else None), fx=fx,
+               population=pc_pop)
 
     # related tiles, grouped by category
     tiles, last_cat = [], None
@@ -1921,6 +1941,8 @@ def render_indicator(country, info, entry, rank_info, all_rankings_meta, n_indic
     cfg["title"] = f"{country} {title}"
     cfg["srcNote"] = source_text
     boot = f"<script>EATLAS_IND.initIndicator({json.dumps(cfg, ensure_ascii=False)});</script>"
+    if pc_pop:
+        boot = f'<script src="../percapita.js?v={PERCAPITA_VERSION}"></script>\n' + boot
     html_out += page_tail(boot + "\n" + cz_script, cz_modal)
     return page_slug, html_out
 

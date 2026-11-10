@@ -26,6 +26,7 @@
   function cleanUnit(u){ return String(u || "").replace(/\s*\([^)]*\)\s*$/, "").trim(); }
   function unitKind(u){
     var c = cleanUnit(u);
+    if(/ per person$/.test(c)) return "pp";   // v1.9.123: before the " per " FX test
     if(c.indexOf(" per ") > -1) return "fx";
     if(c.indexOf("%") > -1) return "pct";
     if(c === "index" || c === "") return "index";
@@ -90,6 +91,12 @@
       if(mode === "delta") return sign + quote + num;
       if(mode === "cell") return quote + num;
       return quote + num + " per " + base;
+    }
+    if(kind === "pp"){   // v1.9.123 per person: whole units, "£43,815", never "£0m"
+      var psym = symbolOf(cleanUnit(o.unit).replace(/ per person$/, "m"), o.key, o.country, o.dollarised);
+      var pn = Math.round(a).toString().replace(/\B(?=(\d{3})+(?!\d))/g, ",");
+      if(mode === "axis" && a >= 1e5) pn = trim((a/1e3).toFixed(0)) + "k";
+      return sign + psym + pn;
     }
     var sym = symbolOf(o.unit, o.key, o.country, o.dollarised);
     var abs = a * scaleOf(o.unit);
@@ -197,7 +204,7 @@
   /* ------------------------------------------------------------------ */
   function initIndicator(cfg){
     var state = {nominal: cfg.points, real: cfg.realPoints || null, fx: cfg.fx || null,
-                 real_on: false, dollar_on: false, range: "max"};
+                 real_on: false, dollar_on: false, pc_on: false, range: "max"};
     var chart = null;
 
     function current(){
@@ -205,7 +212,27 @@
       var unit = state.real_on && state.real ? (cfg.realUnit || cfg.unit) : cfg.unit;
       var dollarised = false;
       if(state.dollar_on && state.fx){ pts = toUSD(pts, state.fx); unit = usdUnit(unit); dollarised = true; }
-      return {pts: pts, unit: unit, dollarised: dollarised};
+      var pcNote = null;
+      if(state.pc_on && cfg.population && window.EA_PC){
+        // GDP pages show annual figures: per capita uses complete calendar years only, the same
+        // figure as the GDP per capita page and the country page tile (trailing four-quarter sum
+        // at Q4, or the mean of four annual-rate quarters for US/Japan).
+        if(cfg.annualise) pts = calendarYears(pts, cfg.gdpRaw);
+        var r = window.EA_PC.divide(pts.map(function(p){ return {x: p[0], y: p[1]}; }), unit, cfg.population);
+        pts = r.pts.map(function(p){ return [p.x, p.y]; });
+        unit = r.unit;
+        pcNote = window.EA_PC.note(r.droppedYears, window.EA_PC.latestYear(cfg.population), false);
+      }
+      return {pts: pts, unit: unit, dollarised: dollarised, pcNote: pcNote};
+    }
+    function calendarYears(pts, raw){
+      var q = pts.filter(function(p){ return /^\d{4}-Q[1-4]$/.test(p[0]); });
+      if(!q.length) return pts;   // already annual
+      var by = {};
+      q.forEach(function(p){ (by[p[0].slice(0,4)] = by[p[0].slice(0,4)] || {})[p[0].slice(6)] = p[1]; });
+      return Object.keys(by).sort().filter(function(y){ return raw ? Object.keys(by[y]).length === 4 : by[y]["4"] != null; })
+        .map(function(y){ var v = Object.keys(by[y]).map(function(k){ return by[y][k]; });
+          return [y, raw ? v.reduce(function(a, b){ return a + b; }, 0) / v.length : by[y]["4"]]; });
     }
     function fo(unit, dollarised, mode){
       return {unit: unit, key: cfg.key, country: cfg.country, dollarised: dollarised, mode: mode};
@@ -263,6 +290,8 @@
     }
     function paint(){
       var c = current(), pts = c.pts;
+      var pcn = document.getElementById("indPcNote");
+      if(pcn){ pcn.hidden = !c.pcNote; pcn.textContent = c.pcNote || ""; }
       if(!pts || pts.length < 2) return;
       var last = pts[pts.length-1], prev = pts[pts.length-2];
       var fig = document.getElementById("indFigure");
@@ -302,7 +331,7 @@
       if(!box) return;
       box.innerHTML = '<a class="lockedbtn dl-btn" href="../contact" data-tip="Create a free account to unlock this feature."><span class="lockicon">&#128274;</span> Download data</a>'
         + '<a class="lockedbtn cz-btn" href="../contact" data-tip="Create a free account to unlock this feature."><span class="lockicon">&#128274;</span> Customise &amp; export</a>';
-      var title = cfg.title + (state.real_on && state.real ? " (real)" : "") + (dollarised ? " (US$)" : "");
+      var title = cfg.title + (state.real_on && state.real ? " (real)" : "") + (dollarised ? " (US$)" : "") + (state.pc_on && cfg.population ? " per person" : "");
       var fmtY = function(v){ return fmtNum(v, fo(unit, dollarised, "axis")); };
       var dl = box.querySelector(".dl-btn"), cz = box.querySelector(".cz-btn");
       if(window.EATLAS_DOWNLOAD) window.EATLAS_DOWNLOAD.wire(dl, pts, title);
@@ -320,7 +349,7 @@
     // v1.9.66: on phones a long history opens on 10 years, so the bars are readable; Max is one tap away
     var b10 = document.querySelector('[data-range="10"]');
     if(b10 && window.matchMedia && window.matchMedia("(max-width: 700px)").matches) b10.click();
-    [["indToggleReal", "real_on"], ["indToggleDollar", "dollar_on"]].forEach(function(t){
+    [["indToggleReal", "real_on"], ["indToggleDollar", "dollar_on"], ["indTogglePc", "pc_on"]].forEach(function(t){
       var b = document.getElementById(t[0]);
       if(!b) return;
       b.addEventListener("click", function(){
