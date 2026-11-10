@@ -2617,7 +2617,7 @@ function applyPerCapita(country, metric, out, percap){
   out.perCapita = false; out.pcDroppedYears = []; out.pcNoPop = false;
   if(!percap || !window.EA_PC || !EA_PC.eligible(metric)) return out;
   var pop = getSeries(country, "population");
-  var r = EA_PC.divide(out.pts, out.unit, pop ? pop.points.map(function(p){ return [p.x, p.y]; }) : []);
+  var r = EA_PC.divide(out.pts, out.unit, pop ? pop.points : []   /* v1.9.120: REGISTRY points are already [period, value] pairs */);
   if(!r.ok){ out.pcNoPop = true; out.pts = []; return out; }
   out.pts = r.pts; out.unit = String(out.unit).replace(/\s*\(.*\)\s*$/, "").trim().replace(/(tn|bn|m|k)$/, "");
   out.perCapita = true; out.pcDroppedYears = r.droppedYears;
@@ -2781,7 +2781,11 @@ function updateToggleUI(){
     pcBtn.classList.toggle("fx-pc", TOGGLE_STATE.percap && pcRelevant);
     pcBtn.setAttribute("aria-pressed", String(TOGGLE_STATE.percap && pcRelevant));
   }
-  if(note) note.textContent = buildToggleNote() + perCapitaNote();
+  if(note){
+    // v1.9.120: the two notes joined by the same " \u00b7 " separator the toggle note uses
+    var tn = buildToggleNote(), pn = perCapitaNote().trim();
+    note.textContent = (tn && pn) ? tn + " \u00b7 " + pn : (tn || pn);
+  }
 }
 // v1.9.117: what Per capita did, in one sentence per kind of gap (percapita.js wording).
 function perCapitaNote(){
@@ -2794,7 +2798,7 @@ function perCapitaNote(){
     any = true;
     (s.display.pcDroppedYears || []).forEach(function(y){ dropped[y] = true; });
     var pop = getSeries(s.country, "population");
-    var ly = pop ? EA_PC.latestYear(pop.points.map(function(p){ return [p.x, p.y]; })) : null;
+    var ly = pop ? EA_PC.latestYear(pop.points) : null;
     if(ly && (!latest || ly < latest)) latest = ly;
   });
   var out = any ? " " + EA_PC.note(Object.keys(dropped).sort(), latest) : "";
