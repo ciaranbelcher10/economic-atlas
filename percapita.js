@@ -88,8 +88,8 @@
   /* The note shown under a chart or table when per capita is on.
        droppedYears: from divide(); latestPopYear: newest year with a population figure. */
   function note(droppedYears, latestPopYear, noPopulation){
-    if(noPopulation) return "Per capita: not available for this economy (the World Bank does not publish its population).";
-    var s = "Per capita: each value divided by that year\u2019s population (World Bank).";
+    if(noPopulation) return "Per capita: not available for this economy (no population figure covering the same area as its GDP is published).";
+    var s = "Per capita: each value divided by that year\u2019s population (World Bank; Eurostat for Cyprus, covering the same area as its GDP).";   // v1.9.125
     var ys = (droppedYears || []).filter(function(y){ return !latestPopYear || y > latestPopYear; });
     var early = (droppedYears || []).filter(function(y){ return latestPopYear && y <= latestPopYear; });
     if(ys.length) s += " " + listYears(ys) + " not shown: population for " + listYears(ys) + " not yet published.";

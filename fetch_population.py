@@ -38,6 +38,52 @@ NOT_COVERED = {"Taiwan": "The World Bank does not publish population for Taiwan.
 # Site code -> World Bank code, where they differ from the upper-cased site code.
 WB_CODE = {"uk": "GB", "ez": "XC"}
 
+# v1.9.125: population must cover the same people as the economy's GDP. Cyprus GDP (Eurostat) covers
+# only the government-controlled area, but World Bank SP.POP.TOTL counts the whole island, which put
+# GDP per person about 24% too low. For these economies the World Bank figure is NEVER used: the
+# population comes from the source below or, if that fails and no earlier copy from it exists, the
+# economy is listed as missing (no per capita figure rather than a wrong one).
+COVERAGE_SOURCE = {
+    "Cyprus": {
+        "url": ("https://ec.europa.eu/eurostat/api/dissemination/statistics/1.0/data/nama_10_pe"
+                "?format=JSON&lang=EN&geo=CY&na_item=POP_NC&unit=THS_PER"),
+        "scale": 1000,                      # thousands of people
+        "label": ("Population, national accounts concept, government-controlled area, annual "
+                  "(Eurostat nama_10_pe POP_NC), matching the area covered by Cyprus GDP"),
+        "source": "Eurostat",
+        "range": (500_000, 1_250_000),      # government-controlled area; the whole island (about 1.37m) is refused
+        "min_points": 20, "max_first": "2000",
+        "why": "Cyprus GDP covers the government-controlled area only; its population must cover the same area.",
+    },
+}
+
+
+def parse_eurostat(payload, scale):
+    """Eurostat JSON-stat 2.0, one series -> [[year, people], ...] (ints, sorted)."""
+    idx = payload["dimension"]["time"]["category"]["index"]
+    vals = payload.get("value", {})
+    out = []
+    for period, pos in idx.items():
+        v = vals.get(str(pos)) if isinstance(vals, dict) else (vals[pos] if pos < len(vals) else None)
+        if v is not None and str(period).isdigit():
+            out.append([str(period), int(round(float(v) * scale))])
+    return sorted(out)
+
+
+def coverage_points(name, payload):
+    """Validated points from the coverage source, or None (never a partial or implausible series)."""
+    cfg = COVERAGE_SOURCE[name]
+    try:
+        pts = parse_eurostat(payload, cfg["scale"])
+    except (KeyError, TypeError, ValueError, AttributeError):
+        return None
+    lo, hi = cfg["range"]
+    if len(pts) < cfg["min_points"] or pts[0][0] > cfg["max_first"] or not all(lo <= v <= hi for _, v in pts):
+        print(f"  [refused] {name} coverage population: {len(pts)} points"
+              f"{' from ' + pts[0][0] if pts else ''}, outside the expected shape")
+        return None
+    return drop_breaks(name, pts)
+
 
 def wb_codes():
     """{World Bank code: site name} for every economy the World Bank covers."""
@@ -87,18 +133,32 @@ def merge(new, prev):
     return out, kept
 
 
-def build(payload, prev_doc, today=None):
-    """Pure function (no network): the document to write, or raise if it must not be written."""
+def build(payload, prev_doc, today=None, coverage=None):
+    """Pure function (no network): the document to write, or raise if it must not be written.
+    coverage: {name: Eurostat payload or None} for COVERAGE_SOURCE economies."""
     today = today or dt.date.today()
     code_to_name = wb_codes()
+    coverage = coverage or {}
     fresh = {}
     for name, pts in parse(payload, code_to_name).items():
+        if name in COVERAGE_SOURCE:
+            continue                         # the World Bank figure covers different people
         ok = drop_breaks(name, pts)
         if ok:
             fresh[name] = ok
     prev = (prev_doc or {}).get("countries", {})
-    prev_pts = {k: v.get("points", []) for k, v in prev.items()}
+    prev_pts = {k: v.get("points", []) for k, v in prev.items() if k not in COVERAGE_SOURCE}
     merged, kept = merge(fresh, prev_pts)
+    cov_missing = {}
+    for name, cfg in COVERAGE_SOURCE.items():
+        pts = coverage_points(name, coverage[name]) if coverage.get(name) is not None else None
+        p = prev.get(name) or {}
+        if pts and (p.get("source") != cfg["source"] or len(pts) >= len(p.get("points", []))):
+            merged[name] = pts
+        elif p.get("source") == cfg["source"] and p.get("points"):
+            merged[name] = p["points"]; kept.append(name)     # last good copy from the right source
+        else:
+            cov_missing[name] = "No population covering the same area as its GDP is available yet."
     if len(fresh) < MIN_ECONOMIES:
         raise ValueError(f"only {len(fresh)} economies came back (need {MIN_ECONOMIES}); not writing")
     newest = max(int(p[-1][0]) for p in merged.values())
@@ -111,10 +171,12 @@ def build(payload, prev_doc, today=None):
         "source": SOURCE,
         "unit": "people",
         "freq": "years",
-        "countries": {n: {"wb_code": name_to_code.get(n), "points": merged[n]} for n in sorted(merged)},
-        "missing": dict(sorted({**NOT_COVERED,
+        "countries": {n: ({"wb_code": name_to_code.get(n), "points": merged[n]} if n not in COVERAGE_SOURCE else
+                          {"source": COVERAGE_SOURCE[n]["source"], "label": COVERAGE_SOURCE[n]["label"],
+                           "note": COVERAGE_SOURCE[n]["why"], "points": merged[n]}) for n in sorted(merged)},
+        "missing": dict(sorted({**NOT_COVERED, **cov_missing,
                                 **{n: "No World Bank population figure came back for this economy."
-                                   for n in expected if n not in merged}}.items())),
+                                   for n in expected if n not in merged and n not in cov_missing}}.items())),
         "kept_previous": kept,
     }
 
@@ -140,7 +202,17 @@ def main():
         r = requests.get(url, timeout=90, headers=UA)
         print(f"  [wb] {INDICATOR} status={r.status_code}")
         r.raise_for_status()
-        doc = build(r.json(), prev)
+        coverage = {}
+        for name, cfg in COVERAGE_SOURCE.items():
+            try:
+                rc = requests.get(cfg["url"], timeout=60, headers=UA)
+                print(f"  [eurostat] {name} population status={rc.status_code}")
+                rc.raise_for_status()
+                coverage[name] = rc.json()
+            except Exception as e:  # handled in build(): last good copy, or missing; never the World Bank figure
+                print(f"  [eurostat] {name} population failed: {e}")
+                coverage[name] = None
+        doc = build(r.json(), prev, coverage=coverage)
     except Exception as e:  # keep the previous file untouched
         print(f"fetch_population: FAILED, previous {OUT} kept ({e})")
         return 1

@@ -45,7 +45,9 @@ for f in pages:
     check(len(re.findall(r'chartPanel\("population","charts-(gdp|misc)"', s)) == 1, f"{n}: one population chart (GDP, or Miscellaneous since v1.9.117)")
     check(len(re.findall(r'statTile\((tg|tmisc),"population","Population",s\.population,', s)) == 1, f"{n}: one population tile (GDP, or Miscellaneous since v1.9.117)")
     check("fmtD:fmtPeople," in s and "fmtPeopleD" not in s, f"{n}: delta formatter leaves the sign to statTile")
-    check('Not available</p>' in s and 'World Bank does not publish a population figure' in s, f'{n}: Not available fallback')
+    # v1.9.125: Cyprus's fallback names its own reason (no population for the same area as its GDP)
+    check('Not available</p>' in s and ('World Bank does not publish a population figure' in s or
+          (n == "cyprus.html" and "No population figure for the same area as Cyprus GDP" in s)), f'{n}: Not available fallback')
     _m = re.search(r"const INDICATOR_PAGE_SLUGS = \{([^}]*)\}", s)
     check(bool(_m) and 'population:"population"' in _m.group(1), f"{n}: tile links to its page")
     _t = re.search(r'statTile\((tg|tmisc),"population"', s)

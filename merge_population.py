@@ -27,9 +27,10 @@ LABEL = "Population, total, mid-year estimate, annual (World Bank SP.POP.TOTL)"
 
 
 def series_for(entry, updated):
-    return {"label": LABEL, "unit": "people", "freq": "years",
+    # v1.9.125: an economy whose population comes from elsewhere (Cyprus: Eurostat, same area as GDP) says so
+    return {"label": entry.get("label") or LABEL, "unit": "people", "freq": "years",
             "points": [[str(y), int(v)] for y, v in entry["points"]],
-            "source": "World Bank", "confirmed_at": (updated[:16] + "Z") if updated else None}
+            "source": entry.get("source") or "World Bank", "confirmed_at": (updated[:16] + "Z") if updated else None}
 
 
 def calendar_year_gdp(gdp, country):
@@ -61,7 +62,7 @@ def scale_of(unit):
     return {"tn": 1e12, "bn": 1e9, "m": 1e6, "k": 1e3}[m.group(1)] if m else 1
 
 
-def gdp_per_capita_series(gdp, pop_points, country, updated):
+def gdp_per_capita_series(gdp, pop_points, country, updated, pop_source="World Bank"):
     """GDP per person for each complete calendar year that has that SAME year's population
     (exact-year rule: no other year's population is ever used). Whole currency units."""
     if not gdp or "%" in str(gdp.get("unit", "")):
@@ -72,7 +73,7 @@ def gdp_per_capita_series(gdp, pop_points, country, updated):
     pts = [[y, round(years[y] * scale / pop[y])] for y in sorted(years) if y in pop]
     if len(pts) < 2:
         return None
-    return {"label": "GDP per person, current prices, calendar year (GDP divided by World Bank population)",
+    return {"label": f"GDP per person, current prices, calendar year (GDP divided by {pop_source} population)",
             "unit": re.sub(r"(tn|bn|m|k)$", "", str(gdp.get("unit", "")).strip()), "freq": "years",
             "points": pts, "derived": True, "confirmed_at": (updated[:16] + "Z") if updated else None}
 
@@ -92,7 +93,7 @@ def main(root="."):
             skipped.append(name); continue
         d = json.load(open(f, encoding="utf-8"))
         new = series_for(countries[name], updated)
-        gpc = gdp_per_capita_series(d.get("series", {}).get("gdp_level"), new["points"], name, updated)
+        gpc = gdp_per_capita_series(d.get("series", {}).get("gdp_level"), new["points"], name, updated, new["source"])
         S = d.setdefault("series", {})
         if S.get(KEY) == new and S.get(GDP_KEY) == gpc:
             continue

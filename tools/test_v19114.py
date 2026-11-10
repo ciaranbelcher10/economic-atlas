@@ -33,8 +33,10 @@ check(all(len(c) == 2 and c.isupper() for c in codes), "all codes are two-letter
 
 doc = fp.build(payload(), {}, TODAY)
 c = doc["countries"]
-check(len(c) == 61, "all 61 economies written")
-check(doc["missing"] == {"Taiwan": fp.NOT_COVERED["Taiwan"]}, "only Taiwan listed as missing")
+# v1.9.125: Cyprus population comes only from Eurostat (same area as its GDP); with no Eurostat reply
+# and no earlier Eurostat copy it is listed as missing, never filled with the World Bank figure.
+check(len(c) == 60 and "Cyprus" not in c, "60 economies written; Cyprus not from the World Bank")
+check(set(doc["missing"]) == {"Taiwan", "Cyprus"}, "Taiwan and Cyprus listed as missing")
 uk = c["UK"]["points"]
 check(uk[0][0] == "1960" and uk[-1][0] == "2025", "UK runs 1960 to 2025, unpublished year skipped")
 check(all(isinstance(v, int) and v > 0 for _, v in uk), "whole positive numbers of people")

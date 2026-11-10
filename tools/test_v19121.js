@@ -29,7 +29,7 @@ eq(PC.listYears(["1990", "1995", "2001"]), "1990, 1995 and 2001", "separate year
 eq(PC.listYears(["1955", "1956", "1957", "1960", "1970", "1971"]), "1955 to 1957, 1960, 1970 and 1971", "mixed runs");
 eq(PC.listYears([]), "", "empty");
 eq(PC.note(["1955", "1956", "1957", "1958", "1959", "2026"], "2025"),
-  "Per capita: each value divided by that year\u2019s population (World Bank). 2026 not shown: population for 2026 not yet published. 1955 to 1959 not shown: no population figure for those years.",
+  "Per capita: each value divided by that year\u2019s population (World Bank; Eurostat for Cyprus, covering the same area as its GDP). 2026 not shown: population for 2026 not yet published. 1955 to 1959 not shown: no population figure for those years.",
   "UK note as seen live, shortened");
 
 /* 2. axis title */

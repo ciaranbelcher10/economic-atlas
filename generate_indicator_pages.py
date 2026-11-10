@@ -45,7 +45,7 @@ SITE_URL = "https://theeconomicatlas.com"
 CREATOR = {"@type": "Organization", "name": "The Economic Atlas", "url": SITE_URL}
 LICENSE = f"{SITE_URL}/terms"
 KIT_VERSION = "12"
-PERCAPITA_VERSION = "3"
+PERCAPITA_VERSION = "4"
 # v1.9.123: must match percapita.js ELIGIBLE
 PC_ELIGIBLE = {"gdp_level", "gdp_real", "exports", "imports", "trade_balance", "net_debt", "debt_interest", "deficit"}
 
@@ -2668,16 +2668,23 @@ def add_derived(country, data, sources):
     # v1.9.115: population, merged into every data file by merge_population.py from one World
     # Bank series; its citation is the same everywhere, so it is built here rather than added
     # 61 times to data-metric-sources.json.
+    # v1.9.125: an economy whose population comes from elsewhere (Cyprus: Eurostat, the same area as its
+    # GDP) is cited from its own series, never as World Bank.
+    pser = series.get("population") or {}
+    other = pser.get("source") and pser.get("source") != "World Bank"
+    pop_cite = (pser.get("source") + " \u00b7 " + pser.get("label", "")) if other else "World Bank \u00b7 Population, total (SP.POP.TOTL)"
     if "gdp_per_capita" in series and "gdp_per_capita" not in sources:
         gsrc = (sources.get("gdp_level") or {}).get("source", "")
         sources["gdp_per_capita"] = {
             "description": "The economy's output in a full calendar year divided by the number of people living there that year: the usual measure of average living standards.",
             "source": "Calculated: GDP for each complete calendar year divided by that year's population. GDP: " + gsrc
-                      + " Population: World Bank \u00b7 Population, total (SP.POP.TOTL)."}
+                      + " Population: " + pop_cite + "."}
     if "population" in series and "population" not in sources:
-        sources["population"] = {
+        sources["population"] = ({
+            "description": "The number of people living in the same area as the economy's GDP figures, at mid-year.",
+            "source": pop_cite + "."} if other else {
             "description": "The total number of people living in the economy at mid-year, from the World Bank's estimates (everyone counted, whatever their legal status or citizenship).",
-            "source": "World Bank \u00b7 Population, total (SP.POP.TOTL), mid-year estimates, annual."}
+            "source": "World Bank \u00b7 Population, total (SP.POP.TOTL), mid-year estimates, annual."})
     data = dict(data, series=series)
     return data, sources
 
