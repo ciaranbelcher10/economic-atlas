@@ -2,7 +2,7 @@
 // shared scripts (chooser.js) get those files inlined before parsing. Only same-site files listed
 // here are inlined; CDN scripts and deferred mobile.js are left alone, as before.
 const fs = require("fs"), path = require("path");
-const LOCAL = ["chooser.js"];
+const LOCAL = ["chooser.js", "percapita.js"];  // v1.9.118: percapita.js
 module.exports = function inlineLocalScripts(html, root){
   return html.replace(/<script src="([a-z0-9_-]+\.js)(?:\?v=\d+)?"><\/script>/g, (tag, file) => {
     if(LOCAL.indexOf(file) === -1) return tag;

@@ -39,7 +39,9 @@ for f in pages:
     m = re.search(r'aria-label="Headline figures" style="--hero-rows:(\d+)"', s)
     check(bool(m) and int(m.group(1)) == (min(10, len(groups)) + 1) // 2, f"{n}: phone reserve matches the Headline rows")
 mc = read("mobile.css")
-check("body .hero, body .hero.mini{ display:grid !important; grid-template-columns:repeat(5,minmax(0,1fr)); grid-auto-rows:1fr;" in mc, "desktop: five equal tiles per row, equal rows")
+# v1.9.118: five columns are now ten tracks with every tile spanning two (so short rows can centre)
+check("body .hero, body .hero.mini{ display:grid !important; grid-template-columns:repeat(10,minmax(0,1fr)); grid-auto-rows:1fr;" in mc
+      and "grid-column:auto / span 2; }" in mc, "desktop: five equal tiles per row, equal rows")
 check("body .hero, body .hero.mini{ grid-auto-rows:176px; }" in mc and "height:176px;" in mc, "phone: every tile 176px")
 check("* 176px + (var(--hero-rows, 0) - 1) * 8px" in mc and "* 143px" not in mc, "phone reserve uses the same 176px")
 print(f"test_v19117: {checks} checks, {len(fails)} failed")

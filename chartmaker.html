@@ -35,7 +35,7 @@
 <link rel="icon" type="image/png" sizes="32x32" href="favicon-32.png">
 <link rel="apple-touch-icon" href="apple-touch-icon.png">
 <link rel="stylesheet" href="style.css?v=60">
-<link rel="stylesheet" href="mobile.css?v=44">
+<link rel="stylesheet" href="mobile.css?v=45">
 </head>
 <body>
 <script>/* v1.9.111: phone layout from first paint (no jump) */if(window.matchMedia("(max-width:760px)").matches)document.body.classList.add("cm-m");</script>
@@ -1579,6 +1579,9 @@ body:not(.cm-m) #cmMobileGate{display:none;}
  <button type="button" class="mtoggle" id="dollariseToggle" aria-label="Convert to USD$: convert currency series to US dollars" aria-pressed="false">
  <span class="mtoggle-switch" aria-hidden="true"></span>Convert to USD$
  </button>
+ <button type="button" class="mtoggle" id="percapToggle" aria-label="Per capita: divide currency series by each year's population" aria-pressed="false">
+ <span class="mtoggle-switch" aria-hidden="true"></span>Per capita
+ </button>
  <span id="mtoggleAnnounce" class="sr-only" role="status" aria-live="polite"></span>
  </div>
  <div id="cmSortModeRow" style="display:none; align-items:center; gap:7px; font-size:13px; color:var(--ink);">
@@ -1863,6 +1866,7 @@ var REGION_GROUPS = [
 ];
 
 var CONCEPT_KEYS = {
+  gdp_per_capita: ["gdp_per_capita"], population: ["population"],   // v1.9.117
   gdp_level: ["gdp_level"], gdp_real: ["gdp_real"], gdp_growth: ["gdp_growth"],
   cpi: ["cpi"], core_cpi: ["core_cpi"], cpi_mom: ["cpi_mom"], cpih: ["cpih"], ppi: ["ppi"], pce: ["pce"],
   unemployment: ["unemployment"], employment: ["employment"], inactivity: ["inactivity"],
@@ -1875,6 +1879,7 @@ var CONCEPT_KEYS = {
   policy_rate: ["boe_rate", "fed_funds", "ecb_rate", "boj_rate", "overnight_rate", "policy_rate", "rate"]
 };
 var CONCEPT_LABEL = {
+  gdp_per_capita: "GDP per capita", population: "Population",
   gdp_level: "GDP level", gdp_real: "Real GDP level", gdp_growth: "GDP growth (annual, real)",
   cpi: "Inflation (year on year)", core_cpi: "Core inflation (year on year)",
   cpi_mom: "Inflation (month on month)", cpih: "Inflation (CPIH, year on year)",
@@ -1890,6 +1895,7 @@ var CONCEPT_LABEL = {
   fx_usd: "Exchange rate against the US dollar", fx_eur: "Exchange rate against the euro", fx_gbp: "Exchange rate against the pound"
 };
 var CONCEPT_CATEGORY = {
+  gdp_per_capita:"GDP & growth", population:"Miscellaneous",
   gdp_level:"GDP & growth", gdp_real:"GDP & growth", gdp_growth:"GDP & growth", productivity:"GDP & growth",
   unemployment:"Labour market", employment:"Labour market", inactivity:"Labour market",
   participation:"Labour market", unemployment_1624:"Labour market",
@@ -1900,7 +1906,7 @@ var CONCEPT_CATEGORY = {
   business_confidence:"Business & investment", fdi:"Business & investment",
   bond_yield_10y:"Rates & yields", policy_rate:"Rates & yields", fx_usd:"Exchange rates", fx_eur:"Exchange rates", fx_gbp:"Exchange rates"
 };
-var CATEGORY_ORDER = ["GDP & growth", "Labour market", "Prices", "Public finances", "Trade", "Business & investment", "Rates & yields", "Exchange rates"];
+var CATEGORY_ORDER = ["GDP & growth", "Labour market", "Prices", "Public finances", "Trade", "Business & investment", "Rates & yields", "Exchange rates", "Miscellaneous"];
 // The measure behind a country's inflation series differs by country: "cpi"
 // is ONS CPI for the UK, the Eurostat HICP for euro-area members, CPI-U for
 // the US, and a national-methodology index elsewhere. A single fixed label
@@ -2032,6 +2038,7 @@ var CONCEPT_EXPLAINER = {
   policy_rate: "The central bank's key interest rate."
 };
 var CONCEPT_UNIT = {
+  gdp_per_capita:"perhead", population:"people",
   gdp_level:"currency", gdp_real:"currency", gdp_growth:"%", cpi:"%", core_cpi:"%", cpi_mom:"%", cpih:"%", ppi:"%", pce:"%",
   unemployment:"%", employment:"%", inactivity:"%", participation:"%", unemployment_1624:"%",
   debt_gdp:"%", deficit:"%", net_debt:"currency", debt_interest:"currency",
@@ -2260,7 +2267,9 @@ function unitCompatible(concept, series){
   var u = (series && series.unit) || "";
   if(want === "%") return u === "%";
   if(want === "index") return u === "index";
-  if(want === "currency") return u !== "" && u !== "%" && u !== "index";
+  if(want === "currency") return u !== "" && u !== "%" && u !== "index" && u !== "people" && /(tn|bn|m|k)(\s*\(.*\))?$/.test(u);
+  if(want === "perhead") return u !== "" && !/(tn|bn|m|k|%|index|people)$/.test(u) && u.indexOf(" per ") === -1;
+  if(want === "people") return u === "people";
   return true;
 }
 function getSeries(country, concept){
@@ -2548,9 +2557,10 @@ var series = [];
 // The person's own choices (userRealPreference, userDollarPreference) are kept apart from what
 // is applied (TOGGLE_STATE): Convert to USD$ can be forced on (different currencies need a common
 // unit) or have nothing to do (the US's own figures are already dollars).
-var TOGGLE_STATE = { real: false, dollar: false };
+var TOGGLE_STATE = { real: false, dollar: false, percap: false };
 var userDollarPreference = false;
 var userRealPreference = false;
+var userPercapPreference = false;   // v1.9.117: Per capita
 var dollariseForced = false; // true when 2+ genuinely different currencies are on the chart
 var dollariseNoOp = false;   // true when every currency series is the US's own
 // Normalises both scale (m/bn/tn) AND currency to a common USD-millions
@@ -2600,7 +2610,22 @@ function dollarBasis(items, preference){
 // What a series shows under the two toggles, from its untouched nominal data. Pure (reads
 // REGISTRY/FX_RATES only), never mutates the fetched points: same pattern as the country
 // pages' buildDisplaySeries()/convertSeriesToUSD().
-function computeDisplay(country, metric, nomUnit, nomPts, real, dollar){
+/* v1.9.117 Per capita: each period divided by THAT year's population (percapita.js), periods
+   without one left out and named in the note. Values become whole currency units per person:
+   the unit is the bare currency ("£", "$"), the same convention as the GDP per capita series. */
+function applyPerCapita(country, metric, out, percap){
+  out.perCapita = false; out.pcDroppedYears = []; out.pcNoPop = false;
+  if(!percap || !window.EA_PC || !EA_PC.eligible(metric)) return out;
+  var pop = getSeries(country, "population");
+  var r = EA_PC.divide(out.pts, out.unit, pop ? pop.points.map(function(p){ return [p.x, p.y]; }) : []);
+  if(!r.ok){ out.pcNoPop = true; out.pts = []; return out; }
+  out.pts = r.pts; out.unit = String(out.unit).replace(/\s*\(.*\)\s*$/, "").trim().replace(/(tn|bn|m|k)$/, "");
+  out.perCapita = true; out.pcDroppedYears = r.droppedYears;
+  return out;
+}
+function computeDisplay(country, metric, nomUnit, nomPts, real, dollar, percap){
+  // v1.9.117: Per capita applies last, only when switched on (applyPerCapita).
+  var PC = function(o){ return (percap && typeof applyPerCapita === "function") ? applyPerCapita(country, metric, o, percap) : o; };
   var out = { unit: nomUnit, pts: nomPts, realView: false, converted: false, inUSD: false,
               realYear: null, droppedBeforeFloor: false, usedEarliestRate: false };
   var baseUnit = nomUnit, basePts = nomPts;
@@ -2613,7 +2638,14 @@ function computeDisplay(country, metric, nomUnit, nomPts, real, dollar){
     }
   }
   out.unit = baseUnit; out.pts = basePts;
-  if(!dollar || CONCEPT_UNIT[metric] !== "currency") return out;
+  if(dollar && CONCEPT_UNIT[metric] === "perhead" && !isAlreadyUSDUnit(baseUnit + "m", country, "gdp_level")){
+    // Whole currency units per person: the same rate lookup as GDP, read as millions in and out.
+    var kp = [];
+    basePts.forEach(function(p){ var v = toUSDMillions(country, p.y, baseUnit + "m", "gdp_level", String(p.x), null); if(v == null){ out.droppedBeforeFloor = true; return; } kp.push({x:p.x, y:v}); });
+    out.pts = kp; out.unit = "$"; out.inUSD = true; out.converted = true;
+    return PC(out);
+  }
+  if(!dollar || CONCEPT_UNIT[metric] !== "currency") return PC(out);
   var realYear = ((out.realView || metric === "gdp_real") && basePts.length) ? String(basePts[basePts.length - 1].x).slice(0, 4) : null;
   var fx = FX_RATES[country];
   var floorKey = (fx && fx.floor) ? monthKey(String(fx.floor)) : null;
@@ -2628,7 +2660,7 @@ function computeDisplay(country, metric, nomUnit, nomPts, real, dollar){
   });
   out.pts = kept; out.unit = forceUSDUnit("m"); out.inUSD = true;
   out.converted = !already; out.realYear = realYear;
-  return out;
+  return PC(out);
 }
 function applyDisplayToSeries(s){
   if(s.missing){
@@ -2636,7 +2668,7 @@ function applyDisplayToSeries(s){
     s.unit = sib ? sib.unit : ""; s.rawPoints = []; s.realView = false; s.converted = false; s.inUSD = false; s.display = null;
     return;
   }
-  var d = computeDisplay(s.country, s.metric, s.origUnit, s.origRawPoints, TOGGLE_STATE.real, TOGGLE_STATE.dollar);
+  var d = computeDisplay(s.country, s.metric, s.origUnit, s.origRawPoints, TOGGLE_STATE.real, TOGGLE_STATE.dollar, TOGGLE_STATE.percap);
   s.unit = d.unit; s.rawPoints = d.pts;
   s.realView = d.realView; s.converted = d.converted; s.inUSD = d.inUSD; s.display = d;
 }
@@ -2741,7 +2773,33 @@ function updateToggleUI(){
     if(TOGGLE_STATE.real && realBtn) realBtn.classList.add("fx-real");
     if(dollarShownOn && dollarBtn) dollarBtn.classList.add("fx-dollar");
   }
-  if(note) note.textContent = buildToggleNote();
+  var pcBtn = document.getElementById("percapToggle");
+  if(pcBtn){
+    var pcRelevant = liveSeries().some(function(x){ return window.EA_PC && EA_PC.eligible(x.metric); });
+    pcBtn.disabled = !pcRelevant && !TOGGLE_STATE.percap;
+    pcBtn.classList.toggle("on", TOGGLE_STATE.percap && pcRelevant);
+    pcBtn.classList.toggle("fx-pc", TOGGLE_STATE.percap && pcRelevant);
+    pcBtn.setAttribute("aria-pressed", String(TOGGLE_STATE.percap && pcRelevant));
+  }
+  if(note) note.textContent = buildToggleNote() + perCapitaNote();
+}
+// v1.9.117: what Per capita did, in one sentence per kind of gap (percapita.js wording).
+function perCapitaNote(){
+  if(!TOGGLE_STATE.percap || !window.EA_PC) return "";
+  var dropped = {}, noPop = [], latest = null, any = false;
+  series.forEach(function(s){
+    if(s.missing || !s.display) return;
+    if(s.display.pcNoPop) noPop.push(s.country);
+    if(!s.display.perCapita) return;
+    any = true;
+    (s.display.pcDroppedYears || []).forEach(function(y){ dropped[y] = true; });
+    var pop = getSeries(s.country, "population");
+    var ly = pop ? EA_PC.latestYear(pop.points.map(function(p){ return [p.x, p.y]; })) : null;
+    if(ly && (!latest || ly < latest)) latest = ly;
+  });
+  var out = any ? " " + EA_PC.note(Object.keys(dropped).sort(), latest) : "";
+  if(noPop.length) out += " Per capita not available for " + noPop.join(", ") + " (no World Bank population).";
+  return out;
 }
 // Recomputes what every series shows and refreshes the buttons and note. Called whenever the
 // series list changes (add, remove, switch measure, open a saved chart) and when a toggle is clicked.
@@ -2751,6 +2809,7 @@ function refreshToggleState(){
   dollariseNoOp = basis.noOp;
   TOGGLE_STATE.real = userRealPreference;
   TOGGLE_STATE.dollar = basis.dollar;
+  TOGGLE_STATE.percap = userPercapPreference;
   applyDisplayToAll();
   updateToggleUI();
 }
@@ -2769,6 +2828,10 @@ function onToggleChanged(which, on){
 document.getElementById("makeRealToggle").addEventListener("click", function(){
   userRealPreference = !userRealPreference;
   onToggleChanged("real", userRealPreference);
+});
+document.getElementById("percapToggle").addEventListener("click", function(){
+  userPercapPreference = !userPercapPreference;
+  onToggleChanged("percap", userPercapPreference);
 });
 document.getElementById("dollariseToggle").addEventListener("click", function(){
   if(dollariseForced || dollariseNoOp) return; // disabled anyway, but guard in case
@@ -4927,6 +4990,11 @@ function currencySymbol(unitStr){
 // measured past 1,000tn (VND, IDR, KRW, COP) stay readable. Matches
 // indicator-kit.js and generate_indicator_pages.py.
 function EA_group(s){ return String(s).replace(/^\d+/, function(n){ return n.replace(/\B(?=(\d{3})+(?!\d))/g, ","); }); }
+// v1.9.117: a bare currency ("\u00a3", "$", "CNY") is whole units per person.
+function isPerHeadUnit(u){
+  u = String(u || "");
+  return u !== "" && u !== "%" && u !== "pp" && u !== "index" && u !== "people" && u.indexOf(" per ") === -1 && !/(tn|bn|m|k)(\s*\(.*\))?$/.test(u);
+}
 function curFmt(rawValue, unitStr, decimals, symbolOverride){
   var scale = scaleOf(unitStr);
   var symbol = symbolOverride || currencySymbol(unitStr);
@@ -4958,6 +5026,15 @@ function buildFmtY(){
     }
     if(unit === "index"){
       return function(v){ return (+v.toFixed(1)).toString(); };
+    }
+    if(unit === "people"){
+      return function(v){ var a = Math.abs(v), g = v < 0 ? "\u2212" : "";
+        return g + (a >= 1e9 ? (+(a/1e9).toFixed(2)) + "bn" : a >= 1e6 ? (+(a/1e6).toFixed(1)) + "m" : a >= 1e3 ? Math.round(a/1e3) + "k" : Math.round(a)); };
+    }
+    if(isPerHeadUnit(unit)){
+      // v1.9.117: whole currency units per person ("\u00a343,815"), symbol as the page's own formatter gives it
+      var phSym = curFmt(1, unit + "m", 0, nativeSymbolOverride()).replace(/^\u2212/, "").replace(/1m$/, "");
+      return function(v){ return (v < 0 ? "\u2212" : "") + phSym + Math.round(Math.abs(v)).toLocaleString("en-GB"); };
     }
     if(/ per /.test(unit)){
       return function(v){ return fxFmtValue(v, unit.split(" per ")[0]); };
@@ -5762,7 +5839,7 @@ function renderThumb(container, item){
     var thumbSeries = item.seriesSpec.map(function(ss){
       var sd = getSeries(ss.country, ss.metric);
       if(!sd) return null;
-      var d = computeDisplay(ss.country, ss.metric, sd.unit, sd.points.map(function(p){ return {x:p[0], y:p[1]}; }), !!snap.real, thumbDollar);
+      var d = computeDisplay(ss.country, ss.metric, sd.unit, sd.points.map(function(p){ return {x:p[0], y:p[1]}; }), !!snap.real, thumbDollar, !!snap.percap);
       units[d.unit] = true;
       var pts = applyTransform(d.pts, ss.transform || "raw");
       return { country: ss.country + ", " + (conceptLabelFor(ss.country, d.realView ? "gdp_real" : ss.metric) || ss.metric) + (d.inUSD ? " (USD)" : ""), color: ss.color || SWATCH_PALETTE[0], points: pts.map(function(p){ return [p.x, p.y]; }) };
@@ -6038,6 +6115,7 @@ function loadSavedChart(row){
   // conversion is not saved, it is worked out again from the series.
   userDollarPreference = !!(row.snapshot && row.snapshot.dollar);
   userRealPreference = !!(row.snapshot && row.snapshot.real);
+  userPercapPreference = !!(row.snapshot && row.snapshot.percap);
   refreshToggleState();
   var snap0 = row.snapshot || {};
   yAxisTitleTouched = !!snap0.yAxisTitle; legendTitleTouched = legendTouchedFromSnap(snap0);
@@ -6165,7 +6243,7 @@ function buildSavePayload(name){
         theme: exportTheme, axisFontSize: style.axisFontSize, font: style.font,
         barOrient: style.barOrient, dataLabels: style.dataLabels, dataLabelSize: style.dataLabelSize, snapshotAt: style.snapshotAt,
         sortMode: style.sortMode, legendTitleTouched: legendTitleTouched, xDateFmt: style.xDateFmt, hideNoData: !!style.hideNoData,
-        real: userRealPreference, dollar: userDollarPreference
+        real: userRealPreference, dollar: userDollarPreference, percap: userPercapPreference
       }
     }
   };
@@ -6324,6 +6402,7 @@ loadAllCountryData().then(function(){
 })();
 </script>
 
+<script src="percapita.js?v=1"></script>
 <script src="mobile.js?v=42" defer></script>
 </body>
 </html>

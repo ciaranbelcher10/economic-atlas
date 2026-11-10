@@ -229,7 +229,9 @@ const sleep = ms => new Promise(r => setTimeout(r, ms));
 
   // buttons exist in the site's order, off, with a note area and a live region
   const btns = [...doc.querySelectorAll(".metric-toggles button.mtoggle")].map(b => b.textContent.trim());
-  eq(btns.join(" | "), "Adjust for inflation | Convert to USD$", "toggle order matches the country pages and Dashboard");
+  // v1.9.118: Per capita may follow the shared pair; the shared pair keeps its order.
+  eq(btns.slice(0, 2).join(" | "), "Adjust for inflation | Convert to USD$", "toggle order matches the country pages and Dashboard");
+  ok(btns.length === 2 || (btns.length === 3 && btns[2] === "Per capita"), "only Per capita may follow the shared pair, got " + btns.join(" | "));
   eq(real().getAttribute("aria-pressed"), "false", "Adjust for inflation starts off");
   eq(dol().getAttribute("aria-pressed"), "false", "Convert to USD$ starts off");
   ok(!!$("#mtoggleAnnounce") && $("#mtoggleAnnounce").getAttribute("aria-live") === "polite", "a polite live region announces changes");

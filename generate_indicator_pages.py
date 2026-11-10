@@ -1305,7 +1305,7 @@ def head_html(title, desc, canonical, og_image, jsonld, extra_css=""):
 <link href="https://fonts.googleapis.com/css2?family=Nunito+Sans:wght@400;600;700&display=swap" rel="stylesheet" media="print" onload="this.media='all'">
 <noscript><link href="https://fonts.googleapis.com/css2?family=Nunito+Sans:wght@400;600;700&display=swap" rel="stylesheet"></noscript>
 <link rel="stylesheet" href="../style.css?v=60">
-<link rel="stylesheet" href="../mobile.css?v=44">
+<link rel="stylesheet" href="../mobile.css?v=45">
 <link rel="stylesheet" href="../indicator.css?v={KIT_VERSION}">
 <script type="application/ld+json">
 {jsonld}
