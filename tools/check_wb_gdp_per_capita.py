@@ -21,6 +21,12 @@ ROOT = os.path.join(os.path.dirname(os.path.abspath(__file__)), "..")
 # v1.9.125: one batched request per indicator (the per-economy calls timed out), 120s, 3 attempts.
 API = "https://api.worldbank.org/v2/country/{isos}/indicator/{ind}?format=json&per_page=4000&date={y0}:{y1}"
 LOCAL, USD = "NY.GDP.PCAP.CN", "NY.GDP.PCAP.CD"
+# v1.9.126: explained differences. Inside its band an economy is reported as "known", not flagged;
+# outside the band it is flagged like any other, so a new problem still shows.
+KNOWN = {
+    "Cyprus": ((3.0, 6.5), "population is Eurostat's for the government-controlled area (the area its GDP covers);"
+               " the World Bank uses its own estimate for that area. Matches Eurostat's published GDP per capita."),
+}
 SKIP = {"Eurozone": "aggregate (WB code EMU, different coverage)", "Taiwan": "not covered by the World Bank"}
 
 
@@ -93,10 +99,17 @@ def main():
         if not common:
             print(f"  ----  {name}: World Bank has no overlapping year"); continue
         gaps = {y: (ours[y] / theirs[y] - 1) * 100 for y in common}
-        y = common[-1]; flag = abs(gaps[y]) > args.tol
+        y = common[-1]
+        band = KNOWN.get(name)
+        known = bool(band) and band[0][0] <= gaps[y] <= band[0][1]
+        flag = abs(gaps[y]) > args.tol and not known
         cur = "US$" if ind == USD else "local"
-        print(f"  {'OUT ' if flag else 'ok  '}  {name:14s} {y} ({cur}): ours {ours[y]:,.0f}, World Bank {theirs[y]:,.0f}, gap {gaps[y]:+.2f}%"
+        print(f"  {'OUT ' if flag else ('known' if known else 'ok  ')}  {name:14s} {y} ({cur}): ours {ours[y]:,.0f}, World Bank {theirs[y]:,.0f}, gap {gaps[y]:+.2f}%"
               f"  (range over {len(common)} yrs: {min(gaps.values()):+.1f}% to {max(gaps.values()):+.1f}%)")
+        if known:
+            print(f"         known difference: {band[1]}")
+        elif band:
+            print(f"         OUTSIDE its known band {band[0][0]:+.1f}% to {band[0][1]:+.1f}%: look again")
         worst.append((abs(gaps[y]), name, y, gaps[y]))
         if flag:
             out_of_tol.append(name)

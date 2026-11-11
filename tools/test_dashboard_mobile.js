@@ -73,7 +73,7 @@ async function loaded(win, extra){
     ok(intro.classList.contains("dash-m-intro") && /^Pin any metric from \d+ economies into one view\.$/.test(intro.textContent), "intro cut to one line: " + intro.textContent);
     ok(tabs.parentNode === wrap && tabs.nextElementSibling === tg && h1.compareDocumentPosition(tabs) & 4, "board chips sit under the title, above the toggles");
     const info = tg.querySelector(".dash-m-info");
-    ok(info && info.previousElementSibling === doc.getElementById("dollariseBtn") && info.getAttribute("aria-expanded") === "false", "(i) button after Dollarise, closed");
+    ok(info && info.previousElementSibling === doc.getElementById("perCapitaBtn") && info.getAttribute("aria-expanded") === "false", "(i) button after Per capita (v1.9.126), closed");
     info.click(); ok(tg.classList.contains("note-open") && info.getAttribute("aria-expanded") === "true", "(i) opens the explainer");
     info.click(); ok(!tg.classList.contains("note-open"), "(i) closes it again");
     const g = doc.getElementById("dashGlance");

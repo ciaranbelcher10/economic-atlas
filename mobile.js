@@ -1087,8 +1087,9 @@
         var open = !tg.classList.contains("note-open");
         tg.classList.toggle("note-open", open); b.setAttribute("aria-expanded", open ? "true" : "false");
       });
-      var dol = document.getElementById("dollariseBtn");
-      if(dol && dol.parentNode === tg) dol.insertAdjacentElement("afterend", b); else tg.appendChild(b);
+      // v1.9.126: (i) follows the last switch (Per capita) so it sits on the second row beside it
+      var last = document.getElementById("perCapitaBtn") || document.getElementById("dollariseBtn");
+      if(last && last.parentNode === tg) last.insertAdjacentElement("afterend", b); else tg.appendChild(b);
     }
   }
   function watchDashGlance(){
