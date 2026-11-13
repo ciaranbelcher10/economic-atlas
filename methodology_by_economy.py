@@ -24,7 +24,7 @@ FREQ_WORD = {"months": "Monthly", "quarters": "Quarterly", "years": "Annual"}
 
 # metric slug -> theme, in display order. Every metric in generate_indicator_pages.METRICS must appear (gated).
 THEMES = [
-    ("Output", ["gdp", "real-gdp", "gdp-growth-rate", "gdp-annual-growth-rate", "productivity"]),
+    ("Output", ["gdp", "real-gdp", "gdp-growth-rate", "gdp-annual-growth-rate", "gdp-per-capita", "productivity"]),
     ("Prices", ["inflation-rate", "inflation-rate-national-definition", "core-inflation-rate", "cpih-inflation-rate",
                 "pce-inflation-rate", "producer-price-inflation", "inflation-rate-mom",
                 "inflation-rate-mom-seasonally-adjusted", "inflation-rate-qoq", "cpih-inflation-rate-mom"]),
@@ -34,6 +34,7 @@ THEMES = [
     ("External", ["balance-of-trade", "exports", "imports", "trade-intensity", "current-account-to-gdp",
                   "foreign-direct-investment"]),
     ("Public finances", ["government-debt", "government-net-debt", "government-budget", "government-debt-interest"]),
+    ("Population", ["population"]),   # v1.9.127: with GDP per capita (Output), since v1.9.115 these had no theme
 ]
 
 # What every economy is expected to have. Each item is satisfied by any one of its slugs. An economy lacking one

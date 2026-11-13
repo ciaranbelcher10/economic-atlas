@@ -961,3 +961,14 @@ a.ea-cty:hover{color:var(--navy);}
   mask-image:linear-gradient(to right, transparent 0, #000 56px, #000 calc(100% - 40px), transparent 100%);} }
 .mk-hero h1 .mk-dt{display:none;}
 .rk-wrap .ind-lede{max-width:none;}
+
+/* v1.9.127: the "Latest:" banner is filled in after the data loads. When the hourly run saw a fresh release
+   it marks the banner data-expect; its row is reserved (invisible) from the first paint so nothing moves
+   when the script fills it. The placeholder line matches one row of update buttons. */
+.newdata[hidden][data-expect]{display:flex; visibility:hidden;}
+.newdata[data-expect] #newdataText:empty::before{content:"Latest:"; display:inline-block; padding:4px 0; line-height:1.4; border:1px solid transparent;}
+/* v1.9.127: one line always (a big release day scrolls sideways instead of growing the banner),
+   so the reserved row is exactly the banner's height at every width */
+.newdata{flex-wrap:nowrap;}
+.newdata #newdataText{flex-wrap:nowrap; white-space:nowrap; overflow-x:auto; min-width:0; scrollbar-width:none;}
+.newdata #newdataText::-webkit-scrollbar{display:none;}

@@ -52,7 +52,13 @@ log = buf.getvalue()
 check("fetch_us.main() returns 0", rc in (0, None), rc)
 missing = sorted(set(served) - set(out))
 check("no key lost", not missing, missing)
-carried = [ln for ln in log.splitlines() if "carried" in ln.lower() and "fx_" not in ln]
+# v1.9.127: population and gdp_per_capita are written by merge_population.py after the fetchers (v1.9.115),
+# so the US fetcher rightly carries them over; every key the fetcher itself owns must still be fresh.
+MERGED_LATER = ("population", "gdp_per_capita")
+def owned_carried(ln):
+    keys = [k.strip() for k in ln.split(":", 1)[-1].split(",")]
+    return [k for k in keys if k and k not in MERGED_LATER]
+carried = [ln for ln in log.splitlines() if "carried" in ln.lower() and "fx_" not in ln and owned_carried(ln)]
 check("no key only carried over (all fetched fresh)", not carried, carried[:5])
 for k in sorted(served):
     if k in out:

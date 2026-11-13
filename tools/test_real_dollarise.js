@@ -29,7 +29,9 @@ for(const [page, cc] of Object.entries(PAGES)){
     /NATIVE_SYMBOL_OVERRIDE\s*=/.test(src) ? (src.match(/(?:const|let|var) NATIVE_SYMBOL_OVERRIDE\s*=[^;]*;/)||[""])[0] : "",
   ].join("\n");
   const stub = new Proxy(function(){}, {get:(t,k)=> k===Symbol.toPrimitive ? ()=>"" : stub, apply:()=>stub});
-  const ctx = {TOGGLE_STATE:{real:true, dollar:true}, PAGE_DATA:data, console, document:stub, window:stub, localStorage:stub};
+  // v1.9.127: buildDisplaySeries clears the per capita state (v1.9.122) even with Per capita off
+  const ctx = {TOGGLE_STATE:{real:true, dollar:true, capita:false}, PAGE_DATA:data, console, document:stub, window:stub, localStorage:stub,
+               PC_APPLIED:new Set(), PC_DROPPED:[], PC_GDP_CAL:null, PC_GDP_SERIES:null};
   vm.createContext(ctx);
   vm.runInContext(code + "\nthis.buildDisplaySeries=buildDisplaySeries; this.monthKey=monthKey;", ctx);
   if(typeof data.series.gdp_real === "undefined" || !data.fx_to_usd) { console.log("skip", page); continue; }

@@ -32,7 +32,7 @@ data-metric-sources.json.
 from html import unescape
 import json, os, re, html as htmllib
 from decimal import Decimal, ROUND_HALF_UP
-from datetime import date, datetime, timedelta
+from datetime import date, datetime, timedelta, timezone
 
 import methodology_by_economy as mbe
 
@@ -1307,7 +1307,7 @@ def head_html(title, desc, canonical, og_image, jsonld, extra_css=""):
 <link rel="preload" as="style" href="https://fonts.googleapis.com/css2?family=Nunito+Sans:wght@400;600;700&display=swap">
 <link href="https://fonts.googleapis.com/css2?family=Nunito+Sans:wght@400;600;700&display=swap" rel="stylesheet" media="print" onload="this.media='all'">
 <noscript><link href="https://fonts.googleapis.com/css2?family=Nunito+Sans:wght@400;600;700&display=swap" rel="stylesheet"></noscript>
-<link rel="stylesheet" href="../style.css?v=60">
+<link rel="stylesheet" href="../style.css?v=61">
 <link rel="stylesheet" href="../mobile.css?v=46">
 <link rel="stylesheet" href="../indicator.css?v={KIT_VERSION}">
 <script type="application/ld+json">
@@ -2893,6 +2893,30 @@ def inject_key_figures(page_html, block_for_stamp, today):
     return text
 
 
+NEWDATA_RE = re.compile(r'<div class="newdata" id="newdata" hidden(?: data-expect="1")?>')
+NEWDATA_DAYS = 2      # as the page's renderNewDataBanner: a series first seen under 2 days ago
+
+
+def mark_newdata_expected(page_html, data, now=None):
+    """v1.9.127: the green "Latest:" banner is filled in by the page script after the data loads, which pushed
+    the whole page down (desktop CLS 0.19). When this hourly run sees a fresh release, the banner is marked
+    data-expect so style.css reserves its row from the first paint; the script then fills it in place, or
+    removes the mark if nothing is fresh any more by the time the page is opened."""
+    now = now or datetime.now(timezone.utc)
+    series = (data or {}).get("series", {})
+    fresh = False
+    for k, m in ((data or {}).get("new_points_meta") or {}).items():
+        try:
+            seen = datetime.fromisoformat(str(m.get("first_seen", "")).replace("Z", "+00:00"))
+        except ValueError:
+            continue
+        if k in series and (now - seen).total_seconds() < NEWDATA_DAYS * 86400:
+            fresh = True
+            break
+    tag = '<div class="newdata" id="newdata" hidden' + (' data-expect="1">' if fresh else '>')
+    return NEWDATA_RE.sub(tag, page_html, count=1)
+
+
 def write_country_key_figures(catalogue_by_country, today):
     done = []
     for country, info in sorted(catalogue_by_country.items()):
@@ -2905,6 +2929,7 @@ def write_country_key_figures(catalogue_by_country, today):
             page = f.read()
         name = country_display_name(page, country)
         text = inject_key_figures(page, lambda st: render_key_figures(country, name, cslug, info, st), today)
+        text = mark_newdata_expected(text, info["data"])
         write_page(rel, text)
         done.append((country, name, cslug))
     return done

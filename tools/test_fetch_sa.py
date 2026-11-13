@@ -22,6 +22,14 @@ class _FixedNow(F.datetime):
         return F.datetime(2026, 10, 15, 12, 0, tzinfo=tz)
 F.datetime = _FixedNow
 import audit_sa as A  # noqa: E402
+# v1.9.127: the audit's staleness test reads the clock, but the fixtures are a fixed snapshot (ending
+# mid-2026), so the clean file started failing as "stale" once the calendar moved on. Judge the
+# fixtures as of a fixed date; the live data is audited against the real clock by the audit itself.
+class _FixtureClock(A.datetime):
+    @classmethod
+    def now(cls, tz=None):
+        return A.datetime(2026, 10, 1, tzinfo=tz)
+A.datetime = _FixtureClock
 F.OECD_PAUSE = 0
 
 N, BAD = [0], []

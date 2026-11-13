@@ -226,6 +226,14 @@ check(short is None and stale is None and down is None, "IMF national CPI: short
 # audit: clean synthetic file passes structure; planted faults are caught
 sys.path.insert(0, os.path.join(os.path.dirname(os.path.abspath(__file__))))
 import audit_ro as A  # noqa: E402
+# v1.9.127: the audit's staleness test reads the clock, but the fixtures are a fixed snapshot (ending
+# mid-2026), so the clean file started failing as "stale" once the calendar moved on. Judge the
+# fixtures as of a fixed date; the live data is audited against the real clock by the audit itself.
+class _FixtureClock(A.datetime):
+    @classmethod
+    def now(cls, tz=None):
+        return A.datetime(2026, 10, 1, tzinfo=tz)
+A.datetime = _FixtureClock
 def audit(x):
     A.RESULTS.clear()
     with redirect_stdout(io.StringIO()):

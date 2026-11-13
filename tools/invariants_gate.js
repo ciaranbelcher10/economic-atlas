@@ -66,7 +66,7 @@ for (const f of dataFiles) {
     const bad = pts.filter(p => typeof p[1] !== "number" || !Number.isFinite(p[1]));
     ok(bad.length === 0, `${f} ${k}: ${bad.length} point(s) not a finite number, e.g. ${JSON.stringify(bad[0])}`);
     const u = s.unit || "";
-    if (u === "%" || u === "index" || u === "") continue;
+    if (u === "%" || u === "index" || u === "" || u === "people") continue;   // v1.9.127: population is a count, not money
     const c = currencyOf(u, code);
     ok(c !== null, `${f} ${k}: unit "${u}" names no currency this gate recognises`);
     if (c && c !== own && c !== "USD") {

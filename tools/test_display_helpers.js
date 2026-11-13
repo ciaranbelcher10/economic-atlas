@@ -79,7 +79,7 @@ for(const f of pages){
     check(f+" tile signed zero", E.tileNum("-0.0%")==="0.0%" && E.tileNum(M+"0.00pp")==="0.00pp" && E.tileNum(M+"\u20ac0m")==="\u20ac0m", [E.tileNum("-0.0%")]);
     check(f+" tile true minus", E.tileNum("-4.5%")===M+"4.5%" && E.tileNum("-0.1pp")===M+"0.1pp" && E.tileNum("$-2.5bn")==="$"+M+"2.5bn", [E.tileNum("-4.5%"),E.tileNum("$-2.5bn")]);
     check(f+" tile untouched", E.tileNum("+0.8pp")==="+0.8pp" && E.tileNum("0.00%")==="0.00%" && E.tileNum("Q1-2026")==="Q1-2026" && E.tileNum('$1.126<span class="fxper">per \u20ac1</span>')==='$1.126<span class="fxper">per \u20ac1</span>' && E.tileNum(5)===5);
-    check(f+" tile wired", src.includes("${tileNum(opts.fmt(last[1]))}") && src.includes("${tileNum(opts.fmtD(dShow))}"));
+    check(f+" tile wired", src.includes("${tileNum(opts.fmt(last[1]))}") && (src.includes("${tileNum(opts.fmtD(dShow))}") || src.includes("tileNum(d))(opts.fmtD(dShow))}")));   // the delta now also adds a "+" (signed tiles)
   }
   // tile money calls all keep decimals
   const tileMoney=(src.match(/\{fmt:v=>curFmt\(v,s\.[a-z_]+\.unit,1(,true)?\)/g)||[]);

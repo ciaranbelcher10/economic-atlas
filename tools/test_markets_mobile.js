@@ -60,7 +60,9 @@ const wait = ms => new Promise(r => setTimeout(r, ms));
     const gap = d.querySelector("#cYields .mk-gap");
     ok(gap && gap.textContent === (yRows - N) + " more in between", tag + ": gap row counts the hidden bars");
     const names = [...d.querySelectorAll("#cYields svg text")].filter(t => t.getAttribute("text-anchor") === "end").map(t => t.textContent);
-    const tRows = [...d.querySelectorAll("#tYields tbody tr")].map(r => r.cells[0].textContent.trim());
+    // v1.9.127: read the country cell without the hidden "Details for X" button added in v1.9.113
+    const cellText = c => { const k = c.cloneNode(true); k.querySelectorAll(".mk-rowbtn").forEach(b => b.remove()); return k.textContent.trim(); };
+    const tRows = [...d.querySelectorAll("#tYields tbody tr")].map(r => cellText(r.cells[0]));
     ok(names.slice(0, K).join() === tRows.slice(0, K).join() && names.slice(K).join() === tRows.slice(-K).join(), tag + ": shows the highest and lowest " + K + " in order");
     const tags = d.querySelectorAll("#cYields svg tspan").length;
     ok(phone ? tags < N : tags === N, tag + ": period tags " + (phone ? "only where they differ" : "on every bar") + " (" + tags + ")");
@@ -140,7 +142,8 @@ const wait = ms => new Promise(r => setTimeout(r, ms));
     const tr = d.querySelector("#tYields tbody tr");
     tr.cells[1].click();
     const det = tr.nextElementSibling;
-    ok(det && det.classList.contains("mk-det") && tr.getAttribute("aria-expanded") === "true", tag + ": tap opens a detail row");
+    const rb = tr.querySelector("button.mk-rowbtn");   // v1.9.113: the expanded state lives on a real button
+    ok(det && det.classList.contains("mk-det") && rb && rb.getAttribute("aria-expanded") === "true", tag + ": tap opens a detail row");
     const heads = [...d.querySelectorAll("#tYields thead th")].map(t => t.textContent);
     const want = phone ? [2, 4, 5] : [5];
     const got = [...det.querySelectorAll("b")].map(b => b.textContent.replace(/:$/, ""));
@@ -150,8 +153,9 @@ const wait = ms => new Promise(r => setTimeout(r, ms));
     ok(!tr.nextElementSibling || !tr.nextElementSibling.classList.contains("mk-det"), tag + ": second tap closes it");
     tr.querySelector("a").dispatchEvent(new w.MouseEvent("click", { bubbles: true, cancelable: true }));
     ok(!tr.nextElementSibling || !tr.nextElementSibling.classList.contains("mk-det"), tag + ": tapping the country link does not open detail");
-    tr.dispatchEvent(new w.KeyboardEvent("keydown", { key: "Enter", bubbles: true }));
-    ok(tr.nextElementSibling && tr.nextElementSibling.classList.contains("mk-det") && tr.tabIndex === 0, tag + ": Enter opens detail");
+    // keyboard: Tab reaches the row's button; Enter on a button is a click
+    rb.focus(); rb.click();
+    ok(tr.nextElementSibling && tr.nextElementSibling.classList.contains("mk-det") && rb.getAttribute("aria-expanded") === "true" && d.activeElement === rb, tag + ": Enter opens detail");
     // column css
     const css = d.getElementById("mkColCss").textContent, PC = w.__mkPhoneCols;
     const [deskCss, phoneCss] = css.split("@media (max-width:760px){");

@@ -18,7 +18,9 @@ const dom = new JSDOM(html, { runScripts: "dangerously", url: "https://theeconom
 const errors = []; dom.window.addEventListener("error", e => errors.push(e.message));
 setTimeout(() => {
   const d = dom.window.document;
-  const rows = id => [...d.querySelectorAll("#" + id + " tbody tr")].map(r => [...r.cells].map(c => c.textContent.trim()));
+  // v1.9.127: since v1.9.113 the first cell also holds a visually hidden "Details for X" button; read the cell without it
+  const cellText = c => { const k = c.cloneNode(true); k.querySelectorAll(".mk-rowbtn").forEach(b => b.remove()); return k.textContent.trim(); };
+  const rows = id => [...d.querySelectorAll("#" + id + " tbody tr")].map(r => [...r.cells].map(cellText));
   const load = f => JSON.parse(fs.readFileSync(path.join(root, f), "utf8"));
   const y = rows("tYields"), dl = rows("tDaily"), o = rows("tOther"), fx = rows("tFx"), fa = rows("tFxA");
   check("no script errors", errors.length === 0, errors.join("; "));
