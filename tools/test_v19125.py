@@ -113,8 +113,8 @@ for f in ("compare.html", "dashboard.html"):
     check("(World Bank)" not in t and "Eurostat for Cyprus" in t, f + ": population wording names Eurostat for Cyprus")
 for f in ("compare.html", "dashboard.html", "chartmaker.html", "uk.html", "cyprus.html"):
     t = open(os.path.join(ROOT, f), encoding="utf-8").read()
-    check(t.count("percapita.js?v=4") == 1 and not re.search(r"percapita\.js\?v=[0-3]\b", t), f + ": percapita.js?v=4")
-check('PERCAPITA_VERSION = "4"' in open(os.path.join(ROOT, "generate_indicator_pages.py"), encoding="utf-8").read(), "indicator pages load percapita.js v4")
+    check(t.count("percapita.js?v=5") == 1 and not re.search(r"percapita\.js\?v=[0-4]\b", t), f + ": percapita.js?v=5 (v1.9.128)")
+check('PERCAPITA_VERSION = "5"' in open(os.path.join(ROOT, "generate_indicator_pages.py"), encoding="utf-8").read(), "indicator pages load percapita.js v5 (v1.9.128)")
 
 # 7. cross-check compares like with like
 import check_wb_gdp_per_capita as wbc   # noqa: E402

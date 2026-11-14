@@ -83,7 +83,7 @@
 <noscript><link href="https://fonts.googleapis.com/css2?family=Nunito+Sans:wght@400;600;700&display=swap" rel="stylesheet"></noscript>
 <link rel="icon" type="image/png" sizes="32x32" href="favicon-32.png">
 <link rel="apple-touch-icon" href="apple-touch-icon.png">
-<link rel="stylesheet" href="style.css?v=61">
+<link rel="stylesheet" href="style.css?v=62">
 <style>
 .led{display:inline-block; width:9px; height:9px; border-radius:50%;
   margin-right:9px; vertical-align:middle; position:relative; top:-3px;}
@@ -334,7 +334,7 @@ button.mtoggle.fx-all{background:#8A5A3C; border-color:#8A5A3C; color:#fff;}
   ]
 }
 </script>
-<link rel="stylesheet" href="mobile.css?v=46">
+<link rel="stylesheet" href="mobile.css?v=47">
 </head>
 <body>
 <nav class="top"><div class="wrap">
@@ -1663,6 +1663,7 @@ document.addEventListener("DOMContentLoaded", function(){
  <h1>Hungary</h1>
 <div id="loadFail" role="alert" hidden style="margin:12px 0 0; padding:12px 16px; max-width:640px; border:1px solid var(--hair); border-radius:10px; background:var(--panel); color:var(--ink); font-size:14px; line-height:1.5;">We couldn’t load the latest figures for this page, so no charts are shown. Please refresh the page to try again.</div>
  </div>
+<p class="home-mapcap ea-maphint">All 62 economies. Tap or click a coloured country to open its data.</p>
 <div class="mini-mapwrap" id="miniMapWrap" tabindex="0" role="img"
  aria-label="Small world map. Hover or tap to enlarge, then select a country to jump to its page, keeping the current section.">
  <svg id="miniMap" viewBox="0 0 960 500"></svg>
@@ -2019,7 +2020,7 @@ const baseScales=(fmtY)=>({
      afterBuildTicks:s=>EA_yearTicks(s,7)},
   y:{grid:{color:HAIR}, border:{display:false},
      ticks:{color:INK2, font:{family:"'Avenir Next','Nunito Sans',sans-serif",size:11.5},
-            maxTicksLimit:6, callback:v=>fmtY(v)}}
+            maxTicksLimit:6, callback:(v,i,t)=>window.EA_axisTick ? EA_axisTick(fmtY,v,i,t) : fmtY(v)}}
 });
 function zoomOpts(){
   return {
@@ -2071,7 +2072,7 @@ function chartConfig(kind, pts, fmtY, fmtTip, refLine, key){
     const c = centeredIndexScale(pts.map(p=>p[1]));
     if(c.step){ opts.scales.y.min = c.min; opts.scales.y.max = c.max;
       opts.scales.y.ticks.stepSize = c.step; opts.scales.y.ticks.maxTicksLimit = (c.max - c.min) / c.step + 1;
-      opts.scales.y.ticks.callback = v => Number.isInteger(v) ? String(v) : fmtY(v); }
+      opts.scales.y.ticks.callback = (v,i,t) => { const f = x => Number.isInteger(x) ? String(x) : fmtY(x); return window.EA_axisTick ? EA_axisTick(f,v,i,t) : f(v); }; }
   }
   return {type:kind==="bar"?"bar":"line", data, options:opts};
 }
@@ -3036,13 +3037,25 @@ function openInfoPopover(btn, infoKey, title){
   if(content.real){
     const p = document.createElement("p");
     p.className = "infoPopoverToggleNote real";
-    p.innerHTML = `<strong>Adjust for inflation:</strong> ${content.real}`;
+    p.innerHTML = `<strong>Adjust for inflation:</strong> ${window.EA_PC ? EA_PC.relabel(content.real) : content.real}`;
     togglesEl.appendChild(p);
   }
   if(content.dollar){
     const p = document.createElement("p");
     p.className = "infoPopoverToggleNote dollar";
-    p.innerHTML = `<strong>Convert to USD$:</strong> ${content.dollar}`;
+    p.innerHTML = `<strong>Convert to USD$:</strong> ${window.EA_PC ? EA_PC.relabel(content.dollar) : content.dollar}`;
+    togglesEl.appendChild(p);
+  }
+  /* v1.9.128 info+axis+hint: every (i) explains Per capita too */
+  if(window.EA_PC && EA_PC.infoNote){
+    const p = document.createElement("p");
+    p.className = "infoPopoverToggleNote capita";
+    const st = document.createElement("strong"); st.textContent = "Per capita:";
+    p.appendChild(st);
+    p.appendChild(document.createTextNode(" " + EA_PC.infoNote(infoKey, {
+      unit: ((typeof PAGE_DATA !== "undefined" && PAGE_DATA.series || {})[infoKey] || {}).unit,
+      noPopulation: typeof pcPopulation === "function" && !pcPopulation().length,
+      on: !!TOGGLE_STATE.capita })));
     togglesEl.appendChild(p);
   }
   el.hidden = false;
@@ -5102,7 +5115,7 @@ document.querySelectorAll(".mtbtn").forEach(function(btn){
   });
 })();
 </script>
-<script src="percapita.js?v=4"></script>
-<script src="mobile.js?v=43" defer></script>
+<script src="percapita.js?v=5"></script>
+<script src="mobile.js?v=44" defer></script>
 </body>
 </html>

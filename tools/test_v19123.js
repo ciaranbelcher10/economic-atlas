@@ -27,8 +27,8 @@ const PC = require(path.join(ROOT, "percapita.js"));
 /* 4. generator */
 const genElig = (/^PC_ELIGIBLE = \{([^}]*)\}/m.exec(GEN) || [, ""])[1].match(/"([a-z_]+)"/g).map(s => s.slice(1, -1)).sort();
 ok(JSON.stringify(genElig) === JSON.stringify(PC.ELIGIBLE.slice().sort()), "generator PC_ELIGIBLE = percapita.js ELIGIBLE");
-ok(/^KIT_VERSION = "12"$/m.test(GEN), "KIT_VERSION bumped to 12 (indicator-kit.js changed)");
-ok(/^PERCAPITA_VERSION = "4"$/m.test(GEN), "indicator pages load percapita.js v4 (v1.9.125)");
+ok(/^KIT_VERSION = "13"$/m.test(GEN), "KIT_VERSION bumped to 13 (indicator-kit.js changed, v1.9.128)");
+ok(/^PERCAPITA_VERSION = "5"$/m.test(GEN), "indicator pages load percapita.js v5 (v1.9.128)");
 ok(/boot = f'<script src="\.\.\/percapita\.js\?v=\{PERCAPITA_VERSION\}"><\/script>\\n' \+ boot/.test(GEN), "percapita.js before the boot script");
 ok(/if key in PC_ELIGIBLE and re\.search\(r"\(tn\|bn\|m\|k\)\$"/.test(GEN), "button only for currency units");
 const GDP_RAW = (/^GDP_RAW_COUNTRIES = \{([^}]*)\}/m.exec(GEN) || [, ""])[1].match(/"([^"]+)"/g).map(s => s.slice(1, -1));

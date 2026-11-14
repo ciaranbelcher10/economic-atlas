@@ -54,7 +54,7 @@ for (const f of pages){
   ok(iR > 0 && iR < iD && iD < iC, f + ": order Adjust for inflation | Convert to USD$ | Per capita");
   ok(/>Per capita\n <\/button>/.test(src), f + ": button label");
   // v1.9.125: percapita.js is now v4 (population wording); the page must load the current version once
-  ok(src.split('<script src="percapita.js?v=4"></script>').length === 2 && !/percapita\.js\?v=[0-3]\b/.test(src), f + ": percapita.js?v=4 loaded exactly once");
+  ok(src.split('<script src="percapita.js?v=5"></script>').length === 2 && !/percapita\.js\?v=[0-4]\b/.test(src), f + ": percapita.js?v=5 loaded exactly once (v1.9.128)");
   ok(src.split("v1.9.122 per capita").length - 1 >= 1, f + ": migration marker");
   for (const [c, col] of [["fx-pc", "#E06A5A"], ["fx-real-pc", "#E8853A"], ["fx-dollar-pc", "#8E63C9"], ["fx-all", "#8A5A3C"]])
     ok(src.includes(".stat." + c + ", .panel." + c + "{border-color:" + col), f + ": glow " + c);
@@ -142,7 +142,7 @@ ok(cx.G.padL === 60, "short labels keep the 60px margin (no layout change for or
 ok(/function czmBuildSVGSnapshotH\(theme, forExport\)\{\n  G\.padL = CZM_BASE_PADL;/.test(cm), "horizontal bars reset the margin");
 ok((cm.match(/var gm = czmFitLeftPad\(/g) || []).length === 2, "line and vertical bar renderers both fit the margin");
 ok((cm.match(/var yTitleX = czmYTitleX\(gm\)/g) || []).length === 2, "both renderers place the title clear");
-ok(cm.includes("percapita.js?v=4"), "Chartmaker loads percapita.js v4");
+ok(cm.includes("percapita.js?v=5"), "Chartmaker loads percapita.js v5 (v1.9.128)");
 
 console.log(`test_v19122: ${checks} checks, ${failures} failed`);
 process.exit(failures ? 1 : 0);

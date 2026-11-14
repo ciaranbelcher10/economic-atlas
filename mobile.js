@@ -172,7 +172,7 @@
   function addMapCaption(){
     if(!isMobile()) return;
     var legend = document.querySelector(".mini-legend");
-    if(!legend || document.querySelector(".mob-map-cap")) return;
+    if(!legend || document.querySelector(".mob-map-cap") || document.querySelector(".ea-maphint")) return;   // v1.9.128: the shared hint says it
     var cap = document.createElement("p");
     cap.className = "mob-map-cap";
     cap.textContent = "Tap any coloured country to explore its page.";
@@ -370,6 +370,11 @@
     var boxRect = box.getBoundingClientRect();
     var headerRect = header.getBoundingClientRect();
     var offset = boxRect.top - headerRect.top;
+    var mh = header.querySelector(".ea-maphint");   // v1.9.128: map hint directly above the map
+    if(mh && getComputedStyle(mh).position === "absolute"){
+      mh.style.top = offset + "px";
+      offset += mh.offsetHeight + 6;
+    }
     mapWrap.style.top = offset + "px";
   }
 
@@ -412,21 +417,34 @@
     });
   }
 
+  /* v1.9.128: the homepage map on a phone uses the same collapsed card as the country pages:
+     a short preview with an "Expand" pill, tap to open it fully, then tap a country as normal.
+     The caption above it ("All 62 economies. Tap or click a coloured country to open its data.")
+     stays visible while collapsed. */
   function initMapCollapse(){
     if(!isMobile()) return;
-    var wrap = document.getElementById("miniMapWrap");
-    if(!wrap || wrap._mobCollapseAttached) return;
-    wrap._mobCollapseAttached = true;
-    var hint = wrap.querySelector(".minihint");
-    wrap.addEventListener("click", function(e){
-      if(!wrap.classList.contains("mm-expanded")){
-        e.preventDefault();
-        e.stopPropagation();
-        wrap.classList.add("mm-expanded");
-        if(hint) hint.textContent = "Collapse";
+    [document.getElementById("miniMapWrap"), document.querySelector(".mapwrap")].forEach(function(wrap){
+      if(!wrap || wrap._mobCollapseAttached) return;
+      wrap._mobCollapseAttached = true;
+      if(wrap.classList.contains("mapwrap")){
+        wrap.classList.add("mm-collapsible");
+        if(!wrap.querySelector(".minihint")){
+          var pill = document.createElement("span");
+          pill.className = "minihint"; pill.textContent = "Expand \u2197";
+          wrap.appendChild(pill);
+        }
       }
-      // once expanded, further taps behave normally (e.g. selecting a country)
-    }, true);
+      var hint = wrap.querySelector(".minihint");
+      wrap.addEventListener("click", function(e){
+        if(!wrap.classList.contains("mm-expanded")){
+          e.preventDefault();
+          e.stopPropagation();
+          wrap.classList.add("mm-expanded");
+          if(hint) hint.textContent = "Collapse";
+        }
+        // once expanded, further taps behave normally (e.g. selecting a country)
+      }, true);
+    });
   }
 
   function initCountrySwipe(){

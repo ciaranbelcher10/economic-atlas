@@ -59,6 +59,40 @@
 
   /* mode: "value" (headline), "cell" (table column: fixed decimals, no trim), "tip" (tooltip), "axis" (tick), "delta" (signed change) */
   // v1.9.66: a value that rounds to zero is shown unsigned ("0.0%", not "−0.0%"), matching the generator
+/* EA_axisTick (v1.9.128): y-axis labels that differ. Chart.js asks for one tick label at a time;
+     when the page's formatter gives two ticks the same label (China's population, 1.40bn to 1.41bn,
+     read "1.4bn" five times), this adds decimals to every label on that axis until they all differ.
+     Works with any formatter of the form prefix + number + suffix ("$1.4bn", "−2.5%", "£43k").
+     The same function sits in percapita.js and indicator-kit.js (test_v19128 checks they match). */
+  function EA_axisTick(fmt, v, i, ticks){
+    if(!ticks || ticks.length < 2 || typeof i !== "number") return fmt(v);
+    if(ticks.__eaFmt === fmt && ticks.__eaLabels) return ticks.__eaLabels[i];
+    var base = ticks.map(function(t){ return fmt(t.value); });
+    function uniq(ls){ var seen = {}; for(var k = 0; k < ls.length; k++){ if(seen[ls[k]]) return false; seen[ls[k]] = 1; } return true; }
+    function refine(label, val, extra, power){
+      var m = /^(.*?)(\d[\d,]*(?:\.\d+)?)(.*)$/.exec(String(label));
+      if(!m || !isFinite(val) || val === 0) return label;
+      var num = Number(m[2].replace(/,/g, ""));
+      var p = num ? Math.round(Math.log10(Math.abs(val) / num)) : power;
+      var dp = ((m[2].split(".")[1] || "").length) + extra;
+      var s = (Math.abs(val) / Math.pow(10, p)).toFixed(dp);
+      s = s.replace(/^\d+/, function(n){ return n.replace(/\B(?=(\d{3})+(?!\d))/g, ","); });
+      return m[1] + s + m[3];
+    }
+    // a label that rounds to "0" cannot show its own scale, so it borrows its neighbours' ("bn", "%")
+    var power = 0;
+    for(var q = 0; q < ticks.length; q++){
+      var mm = /(\d[\d,]*(?:\.\d+)?)/.exec(String(base[q])), nn = mm && Number(mm[1].replace(/,/g, ""));
+      if(nn && ticks[q].value){ power = Math.round(Math.log10(Math.abs(ticks[q].value) / nn)); break; }
+    }
+    var out = base;
+    for(var extra = 1; extra <= 6 && !uniq(out); extra++){
+      out = ticks.map(function(t, k){ return refine(base[k], t.value, extra, power); });
+    }
+    ticks.__eaFmt = fmt; ticks.__eaLabels = out;
+    return out[i];
+  }
+  if(typeof window !== "undefined" && !window.EA_axisTick) window.EA_axisTick = EA_axisTick;
   function fmtNum(v, o){
     var out = fmtNumRaw(v, o);
     if((out.charAt(0) === MINUS || out.charAt(0) === "+") && !/[1-9]/.test(out)) out = out.slice(1);
@@ -294,7 +328,8 @@
                   callback: function(v){ var l = this.getLabelForValue(v); return shown.length > 30 ? String(l).slice(0,4) : fmtPeriod(l); }}},
             y: {grid: {color: function(c){ return c.tick && c.tick.value === 0 ? INK2 : HAIR; }}, border: {display: false},
                 ticks: {color: INK2, font: FONT, maxTicksLimit: 6,
-                  callback: function(v){ return fmtNum(v, fo(unit, dollarised, "axis")); }}}
+                  callback: function(v, i, t){ var f = function(x){ return fmtNum(x, fo(unit, dollarised, "axis")); };
+                    return EA_axisTick(f, v, i, t); }}}
           }
         }
       });
