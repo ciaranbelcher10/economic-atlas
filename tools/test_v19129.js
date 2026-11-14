@@ -86,7 +86,7 @@ const norm = c => String(c).replace(/\s+/g, "").toLowerCase();
   ok(countryPages.length === 62, "expected 62 country pages, found " + countryPages.length);
 
   // ---------------- D. versions ----------------
-  const WANT = {"style.css": "63", "mobile.css": "48", "mobile.js": "45"};
+  const WANT = {"style.css": "63", "mobile.css": "49", "mobile.js": "46"};   // v1.9.130 bumped mobile.css and mobile.js
   const G = read("generate_indicator_pages.py");
   for (const [a, v] of Object.entries(WANT)) ok(G.includes("../" + a + "?v=" + v + '"'), "D: generator does not request " + a + " v" + v);
   let pinned = 0;

@@ -409,11 +409,19 @@ html[data-theme="dark"] .ht-item{ color:#8FE3B0 !important; }
      existing "Expand" hint) reveals it fully. */
   .mini-mapwrap{
     max-height:86px; overflow:hidden; position:relative; cursor:pointer;
-    transition:max-height .25s ease;
+    transition:none;   /* v1.9.130: mobile.js animates the real height */
   }
   .mini-mapwrap.mm-expanded{ max-height:1200px; }
   .mini-mapwrap .zoomhint, .mini-mapwrap .mini-legend{ display:none; }
   .mini-mapwrap.mm-expanded .zoomhint, .mini-mapwrap.mm-expanded .mini-legend{ display:block; }
+  /* v1.9.130: legend and zoom hint fade in once the card has grown */
+  @keyframes eaMapFade{ from{ opacity:0; } to{ opacity:1; } }
+  .mini-mapwrap.mm-expanded .zoomhint, .mini-mapwrap.mm-expanded .mini-legend,
+  .mapwrap.mm-collapsible.mm-expanded .zoomhint, .mapwrap.mm-collapsible.mm-expanded .legend{ animation:eaMapFade .25s ease .2s both; }
+  @media (prefers-reduced-motion: reduce){
+    .mini-mapwrap.mm-expanded .zoomhint, .mini-mapwrap.mm-expanded .mini-legend,
+    .mapwrap.mm-collapsible.mm-expanded .zoomhint, .mapwrap.mm-collapsible.mm-expanded .legend{ animation:none; }
+  }
   .mini-mapwrap .minihint{
     position:absolute; right:10px; bottom:8px; z-index:2;
     background:rgba(0,0,0,.55); color:#fff; padding:4px 10px; border-radius:20px;
@@ -427,7 +435,7 @@ html[data-theme="dark"] .ht-item{ color:#8FE3B0 !important; }
   .mini-mapwrap.mm-expanded::after{ display:none; }
 
   /* v1.9.128: homepage map, same collapsed card as the country pages (mobile.js initMapCollapse) */
-  .mapwrap.mm-collapsible{ max-height:190px; cursor:pointer; transition:max-height .25s ease; }
+  .mapwrap.mm-collapsible{ max-height:190px; cursor:pointer; transition:none; }
   .mapwrap.mm-collapsible.mm-expanded{ max-height:1200px; }
   .mapwrap.mm-collapsible .zoomhint, .mapwrap.mm-collapsible .legend{ display:none; }
   .mapwrap.mm-collapsible.mm-expanded .zoomhint{ display:block; }

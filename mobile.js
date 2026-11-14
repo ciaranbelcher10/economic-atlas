@@ -421,14 +421,41 @@
      only enlarges, so it never opens a country by accident); a tap on a country then opens it. If the
      reader picks nothing, the card shrinks back once it has scrolled fully off screen or they tap
      elsewhere on the page. No Collapse button. The page is held still when the card shrinks above
-     the reader, so the text they are reading does not jump. */
-  function shrinkMap(wrap){
+     the reader, so the text they are reading does not jump.
+     v1.9.130: smooth. The card animates its real height (measured), not a 1200px max-height cap, so
+     enlarging and shrinking are one even 0.3s motion each way; reduced-motion readers get no
+     animation. Shrinking off screen stays instant, where nobody can see it. */
+  var MAP_EASE = "max-height .3s cubic-bezier(.2,.8,.2,1)";
+  function mapStill(){ return !!(window.matchMedia && window.matchMedia("(prefers-reduced-motion: reduce)").matches); }
+  function settleMap(wrap){
+    if(wrap._mmTimer){ clearTimeout(wrap._mmTimer); wrap._mmTimer = null; }
+    wrap.style.maxHeight = ""; wrap.style.transition = "";
+  }
+  function animateMap(wrap, change){
+    settleMap(wrap);
+    var h0 = wrap.getBoundingClientRect().height;
+    change();
+    wrap.style.maxHeight = "none";
+    var h1 = wrap.getBoundingClientRect().height;
+    if(mapStill() || !(h0 > 0) || !(h1 > 0) || Math.abs(h1 - h0) < 2){ settleMap(wrap); return; }
+    wrap.style.maxHeight = h0 + "px";
+    void wrap.offsetHeight;
+    wrap.style.transition = MAP_EASE;
+    wrap.style.maxHeight = h1 + "px";
+    var done = function(){ wrap.removeEventListener("transitionend", onEnd); settleMap(wrap); };
+    var onEnd = function(e){ if(e.target === wrap && e.propertyName === "max-height") done(); };
+    wrap.addEventListener("transitionend", onEnd);
+    wrap._mmTimer = setTimeout(done, 450);   // in case transitionend never comes
+  }
+  function shrinkMap(wrap, visible){
     if(!wrap.classList.contains("mm-expanded")) return;
+    var off = function(){ wrap.classList.remove("mm-expanded"); wrap.classList.remove("expanded"); };   // .expanded: the country page's own tap-to-expand state
+    if(visible){ animateMap(wrap, off); return; }
+    settleMap(wrap);
     var r0 = wrap.getBoundingClientRect(), above = r0.bottom <= 0;
     var tr = wrap.style.transition;
     if(above) wrap.style.transition = "none";
-    wrap.classList.remove("mm-expanded");
-    wrap.classList.remove("expanded");   // the country page's own tap-to-expand state
+    off();
     if(above){
       var r1 = wrap.getBoundingClientRect(), d = r0.height - r1.height;
       if(d > 0 && window.scrollBy) window.scrollBy(0, -d);
@@ -452,15 +479,15 @@
         if(!wrap.classList.contains("mm-expanded")){
           e.preventDefault();
           e.stopPropagation();
-          wrap.classList.add("mm-expanded");
+          animateMap(wrap, function(){ wrap.classList.add("mm-expanded"); });
         }
       }, true);
       document.addEventListener("click", function(e){
-        if(!wrap.contains(e.target)) shrinkMap(wrap);
+        if(!wrap.contains(e.target)) shrinkMap(wrap, true);
       }, true);
       if("IntersectionObserver" in window){
         new IntersectionObserver(function(entries){
-          entries.forEach(function(en){ if(!en.isIntersecting) shrinkMap(wrap); });
+          entries.forEach(function(en){ if(!en.isIntersecting) shrinkMap(wrap, false); });
         }, {threshold: 0}).observe(wrap);
       }
     });
