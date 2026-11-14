@@ -216,7 +216,7 @@ const countryPages = fs.readdirSync(ROOT).filter(f => /\.html$/.test(f) && read(
   ok(mw && mw.querySelector(".home-mapcap") && mw.firstElementChild.classList.contains("home-mapcap"), "C2: hint is not above the map");
   if (mw) mw.dispatchEvent(new H.w.MouseEvent("click", {bubbles: true}));
   ok(mw && mw.classList.contains("mm-expanded"), "C2: a tap does not expand the phone homepage map");
-  ok(pill && pill.textContent === "Collapse", "C2: pill does not change to Collapse, as on the country pages");
+  // v1.9.129: no Collapse button any more; test_v19129 checks the pill hides and the card shrinks by itself
   const mcss = read("mobile.css");
   ok(/\.mapwrap\.mm-collapsible\{ max-height:190px;/.test(mcss) && /\.mapwrap\.mm-collapsible\.mm-expanded\{ max-height:1200px; \}/.test(mcss), "C2: mobile.css collapse rules missing");
   H.w.close();

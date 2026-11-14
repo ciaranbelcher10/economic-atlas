@@ -1307,8 +1307,8 @@ def head_html(title, desc, canonical, og_image, jsonld, extra_css=""):
 <link rel="preload" as="style" href="https://fonts.googleapis.com/css2?family=Nunito+Sans:wght@400;600;700&display=swap">
 <link href="https://fonts.googleapis.com/css2?family=Nunito+Sans:wght@400;600;700&display=swap" rel="stylesheet" media="print" onload="this.media='all'">
 <noscript><link href="https://fonts.googleapis.com/css2?family=Nunito+Sans:wght@400;600;700&display=swap" rel="stylesheet"></noscript>
-<link rel="stylesheet" href="../style.css?v=62">
-<link rel="stylesheet" href="../mobile.css?v=47">
+<link rel="stylesheet" href="../style.css?v=63">
+<link rel="stylesheet" href="../mobile.css?v=48">
 <link rel="stylesheet" href="../indicator.css?v={KIT_VERSION}">
 <script type="application/ld+json">
 {jsonld}
@@ -1337,7 +1337,7 @@ def page_tail(extra_js="", extra_html=""):
 <script src="https://cdnjs.cloudflare.com/ajax/libs/Chart.js/4.4.1/chart.umd.min.js"></script>
 <script src="../indicator-kit.js?v={KIT_VERSION}"></script>
 {extra_js}
-<script src="../mobile.js?v=44"></script>
+<script src="../mobile.js?v=45"></script>
 {CONSENT_HTML}
 <script src="../consent.js?v=1" defer></script>
 </body>

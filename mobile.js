@@ -371,7 +371,7 @@
     var headerRect = header.getBoundingClientRect();
     var offset = boxRect.top - headerRect.top;
     var mh = header.querySelector(".ea-maphint");   // v1.9.128: map hint directly above the map
-    if(mh && getComputedStyle(mh).position === "absolute"){
+    if(mh && getComputedStyle(mh).display !== "none" && getComputedStyle(mh).position === "absolute"){
       mh.style.top = offset + "px";
       offset += mh.offsetHeight + 6;
     }
@@ -417,10 +417,24 @@
     });
   }
 
-  /* v1.9.128: the homepage map on a phone uses the same collapsed card as the country pages:
-     a short preview with an "Expand" pill, tap to open it fully, then tap a country as normal.
-     The caption above it ("All 62 economies. Tap or click a coloured country to open its data.")
-     stays visible while collapsed. */
+  /* v1.9.129: the phone map card, homepage and country pages alike. A tap enlarges it (that first tap
+     only enlarges, so it never opens a country by accident); a tap on a country then opens it. If the
+     reader picks nothing, the card shrinks back once it has scrolled fully off screen or they tap
+     elsewhere on the page. No Collapse button. The page is held still when the card shrinks above
+     the reader, so the text they are reading does not jump. */
+  function shrinkMap(wrap){
+    if(!wrap.classList.contains("mm-expanded")) return;
+    var r0 = wrap.getBoundingClientRect(), above = r0.bottom <= 0;
+    var tr = wrap.style.transition;
+    if(above) wrap.style.transition = "none";
+    wrap.classList.remove("mm-expanded");
+    wrap.classList.remove("expanded");   // the country page's own tap-to-expand state
+    if(above){
+      var r1 = wrap.getBoundingClientRect(), d = r0.height - r1.height;
+      if(d > 0 && window.scrollBy) window.scrollBy(0, -d);
+      void wrap.offsetHeight; wrap.style.transition = tr;
+    }
+  }
   function initMapCollapse(){
     if(!isMobile()) return;
     [document.getElementById("miniMapWrap"), document.querySelector(".mapwrap")].forEach(function(wrap){
@@ -434,16 +448,21 @@
           wrap.appendChild(pill);
         }
       }
-      var hint = wrap.querySelector(".minihint");
       wrap.addEventListener("click", function(e){
         if(!wrap.classList.contains("mm-expanded")){
           e.preventDefault();
           e.stopPropagation();
           wrap.classList.add("mm-expanded");
-          if(hint) hint.textContent = "Collapse";
         }
-        // once expanded, further taps behave normally (e.g. selecting a country)
       }, true);
+      document.addEventListener("click", function(e){
+        if(!wrap.contains(e.target)) shrinkMap(wrap);
+      }, true);
+      if("IntersectionObserver" in window){
+        new IntersectionObserver(function(entries){
+          entries.forEach(function(en){ if(!en.isIntersecting) shrinkMap(wrap); });
+        }, {threshold: 0}).observe(wrap);
+      }
     });
   }
 
