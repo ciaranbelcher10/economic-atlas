@@ -73,10 +73,10 @@ check(len(re.findall(r"<h1[ >]", main)) == 1, "methodology.html needs exactly on
 check(not re.search(r"\sstyle=", main), "methodology.html still has inline style attributes in its content")
 check('class="roadmap"' not in main and 'header class="page"' not in main, "methodology.html still uses the old roadmap/page containers in its content")
 secs = re.findall(r'<section class="panel ind-panel doc-sec" id="([^"]+)">', main)
-check(len(secs) == 8 and len(set(secs)) == 8, f"expected 8 distinct sections, found {secs}")
+check(len(secs) == 7 and len(set(secs)) == 7, f"expected 7 distinct sections, found {secs}")
 toc = re.search(r'<nav class="panel ind-panel doc-toc".*?</nav>', main, re.S)
 toc_ids = re.findall(r'href="#([^"]+)"', toc.group(0)) if toc else []
-check(toc_ids == secs, f"the contents list must link the 8 sections in order: {toc_ids}")
+check(toc_ids == secs, f"the contents list must link the 7 sections in order: {toc_ids}")
 det = re.findall(r'<details class="doc-detail" id="([^"]+)"><summary>(.*?)</summary>', main, re.S)
 check(len(det) == 30 and len({i for i, _ in det}) == 30 and all(i.startswith("limit-") and s.strip() for i, s in det),
       f"expected 30 accordions with unique limit- ids and a summary, found {len(det)}")

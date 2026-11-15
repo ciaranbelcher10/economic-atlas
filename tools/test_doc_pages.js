@@ -105,7 +105,7 @@ const same = (a, b) => a.length === b.length && a.every(x => b.includes(x));
     const d = dom.window.document, w = dom.window;
     ok(errs.length === 0, "methodology: script errors: " + errs.slice(0, 2).join(" | "));
     const secs = d.querySelectorAll("main .doc-sec[id]"), anchors = d.querySelectorAll(".doc-anchor");
-    ok(secs.length === 8 && anchors.length === 8, `8 sections each with an anchor, found ${secs.length} and ${anchors.length}`);
+    ok(secs.length === 7 && anchors.length === 7, `7 sections each with an anchor, found ${secs.length} and ${anchors.length}`);
     const det = [...d.querySelectorAll("details.doc-detail")];
     ok(det.length === 30 && det.every(x => !x.open), `30 closed accordions expected, found ${det.length}, open: ${det.filter(x => x.open).length}`);
     w.location.hash = "#limit-china";

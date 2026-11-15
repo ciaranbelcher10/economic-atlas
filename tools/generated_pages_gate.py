@@ -38,8 +38,8 @@ Checks (every one is mutation-tested in tools/test_generated_pages_gate.py):
  12. top banner (v1.9.21): every page that has site navigation (hand-written root pages, indicator pages, rankings,
      the rankings index, the methodology page) shows Methodology, About and Contact as plain items, in that order,
      and no page still carries the About dropdown;
- 13. about.html: title, canonical, active banner item; corrections button at the top; the 'These are not our
-     numbers' caveat is the first section and says what it must; the counts are filled from the manifest and the
+ 13. about.html: title, canonical, active banner item; corrections button at the top; the 'Data and accuracy'
+     caveat (v1.9.135) is the first section and says what it must; the counts are filled from the manifest and the
      no-JavaScript fallback has no number; no hyperlink in running text; no UN Comtrade, em dash, double hyphen or
      hourly claim; every publisher it names appears in the data files' own labels; the sitemap lists /about.
 
@@ -569,6 +569,7 @@ def check_built_date(meth, name="methodology-by-economy.html"):
 NAV_STUBS = {"404.html"} | DEPRECATED_STUBS     # no site navigation
 ABOUT_SOURCES = {   # publisher named on the About page -> a token that must appear in the data files' own labels
     "Eurostat": "Eurostat", "World Bank": "World Bank", "OECD": "OECD", "IMF": "IMF",
+    "International Monetary Fund": "IMF", "Federal Reserve Board": "Federal Reserve",
     "Bank for International Settlements": "BIS", "European Central Bank": "ECB", "Office for National Statistics": "ONS",
     "Bureau of Labor Statistics": "BLS", "Bureau of Economic Analysis": "BEA", "Bank of England": "Bank of England",
     "Bank of Canada": "Bank of Canada", "FRED": "FRED"}
@@ -685,9 +686,10 @@ def check_about(tmp, repo):
     m = main.group(0)
     head, first = m.split("<section", 1)[0], m.split("<section", 1)[1]
     check('class="btn" href="contact">Report a correction</a>' in head, "about.html: the corrections button is not at the top")
-    check(re.match(r'[^>]*id="not-our-numbers">\s*<h2>These are not our numbers</h2>', first) is not None,
-          "about.html: the 'These are not our numbers' caveat is not the first section")
-    for phrase in ("We do not produce, estimate or forecast data", "datapoints are calculated by us", "provided as is", "check the source first"):
+    # v1.9.135: the caveat is "Data and accuracy", in the site's plain register
+    check(re.match(r'[^>]*id="data-and-accuracy">\s*<h2>Data and accuracy</h2>', first) is not None,
+          "about.html: the 'Data and accuracy' caveat is not the first section")
+    for phrase in ("does not produce, estimate or forecast data", "calculated from published data", "provided as is"):
         check(phrase in m, f"about.html: caveat is missing '{phrase}'")
     check(m.count('id="aboutCount"') == 1, "about.html: expected exactly one id=\"aboutCount\"")
     fb = re.search(r'<span id="aboutCount">([^<]*)</span>', m)
@@ -700,15 +702,25 @@ def check_about(tmp, repo):
     data = "".join(read(f) for f in glob.glob(os.path.join(repo, "data-*.json")))
     src = re.search(r'id="where-the-data-comes-from">.*?</section>', m, re.S)
     stext = src.group(0) if src else ""
-    listed = re.search(r"including (.*?) and other national", stext, re.S)
-    if check(listed, "about.html: the sources sentence has no 'including ... and other national' list"):
-        named = {x.strip().removeprefix("the ") for x in re.sub(r"\s+", " ", listed.group(1)).split(",")}
-        allowed = set(ABOUT_SOURCES) - {"FRED"}
-        check(named == allowed, f"about.html names publishers outside the checked list: extra {sorted(named - allowed)}, missing {sorted(allowed - named)}")
+    # v1.9.135: sources are a list. International names must be in ABOUT_SOURCES and appear in the data files'
+    # labels; each national publisher must be credited on some country page.
+    intl = re.search(r'<h3>International sources</h3>\s*<dl class="src-list">(.*?)</dl>', stext, re.S)
+    if check(intl, "about.html: no International sources list"):
+        named = {re.sub(r"<[^>]+>", "", x).strip() for x in re.findall(r"<dt>(.*?)</dt>", intl.group(1), re.S)}
+        check(named <= set(ABOUT_SOURCES), f"about.html names international sources outside the checked list: {sorted(named - set(ABOUT_SOURCES))}")
+        for name in sorted(named & set(ABOUT_SOURCES)):
+            token = ABOUT_SOURCES[name]
+            check(re.search(r"(?<![A-Za-z])" + re.escape(token) + r"(?![A-Za-z])", data) is not None,
+                  f"about.html names {name}, but no data file mentions {token}")
     check("FRED" in stext, "about.html does not mention FRED")
-    for name, token in ABOUT_SOURCES.items():
-        check(re.search(r"(?<![A-Za-z])" + re.escape(token) + r"(?![A-Za-z])", data) is not None,
-              f"about.html names {name}, but no data file mentions {token}")
+    nat = re.search(r'<dl class="src-list src-nat">(.*?)</dl>', stext, re.S)
+    if check(nat, "about.html: no national publishers list"):
+        pages = "".join(read(f) for f in glob.glob(os.path.join(repo, "*.html")) if not f.endswith("about.html"))
+        for pub in re.findall(r"<a [^>]*>([^<]+)</a>", nat.group(1)):
+            name = pub.replace("&amp;", "&")
+            alias = {"Bureau of Economic Analysis": "BEA", "Bureau of Labor Statistics": "BLS", "Census Bureau": "Census"}.get(name, name)
+            check(name in pages or name.split(" (")[0] in pages or re.search(r"\b" + re.escape(alias) + r"\b", pages),
+                  f"about.html credits {name}, which no other page names")
     sm = read(os.path.join(tmp, "sitemap.xml")) if os.path.exists(os.path.join(tmp, "sitemap.xml")) else ""
     check("<loc>https://theeconomicatlas.com/about</loc>" in sm, "sitemap.xml does not list /about")
     bump("About page checks", 1)

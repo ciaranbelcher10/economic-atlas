@@ -2895,7 +2895,7 @@ def render_key_figures(country, name, cslug, info, stamp):
             f'<span class="kf-meta">{n_rows} indicators, as of <time class="kf-date" datetime="{stamp}">{esc(fmt_day(stamp))}</time></span></summary>'
             '<div class="kf-body">'
             + (f'<p class="kf-summary">{esc(summary)}</p>' if summary else "")
-            + '<p>Each figure is the latest published by the source named. Each name opens that indicator\u2019s page with its full history.</p>'
+            + '<p>Select a name for its full history.</p>'
             + '<div class="kf-scroll"><table><thead><tr><th scope="col">Indicator</th><th scope="col">Latest</th>'
               '<th scope="col">Period</th><th scope="col">Source</th></tr></thead><tbody>'
             + "".join(rows) + f"</tbody></table></div></div></details></div>\n{KF_END}")
