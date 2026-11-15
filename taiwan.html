@@ -1722,19 +1722,19 @@ document.addEventListener("DOMContentLoaded", function(){
  <div class="hero mini" id="tiles-inflation"></div>
  <p class="lightskey compact" aria-label="Key to freshness lights"><span><span class="led green" aria-hidden="true"></span>&nbsp;Up to date</span><span><span class="led orange" aria-hidden="true"></span>&nbsp;Awaiting update</span></p>
  <div class="grid" id="charts-inflation"></div>
- <p class="secnote">Taiwan's statistics office does not offer its data to automated downloads, so inflation here is the annual average change in consumer prices from the IMF World Economic Outlook, actual years only; there is no monthly inflation figure on this page. The interest rate is the Central Bank of the Republic of China (Taiwan)'s discount rate, the rate on its rediscounts, taken from the bank's own open-data file and shown as the rate in force at the end of each month.</p>
+ <p class="secnote">Inflation is annual, from the IMF World Economic Outlook; no monthly series is available. The interest rate is the central bank's discount rate, as in force at the end of each month.</p>
 </section>
 <section class="sec" id="sec-labour" hidden>
  <div class="hero mini" id="tiles-labour"></div>
  <p class="lightskey compact" aria-label="Key to freshness lights"><span><span class="led green" aria-hidden="true"></span>&nbsp;Up to date</span><span><span class="led orange" aria-hidden="true"></span>&nbsp;Awaiting update</span></p>
  <div class="grid" id="charts-labour"></div>
- <p class="secnote">Unemployment is the annual rate from the IMF World Economic Outlook, actual years only. Monthly labour force figures are published by Taiwan's statistics office but are not available to automated downloads, so they are not shown.</p>
+ <p class="secnote">Unemployment is annual.</p>
 </section>
 <section class="sec" id="sec-trade" hidden>
  <div class="hero mini" id="tiles-trade"></div>
  <p class="lightskey compact" aria-label="Key to freshness lights"><span><span class="led green" aria-hidden="true"></span>&nbsp;Up to date</span><span><span class="led orange" aria-hidden="true"></span>&nbsp;Awaiting update</span></p>
  <div class="grid" id="charts-trade"></div>
- <p class="secnote">Goods trade is Taiwan's monthly customs data as the IMF republishes it, in US dollars, converted to New Taiwan dollars at each month's average of the Federal Reserve's daily exchange rate. Exports are valued free on board, imports including cost, insurance and freight. The current account and foreign direct investment are not shown: the free international sources this site uses do not cover Taiwan.</p>
+ <p class="secnote">Goods trade is converted from US dollars to New Taiwan dollars at each month's rate.</p>
  <div id="tpmBlock"><div class="tpm-head"><h3>Taiwan goods trade: top partners</h3></div>
  <p class="tpm-scopenote"><strong>Goods trade only.</strong> Services are not included.</p>
   <nav class="viztoggle">
@@ -1783,13 +1783,12 @@ document.addEventListener("DOMContentLoaded", function(){
  <div class="hero mini" id="tiles-public"></div>
  <p class="lightskey compact" aria-label="Key to freshness lights"><span><span class="led green" aria-hidden="true"></span>&nbsp;Up to date</span><span><span class="led orange" aria-hidden="true"></span>&nbsp;Awaiting update</span></p>
  <div class="grid" id="charts-public"></div>
- <p class="secnote">Debt and the budget balance are the IMF World Economic Outlook's general government figures, actual years only.</p>
 </section>
 <section class="sec" id="sec-markets" hidden>
  <div class="hero mini" id="tiles-markets"></div>
  <p class="lightskey compact" aria-label="Key to freshness lights"><span><span class="led green" aria-hidden="true"></span>&nbsp;Up to date</span><span><span class="led orange" aria-hidden="true"></span>&nbsp;Awaiting update</span></p>
  <div class="grid" id="charts-markets"></div>
- <p class="secnote">The exchange rate is the Federal Reserve's daily rate, averaged by month. There is no 10-year government bond yield or business confidence index: no free series covers Taiwan.</p>
+ <p class="secnote">No 10-year government bond yield is available for Taiwan.</p>
 </section>
 <section class="sec" id="sec-misc" hidden>
  <div class="hero mini" id="tiles-misc"></div>
@@ -2164,6 +2163,17 @@ function tileNum(s){
   if(!/[1-9]/.test(s)) s=s.replace(/[-\u2212]/g,"");
   return s.replace(/(^|[^\w.])-(?=[\d.\u20ac$\u00a3\u00a5])/g,"$1\u2212");
 }
+/* v1.9.136: a tile shows its source as publisher and series code only; the (i) keeps the full line */
+function eaShortSrc(s){
+  s = String(s == null ? "" : s).replace(/\s*\([^()]*\b(?:falls? back|only if|see )[^()]*\)/gi, "");
+  s = s.split(/(?<=[.;])\s+(?=[A-Z(])/)[0].replace(/[.;]\s*$/, "");
+  var parts = s.split(/\s*·\s*/);
+  var code = /[A-Z0-9][A-Z0-9_.\-\/]{3,}/;
+  var out = parts[0];
+  if(parts.length > 1 && parts[0].length <= 30 && (parts[1].length <= 30 || (parts[1].length <= 40 && !/\b[a-z]{2,}\s+[a-z]{2,}/.test(parts[1]) && (/^[A-Z0-9]/.test(parts[1]) || /[_\d]/.test(parts[1]))))) out += " · " + parts[1];
+  if(out.length > 70){ var c = out.match(/^(.*?\b[A-Z0-9][A-Z0-9_.\-\/]{3,}\b\)?)/); if(c && c[1].length >= 8) out = c[1]; }
+  return out;
+}
 function statTile(el, key, title, series, opts){
   // v1.9.122: with Per capita on, the GDP tile is the latest complete calendar year, the same
   // figure as the GDP per capita tile and Compare (never a part year, never one quarter's rate)
@@ -2234,7 +2244,7 @@ function statTile(el, key, title, series, opts){
       <p class="delta ${dir}"><span class="arrow" aria-hidden="true">${arrow}</span>
         ${(d=>((dShow>0&&!opts.signed&&String(d).charAt(0)!=="+")?"+":"")+tileNum(d))(opts.fmtD(dShow))} ${opts.vsText||"vs prior"}</p>
       <p class="period">${fmtPeriod(last[0])}${(typeof PC_APPLIED !== "undefined" && PC_APPLIED.has(key)) ? " \u00b7 per person, " + String(last[0]).slice(0, 4) + " population" : ""}</p>
-      <p class="source">${opts.source}</p>`;
+      <p class="source">${eaShortSrc(opts.source)}</p>`;
   el.appendChild(div);
 }
 // Every metric with its own /indicators/ page for this country (v1.6.1: all of them, not just four).
@@ -2863,29 +2873,29 @@ function hasPreHistoryPoints(series, fx){
 const INFO_CONTENT = {
   gdp_level: {
     description: "The total value of everything Taiwan produces in a year, at current prices. Annual only: Taiwan's quarterly national accounts are not available to automated downloads.",
-    source: "IMF World Economic Outlook (NGDP) \u00b7 GDP at current prices, NT$ million, annual \u00b7 actual years only. The IMF's figures for the years after the one shown are projections, which this site does not publish.",
-    real: "\u201cMake it real\u201d swaps this to the IMF's GDP at constant prices, also annual. This strips out the effect of price changes, so it shows genuine output growth rather than growth that's really just inflation.",
-    dollar: "\u201cDollarise\u201d converts each year at its own NT$/US$ rate (Federal Reserve H.10, monthly average)."
+    source: "IMF World Economic Outlook (NGDP) \u00b7 GDP at current prices, NT$ million, annual \u00b7 actual years only.",
+    real: "\u201cAdjust for inflation\u201d swaps this to the IMF's GDP at constant prices, also annual. This strips out the effect of price changes, so it shows genuine output growth rather than growth that's really just inflation.",
+    dollar: "\u201cConvert to USD$\u201d converts each year at its own NT$/US$ rate (Federal Reserve H.10, monthly average)."
   },
   gdp_real: {
     description: "GDP adjusted for inflation, so changes reflect real output growth rather than price changes.",
-    source: "IMF World Economic Outlook (NGDP_R) \u00b7 GDP at constant prices, NT$ million, annual \u00b7 actual years only. The IMF's figures for the years after the one shown are projections, which this site does not publish.",
-    real: "This IS the \u201cMake it real\u201d series, toggling it off shows GDP at current (nominal) prices instead.",
+    source: "IMF World Economic Outlook (NGDP_R) \u00b7 GDP at constant prices, NT$ million, annual \u00b7 actual years only.",
+    real: "This IS the \u201cAdjust for inflation\u201d series, toggling it off shows GDP at current (nominal) prices instead.",
     dollar: "Same historical-rate matching as GDP (current prices): each year converted at its own NT$/US$ rate."
   },
   gdp_growth: {
     description: "How much the economy grew or shrank compared with the previous year, in real terms. Annual only on this page.",
-    source: "IMF World Economic Outlook (NGDP_RPCH) \u00b7 real GDP, change on the previous year, %, annual \u00b7 actual years only. The IMF's figures for the years after the one shown are projections, which this site does not publish.",
-    real: "This is already a real (inflation-adjusted) growth rate, \u201cMake it real\u201d has no additional effect on it.",
-    dollar: "A growth rate (%) is currency-agnostic, converting the underlying New Taiwan dollars to dollars doesn't change the percentage change. \u201cDollarise\u201d has no effect on this figure."
+    source: "IMF World Economic Outlook (NGDP_RPCH) \u00b7 real GDP, change on the previous year, %, annual \u00b7 actual years only.",
+    real: "This is already a real (inflation-adjusted) growth rate, \u201cAdjust for inflation\u201d has no additional effect on it.",
+    dollar: "A growth rate (%) is currency-agnostic, converting the underlying New Taiwan dollars to dollars doesn't change the percentage change. \u201cConvert to USD$\u201d has no effect on this figure."
   },
   cpi: {
     description: "How much consumer prices rose on average over the year compared with the year before. Annual only: monthly figures are not available to automated downloads.",
-    source: "IMF World Economic Outlook (PCPIPCH) \u00b7 consumer prices, change in the annual average, %, annual \u00b7 actual years only. The IMF's figures for the years after the one shown are projections, which this site does not publish."
+    source: "IMF World Economic Outlook (PCPIPCH) \u00b7 consumer prices, change in the annual average, %, annual \u00b7 actual years only."
   },
   unemployment: {
     description: "The share of the labour force that wants a job and is actively looking, but can't find one, averaged over the year.",
-    source: "IMF World Economic Outlook (LUR) \u00b7 unemployment rate, % of the labour force, annual \u00b7 actual years only. The IMF's figures for the years after the one shown are projections, which this site does not publish."
+    source: "IMF World Economic Outlook (LUR) \u00b7 unemployment rate, % of the labour force, annual \u00b7 actual years only."
   },
   policy_rate: {
     description: "The rate the Central Bank of the Republic of China (Taiwan) charges on rediscounts, its headline policy rate. It moves in steps of one-eighth of a percentage point.",
@@ -2894,27 +2904,27 @@ const INFO_CONTENT = {
   exports: {
     description: "The value of goods Taiwan sells to the rest of the world each month, in New Taiwan dollars.",
     source: "IMF international trade in goods (ITG) \u00b7 exports of goods, free on board, US$ converted to New Taiwan dollars at the Federal Reserve's monthly average rate (H.10), monthly.",
-    dollar: "Taiwan's customs figures are in US dollars; the NT$ shown are converted at each month's average rate, and \u201cDollarise\u201d converts back."
+    dollar: "Taiwan's customs figures are in US dollars; the NT$ shown are converted at each month's average rate, and \u201cConvert to USD$\u201d converts back."
   },
   imports: {
     description: "The value of goods Taiwan buys from the rest of the world each month, in New Taiwan dollars.",
     source: "IMF international trade in goods (ITG) \u00b7 imports of goods, cost, insurance and freight, US$ converted to New Taiwan dollars at the Federal Reserve's monthly average rate (H.10), monthly.",
-    dollar: "Taiwan's customs figures are in US dollars; the NT$ shown are converted at each month's average rate, and \u201cDollarise\u201d converts back."
+    dollar: "Taiwan's customs figures are in US dollars; the NT$ shown are converted at each month's average rate, and \u201cConvert to USD$\u201d converts back."
   },
   trade_balance: {
     description: "Exports minus imports of goods each month. Above zero means Taiwan sells more abroad than it buys.",
     source: "IMF international trade in goods (ITG) \u00b7 exports (free on board) less imports (cost, insurance and freight), US$ converted to New Taiwan dollars at the Federal Reserve's monthly average rate (H.10), monthly.",
-    dollar: "Taiwan's customs figures are in US dollars; the NT$ shown are converted at each month's average rate, and \u201cDollarise\u201d converts back."
+    dollar: "Taiwan's customs figures are in US dollars; the NT$ shown are converted at each month's average rate, and \u201cConvert to USD$\u201d converts back."
   },
   debt_gdp: {
     description: "Everything government owes, across all levels of government, compared with the size of the economy.",
-    source: "IMF World Economic Outlook (GGXWDG_NGDP) \u00b7 general government gross debt, % of GDP, annual \u00b7 actual years only. The IMF's figures for the years after the one shown are projections, which this site does not publish.",
-    dollar: "Already expressed as a % of GDP, currency-agnostic. \u201cDollarise\u201d has no effect on this figure."
+    source: "IMF World Economic Outlook (GGXWDG_NGDP) \u00b7 general government gross debt, % of GDP, annual \u00b7 actual years only.",
+    dollar: "Already expressed as a % of GDP, currency-agnostic. \u201cConvert to USD$\u201d has no effect on this figure."
   },
   deficit: {
     description: "The yearly gap between government spending and revenue as a share of GDP; negative means a deficit. This covers all levels of government.",
-    source: "IMF World Economic Outlook (GGXCNL_NGDP) \u00b7 general government net lending/borrowing, % of GDP, annual \u00b7 actual years only. The IMF's figures for the years after the one shown are projections, which this site does not publish.",
-    dollar: "Already expressed as a % of GDP, currency-agnostic. \u201cDollarise\u201d has no effect on this figure."
+    source: "IMF World Economic Outlook (GGXCNL_NGDP) \u00b7 general government net lending/borrowing, % of GDP, annual \u00b7 actual years only.",
+    dollar: "Already expressed as a % of GDP, currency-agnostic. \u201cConvert to USD$\u201d has no effect on this figure."
   }
 };
 function infoIconHtml(infoKey){

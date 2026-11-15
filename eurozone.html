@@ -2063,6 +2063,17 @@ function tileNum(s){
   if(!/[1-9]/.test(s)) s=s.replace(/[-\u2212]/g,"");
   return s.replace(/(^|[^\w.])-(?=[\d.\u20ac$\u00a3\u00a5])/g,"$1\u2212");
 }
+/* v1.9.136: a tile shows its source as publisher and series code only; the (i) keeps the full line */
+function eaShortSrc(s){
+  s = String(s == null ? "" : s).replace(/\s*\([^()]*\b(?:falls? back|only if|see )[^()]*\)/gi, "");
+  s = s.split(/(?<=[.;])\s+(?=[A-Z(])/)[0].replace(/[.;]\s*$/, "");
+  var parts = s.split(/\s*·\s*/);
+  var code = /[A-Z0-9][A-Z0-9_.\-\/]{3,}/;
+  var out = parts[0];
+  if(parts.length > 1 && parts[0].length <= 30 && (parts[1].length <= 30 || (parts[1].length <= 40 && !/\b[a-z]{2,}\s+[a-z]{2,}/.test(parts[1]) && (/^[A-Z0-9]/.test(parts[1]) || /[_\d]/.test(parts[1]))))) out += " · " + parts[1];
+  if(out.length > 70){ var c = out.match(/^(.*?\b[A-Z0-9][A-Z0-9_.\-\/]{3,}\b\)?)/); if(c && c[1].length >= 8) out = c[1]; }
+  return out;
+}
 function statTile(el, key, title, series, opts){
   // v1.9.122: with Per capita on, the GDP tile is the latest complete calendar year, the same
   // figure as the GDP per capita tile and Compare (never a part year, never one quarter's rate)
@@ -2133,7 +2144,7 @@ function statTile(el, key, title, series, opts){
       <p class="delta ${dir}"><span class="arrow" aria-hidden="true">${arrow}</span>
         ${(d=>((dShow>0&&!opts.signed&&String(d).charAt(0)!=="+")?"+":"")+tileNum(d))(opts.fmtD(dShow))} ${opts.vsText||"vs prior"}</p>
       <p class="period">${fmtPeriod(last[0])}${(typeof PC_APPLIED !== "undefined" && PC_APPLIED.has(key)) ? " \u00b7 per person, " + String(last[0]).slice(0, 4) + " population" : ""}</p>
-      <p class="source">${opts.source}</p>`;
+      <p class="source">${eaShortSrc(opts.source)}</p>`;
   el.appendChild(div);
 }
 // Every metric with its own /indicators/ page for this country (v1.6.1: all of them, not just four).
@@ -2432,10 +2443,10 @@ function render(data){
     "The euro area's overall balance with the rest of the world (trade plus investment income) as a share of GDP.",
     s.current_account,"line",v=>v+"%",pct,"Eurostat bop_gdp6_q \u00b7 % of GDP, annual, euro area (EA20) vs rest of world",undefined,0);
   if(s.exports) chartPanel("exports","charts-trade","Exports, goods",
-    "The value of goods the euro area sells to the rest of the world "+tradeExpl,
+    "The value of goods the euro area sells to the rest of the world"+tradeExpl,
     s.exports,"line",v=>curFmt(v,s.exports.unit,0),v=>curFmt(v,s.exports.unit,1),(tradeLive?"Eurostat teiet010 \u00b7 extra-euro-area goods exports, \u20ac million":"FRED series XTEXVA01EZM667S \u00b7 goods, SA (OECD): discontinued Apr 2023"));
   if(s.imports) chartPanel("imports","charts-trade","Imports, goods",
-    "The value of goods the euro area buys from the rest of the world "+tradeExpl,
+    "The value of goods the euro area buys from the rest of the world"+tradeExpl,
     s.imports,"line",v=>curFmt(v,s.imports.unit,0),v=>curFmt(v,s.imports.unit,1),(tradeLive?"Eurostat teiet110 \u00b7 extra-euro-area goods imports, \u20ac million":"FRED series XTIMVA01EZM667S \u00b7 goods, SA (OECD): discontinued Apr 2023"));
   if(s.debt_gdp) chartPanel("debt_gdp","charts-public","Government gross debt, % of GDP",
     "Everything euro-area governments owe, compared with the size of the economy.",
@@ -2840,20 +2851,20 @@ const INFO_CONTENT = {
   gdp_level: {
     description: "The total value of everything the euro area produces in a year, at current prices, on a rolling four-quarter basis.",
     source: "Eurostat namq_10_gdp (CP_MEUR) \u00b7 euro area EA21 (today's 21 members, back-calculated), current prices, seasonally and calendar adjusted, quarterly, shown as a rolling four-quarter sum.",
-    real: "\u201cMake it real\u201d swaps this to the euro area's real (chained-volume, inflation-adjusted) GDP series. This strips out the effect of price changes, so it shows genuine output growth rather than growth that's really just inflation.",
-    dollar: "\u201cDollarise\u201d converts each historical point using that point's OWN contemporaneous EUR/USD rate (monthly resolution, from FRED's DEXUSEU series, which starts 1999-01, the euro's launch). This series starts in 1995, so points before 1999 have no genuine historical euro rate available and fall back to the earliest rate DEXUSEU provides (1999-01), disclosed in the page's toggle note. This is a considered approximation for those years, not a precise historical conversion."
+    real: "\u201cAdjust for inflation\u201d swaps this to the euro area's real (chained-volume, inflation-adjusted) GDP series. This strips out the effect of price changes, so it shows genuine output growth rather than growth that's really just inflation.",
+    dollar: "\u201cConvert to USD$\u201d converts each historical point using that point's OWN contemporaneous EUR/USD rate (monthly resolution, from FRED's DEXUSEU series, which starts 1999-01, the euro's launch). This is a considered approximation for those years, not a precise historical conversion."
   },
   gdp_real: {
     description: "GDP adjusted for inflation, chained-volume terms, the same production, valued at constant prices, so changes reflect real output growth rather than price changes.",
     source: "Eurostat namq_10_gdp (CLV20_MEUR) \u00b7 euro area EA21 (today's 21 members, back-calculated), chain-linked volumes, 2020 reference year, seasonally and calendar adjusted, quarterly.",
-    real: "This IS the \u201cMake it real\u201d series, toggling it off shows GDP at current (nominal) prices instead.",
+    real: "This IS the \u201cAdjust for inflation\u201d series, toggling it off shows GDP at current (nominal) prices instead.",
     dollar: "Same historical-rate matching as GDP (current prices): each point converted at its own contemporaneous EUR/USD rate where available (1999 onward), falling back to the earliest available rate (1999-01) for anything before that."
   },
   gdp_growth: {
     description: "How much the euro area economy grew or shrank compared with the previous three months (QoQ tile) or the same period a year ago (YoY tile), in real (inflation-adjusted) terms.",
     source: "Derived from Eurostat namq_10_gdp (CLV20_MEUR) · euro area EA21 (today's 21 members, back-calculated), real GDP, seasonally and calendar adjusted, quarter-on-quarter.",
-    real: "This is already a real (inflation-adjusted) growth rate as published, \u201cMake it real\u201d has no additional effect on it.",
-    dollar: "A growth rate (%) is currency-agnostic, converting the underlying euros to dollars doesn't change the percentage change. \u201cDollarise\u201d has no effect on this figure."
+    real: "This is already a real (inflation-adjusted) growth rate as published, \u201cAdjust for inflation\u201d has no additional effect on it.",
+    dollar: "A growth rate (%) is currency-agnostic, converting the underlying euros to dollars doesn't change the percentage change. \u201cConvert to USD$\u201d has no effect on this figure."
   },
   cpi: {
     description: "How much consumer prices are rising across the euro area compared with a year ago. The ECB targets 2% inflation.",
@@ -2874,12 +2885,12 @@ const INFO_CONTENT = {
   business_confidence: {
     description: "How optimistic firms are about the months ahead, across the euro area. 100 is the long-run average; readings above it mean firms expect better-than-average conditions.",
     source: "OECD \u00b7 Business Confidence Indicator (BCICP), amplitude-adjusted, long-term average = 100.",
-    dollar: "This is an index, not a currency figure, \u201cDollarise\u201d doesn't apply to it."
+    dollar: "This is an index, not a currency figure, \u201cConvert to USD$\u201d doesn't apply to it."
   },
   fdi: {
     description: "Money invested into euro-area businesses from abroad each year (foreign direct investment), as a share of GDP.",
     source: "World Bank BX.KLT.DINV.WD.GD.ZS \u00b7 FDI net inflows, % of GDP, annual, euro-area aggregate.",
-    dollar: "Already expressed as a % of GDP, currency-agnostic. \u201cDollarise\u201d has no effect on this figure."
+    dollar: "Already expressed as a % of GDP, currency-agnostic. \u201cConvert to USD$\u201d has no effect on this figure."
   },
   trade_balance: {
     description: "Exports minus imports of goods each month, extra-euro-area (i.e. trade with the rest of the world, not between euro members). Below zero means the euro area buys more from abroad than it sells.",
@@ -2899,17 +2910,17 @@ const INFO_CONTENT = {
   current_account: {
     description: "The euro area's overall balance with the rest of the world, trade in goods and services plus net investment income, as a share of GDP.",
     source: "Eurostat bop_gdp6_q \u00b7 balance of payments, current account balance of the euro area (EA20) with the rest of the world, % of GDP, annual, 2013 onward.",
-    dollar: "Already expressed as a % of GDP, currency-agnostic. \u201cDollarise\u201d has no effect on this figure."
+    dollar: "Already expressed as a % of GDP, currency-agnostic. \u201cConvert to USD$\u201d has no effect on this figure."
   },
   debt_gdp: {
     description: "Everything euro-area governments owe combined, compared with the size of the economy.",
     source: "Eurostat gov_10dd_edpt1 \u00b7 EDP notification table, general government, euro area EA21 (today's 21 members), % of GDP, annual.",
-    dollar: "Already expressed as a % of GDP, currency-agnostic. \u201cDollarise\u201d has no effect on this figure."
+    dollar: "Already expressed as a % of GDP, currency-agnostic. \u201cConvert to USD$\u201d has no effect on this figure."
   },
   deficit: {
     description: "The yearly gap between government spending and revenue across the euro area. Negative means a deficit.",
     source: "Eurostat gov_10dd_edpt1 \u00b7 EDP notification table, general government, euro area EA21 (today's 21 members), % of GDP, annual.",
-    dollar: "Already expressed as a % of GDP, currency-agnostic. \u201cDollarise\u201d has no effect on this figure."
+    dollar: "Already expressed as a % of GDP, currency-agnostic. \u201cConvert to USD$\u201d has no effect on this figure."
   }
 };
 function infoIconHtml(infoKey){

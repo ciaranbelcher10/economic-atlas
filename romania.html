@@ -1722,19 +1722,19 @@ document.addEventListener("DOMContentLoaded", function(){
  <div class="hero mini" id="tiles-inflation"></div>
  <p class="lightskey compact" aria-label="Key to freshness lights"><span><span class="led green" aria-hidden="true"></span>&nbsp;Up to date</span><span><span class="led orange" aria-hidden="true"></span>&nbsp;Awaiting update</span></p>
  <div class="grid" id="charts-inflation"></div>
- <p class="secnote">Two inflation measures are shown. The National Institute of Statistics' national CPI is the headline figure and the one the National Bank of Romania targets (2.5%, plus or minus one point); the EU-harmonised HICP is shown for comparison with other EU countries. In Romania the two differ more than in most EU countries because their weights differ. The interest rate is the NBR's monetary policy rate. Both inflation measures are shown from January 2002: from 1997 to 2001 annual inflation ran between 40% and over 150% after price liberalisation, which would flatten every later movement on the charts. The national CPI comes from the IMF's copy of INS's index, published about a month after INS, so its latest month can be one behind.</p>
+ <p class="secnote">Two inflation measures are shown: the national CPI, which the National Bank of Romania targets at 2.5%, and the EU-harmonised HICP; they differ more than in most EU countries. Both are shown from 2002. The national CPI can be a month behind INS's release.</p>
 </section>
 <section class="sec" id="sec-labour" hidden>
  <div class="hero mini" id="tiles-labour"></div>
  <p class="lightskey compact" aria-label="Key to freshness lights"><span><span class="led green" aria-hidden="true"></span>&nbsp;Up to date</span><span><span class="led orange" aria-hidden="true"></span>&nbsp;Awaiting update</span></p>
  <div class="grid" id="charts-labour"></div>
- <p class="secnote">Unemployment is Eurostat's monthly, seasonally adjusted rate (ILO definition, ages 15 to 74). Romania is not an OECD member, so the OECD's 15 to 64 employment and participation rates shown for other EU countries are not available. Unemployment is shown from January 2009: Eurostat's earlier monthly series for Romania has one-month steps (2004 and 2009) that look like changes of method rather than movements in the labour market.</p>
+ <p class="secnote">Unemployment is shown from 2009. Employment and participation rates are not available.</p>
 </section>
 <section class="sec" id="sec-trade" hidden>
  <div class="hero mini" id="tiles-trade"></div>
  <p class="lightskey compact" aria-label="Key to freshness lights"><span><span class="led green" aria-hidden="true"></span>&nbsp;Up to date</span><span><span class="led orange" aria-hidden="true"></span>&nbsp;Awaiting update</span></p>
  <div class="grid" id="charts-trade"></div>
- <p class="secnote">Goods trade is Eurostat's monthly total with the rest of the world, converted from euros to lei at each month's ECB reference rate. All three series end at the latest month for which both exports and imports are published.</p>
+ <p class="secnote">Goods trade is converted from euros to lei at each month's ECB rate.</p>
  <div id="tpmBlock"><div class="tpm-head"><h3>Romania goods trade: top partners</h3></div>
  <p class="tpm-scopenote"><strong>Goods trade only.</strong> Services are not included.</p>
   <nav class="viztoggle">
@@ -1783,13 +1783,13 @@ document.addEventListener("DOMContentLoaded", function(){
  <div class="hero mini" id="tiles-public"></div>
  <p class="lightskey compact" aria-label="Key to freshness lights"><span><span class="led green" aria-hidden="true"></span>&nbsp;Up to date</span><span><span class="led orange" aria-hidden="true"></span>&nbsp;Awaiting update</span></p>
  <div class="grid" id="charts-public"></div>
- <p class="secnote">Debt and the budget balance are Eurostat's excessive deficit procedure figures for general government, calendar years. Romania has been under the EU's excessive deficit procedure since 2020. GDP is shown from 2000; Eurostat's quarterly estimates for the late 1990s swing implausibly from quarter to quarter.</p>
+ <p class="secnote">GDP is shown from 2000.</p>
 </section>
 <section class="sec" id="sec-markets" hidden>
  <div class="hero mini" id="tiles-markets"></div>
  <p class="lightskey compact" aria-label="Key to freshness lights"><span><span class="led green" aria-hidden="true"></span>&nbsp;Up to date</span><span><span class="led orange" aria-hidden="true"></span>&nbsp;Awaiting update</span></p>
  <div class="grid" id="charts-markets"></div>
- <p class="secnote">The 10-year yield is the ECB's monthly long-term interest rate for convergence purposes for Romania. The exchange rates are World Bank annual averages of the official leu rate, so they move once a year. The leu was redenominated in July 2005 (10,000 old lei became 1 leu); earlier figures are shown in new lei.</p>
+ <p class="secnote">The exchange rate is the World Bank's annual average, so it changes once a year. Figures before the July 2005 redenomination are shown in new lei.</p>
 </section>
 <section class="sec" id="sec-misc" hidden>
  <div class="hero mini" id="tiles-misc"></div>
@@ -2164,6 +2164,17 @@ function tileNum(s){
   if(!/[1-9]/.test(s)) s=s.replace(/[-\u2212]/g,"");
   return s.replace(/(^|[^\w.])-(?=[\d.\u20ac$\u00a3\u00a5])/g,"$1\u2212");
 }
+/* v1.9.136: a tile shows its source as publisher and series code only; the (i) keeps the full line */
+function eaShortSrc(s){
+  s = String(s == null ? "" : s).replace(/\s*\([^()]*\b(?:falls? back|only if|see )[^()]*\)/gi, "");
+  s = s.split(/(?<=[.;])\s+(?=[A-Z(])/)[0].replace(/[.;]\s*$/, "");
+  var parts = s.split(/\s*·\s*/);
+  var code = /[A-Z0-9][A-Z0-9_.\-\/]{3,}/;
+  var out = parts[0];
+  if(parts.length > 1 && parts[0].length <= 30 && (parts[1].length <= 30 || (parts[1].length <= 40 && !/\b[a-z]{2,}\s+[a-z]{2,}/.test(parts[1]) && (/^[A-Z0-9]/.test(parts[1]) || /[_\d]/.test(parts[1]))))) out += " · " + parts[1];
+  if(out.length > 70){ var c = out.match(/^(.*?\b[A-Z0-9][A-Z0-9_.\-\/]{3,}\b\)?)/); if(c && c[1].length >= 8) out = c[1]; }
+  return out;
+}
 function statTile(el, key, title, series, opts){
   // v1.9.122: with Per capita on, the GDP tile is the latest complete calendar year, the same
   // figure as the GDP per capita tile and Compare (never a part year, never one quarter's rate)
@@ -2234,7 +2245,7 @@ function statTile(el, key, title, series, opts){
       <p class="delta ${dir}"><span class="arrow" aria-hidden="true">${arrow}</span>
         ${(d=>((dShow>0&&!opts.signed&&String(d).charAt(0)!=="+")?"+":"")+tileNum(d))(opts.fmtD(dShow))} ${opts.vsText||"vs prior"}</p>
       <p class="period">${fmtPeriod(last[0])}${(typeof PC_APPLIED !== "undefined" && PC_APPLIED.has(key)) ? " \u00b7 per person, " + String(last[0]).slice(0, 4) + " population" : ""}</p>
-      <p class="source">${opts.source}</p>`;
+      <p class="source">${eaShortSrc(opts.source)}</p>`;
   el.appendChild(div);
 }
 // Every metric with its own /indicators/ page for this country (v1.6.1: all of them, not just four).
@@ -2909,20 +2920,20 @@ const INFO_CONTENT = {
   gdp_level: {
     description: "The total value of everything Romania produces in a year, at current prices, on a rolling four-quarter basis.",
     source: "Eurostat namq_10_gdp (CP_MNAC) \u00b7 current prices, lei, seasonally and calendar adjusted, quarterly, shown as a rolling four-quarter sum, from 2000.",
-    real: "\u201cMake it real\u201d swaps this to Romania's real (chained-volume, inflation-adjusted) GDP series (Eurostat namq_10_gdp, CLV20_MNAC). This strips out the effect of price changes, so it shows genuine output growth rather than growth that's really just inflation.",
-    dollar: "\u201cDollarise\u201d converts each historical point using that year's own average leu rate per US dollar (World Bank PA.NUS.FCRF, annual resolution, coarser than the monthly or daily matching on most other countries here, since no free monthly or daily US dollar series exists for the leu)."
+    real: "\u201cAdjust for inflation\u201d swaps this to Romania's real (chained-volume, inflation-adjusted) GDP series (Eurostat namq_10_gdp, CLV20_MNAC). This strips out the effect of price changes, so it shows genuine output growth rather than growth that's really just inflation.",
+    dollar: "\u201cConvert to USD$\u201d converts each historical point using that year's own average leu rate per US dollar (World Bank PA.NUS.FCRF, annual resolution, coarser than the monthly or daily matching on most other countries here, since no free monthly or daily US dollar series exists for the leu)."
   },
   gdp_real: {
     description: "GDP adjusted for inflation, shown in chained-volume terms, the same production, valued at constant prices, so changes reflect real output growth rather than price changes.",
     source: "Eurostat namq_10_gdp (CLV20_MNAC) \u00b7 chain-linked volumes, 2020 reference year, lei, seasonally and calendar adjusted, quarterly, shown as a rolling four-quarter sum, from 2000.",
-    real: "This IS the \u201cMake it real\u201d series, toggling it off shows GDP at current (nominal) prices instead.",
+    real: "This IS the \u201cAdjust for inflation\u201d series, toggling it off shows GDP at current (nominal) prices instead.",
     dollar: "Same matching as GDP (current prices): each point converted at its own year's average leu rate per US dollar (World Bank PA.NUS.FCRF)."
   },
   gdp_growth: {
     description: "How much the economy grew or shrank compared with the previous three months, in real (inflation-adjusted) terms. The National Institute of Statistics's first estimate is often revised; this shows the latest published figure.",
     source: "Derived from Eurostat namq_10_gdp (CLV20_MNAC) \u00b7 real GDP, seasonally and calendar adjusted, quarter-on-quarter, from 2000.",
-    real: "This is already a real (inflation-adjusted) growth rate as published, \u201cMake it real\u201d has no additional effect on it.",
-    dollar: "A growth rate (%) is currency-agnostic, converting the underlying lei to dollars doesn't change the percentage change. \u201cDollarise\u201d has no effect on this figure."
+    real: "This is already a real (inflation-adjusted) growth rate as published, \u201cAdjust for inflation\u201d has no additional effect on it.",
+    dollar: "A growth rate (%) is currency-agnostic, converting the underlying lei to dollars doesn't change the percentage change. \u201cConvert to USD$\u201d has no effect on this figure."
   },
   cpi: {
     description: "How much consumer prices are rising compared with a year ago, on the EU's harmonised index (HICP), shown for comparison with other EU countries. The National Institute of Statistics's headline is the national CPI, shown beside it, which the National Bank of Romania targets at 2.5% (plus or minus one point). The two differ more than in most EU countries because their weights differ.",
@@ -2966,27 +2977,27 @@ const INFO_CONTENT = {
   debt_gdp: {
     description: "Everything Romania's central government, local government and social security funds owe combined, compared with the size of the economy.",
     source: "Eurostat gov_10dd_edpt1 \u00b7 EDP notification table, general government, % of GDP, annual.",
-    dollar: "Already expressed as a % of GDP, currency-agnostic. \u201cDollarise\u201d has no effect on this figure."
+    dollar: "Already expressed as a % of GDP, currency-agnostic. \u201cConvert to USD$\u201d has no effect on this figure."
   },
   deficit: {
     description: "The yearly gap between government spending and revenue across all levels of government, as a share of GDP. Negative means a deficit.",
     source: "Eurostat gov_10dd_edpt1 \u00b7 EDP notification table, general government, % of GDP, annual.",
-    dollar: "Already expressed as a % of GDP, currency-agnostic. \u201cDollarise\u201d has no effect on this figure."
+    dollar: "Already expressed as a % of GDP, currency-agnostic. \u201cConvert to USD$\u201d has no effect on this figure."
   },
   fdi: {
     description: "Money invested into Romanian businesses from abroad each year (foreign direct investment), as a share of GDP.",
     source: "World Bank BX.KLT.DINV.WD.GD.ZS \u00b7 % of GDP, annual.",
-    dollar: "Already expressed as a % of GDP, currency-agnostic. \u201cDollarise\u201d has no effect on this figure."
+    dollar: "Already expressed as a % of GDP, currency-agnostic. \u201cConvert to USD$\u201d has no effect on this figure."
   },
   current_account: {
     description: "Romania's overall balance with the rest of the world, trade in goods and services plus net investment income, as a share of GDP.",
     source: "World Bank BN.CAB.XOKA.GD.ZS \u00b7 % of GDP, annual.",
-    dollar: "Already expressed as a % of GDP, currency-agnostic. \u201cDollarise\u201d has no effect on this figure."
+    dollar: "Already expressed as a % of GDP, currency-agnostic. \u201cConvert to USD$\u201d has no effect on this figure."
   },
   business_confidence: {
     description: "How optimistic firms are about the months ahead. 100 is the long-run average; readings above it mean firms expect better-than-average conditions.",
     source: "OECD \u00b7 Business Confidence Indicator (BCICP), amplitude-adjusted, long-term average = 100.",
-    dollar: "This is an index, not a currency figure, \u201cDollarise\u201d doesn't apply to it."
+    dollar: "This is an index, not a currency figure, \u201cConvert to USD$\u201d doesn't apply to it."
   }
 };
 function infoIconHtml(infoKey){

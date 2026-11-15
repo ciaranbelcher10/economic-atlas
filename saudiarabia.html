@@ -1722,19 +1722,19 @@ document.addEventListener("DOMContentLoaded", function(){
  <div class="hero mini" id="tiles-inflation"></div>
  <p class="lightskey compact" aria-label="Key to freshness lights"><span><span class="led green" aria-hidden="true"></span>&nbsp;Up to date</span><span><span class="led orange" aria-hidden="true"></span>&nbsp;Awaiting update</span></p>
  <div class="grid" id="charts-inflation"></div>
- <p class="secnote">Inflation is the General Authority for Statistics' consumer price index, as the OECD republishes it. The riyal has been pegged at 3.75 to the US dollar since 1986, so the Saudi Central Bank (SAMA) moves its repo rate with the US Federal Reserve rather than setting it for domestic conditions. The repo rate is shown from January 2000, the start of BIS's official series.</p>
+ <p class="secnote">The repo rate is shown from January 2000.</p>
 </section>
 <section class="sec" id="sec-labour" hidden>
  <div class="hero mini" id="tiles-labour"></div>
  <p class="lightskey compact" aria-label="Key to freshness lights"><span><span class="led green" aria-hidden="true"></span>&nbsp;Up to date</span><span><span class="led orange" aria-hidden="true"></span>&nbsp;Awaiting update</span></p>
  <div class="grid" id="charts-labour"></div>
- <p class="secnote">Unemployment is the International Labour Organization's modelled annual estimate for all residents, published by the World Bank. GASTAT's quarterly labour force survey is not yet in a database this site can read; its rate for Saudi nationals alone, which the government's Vision 2030 targets refer to, is considerably higher.</p>
+ <p class="secnote">Unemployment is the International Labour Organization's modelled annual estimate for all residents.</p>
 </section>
 <section class="sec" id="sec-trade" hidden>
  <div class="hero mini" id="tiles-trade"></div>
  <p class="lightskey compact" aria-label="Key to freshness lights"><span><span class="led green" aria-hidden="true"></span>&nbsp;Up to date</span><span><span class="led orange" aria-hidden="true"></span>&nbsp;Awaiting update</span></p>
  <div class="grid" id="charts-trade"></div>
- <p class="secnote">Goods trade is GASTAT's monthly data as the IMF republishes it, in riyals: exports valued free on board, imports including cost, insurance and freight. Oil dominates exports, so the balance moves with oil prices and OPEC+ production decisions. All three series end at the latest month for which both exports and imports are published.</p>
+ 
  <div id="tpmBlock"><div class="tpm-head"><h3>Saudi Arabia goods trade: top partners</h3></div>
  <p class="tpm-scopenote"><strong>Goods trade only.</strong> Services are not included.</p>
   <nav class="viztoggle">
@@ -1783,13 +1783,12 @@ document.addEventListener("DOMContentLoaded", function(){
  <div class="hero mini" id="tiles-public"></div>
  <p class="lightskey compact" aria-label="Key to freshness lights"><span><span class="led green" aria-hidden="true"></span>&nbsp;Up to date</span><span><span class="led orange" aria-hidden="true"></span>&nbsp;Awaiting update</span></p>
  <div class="grid" id="charts-public"></div>
- <p class="secnote">Debt and the budget balance are the IMF World Economic Outlook's general government figures, actual years only. The series ends at the last year before the IMF's latest update for Saudi Arabia, so estimates and projections never appear as data. Oil revenue drives the balance, which swings with oil prices.</p>
 </section>
 <section class="sec" id="sec-markets" hidden>
  <div class="hero mini" id="tiles-markets"></div>
  <p class="lightskey compact" aria-label="Key to freshness lights"><span><span class="led green" aria-hidden="true"></span>&nbsp;Up to date</span><span><span class="led orange" aria-hidden="true"></span>&nbsp;Awaiting update</span></p>
  <div class="grid" id="charts-markets"></div>
- <p class="secnote">The riyal's peg to the US dollar means its exchange rate against the dollar does not move; the figure shown is the World Bank's annual average official rate. There is no 10-year government bond yield: no free monthly series for Saudi government debt is available.</p>
+ <p class="secnote">The riyal is pegged to the US dollar. No 10-year government bond yield is available for Saudi Arabia.</p>
 </section>
 <section class="sec" id="sec-misc" hidden>
  <div class="hero mini" id="tiles-misc"></div>
@@ -2164,6 +2163,17 @@ function tileNum(s){
   if(!/[1-9]/.test(s)) s=s.replace(/[-\u2212]/g,"");
   return s.replace(/(^|[^\w.])-(?=[\d.\u20ac$\u00a3\u00a5])/g,"$1\u2212");
 }
+/* v1.9.136: a tile shows its source as publisher and series code only; the (i) keeps the full line */
+function eaShortSrc(s){
+  s = String(s == null ? "" : s).replace(/\s*\([^()]*\b(?:falls? back|only if|see )[^()]*\)/gi, "");
+  s = s.split(/(?<=[.;])\s+(?=[A-Z(])/)[0].replace(/[.;]\s*$/, "");
+  var parts = s.split(/\s*·\s*/);
+  var code = /[A-Z0-9][A-Z0-9_.\-\/]{3,}/;
+  var out = parts[0];
+  if(parts.length > 1 && parts[0].length <= 30 && (parts[1].length <= 30 || (parts[1].length <= 40 && !/\b[a-z]{2,}\s+[a-z]{2,}/.test(parts[1]) && (/^[A-Z0-9]/.test(parts[1]) || /[_\d]/.test(parts[1]))))) out += " · " + parts[1];
+  if(out.length > 70){ var c = out.match(/^(.*?\b[A-Z0-9][A-Z0-9_.\-\/]{3,}\b\)?)/); if(c && c[1].length >= 8) out = c[1]; }
+  return out;
+}
 function statTile(el, key, title, series, opts){
   // v1.9.122: with Per capita on, the GDP tile is the latest complete calendar year, the same
   // figure as the GDP per capita tile and Compare (never a part year, never one quarter's rate)
@@ -2234,7 +2244,7 @@ function statTile(el, key, title, series, opts){
       <p class="delta ${dir}"><span class="arrow" aria-hidden="true">${arrow}</span>
         ${(d=>((dShow>0&&!opts.signed&&String(d).charAt(0)!=="+")?"+":"")+tileNum(d))(opts.fmtD(dShow))} ${opts.vsText||"vs prior"}</p>
       <p class="period">${fmtPeriod(last[0])}${(typeof PC_APPLIED !== "undefined" && PC_APPLIED.has(key)) ? " \u00b7 per person, " + String(last[0]).slice(0, 4) + " population" : ""}</p>
-      <p class="source">${opts.source}</p>`;
+      <p class="source">${eaShortSrc(opts.source)}</p>`;
   el.appendChild(div);
 }
 // Every metric with its own /indicators/ page for this country (v1.6.1: all of them, not just four).
@@ -2896,20 +2906,20 @@ const INFO_CONTENT = {
   gdp_level: {
     description: "The total value of everything Saudi Arabia produces in a year, at current prices, on a rolling four-quarter basis. Oil output and prices move it sharply.",
     source: "OECD quarterly national accounts (GASTAT) \u00b7 GDP at current prices, riyals, seasonally adjusted, shown as a rolling four-quarter sum.",
-    real: "\u201cMake it real\u201d swaps this to Saudi Arabia's real (constant-price) GDP series. This strips out the effect of price changes, including oil prices, so it shows changes in output volume.",
-    dollar: "\u201cDollarise\u201d converts each point at that year's average riyal rate per US dollar (World Bank PA.NUS.FCRF); the riyal has been pegged at 3.75 per dollar since 1986, so the rate barely moves."
+    real: "\u201cAdjust for inflation\u201d swaps this to Saudi Arabia's real (constant-price) GDP series. This strips out the effect of price changes, including oil prices, so it shows changes in output volume.",
+    dollar: "\u201cConvert to USD$\u201d converts each point at that year's average riyal rate per US dollar (World Bank PA.NUS.FCRF); the riyal has been pegged at 3.75 per dollar since 1986, so the rate barely moves."
   },
   gdp_real: {
     description: "GDP adjusted for inflation, at constant prices, so changes reflect real output rather than price changes.",
     source: "OECD quarterly national accounts (GASTAT) \u00b7 GDP at constant prices, riyals, seasonally adjusted, shown as a rolling four-quarter sum.",
-    real: "This IS the \u201cMake it real\u201d series, toggling it off shows GDP at current (nominal) prices instead.",
-    dollar: "\u201cDollarise\u201d converts each point at that year's average riyal rate per US dollar (World Bank PA.NUS.FCRF); the riyal has been pegged at 3.75 per dollar since 1986, so the rate barely moves."
+    real: "This IS the \u201cAdjust for inflation\u201d series, toggling it off shows GDP at current (nominal) prices instead.",
+    dollar: "\u201cConvert to USD$\u201d converts each point at that year's average riyal rate per US dollar (World Bank PA.NUS.FCRF); the riyal has been pegged at 3.75 per dollar since 1986, so the rate barely moves."
   },
   gdp_growth: {
     description: "How much the economy grew or shrank compared with the previous three months, in real terms. Oil output moves it sharply: in the second quarter of 2026 oil activities fell by about a quarter on a year earlier as crude exports were disrupted.",
     source: "OECD quarterly national accounts (GASTAT) \u00b7 real GDP, change on the previous quarter, seasonally adjusted.",
-    real: "This is already a real (inflation-adjusted) growth rate as published, \u201cMake it real\u201d has no additional effect on it.",
-    dollar: "A growth rate (%) is currency-agnostic. \u201cDollarise\u201d has no effect on this figure."
+    real: "This is already a real (inflation-adjusted) growth rate as published, \u201cAdjust for inflation\u201d has no additional effect on it.",
+    dollar: "A growth rate (%) is currency-agnostic. \u201cConvert to USD$\u201d has no effect on this figure."
   },
   cpi: {
     description: "How much consumer prices are rising compared with a year ago, on the General Authority for Statistics' consumer price index.",
@@ -2925,48 +2935,48 @@ const INFO_CONTENT = {
   },
   unemployment: {
     description: "The share of the labour force who want a job and are actively looking but can't find one, all residents, as the International Labour Organization estimates it each year. GASTAT's own quarterly survey rate for the total population is close to this; the rate for Saudi nationals alone, which Vision 2030 targets refer to, is considerably higher.",
-    source: "World Bank SL.UEM.TOTL.ZS \u00b7 unemployment, total, ILO modelled estimate, annual. GASTAT's quarterly survey figures are not yet in a database this site can read."
+    source: "World Bank SL.UEM.TOTL.ZS \u00b7 unemployment, total, ILO modelled estimate, annual."
   },
   exports: {
     description: "The value of goods Saudi Arabia sells to the rest of the world each month, in riyals; mostly crude oil and oil products.",
     source: "IMF international trade in goods (GASTAT) \u00b7 exports of goods, FOB, riyals, monthly.",
-    dollar: "\u201cDollarise\u201d converts each point at that year's average riyal rate per US dollar (World Bank PA.NUS.FCRF); the riyal has been pegged at 3.75 per dollar since 1986, so the rate barely moves."
+    dollar: "\u201cConvert to USD$\u201d converts each point at that year's average riyal rate per US dollar (World Bank PA.NUS.FCRF); the riyal has been pegged at 3.75 per dollar since 1986, so the rate barely moves."
   },
   imports: {
     description: "The value of goods Saudi Arabia buys from the rest of the world each month, in riyals.",
     source: "IMF international trade in goods (GASTAT) \u00b7 imports of goods, CIF, riyals, monthly.",
-    dollar: "\u201cDollarise\u201d converts each point at that year's average riyal rate per US dollar (World Bank PA.NUS.FCRF); the riyal has been pegged at 3.75 per dollar since 1986, so the rate barely moves."
+    dollar: "\u201cConvert to USD$\u201d converts each point at that year's average riyal rate per US dollar (World Bank PA.NUS.FCRF); the riyal has been pegged at 3.75 per dollar since 1986, so the rate barely moves."
   },
   trade_balance: {
     description: "Exports minus imports of goods each month. The balance moves with oil prices and OPEC+ production decisions. In March 2026 oil exports rose while imports fell by about a quarter on a year earlier, as shipping through the Strait of Hormuz was disrupted.",
     source: "IMF international trade in goods (GASTAT) \u00b7 exports FOB minus imports CIF, riyals, monthly; ends at the latest month with both.",
-    dollar: "\u201cDollarise\u201d converts each point at that year's average riyal rate per US dollar (World Bank PA.NUS.FCRF); the riyal has been pegged at 3.75 per dollar since 1986, so the rate barely moves."
+    dollar: "\u201cConvert to USD$\u201d converts each point at that year's average riyal rate per US dollar (World Bank PA.NUS.FCRF); the riyal has been pegged at 3.75 per dollar since 1986, so the rate barely moves."
   },
   debt_gdp: {
     description: "Everything Saudi Arabia's general government owes, compared with the size of the economy.",
     source: "IMF World Economic Outlook GGXWDG_NGDP \u00b7 general government gross debt, % of GDP, actual years only.",
-    dollar: "Already expressed as a % of GDP, currency-agnostic. \u201cDollarise\u201d has no effect on this figure."
+    dollar: "Already expressed as a % of GDP, currency-agnostic. \u201cConvert to USD$\u201d has no effect on this figure."
   },
   deficit: {
     description: "The yearly gap between government spending and revenue, as a share of GDP. Negative means a deficit. Oil revenue drives it.",
     source: "IMF World Economic Outlook GGXCNL_NGDP \u00b7 general government net lending/borrowing, % of GDP, actual years only.",
-    dollar: "Already expressed as a % of GDP, currency-agnostic. \u201cDollarise\u201d has no effect on this figure."
+    dollar: "Already expressed as a % of GDP, currency-agnostic. \u201cConvert to USD$\u201d has no effect on this figure."
   },
   fdi: {
     description: "Money invested into Saudi businesses from abroad each year (foreign direct investment), as a share of GDP.",
     source: "World Bank BX.KLT.DINV.WD.GD.ZS \u00b7 % of GDP, annual.",
-    dollar: "Already expressed as a % of GDP, currency-agnostic. \u201cDollarise\u201d has no effect on this figure."
+    dollar: "Already expressed as a % of GDP, currency-agnostic. \u201cConvert to USD$\u201d has no effect on this figure."
   },
   current_account: {
     description: "Saudi Arabia's overall balance with the rest of the world, trade in goods and services plus net investment income, as a share of GDP.",
     source: "World Bank BN.CAB.XOKA.GD.ZS \u00b7 % of GDP, annual.",
-    dollar: "Already expressed as a % of GDP, currency-agnostic. \u201cDollarise\u201d has no effect on this figure."
+    dollar: "Already expressed as a % of GDP, currency-agnostic. \u201cConvert to USD$\u201d has no effect on this figure."
   },
   gdp_growth_yoy: {
     description: "How much the economy grew or shrank compared with the same quarter a year earlier, in real terms, before seasonal adjustment; the figure GASTAT headlines.",
     source: "Computed from OECD quarterly national accounts (GASTAT) \u00b7 real GDP at constant prices, not seasonally adjusted, change on the same quarter a year earlier.",
-    real: "This is already a real (inflation-adjusted) growth rate as published, \u201cMake it real\u201d has no additional effect on it.",
-    dollar: "A growth rate (%) is currency-agnostic. \u201cDollarise\u201d has no effect on this figure."
+    real: "This is already a real (inflation-adjusted) growth rate as published, \u201cAdjust for inflation\u201d has no additional effect on it.",
+    dollar: "A growth rate (%) is currency-agnostic. \u201cConvert to USD$\u201d has no effect on this figure."
   }
 };
 function infoIconHtml(infoKey){

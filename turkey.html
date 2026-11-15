@@ -1721,7 +1721,6 @@ document.addEventListener("DOMContentLoaded", function(){
  <div class="hero mini" id="tiles-inflation"></div>
  <p class="lightskey compact" aria-label="Key to freshness lights"><span><span class="led green" aria-hidden="true"></span>&nbsp;Up to date</span><span><span class="led orange" aria-hidden="true"></span>&nbsp;Awaiting update</span></p>
  <div class="grid" id="charts-inflation"></div>
- <p class="secnote">CPI is the national consumer price index, taken from the OECD's prices database.</p>
 </section>
 <section class="sec" id="sec-labour" hidden>
  <div class="hero mini" id="tiles-labour"></div>
@@ -2180,6 +2179,17 @@ function tileNum(s){
   if(!/[1-9]/.test(s)) s=s.replace(/[-\u2212]/g,"");
   return s.replace(/(^|[^\w.])-(?=[\d.\u20ac$\u00a3\u00a5])/g,"$1\u2212");
 }
+/* v1.9.136: a tile shows its source as publisher and series code only; the (i) keeps the full line */
+function eaShortSrc(s){
+  s = String(s == null ? "" : s).replace(/\s*\([^()]*\b(?:falls? back|only if|see )[^()]*\)/gi, "");
+  s = s.split(/(?<=[.;])\s+(?=[A-Z(])/)[0].replace(/[.;]\s*$/, "");
+  var parts = s.split(/\s*·\s*/);
+  var code = /[A-Z0-9][A-Z0-9_.\-\/]{3,}/;
+  var out = parts[0];
+  if(parts.length > 1 && parts[0].length <= 30 && (parts[1].length <= 30 || (parts[1].length <= 40 && !/\b[a-z]{2,}\s+[a-z]{2,}/.test(parts[1]) && (/^[A-Z0-9]/.test(parts[1]) || /[_\d]/.test(parts[1]))))) out += " · " + parts[1];
+  if(out.length > 70){ var c = out.match(/^(.*?\b[A-Z0-9][A-Z0-9_.\-\/]{3,}\b\)?)/); if(c && c[1].length >= 8) out = c[1]; }
+  return out;
+}
 function statTile(el, key, title, series, opts){
   // v1.9.122: with Per capita on, the GDP tile is the latest complete calendar year, the same
   // figure as the GDP per capita tile and Compare (never a part year, never one quarter's rate)
@@ -2250,7 +2260,7 @@ function statTile(el, key, title, series, opts){
       <p class="delta ${dir}"><span class="arrow" aria-hidden="true">${arrow}</span>
         ${(d=>((dShow>0&&!opts.signed&&String(d).charAt(0)!=="+")?"+":"")+tileNum(d))(opts.fmtD(dShow))} ${opts.vsText||"vs prior"}</p>
       <p class="period">${fmtPeriod(last[0])}${(typeof PC_APPLIED !== "undefined" && PC_APPLIED.has(key)) ? " \u00b7 per person, " + String(last[0]).slice(0, 4) + " population" : ""}</p>
-      <p class="source">${opts.source}</p>`;
+      <p class="source">${eaShortSrc(opts.source)}</p>`;
   el.appendChild(div);
 }
 // Every metric with its own /indicators/ page for this country (v1.6.1: all of them, not just four).
@@ -2489,7 +2499,7 @@ function render(data){
     ? SRC_GDP_REAL_ANNUAL
     : (gdpLevelIsWbFallback ? SRC_GDP_LEVEL : SRC_GDP_NOMINAL);
   const SRC_TRADE="OECD \u00b7 merchandise trade, monthly";
-  const SRC_FISCAL="IMF World Economic Outlook (GGXWDG_NGDP / GGXCNL_NGDP) \u00b7 general government, % of GDP, annual, actual years only. Turkey is neither an EU nor EEA/EFTA member, so the Eurostat quarterly datasets used for European pages don't cover it, these are the IMF-WEO annual figures instead, which is why Turkey's fiscal charts update yearly rather than quarterly.";
+  const SRC_FISCAL="IMF World Economic Outlook (GGXWDG_NGDP / GGXCNL_NGDP) \u00b7 general government, % of GDP, annual, actual years only.";
   const SRC_WB="World Bank \u00b7 % of GDP, annual";
   const SRC_BCI="OECD \u00b7 BCICP, amplitude-adjusted, long-term average = 100";
   const SRC_UNEMP="OECD DF_IALFS_UNE_M \u00b7 unemployment rate, ages 15 and over, seasonally adjusted, monthly";
@@ -2510,10 +2520,10 @@ function render(data){
     "How much bigger or smaller the economy is than a year ago, adjusted for inflation.",
     gdpYoY,"line",v=>v+"%",pct,SRC_GDP_REAL,1999,0,"gdp_growth");
   if(s.cpi) chartPanel("cpi","charts-inflation","CPI inflation, annual rate",
-    "How much consumer prices are rising compared with a year ago. Turkish inflation has been exceptionally volatile in recent years, so large swings here reflect real conditions, not a data error.",
+    "How much consumer prices are rising compared with a year ago.",
     s.cpi,"line",v=>v+"%",pct,"OECD live prices system \u00b7 CPI, all items, YoY",undefined,undefined,undefined,
     basesFor([
-      {id:"yoy", label:"Year on year", series:s.cpi, srcNote:"OECD live prices system \u00b7 CPI, all items, YoY", expl:"How much consumer prices are rising compared with a year ago. Turkish inflation has been exceptionally volatile in recent years, so large swings here reflect real conditions, not a data error."},
+      {id:"yoy", label:"Year on year", series:s.cpi, srcNote:"OECD live prices system \u00b7 CPI, all items, YoY", expl:"How much consumer prices are rising compared with a year ago."},
       // basesFor drops any entry whose series is not served, so these
       // stay dormant until the source provides them and then appear
       // with no further page edit.
@@ -2921,28 +2931,28 @@ function hasPreHistoryPoints(series, fx){
 const INFO_CONTENT = {
   gdp_level: {
     description: "The total value of everything Turkey produces in a year, at current prices, on a rolling four-quarter basis.",
-    source: "FRED series NGDPSAXDCTRQ \u00b7 IMF International Financial Statistics, trailing 4-quarter sum (falls back to World Bank current US$, annual, only if the live TRY series is unavailable on a given run).",
-    real: "\u201cMake it real\u201d swaps this to Turkey's real (inflation-adjusted) GDP series. This strips out the effect of price changes, so it shows genuine output growth rather than growth that's really just inflation.",
-    dollar: "When this series is on its normal live (TRY) path, \u201cDollarise\u201d converts each historical point using that year's own average TRY/USD rate (World Bank PA.NUS.FCRF, annual resolution, coarser than most other countries here, since no live monthly or daily source exists for the lira). On the rarer occasion this falls back to the World-Bank USD series, it's already in dollars and Convert to USD$ correctly has no further effect. With both toggles on, real GDP is converted at one exchange rate, the average of its latest year, so the dollar series grows exactly as real GDP does. The dollar level reflects that one year's rate, so read it for growth, not as a comparison with nominal dollar figures."
+    source: "FRED series NGDPSAXDCTRQ \u00b7 IMF International Financial Statistics, trailing 4-quarter sum.",
+    real: "\u201cAdjust for inflation\u201d swaps this to Turkey's real (inflation-adjusted) GDP series. This strips out the effect of price changes, so it shows genuine output growth rather than growth that's really just inflation.",
+    dollar: "When this series is on its normal live (TRY) path, \u201cConvert to USD$\u201d converts each historical point using that year's own average TRY/USD rate (World Bank PA.NUS.FCRF, annual resolution, coarser than most other countries here, since no live monthly or daily source exists for the lira). With both toggles on, real GDP is converted at one exchange rate, the average of its latest year, so the dollar series grows exactly as real GDP does."
   },
   gdp_real: {
-    description: "GDP adjusted for inflation, the same production, valued at constant prices, so changes reflect real output growth rather than price changes. Note: this series is held at an old constant-price base year, so the level reads far smaller than GDP at current prices. That gap is expected for this series, not a data error; growth rates are unaffected.",
+    description: "GDP adjusted for inflation, the same production, valued at constant prices, so changes reflect real output growth rather than price changes. Note: this series is held at an old constant-price base year, so the level reads far smaller than GDP at current prices.",
     source: "FRED series NGDPRSAXDCTRQ \u00b7 IMF International Financial Statistics, quarterly, seasonally adjusted.",
-    real: "This IS the \u201cMake it real\u201d series, toggling it off shows GDP at current (nominal) prices instead.",
-    dollar: "Each historical point converted at its own year's average TRY/USD rate (World Bank PA.NUS.FCRF, annual resolution) where available. See the gdp_level entry for the important caveat about combining this with \u201cMake it real.\u201d"
+    real: "This IS the \u201cAdjust for inflation\u201d series, toggling it off shows GDP at current (nominal) prices instead.",
+    dollar: "Each historical point converted at its own year's average TRY/USD rate (World Bank PA.NUS.FCRF, annual resolution) where available. See the gdp_level entry for the important caveat about combining this with \u201cAdjust for inflation.\u201d"
   },
   gdp_growth: {
     description: "How much bigger or smaller the economy is than a year ago, in real (inflation-adjusted) terms.",
     source: "FRED series NGDPRSAXDCTRQ \u00b7 IMF International Financial Statistics, quarterly.",
-    real: "This is already a real (inflation-adjusted) growth rate as published, \u201cMake it real\u201d has no additional effect on it.",
-    dollar: "A growth rate (%) is currency-agnostic, converting the underlying lira to dollars doesn't change the percentage change. \u201cDollarise\u201d has no effect on this figure."
+    real: "This is already a real (inflation-adjusted) growth rate as published, \u201cAdjust for inflation\u201d has no additional effect on it.",
+    dollar: "A growth rate (%) is currency-agnostic, converting the underlying lira to dollars doesn't change the percentage change. \u201cConvert to USD$\u201d has no effect on this figure."
   },
   cpi_mom: {
     description: "How much consumer prices changed in the month. A monthly change is not the annual rate divided by twelve: it is the change on the month before, so it moves with one-off price changes that the annual rate smooths out.",
     source: "OECD live prices system · CPI, all items, price index, change on the previous month."
   },
   cpi: {
-    description: "How much consumer prices are rising compared with a year ago. Turkish inflation has been exceptionally volatile in recent years, so large swings here reflect real conditions, not a data error.",
+    description: "How much consumer prices are rising compared with a year ago.",
     source: "OECD live prices system \u00b7 CPI, all items, year on year."
   },
   unemployment: {
@@ -2956,12 +2966,12 @@ const INFO_CONTENT = {
   business_confidence: {
     description: "How optimistic firms are about the months ahead. 100 is the long-run average; readings above it mean firms expect better-than-average conditions.",
     source: "OECD \u00b7 Business Confidence Indicator (BCICP), amplitude-adjusted, long-term average = 100.",
-    dollar: "This is an index, not a currency figure, \u201cDollarise\u201d doesn't apply to it."
+    dollar: "This is an index, not a currency figure, \u201cConvert to USD$\u201d doesn't apply to it."
   },
   fdi: {
     description: "Money invested into Turkish businesses from abroad each year (foreign direct investment), as a share of GDP.",
     source: "World Bank BX.KLT.DINV.WD.GD.ZS \u00b7 % of GDP, annual.",
-    dollar: "Already expressed as a % of GDP, currency-agnostic. \u201cDollarise\u201d has no effect on this figure."
+    dollar: "Already expressed as a % of GDP, currency-agnostic. \u201cConvert to USD$\u201d has no effect on this figure."
   },
   trade_balance: {
     description: "Exports minus imports of goods each month. Below zero means Turkey buys more from abroad than it sells.",
@@ -2969,14 +2979,14 @@ const INFO_CONTENT = {
     dollar: "Each historical point is converted at its own year's average TRY/USD rate (World Bank PA.NUS.FCRF, annual resolution), see the gdp_level entry for the annual-resolution caveat."
   },
   debt_gdp: {
-    description: "Everything national and local government owes combined, compared with the size of the economy. Turkey is neither an EU nor EEA/EFTA member, so the Eurostat quarterly datasets used for European pages don't cover it; these are IMF-WEO annual figures instead, which is why Turkey's fiscal charts update yearly rather than quarterly.",
-    source: "IMF World Economic Outlook (GGXWDG_NGDP) \u00b7 general government, % of GDP, annual, actual years only. The IMF's figures for the years after the one shown are projections, which this site does not publish, so the year under the figure is the most recent actual available, not a sign the feed has broken.",
-    dollar: "Already expressed as a % of GDP, currency-agnostic. \u201cDollarise\u201d has no effect on this figure."
+    description: "Everything national and local government owes combined, compared with the size of the economy.",
+    source: "IMF World Economic Outlook (GGXWDG_NGDP) \u00b7 general government, % of GDP, annual, actual years only.",
+    dollar: "Already expressed as a % of GDP, currency-agnostic. \u201cConvert to USD$\u201d has no effect on this figure."
   },
   deficit: {
     description: "The yearly gap between government spending and revenue across all levels of government, as a share of GDP. Negative means a deficit. Same non-EU/EEA sourcing note as government debt above.",
-    source: "IMF World Economic Outlook (GGXCNL_NGDP) \u00b7 general government, % of GDP, annual, actual years only. The IMF's figures for the years after the one shown are projections, which this site does not publish, so the year under the figure is the most recent actual available, not a sign the feed has broken.",
-    dollar: "Already expressed as a % of GDP, currency-agnostic. \u201cDollarise\u201d has no effect on this figure."
+    source: "IMF World Economic Outlook (GGXCNL_NGDP) \u00b7 general government, % of GDP, annual, actual years only.",
+    dollar: "Already expressed as a % of GDP, currency-agnostic. \u201cConvert to USD$\u201d has no effect on this figure."
   }
 };
 function infoIconHtml(infoKey){

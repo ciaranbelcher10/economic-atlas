@@ -1723,19 +1723,19 @@ document.addEventListener("DOMContentLoaded", function(){
  <div class="hero mini" id="tiles-inflation"></div>
  <p class="lightskey compact" aria-label="Key to freshness lights"><span><span class="led green" aria-hidden="true"></span>&nbsp;Up to date</span><span><span class="led orange" aria-hidden="true"></span>&nbsp;Awaiting update</span></p>
  <div class="grid" id="charts-inflation"></div>
- <p class="secnote">CPI is the national consumer price index, taken from the OECD's prices database. The month-on-month rate is not shown: no published source for the statistics bureau's own monthly figure can be reached from outside China, and a rate rebuilt from a rounded index does not match the official one. The interest rate is the one-year loan prime rate, the benchmark bank lending rate; the People's Bank of China's main operating rate since 2024, the seven-day reverse repo rate, is not shown. Before August 2019 the series is the one-year benchmark lending rate, which the loan prime rate replaced.</p>
+ <p class="secnote">Month-on-month inflation is not shown, as no source publishes the official monthly rate. The interest rate is the one-year loan prime rate (the one-year benchmark lending rate before August 2019), not the seven-day reverse repo rate the People's Bank of China uses for its operations.</p>
 </section>
 <section class="sec" id="sec-labour" hidden>
  <div class="hero mini" id="tiles-labour"></div>
  <p class="lightskey compact" aria-label="Key to freshness lights"><span><span class="led green" aria-hidden="true"></span>&nbsp;Up to date</span><span><span class="led orange" aria-hidden="true"></span>&nbsp;Awaiting update</span></p>
  <div class="grid" id="charts-labour"></div>
- <p class="secnote">Unemployment is the International Labour Organization's modelled annual estimate. The statistics bureau's monthly surveyed urban unemployment rate cannot be fetched from outside China, so it is not shown. Employment and participation rates are not published on a comparable basis.</p>
+ <p class="secnote">Unemployment is the International Labour Organization's modelled annual estimate, not the statistics bureau's surveyed urban rate.</p>
 </section>
 <section class="sec" id="sec-trade" hidden>
  <div class="hero mini" id="tiles-trade"></div>
  <p class="lightskey compact" aria-label="Key to freshness lights"><span><span class="led green" aria-hidden="true"></span>&nbsp;Up to date</span><span><span class="led orange" aria-hidden="true"></span>&nbsp;Awaiting update</span></p>
  <div class="grid" id="charts-trade"></div>
- <p class="secnote">Goods trade from the IMF's international trade in goods data, as China's customs reports it: exports valued free on board, imports including cost, insurance and freight. The IMF publishes US dollars; each month is converted to yuan at that month's exchange rate. The figures are not seasonally adjusted: the Lunar New Year holiday moves between January and February, and China's customs agency publishes those two months as one combined release, so they are best read together.</p>
+ <p class="secnote">Goods trade is converted from US dollars to yuan at each month's rate. January and February are best read together, as the Lunar New Year moves between them.</p>
  <div id="tpmBlock"><div class="tpm-head"><h3>China goods trade: top partners</h3></div>
  <p class="tpm-scopenote"><strong>Goods trade only.</strong> Services are not included.</p>
   <nav class="viztoggle">
@@ -1784,7 +1784,6 @@ document.addEventListener("DOMContentLoaded", function(){
  <div class="hero mini" id="tiles-public"></div>
  <p class="lightskey compact" aria-label="Key to freshness lights"><span><span class="led green" aria-hidden="true"></span>&nbsp;Up to date</span><span><span class="led orange" aria-hidden="true"></span>&nbsp;Awaiting update</span></p>
  <div class="grid" id="charts-public"></div>
- <p class="secnote">Debt and the budget balance are the IMF World Economic Outlook's general government figures, actual years only.</p>
 </section>
 <section class="sec" id="sec-markets" hidden>
  <div class="hero mini" id="tiles-markets"></div>
@@ -2168,6 +2167,17 @@ function tileNum(s){
   if(!/[1-9]/.test(s)) s=s.replace(/[-\u2212]/g,"");
   return s.replace(/(^|[^\w.])-(?=[\d.\u20ac$\u00a3\u00a5])/g,"$1\u2212");
 }
+/* v1.9.136: a tile shows its source as publisher and series code only; the (i) keeps the full line */
+function eaShortSrc(s){
+  s = String(s == null ? "" : s).replace(/\s*\([^()]*\b(?:falls? back|only if|see )[^()]*\)/gi, "");
+  s = s.split(/(?<=[.;])\s+(?=[A-Z(])/)[0].replace(/[.;]\s*$/, "");
+  var parts = s.split(/\s*·\s*/);
+  var code = /[A-Z0-9][A-Z0-9_.\-\/]{3,}/;
+  var out = parts[0];
+  if(parts.length > 1 && parts[0].length <= 30 && (parts[1].length <= 30 || (parts[1].length <= 40 && !/\b[a-z]{2,}\s+[a-z]{2,}/.test(parts[1]) && (/^[A-Z0-9]/.test(parts[1]) || /[_\d]/.test(parts[1]))))) out += " · " + parts[1];
+  if(out.length > 70){ var c = out.match(/^(.*?\b[A-Z0-9][A-Z0-9_.\-\/]{3,}\b\)?)/); if(c && c[1].length >= 8) out = c[1]; }
+  return out;
+}
 function statTile(el, key, title, series, opts){
   // v1.9.122: with Per capita on, the GDP tile is the latest complete calendar year, the same
   // figure as the GDP per capita tile and Compare (never a part year, never one quarter's rate)
@@ -2238,7 +2248,7 @@ function statTile(el, key, title, series, opts){
       <p class="delta ${dir}"><span class="arrow" aria-hidden="true">${arrow}</span>
         ${(d=>((dShow>0&&!opts.signed&&String(d).charAt(0)!=="+")?"+":"")+tileNum(d))(opts.fmtD(dShow))} ${opts.vsText||"vs prior"}</p>
       <p class="period">${fmtPeriod(last[0])}${(typeof PC_APPLIED !== "undefined" && PC_APPLIED.has(key)) ? " \u00b7 per person, " + String(last[0]).slice(0, 4) + " population" : ""}</p>
-      <p class="source">${opts.source}</p>`;
+      <p class="source">${eaShortSrc(opts.source)}</p>`;
   el.appendChild(div);
 }
 // Every metric with its own /indicators/ page for this country (v1.6.1: all of them, not just four).
@@ -2931,25 +2941,25 @@ const INFO_CONTENT = {
   gdp_level: {
     description: "The total value of everything China produces in a year, at current prices, on a rolling four-quarter basis.",
     source: "OECD quarterly national accounts (DF_QNA, table T0101) \u00b7 GDP at current prices, yuan, not seasonally adjusted, quarterly.",
-    real: "\u201cMake it real\u201d swaps this to China's real (inflation-adjusted) GDP series, which is annual. This strips out the effect of price changes, so it shows genuine output growth rather than growth that's really just inflation.",
-    dollar: "\u201cDollarise\u201d converts each point at that period's own CNY/USD rate (monthly resolution, from FRED's DEXCHUS series, which starts 1981-01). Points before 1981 have no genuine historical rate available and use the earliest rate DEXCHUS provides, disclosed in the page's toggle note."
+    real: "\u201cAdjust for inflation\u201d swaps this to China's real (inflation-adjusted) GDP series, which is annual. This strips out the effect of price changes, so it shows genuine output growth rather than growth that's really just inflation.",
+    dollar: "\u201cConvert to USD$\u201d converts each point at that period's own CNY/USD rate (monthly resolution, from FRED's DEXCHUS series, which starts 1981-01). Points before 1981 have no genuine historical rate available and use the earliest rate DEXCHUS provides, disclosed in the page's toggle note."
   },
   gdp_real: {
     description: "GDP adjusted for inflation, the same production, valued at constant prices, so changes reflect real output growth rather than price changes.",
     source: "World Bank NY.GDP.MKTP.KN \u00b7 GDP, constant prices, yuan, annual.",
-    real: "This IS the \u201cMake it real\u201d series, toggling it off shows GDP at current (nominal) prices instead.",
+    real: "This IS the \u201cAdjust for inflation\u201d series, toggling it off shows GDP at current (nominal) prices instead.",
     dollar: "Same historical-rate matching as GDP (current prices): each point converted at its own period's CNY/USD rate where available (1981 onward), falling back to the earliest available rate for anything before that."
   },
   gdp_growth: {
     description: "How much the economy grew or shrank compared with the previous three months, in real (inflation-adjusted) terms.",
     source: "OECD quarterly national accounts (DF_QNA, table T0101) \u00b7 real GDP, change on the previous quarter, seasonally adjusted.",
-    real: "This is already a real (inflation-adjusted) growth rate as published, \u201cMake it real\u201d has no additional effect on it.",
-    dollar: "A growth rate (%) is currency-agnostic, converting the underlying yuan to dollars doesn't change the percentage change. \u201cDollarise\u201d has no effect on this figure."
+    real: "This is already a real (inflation-adjusted) growth rate as published, \u201cAdjust for inflation\u201d has no additional effect on it.",
+    dollar: "A growth rate (%) is currency-agnostic, converting the underlying yuan to dollars doesn't change the percentage change. \u201cConvert to USD$\u201d has no effect on this figure."
   },
   gdp_growth_yoy: {
     description: "How much bigger or smaller the economy is than a year earlier, adjusted for inflation. China's National Bureau of Statistics headlines the same comparison on unadjusted figures, so the two can differ by a tenth of a point or so.",
     source: "OECD quarterly national accounts (DF_QNA, table T0101) \u00b7 real GDP, seasonally adjusted, change on the same quarter a year earlier.",
-    dollar: "A growth rate (%) is currency-agnostic, converting the underlying yuan to dollars doesn't change the percentage change. \u201cDollarise\u201d has no effect on this figure."
+    dollar: "A growth rate (%) is currency-agnostic, converting the underlying yuan to dollars doesn't change the percentage change. \u201cConvert to USD$\u201d has no effect on this figure."
   },
   cpi: {
     description: "How much consumer prices are rising compared with a year ago. The State Council sets an annual inflation target, 2% for 2026.",
@@ -2966,7 +2976,7 @@ const INFO_CONTENT = {
   business_confidence: {
     description: "How optimistic firms are about the months ahead. 100 is the long-run average; readings above it mean firms expect better-than-average conditions.",
     source: "OECD \u00b7 Business Confidence Indicator (BCICP), amplitude-adjusted, long-term average = 100.",
-    dollar: "This is an index, not a currency figure, \u201cDollarise\u201d doesn't apply to it."
+    dollar: "This is an index, not a currency figure, \u201cConvert to USD$\u201d doesn't apply to it."
   },
   unemployment: {
     description: "The share of the labour force that wants a job and is actively looking, but can't find one. This is the International Labour Organization's modelled annual estimate; the National Bureau of Statistics' monthly surveyed urban rate is not shown.",
@@ -2975,12 +2985,12 @@ const INFO_CONTENT = {
   fdi: {
     description: "Money invested into Chinese businesses from abroad each year (foreign direct investment), as a share of GDP.",
     source: "World Bank BX.KLT.DINV.WD.GD.ZS \u00b7 % of GDP, annual.",
-    dollar: "Already expressed as a % of GDP, currency-agnostic. \u201cDollarise\u201d has no effect on this figure."
+    dollar: "Already expressed as a % of GDP, currency-agnostic. \u201cConvert to USD$\u201d has no effect on this figure."
   },
   current_account: {
     description: "China's overall balance with the rest of the world, trade in goods and services plus net investment income, as a share of GDP.",
     source: "World Bank BN.CAB.XOKA.GD.ZS \u00b7 % of GDP, annual.",
-    dollar: "Already expressed as a % of GDP, currency-agnostic. \u201cDollarise\u201d has no effect on this figure."
+    dollar: "Already expressed as a % of GDP, currency-agnostic. \u201cConvert to USD$\u201d has no effect on this figure."
   },
   exports: {
     description: "The value of goods China sells to the rest of the world each month, converted to yuan from the IMF's US dollar figures.",
@@ -2999,13 +3009,13 @@ const INFO_CONTENT = {
   },
   debt_gdp: {
     description: "Everything national and local government owes combined, compared with the size of the economy.",
-    source: "IMF World Economic Outlook (GGXWDG_NGDP) \u00b7 general government, % of GDP, annual, actual years only. The IMF's figures for the years after the one shown are projections, which this site does not publish, so the year under the figure is the most recent actual available, not a sign the feed has broken.",
-    dollar: "Already expressed as a % of GDP, currency-agnostic. \u201cDollarise\u201d has no effect on this figure."
+    source: "IMF World Economic Outlook (GGXWDG_NGDP) \u00b7 general government, % of GDP, annual, actual years only.",
+    dollar: "Already expressed as a % of GDP, currency-agnostic. \u201cConvert to USD$\u201d has no effect on this figure."
   },
   deficit: {
     description: "The yearly gap between government spending and revenue across all levels of government, as a share of GDP. Negative means a deficit.",
-    source: "IMF World Economic Outlook (GGXCNL_NGDP) \u00b7 general government, % of GDP, annual, actual years only. The IMF's figures for the years after the one shown are projections, which this site does not publish, so the year under the figure is the most recent actual available, not a sign the feed has broken.",
-    dollar: "Already expressed as a % of GDP, currency-agnostic. \u201cDollarise\u201d has no effect on this figure."
+    source: "IMF World Economic Outlook (GGXCNL_NGDP) \u00b7 general government, % of GDP, annual, actual years only.",
+    dollar: "Already expressed as a % of GDP, currency-agnostic. \u201cConvert to USD$\u201d has no effect on this figure."
   }
 };
 function infoIconHtml(infoKey){

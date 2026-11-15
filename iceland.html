@@ -1722,19 +1722,18 @@ document.addEventListener("DOMContentLoaded", function(){
  <div class="hero mini" id="tiles-inflation"></div>
  <p class="lightskey compact" aria-label="Key to freshness lights"><span><span class="led green" aria-hidden="true"></span>&nbsp;Up to date</span><span><span class="led orange" aria-hidden="true"></span>&nbsp;Awaiting update</span></p>
  <div class="grid" id="charts-inflation"></div>
- <p class="secnote">Inflation is Statistics Iceland's national consumer price index, which includes owner-occupied housing, not the EU's harmonised index: the change in the all-items index on twelve months, and on the previous month. The interest rate is the Central Bank of Iceland's key rate, the rate on seven-day term deposits, shown from June 2014, when it took its current form.</p>
+ <p class="secnote">Inflation is Statistics Iceland's national CPI, which includes owner-occupied housing. The interest rate is the Central Bank of Iceland's key rate, shown from June 2014, when it took its current form.</p>
 </section>
 <section class="sec" id="sec-labour" hidden>
  <div class="hero mini" id="tiles-labour"></div>
  <p class="lightskey compact" aria-label="Key to freshness lights"><span><span class="led green" aria-hidden="true"></span>&nbsp;Up to date</span><span><span class="led orange" aria-hidden="true"></span>&nbsp;Awaiting update</span></p>
  <div class="grid" id="charts-labour"></div>
- <p class="secnote">GDP and unemployment are Statistics Iceland's figures as the OECD republishes them. GDP is quarterly and seasonally adjusted, with real GDP in chain-linked volumes. Unemployment is monthly, from the labour force survey, seasonally adjusted, for people aged 15 and over.</p>
 </section>
 <section class="sec" id="sec-trade" hidden>
  <div class="hero mini" id="tiles-trade"></div>
  <p class="lightskey compact" aria-label="Key to freshness lights"><span><span class="led green" aria-hidden="true"></span>&nbsp;Up to date</span><span><span class="led orange" aria-hidden="true"></span>&nbsp;Awaiting update</span></p>
  <div class="grid" id="charts-trade"></div>
- <p class="secnote">Goods trade is Statistics Iceland's own monthly external trade, in krónur, from January 2011. January 2006 to December 2010 is the IMF's monthly data in US dollars, converted to krónur at each month's average exchange rate from the Bank for International Settlements, so the series changes source at the join. Exports are valued free on board, imports including cost, insurance and freight.</p>
+ <p class="secnote">Goods trade before 2011 is the IMF's series, converted from US dollars at each month's rate, so the series changes source in January 2011.</p>
  <div id="tpmBlock"><div class="tpm-head"><h3>Iceland goods trade: top partners</h3></div>
  <p class="tpm-scopenote"><strong>Goods trade only.</strong> Services are not included.</p>
   <nav class="viztoggle">
@@ -1783,13 +1782,12 @@ document.addEventListener("DOMContentLoaded", function(){
  <div class="hero mini" id="tiles-public"></div>
  <p class="lightskey compact" aria-label="Key to freshness lights"><span><span class="led green" aria-hidden="true"></span>&nbsp;Up to date</span><span><span class="led orange" aria-hidden="true"></span>&nbsp;Awaiting update</span></p>
  <div class="grid" id="charts-public"></div>
- <p class="secnote">Debt and the budget balance are the IMF World Economic Outlook's general government figures, actual years only.</p>
 </section>
 <section class="sec" id="sec-markets" hidden>
  <div class="hero mini" id="tiles-markets"></div>
  <p class="lightskey compact" aria-label="Key to freshness lights"><span><span class="led green" aria-hidden="true"></span>&nbsp;Up to date</span><span><span class="led orange" aria-hidden="true"></span>&nbsp;Awaiting update</span></p>
  <div class="grid" id="charts-markets"></div>
- <p class="secnote">The exchange rate is the World Bank's annual average official rate, shown from 1981, when the new króna replaced the old at 100 to 1; the World Bank restates earlier years in new krónur. There is no 10-year government bond yield: the OECD's series for Iceland ended in August 2022. The OECD publishes no business confidence index for Iceland.</p>
+ <p class="secnote">The exchange rate is the World Bank's annual average. The OECD's 10-year yield for Iceland ended in August 2022.</p>
 </section>
 <section class="sec" id="sec-misc" hidden>
  <div class="hero mini" id="tiles-misc"></div>
@@ -2164,6 +2162,17 @@ function tileNum(s){
   if(!/[1-9]/.test(s)) s=s.replace(/[-\u2212]/g,"");
   return s.replace(/(^|[^\w.])-(?=[\d.\u20ac$\u00a3\u00a5])/g,"$1\u2212");
 }
+/* v1.9.136: a tile shows its source as publisher and series code only; the (i) keeps the full line */
+function eaShortSrc(s){
+  s = String(s == null ? "" : s).replace(/\s*\([^()]*\b(?:falls? back|only if|see )[^()]*\)/gi, "");
+  s = s.split(/(?<=[.;])\s+(?=[A-Z(])/)[0].replace(/[.;]\s*$/, "");
+  var parts = s.split(/\s*·\s*/);
+  var code = /[A-Z0-9][A-Z0-9_.\-\/]{3,}/;
+  var out = parts[0];
+  if(parts.length > 1 && parts[0].length <= 30 && (parts[1].length <= 30 || (parts[1].length <= 40 && !/\b[a-z]{2,}\s+[a-z]{2,}/.test(parts[1]) && (/^[A-Z0-9]/.test(parts[1]) || /[_\d]/.test(parts[1]))))) out += " · " + parts[1];
+  if(out.length > 70){ var c = out.match(/^(.*?\b[A-Z0-9][A-Z0-9_.\-\/]{3,}\b\)?)/); if(c && c[1].length >= 8) out = c[1]; }
+  return out;
+}
 function statTile(el, key, title, series, opts){
   // v1.9.122: with Per capita on, the GDP tile is the latest complete calendar year, the same
   // figure as the GDP per capita tile and Compare (never a part year, never one quarter's rate)
@@ -2234,7 +2243,7 @@ function statTile(el, key, title, series, opts){
       <p class="delta ${dir}"><span class="arrow" aria-hidden="true">${arrow}</span>
         ${(d=>((dShow>0&&!opts.signed&&String(d).charAt(0)!=="+")?"+":"")+tileNum(d))(opts.fmtD(dShow))} ${opts.vsText||"vs prior"}</p>
       <p class="period">${fmtPeriod(last[0])}${(typeof PC_APPLIED !== "undefined" && PC_APPLIED.has(key)) ? " \u00b7 per person, " + String(last[0]).slice(0, 4) + " population" : ""}</p>
-      <p class="source">${opts.source}</p>`;
+      <p class="source">${eaShortSrc(opts.source)}</p>`;
   el.appendChild(div);
 }
 // Every metric with its own /indicators/ page for this country (v1.6.1: all of them, not just four).
@@ -2896,25 +2905,25 @@ const INFO_CONTENT = {
   gdp_level: {
     description: "The total value of everything Iceland produces in a year, at current prices, on a rolling four-quarter basis.",
     source: "OECD quarterly national accounts (DF_QNA, T0102) \u00b7 Statistics Iceland's GDP at current prices, kr\u00f3na million, seasonally adjusted, quarterly.",
-    real: "\u201cMake it real\u201d swaps this to GDP in chain-linked volumes, also quarterly. This strips out the effect of price changes, so it shows genuine output growth rather than growth that's really just inflation.",
-    dollar: "\u201cDollarise\u201d converts each year at its own ISK/USD rate (World Bank PA.NUS.FCRF, annual average), from 1981."
+    real: "\u201cAdjust for inflation\u201d swaps this to GDP in chain-linked volumes, also quarterly. This strips out the effect of price changes, so it shows genuine output growth rather than growth that's really just inflation.",
+    dollar: "\u201cConvert to USD$\u201d converts each year at its own ISK/USD rate (World Bank PA.NUS.FCRF, annual average), from 1981."
   },
   gdp_real: {
     description: "GDP adjusted for inflation, so changes reflect real output growth rather than price changes.",
     source: "OECD quarterly national accounts (DF_QNA, T0102) \u00b7 Statistics Iceland's GDP in chain-linked volumes, kr\u00f3na million, seasonally adjusted, quarterly.",
-    real: "This IS the \u201cMake it real\u201d series, toggling it off shows GDP at current prices instead.",
-    dollar: "With \u201cMake it real\u201d on, \u201cDollarise\u201d converts every period at one rate, the average for the latest year, so dollar growth equals real growth."
+    real: "This IS the \u201cAdjust for inflation\u201d series, toggling it off shows GDP at current prices instead.",
+    dollar: "With \u201cAdjust for inflation\u201d on, \u201cConvert to USD$\u201d converts every period at one rate, the average for the latest year, so dollar growth equals real growth."
   },
   gdp_growth: {
     description: "How much the economy grew or shrank compared with the previous three months, in real terms, with regular seasonal patterns removed. Iceland's quarterly figures move a lot because the economy is small and lumpy.",
     source: "OECD quarterly national accounts (DF_QNA, T0102) \u00b7 Statistics Iceland's real GDP, seasonally adjusted, change on the previous quarter, to one decimal place.",
-    real: "This is already a real (inflation-adjusted) growth rate, \u201cMake it real\u201d has no additional effect on it.",
-    dollar: "A growth rate (%) is currency-agnostic, converting the underlying kr\u00f3nur to dollars doesn't change the percentage change. \u201cDollarise\u201d has no effect on this figure."
+    real: "This is already a real (inflation-adjusted) growth rate, \u201cAdjust for inflation\u201d has no additional effect on it.",
+    dollar: "A growth rate (%) is currency-agnostic, converting the underlying kr\u00f3nur to dollars doesn't change the percentage change. \u201cConvert to USD$\u201d has no effect on this figure."
   },
   gdp_growth_yoy: {
     description: "How much bigger or smaller the economy is than a year earlier, adjusted for inflation.",
     source: "OECD quarterly national accounts (DF_QNA, T0102) \u00b7 Statistics Iceland's real GDP, seasonally adjusted, change on the same quarter a year earlier, to one decimal place.",
-    dollar: "A growth rate (%) is currency-agnostic, converting the underlying kr\u00f3nur to dollars doesn't change the percentage change. \u201cDollarise\u201d has no effect on this figure."
+    dollar: "A growth rate (%) is currency-agnostic, converting the underlying kr\u00f3nur to dollars doesn't change the percentage change. \u201cConvert to USD$\u201d has no effect on this figure."
   },
   cpi: {
     description: "How much consumer prices have risen compared with a year earlier. This is Iceland's national index, which includes owner-occupied housing, not the EU's harmonised index. The Central Bank of Iceland targets 2.5%.",
@@ -2935,37 +2944,37 @@ const INFO_CONTENT = {
   exports: {
     description: "The value of goods Iceland sells to the rest of the world each month, in kr\u00f3nur.",
     source: "Statistics Iceland, external trade in goods (table UTA06001) \u00b7 exports of goods, free on board, kr\u00f3nur, monthly, from January 2011. January 2006 to December 2010 is the IMF's international trade in goods (ITG), US$ converted to kr\u00f3nur at the BIS monthly average rate, so the series changes source at the join.",
-    dollar: "Statistics Iceland's figures are in kr\u00f3nur, and \u201cDollarise\u201d converts them at that year's World Bank rate. The months before 2011 come from the IMF in US dollars, converted to kr\u00f3nur at each month's BIS average rate, and \u201cDollarise\u201d converts them back at that year's World Bank rate."
+    dollar: "Statistics Iceland's figures are in kr\u00f3nur, and \u201cConvert to USD$\u201d converts them at that year's World Bank rate. The months before 2011 come from the IMF in US dollars, converted to kr\u00f3nur at each month's BIS average rate, and \u201cConvert to USD$\u201d converts them back at that year's World Bank rate."
   },
   imports: {
     description: "The value of goods Iceland buys from the rest of the world each month, in kr\u00f3nur.",
     source: "Statistics Iceland, external trade in goods (table UTA06001) \u00b7 imports of goods, cost, insurance and freight, kr\u00f3nur, monthly, from January 2011. January 2006 to December 2010 is the IMF's international trade in goods (ITG), US$ converted to kr\u00f3nur at the BIS monthly average rate, so the series changes source at the join.",
-    dollar: "Statistics Iceland's figures are in kr\u00f3nur, and \u201cDollarise\u201d converts them at that year's World Bank rate. The months before 2011 come from the IMF in US dollars, converted to kr\u00f3nur at each month's BIS average rate, and \u201cDollarise\u201d converts them back at that year's World Bank rate."
+    dollar: "Statistics Iceland's figures are in kr\u00f3nur, and \u201cConvert to USD$\u201d converts them at that year's World Bank rate. The months before 2011 come from the IMF in US dollars, converted to kr\u00f3nur at each month's BIS average rate, and \u201cConvert to USD$\u201d converts them back at that year's World Bank rate."
   },
   trade_balance: {
     description: "Exports minus imports of goods. A negative number is a trade deficit.",
     source: "Statistics Iceland, external trade in goods (table UTA06001) \u00b7 exports less imports of goods, kr\u00f3nur, monthly, from January 2011. January 2006 to December 2010 is the IMF's international trade in goods (ITG), US$ converted to kr\u00f3nur at the BIS monthly average rate, so the series changes source at the join.",
-    dollar: "Statistics Iceland's figures are in kr\u00f3nur, and \u201cDollarise\u201d converts them at that year's World Bank rate. The months before 2011 come from the IMF in US dollars, converted to kr\u00f3nur at each month's BIS average rate, and \u201cDollarise\u201d converts them back at that year's World Bank rate."
+    dollar: "Statistics Iceland's figures are in kr\u00f3nur, and \u201cConvert to USD$\u201d converts them at that year's World Bank rate. The months before 2011 come from the IMF in US dollars, converted to kr\u00f3nur at each month's BIS average rate, and \u201cConvert to USD$\u201d converts them back at that year's World Bank rate."
   },
   debt_gdp: {
     description: "Everything government owes, across all levels of government, compared with the size of the economy.",
-    source: "IMF World Economic Outlook (GGXWDG_NGDP) \u00b7 general government gross debt, % of GDP, annual \u00b7 actual years only. The IMF's figures for the years after the one shown are projections, which this site does not publish.",
-    dollar: "Already expressed as a % of GDP, currency-agnostic. \u201cDollarise\u201d has no effect on this figure."
+    source: "IMF World Economic Outlook (GGXWDG_NGDP) \u00b7 general government gross debt, % of GDP, annual \u00b7 actual years only.",
+    dollar: "Already expressed as a % of GDP, currency-agnostic. \u201cConvert to USD$\u201d has no effect on this figure."
   },
   deficit: {
     description: "The gap between what government takes in and what it spends in a year, across all levels of government. A negative number is a deficit.",
-    source: "IMF World Economic Outlook (GGXCNL_NGDP) \u00b7 general government net lending (+) or borrowing (-), % of GDP, annual \u00b7 actual years only. The IMF's figures for the years after the one shown are projections, which this site does not publish.",
-    dollar: "Already expressed as a % of GDP, currency-agnostic. \u201cDollarise\u201d has no effect on this figure."
+    source: "IMF World Economic Outlook (GGXCNL_NGDP) \u00b7 general government net lending (+) or borrowing (-), % of GDP, annual \u00b7 actual years only.",
+    dollar: "Already expressed as a % of GDP, currency-agnostic. \u201cConvert to USD$\u201d has no effect on this figure."
   },
   current_account: {
     description: "The balance of trade in goods and services plus income and transfers with the rest of the world. A negative number means the country is borrowing from abroad.",
     source: "World Bank BN.CAB.XOKA.GD.ZS \u00b7 current account balance, % of GDP, annual.",
-    dollar: "Already expressed as a % of GDP, currency-agnostic. \u201cDollarise\u201d has no effect on this figure."
+    dollar: "Already expressed as a % of GDP, currency-agnostic. \u201cConvert to USD$\u201d has no effect on this figure."
   },
   fdi: {
     description: "Long-term investment into the country by foreign companies and investors, such as building factories or buying a lasting stake in a business.",
     source: "World Bank BX.KLT.DINV.WD.GD.ZS \u00b7 foreign direct investment, net inflows, % of GDP, annual.",
-    dollar: "Already expressed as a % of GDP, currency-agnostic. \u201cDollarise\u201d has no effect on this figure."
+    dollar: "Already expressed as a % of GDP, currency-agnostic. \u201cConvert to USD$\u201d has no effect on this figure."
   }
 };
 function infoIconHtml(infoKey){

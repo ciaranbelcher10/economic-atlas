@@ -1723,19 +1723,19 @@ document.addEventListener("DOMContentLoaded", function(){
  <div class="hero mini" id="tiles-inflation"></div>
  <p class="lightskey compact" aria-label="Key to freshness lights"><span><span class="led green" aria-hidden="true"></span>&nbsp;Up to date</span><span><span class="led orange" aria-hidden="true"></span>&nbsp;Awaiting update</span></p>
  <div class="grid" id="charts-inflation"></div>
- <p class="secnote">Inflation is the EU's harmonised index (HICP), the measure the ECB targets; STATEC also publishes a national CPI, which can differ by a few tenths. Luxembourg has used the euro since its launch on 1 January 1999 and has had no policy rate of its own since: the rate shown is the European Central Bank's deposit facility rate. Before 1999 the Luxembourg franc was at par with the Belgian franc, in a monetary association with Belgium.</p>
+ <p class="secnote">Inflation is the EU-harmonised index (HICP), which can differ by a few tenths from STATEC's national CPI. The interest rate is the European Central Bank's deposit facility rate.</p>
 </section>
 <section class="sec" id="sec-labour" hidden>
  <div class="hero mini" id="tiles-labour"></div>
  <p class="lightskey compact" aria-label="Key to freshness lights"><span><span class="led green" aria-hidden="true"></span>&nbsp;Up to date</span><span><span class="led orange" aria-hidden="true"></span>&nbsp;Awaiting update</span></p>
  <div class="grid" id="charts-labour"></div>
- <p class="secnote">Unemployment is Eurostat's monthly, seasonally adjusted rate (ILO definition, ages 15 to 74). ADEM's registered unemployment, sometimes quoted in Luxembourg news, is a different measure. Employment and participation rates are Eurostat's seasonally adjusted Labour Force Survey figures for ages 15 to 64, from 2009. They cover residents only, while a large share of the people working in Luxembourg commute from neighbouring countries. The survey sample is small, so quarterly moves of one to two points are common even after seasonal adjustment; the trend over several quarters is a better guide.</p>
+ <p class="secnote">Employment and participation cover residents only, while many people working in Luxembourg live in neighbouring countries. The survey sample is small, so quarterly moves of one to two points are common.</p>
 </section>
 <section class="sec" id="sec-trade" hidden>
  <div class="hero mini" id="tiles-trade"></div>
  <p class="lightskey compact" aria-label="Key to freshness lights"><span><span class="led green" aria-hidden="true"></span>&nbsp;Up to date</span><span><span class="led orange" aria-hidden="true"></span>&nbsp;Awaiting update</span></p>
  <div class="grid" id="charts-trade"></div>
- <p class="secnote">Goods only, in euros. Luxembourg usually imports more goods than it exports; most of its exports are services, which are not shown here.</p>
+ <p class="secnote">Goods only, in euros; services are not included.</p>
  <div id="tpmBlock"><div class="tpm-head"><h3>Luxembourg goods trade: top partners</h3></div>
  <p class="tpm-scopenote"><strong>Goods trade only.</strong> Services are not included.</p>
   <nav class="viztoggle">
@@ -1784,13 +1784,11 @@ document.addEventListener("DOMContentLoaded", function(){
  <div class="hero mini" id="tiles-public"></div>
  <p class="lightskey compact" aria-label="Key to freshness lights"><span><span class="led green" aria-hidden="true"></span>&nbsp;Up to date</span><span><span class="led orange" aria-hidden="true"></span>&nbsp;Awaiting update</span></p>
  <div class="grid" id="charts-public"></div>
- <p class="secnote">Debt and the budget balance are Eurostat's excessive deficit procedure figures for general government, calendar years.</p>
 </section>
 <section class="sec" id="sec-markets" hidden>
  <div class="hero mini" id="tiles-markets"></div>
  <p class="lightskey compact" aria-label="Key to freshness lights"><span><span class="led green" aria-hidden="true"></span>&nbsp;Up to date</span><span><span class="led orange" aria-hidden="true"></span>&nbsp;Awaiting update</span></p>
  <div class="grid" id="charts-markets"></div>
- <p class="secnote">The 10-year yield is the OECD's monthly series for Luxembourg government bonds, via FRED, from 1993; it matches Eurostat's convergence rate. The exchange rates are the Federal Reserve's daily euro rates, shared with every euro area page. Business confidence is the OECD's indicator, where 100 is the long-run average.</p>
 </section>
 <section class="sec" id="sec-misc" hidden>
  <div class="hero mini" id="tiles-misc"></div>
@@ -2165,6 +2163,17 @@ function tileNum(s){
   if(!/[1-9]/.test(s)) s=s.replace(/[-\u2212]/g,"");
   return s.replace(/(^|[^\w.])-(?=[\d.\u20ac$\u00a3\u00a5])/g,"$1\u2212");
 }
+/* v1.9.136: a tile shows its source as publisher and series code only; the (i) keeps the full line */
+function eaShortSrc(s){
+  s = String(s == null ? "" : s).replace(/\s*\([^()]*\b(?:falls? back|only if|see )[^()]*\)/gi, "");
+  s = s.split(/(?<=[.;])\s+(?=[A-Z(])/)[0].replace(/[.;]\s*$/, "");
+  var parts = s.split(/\s*·\s*/);
+  var code = /[A-Z0-9][A-Z0-9_.\-\/]{3,}/;
+  var out = parts[0];
+  if(parts.length > 1 && parts[0].length <= 30 && (parts[1].length <= 30 || (parts[1].length <= 40 && !/\b[a-z]{2,}\s+[a-z]{2,}/.test(parts[1]) && (/^[A-Z0-9]/.test(parts[1]) || /[_\d]/.test(parts[1]))))) out += " · " + parts[1];
+  if(out.length > 70){ var c = out.match(/^(.*?\b[A-Z0-9][A-Z0-9_.\-\/]{3,}\b\)?)/); if(c && c[1].length >= 8) out = c[1]; }
+  return out;
+}
 function statTile(el, key, title, series, opts){
   // v1.9.122: with Per capita on, the GDP tile is the latest complete calendar year, the same
   // figure as the GDP per capita tile and Compare (never a part year, never one quarter's rate)
@@ -2235,7 +2244,7 @@ function statTile(el, key, title, series, opts){
       <p class="delta ${dir}"><span class="arrow" aria-hidden="true">${arrow}</span>
         ${(d=>((dShow>0&&!opts.signed&&String(d).charAt(0)!=="+")?"+":"")+tileNum(d))(opts.fmtD(dShow))} ${opts.vsText||"vs prior"}</p>
       <p class="period">${fmtPeriod(last[0])}${(typeof PC_APPLIED !== "undefined" && PC_APPLIED.has(key)) ? " \u00b7 per person, " + String(last[0]).slice(0, 4) + " population" : ""}</p>
-      <p class="source">${opts.source}</p>`;
+      <p class="source">${eaShortSrc(opts.source)}</p>`;
   el.appendChild(div);
 }
 // Every metric with its own /indicators/ page for this country (v1.6.1: all of them, not just four).
@@ -2892,20 +2901,20 @@ const INFO_CONTENT = {
   gdp_level: {
     description: "The total value of everything Luxembourg produces in a year, at current prices, on a rolling four-quarter basis.",
     source: "Eurostat namq_10_gdp (CP_MEUR) \u00b7 current prices, seasonally and calendar adjusted, quarterly, shown as a rolling four-quarter sum.",
-    real: "\u201cMake it real\u201d swaps this to Luxembourg's real (chained-volume, inflation-adjusted) GDP series (Eurostat namq_10_gdp, CLV20_MEUR). This strips out the effect of price changes, so it shows genuine output growth rather than growth that's really just inflation.",
-    dollar: "\u201cDollarise\u201d converts each historical point using that point's OWN contemporaneous EUR/USD rate (monthly resolution, from FRED's DEXUSEU series, which starts 1999-01, the euro's launch). This series starts in 1995 (Luxembourg franc figures before 1999 converted at 40.3399 per euro), so the earliest few points predate DEXUSEU and fall back to the earliest rate DEXUSEU provides (1999-01), disclosed in the page's toggle note if it applies."
+    real: "\u201cAdjust for inflation\u201d swaps this to Luxembourg's real (chained-volume, inflation-adjusted) GDP series (Eurostat namq_10_gdp, CLV20_MEUR). This strips out the effect of price changes, so it shows genuine output growth rather than growth that's really just inflation.",
+    dollar: "\u201cConvert to USD$\u201d converts each historical point using that point's OWN contemporaneous EUR/USD rate (monthly resolution, from FRED's DEXUSEU series, which starts 1999-01, the euro's launch)."
   },
   gdp_real: {
     description: "GDP adjusted for inflation, shown in chained-volume terms, the same production, valued at constant prices, so changes reflect real output growth rather than price changes.",
     source: "Eurostat namq_10_gdp (CLV20_MEUR) \u00b7 chain-linked volumes, 2020 reference year, seasonally and calendar adjusted, quarterly, shown as a rolling four-quarter sum.",
-    real: "This IS the \u201cMake it real\u201d series, toggling it off shows GDP at current (nominal) prices instead.",
+    real: "This IS the \u201cAdjust for inflation\u201d series, toggling it off shows GDP at current (nominal) prices instead.",
     dollar: "Same historical-rate matching as GDP (current prices): each point converted at its own contemporaneous EUR/USD rate where available (1999 onward), falling back to the earliest available rate (1999-01) for anything before that."
   },
   gdp_growth: {
     description: "How much the economy grew or shrank compared with the previous three months, in real (inflation-adjusted) terms.",
     source: "Derived from Eurostat namq_10_gdp (CLV20_MEUR) \u00b7 real GDP, seasonally and calendar adjusted, quarter-on-quarter.",
-    real: "This is already a real (inflation-adjusted) growth rate as published, \u201cMake it real\u201d has no additional effect on it.",
-    dollar: "A growth rate (%) is currency-agnostic, converting the underlying euros to dollars doesn't change the percentage change. \u201cDollarise\u201d has no effect on this figure."
+    real: "This is already a real (inflation-adjusted) growth rate as published, \u201cAdjust for inflation\u201d has no additional effect on it.",
+    dollar: "A growth rate (%) is currency-agnostic, converting the underlying euros to dollars doesn't change the percentage change. \u201cConvert to USD$\u201d has no effect on this figure."
   },
   cpi: {
     description: "How much consumer prices are rising compared with a year ago, on the EU's harmonised index (HICP), the measure the ECB uses. STATEC also publishes a national CPI, which can differ by a few tenths. The European Central Bank targets 2% inflation for the euro area as a whole.",
@@ -2918,7 +2927,7 @@ const INFO_CONTENT = {
   business_confidence: {
     description: "How optimistic firms are about the months ahead. 100 is the long-run average; readings above it mean firms expect better-than-average conditions.",
     source: "OECD \u00b7 Business Confidence Indicator (BCICP), amplitude-adjusted, long-term average = 100.",
-    dollar: "This is an index, not a currency figure, \u201cDollarise\u201d doesn't apply to it."
+    dollar: "This is an index, not a currency figure, \u201cConvert to USD$\u201d doesn't apply to it."
   },
   unemployment: {
     description: "The share of people aged 15 to 74 in the labour force who want a job and are actively looking, but can't find one. ADEM's registered unemployment is a different measure.",
@@ -2940,12 +2949,12 @@ const INFO_CONTENT = {
   debt_gdp: {
     description: "Everything Luxembourg's central government, local governments and social security funds owe combined, compared with the size of the economy.",
     source: "Eurostat gov_10dd_edpt1 \u00b7 EDP notification table, general government, % of GDP, annual.",
-    dollar: "Already expressed as a % of GDP, currency-agnostic. \u201cDollarise\u201d has no effect on this figure."
+    dollar: "Already expressed as a % of GDP, currency-agnostic. \u201cConvert to USD$\u201d has no effect on this figure."
   },
   deficit: {
     description: "The yearly gap between government spending and revenue across all levels of government, as a share of GDP. Negative means a deficit.",
     source: "Eurostat gov_10dd_edpt1 \u00b7 EDP notification table, general government, % of GDP, annual.",
-    dollar: "Already expressed as a % of GDP, currency-agnostic. \u201cDollarise\u201d has no effect on this figure."
+    dollar: "Already expressed as a % of GDP, currency-agnostic. \u201cConvert to USD$\u201d has no effect on this figure."
   },
   ecb_rate: {
     description: "The European Central Bank's key interest rate, the anchor for borrowing costs across the euro area, including Luxembourg, a founding member of the euro on 1 January 1999, with no policy rate of its own since.",

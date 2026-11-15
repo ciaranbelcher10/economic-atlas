@@ -1729,7 +1729,7 @@ document.addEventListener("DOMContentLoaded", function(){
  <div class="hero mini" id="tiles-inflation"></div>
  <p class="lightskey compact" aria-label="Key to freshness lights"><span><span class="led green" aria-hidden="true"></span>&nbsp;Up to date</span><span><span class="led orange" aria-hidden="true"></span>&nbsp;Awaiting update</span></p>
  <div class="grid" id="charts-inflation"></div>
- <p class="secnote">CPI here is the quarterly series from the OECD's prices database. Since November 2025 the ABS's primary measure of headline inflation has been its complete Monthly CPI, which is not the series shown here.</p>
+ <p class="secnote">Inflation is the quarterly CPI. The ABS's headline measure is now its monthly CPI.</p>
 </section>
 <section class="sec" id="sec-labour" hidden>
  <div class="hero mini" id="tiles-labour"></div>
@@ -2187,6 +2187,17 @@ function tileNum(s){
   if(!/[1-9]/.test(s)) s=s.replace(/[-\u2212]/g,"");
   return s.replace(/(^|[^\w.])-(?=[\d.\u20ac$\u00a3\u00a5])/g,"$1\u2212");
 }
+/* v1.9.136: a tile shows its source as publisher and series code only; the (i) keeps the full line */
+function eaShortSrc(s){
+  s = String(s == null ? "" : s).replace(/\s*\([^()]*\b(?:falls? back|only if|see )[^()]*\)/gi, "");
+  s = s.split(/(?<=[.;])\s+(?=[A-Z(])/)[0].replace(/[.;]\s*$/, "");
+  var parts = s.split(/\s*·\s*/);
+  var code = /[A-Z0-9][A-Z0-9_.\-\/]{3,}/;
+  var out = parts[0];
+  if(parts.length > 1 && parts[0].length <= 30 && (parts[1].length <= 30 || (parts[1].length <= 40 && !/\b[a-z]{2,}\s+[a-z]{2,}/.test(parts[1]) && (/^[A-Z0-9]/.test(parts[1]) || /[_\d]/.test(parts[1]))))) out += " · " + parts[1];
+  if(out.length > 70){ var c = out.match(/^(.*?\b[A-Z0-9][A-Z0-9_.\-\/]{3,}\b\)?)/); if(c && c[1].length >= 8) out = c[1]; }
+  return out;
+}
 function statTile(el, key, title, series, opts){
   // v1.9.122: with Per capita on, the GDP tile is the latest complete calendar year, the same
   // figure as the GDP per capita tile and Compare (never a part year, never one quarter's rate)
@@ -2257,7 +2268,7 @@ function statTile(el, key, title, series, opts){
       <p class="delta ${dir}"><span class="arrow" aria-hidden="true">${arrow}</span>
         ${(d=>((dShow>0&&!opts.signed&&String(d).charAt(0)!=="+")?"+":"")+tileNum(d))(opts.fmtD(dShow))} ${opts.vsText||"vs prior"}</p>
       <p class="period">${fmtPeriod(last[0])}${(typeof PC_APPLIED !== "undefined" && PC_APPLIED.has(key)) ? " \u00b7 per person, " + String(last[0]).slice(0, 4) + " population" : ""}</p>
-      <p class="source">${opts.source}</p>`;
+      <p class="source">${eaShortSrc(opts.source)}</p>`;
   el.appendChild(div);
 }
 // Every metric with its own /indicators/ page for this country (v1.6.1: all of them, not just four).
@@ -2929,20 +2940,20 @@ const INFO_CONTENT = {
   gdp_level: {
     description: "The total value of everything Australia produces in a year, at current prices, on a rolling four-quarter basis.",
     source: "FRED series NGDPSAXDCAUQ (IMF International Financial Statistics), quarterly.",
-    real: "\u201cMake it real\u201d swaps this to Australia's real (inflation-adjusted) GDP series. This strips out the effect of price changes, so it shows genuine output growth rather than growth that's really just inflation.",
-    dollar: "\u201cDollarise\u201d converts each historical point using that point's OWN contemporaneous AUD/USD rate (monthly resolution, from FRED's DEXUSAL series, which starts 1971-01, the earliest daily Federal Reserve H.10 data available). This GDP series runs back to 1970, so points before 1971 have no genuine historical rate available and fall back to the earliest rate DEXUSAL provides (1971-01), disclosed in the page's toggle note. This is a considered approximation for those years, not a precise historical conversion."
+    real: "\u201cAdjust for inflation\u201d swaps this to Australia's real (inflation-adjusted) GDP series. This strips out the effect of price changes, so it shows genuine output growth rather than growth that's really just inflation.",
+    dollar: "\u201cConvert to USD$\u201d converts each historical point using that point's OWN contemporaneous AUD/USD rate (monthly resolution, from FRED's DEXUSAL series, which starts 1971-01, the earliest daily Federal Reserve H.10 data available). This is a considered approximation for those years, not a precise historical conversion."
   },
   gdp_real: {
     description: "GDP adjusted for inflation, the same production, valued at constant prices, so changes reflect real output growth rather than price changes.",
     source: "IMF International Financial Statistics series NGDPRSAXDCAUQ, via FRED, quarterly.",
-    real: "This IS the \u201cMake it real\u201d series, toggling it off shows GDP at current (nominal) prices instead.",
+    real: "This IS the \u201cAdjust for inflation\u201d series, toggling it off shows GDP at current (nominal) prices instead.",
     dollar: "Same historical-rate matching as GDP (current prices): each point converted at its own contemporaneous AUD/USD rate where available (1971 onward), falling back to the earliest available rate (1971-01) for anything before that."
   },
   gdp_growth: {
     description: "How much the economy grew or shrank compared with the previous three months, in real (inflation-adjusted) terms.",
     source: "IMF International Financial Statistics series NGDPRSAXDCAUQ, via FRED, quarter-on-quarter.",
-    real: "This is already a real (inflation-adjusted) growth rate as published, \u201cMake it real\u201d has no additional effect on it.",
-    dollar: "A growth rate (%) is currency-agnostic, converting the underlying Australian dollars to US dollars doesn't change the percentage change. \u201cDollarise\u201d has no effect on this figure."
+    real: "This is already a real (inflation-adjusted) growth rate as published, \u201cAdjust for inflation\u201d has no additional effect on it.",
+    dollar: "A growth rate (%) is currency-agnostic, converting the underlying Australian dollars to US dollars doesn't change the percentage change. \u201cConvert to USD$\u201d has no effect on this figure."
   },
   cpi_qoq: {
     description: "How much consumer prices changed in the quarter. Australia's CPI is published quarterly, so a quarter on quarter change is the shortest basis its source supports; no monthly rate is synthesised from it.",
@@ -2963,12 +2974,12 @@ const INFO_CONTENT = {
   business_confidence: {
     description: "How optimistic firms are about the months ahead. 100 is the long-run average; readings above it mean firms expect better-than-average conditions.",
     source: "OECD \u00b7 Business Confidence Indicator (BCICP), amplitude-adjusted, long-term average = 100.",
-    dollar: "This is an index, not a currency figure, \u201cDollarise\u201d doesn't apply to it."
+    dollar: "This is an index, not a currency figure, \u201cConvert to USD$\u201d doesn't apply to it."
   },
   fdi: {
     description: "Money invested into Australian businesses from abroad each year (foreign direct investment), as a share of GDP.",
     source: "World Bank BX.KLT.DINV.WD.GD.ZS \u00b7 % of GDP, annual.",
-    dollar: "Already expressed as a % of GDP, currency-agnostic. \u201cDollarise\u201d has no effect on this figure."
+    dollar: "Already expressed as a % of GDP, currency-agnostic. \u201cConvert to USD$\u201d has no effect on this figure."
   },
   trade_balance: {
     description: "Exports minus imports of goods each month. Australia typically runs a surplus, driven by resource exports.",
@@ -2978,17 +2989,17 @@ const INFO_CONTENT = {
   current_account: {
     description: "Australia's overall balance with the rest of the world, trade in goods and services plus net investment income, as a share of GDP.",
     source: "World Bank BN.CAB.XOKA.GD.ZS \u00b7 % of GDP, annual.",
-    dollar: "Already expressed as a % of GDP, currency-agnostic. \u201cDollarise\u201d has no effect on this figure."
+    dollar: "Already expressed as a % of GDP, currency-agnostic. \u201cConvert to USD$\u201d has no effect on this figure."
   },
   debt_gdp: {
     description: "Everything federal and state governments owe combined, compared with the size of the economy.",
     source: "IMF World Economic Outlook (GGXWDG_NGDP) · general government, % of GDP, annual, actual years only.",
-    dollar: "Already expressed as a % of GDP, currency-agnostic. \u201cDollarise\u201d has no effect on this figure."
+    dollar: "Already expressed as a % of GDP, currency-agnostic. \u201cConvert to USD$\u201d has no effect on this figure."
   },
   deficit: {
     description: "The yearly gap between government spending and revenue across all levels of government, as a share of GDP. Negative means a deficit.",
     source: "IMF World Economic Outlook (GGXCNL_NGDP) · general government, % of GDP, annual, actual years only.",
-    dollar: "Already expressed as a % of GDP, currency-agnostic. \u201cDollarise\u201d has no effect on this figure."
+    dollar: "Already expressed as a % of GDP, currency-agnostic. \u201cConvert to USD$\u201d has no effect on this figure."
   }
 };
 function infoIconHtml(infoKey){

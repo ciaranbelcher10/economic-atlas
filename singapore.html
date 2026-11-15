@@ -1721,7 +1721,7 @@ document.addEventListener("DOMContentLoaded", function(){
  <div class="hero mini" id="tiles-inflation"></div>
  <p class="lightskey compact" aria-label="Key to freshness lights"><span><span class="led green" aria-hidden="true"></span>&nbsp;Up to date</span><span><span class="led orange" aria-hidden="true"></span>&nbsp;Awaiting update</span></p>
  <div class="grid" id="charts-inflation"></div>
- <p class="secnote">CPI here is an annual figure from the IMF's Asia and Pacific Regional Economic Outlook. A year is shown only once the IMF's figure for it is an outturn rather than a projection.</p>
+ <p class="secnote">Inflation is annual; no monthly series is available.</p>
 </section>
 <section class="sec" id="sec-labour" hidden>
  <div class="hero mini" id="tiles-labour"></div>
@@ -2179,6 +2179,17 @@ function tileNum(s){
   if(!/[1-9]/.test(s)) s=s.replace(/[-\u2212]/g,"");
   return s.replace(/(^|[^\w.])-(?=[\d.\u20ac$\u00a3\u00a5])/g,"$1\u2212");
 }
+/* v1.9.136: a tile shows its source as publisher and series code only; the (i) keeps the full line */
+function eaShortSrc(s){
+  s = String(s == null ? "" : s).replace(/\s*\([^()]*\b(?:falls? back|only if|see )[^()]*\)/gi, "");
+  s = s.split(/(?<=[.;])\s+(?=[A-Z(])/)[0].replace(/[.;]\s*$/, "");
+  var parts = s.split(/\s*·\s*/);
+  var code = /[A-Z0-9][A-Z0-9_.\-\/]{3,}/;
+  var out = parts[0];
+  if(parts.length > 1 && parts[0].length <= 30 && (parts[1].length <= 30 || (parts[1].length <= 40 && !/\b[a-z]{2,}\s+[a-z]{2,}/.test(parts[1]) && (/^[A-Z0-9]/.test(parts[1]) || /[_\d]/.test(parts[1]))))) out += " · " + parts[1];
+  if(out.length > 70){ var c = out.match(/^(.*?\b[A-Z0-9][A-Z0-9_.\-\/]{3,}\b\)?)/); if(c && c[1].length >= 8) out = c[1]; }
+  return out;
+}
 function statTile(el, key, title, series, opts){
   // v1.9.122: with Per capita on, the GDP tile is the latest complete calendar year, the same
   // figure as the GDP per capita tile and Compare (never a part year, never one quarter's rate)
@@ -2249,7 +2260,7 @@ function statTile(el, key, title, series, opts){
       <p class="delta ${dir}"><span class="arrow" aria-hidden="true">${arrow}</span>
         ${(d=>((dShow>0&&!opts.signed&&String(d).charAt(0)!=="+")?"+":"")+tileNum(d))(opts.fmtD(dShow))} ${opts.vsText||"vs prior"}</p>
       <p class="period">${fmtPeriod(last[0])}${(typeof PC_APPLIED !== "undefined" && PC_APPLIED.has(key)) ? " \u00b7 per person, " + String(last[0]).slice(0, 4) + " population" : ""}</p>
-      <p class="source">${opts.source}</p>`;
+      <p class="source">${eaShortSrc(opts.source)}</p>`;
   el.appendChild(div);
 }
 // Every metric with its own /indicators/ page for this country (v1.6.1: all of them, not just four).
@@ -2527,7 +2538,7 @@ function render(data){
     (TOGGLE_STATE.real&&PAGE_DATA.series.gdp_real?"The total value of everything Singapore produces in a year, in real terms (adjusted for inflation).":"The total value of everything Singapore produces in a year, at current prices."),
     gdpAnnual,"line",v=>curFmt(v,s.gdp_level.unit,2),v=>curFmt(v,s.gdp_level.unit,2),SRC_GDP_LEVEL,1996);
   if(s.gdp_growth) chartPanel("gdp_growth","charts-gdp","Real GDP growth, annual",
-    "How much the economy grew or shrank compared with the previous year. Singapore's real GDP growth is only available annually from a verified live source, not quarterly like most other pages on this site, a genuine data-availability difference, not an oversight.",
+    "How much the economy grew or shrank compared with the previous year.",
     s.gdp_growth,"bar",v=>v+"%",pct,SRC_GDP_REAL,1999,0);
   if(s.cpi) chartPanel("cpi","charts-inflation","CPI inflation, annual rate",
     "How much consumer prices are rising compared with a year ago.",
@@ -2541,13 +2552,13 @@ function render(data){
       {id:"qoq", label:"Quarter on quarter", series:s.cpi_qoq, srcNote:(s.cpi_qoq && s.cpi_qoq.label) || "CPI, all items, change on the previous quarter", expl:"How much consumer prices moved compared with the quarter before."}
     ]));
   if(s.unemployment) chartPanel("unemployment","charts-labour","Unemployment rate",
-    "The share of people 15 and over who want a job but can't find one. Singapore's rate is genuinely very low by international standards, that's real, not a data error.",
+    "The share of people 15 and over who want a job but can't find one.",
     s.unemployment,"line",v=>v+"%",pct,SRC_UNEMP);
   if(s.trade_balance) chartPanel("trade_balance","charts-trade","Trade balance, goods",
     "Exports minus imports of goods each month. Below zero means Singapore buys more than it sells.",
     s.trade_balance,"bar",v=>curFmt(v,s.trade_balance.unit,0),v=>curFmt(v,s.trade_balance.unit,1),SRC_TRADE,2000,0);
   if(s.current_account) chartPanel("current_account","charts-trade","Current account",
-    "Singapore's overall balance with the rest of the world (trade plus investment income) as a share of GDP. As a major financial and trade hub, this runs a persistently large surplus, that's real, not a data error.",
+    "Singapore's overall balance with the rest of the world (trade plus investment income) as a share of GDP.",
     s.current_account,"line",v=>v+"%",pct,SRC_WB,undefined,0);
   if(s.debt_gdp) chartPanel("debt_gdp","charts-public","Central government debt, % of GDP",
     "Central government debt only, not the broader general-government measure used on most other country pages here (no general-government series is currently available for Singapore). Singapore's debt figures are also unusual because most government debt is issued to develop domestic capital markets and fund the reserves system, not to finance a deficit; unlike most countries, this is not primarily a sign of fiscal strain.",
@@ -2917,32 +2928,32 @@ function hasPreHistoryPoints(series, fx){
 const INFO_CONTENT = {
   gdp_level: {
     description: "The total value of everything Singapore produces in a year, at current prices.",
-    source: "World Bank NY.GDP.MKTP.CN.AD \u00b7 GDP, current prices, linked series, local currency units, annual (falls back to World Bank NY.GDP.MKTP.CD, current US$, only if the SGD linked series is unavailable on a given run).",
-    dollar: "When this series is on its normal (SGD) path, \u201cDollarise\u201d converts each historical point using that point's OWN contemporaneous SGD/USD rate (monthly resolution, from FRED's DEXSIUS series, which starts 1971-01). On the rarer occasion this falls back to the World-Bank USD series, it's already in dollars and Convert to USD$ correctly has no further effect."
+    source: "World Bank NY.GDP.MKTP.CN.AD \u00b7 GDP, current prices, linked series, local currency units, annual.",
+    dollar: "When this series is on its normal (SGD) path, \u201cConvert to USD$\u201d converts each historical point using that point's OWN contemporaneous SGD/USD rate (monthly resolution, from FRED's DEXSIUS series, which starts 1971-01)."
   },
   gdp_growth: {
-    description: "How much the economy grew or shrank compared with the previous year, in real (inflation-adjusted) terms. Singapore's real GDP growth is only available annually from a verified live source, not quarterly like most other pages on this site, a genuine data-availability difference, not an oversight.",
+    description: "How much the economy grew or shrank compared with the previous year, in real (inflation-adjusted) terms.",
     source: "FRED series SGPNGDPRPCPPPT \u00b7 IMF Asia and Pacific Regional Economic Outlook, annual, % change.",
-    real: "This is already a real (inflation-adjusted) growth rate as published, there is no separate \u201cMake it real\u201d toggle effect for this metric since Singapore has no distinct gdp_real series.",
-    dollar: "A growth rate (%) is currency-agnostic, converting the underlying Singapore dollars to US dollars doesn't change the percentage change. \u201cDollarise\u201d has no effect on this figure."
+    real: "This is already a real (inflation-adjusted) growth rate as published, there is no separate \u201cAdjust for inflation\u201d toggle effect for this metric since Singapore has no distinct gdp_real series.",
+    dollar: "A growth rate (%) is currency-agnostic, converting the underlying Singapore dollars to US dollars doesn't change the percentage change. \u201cConvert to USD$\u201d has no effect on this figure."
   },
   cpi: {
     description: "How much consumer prices are rising compared with a year ago.",
     source: "FRED series SGPPCPIPCPPPT \u00b7 IMF Asia and Pacific Regional Economic Outlook, annual. Annual only, not the monthly series most other country pages here use."
   },
   unemployment: {
-    description: "The share of people aged 15 and over who want a job and are actively looking, but can't find one. Singapore's rate is genuinely very low by international standards, that's real, not a data error.",
+    description: "The share of people aged 15 and over who want a job and are actively looking, but can't find one.",
     source: "World Bank SL.UEM.TOTL.ZS \u00b7 modeled ILO estimate, % of total labour force, annual."
   },
   business_confidence: {
     description: "How optimistic firms are about the months ahead. 100 is the long-run average; readings above it mean firms expect better-than-average conditions.",
     source: "OECD \u00b7 Business Confidence Indicator (BCICP), amplitude-adjusted, long-term average = 100.",
-    dollar: "This is an index, not a currency figure, \u201cDollarise\u201d doesn't apply to it."
+    dollar: "This is an index, not a currency figure, \u201cConvert to USD$\u201d doesn't apply to it."
   },
   fdi: {
     description: "Money invested into Singaporean businesses from abroad each year (foreign direct investment), as a share of GDP.",
     source: "World Bank BX.KLT.DINV.WD.GD.ZS \u00b7 % of GDP, annual.",
-    dollar: "Already expressed as a % of GDP, currency-agnostic. \u201cDollarise\u201d has no effect on this figure."
+    dollar: "Already expressed as a % of GDP, currency-agnostic. \u201cConvert to USD$\u201d has no effect on this figure."
   },
   trade_balance: {
     description: "Exports minus imports of goods each month. Below zero means Singapore buys more from abroad than it sells.",
@@ -2950,14 +2961,14 @@ const INFO_CONTENT = {
     dollar: "Each historical point is converted at its own contemporaneous SGD/USD rate (monthly resolution from FRED's DEXSIUS, 1971 onward)."
   },
   current_account: {
-    description: "Singapore's overall balance with the rest of the world, trade in goods and services plus net investment income, as a share of GDP. As a major financial and trade hub, this runs a persistently large surplus, that's real, not a data error.",
+    description: "Singapore's overall balance with the rest of the world, trade in goods and services plus net investment income, as a share of GDP.",
     source: "FRED series SGPBCAGDPBP6PT \u00b7 IMF Asia and Pacific Regional Economic Outlook, % of GDP, annual.",
-    dollar: "Already expressed as a % of GDP, currency-agnostic. \u201cDollarise\u201d has no effect on this figure."
+    dollar: "Already expressed as a % of GDP, currency-agnostic. \u201cConvert to USD$\u201d has no effect on this figure."
   },
   debt_gdp: {
     description: "Central government debt only, not the broader general-government measure used on most other country pages here (no general-government series is currently available for Singapore). Singapore's debt figures are also unusual because most government debt is issued to develop domestic capital markets and fund the reserves system, not to finance a deficit; unlike most countries, this is not primarily a sign of fiscal strain.",
     source: "FRED series DEBTTLSGA188A \u00b7 World Bank World Development Indicators, central government debt, % of GDP, annual.",
-    dollar: "Already expressed as a % of GDP, currency-agnostic. \u201cDollarise\u201d has no effect on this figure."
+    dollar: "Already expressed as a % of GDP, currency-agnostic. \u201cConvert to USD$\u201d has no effect on this figure."
   }
 };
 function infoIconHtml(infoKey){

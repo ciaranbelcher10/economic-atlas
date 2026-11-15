@@ -1722,19 +1722,19 @@ document.addEventListener("DOMContentLoaded", function(){
  <div class="hero mini" id="tiles-inflation"></div>
  <p class="lightskey compact" aria-label="Key to freshness lights"><span><span class="led green" aria-hidden="true"></span>&nbsp;Up to date</span><span><span class="led orange" aria-hidden="true"></span>&nbsp;Awaiting update</span></p>
  <div class="grid" id="charts-inflation"></div>
- <p class="secnote">Inflation is the Philippine Statistics Authority's consumer price index for all income households, 2018=100. From January 2019 the rate is the one PSA publishes; for 1995 to 2018 it is the change in PSA's 2018-based index over twelve months, which reproduces PSA's published rate exactly where both exist. The interest rate is Bangko Sentral ng Pilipinas' policy rate, the overnight reverse repurchase rate, shown from January 2002. In June 2016 BSP moved to an interest rate corridor and reset the policy rate from 4.0% to 3.0%; that was a technical change in how the rate is set, not an easing.</p>
+ <p class="secnote">In June 2016 the policy rate was reset from 4.0% to 3.0% when Bangko Sentral ng Pilipinas moved to an interest rate corridor; this was a change in how the rate is set, not an easing.</p>
 </section>
 <section class="sec" id="sec-labour" hidden>
  <div class="hero mini" id="tiles-labour"></div>
  <p class="lightskey compact" aria-label="Key to freshness lights"><span><span class="led green" aria-hidden="true"></span>&nbsp;Up to date</span><span><span class="led orange" aria-hidden="true"></span>&nbsp;Awaiting update</span></p>
  <div class="grid" id="charts-labour"></div>
- <p class="secnote">From PSA's labour force survey, which became monthly in 2021; before that it was run four times a year, so the monthly series start in January 2021. The figures are not seasonally adjusted, and participation and employment fall every July and January and recover the following month. PSA's "employment rate" is employment as a share of the labour force; the employment-to-population ratio shown here is computed from PSA's participation and employment rates.</p>
+ <p class="secnote">Labour figures are monthly from January 2021 and not seasonally adjusted, so participation and employment dip every January and July.</p>
 </section>
 <section class="sec" id="sec-trade" hidden>
  <div class="hero mini" id="tiles-trade"></div>
  <p class="lightskey compact" aria-label="Key to freshness lights"><span><span class="led green" aria-hidden="true"></span>&nbsp;Up to date</span><span><span class="led orange" aria-hidden="true"></span>&nbsp;Awaiting update</span></p>
  <div class="grid" id="charts-trade"></div>
- <p class="secnote">Goods trade is PSA's monthly data as the IMF republishes it. PSA reports trade in US dollars; each month is converted to pesos at that month's average exchange rate from the Bank for International Settlements. Exports are valued free on board, imports including cost, insurance and freight. The Philippines runs a goods deficit almost every month.</p>
+ <p class="secnote">Goods trade is converted from US dollars to pesos at each month's rate.</p>
  <div id="tpmBlock"><div class="tpm-head"><h3>Philippines goods trade: top partners</h3></div>
  <p class="tpm-scopenote"><strong>Goods trade only.</strong> Services are not included.</p>
   <nav class="viztoggle">
@@ -1783,13 +1783,13 @@ document.addEventListener("DOMContentLoaded", function(){
  <div class="hero mini" id="tiles-public"></div>
  <p class="lightskey compact" aria-label="Key to freshness lights"><span><span class="led green" aria-hidden="true"></span>&nbsp;Up to date</span><span><span class="led orange" aria-hidden="true"></span>&nbsp;Awaiting update</span></p>
  <div class="grid" id="charts-public"></div>
- <p class="secnote">Debt and the budget balance are the IMF World Economic Outlook's general government figures, actual years only. The general government balance covers all levels of government, so it differs from the national government deficit the Bureau of the Treasury reports.</p>
+ <p class="secnote">The general government balance covers all levels of government, so it differs from the national government deficit.</p>
 </section>
 <section class="sec" id="sec-markets" hidden>
  <div class="hero mini" id="tiles-markets"></div>
  <p class="lightskey compact" aria-label="Key to freshness lights"><span><span class="led green" aria-hidden="true"></span>&nbsp;Up to date</span><span><span class="led orange" aria-hidden="true"></span>&nbsp;Awaiting update</span></p>
  <div class="grid" id="charts-markets"></div>
- <p class="secnote">The exchange rate is the World Bank's annual average official rate. There is no 10-year government bond yield: no free series that states a 10-year maturity is available.</p>
+ <p class="secnote">The exchange rate is the World Bank's annual average. No 10-year government bond yield is available for the Philippines.</p>
 </section>
 <section class="sec" id="sec-misc" hidden>
  <div class="hero mini" id="tiles-misc"></div>
@@ -2164,6 +2164,17 @@ function tileNum(s){
   if(!/[1-9]/.test(s)) s=s.replace(/[-\u2212]/g,"");
   return s.replace(/(^|[^\w.])-(?=[\d.\u20ac$\u00a3\u00a5])/g,"$1\u2212");
 }
+/* v1.9.136: a tile shows its source as publisher and series code only; the (i) keeps the full line */
+function eaShortSrc(s){
+  s = String(s == null ? "" : s).replace(/\s*\([^()]*\b(?:falls? back|only if|see )[^()]*\)/gi, "");
+  s = s.split(/(?<=[.;])\s+(?=[A-Z(])/)[0].replace(/[.;]\s*$/, "");
+  var parts = s.split(/\s*·\s*/);
+  var code = /[A-Z0-9][A-Z0-9_.\-\/]{3,}/;
+  var out = parts[0];
+  if(parts.length > 1 && parts[0].length <= 30 && (parts[1].length <= 30 || (parts[1].length <= 40 && !/\b[a-z]{2,}\s+[a-z]{2,}/.test(parts[1]) && (/^[A-Z0-9]/.test(parts[1]) || /[_\d]/.test(parts[1]))))) out += " · " + parts[1];
+  if(out.length > 70){ var c = out.match(/^(.*?\b[A-Z0-9][A-Z0-9_.\-\/]{3,}\b\)?)/); if(c && c[1].length >= 8) out = c[1]; }
+  return out;
+}
 function statTile(el, key, title, series, opts){
   // v1.9.122: with Per capita on, the GDP tile is the latest complete calendar year, the same
   // figure as the GDP per capita tile and Compare (never a part year, never one quarter's rate)
@@ -2234,7 +2245,7 @@ function statTile(el, key, title, series, opts){
       <p class="delta ${dir}"><span class="arrow" aria-hidden="true">${arrow}</span>
         ${(d=>((dShow>0&&!opts.signed&&String(d).charAt(0)!=="+")?"+":"")+tileNum(d))(opts.fmtD(dShow))} ${opts.vsText||"vs prior"}</p>
       <p class="period">${fmtPeriod(last[0])}${(typeof PC_APPLIED !== "undefined" && PC_APPLIED.has(key)) ? " \u00b7 per person, " + String(last[0]).slice(0, 4) + " population" : ""}</p>
-      <p class="source">${opts.source}</p>`;
+      <p class="source">${eaShortSrc(opts.source)}</p>`;
   el.appendChild(div);
 }
 // Every metric with its own /indicators/ page for this country (v1.6.1: all of them, not just four).
@@ -2913,25 +2924,25 @@ const INFO_CONTENT = {
   gdp_level: {
     description: "The total value of everything the Philippines produces in a year, at current prices, on a rolling four-quarter basis.",
     source: "Philippine Statistics Authority (PSA) quarterly national accounts, OpenSTAT 0012B5BEXQ1 \u00b7 GDP at current prices, PHP million, not seasonally adjusted, quarterly.",
-    real: "\u201cMake it real\u201d swaps this to PSA's seasonally adjusted GDP at constant 2018 prices, also quarterly. This strips out the effect of price changes, so it shows genuine output growth rather than growth that's really just inflation.",
-    dollar: "\u201cDollarise\u201d converts each period converted at its own year's PHP/USD rate (World Bank PA.NUS.FCRF, annual average)."
+    real: "\u201cAdjust for inflation\u201d swaps this to PSA's seasonally adjusted GDP at constant 2018 prices, also quarterly. This strips out the effect of price changes, so it shows genuine output growth rather than growth that's really just inflation.",
+    dollar: "\u201cConvert to USD$\u201d converts each period converted at its own year's PHP/USD rate (World Bank PA.NUS.FCRF, annual average)."
   },
   gdp_real: {
     description: "GDP adjusted for inflation, the same production valued at constant 2018 prices, so changes reflect real output growth rather than price changes.",
     source: "PSA seasonally adjusted national accounts, OpenSTAT 012B5BEXS1 \u00b7 GDP at constant 2018 prices, PHP million, seasonally adjusted, quarterly.",
-    real: "This IS the \u201cMake it real\u201d series, toggling it off shows GDP at current (nominal) prices instead.",
+    real: "This IS the \u201cAdjust for inflation\u201d series, toggling it off shows GDP at current (nominal) prices instead.",
     dollar: "Same historical-rate matching as GDP (current prices): each period converted at its own year's PHP/USD rate."
   },
   gdp_growth: {
     description: "How much the economy grew or shrank compared with the previous three months, in real terms, with regular seasonal patterns removed. This is the quarter-on-quarter figure PSA publishes.",
     source: "PSA seasonally adjusted national accounts, OpenSTAT 012B5BEXS1 \u00b7 change in seasonally adjusted real GDP on the previous quarter, to one decimal place.",
-    real: "This is already a real (inflation-adjusted) growth rate, \u201cMake it real\u201d has no additional effect on it.",
-    dollar: "A growth rate (%) is currency-agnostic, converting the underlying pesos to dollars doesn't change the percentage change. \u201cDollarise\u201d has no effect on this figure."
+    real: "This is already a real (inflation-adjusted) growth rate, \u201cAdjust for inflation\u201d has no additional effect on it.",
+    dollar: "A growth rate (%) is currency-agnostic, converting the underlying pesos to dollars doesn't change the percentage change. \u201cConvert to USD$\u201d has no effect on this figure."
   },
   gdp_growth_yoy: {
     description: "How much bigger or smaller the economy is than a year earlier, adjusted for inflation. This is PSA's headline growth figure.",
     source: "PSA quarterly national accounts, OpenSTAT 0012B5BEXQ1 \u00b7 real GDP at constant 2018 prices, change on the same quarter a year earlier, not seasonally adjusted.",
-    dollar: "A growth rate (%) is currency-agnostic, converting the underlying pesos to dollars doesn't change the percentage change. \u201cDollarise\u201d has no effect on this figure."
+    dollar: "A growth rate (%) is currency-agnostic, converting the underlying pesos to dollars doesn't change the percentage change. \u201cConvert to USD$\u201d has no effect on this figure."
   },
   cpi: {
     description: "How much consumer prices are rising compared with a year ago.",
@@ -2960,37 +2971,37 @@ const INFO_CONTENT = {
   exports: {
     description: "The value of goods the Philippines sells to the rest of the world each month, in pesos.",
     source: "IMF international trade in goods (ITG), from PSA \u00b7 exports of goods, free on board, US$ converted to pesos at the BIS monthly average rate, monthly.",
-    dollar: "PSA publishes trade in US dollars; the pesos shown are converted at each month's BIS average rate, and \u201cDollarise\u201d converts back at that year's World Bank rate."
+    dollar: "PSA publishes trade in US dollars; the pesos shown are converted at each month's BIS average rate, and \u201cConvert to USD$\u201d converts back at that year's World Bank rate."
   },
   imports: {
     description: "The value of goods the Philippines buys from the rest of the world each month, in pesos.",
     source: "IMF international trade in goods (ITG), from PSA \u00b7 imports of goods, cost, insurance and freight, US$ converted to pesos at the BIS monthly average rate, monthly.",
-    dollar: "PSA publishes trade in US dollars; the pesos shown are converted at each month's BIS average rate, and \u201cDollarise\u201d converts back at that year's World Bank rate."
+    dollar: "PSA publishes trade in US dollars; the pesos shown are converted at each month's BIS average rate, and \u201cConvert to USD$\u201d converts back at that year's World Bank rate."
   },
   trade_balance: {
     description: "Exports minus imports of goods each month. Below zero means the Philippines buys more from abroad than it sells.",
     source: "IMF international trade in goods (ITG), from PSA \u00b7 exports (free on board) less imports (cost, insurance and freight), US$ converted to pesos at the BIS monthly average rate, monthly.",
-    dollar: "PSA publishes trade in US dollars; the pesos shown are converted at each month's BIS average rate, and \u201cDollarise\u201d converts back at that year's World Bank rate."
+    dollar: "PSA publishes trade in US dollars; the pesos shown are converted at each month's BIS average rate, and \u201cConvert to USD$\u201d converts back at that year's World Bank rate."
   },
   debt_gdp: {
     description: "Everything government owes, across all levels of government, compared with the size of the economy.",
-    source: "IMF World Economic Outlook (GGXWDG_NGDP) \u00b7 general government gross debt, % of GDP, annual \u00b7 actual years only. The IMF's figures for the years after the one shown are projections, which this site does not publish.",
-    dollar: "Already expressed as a % of GDP, currency-agnostic. \u201cDollarise\u201d has no effect on this figure."
+    source: "IMF World Economic Outlook (GGXWDG_NGDP) \u00b7 general government gross debt, % of GDP, annual \u00b7 actual years only.",
+    dollar: "Already expressed as a % of GDP, currency-agnostic. \u201cConvert to USD$\u201d has no effect on this figure."
   },
   deficit: {
     description: "The yearly gap between government spending and revenue as a share of GDP; negative means a deficit. This is the IMF's general government balance, covering all levels of government, so it differs from the national government deficit the Bureau of the Treasury reports.",
-    source: "IMF World Economic Outlook (GGXCNL_NGDP) \u00b7 general government net lending/borrowing, % of GDP, annual \u00b7 actual years only. The IMF's figures for the years after the one shown are projections, which this site does not publish.",
-    dollar: "Already expressed as a % of GDP, currency-agnostic. \u201cDollarise\u201d has no effect on this figure."
+    source: "IMF World Economic Outlook (GGXCNL_NGDP) \u00b7 general government net lending/borrowing, % of GDP, annual \u00b7 actual years only.",
+    dollar: "Already expressed as a % of GDP, currency-agnostic. \u201cConvert to USD$\u201d has no effect on this figure."
   },
   current_account: {
     description: "The Philippines' overall balance with the rest of the world, trade in goods and services plus net investment income and remittances, as a share of GDP.",
     source: "World Bank BN.CAB.XOKA.GD.ZS \u00b7 % of GDP, annual.",
-    dollar: "Already expressed as a % of GDP, currency-agnostic. \u201cDollarise\u201d has no effect on this figure."
+    dollar: "Already expressed as a % of GDP, currency-agnostic. \u201cConvert to USD$\u201d has no effect on this figure."
   },
   fdi: {
     description: "Money invested into Philippine businesses from abroad each year (foreign direct investment), as a share of GDP.",
     source: "World Bank BX.KLT.DINV.WD.GD.ZS \u00b7 % of GDP, annual.",
-    dollar: "Already expressed as a % of GDP, currency-agnostic. \u201cDollarise\u201d has no effect on this figure."
+    dollar: "Already expressed as a % of GDP, currency-agnostic. \u201cConvert to USD$\u201d has no effect on this figure."
   }
 };
 function infoIconHtml(infoKey){
