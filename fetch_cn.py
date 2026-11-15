@@ -264,6 +264,19 @@ def fetch_worldbank(code: str, scale: float = 1.0) -> list:
     return require_current(pts, 900, f"World Bank {code}")
 
 
+def fetch_fred_avg(sid: str, key: str) -> list:
+    """v1.9.132: monthly AVERAGE of a daily FRED exchange rate, for fx_to_usd (the dollar views
+    convert at a period's average rate, as the World Bank does; month-end rates biased them)."""
+    r = requests.get(FRED_URL.format(sid=sid, key=key), timeout=60, headers=UA)
+    r.raise_for_status()
+    acc = {}
+    for o in r.json().get("observations", []):
+        if o.get("value") in (None, "", "."):
+            continue
+        acc.setdefault(o["date"][:7], []).append(float(o["value"]))
+    return [[p, round(sum(v) / len(v), 6)] for p, v in sorted(acc.items())]
+
+
 def fetch_fred(sid: str, key: str) -> list:
     r = requests.get(FRED_URL.format(sid=sid, key=key), timeout=60, headers=UA)
     r.raise_for_status()
@@ -370,7 +383,7 @@ def main() -> int:
     fx_ok = False
     key = os.environ.get("FRED_API_KEY")
     try:
-        fx = fetch_fred("DEXCHUS", key) if key else []
+        fx = fetch_fred_avg("DEXCHUS", key) if key else []
         if fx:
             out["fx_to_usd"] = {"pair": "CNY/USD", "rate": fx[-1][1], "as_of": fx[-1][0],
                                 "direction": "divide", "history": fx}

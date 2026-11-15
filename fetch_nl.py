@@ -150,6 +150,13 @@ def fetch_fred(sid: str, freq: str, key: str) -> list:
         except (KeyError, ValueError):
             continue
     points.sort(key=lambda p: p[0])
+    # v1.9.132: a daily exchange rate (DEX*) becomes the MONTH'S AVERAGE, as the World Bank and the
+    # central banks publish it. Keeping the last day gave month-end rates (EUR/USD Jan 2024 1.0855, not 1.0905).
+    if freq == "d" and str(sid).startswith("DEX"):
+        acc = {}
+        for p, v in points:
+            acc.setdefault(p, []).append(v)
+        return [[p, round(sum(vs) / len(vs), 6)] for p, vs in sorted(acc.items())]
     dedup = {}
     for p, v in points:
         dedup[p] = v

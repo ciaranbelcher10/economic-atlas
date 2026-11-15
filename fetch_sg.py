@@ -204,8 +204,15 @@ def fetch_fred(sid: str, freq: str, key: str) -> list:
             continue
     points.sort(key=lambda p: p[0])
     dedup = {}
-    for p, v in points:
-        dedup[p] = v
+    if freq == "d" and str(sid).startswith("DEX"):
+        # v1.9.132: a daily exchange rate becomes the MONTH'S AVERAGE, not the month-end rate
+        acc = {}
+        for p, v in points:
+            acc.setdefault(p, []).append(v)
+        dedup = {p: round(sum(vs) / len(vs), 6) for p, vs in acc.items()}
+    else:
+        for p, v in points:
+            dedup[p] = v
     points = sorted([[p, v] for p, v in dedup.items()], key=lambda x: x[0])
     points = [p for p in points if not _is_future_period(p[0], freq)]
     if freq == "a":
