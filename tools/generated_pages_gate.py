@@ -95,6 +95,9 @@ def bump(k, n=1):
 def label(period, rolling=False):
     """The period as a reader sees it. Written here on purpose, not imported from the generator."""
     period = str(period)
+    m = re.fullmatch(r"(\d{4})-(\d{2})-(\d{2})", period)   # v1.9.131: daily bond yields
+    if m:
+        return f"{int(m.group(3))} {MONTHS[int(m.group(2)) - 1]} {m.group(1)}"
     m = re.fullmatch(r"(\d{4})-(\d{2})", period)
     if m:
         y, mo = int(m.group(1)), int(m.group(2))
@@ -176,7 +179,10 @@ def run_checks(tmp, r, repo):
     def series_of(data_file, key):
         if data_file not in data_cache:
             p = os.path.join(tmp, data_file)
-            data_cache[data_file] = json.loads(read(p))["series"] if os.path.exists(p) else None
+            raw = json.loads(read(p)) if os.path.exists(p) else None
+            # v1.9.131: a daily bond file (data-bond-XX.json) holds one series at the top level
+            data_cache[data_file] = (None if raw is None else raw["series"] if "series" in raw
+                                     else {raw.get("key"): {**raw, "label": raw.get("label") or raw.get("title", "")}} if raw.get("points") else None)
         d = data_cache[data_file]
         return None if d is None else d.get(key)
 
@@ -410,8 +416,8 @@ def check_banner_css(repo):
     bump("banner style rules checked", 1)
 
 
-STALE = {"months": 75, "quarters": 150, "years": 660}   # restated here on purpose: the gate's own copy of the rule
-AWAIT_CAP = {"months": 180, "quarters": 270, "years": 1000}   # likewise restated: how far past its period a slow source may run
+STALE = {"days": 10, "months": 75, "quarters": 150, "years": 660}   # restated here on purpose: the gate's own copy of the rule
+AWAIT_CAP = {"days": 30, "months": 180, "quarters": 270, "years": 1000}   # likewise restated: how far past its period a slow source may run
 AWAIT_CONFIRM = 3                                             # and how recently it must have been confirmed
 
 
@@ -428,6 +434,9 @@ def period_end(period):
     m = re.fullmatch(r"(\d{4})", period)
     if m:
         return date(int(m.group(1)), 12, 31)
+    m = re.fullmatch(r"(\d{4})-(\d{2})-(\d{2})", period)
+    if m:
+        return date(int(m.group(1)), int(m.group(2)), int(m.group(3)))
     return None
 
 
@@ -780,7 +789,7 @@ GATE_CORE = [("GDP", ["gdp"]), ("Real GDP", ["real-gdp"]), ("GDP growth", ["gdp-
 GATE_EURO = {"Austria", "Belgium", "Bulgaria", "Croatia", "Cyprus", "Estonia", "Finland", "France", "Germany", "Greece",
              "Ireland", "Italy", "Latvia", "Lithuania", "Luxembourg", "Malta", "Netherlands", "Portugal", "Slovakia",
              "Slovenia", "Spain"}
-FREQ_WORD = {"months": "Monthly", "quarters": "Quarterly", "years": "Annual"}
+FREQ_WORD = {"days": "Daily", "months": "Monthly", "quarters": "Quarterly", "years": "Annual"}
 OECD_PHRASE = "latest quarters from OECD QNA"
 # section id -> (text fragment of the note, how to tell from the data that it is still true)
 NOTE_RULES = {

@@ -21,7 +21,7 @@
   var RATE_KEYS = {boe_rate:1, fed_funds:1, ecb_rate:1, boj_rate:1, overnight_rate:1, policy_rate:1, bond_yield_10y:1};
   var NATIVE_DOLLAR = {Australia:"A$", Brazil:"R$", Canada:"C$", Mexico:"MX$", "South Africa":"R"};
   var NATIVE_KEYS = {gdp_level:1, gdp_real:1, trade_balance:1, exports:1, imports:1, gdp_per_capita:1};   // v1.9.124: as the Python NATIVE_KEYS
-  var STALE_DAYS = {months:75, quarters:150, years:660};
+  var STALE_DAYS = {days:10, months:75, quarters:150, years:660};
 
   function cleanUnit(u){ return String(u || "").replace(/\s*\([^)]*\)\s*$/, "").trim(); }
   function unitKind(u){
@@ -158,6 +158,8 @@
     if(m) return "Q" + m[2] + " " + m[1];
     m = /^(\d{4})-(\d{2})$/.exec(p);
     if(m) return MONTHS[+m[2]-1] + " " + m[1];
+    m = /^(\d{4})-(\d{2})-(\d{2})$/.exec(p);   // v1.9.131: daily (bond yields)
+    if(m) return (+m[3]) + " " + MONTHS[+m[2]-1] + " " + m[1];
     return p;
   }
   function periodEnd(p){
@@ -167,6 +169,8 @@
     if(m) return new Date(Date.UTC(+m[1], +m[2], 0));
     m = /^(\d{4})$/.exec(p);
     if(m) return new Date(Date.UTC(+m[1], 12, 0));
+    m = /^(\d{4})-(\d{2})-(\d{2})$/.exec(p);
+    if(m) return new Date(Date.UTC(+m[1], +m[2]-1, +m[3]));
     return null;
   }
   function isFresh(p, freq){
@@ -203,15 +207,34 @@
       matches = hist.filter(function(h){ return want.indexOf(h[0]) > -1; });
     } else matches = hist.filter(function(h){ return h[0] === p; });
     if(matches.length) return matches.reduce(function(t, h){ return t + h[1]; }, 0) / matches.length;
+    // v1.9.131 same-year: an annual history gives a quarter or month its own year's rate, not the nearest year by date
+    var sy = hist.filter(function(h){ return h[0] === String(p).slice(0,4); }); if(sy.length) return sy[0][1];
     var k = monthKey(p), best = hist[0], bd = Infinity;
     hist.forEach(function(h){ var d = Math.abs(monthKey(h[0]) - k); if(d < bd){ bd = d; best = h; } });
     return best[1];
   }
+  /* v1.9.131: a period has a market rate only from fx.floor and from the first month of fx.history.
+     Earlier points get no dollar value (no more conversion at the earliest available rate). */
+  function hasRate(p, fx){
+    var k = monthKey(p); if(k === null) return true;
+    if(fx.floor && k < monthKey(String(fx.floor))) return false;
+    if(fx.history && fx.history.length && k + (/^\d{4}$/.test(p) ? 11 : /-Q/.test(p) ? 2 : 0) < monthKey(fx.history[0][0])) return false;
+    return true;
+  }
+  function conv(v, r, fx){ return fx.direction === "multiply" ? v*r : v/r; }
+  /* Nominal: each point at its own period's rate, points without a rate dropped. */
   function toUSD(pts, fx){
-    return pts.map(function(p){
+    return pts.filter(function(p){ return hasRate(p[0], fx); }).map(function(p){
       var r = fx.history ? rateForPeriod(p[0], fx.history) : fx.rate;
-      return [p[0], fx.direction === "multiply" ? p[1]*r : p[1]/r];
+      return [p[0], conv(p[1], r, fx)];
     });
+  }
+  /* Real: ONE rate, the latest year's average, as the country pages (v1.7.55), so real growth stays as published. */
+  function toUSDReal(pts, fx){
+    if(!pts.length) return pts;
+    var yr = String(pts[pts.length-1][0]).slice(0,4);
+    var r = fx.history && fx.history.length ? rateForPeriod(yr, fx.history) : fx.rate;
+    return pts.map(function(p){ return [p[0], conv(p[1], r, fx)]; });
   }
   function usdUnit(u){
     var s = scaleOf(u);
@@ -231,13 +254,13 @@
   }
 
   window.EATLAS_FMT = {fmtNum: fmtNum, roundedDelta: roundedDelta, fmtPeriod: fmtPeriod, unitKind: unitKind, symbolOf: symbolOf, scaleOf: scaleOf,
-    annualise: annualise, rateForPeriod: rateForPeriod, toUSD: toUSD, usdUnit: usdUnit, isFresh: isFresh};
+    annualise: annualise, rateForPeriod: rateForPeriod, toUSD: toUSD, toUSDReal: toUSDReal, hasRate: hasRate, usdUnit: usdUnit, isFresh: isFresh};
 
   /* ------------------------------------------------------------------ */
   /* Indicator page                                                      */
   /* ------------------------------------------------------------------ */
   function initIndicator(cfg){
-    var state = {nominal: cfg.points, real: cfg.realPoints || null, fx: cfg.fx || null,
+    var state = {rawNominal: cfg.rawPoints || null, nominal: cfg.points, real: cfg.realPoints || null, fx: cfg.fx || null,
                  real_on: false, dollar_on: false, pc_on: false, range: "max"};
     var chart = null;
 
@@ -247,7 +270,14 @@
       var dollarised = false;
       var pcUsdYear = !!(state.pc_on && cfg.population && window.EA_PC && cfg.annualise && cfg.key === "gdp_level" &&
                          !(state.real_on && state.real) && state.dollar_on && state.fx);
-      if(state.dollar_on && state.fx && !pcUsdYear){ pts = toUSD(pts, state.fx); unit = usdUnit(unit); dollarised = true; }
+      if(state.dollar_on && state.fx && !pcUsdYear){
+        var isReal = !!(state.real_on && state.real);
+        if(isReal) pts = toUSDReal(pts, state.fx);
+        // v1.9.131: GDP is a trailing four-quarter sum; convert each quarter at its own rate, then sum
+        else if(cfg.annualise && state.rawNominal) pts = annualise(toUSD(state.rawNominal, state.fx), cfg.freq, cfg.gdpRaw);
+        else pts = toUSD(pts, state.fx);
+        unit = usdUnit(unit); dollarised = true;
+      }
       var pcNote = null;
       if(pcUsdYear){
         // v1.9.124: GDP per person in US$ = the calendar-year local figure at that year's average rate,
@@ -409,9 +439,11 @@
 
     /* Live refresh: the baked figures are a fallback; the data file is the truth. */
     fetch(cfg.dataUrl, {cache: "no-cache"}).then(function(r){ if(!r.ok) throw 0; return r.json(); }).then(function(d){
-      var s = d && d.series && d.series[cfg.key];
+      // v1.9.131: a daily bond file carries its points at the top level
+      var s = d && ((d.series && d.series[cfg.key]) || (d.key === cfg.key && d.points ? d : null));
       if(!s || !s.points) return;
       var pts = s.points.filter(function(p){ return p && p[1] != null; });
+      state.rawNominal = pts.slice();
       if(cfg.annualise) pts = annualise(pts, s.freq, cfg.gdpRaw);
       if(pts.length < 2) return;
       state.nominal = pts;

@@ -20,7 +20,7 @@ from __future__ import annotations
 import html
 import re
 
-FREQ_WORD = {"months": "Monthly", "quarters": "Quarterly", "years": "Annual"}
+FREQ_WORD = {"days": "Daily", "months": "Monthly", "quarters": "Quarterly", "years": "Annual"}
 
 # metric slug -> theme, in display order. Every metric in generate_indicator_pages.METRICS must appear (gated).
 THEMES = [

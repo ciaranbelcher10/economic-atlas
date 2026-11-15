@@ -1789,7 +1789,7 @@ document.addEventListener("DOMContentLoaded", function(){
  <div class="hero mini" id="tiles-markets"></div>
  <p class="lightskey compact" aria-label="Key to freshness lights"><span><span class="led green" aria-hidden="true"></span>&nbsp;Up to date</span><span><span class="led orange" aria-hidden="true"></span>&nbsp;Awaiting update</span></p>
  <div class="grid" id="charts-markets"></div>
- <p class="secnote">Government bond yields and exchange rates are market prices, not government statistics -- shown here as the fast-moving complement to the macro data above, sourced the same way (the OECD, the Federal Reserve and the World Bank), never a news aggregator or a paid data vendor.</p>
+ <p class="secnote">Government bond yields and exchange rates are market prices, not government statistics, shown here as the fast-moving complement to the macro data above, sourced the same way (the OECD, the Federal Reserve and the World Bank), never a news aggregator or a paid data vendor.</p>
 </section>
 <section class="sec" id="sec-misc" hidden>
  <div class="hero mini" id="tiles-misc"></div>
@@ -2204,7 +2204,14 @@ function statTile(el, key, title, series, opts){
   // added in priority order, so anything past the tenth is dropped.
   if(el && el.id === "hero" && el.querySelectorAll(":scope > .stat").length >= 10) return;
   const pts=series.points, last=pts[pts.length-1], prev=pts[pts.length-2];
-  const d=+(last[1]-prev[1]).toFixed(opts.dDp!=null?opts.dDp:2);
+  let d=+(last[1]-prev[1]).toFixed(opts.dDp!=null?opts.dDp:2);
+  // v1.9.131: for a percentage tile the change is the gap between the two figures AS SHOWN, so
+  // "-0.1% to 0.2%" reads "+0.3pp", never "+0.4pp" from the unrounded values
+  {
+    const _txt=String(opts.fmt(last[1])).replace(/<[^>]*>/g,"").trim();
+    const _m=/^[^\d]*?[-\u2212]?[\d,]*\.?(\d*)\s*%$/.exec(_txt);
+    if(_m){ const _dp=_m[1].length, _f=Math.pow(10,_dp); d=+((Math.round(last[1]*_f)-Math.round(prev[1]*_f))/_f).toFixed(_dp); }
+  }
   // A change that rounds to zero at display precision is shown as flat,
   // not as a green or red move (v1.7.13).
   const _flat=d===0||!/[1-9]/.test(String(opts.fmtD(Math.abs(d))).replace(/<[^>]*>/g,""));
@@ -2837,7 +2844,11 @@ function convertSeriesToUSD(series, fx){
   // the dollar view rather than converted at a rate that does not apply.
   const floorKey = fx.floor ? monthKey(fx.floor) : null;
   const kept = floorKey===null ? series.points : series.points.filter(([p])=>monthKey(p)===null || monthKey(p)>=floorKey);
-  return {...series, unit:newUnit, points: kept.map(([p,v])=>[p, toUSD(v,p)])};
+  // v1.9.131: no dollar value before the FX history starts either (was converted at the earliest rate)
+  const h0 = fx.history && fx.history.length ? monthKey(String(fx.history[0][0])) : null;
+  const span = p => /^\d{4}$/.test(p) ? 11 : /-Q/.test(p) ? 2 : 0;
+  const kept2 = h0===null ? kept : kept.filter(([p])=>monthKey(p)===null || monthKey(p)+span(p)>=h0);
+  return {...series, unit:newUnit, points: kept2.map(([p,v])=>[p, toUSD(v,p)])};
 }
 /* v1.7.55: real GDP is converted at ONE exchange rate, the average of the
    series' latest year, not each year's own rate. Constant-price local
@@ -2909,6 +2920,8 @@ function rateForPeriod(period, history){
     matches = history.filter(([p])=>p===period);
   }
   if(matches.length) return matches.reduce((sum,[,v])=>sum+v, 0) / matches.length;
+  // v1.9.131 same-year: an annual history gives a quarter or month its own year's rate, not the nearest year by date
+  var sy = history.filter(function(h){ return h[0] === String(period).slice(0,4); }); if(sy.length) return sy[0][1];
   const targetKey = monthKey(period);
   let best = history[0], bestDist = Infinity;
   for(const [p,v] of history){
@@ -3056,20 +3069,22 @@ function openInfoPopover(btn, infoKey, title){
   el.querySelector(".infoPopoverSrc").textContent = "Source: " + content.source;
   const togglesEl = el.querySelector(".infoPopoverToggles");
   togglesEl.innerHTML = "";
-  if(content.real){
+  // v1.9.131: a toggle note only where that toggle changes this figure (no "has no effect" notes)
+  const _affects = (list) => typeof list === "undefined" || !Array.isArray(list) || list.includes(infoKey);
+  if(content.real && _affects(typeof REAL_AFFECTED_KEYS !== "undefined" ? REAL_AFFECTED_KEYS : undefined)){
     const p = document.createElement("p");
     p.className = "infoPopoverToggleNote real";
     p.innerHTML = `<strong>Adjust for inflation:</strong> ${window.EA_PC ? EA_PC.relabel(content.real) : content.real}`;
     togglesEl.appendChild(p);
   }
-  if(content.dollar){
+  if(content.dollar && _affects(typeof CURRENCY_KEYS !== "undefined" ? CURRENCY_KEYS : undefined)){
     const p = document.createElement("p");
     p.className = "infoPopoverToggleNote dollar";
     p.innerHTML = `<strong>Convert to USD$:</strong> ${window.EA_PC ? EA_PC.relabel(content.dollar) : content.dollar}`;
     togglesEl.appendChild(p);
   }
   /* v1.9.128 info+axis+hint: every (i) explains Per capita too */
-  if(window.EA_PC && EA_PC.infoNote){
+  if(window.EA_PC && EA_PC.infoNote && EA_PC.eligible(infoKey)){
     const p = document.createElement("p");
     p.className = "infoPopoverToggleNote capita";
     const st = document.createElement("strong"); st.textContent = "Per capita:";
@@ -3156,6 +3171,10 @@ function buildDisplaySeries(rawSeries){
       }
     }
   }
+  // v1.9.131: US and Japan publish GDP at an annual rate, so a quarter's per person figure is not that
+  // year's. With Per capita on, the chart shows calendar years, the same figure as the tile.
+  if(PC_APPLIED.has("gdp_level") && typeof PC_ANNUAL_RATE !== "undefined" && PC_ANNUAL_RATE.includes(COUNTRY_LABEL))
+    out.gdp_level = PC_GDP_CAL || pcCalendarYears(PC_GDP_SERIES);
   return out;
 }
 // Announces the new on/off state via the visually-hidden live region

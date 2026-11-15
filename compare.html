@@ -3156,6 +3156,8 @@ function rateForPeriod(period, history){
   } else {
     matches = history.filter(function(pt){ return pt[0] === period; });
   }
+  // v1.9.131 same-year: an annual history gives a quarter or month its own year's rate, not the nearest year by date
+  if(!matches.length){ var sy = history.filter(function(pt){ return pt[0] === String(period).slice(0,4); }); if(sy.length) return sy[0][1]; }
   if(matches.length){
     var sum = matches.reduce(function(s,pt){ return s+pt[1]; }, 0);
     return sum / matches.length;
@@ -3200,9 +3202,17 @@ function toUSDValue(country, rawValue, period, concept){
 }
 function isBeforeFxFloor(country, period){
   var fx = FX_RATES[country];
-  if(!fx || !fx.floor) return false;
-  var k = monthKey(String(period)), f = monthKey(String(fx.floor));
-  return k !== null && f !== null && k < f;
+  if(!fx) return false;
+  var k = monthKey(String(period));
+  if(k === null) return false;
+  // v1.9.131: before the FX history starts counts too (was converted at the earliest rate)
+  if(fx.history && fx.history.length){
+    var sp = /^\d{4}$/.test(String(period)) ? 11 : /-Q/.test(String(period)) ? 2 : 0;
+    if(k + sp < monthKey(String(fx.history[0][0]))) return true;
+  }
+  if(!fx.floor) return false;
+  var f = monthKey(String(fx.floor));
+  return f !== null && k < f;
 }
 // The year whose average rate converts a country's real GDP: the latest
 // year of its real series, or the nearest year the FX history has.
@@ -3411,7 +3421,7 @@ function openInfoPopover(btn, concept){
     ? "Different countries' statistics agencies publish this on different schedules and with different revision practices. Currency figures shown here are converted to USD, see each card's own methodology note above its chart for exactly how."
     : "Different countries' statistics agencies publish this on different schedules and with different revision practices, so treat cross-country comparisons as broadly indicative rather than perfectly like-for-like.";
   /* v1.9.128: every (i) explains Per capita too */
-  if(window.EA_PC && EA_PC.infoNote){
+  if(window.EA_PC && EA_PC.infoNote && EA_PC.eligible(concept)){   // v1.9.131: only where it changes the figure
     var pcP = el.querySelector(".infoPopoverPc");
     if(!pcP){ pcP = document.createElement("p"); pcP.className = "infoPopoverCaveat infoPopoverPc"; caveatEl.parentNode.insertBefore(pcP, caveatEl.nextSibling); }
     pcP.textContent = "";
@@ -3792,8 +3802,10 @@ function noDataReason(country, concept, year){
   }
   if(isMoneyConcept(concept) && !isNativeCard(concept) && concept !== "gdp_real" && isBeforeFxFloor(country, String(year))
      && !isAlreadyUSDUnit(series.unit, country, concept)){
+    var fxs = FX_RATES[country], h0 = fxs.history && fxs.history.length ? String(fxs.history[0][0]).slice(0, 4) : null;
+    var from = fxs.floor && (!h0 || String(fxs.floor) > h0) ? String(fxs.floor).slice(0, 4) : h0;
     return country + "'s currency has no market exchange rate in this site's data before "
-      + FX_RATES[country].floor + ", so " + year + " has no dollar figure.";
+      + from + ", so " + year + " has no dollar figure.";
   }
   var last = series.points[series.points.length - 1][0];
   if(yearOf(last) < year) return "No " + year + " figure yet, latest published is " + periodText(last) + ".";

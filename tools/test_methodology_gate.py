@@ -131,7 +131,7 @@ CASES = [
      edit_file("methodology_by_economy.py", '        label = (s.get("label") or "").strip()\n', '        label = (s.get("label") or "").strip()[:18]\n'),
      "differs from the data"),
     ("wrong frequency word",
-     edit_file("methodology_by_economy.py", 'FREQ_WORD = {"months": "Monthly",', 'FREQ_WORD = {"months": "Weekly",'),
+     edit_file("methodology_by_economy.py", 'FREQ_WORD = {"days": "Daily", "months": "Monthly",', 'FREQ_WORD = {"months": "Weekly",'),
      "frequency"),
     ("the US shown as lacking an exchange rate",
      edit_file("methodology_by_economy.py", 'FX_BASE = {"US"}', "FX_BASE = set()"),

@@ -30,13 +30,13 @@
   <a class="w-badge" href="https://theeconomicatlas.com/indicators/norway-current-account-to-gdp" target="_blank" rel="noopener">Powered by The Economic Atlas &#8599;</a>
 </div>
 <script>if(window.self === window.top){ document.body.classList.add("standalone"); }</script>
-<script src="../indicator-kit.js?v=13"></script>
+<script src="../indicator-kit.js?v=14"></script>
 <script>
 (function(){
-  var CFG = {"dataUrl": "../data-no.json", "key": "current_account", "unit": "%", "country": "Norway", "annualise": false, "gdpRaw": false};
+  var CFG = {"dataUrl": "../data-no.json", "key": "current_account", "unit": "%", "country": "Norway", "annualise": false, "gdpRaw": false, "rolling3m": false};
   var F = window.EATLAS_FMT;
   fetch(CFG.dataUrl).then(function(r){ return r.json(); }).then(function(d){
-    var s = d.series && d.series[CFG.key];
+    var s = (d.series && d.series[CFG.key]) || (d.key === CFG.key && d.points ? d : null);
     if(!s || !s.points) return;
     var pts = s.points.filter(function(p){ return p && p[1] != null; });
     if(CFG.annualise) pts = F.annualise(pts, s.freq, CFG.gdpRaw);
@@ -44,7 +44,11 @@
     pts = pts.slice(-24);
     var last = pts[pts.length-1];
     document.getElementById("val").textContent = F.fmtNum(last[1], {unit: CFG.unit, key: CFG.key, country: CFG.country});
-    document.getElementById("per").textContent = "Latest: " + F.fmtPeriod(last[0]);
+    var M = ["Jan","Feb","Mar","Apr","May","Jun","Jul","Aug","Sep","Oct","Nov","Dec"], mm = /^(\d{4})-(\d{2})$/.exec(last[0]);
+    // v1.9.131: a three-month rolling figure (UK labour market) is labelled as its three months, as the static text is
+    document.getElementById("per").textContent = "Latest: " + (CFG.rolling3m && mm
+      ? (function(){ var c = +mm[2], y = +mm[1], s = c - 1, sy = y, e = c + 1, ey = y; if(s < 1){ s = 12; sy--; } if(e > 12){ e = 1; ey++; } return M[s-1] + (sy !== ey ? " " + sy : "") + "\u2013" + M[e-1] + " " + ey; })()
+      : F.fmtPeriod(last[0]));
     var vals = pts.map(function(p){ return p[1]; });
     var lo = Math.min.apply(null, vals), hi = Math.max.apply(null, vals), span = (hi-lo) || 1;
     var W=340, H=210, pad=6, step=(W-2*pad)/(pts.length-1);

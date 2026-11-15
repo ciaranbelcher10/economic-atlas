@@ -44,7 +44,7 @@ SITE_URL = "https://theeconomicatlas.com"
 # underlying official statistics, which stay with their publishers.
 CREATOR = {"@type": "Organization", "name": "The Economic Atlas", "url": SITE_URL}
 LICENSE = f"{SITE_URL}/terms"
-KIT_VERSION = "13"
+KIT_VERSION = "14"
 PERCAPITA_VERSION = "5"
 # v1.9.123: must match percapita.js ELIGIBLE
 PC_ELIGIBLE = {"gdp_level", "gdp_real", "exports", "imports", "trade_balance", "net_debt", "debt_interest", "deficit"}
@@ -178,7 +178,17 @@ def metric_title(m, country, key, unit):
         if country == "UK":
             return "Government Borrowing"
         return "Federal Budget Balance" if country == "US" else "Government Budget Balance"
+    # v1.9.131: say which growth rate this is, so "GDP Growth Rate" never means two things
+    if m["slug"] == "gdp-growth-rate":
+        lab = str(((CURRENT_SERIES_LABELS.get(country) or {}).get(key)) or "")
+        if re.search(r"annuali[sz]ed", lab, re.I):
+            return "GDP Growth Rate (quarter on quarter, annualised)"
+        if re.search(r"\bYoY\b|year on year|previous year", lab, re.I):
+            return "GDP Growth Rate (year on year)"
+        return "GDP Growth Rate (quarter on quarter)"
     return m["title"]
+
+CURRENT_SERIES_LABELS = {}   # filled in build_all: country -> {key: label}
 
 def metric_up(m, country, unit):
     if m["slug"] == "exchange-rate":
@@ -396,7 +406,7 @@ GDP_ALREADY_USD = {"US", "Switzerland"}      # no Convert to USD$; no FX convers
 RATE_KEYS = {"boe_rate", "fed_funds", "ecb_rate", "boj_rate", "overnight_rate", "policy_rate", "bond_yield_10y"}
 NATIVE_DOLLAR = {"Australia": "A$", "Brazil": "R$", "Canada": "C$", "Mexico": "MX$", "South Africa": "R"}
 NATIVE_KEYS = {"gdp_level", "gdp_real", "trade_balance", "exports", "imports", "gdp_per_capita"}
-STALE_DAYS = {"months": 75, "quarters": 150, "years": 660}
+STALE_DAYS = {"days": 10, "months": 75, "quarters": 150, "years": 660}
 MONTH_NAMES = ["Jan","Feb","Mar","Apr","May","Jun","Jul","Aug","Sep","Oct","Nov","Dec"]
 MINUS = "\u2212"
 
@@ -559,13 +569,17 @@ def fmt_period_label(period):
     m = re.match(r"^(\d{4})-Q(\d)$", period)
     if m:
         return f"Q{m.group(2)} {m.group(1)}"
+    m = re.match(r"^(\d{4})-(\d{2})-(\d{2})$", period)   # v1.9.131: daily (bond yields)
+    if m:
+        return f"{int(m.group(3))} {MONTH_NAMES[int(m.group(2))-1]} {m.group(1)}"
     return period
 
-def iso_period(label):
+def iso_period(label, end=False):
     """schema.org temporalCoverage wants ISO 8601, which has no quarters."""
     m = re.fullmatch(r"(\d{4})-Q([1-4])", str(label or "").strip())
     if m:
-        return "{}-{:02d}".format(m.group(1), (int(m.group(2)) - 1) * 3 + 1)
+        # v1.9.131: a coverage END is the quarter's last month (Q2 ends 2026-06, not 2026-04)
+        return "{}-{:02d}".format(m.group(1), (int(m.group(2)) - 1) * 3 + (3 if end else 1))
     return str(label or "").strip()
 
 def period_end_date(period):
@@ -583,6 +597,9 @@ def period_end_date(period):
     m = re.match(r"^(\d{4})$", period)
     if m:
         return date(int(m.group(1)), 12, 31)
+    m = re.match(r"^(\d{4})-(\d{2})-(\d{2})$", period)   # v1.9.131: daily
+    if m:
+        return date(int(m.group(1)), int(m.group(2)), int(m.group(3)))
     return date.today()
 
 def freshness_period(country, key, period, freq):
@@ -1389,7 +1406,7 @@ def trailing_years(pts, years=5):
     f = [p for p in pts if period_end_date(p[0]) > cut]
     return f if len(f) >= 2 else pts[-2:]
 
-FREQ_WORD = {"months": "Monthly", "quarters": "Quarterly", "years": "Annual"}
+FREQ_WORD = {"days": "Daily", "months": "Monthly", "quarters": "Quarterly", "years": "Annual"}
 
 
 def quarter_window_label(period, freq, raw):
@@ -1445,7 +1462,12 @@ def _real_qoq_row(country, info, Y, target=None):
     if not rs:
         return "no real GDP series to compute growth from" if info["by_slug"].get("gdp-growth-rate") else ""
     freq = rs.get("freq", "")
-    if freq != "quarters":
+    # v1.9.131: where the country publishes q/q SA growth itself, rank that figure, the same one its
+    # GDP Growth Rate page shows (PH, NZ were recomputed from levels and differed by 0.1)
+    _gs = info["data"].get("series", {}).get("gdp_growth") or {}
+    _pub_ok = (_gs.get("freq") == "quarters" and "QoQ" in _gs.get("label", "") and "annualis" not in _gs.get("label", "").lower()
+               and adjustment_of(f"{_gs.get('label', '')} {info['sources'].get('gdp_growth', {}).get('source', '')}", "gdp_growth", "quarters") == "Seasonally adjusted")
+    if freq != "quarters" or (_pub_ok and (target or f"{Y}-Q4") in {p for p, _ in clean_points(_gs)}):
         # Same measure published directly: a seasonally adjusted,
         # quarter-on-quarter growth rate (not annualised, not year on year).
         gs = info["data"].get("series", {}).get("gdp_growth") or {}
@@ -1468,8 +1490,11 @@ def _real_qoq_row(country, info, Y, target=None):
                         change_str=(fmt_num(dlt, "%", "gdp_growth", country, "delta") if dlt and abs(dlt) > 1e-9 else ("No change" if dlt is not None else "n/a")),
                         period=target, prev_period=prev_p,
                         spark=[(p, v) for p, v in sorted(g.items()) if p <= target and int(p[:4]) > TY - 5])
-        how = {"years": "annually", "months": "monthly"}.get(freq, freq)
-        return f"real GDP is published {how}, not quarterly"
+        if freq == "quarters":
+            pass   # published series lacked the target quarter: fall through to computing from levels
+        else:
+            how = {"years": "annually", "months": "monthly"}.get(freq, freq)
+            return f"real GDP is published {how}, not quarterly"
     src = info["sources"].get("gdp_real", {}).get("source", "")
     if adjustment_of(f"{rs.get('label', '')} {src}", "gdp_real", freq) != "Seasonally adjusted":
         return "real GDP is not seasonally adjusted, so quarter-on-quarter growth would mostly reflect the seasons"
@@ -1794,9 +1819,12 @@ def render_indicator(country, info, entry, rank_info, all_rankings_meta, n_indic
             toggles_html += '<p class="ind-pc-note" id="indPcNote" style="margin:-6px 0 14px;font-size:13px;color:var(--ink2,#5A6167)" hidden></p>'
 
     cfg = dict(key=key, country=country, unit=unit, freq=freq, upIsGood=entry["up"], chart=m["chart"],
-               annualise=bool(m.get("ann")), gdpRaw=country in GDP_RAW_COUNTRIES, dataUrl=f"../{data_file}",
+               annualise=bool(m.get("ann")), gdpRaw=country in GDP_RAW_COUNTRIES, dataUrl=f"../{(info['data'].get('_bond_daily_file') if key == 'bond_yield_10y' and info['data'].get('_bond_daily_file') else data_file)}",
                points=pts, realPoints=real_pts, realUnit=real_unit, realKey=("gdp_real" if real_pts else None), fx=fx,
                population=pc_pop)
+    # v1.9.131: raw quarters, so US$ converts each quarter at its own rate before the four-quarter sum
+    if fx and m.get("ann") and country not in GDP_RAW_COUNTRIES:
+        cfg["rawPoints"] = [[str(a), b] for a, b in (info["data"]["series"].get(key) or {}).get("points", []) if b is not None]
 
     # related tiles, grouped by category
     tiles, last_cat = [], None
@@ -1826,7 +1854,7 @@ def render_indicator(country, info, entry, rank_info, all_rankings_meta, n_indic
     jsonld = json.dumps({
         "@context": "https://schema.org", "@type": "Dataset",
         "name": f"{country} {title}", "description": description or f"{country} {title}", "url": canonical,
-        "temporalCoverage": f"{iso_period(pts[0][0])}/{iso_period(latest_p)}",
+        "temporalCoverage": f"{iso_period(pts[0][0])}/{iso_period(latest_p, end=True)}",
         "spatialCoverage": country,
         "creator": CREATOR, "license": LICENSE,
         "distribution": {"@type": "DataDownload", "encodingFormat": "application/json", "contentUrl": f"{SITE_URL}/{data_file}"},
@@ -2121,7 +2149,7 @@ EMBED_TEMPLATE = """<!DOCTYPE html>
   var CFG = {cfg};
   var F = window.EATLAS_FMT;
   fetch(CFG.dataUrl).then(function(r){{ return r.json(); }}).then(function(d){{
-    var s = d.series && d.series[CFG.key];
+    var s = (d.series && d.series[CFG.key]) || (d.key === CFG.key && d.points ? d : null);
     if(!s || !s.points) return;
     var pts = s.points.filter(function(p){{ return p && p[1] != null; }});
     if(CFG.annualise) pts = F.annualise(pts, s.freq, CFG.gdpRaw);
@@ -2129,7 +2157,11 @@ EMBED_TEMPLATE = """<!DOCTYPE html>
     pts = pts.slice(-24);
     var last = pts[pts.length-1];
     document.getElementById("val").textContent = F.fmtNum(last[1], {{unit: CFG.unit, key: CFG.key, country: CFG.country}});
-    document.getElementById("per").textContent = "Latest: " + F.fmtPeriod(last[0]);
+    var M = ["Jan","Feb","Mar","Apr","May","Jun","Jul","Aug","Sep","Oct","Nov","Dec"], mm = /^(\\d{{4}})-(\\d{{2}})$/.exec(last[0]);
+    // v1.9.131: a three-month rolling figure (UK labour market) is labelled as its three months, as the static text is
+    document.getElementById("per").textContent = "Latest: " + (CFG.rolling3m && mm
+      ? (function(){{ var c = +mm[2], y = +mm[1], s = c - 1, sy = y, e = c + 1, ey = y; if(s < 1){{ s = 12; sy--; }} if(e > 12){{ e = 1; ey++; }} return M[s-1] + (sy !== ey ? " " + sy : "") + "\\u2013" + M[e-1] + " " + ey; }})()
+      : F.fmtPeriod(last[0]));
     var vals = pts.map(function(p){{ return p[1]; }});
     var lo = Math.min.apply(null, vals), hi = Math.max.apply(null, vals), span = (hi-lo) || 1;
     var W=340, H=210, pad=6, step=(W-2*pad)/(pts.length-1);
@@ -2700,8 +2732,18 @@ def build_all(sources_all):
         fxs = synth_fx_series(country, data)
         if fxs:
             data.setdefault("series", {})["fx_usd"] = fxs
+        # v1.9.131: the 10-year yield tile reads the daily file (data-bond-XX.json), so the indicator
+        # page, embed and ranking use the same daily series and the same latest figure.
+        bpath = os.path.join(ROOT, f"data-bond-{iso2}.json")
+        if os.path.exists(bpath) and "bond_yield_10y" in data.get("series", {}):
+            bd = load_json(f"data-bond-{iso2}.json")
+            if bd.get("points"):
+                data["series"]["bond_yield_10y"] = {**data["series"]["bond_yield_10y"], "freq": "days",
+                                                    "points": bd["points"], "label": bd.get("title") or data["series"]["bond_yield_10y"].get("label")}
+                data["_bond_daily_file"] = f"data-bond-{iso2}.json"
         sources = sources_all.get(country, {})
         data, sources = add_derived(country, data, sources)
+        CURRENT_SERIES_LABELS[country] = {k: (v or {}).get("label", "") for k, v in data.get("series", {}).items()}
         cat = build_country_catalogue(country, data, sources)
         catalogue_by_country[country] = dict(data=data, sources=sources, catalogue=cat,
                                              by_slug={e["m"]["slug"]: e for e in cat})
@@ -3035,8 +3077,10 @@ def main():
                 latest_str=esc(fmt_num(lp[1], entry["unit"], entry["key"], country)),
                 latest_period=esc((fmt_rolling3m if is_rolling3m(country, entry["key"]) else fmt_period_label)(lp[0])), indicator_url=f"{SITE_URL}/indicators/{page_slug}",
                 kit_version=KIT_VERSION,
-                cfg=json.dumps(dict(dataUrl=f"../{data_file_for(iso2)}", key=entry["key"], unit=entry["unit"], country=country,
-                                    annualise=bool(entry["m"].get("ann")), gdpRaw=country in GDP_RAW_COUNTRIES), ensure_ascii=False))
+                cfg=json.dumps(dict(dataUrl=f"../{(info['data'].get('_bond_daily_file') if entry['key'] == 'bond_yield_10y' and info['data'].get('_bond_daily_file') else data_file_for(iso2))}",
+                                    key=entry["key"], unit=entry["unit"], country=country,
+                                    annualise=bool(entry["m"].get("ann")), gdpRaw=country in GDP_RAW_COUNTRIES,
+                                    rolling3m=is_rolling3m(country, entry["key"])), ensure_ascii=False))   # v1.9.131
             with open(os.path.join(ROOT, "embed", f"{page_slug}.html"), "w", encoding="utf-8") as f:
                 f.write(embed)
             urls.append(f"{SITE_URL}/indicators/{page_slug}")

@@ -3208,6 +3208,8 @@ function rateForPeriod(period, history){
   } else {
     matches = history.filter(function(pt){ return pt[0] === period; });
   }
+  // v1.9.131 same-year: an annual history gives a quarter or month its own year's rate, not the nearest year by date
+  if(!matches.length){ var sy = history.filter(function(pt){ return pt[0] === String(period).slice(0,4); }); if(sy.length) return sy[0][1]; }
   if(matches.length){
     var sum = matches.reduce(function(s,pt){ return s+pt[1]; }, 0);
     return sum / matches.length;
@@ -3316,7 +3318,7 @@ function openInfoPopover(btn, country, key){
     caveatsEl.appendChild(p2);
   }
   /* v1.9.128: every (i) explains Per capita too */
-  if(info && window.EA_PC && EA_PC.infoNote){
+  if(info && window.EA_PC && EA_PC.infoNote && EA_PC.eligible(key)){   // v1.9.131: only where it changes the figure
     var s3 = REGISTRY[country] && REGISTRY[country][key];
     var p3 = document.createElement("p");
     p3.className = "infoPopoverCaveat";
@@ -3510,7 +3512,13 @@ var SAAR_COUNTRIES = {US: true, Japan: true};
 function yearAggregateGDP(country, concept, reg, series, y){
   var annualSeries = reg && reg[concept + "_annual"];
   var effective = annualSeries || series;
-  if(annualSeries || effective.freq !== "quarters" || SAAR_COUNTRIES[country]){
+  // v1.9.131: an annual-rate series' year is the MEAN of its quarters (BEA/Cabinet Office), not Q4's rate
+  if(!annualSeries && effective.freq === "quarters" && SAAR_COUNTRIES[country]){
+    var yq = effective.points.filter(function(p){ return yearOfPeriod(p[0]) === y && p[1] != null; });
+    if(!yq.length) return null;
+    return yq.reduce(function(t, p){ return t + p[1]; }, 0) / yq.length;
+  }
+  if(annualSeries || effective.freq !== "quarters"){
     var yearPoints = effective.points.filter(function(p){ return yearOfPeriod(p[0]) === y; });
     if(!yearPoints.length) return null;
     return yearPoints[yearPoints.length - 1][1];
@@ -3574,6 +3582,12 @@ function usdRateFor(country, key, period){
   if(period && fx.floor){
     var k = monthKey(String(period)), f = monthKey(String(fx.floor));
     if(k !== null && f !== null && k < f) return null;
+  }
+  // v1.9.131: no dollar figure before the FX history starts (was converted at the earliest rate)
+  if(period && hist && hist.length){
+    var pk = monthKey(String(period)), hk = monthKey(String(hist[0][0]));
+    var sp = /^\d{4}$/.test(String(period)) ? 11 : /-Q/.test(String(period)) ? 2 : 0;
+    if(pk !== null && hk !== null && pk + sp < hk) return null;
   }
   var rate = (period && hist) ? rateForPeriod(String(period), hist) : fx.rate;
   return rate == null ? fx.rate : rate;
@@ -3661,7 +3675,10 @@ function getMapValueForYear(country, concept, y){
   var agg = yearAggregate(country, concept, y);
   if(!agg) return null;
   if(CONCEPT_UNIT[concept] === "currency"){
-    var usdVal = toUSDMillions(country, agg.value, agg.unit, String(y), concept);
+    // v1.9.131: a series already in US$ (Swiss GDP, AR/ID trade) is only rescaled, never converted again
+    var usdVal = isAlreadyUSD(agg.unit, country, resolveKey(country, concept) || concept)
+      ? agg.value * (scaleOf(agg.unit) / 1e6)
+      : toUSDMillions(country, agg.value, agg.unit, String(y), concept);
     if(usdVal == null) return null;
     return {value: Math.round(usdVal * 100) / 100, isDelta: false, isCumulative: false, year: y, unit: "currency", rawUnit: "$m"};
   }

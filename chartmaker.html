@@ -2097,6 +2097,8 @@ function rateForPeriod(period, history){
   } else {
     matches = history.filter(function(pt){ return pt[0] === period; });
   }
+  // v1.9.131 same-year: an annual history gives a quarter or month its own year's rate, not the nearest year by date
+  if(!matches.length){ var sy = history.filter(function(pt){ return pt[0] === String(period).slice(0,4); }); if(sy.length) return sy[0][1]; }
   if(matches.length){
     var sum = matches.reduce(function(s,pt){ return s+pt[1]; }, 0);
     return sum / matches.length;
@@ -2127,6 +2129,12 @@ function toUSDValue(country, rawValue, period, realYear){
   if(period && fx.floor){
     var k = monthKey(String(period)), f = monthKey(String(fx.floor));
     if(k !== null && f !== null && k < f) return null;
+  }
+  // v1.9.131: no dollar figure before the FX history starts (was converted at the earliest rate)
+  if(period && hist && hist.length){
+    var pk = monthKey(String(period)), hk = monthKey(String(hist[0][0]));
+    var sp = /^\d{4}$/.test(String(period)) ? 11 : /-Q/.test(String(period)) ? 2 : 0;
+    if(pk !== null && hk !== null && pk + sp < hk) return null;
   }
   var rate = (period && hist) ? rateForPeriod(period, hist) : fx.rate;
   if(rate == null) rate = fx.rate;

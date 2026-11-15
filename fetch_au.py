@@ -51,6 +51,7 @@ from __future__ import annotations
 import redact_stream  # noqa: F401  (v1.7.42: masks api_key= in all output)
 import re
 import oecd_turn
+import oecd_unemp
 import oecd_prices
 import json
 import time
@@ -496,11 +497,25 @@ def main() -> int:
     }
     failures = []
 
+    # v1.9.131: unemployment direct from the OECD monthly labour statistics, as Korea, Israel and
+    # Turkey (v1.6.43). The FRED copy (LRUN..) ran two months behind or was quarterly only.
+    skip_fred = set()
+    try:
+        oecd_u = oecd_unemp.fetch("AUS")
+        if oecd_u:
+            out["series"].update(oecd_u)
+            skip_fred.add("unemployment")
+    except oecd_turn.NotThisHour as exc:
+        print(f"  --  unemployment     {exc}")
+        skip_fred.add("unemployment")
+
     key = os.environ.get("FRED_API_KEY")
     if not key:
         print("WARN  no FRED_API_KEY set — FRED series will be skipped.")
     else:
         for name, (sid, freq, label, unit, tf, scale) in FRED_SERIES.items():
+            if name in skip_fred:
+                continue
             try:
                 raw = fetch_fred(sid, freq, key)
                 if scale != 1.0:
