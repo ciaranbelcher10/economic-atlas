@@ -107,14 +107,14 @@ check(r.stdout.strip() == "1 page(s) checked, 0 changed", "migrate_v19125 idempo
 
 # 6. shared wording and version
 pc = open(os.path.join(ROOT, "percapita.js"), encoding="utf-8").read()
-check("Eurostat for Cyprus" in pc and "(World Bank)." not in pc, "percapita.js note names Eurostat for Cyprus")
+check('c === "Cyprus" ? "Eurostat" : "World Bank"' in pc, "percapita.js note names Eurostat for Cyprus (v1.9.134: per country)")
 for f in ("compare.html", "dashboard.html"):
     t = open(os.path.join(ROOT, f), encoding="utf-8").read()
     check("(World Bank)" not in t and "Eurostat for Cyprus" in t, f + ": population wording names Eurostat for Cyprus")
 for f in ("compare.html", "dashboard.html", "chartmaker.html", "uk.html", "cyprus.html"):
     t = open(os.path.join(ROOT, f), encoding="utf-8").read()
-    check(t.count("percapita.js?v=5") == 1 and not re.search(r"percapita\.js\?v=[0-4]\b", t), f + ": percapita.js?v=5 (v1.9.128)")
-check('PERCAPITA_VERSION = "5"' in open(os.path.join(ROOT, "generate_indicator_pages.py"), encoding="utf-8").read(), "indicator pages load percapita.js v5 (v1.9.128)")
+    check(t.count("percapita.js?v=6") == 1 and not re.search(r"percapita\.js\?v=[0-5]\b", t), f + ": percapita.js?v=6 (v1.9.128)")
+check('PERCAPITA_VERSION = "6"' in open(os.path.join(ROOT, "generate_indicator_pages.py"), encoding="utf-8").read(), "indicator pages load percapita.js v6 (v1.9.128)")
 
 # 7. cross-check compares like with like
 import check_wb_gdp_per_capita as wbc   # noqa: E402

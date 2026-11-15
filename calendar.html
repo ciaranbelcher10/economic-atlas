@@ -1304,7 +1304,13 @@
 .cal-detail-large .cal-detail-src{font-size:13.5px; padding-top:16px; margin-top:16px;}
 .cal-detail-large .cal-detail-bell{padding:13px 0; font-size:14px;}
 
-.cal-email-explainer{background:var(--panel); border:1px solid var(--hair); border-radius:14px; padding:26px 28px; margin-top:22px;}
+.cal-email-explainer{position:relative; background:var(--panel); border:1px solid var(--hair); border-radius:14px; padding:22px 28px; margin:0 0 18px;}
+.cal-email-explainer[hidden]{display:none;}
+.cal-email-x{position:absolute; top:10px; right:14px; border:none; background:none; color:var(--ink2); font-size:20px; line-height:1; cursor:pointer;}
+.cal-email-x:hover{color:var(--ink);}
+.cal-info-btn{display:inline-flex; align-items:center; gap:6px; padding:7px 13px; border-radius:999px; border:1px solid var(--hair); background:var(--panel); color:var(--ink); font:inherit; font-size:13px; cursor:pointer;}
+.cal-info-btn:hover, .cal-info-btn[aria-expanded="true"]{border-color:var(--blue);}
+.cal-info-i{font-size:15px; line-height:1; color:var(--ink2);}
 .cal-email-explainer h2{font-size:19px; margin:0 0 12px;}
 .cal-email-explainer p{font-size:13.5px; line-height:1.6; color:var(--ink); margin:0 0 12px;}
 .cal-email-explainer-list{margin:0 0 12px; padding-left:20px; font-size:13.5px; line-height:1.7; color:var(--ink);}
@@ -1408,8 +1414,21 @@
 </div>
 <div class="cal-filters">
 <button type="button" class="cal-countries-btn" id="calCountriesBtn">Countries <span class="count" id="calCountriesCount"></span></button>
+<button type="button" class="cal-info-btn" id="calEmailInfoBtn" aria-expanded="false" aria-controls="calEmailInfo">Email alerts <span class="cal-info-i" aria-hidden="true">&#9432;</span></button>
 <button type="button" class="chip" id="calRateFilterChip"><span class="sw" style="background:#D14343"></span>Rate decisions only</button>
 </div>
+</div>
+<div class="cal-email-explainer" id="calEmailInfo" hidden role="region" aria-labelledby="calEmailInfoTitle">
+<button type="button" class="cal-email-x" id="calEmailInfoClose" aria-label="Close">&times;</button>
+<h2 id="calEmailInfoTitle">How email alerts work</h2>
+<p>Use the <strong>Countries</strong> button to choose the countries and releases you want to follow, then turn on <strong>"Email me when something I track is coming up"</strong> in the same panel.</p>
+<p>Each morning we check everything you track. If any of it is due in the <strong>next 7 days</strong>, you get one email listing each release, its country and its date.</p>
+<ul class="cal-email-explainer-list">
+<li>At most one email a day, and none if nothing you track is due that week.</li>
+<li>It covers only what you have ticked. Changes apply from the next morning's check.</li>
+<li>Turn it off any time in the Countries panel.</li>
+</ul>
+<p class="cal-email-explainer-status">Available to anyone with an account, once logged in.</p>
 </div>
 
 <div class="cal-grid">
@@ -1421,17 +1440,6 @@
 
 <p class="cal-legend" id="calLegend"></p>
 
-<div class="cal-email-explainer">
-<h2>How email alerts work</h2>
-<p>Use the <strong>Countries</strong> button above to pick which countries and metrics you want to follow, and turn on <strong>"Email me when something I track is coming up"</strong> in that same panel. That's the whole setup, there's nothing else to configure.</p>
-<p>Once it's on, a daily check runs against everything you're tracking. If anything is due within the <strong>next 7 days</strong>, you get one email that morning listing what's coming, the country, the release, and the date, so you don't have to keep this page open to stay on top of it.</p>
-<ul class="cal-email-explainer-list">
-<li>One email a day at most, never more, and never if nothing you track is due that week</li>
-<li>Only covers what you've explicitly ticked, add a country or a metric and it's included from the next check onward, remove one and it stops</li>
-<li>You can turn it off any time from the same Countries panel</li>
-</ul>
-<p class="cal-email-explainer-status">Available to any logged-in account.</p>
-</div>
 </div>
 
 <!-- v1.9.46: tracking picker rebuilt on ChartMaker's chooser layout (ctp-*) -->
@@ -2196,7 +2204,7 @@ function wireCalendarInteractions(){
     var checked = loadEmailAlertsEnabled() ? "checked" : "";
     emailRow.innerHTML =
       "<label><input type='checkbox' id='calEmailAlertsToggle' " + checked + "> Email me when something I track is coming up</label>" +
-      "<p class='ctp-note'>One summary email when a tracked release is within the next 7 days. See \"How email alerts work\" below the calendar.</p>";
+      "<p class='ctp-note'>One summary email when a tracked release is within the next 7 days.</p>";
     var toggle = document.getElementById("calEmailAlertsToggle");
     if(toggle) toggle.addEventListener("change", function(){ saveEmailAlertsEnabled(toggle.checked); });
   }
@@ -2443,5 +2451,15 @@ initCalendar();
 </script>
 
 <script src="mobile.js?v=46" defer></script>
+<script>/* v1.9.134: "How email alerts work" sits behind the Email alerts button */
+(function(){
+  var b=document.getElementById("calEmailInfoBtn"), p=document.getElementById("calEmailInfo"), x=document.getElementById("calEmailInfoClose");
+  if(!b||!p) return;
+  function set(open){ p.hidden=!open; b.setAttribute("aria-expanded", open?"true":"false"); }
+  b.addEventListener("click", function(){ set(p.hidden); });
+  if(x) x.addEventListener("click", function(){ set(false); b.focus(); });
+  document.addEventListener("keydown", function(e){ if(e.key==="Escape" && !p.hidden) set(false); });
+})();
+</script>
 </body>
 </html>

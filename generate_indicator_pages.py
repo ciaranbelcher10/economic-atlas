@@ -45,7 +45,7 @@ SITE_URL = "https://theeconomicatlas.com"
 CREATOR = {"@type": "Organization", "name": "The Economic Atlas", "url": SITE_URL}
 LICENSE = f"{SITE_URL}/terms"
 KIT_VERSION = "14"
-PERCAPITA_VERSION = "5"
+PERCAPITA_VERSION = "6"
 # v1.9.123: must match percapita.js ELIGIBLE
 PC_ELIGIBLE = {"gdp_level", "gdp_real", "exports", "imports", "trade_balance", "net_debt", "debt_interest", "deficit"}
 

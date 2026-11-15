@@ -301,7 +301,7 @@ button.mtoggle.fx-dollar-pc{background:#8E63C9; border-color:#8E63C9; color:#fff
 button.mtoggle.fx-all{background:#8A5A3C; border-color:#8A5A3C; color:#fff;}
 /* ---- info button + popover ---- */
 .infoBtn{display:inline-flex; align-items:center; justify-content:center;
-  width:16px; height:16px; margin-left:6px; padding:0; border:none;
+  width:16px; height:16px; margin-left:.5em; padding:0; border:none;
   background:none; color:var(--ink2); font-size:15px; line-height:1;
   cursor:pointer; vertical-align:middle; border-radius:50%;}
 .infoBtn:hover, .infoBtn:focus-visible{color:var(--navy); background:var(--paper);}
@@ -1989,7 +1989,7 @@ function fxRateTxt(r){ return (typeof r==="number" && isFinite(r)) ? String(Numb
 // Tile titles: keep the last word and the (i) icon together, and show
 // rate-of-change tags in their intended case (q/q, y/y, m/m).
 function labelHtml(title, icon){
-  const tag = s => s.replace(/\((QoQ|YoY|MoM)\)/gi, (m,x)=>'(<span class="lc">'+x.charAt(0).toLowerCase()+'/'+x.charAt(2).toLowerCase()+'</span>)');
+  const tag = s => s.replace(/\((QoQ|YoY|MoM)([,)])/gi, (m,x,e)=>'(<span class="lc">'+x.charAt(0).toLowerCase()+'/'+x.charAt(2).toLowerCase()+'</span>'+e);
   const m = String(title).match(/^([\s\S]*?)(\S+)$/);
   if(!m || !icon) return tag(String(title)) + (icon||"");
   return tag(m[1]) + '<span class="nw">' + tag(m[2]) + icon + '</span>';
@@ -2522,7 +2522,7 @@ function render(data){
   if(s.gdp_per_capita) statTile(tg,"gdp_per_capita","GDP per capita",s.gdp_per_capita,
     {fmt:fmtPerHead,fmtD:fmtPerHead,upIsGood:true,source:"GDP \u00f7 World Bank population"});
   const tinf=document.getElementById("tiles-inflation");
-  if(s.cpi) statTile(tinf,"cpi","CPI inflation",s.cpi,
+  if(s.cpi) statTile(tinf,"cpi","CPI inflation (YoY)",s.cpi,
     {fmt:pct,fmtD:pp,upIsGood:false,source:"FRED series CP0000GRM086NEST",infoKey:"cpi"});
   if(s.cpi_mom) statTile(tinf,null,"CPI (MoM)",s.cpi_mom,
     {pageKey:"cpi_mom",fmt:pct,fmtD:pp,upIsGood:false,source:"Derived from FRED series CP0000GRM086NEST (Eurostat)",infoKey:"cpi_mom"});
@@ -2577,7 +2577,7 @@ function render(data){
     // cpi
     [()=>!!((s.cpi)), ()=>{
     if(s.cpi){
-      statTile(hero,"cpi","CPI inflation",s.cpi,
+      statTile(hero,"cpi","CPI inflation (YoY)",s.cpi,
     {fmt:pct,fmtD:pp,upIsGood:false,source:"FRED series CP0000GRM086NEST",infoKey:"cpi"});
     }
     }],
@@ -2672,8 +2672,8 @@ function pcSeries(series){
 }
 let PC_DROPPED = [], PC_GDP_SERIES = null, PC_GDP_CAL = null;
 const CURRENCY_KEYS = ["gdp_level","gdp_real","net_debt","deficit","debt_interest","trade_balance","exports","imports","gdp_per_capita"];
-const CONTAINER_IDS = ["hero","tiles-gdp","tiles-inflation","tiles-labour","tiles-trade","tiles-public","tiles-markets",
-                        "charts-headline","charts-gdp","charts-inflation","charts-labour","charts-trade","charts-public","charts-markets"];
+const CONTAINER_IDS = ["hero","tiles-gdp","tiles-inflation","tiles-labour","tiles-trade","tiles-public","tiles-markets","tiles-misc",
+                        "charts-headline","charts-gdp","charts-inflation","charts-labour","charts-trade","charts-public","charts-markets","charts-misc"];
 function scaleOf(unitStr){
   // Strip a trailing descriptive suffix like " (2021 prices)" before
   // checking the scale marker -- several countries' gdp_real unit
@@ -2964,6 +2964,14 @@ function infoIconHtml(infoKey){
   return `<button type="button" class="infoBtn" data-infokey="${infoKey}" aria-label="What is this metric and how do the toggles affect it?" title="About this metric">&#9432;</button>`;
 }
 let INFO_POPOVER_EL = null;
+/* v1.9.134: the (i) popover's first sentence (what the metric is) in bold */
+function eaLeadBold(el, text){
+  text = String(text == null ? "" : text);
+  var m = /^([\s\S]+?[.!?])(\s+(?=[A-Z0-9(\u201c"])[\s\S]*)?$/.exec(text);
+  el.textContent = "";
+  var b = document.createElement("strong"); b.textContent = m ? m[1] : text; el.appendChild(b);
+  if(m && m[2]) el.appendChild(document.createTextNode(m[2]));
+}
 function ensureInfoPopover(){
   if(INFO_POPOVER_EL) return INFO_POPOVER_EL;
   const el = document.createElement("div");
@@ -2995,7 +3003,7 @@ function openInfoPopover(btn, infoKey, title){
   if(!content) return;
   const el = ensureInfoPopover();
   el.querySelector(".infoPopoverTitle").textContent = title;
-  el.querySelector(".infoPopoverDesc").textContent = content.description;
+  eaLeadBold(el.querySelector(".infoPopoverDesc"), content.description);
   el.querySelector(".infoPopoverSrc").textContent = "Source: " + content.source;
   const togglesEl = el.querySelector(".infoPopoverToggles");
   togglesEl.innerHTML = "";
@@ -3020,6 +3028,7 @@ function openInfoPopover(btn, infoKey, title){
     const st = document.createElement("strong"); st.textContent = "Per capita:";
     p.appendChild(st);
     p.appendChild(document.createTextNode(" " + EA_PC.infoNote(infoKey, {
+      country: typeof COUNTRY_LABEL !== "undefined" ? COUNTRY_LABEL : "",
       unit: ((typeof PAGE_DATA !== "undefined" && PAGE_DATA.series || {})[infoKey] || {}).unit,
       noPopulation: typeof pcPopulation === "function" && !pcPopulation().length,
       on: !!TOGGLE_STATE.capita })));
@@ -5086,7 +5095,7 @@ document.querySelectorAll(".mtbtn").forEach(function(btn){
   });
 })();
 </script>
-<script src="percapita.js?v=5"></script>
+<script src="percapita.js?v=6"></script>
 <script src="mobile.js?v=46" defer></script>
 </body>
 </html>

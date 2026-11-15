@@ -42,7 +42,7 @@ CATALOG = {
     "gdp_real": (None, None, None, None, None, None, [], None),   # served through "Make it real"
     "gdp_growth": ("gdp", "Real GDP growth, quarter on quarter", "bar", "pct", True, 0, ["gdp"], "Growth (QoQ)"),
     "gdp_growth_yoy": ("gdp", "Real GDP growth, year on year", "bar", "pct", True, 0, ["hero", "gdp"], "GDP growth (YoY)"),
-    "cpi": ("inflation", "CPI inflation, annual rate", "line", "pct", False, 0, ["hero", "inflation"], "CPI inflation"),
+    "cpi": ("inflation", "CPI inflation, annual rate", "line", "pct", False, 0, ["hero", "inflation"], "CPI inflation (YoY)"),
     "cpi_mom": (None, None, None, "pct", False, None, ["inflation"], "CPI (MoM)"),   # a basis of the CPI chart
     # EU members serve HICP under cpi and the statistics office's own CPI here
     # (inflation_sources.py); its own chart and tile (v1.7.33, Czechia).

@@ -29,7 +29,7 @@ const HINT = "All 62 economies. Tap or click a coloured country to open its data
 { /* generated indicator pages must request the changed kit and percapita builds, or caches serve the old axis and popover code */
   const G = read("generate_indicator_pages.py");
   ok(/^KIT_VERSION = "13"$/m.test(G), "G: generator KIT_VERSION is not 13 (indicator-kit.js changed in v1.9.128)");
-  ok(/^PERCAPITA_VERSION = "5"$/m.test(G), "G: generator PERCAPITA_VERSION is not 5 (percapita.js changed in v1.9.128)"); }
+  ok(/^PERCAPITA_VERSION = "6"$/m.test(G), "G: generator PERCAPITA_VERSION is not 6 (percapita.js changed in v1.9.128)"); }
 
 const LIB = {"d3.min.js": "d3/dist/d3.min.js", "chart.umd.min.js": "chart.js/dist/chart.umd.js", "topojson.min.js": "topojson/dist/topojson.min.js",
              "hammer.min.js": "hammerjs/hammer.min.js", "chartjs-plugin-zoom.min.js": "chartjs-plugin-zoom/dist/chartjs-plugin-zoom.min.js"};
@@ -173,7 +173,7 @@ const countryPages = fs.readdirSync(ROOT).filter(f => /\.html$/.test(f) && read(
         const amount = pc.eligible(k) && /(m|bn|tn)$/.test(String(unit || "").replace(/\s*\(.*\)\s*$/, "").trim());
         if (noPop && amount) ok(/Not available for this economy/.test(pcp.textContent), p + " (i) " + k + ": should say Per capita is not available");
         else if (amount) {
-          ok(/Divides each value by that year/.test(pcp.textContent), p + " (i) " + k + ": Per capita paragraph does not explain the division");
+          ok(/per person.*each year\u2019s population/.test(pcp.textContent), p + " (i) " + k + ": Per capita paragraph does not explain the division");
           ok(/On now/.test(pcp.textContent) === on, p + " (i) " + k + ": 'On now' should be " + on);
         } else ok(/no (further )?effect/.test(pcp.textContent), p + " (i) " + k + " (" + unit + "): should say Per capita has no effect");
       }
@@ -198,13 +198,13 @@ const countryPages = fs.readdirSync(ROOT).filter(f => /\.html$/.test(f) && read(
       btn.dispatchEvent(new D.w.MouseEvent("click", {bubbles: true}));
       shown = D.d.querySelector(".infoPopoverToggleCaveats").textContent;
     } catch (e) { shown = "error: " + e.message + " " + D.errs.slice(0, 2).join(" | "); }
-    ok(/Per capita: (Divides each value|Not available)/.test(shown) && !/Make it real|Dollari[sz]e/.test(shown), "B2: Dashboard GDP (i) text: " + shown.slice(0, 160));
+    ok(/Per capita: (Shows |On now|Not available)/.test(shown) && !/Make it real|Dollari[sz]e/.test(shown), "B2: Dashboard GDP (i) text: " + shown.slice(0, 160));
     D.w.close();
   }
   ok(/EA_PC\.infoNote\(key, \{\s*unit: s3 \? s3\.unit : undefined, noPopulation: !pcPopulation\(country\)\.length, on: !!perCapita \}\)/.test(dash), "B2: Dashboard (i) has no Per capita paragraph");
   ok(/EA_PC\.infoNote\(concept, \{on: typeof percapOn === "function" && percapOn\(concept\)\}\)/.test(cmp), "B2: Compare (i) has no Per capita paragraph");
   ok(pc.relabel("“Make it real” and “Dollarise”") === "“Adjust for inflation” and “Convert to USD$”", "B2: relabel wrong");
-  ok(/no effect/.test(pc.infoNote("deficit", {unit: "% of GDP"})) && /Divides/.test(pc.infoNote("deficit", {unit: "£bn"})), "B2: deficit as % of GDP vs £bn");
+  ok(/no effect/.test(pc.infoNote("deficit", {unit: "% of GDP"})) && /per person/.test(pc.infoNote("deficit", {unit: "£bn"})), "B2: deficit as % of GDP vs £bn");
 
   // ---------------- C2. homepage map on a phone ----------------
   const H = render("index.html", true);

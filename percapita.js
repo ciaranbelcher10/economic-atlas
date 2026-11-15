@@ -114,17 +114,25 @@
   var GDP_KEYS = ["gdp_level", "gdp_real"];
   /* metric: series key. opts.noPopulation: the economy has no population figure (Taiwan).
      opts.on: Per capita is switched on now. opts.unit: the series unit, when known. Returns plain text (no HTML). */
+  /* v1.9.134: shorter, and written for the page it is on (the metric and, on a country page, the
+     country). The note under the chart already names any year left out, so this does not repeat it. */
+  var NOUN = { gdp_level: "GDP", gdp_real: "real GDP", exports: "exports", imports: "imports",
+    trade_balance: "the trade balance", net_debt: "government debt", debt_interest: "debt interest",
+    deficit: "government borrowing" };
   function infoNote(metric, opts){
     opts = opts || {};
-    if(metric === "gdp_per_capita") return "This is already a per person figure, so Per capita has no further effect on it.";
-    if(metric === "population") return "This is the population itself, the figure Per capita divides by; the switch has no effect on it.";
-    if(!eligible(metric)) return "Per capita applies only to GDP, trade and government debt, interest and borrowing amounts, so it has no effect on this figure.";
+    if(metric === "gdp_per_capita") return "This is already a figure per person.";
+    if(metric === "population") return "This is the population that Per capita divides by.";
+    if(!eligible(metric)) return "Per capita applies only to GDP, trade and government money amounts, not to this figure.";
     if(opts.unit != null && !/(m|bn|tn)$/.test(String(opts.unit).replace(/\s*\(.*\)\s*$/, "").trim()))
-      return "This is not a currency amount here (for example a share of GDP), so Per capita has no effect on it.";
-    if(opts.noPopulation) return "Not available for this economy: no population figure covering the same area as its GDP is published, so the switch is turned off.";
-    var s = "Divides each value by that year\u2019s population (World Bank; Eurostat for Cyprus, covering the same area as its GDP), giving a figure per person. A year with no published population is left out and named under the chart, never divided by another year\u2019s figure.";
-    if(GDP_KEYS.indexOf(metric) !== -1) s += " GDP per person uses the latest complete calendar year, not a rolling four quarters.";
-    if(opts.on) s = "On now: the figures shown are per person. " + s;
+      return "This is a share of GDP here, so Per capita does not change it.";
+    var c = opts.country ? String(opts.country) : "";
+    if(opts.noPopulation) return "Not available" + (c ? " for " + c : "") + ": no population figure is published for the same area as its GDP.";
+    var src = c === "Cyprus" ? "Eurostat" : "World Bank";
+    var s = "Shows " + (NOUN[metric] || "this figure") + " per person" + (c ? " in " + c : "")
+      + ", using each year\u2019s population (" + src + ").";
+    if(GDP_KEYS.indexOf(metric) !== -1) s += " Uses the latest full calendar year.";
+    if(opts.on) s = "On now. " + s;
     return s;
   }
 

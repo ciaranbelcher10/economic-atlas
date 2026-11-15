@@ -239,7 +239,7 @@ button.mtoggle.fx-both{background:#2FA463; border-color:#2FA463; color:#fff;}
 :root{ --map-nodata: #E9EBE7; }
 /* ---- info button + popover (per-tile data source & methodology) ---- */
 .infoBtn{display:inline-flex; align-items:center; justify-content:center;
-  width:16px; height:16px; margin-left:6px; padding:0; border:none;
+  width:16px; height:16px; margin-left:.5em; padding:0; border:none;
   background:none; color:var(--ink2); font-size:15px; line-height:1;
   cursor:pointer; vertical-align:middle; border-radius:50%;}
 .infoBtn:hover, .infoBtn:focus-visible{color:var(--navy); background:var(--paper);}
@@ -621,7 +621,7 @@ footer.dash-foot{margin-top:36px; font-size:12.5px; color:var(--ink2); border-to
 </script>
 <script src="https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2.116.0"></script>
 <script src="chooser.js?v=2"></script>
-<script src="percapita.js?v=5"></script>
+<script src="percapita.js?v=6"></script>
 <script>
 (function(){
   var SUPABASE_URL = "https://skluvrxnuibkordzgtmu.supabase.co";
@@ -3268,6 +3268,14 @@ function infoIconHtml(country, key){
   return "<button type=\"button\" class=\"infoBtn\" data-country=\"" + escapeHtmlDash(country) + "\" data-key=\"" + escapeHtmlDash(key) + "\" aria-label=\"What is this metric, and where does it come from?\" title=\"About this metric &amp; source\">&#9432;</button>";
 }
 var INFO_POPOVER_EL = null;
+/* v1.9.134: the (i) popover's first sentence (what the metric is) in bold */
+function eaLeadBold(el, text){
+  text = String(text == null ? "" : text);
+  var m = /^([\s\S]+?[.!?])(\s+(?=[A-Z0-9(\u201c"])[\s\S]*)?$/.exec(text);
+  el.textContent = "";
+  var b = document.createElement("strong"); b.textContent = m ? m[1] : text; el.appendChild(b);
+  if(m && m[2]) el.appendChild(document.createTextNode(m[2]));
+}
 function ensureInfoPopover(){
   if(INFO_POPOVER_EL) return INFO_POPOVER_EL;
   var el = document.createElement("div");
@@ -3301,7 +3309,7 @@ function openInfoPopover(btn, country, key){
   var info = metricInfo(country, key);
   var el = ensureInfoPopover();
   el.querySelector(".infoPopoverTitle").textContent = country + (info ? "" : " (not tracked for this country)");
-  el.querySelector(".infoPopoverDesc").textContent = info ? info.description : "No description available for this metric/country combination, see " + country + "'s own page for what's tracked there.";
+  eaLeadBold(el.querySelector(".infoPopoverDesc"), info ? info.description : "No description available for this metric/country combination, see " + country + "'s own page for what's tracked there.");
   el.querySelector(".infoPopoverSrcRow").textContent = info ? info.source : "not available";
   var caveatsEl = el.querySelector(".infoPopoverToggleCaveats");
   caveatsEl.innerHTML = "";

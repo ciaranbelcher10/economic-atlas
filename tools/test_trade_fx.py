@@ -56,7 +56,10 @@ print(f"fresh-only conversion and missing-rate fallback checked in {len(converte
 
 hist_m = [["2019-12", 1.0], ["2020-01", 2.0], ["2020-06", 3.0], ["2021-01", 4.0]]
 hist_a = [["2019", 10.0], ["2020", 20.0]]
-cases = [(hist_m, "2020-03", 2.0), (hist_m, "2020-Q2", 3.0), (hist_m, "2020", 3.0),
+cases = [(hist_m, "2020-03", 2.0), (hist_m, "2020-Q2", 3.0), (hist_m, "2020", 2.5),
+         # v1.9.134: "2020-Q1" is 7 characters with "-" at [4]; it was read as a month and took the year's
+         # latest month (3.0), so every quarter was converted at a later rate
+         (hist_m, "2020-Q1", 2.0), (hist_m, "2019-Q4", 1.0),
          (hist_m, "2018-05", 1.0), (hist_m, "2030-01", 4.0),
          (hist_a, "2020-07", 20.0), (hist_a, "2019-Q4", 10.0), (hist_a, "2020", 20.0),
          ([], "2020-01", 9.0)]
