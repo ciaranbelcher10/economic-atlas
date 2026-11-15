@@ -44,7 +44,7 @@ SITE_URL = "https://theeconomicatlas.com"
 # underlying official statistics, which stay with their publishers.
 CREATOR = {"@type": "Organization", "name": "The Economic Atlas", "url": SITE_URL}
 LICENSE = f"{SITE_URL}/terms"
-KIT_VERSION = "14"
+KIT_VERSION = "15"
 PERCAPITA_VERSION = "6"
 # v1.9.123: must match percapita.js ELIGIBLE
 PC_ELIGIBLE = {"gdp_level", "gdp_real", "exports", "imports", "trade_balance", "net_debt", "debt_interest", "deficit"}
@@ -402,7 +402,7 @@ LEGACY_RANKING_REDIRECTS = {
 }
 
 GDP_RAW_COUNTRIES = {"US", "Japan"}          # already published at an annual rate
-GDP_ALREADY_USD = {"US", "Switzerland"}      # no Convert to USD$; no FX conversion
+GDP_ALREADY_USD = {"US"}      # no Convert to USD$; no FX conversion (v1.9.138: Switzerland now in CHF)
 
 
 def gdp_in_usd(country, data):
@@ -446,7 +446,7 @@ def scale_of(u):
     return 1
 
 # ISO-coded units with a display glyph; must match indicator-kit.js ISO_GLYPH.
-ISO_GLYPH = {"CNY": "CN\u00a5", "THB": "\u0e3f", "TRY": "\u20ba", "IDR": "Rp", "SGD": "S$",
+ISO_GLYPH = {"AUD": "A$", "BRL": "R$", "CAD": "C$", "MXN": "MX$", "ZAR": "R", "CNY": "CN\u00a5", "THB": "\u0e3f", "TRY": "\u20ba", "IDR": "Rp", "SGD": "S$",
              "ARS": "AR$", "CLP": "CLP$", "COP": "COL$", "MYR": "RM", "NZD": "NZ$", "PHP": "\u20b1", "TWD": "NT$", "VND": "\u20ab", "NGN": "\u20a6", "EGP": "E\u00a3", "PEN": "S/", "HKD": "HK$", "PKR": "Rs"}
 
 def symbol_of(u, key, country, dollarised=False):
@@ -1799,11 +1799,12 @@ def render_indicator(country, info, entry, rank_info, all_rankings_meta, n_indic
     updated = (info["data"].get("updated") or "")[:10]
 
     # Convert to USD$ / Adjust for inflation: GDP only, as on the country pages.
-    toggles_html, real_pts, real_unit, fx = "", None, None, None
+    toggles_html, real_pts, real_unit, fx, real_anchor = "", None, None, None, None
     if m["slug"] == "gdp":
         rr = resolve(country, info["data"]["series"], sources, METRIC_BY_SLUG["real-gdp"])
         if rr:
             real_pts, real_unit = rr[2], rr[1].get("unit", "")
+            real_anchor = rr[1].get("usd_anchor")   # v1.9.138: constant anchor-year prices for US$
         if not gdp_in_usd(country, info["data"]):
             fx = info["data"].get("fx_to_usd")
         btns = []
@@ -1832,7 +1833,7 @@ def render_indicator(country, info, entry, rank_info, all_rankings_meta, n_indic
 
     cfg = dict(key=key, country=country, unit=unit, freq=freq, upIsGood=entry["up"], chart=m["chart"],
                annualise=bool(m.get("ann")), gdpRaw=country in GDP_RAW_COUNTRIES, dataUrl=f"../{(info['data'].get('_bond_daily_file') if key == 'bond_yield_10y' and info['data'].get('_bond_daily_file') else data_file)}",
-               points=pts, realPoints=real_pts, realUnit=real_unit, realKey=("gdp_real" if real_pts else None), fx=fx,
+               points=pts, realPoints=real_pts, realUnit=real_unit, realKey=("gdp_real" if real_pts else None), realAnchor=real_anchor, fx=fx,
                population=pc_pop)
     # v1.9.131: raw quarters, so US$ converts each quarter at its own rate before the four-quarter sum
     if fx and m.get("ann") and country not in GDP_RAW_COUNTRIES:

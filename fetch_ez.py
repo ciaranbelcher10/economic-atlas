@@ -328,8 +328,13 @@ def fetch_eurostat_current_account() -> list | None:
     euro-area balance against the rest of the world (partner EXT_EA20) at
     annual frequency, 2013 onward. The BoP aggregate is still published for
     EA20, so EA20 is tried first; EA21 is tried in case Eurostat adds it.
+
+    v1.9.138: EA21 first. Eurostat now publishes EA21 (the current 21
+    members, the same aggregate as this page's GDP) from 1999; EA20 starts in
+    2013. The stored series had mixed the two by year (verification, 15 Nov
+    2026: 2018 and 2025 from EA21, 2022 and 2023 from EA20).
     """
-    for geo in ("EA20", "EA21"):
+    for geo in ("EA21", "EA20"):
         url = (f"{EUROSTAT_STATS_BASE}/bop_gdp6_q?format=JSON&lang=EN&freq=A"
                f"&geo={geo}&partner=EXT_{geo}&bop_item=CA&stk_flow=BAL"
                f"&unit=PC_GDP&s_adj=NSA&sinceTimePeriod=1999")
@@ -593,7 +598,7 @@ def main() -> int:
         ("fdi", lambda: fetch_worldbank("BX.KLT.DINV.WD.GD.ZS"),
          "FDI net inflows, % of GDP (World Bank)", "%", "years"),
         ("current_account", lambda: fetch_eurostat_current_account(),
-         "Current account balance, % of GDP, euro area EA20 vs rest of world (Eurostat bop_gdp6_q)", "%", "years"),
+         "Current account balance, % of GDP, euro area (21 members, EA21) vs rest of world (Eurostat bop_gdp6_q)", "%", "years"),
     ]
     for name, fn, label, unit, fr in extras:
         try:

@@ -2454,7 +2454,7 @@ function renderFxMarkets(tm){
     if(typeof INFO_CONTENT === "object" && !INFO_CONTENT[p.key]) INFO_CONTENT[p.key] = {
       description: p.description,
       source: p.source || p.source_short || "",
-      dollar: "An exchange rate, not a value in the home currency. \u201cDollarise\u201d has no effect on it."};
+      dollar: "An exchange rate, not a value in the home currency. \u201cConvert to USD$\u201d has no effect on it."};
     const q=p.quote_symbol, b=p.base_unit;
     const axDp=fxDp(Math.max(...p.points.map(x=>Math.abs(x[1]))));  // one precision per axis (v1.7.13)
     chartPanel(p.key,"charts-markets",p.title,p.description,
@@ -2487,6 +2487,9 @@ function render(data){
   /* currency formatting handled dynamically by curFmt() below */
   const idx=v=>v.toFixed(1);
   const SRC_GDP="FRED series NGDPSAXDCDEQ \u00b7 IMF International Financial Statistics, quarterly";
+  /* v1.9.138: growth and real GDP cite the real series they are computed from */
+  const SRC_GDP_REAL_SER="FRED series CLVMNACSCAB1GQDE \u00b7 Eurostat, chain-linked volumes, quarterly, seasonally adjusted";
+  const SRC_GDP_SHOWN = (TOGGLE_STATE.real && PAGE_DATA.series.gdp_real) ? SRC_GDP_REAL_SER : SRC_GDP;
   const SRC_TRADE="Eurostat \u00b7 goods trade, total, monthly";
   const SRC_FISCAL="Eurostat \u00b7 general government, % of GDP, annual";
   const SRC_WB="World Bank \u00b7 % of GDP, annual";
@@ -2503,13 +2506,13 @@ function render(data){
     s.fdi,"line",v=>v+"%",pct,SRC_WB);
   if(gdpAnnual) chartPanel("gdp_level","charts-gdp","GDP",
     (TOGGLE_STATE.real&&PAGE_DATA.series.gdp_real?"The total value of everything Germany produces in a year, in real terms (adjusted for inflation).":"The total value of everything Germany produces in a year, at current prices."),
-    gdpAnnual,"line",v=>curFmt(v,s.gdp_level.unit,2),v=>curFmt(v,s.gdp_level.unit,2),SRC_GDP,1996);
+    gdpAnnual,"line",v=>curFmt(v,s.gdp_level.unit,2),v=>curFmt(v,s.gdp_level.unit,2),SRC_GDP_SHOWN,1996);
   if(s.gdp_growth) chartPanel("gdp_growth","charts-gdp","Real GDP growth, quarter on quarter",
     "How much the economy grew or shrank compared with the previous three months, in real (inflation-adjusted) terms.",
-    s.gdp_growth,"bar",v=>v+"%",pct,SRC_GDP,1999,0);
+    s.gdp_growth,"bar",v=>v+"%",pct,SRC_GDP_REAL_SER,1999,0);
   if(gdpYoY) chartPanel(null,"charts-gdp","Real GDP growth, year on year",
     "How much bigger or smaller the economy is than a year ago, adjusted for inflation.",
-    gdpYoY,"line",v=>v+"%",pct,SRC_GDP,1999,0,"gdp_growth");
+    gdpYoY,"line",v=>v+"%",pct,SRC_GDP_REAL_SER,1999,0,"gdp_growth");
   if(s.cpi) chartPanel("cpi","charts-inflation","CPI inflation, annual rate",
     "How much consumer prices are rising compared with a year ago. The European Central Bank targets 2% for the euro area as a whole.",
     s.cpi,"line",v=>v+"%",pct,"FRED series CP0000DEM086NEST \u00b7 HICP, all items, YoY",undefined,undefined,undefined,
@@ -2559,11 +2562,11 @@ function render(data){
     s.population,"line",fmtPeople,fmtPeople,"World Bank \u00b7 Population, total (SP.POP.TOTL), mid-year estimates, annual");
   const tg=document.getElementById("tiles-gdp");
   if(gdpAnnual) statTile(tg,"gdp_level","GDP (annual)",gdpAnnual,
-    {fmt:v=>curFmt(v,s.gdp_level.unit,1,true),fmtD:v=>curFmt(v,s.gdp_level.unit,1,true),upIsGood:true,source:SRC_GDP});
+    {fmt:v=>curFmt(v,s.gdp_level.unit,1,true),fmtD:v=>curFmt(v,s.gdp_level.unit,1,true),upIsGood:true,source:SRC_GDP_SHOWN});
   if(s.gdp_growth) statTile(tg,"gdp_growth","Growth (QoQ)",s.gdp_growth,
-    {fmt:pct,fmtD:pp,upIsGood:true,source:SRC_GDP});
+    {fmt:pct,fmtD:pp,upIsGood:true,source:SRC_GDP_REAL_SER});
   if(gdpYoY) statTile(tg,null,"Growth (YoY)",gdpYoY,
-    {pageKey:"gdp_growth_yoy",fmt:pct,fmtD:pp,upIsGood:true,source:SRC_GDP,infoKey:"gdp_growth"});
+    {pageKey:"gdp_growth_yoy",fmt:pct,fmtD:pp,upIsGood:true,source:SRC_GDP_REAL_SER,infoKey:"gdp_growth"});
   if(s.gdp_per_capita) statTile(tg,"gdp_per_capita","GDP per capita",s.gdp_per_capita,
     {fmt:fmtPerHead,fmtD:fmtPerHead,upIsGood:true,source:"GDP \u00f7 World Bank population"});
   const tinf=document.getElementById("tiles-inflation");
@@ -2616,14 +2619,14 @@ function render(data){
     [()=>!!((gdpAnnual)), ()=>{
     if(gdpAnnual){
       statTile(hero,"gdp_level","GDP (annual)",gdpAnnual,
-    {fmt:v=>curFmt(v,s.gdp_level.unit,1,true),fmtD:v=>curFmt(v,s.gdp_level.unit,1,true),upIsGood:true,source:SRC_GDP});
+    {fmt:v=>curFmt(v,s.gdp_level.unit,1,true),fmtD:v=>curFmt(v,s.gdp_level.unit,1,true),upIsGood:true,source:SRC_GDP_SHOWN});
     }
     }],
     // growth
     [()=>!!((s.gdp_growth)), ()=>{
     if(s.gdp_growth){
       statTile(hero,"gdp_growth","GDP growth (QoQ)",s.gdp_growth,
-    {fmt:pct,fmtD:pp,upIsGood:true,source:SRC_GDP});
+    {fmt:pct,fmtD:pp,upIsGood:true,source:SRC_GDP_REAL_SER});
     }
     }],
     // cpi
@@ -2702,7 +2705,7 @@ function render(data){
     [()=>!!((gdpYoY)), ()=>{
     if(gdpYoY){
       statTile(hero,null,"Growth (YoY)",gdpYoY,
-    {pageKey:"gdp_growth_yoy",fmt:pct,fmtD:pp,upIsGood:true,source:SRC_GDP,infoKey:"gdp_growth"});
+    {pageKey:"gdp_growth_yoy",fmt:pct,fmtD:pp,upIsGood:true,source:SRC_GDP_REAL_SER,infoKey:"gdp_growth"});
     }
     }],
   ];
@@ -2747,7 +2750,7 @@ function scaleOf(unitStr){
 // usual prefix where one is unambiguous, else the ISO code itself (CHF, DKK,
 // NOK, SEK, PLN, MAD). Must match ISO_GLYPH in generate_indicator_pages.py
 // and indicator-kit.js.
-const ISO_GLYPH = {CNY:"CN\u00a5", THB:"\u0e3f", TRY:"\u20ba", IDR:"Rp", SGD:"S$", ARS:"AR$", CLP:"CLP$", COP:"COL$", MYR:"RM", NZD:"NZ$", PHP:"\u20b1", TWD:"NT$", VND:"\u20ab", NGN:"\u20a6", EGP:"E\u00a3", PEN:"S/", HKD:"HK$", PKR:"Rs"};
+const ISO_GLYPH = {AUD:"A$", BRL:"R$", CAD:"C$", MXN:"MX$", ZAR:"R", CNY:"CN\u00a5", THB:"\u0e3f", TRY:"\u20ba", IDR:"Rp", SGD:"S$", ARS:"AR$", CLP:"CLP$", COP:"COL$", MYR:"RM", NZD:"NZ$", PHP:"\u20b1", TWD:"NT$", VND:"\u20ab", NGN:"\u20a6", EGP:"E\u00a3", PEN:"S/", HKD:"HK$", PKR:"Rs"};
 function currencySymbol(unitStr){
   const m = unitStr.match(/^[^a-zA-Z0-9]+/);
   if(m) return m[0];
@@ -2859,6 +2862,7 @@ function convertSeriesToUSD(series, fx){
    currency divided by a moving nominal rate turns devaluation into apparent
    contraction; a single rate keeps real growth exactly as published. */
 function realFxYear(series){
+  if(series.usd_anchor && series.usd_anchor.year) return String(series.usd_anchor.year);
   const pts = series.points || [];
   return pts.length ? String(pts[pts.length-1][0]).slice(0,4) : null;
 }
@@ -2876,9 +2880,13 @@ function realFxRateYear(yr, history){
 function convertRealSeriesToUSD(series, fx){
   const yr = realFxYear(series);
   const rate = (fx.history && fx.history.length && yr) ? rateForPeriod(realFxRateYear(yr, fx.history), fx.history) : fx.rate;
+  /* v1.9.138: real GDP in constant prices of its anchor year (the latest complete year), at that year's
+     average rate: real x deflator (nominal / real in that year), then converted. Base-year prices at a
+     later year's rate put Argentina's real GDP at 0.09% of its nominal GDP in dollars. */
+  const defl = (series.usd_anchor && series.usd_anchor.deflator) || 1;
   const newUnit = "$"+series.unit.replace(/^(?:[A-Za-z]+(?=(?:m|bn|tn)$)|[^a-zA-Z0-9]+)/,"");
   return {...series, unit:newUnit, real_fx_year:yr,
-          points: series.points.map(([p,v])=>[p, fx.direction==="multiply" ? v*rate : v/rate])};
+          points: series.points.map(([p,v])=>[p, fx.direction==="multiply" ? v*defl*rate : v*defl/rate])};
 }
 /* v1.7.55: points before fx.floor are dropped from the dollar view. */
 function hasPreFloorPoints(series, fx){
@@ -2955,13 +2963,13 @@ const INFO_CONTENT = {
     description: "The total value of everything Germany produces in a year, at current prices, on a rolling four-quarter basis.",
     source: "FRED series NGDPSAXDCDEQ \u00b7 IMF International Financial Statistics, quarterly.",
     real: "\u201cAdjust for inflation\u201d swaps this to Germany's real (chained-volume, inflation-adjusted) GDP series. This strips out the effect of price changes, so it shows genuine output growth rather than growth that's really just inflation.",
-    dollar: "\u201cConvert to USD$\u201d converts each historical point using that point's OWN contemporaneous EUR/USD rate (monthly resolution, from FRED's DEXUSEU series, which starts 1999-01, the euro's launch). This is a considered approximation for those years, not a precise historical conversion."
+    dollar: "\u201cConvert to USD$\u201d converts each quarter at its own months' average EUR/USD rate (FRED's DEXUSEU, which starts in January 1999). Periods before 1999 have no dollar figure."
   },
   gdp_real: {
     description: "GDP adjusted for inflation, shown in chained-volume terms, the same production, valued at constant prices, so changes reflect real output growth rather than price changes.",
     source: "FRED series CLVMNACSCAB1GQDE \u00b7 Eurostat national accounts, chain-linked volume, millions of chained 2010 euros, seasonally adjusted, quarterly.",
     real: "This IS the \u201cAdjust for inflation\u201d series, toggling it off shows GDP at current (nominal) prices instead.",
-    dollar: "Same historical-rate matching as GDP (current prices): each point converted at its own contemporaneous EUR/USD rate where available (1999 onward), falling back to the earliest available rate (1999-01) for anything before that."
+    dollar: "\u201cConvert to USD$\u201d expresses real GDP in constant prices of the latest complete year and converts every period at that year's average exchange rate, so growth in dollars equals the published real growth. The note under the chart names the year."
   },
   gdp_growth: {
     description: "How much the economy grew or shrank compared with the previous three months, in real (inflation-adjusted) terms.",
@@ -3010,7 +3018,7 @@ const INFO_CONTENT = {
   trade_balance: {
     description: "Exports minus imports of goods each month. Below zero means Germany buys more from abroad than it sells.",
     source: "Eurostat ext_st_27_2020msbec \u00b7 goods trade, total, monthly, not seasonally adjusted (the plain trade value, not Eurostat's seasonally and calendar adjusted variant).",
-    dollar: "Each historical point is converted at its own contemporaneous EUR/USD rate (monthly resolution from FRED's DEXUSEU, 1999 onward), with the same pre-1999 earliest-rate fallback as GDP, see the GDP entry for detail."
+    dollar: "Each historical point is converted at its own contemporaneous EUR/USD rate (monthly resolution from FRED's DEXUSEU, 1999 onward); periods before 1999 have no dollar figure."
   },
   current_account: {
     description: "Germany's overall balance with the rest of the world, trade in goods and services plus net investment income, as a share of GDP.",
@@ -3243,11 +3251,11 @@ function rerender(){
       const anyPreHistory = CURRENCY_KEYS.some(k => s[k] && (hasPreHistoryPoints(s[k], fx) || hasPreFloorPoints(s[k], fx)));
       if(TOGGLE_STATE.real && s.gdp_real){
         const ry = realFxYear(s.gdp_real_annual || s.gdp_real);
-        if(ry) notes.push(`real GDP converted at the ${realFxRateYear(ry, fx.history)} average rate throughout, so its growth matches the published real growth; the World Bank publishes its own estimate in constant 2015 dollars (NY.GDP.MKTP.KD), which can grow differently because it uses an older vintage of the national accounts`);
+        if(ry) notes.push(`real GDP in constant ${ry} prices, converted at the ${realFxRateYear(ry, fx.history)} average rate throughout, so its growth matches the published real growth; the World Bank publishes its own estimate in constant 2015 dollars (NY.GDP.MKTP.KD), which can grow differently because it uses an older vintage of the national accounts`);
       }
       if(anyPreHistory){
         notes.push(fx.floor ? `figures before ${fx.floor} are not shown in dollars (no reliable market rate before then)`
-                            : `figures before ${fx.history[0][0]} use the earliest available rate (no genuine historical rate exists further back)`);
+                            : `figures before ${fx.history[0][0]} are not shown in dollars (no exchange-rate history before then)`);
       }
     } else {
       notes.push(`All currency figures converted at ${fx.pair} = ${fxRateTxt(fx.rate)} (as of ${fx.as_of}), a single rate applied across the series because no historical rate history is available for it`);

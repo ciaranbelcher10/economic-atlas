@@ -76,8 +76,8 @@ ALLOW_SHRINK = {}
 
 # key: (fred_id, freq 'm'|'q'|'a', label, unit, transform None|'yoy'|'mom'|'qoq', scale)
 FRED_SERIES = {
-    "gdp_level": ("NGDPSAXDCAUQ", "q", "GDP, nominal, seasonally adjusted", "$m", None, 1.0),
-    "gdp_real": ("NGDPRSAXDCAUQ", "q", "Real GDP, seasonally adjusted", "$m", None, 1.0),
+    "gdp_level": ("NGDPSAXDCAUQ", "q", "GDP, nominal, seasonally adjusted", "AUDm", None, 1.0),
+    "gdp_real": ("NGDPRSAXDCAUQ", "q", "Real GDP, seasonally adjusted", "AUDm", None, 1.0),
     "gdp_growth": ("NGDPRSAXDCAUQ", "q", "Real GDP growth, QoQ", "%", "qoq", 1.0),
     "unemployment": ("LRUNTTTTAUQ156S", "q", "Unemployment rate, 15+, SA", "%", None, 1.0),
     "bond_yield_10y": ("IRLTLT01AUM156N", "m", "10-year government bond yield", "%", None, 1.0),
@@ -662,9 +662,8 @@ def main() -> int:
                         ser = out["series"][tk]
                         if ser["unit"].strip().startswith("$"):
                             ser["points"] = [[p, round(to_local(v, p), 1)] for p, v in ser["points"]]
-                            ser["unit"] = ser["unit"].replace("$", "$", 1)
-                            ser["label"] = ser["label"].replace(", $ ", ", $ ") \
-                                                        .replace(", $", ", $")
+                            ser["unit"] = ser["unit"].replace("$", "AUD", 1)
+                            ser["label"] = ser["label"].replace(", $ ", " ").replace(", $", "")
                             print(f"  ok  {tk:<16} converted {'$'}->{'$'} using {fx_rate}")
             else:
                 print("note  fx_to_usd: no observations returned")

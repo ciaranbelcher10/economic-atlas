@@ -286,15 +286,19 @@ def fetch_worldbank(code: str) -> list:
     return require_current(pts, 900, f"World Bank {code}")
 
 
-def fetch_fred_month_end(sid: str, key: str) -> list:
+def fetch_fred_month_avg(sid: str, key: str) -> list:
+    """v1.9.138: the month's average of FRED's daily rates. This script kept
+    the last trading day (month-end), unlike every other economy, which put
+    New Zealand's converted trade up to 3.4% off in single months
+    (verification, 15 Nov 2026)."""
     r = requests.get(FRED_URL.format(sid=sid, key=key), timeout=60, headers=UA)
     r.raise_for_status()
-    month_end = {}
+    acc = {}
     for o in r.json().get("observations", []):
         if o.get("value") in (None, "", "."):
             continue
-        month_end[o["date"][:7]] = float(o["value"])
-    return sorted([[p, v] for p, v in month_end.items()])
+        acc.setdefault(o["date"][:7], []).append(float(o["value"]))
+    return sorted([[p, round(sum(vs) / len(vs), 6)] for p, vs in acc.items()])
 
 
 def usd_to_nzd(points: list, fx: dict, latest: float) -> list:
@@ -380,7 +384,7 @@ def main() -> int:
     fx = []
     if key:
         try:
-            fx = fetch_fred_month_end("DEXUSNZ", key)
+            fx = fetch_fred_month_avg("DEXUSNZ", key)
             out["fx_to_usd"] = {"pair": "NZD/USD", "rate": fx[-1][1], "as_of": fx[-1][0],
                                 "direction": "multiply", "history": fx}
             print(f"  ok  fx_to_usd            {fx[-1][1]} US$ per NZ$ ({fx[-1][0]}, FRED DEXUSNZ), history from {fx[0][0]}")

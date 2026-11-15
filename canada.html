@@ -2461,7 +2461,7 @@ function renderFxMarkets(tm){
     if(typeof INFO_CONTENT === "object" && !INFO_CONTENT[p.key]) INFO_CONTENT[p.key] = {
       description: p.description,
       source: p.source || p.source_short || "",
-      dollar: "An exchange rate, not a value in the home currency. \u201cDollarise\u201d has no effect on it."};
+      dollar: "An exchange rate, not a value in the home currency. \u201cConvert to USD$\u201d has no effect on it."};
     const q=p.quote_symbol, b=p.base_unit;
     const axDp=fxDp(Math.max(...p.points.map(x=>Math.abs(x[1]))));  // one precision per axis (v1.7.13)
     chartPanel(p.key,"charts-markets",p.title,p.description,
@@ -2749,7 +2749,7 @@ function scaleOf(unitStr){
 // usual prefix where one is unambiguous, else the ISO code itself (CHF, DKK,
 // NOK, SEK, PLN, MAD). Must match ISO_GLYPH in generate_indicator_pages.py
 // and indicator-kit.js.
-const ISO_GLYPH = {CNY:"CN\u00a5", THB:"\u0e3f", TRY:"\u20ba", IDR:"Rp", SGD:"S$", ARS:"AR$", CLP:"CLP$", COP:"COL$", MYR:"RM", NZD:"NZ$", PHP:"\u20b1", TWD:"NT$", VND:"\u20ab", NGN:"\u20a6", EGP:"E\u00a3", PEN:"S/", HKD:"HK$", PKR:"Rs"};
+const ISO_GLYPH = {AUD:"A$", BRL:"R$", CAD:"C$", MXN:"MX$", ZAR:"R", CNY:"CN\u00a5", THB:"\u0e3f", TRY:"\u20ba", IDR:"Rp", SGD:"S$", ARS:"AR$", CLP:"CLP$", COP:"COL$", MYR:"RM", NZD:"NZ$", PHP:"\u20b1", TWD:"NT$", VND:"\u20ab", NGN:"\u20a6", EGP:"E\u00a3", PEN:"S/", HKD:"HK$", PKR:"Rs"};
 function currencySymbol(unitStr){
   const m = unitStr.match(/^[^a-zA-Z0-9]+/);
   if(m) return m[0];
@@ -2865,6 +2865,7 @@ function convertSeriesToUSD(series, fx){
    currency divided by a moving nominal rate turns devaluation into apparent
    contraction; a single rate keeps real growth exactly as published. */
 function realFxYear(series){
+  if(series.usd_anchor && series.usd_anchor.year) return String(series.usd_anchor.year);
   const pts = series.points || [];
   return pts.length ? String(pts[pts.length-1][0]).slice(0,4) : null;
 }
@@ -2882,9 +2883,13 @@ function realFxRateYear(yr, history){
 function convertRealSeriesToUSD(series, fx){
   const yr = realFxYear(series);
   const rate = (fx.history && fx.history.length && yr) ? rateForPeriod(realFxRateYear(yr, fx.history), fx.history) : fx.rate;
+  /* v1.9.138: real GDP in constant prices of its anchor year (the latest complete year), at that year's
+     average rate: real x deflator (nominal / real in that year), then converted. Base-year prices at a
+     later year's rate put Argentina's real GDP at 0.09% of its nominal GDP in dollars. */
+  const defl = (series.usd_anchor && series.usd_anchor.deflator) || 1;
   const newUnit = "$"+series.unit.replace(/^(?:[A-Za-z]+(?=(?:m|bn|tn)$)|[^a-zA-Z0-9]+)/,"");
   return {...series, unit:newUnit, real_fx_year:yr,
-          points: series.points.map(([p,v])=>[p, fx.direction==="multiply" ? v*rate : v/rate])};
+          points: series.points.map(([p,v])=>[p, fx.direction==="multiply" ? v*defl*rate : v*defl/rate])};
 }
 /* v1.7.55: points before fx.floor are dropped from the dollar view. */
 function hasPreFloorPoints(series, fx){
@@ -2966,7 +2971,7 @@ const INFO_CONTENT = {
     description: "GDP adjusted for inflation, the same production, valued at constant prices, so changes reflect real output growth rather than price changes.",
     source: "IMF International Financial Statistics series NGDPRSAXDCCAQ, via FRED, quarterly.",
     real: "This IS the \u201cAdjust for inflation\u201d series, toggling it off shows GDP at current (nominal) prices instead.",
-    dollar: "Same historical-rate matching as GDP (current prices): each point converted at its own contemporaneous CAD/USD rate where available (1971 onward), falling back to the earliest available rate (1971-01) for anything before that."
+    dollar: "\u201cConvert to USD$\u201d expresses real GDP in constant prices of the latest complete year and converts every period at that year's average exchange rate, so growth in dollars equals the published real growth. The note under the chart names the year."
   },
   gdp_growth: {
     description: "How much the economy grew or shrank compared with the previous three months, in real (inflation-adjusted) terms.",
@@ -3003,7 +3008,7 @@ const INFO_CONTENT = {
   trade_balance: {
     description: "Exports minus imports of goods each quarter. Below zero means Canada buys more from abroad than it sells.",
     source: "FRED series CANXTNTVA01CXMLQ · OECD merchandise trade, quarterly, not seasonally adjusted, converted from US dollars to Canadian dollars at each period's own rate.",
-    dollar: "Each historical point is converted at its own contemporaneous CAD/USD rate (monthly resolution from FRED's DEXCAUS, 1971 onward), with the same pre-1971 earliest-rate fallback as GDP, see the GDP entry for detail."
+    dollar: "Each historical point is converted at its own contemporaneous CAD/USD rate (monthly resolution from FRED's DEXCAUS, 1971 onward); periods before 1971 have no dollar figure."
   },
   current_account: {
     description: "Canada's overall balance with the rest of the world, trade in goods and services plus net investment income, as a share of GDP.",
@@ -3236,11 +3241,11 @@ function rerender(){
       const anyPreHistory = CURRENCY_KEYS.some(k => s[k] && (hasPreHistoryPoints(s[k], fx) || hasPreFloorPoints(s[k], fx)));
       if(TOGGLE_STATE.real && s.gdp_real){
         const ry = realFxYear(s.gdp_real_annual || s.gdp_real);
-        if(ry) notes.push(`real GDP converted at the ${realFxRateYear(ry, fx.history)} average rate throughout, so its growth matches the published real growth; the World Bank publishes its own estimate in constant 2015 dollars (NY.GDP.MKTP.KD), which can grow differently because it uses an older vintage of the national accounts`);
+        if(ry) notes.push(`real GDP in constant ${ry} prices, converted at the ${realFxRateYear(ry, fx.history)} average rate throughout, so its growth matches the published real growth; the World Bank publishes its own estimate in constant 2015 dollars (NY.GDP.MKTP.KD), which can grow differently because it uses an older vintage of the national accounts`);
       }
       if(anyPreHistory){
         notes.push(fx.floor ? `figures before ${fx.floor} are not shown in dollars (no reliable market rate before then)`
-                            : `figures before ${fx.history[0][0]} use the earliest available rate (no genuine historical rate exists further back)`);
+                            : `figures before ${fx.history[0][0]} are not shown in dollars (no exchange-rate history before then)`);
       }
     } else {
       notes.push(`All currency figures converted at ${fx.pair} = ${fxRateTxt(fx.rate)} (as of ${fx.as_of}), a single rate applied across the series because no historical rate history is available for it`);

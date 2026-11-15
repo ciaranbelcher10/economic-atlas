@@ -3571,7 +3571,8 @@ function isRealGDPKey(key){ return key === "gdp_real" || key === "gdp_real_annua
 function realFxYearFor(country, key){
   var s = REGISTRY[country] && REGISTRY[country][key];
   if(!s || !s.points || !s.points.length) return null;
-  var yr = String(s.points[s.points.length - 1][0]).slice(0, 4);
+  // v1.9.138: the anchor year (constant prices of the latest complete year), as the country pages
+  var yr = (s.usd_anchor && s.usd_anchor.year) ? String(s.usd_anchor.year) : String(s.points[s.points.length - 1][0]).slice(0, 4);
   var fx = FX_RATES[country], h = fx && fx.history;
   if(!h || !h.length || h.some(function(p){ return String(p[0]).slice(0, 4) === yr; })) return yr;
   var t = monthKey(yr), best = h[0], bd = Infinity;
@@ -3585,7 +3586,10 @@ function usdRateFor(country, key, period){
   if(isRealGDPKey(key)){
     var ry = realFxYearFor(country, key);
     var rr = (ry && hist) ? rateForPeriod(ry, hist) : fx.rate;
-    return rr == null ? fx.rate : rr;
+    if(rr == null) rr = fx.rate;
+    // v1.9.138: real x deflator (anchor-year prices), folded into the rate the caller applies
+    var rs = REGISTRY[country] && REGISTRY[country][key], d = (rs && rs.usd_anchor && rs.usd_anchor.deflator) || 1;
+    return fx.direction === "multiply" ? rr * d : rr / d;
   }
   if(period && fx.floor){
     var k = monthKey(String(period)), f = monthKey(String(fx.floor));
@@ -4123,7 +4127,7 @@ function scaleOf(unitStr){
 // usual prefix where one is unambiguous, else the ISO code itself (CHF, DKK,
 // NOK, SEK, PLN, MAD). Must match ISO_GLYPH in generate_indicator_pages.py
 // and indicator-kit.js.
-var ISO_GLYPH = {CNY:"CN\u00a5", THB:"\u0e3f", TRY:"\u20ba", IDR:"Rp", SGD:"S$", ARS:"AR$", CLP:"CLP$", COP:"COL$", MYR:"RM", NZD:"NZ$", PHP:"\u20b1", TWD:"NT$", VND:"\u20ab", NGN:"\u20a6", EGP:"E\u00a3", PEN:"S/", HKD:"HK$", PKR:"Rs"};
+var ISO_GLYPH = {AUD:"A$", BRL:"R$", CAD:"C$", MXN:"MX$", ZAR:"R", CNY:"CN\u00a5", THB:"\u0e3f", TRY:"\u20ba", IDR:"Rp", SGD:"S$", ARS:"AR$", CLP:"CLP$", COP:"COL$", MYR:"RM", NZD:"NZ$", PHP:"\u20b1", TWD:"NT$", VND:"\u20ab", NGN:"\u20a6", EGP:"E\u00a3", PEN:"S/", HKD:"HK$", PKR:"Rs"};
 function currencySymbol(unitStr){
   var m = unitStr.match(/^[^a-zA-Z0-9]+/);
   if(m) return m[0];
@@ -4238,6 +4242,23 @@ function pcApplies(m){
             isCurrencyUnit(m.series.unit) && !/ per /.test(String(m.series.unit)));
 }
 // [[period, value]] in display units -> per person; GDP keys reduced to complete calendar years first
+/* v1.9.138: a per-person GDP chart is calendar years, the same figures as the tile, Compare, Chartmaker and the
+   country page: the year's GDP over that year's population in local currency, then the year's average rate.
+   Other per-person charts (trade, debt) keep their own periods. */
+function pcChartPoints(m, pts, unit){
+  var dk = m.dataKey || m.key;
+  if(m.key !== "gdp_level" && m.key !== "gdp_real") return pcPoints(m, pts, unit, false);
+  var nat = pcPoints(m, effectivePoints(m.country, dk === "gdp_real_annual" ? "gdp_real" : dk, m.series), m.series.unit, true);
+  if(!dollarise || !isCurrencyUnit(m.series.unit) || isAlreadyUSD(m.series.unit, m.country, dk)) return nat;
+  var fx = FX_RATES[m.country];
+  if(!fx) return nat;
+  var out = [];
+  nat.pts.forEach(function(p){
+    var rate = usdRateFor(m.country, dk, p[0]);
+    if(rate != null) out.push([p[0], fx.direction === "multiply" ? Math.round(p[1]) * rate : Math.round(p[1]) / rate]);
+  });
+  return {pts: out, unit: "$ per person", dropped: nat.dropped};
+}
 function pcPoints(m, pts, unit, calendar){
   if(calendar && (m.key === "gdp_level" || m.key === "gdp_real")){
     var q = pts.filter(function(p){ return /^\d{4}-Q[1-4]$/.test(String(p[0])); });
@@ -4448,7 +4469,7 @@ function expandTile(tile, id, m){
     var dk = m.dataKey || m.key;
     var pts = toDisplayPoints(effectivePoints(m.country, dk, m.series), m.series.unit, m.country, dk);
     var chartUnit = toDisplayUnit(0, m.series.unit, m.country, dk, m.period).unit;
-    if(pcApplies(m)){ var pcc = pcPoints(m, pts, chartUnit, false); pts = pcc.pts; chartUnit = pcc.unit; }   // v1.9.124
+    if(pcApplies(m)){ var pcc = pcChartPoints(m, pts, chartUnit); pts = pcc.pts; chartUnit = pcc.unit; }   // v1.9.138
     var kind = BAR_KEYS[m.key] ? "bar" : "line";
     var refLine = REF_LINE_FOR[m.key] == null ? null : REF_LINE_FOR[m.key];
     var fmt = function(v){ return fmtVal(v, chartUnit, m.key, m.country); };
@@ -5005,7 +5026,7 @@ loadAll().then(function(){
       var xdk = m.dataKey || m.key;
       var pts = toDisplayPoints(effectivePoints(m.country, xdk, m.series), m.series.unit, m.country, xdk);
       var chartUnit = toDisplayUnit(0, m.series.unit, m.country, xdk, m.period).unit;
-      if(pcApplies(m)){ var pcc = pcPoints(m, pts, chartUnit, false); pts = pcc.pts; chartUnit = pcc.unit; }   // v1.9.124
+      if(pcApplies(m)){ var pcc = pcChartPoints(m, pts, chartUnit); pts = pcc.pts; chartUnit = pcc.unit; }   // v1.9.138
       var kind = BAR_KEYS[m.key] ? "bar" : "line";
       var refLine = REF_LINE_FOR[m.key] == null ? null : REF_LINE_FOR[m.key];
       var fmt = function(v){ return fmtVal(v, chartUnit, m.key, m.country); };

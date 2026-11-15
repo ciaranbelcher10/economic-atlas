@@ -72,8 +72,8 @@ ALLOW_SHRINK = {}
 # key: (fred_id, freq 'm'|'q'|'a', label, unit, transform None|'yoy'|'mom'|'qoq', scale)
 # - participation_rate (LRAC64TTMXQ156S) / employment_rate (LREM64TTMXQ156S): OECD infra-annual labour-statistics FRED family, quarterly, ages 15-64. Same pattern confirmed live for Germany (pilot); inferred-by-pattern for Mexico -- not individually confirmed, check the first Actions log.
 FRED_SERIES = {
-    "gdp_level": ("NGDPSAXDCMXQ", "q", "GDP nominal, SA", "$m", None, 1.0),
-    "gdp_real": ("NGDPRSAXDCMXQ", "q", "Real GDP, SA", "$m", None, 1.0),
+    "gdp_level": ("NGDPSAXDCMXQ", "q", "GDP nominal, SA", "MXNm", None, 1.0),
+    "gdp_real": ("NGDPRSAXDCMXQ", "q", "Real GDP, SA", "MXNm", None, 1.0),
     "unemployment": ("LRUNTTTTMXQ156S", "q", "Unemployment rate, 15+, SA", "%", None, 1.0),
     "participation_rate": ("LRAC64TTMXQ156S", "q", "Labour force participation rate, 15-64, SA", "%", None, 1.0),
     "employment_rate": ("LREM64TTMXQ156S", "q", "Employment rate, 15-64, SA", "%", None, 1.0),
@@ -736,6 +736,8 @@ def main() -> int:
                         ser = out["series"][tk]
                         if ser["unit"].strip().startswith("$"):
                             ser["points"] = [[p, round(to_local(v, p), 1)] for p, v in ser["points"]]
+                            ser["unit"] = ser["unit"].replace("$", "MXN", 1)   # v1.9.138: name the currency
+                            ser["label"] = ser["label"].replace(", $ ", " ").replace(", $", "")
                             print(f"  ok  {tk:<16} converted using {fx_rate}")
             else:
                 print("note  fx_to_usd: no observations returned; check the log")

@@ -2337,7 +2337,7 @@ function renderFxMarkets(tm){
     if(typeof INFO_CONTENT === "object" && !INFO_CONTENT[p.key]) INFO_CONTENT[p.key] = {
       description: p.description,
       source: p.source || p.source_short || "",
-      dollar: "An exchange rate, not a value in the home currency. \u201cDollarise\u201d has no effect on it."};
+      dollar: "An exchange rate, not a value in the home currency. \u201cConvert to USD$\u201d has no effect on it."};
     const q=p.quote_symbol, b=p.base_unit;
     const axDp=fxDp(Math.max(...p.points.map(x=>Math.abs(x[1]))));  // one precision per axis (v1.7.13)
     chartPanel(p.key,"charts-markets",p.title,p.description,
@@ -2441,7 +2441,7 @@ function render(data){
     s.trade_balance,"bar",v=>curFmt(v,s.trade_balance.unit,0),v=>curFmt(v,s.trade_balance.unit,1),(tradeLive?"Derived from Eurostat teiet010 and teiet110, extra-euro-area goods trade, \u20ac million":"Derived from OECD goods trade series, converted to euros: discontinued Apr 2023"),1999,0);
   if(s.current_account) chartPanel("current_account","charts-trade","Current account",
     "The euro area's overall balance with the rest of the world (trade plus investment income) as a share of GDP.",
-    s.current_account,"line",v=>v+"%",pct,"Eurostat bop_gdp6_q \u00b7 % of GDP, annual, euro area (EA20) vs rest of world",undefined,0);
+    s.current_account,"line",v=>v+"%",pct,"Eurostat bop_gdp6_q \u00b7 % of GDP, annual, euro area (EA21) vs rest of world",undefined,0);
   if(s.exports) chartPanel("exports","charts-trade","Exports, goods",
     "The value of goods the euro area sells to the rest of the world"+tradeExpl,
     s.exports,"line",v=>curFmt(v,s.exports.unit,0),v=>curFmt(v,s.exports.unit,1),(tradeLive?"Eurostat teiet010 \u00b7 extra-euro-area goods exports, \u20ac million":"FRED series XTEXVA01EZM667S \u00b7 goods, SA (OECD): discontinued Apr 2023"));
@@ -2645,7 +2645,7 @@ function scaleOf(unitStr){
 // usual prefix where one is unambiguous, else the ISO code itself (CHF, DKK,
 // NOK, SEK, PLN, MAD). Must match ISO_GLYPH in generate_indicator_pages.py
 // and indicator-kit.js.
-const ISO_GLYPH = {CNY:"CN\u00a5", THB:"\u0e3f", TRY:"\u20ba", IDR:"Rp", SGD:"S$", ARS:"AR$", CLP:"CLP$", COP:"COL$", MYR:"RM", NZD:"NZ$", PHP:"\u20b1", TWD:"NT$", VND:"\u20ab", NGN:"\u20a6", EGP:"E\u00a3", PEN:"S/", HKD:"HK$", PKR:"Rs"};
+const ISO_GLYPH = {AUD:"A$", BRL:"R$", CAD:"C$", MXN:"MX$", ZAR:"R", CNY:"CN\u00a5", THB:"\u0e3f", TRY:"\u20ba", IDR:"Rp", SGD:"S$", ARS:"AR$", CLP:"CLP$", COP:"COL$", MYR:"RM", NZD:"NZ$", PHP:"\u20b1", TWD:"NT$", VND:"\u20ab", NGN:"\u20a6", EGP:"E\u00a3", PEN:"S/", HKD:"HK$", PKR:"Rs"};
 function currencySymbol(unitStr){
   const m = unitStr.match(/^[^a-zA-Z0-9]+/);
   if(m) return m[0];
@@ -2748,6 +2748,7 @@ function convertSeriesToUSD(series, fx){
    currency divided by a moving nominal rate turns devaluation into apparent
    contraction; a single rate keeps real growth exactly as published. */
 function realFxYear(series){
+  if(series.usd_anchor && series.usd_anchor.year) return String(series.usd_anchor.year);
   const pts = series.points || [];
   return pts.length ? String(pts[pts.length-1][0]).slice(0,4) : null;
 }
@@ -2765,9 +2766,13 @@ function realFxRateYear(yr, history){
 function convertRealSeriesToUSD(series, fx){
   const yr = realFxYear(series);
   const rate = (fx.history && fx.history.length && yr) ? rateForPeriod(realFxRateYear(yr, fx.history), fx.history) : fx.rate;
+  /* v1.9.138: real GDP in constant prices of its anchor year (the latest complete year), at that year's
+     average rate: real x deflator (nominal / real in that year), then converted. Base-year prices at a
+     later year's rate put Argentina's real GDP at 0.09% of its nominal GDP in dollars. */
+  const defl = (series.usd_anchor && series.usd_anchor.deflator) || 1;
   const newUnit = "$"+series.unit.replace(/^(?:[A-Za-z]+(?=(?:m|bn|tn)$)|[^a-zA-Z0-9]+)/,"");
   return {...series, unit:newUnit, real_fx_year:yr,
-          points: series.points.map(([p,v])=>[p, fx.direction==="multiply" ? v*rate : v/rate])};
+          points: series.points.map(([p,v])=>[p, fx.direction==="multiply" ? v*defl*rate : v*defl/rate])};
 }
 /* v1.7.55: points before fx.floor are dropped from the dollar view. */
 function hasPreFloorPoints(series, fx){
@@ -2852,13 +2857,13 @@ const INFO_CONTENT = {
     description: "The total value of everything the euro area produces in a year, at current prices, on a rolling four-quarter basis.",
     source: "Eurostat namq_10_gdp (CP_MEUR) \u00b7 euro area EA21 (today's 21 members, back-calculated), current prices, seasonally and calendar adjusted, quarterly, shown as a rolling four-quarter sum.",
     real: "\u201cAdjust for inflation\u201d swaps this to the euro area's real (chained-volume, inflation-adjusted) GDP series. This strips out the effect of price changes, so it shows genuine output growth rather than growth that's really just inflation.",
-    dollar: "\u201cConvert to USD$\u201d converts each historical point using that point's OWN contemporaneous EUR/USD rate (monthly resolution, from FRED's DEXUSEU series, which starts 1999-01, the euro's launch). This is a considered approximation for those years, not a precise historical conversion."
+    dollar: "\u201cConvert to USD$\u201d converts each quarter at its own months' average EUR/USD rate (FRED's DEXUSEU, which starts in January 1999). Periods before 1999 have no dollar figure."
   },
   gdp_real: {
     description: "GDP adjusted for inflation, chained-volume terms, the same production, valued at constant prices, so changes reflect real output growth rather than price changes.",
     source: "Eurostat namq_10_gdp (CLV20_MEUR) \u00b7 euro area EA21 (today's 21 members, back-calculated), chain-linked volumes, 2020 reference year, seasonally and calendar adjusted, quarterly.",
     real: "This IS the \u201cAdjust for inflation\u201d series, toggling it off shows GDP at current (nominal) prices instead.",
-    dollar: "Same historical-rate matching as GDP (current prices): each point converted at its own contemporaneous EUR/USD rate where available (1999 onward), falling back to the earliest available rate (1999-01) for anything before that."
+    dollar: "\u201cConvert to USD$\u201d expresses real GDP in constant prices of the latest complete year and converts every period at that year's average exchange rate, so growth in dollars equals the published real growth. The note under the chart names the year."
   },
   gdp_growth: {
     description: "How much the euro area economy grew or shrank compared with the previous three months (QoQ tile) or the same period a year ago (YoY tile), in real (inflation-adjusted) terms.",
@@ -2895,7 +2900,7 @@ const INFO_CONTENT = {
   trade_balance: {
     description: "Exports minus imports of goods each month, extra-euro-area (i.e. trade with the rest of the world, not between euro members). Below zero means the euro area buys more from abroad than it sells.",
     source: "Derived: Eurostat teiet010 exports minus teiet110 imports, extra-euro-area goods, seasonally adjusted, EUR million. Eurostat publishes this short-term-indicator table as a rolling recent window rather than a full back-series, so the euro-area chart covers roughly the last twelve months where individual member states show decades. The OECD euro-area mirror that did carry history was discontinued in 2023 and is not used.",
-    dollar: "Each historical point is converted at its own contemporaneous EUR/USD rate (monthly resolution from FRED's DEXUSEU, 1999 onward), with the same pre-1999 earliest-rate fallback as GDP, see the GDP entry for detail."
+    dollar: "Each historical point is converted at its own contemporaneous EUR/USD rate (monthly resolution from FRED's DEXUSEU, 1999 onward); periods before 1999 have no dollar figure."
   },
   exports: {
     description: "The value of goods the euro area sells to the rest of the world each month, extra-euro-area.",
@@ -2909,7 +2914,7 @@ const INFO_CONTENT = {
   },
   current_account: {
     description: "The euro area's overall balance with the rest of the world, trade in goods and services plus net investment income, as a share of GDP.",
-    source: "Eurostat bop_gdp6_q \u00b7 balance of payments, current account balance of the euro area (EA20) with the rest of the world, % of GDP, annual, 2013 onward.",
+    source: "Eurostat bop_gdp6_q \u00b7 balance of payments, current account balance of the euro area (21 members, EA21) with the rest of the world, % of GDP, annual, from 1999. The euro area is its current membership throughout.",
     dollar: "Already expressed as a % of GDP, currency-agnostic. \u201cConvert to USD$\u201d has no effect on this figure."
   },
   debt_gdp: {
@@ -3138,11 +3143,11 @@ function rerender(){
       const anyPreHistory = CURRENCY_KEYS.some(k => s[k] && (hasPreHistoryPoints(s[k], fx) || hasPreFloorPoints(s[k], fx)));
       if(TOGGLE_STATE.real && s.gdp_real){
         const ry = realFxYear(s.gdp_real_annual || s.gdp_real);
-        if(ry) notes.push(`real GDP converted at the ${realFxRateYear(ry, fx.history)} average rate throughout, so its growth matches the published real growth; the World Bank publishes its own estimate in constant 2015 dollars (NY.GDP.MKTP.KD), which can grow differently because it uses an older vintage of the national accounts`);
+        if(ry) notes.push(`real GDP in constant ${ry} prices, converted at the ${realFxRateYear(ry, fx.history)} average rate throughout, so its growth matches the published real growth; the World Bank publishes its own estimate in constant 2015 dollars (NY.GDP.MKTP.KD), which can grow differently because it uses an older vintage of the national accounts`);
       }
       if(anyPreHistory){
         notes.push(fx.floor ? `figures before ${fx.floor} are not shown in dollars (no reliable market rate before then)`
-                            : `figures before ${fx.history[0][0]} use the earliest available rate (no genuine historical rate exists further back)`);
+                            : `figures before ${fx.history[0][0]} are not shown in dollars (no exchange-rate history before then)`);
       }
     } else {
       notes.push(`All currency figures converted at ${fx.pair} = ${fxRateTxt(fx.rate)} (as of ${fx.as_of}), a single rate applied across the series because no historical rate history is available for it`);

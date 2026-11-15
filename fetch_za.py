@@ -77,8 +77,8 @@ ALLOW_SHRINK = {}
 
 # key: (fred_id, freq 'm'|'q'|'a', label, unit, transform None|'yoy'|'mom'|'qoq', scale)
 FRED_SERIES = {
-    "gdp_level": ("NGDPSAXDCZAQ", "q", "GDP nominal, SA", "$m", None, 1.0),
-    "gdp_real": ("NGDPRSAXDCZAQ", "q", "Real GDP, SA", "$m", None, 1.0),
+    "gdp_level": ("NGDPSAXDCZAQ", "q", "GDP nominal, SA", "ZARm", None, 1.0),
+    "gdp_real": ("NGDPRSAXDCZAQ", "q", "Real GDP, SA", "ZARm", None, 1.0),
     "unemployment": ("LRUN64TTZAQ156S", "q", "Unemployment rate, 15-64, SA", "%", None, 1.0),
     "bond_yield_10y": ("IRLTLT01ZAM156N", "m", "10-year government bond yield", "%", None, 1.0),
     "trade_balance": ("XTNTVA01ZAQ667S", "q", "Trade balance, goods, $", "$m", None, 1e-6),
@@ -734,6 +734,8 @@ def main() -> int:
                         ser = out["series"][tk]
                         if ser["unit"].strip().startswith("$"):
                             ser["points"] = [[p, round(to_local(v, p), 1)] for p, v in ser["points"]]
+                            ser["unit"] = ser["unit"].replace("$", "ZAR", 1)   # v1.9.138: name the currency
+                            ser["label"] = ser["label"].replace(", $ ", " ").replace(", $", "")
                             print(f"  ok  {tk:<16} converted using {fx_rate}")
             else:
                 print("note  fx_to_usd: no observations returned; check the log")

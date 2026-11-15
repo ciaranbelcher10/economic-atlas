@@ -2670,7 +2670,7 @@ function renderFxMarkets(tm){
     if(typeof INFO_CONTENT === "object" && !INFO_CONTENT[p.key]) INFO_CONTENT[p.key] = {
       description: p.description,
       source: p.source || p.source_short || "",
-      dollar: "An exchange rate, not a value in the home currency. \u201cDollarise\u201d has no effect on it."};
+      dollar: "An exchange rate, not a value in the home currency. \u201cConvert to USD$\u201d has no effect on it."};
     const q=p.quote_symbol, b=p.base_unit;
     const axDp=fxDp(Math.max(...p.points.map(x=>Math.abs(x[1]))));  // one precision per axis (v1.7.13)
     chartPanel(p.key,"charts-markets",p.title,p.description,
@@ -2724,7 +2724,7 @@ function render(data){
   if(gdpAnnual) chartPanel("gdp_level","charts-gdp","GDP",
     "The total value of everything the UK economy produces in a year.",
     gdpAnnual,"line",v=>curFmt(v,s.gdp_level.unit,1),v=>curFmt(v,s.gdp_level.unit,2),
-    "ONS series YBHA (PN2) · current prices, rolling four-quarter sum, SA",1991);
+    (TOGGLE_STATE.real && PAGE_DATA.series.gdp_real ? "ONS series ABMI (PN2) · chained volume measure, rolling four-quarter sum, SA" : "ONS series YBHA (PN2) · current prices, rolling four-quarter sum, SA"),1991);
   if(s.gdp_growth) chartPanel("gdp_growth","charts-gdp","Real GDP growth, quarter on quarter",
     "How much the economy grew or shrank compared with the previous three months.",
     s.gdp_growth,"bar",v=>v+"%",pct,"ONS series IHYQ (PN2) · chained volume measure",1998,0);
@@ -2820,7 +2820,7 @@ function render(data){
     s.population,"line",fmtPeople,fmtPeople,"World Bank \u00b7 Population, total (SP.POP.TOTL), mid-year estimates, annual");
   const tg=document.getElementById("tiles-gdp");
   if(gdpAnnual) statTile(tg,"gdp_level","GDP (annual)",gdpAnnual,
-    {fmt:v=>curFmt(v,s.gdp_level.unit,1,true),fmtD:v=>curFmt(v,s.gdp_level.unit,0),upIsGood:true,source:"ONS · YBHA"});
+    {fmt:v=>curFmt(v,s.gdp_level.unit,1,true),fmtD:v=>curFmt(v,s.gdp_level.unit,0),upIsGood:true,source:(TOGGLE_STATE.real && PAGE_DATA.series.gdp_real ? "ONS · ABMI" : "ONS · YBHA")});
   if(s.gdp_growth) statTile(tg,"gdp_growth","Growth (QoQ)",s.gdp_growth,
     {fmt:pct,fmtD:pp,upIsGood:true,source:"ONS · IHYQ"});
   if(gdpYoY) statTile(tg,null,"Growth (YoY)",gdpYoY,
@@ -2905,7 +2905,7 @@ function render(data){
     if(gdpAnnual){
       statTile(hero,"gdp_level","GDP (annual)",gdpAnnual,
     {fmt:v=>curFmt(v,s.gdp_level.unit,1,true),fmtD:v=>curFmt(v,s.gdp_level.unit,0),upIsGood:true,
-     source:"ONS · YBHA (PN2), rolling 4 quarters"});
+     source:(TOGGLE_STATE.real && PAGE_DATA.series.gdp_real ? "ONS · ABMI" : "ONS · YBHA (PN2), rolling 4 quarters")});
     }
     }],
     // growth
@@ -3040,7 +3040,7 @@ const INFO_CONTENT = {
     description: "GDP adjusted for inflation, shown in chained-volume terms, the same production, valued at constant prices, so changes reflect real output growth rather than price changes.",
     source: "ONS series ABMI (PN2) \u00b7 chained volume measure, rolling four-quarter sum, seasonally adjusted.",
     real: "This IS the \u201cAdjust for inflation\u201d series, toggling it off shows GDP at current (nominal) prices instead.",
-    dollar: "Same historical-rate matching as GDP (current prices): each point converted at its own contemporaneous GBP/USD rate where available (1971 onward), falling back to the earliest available rate (1971-01) for anything before that."
+    dollar: "\u201cConvert to USD$\u201d expresses real GDP in constant prices of the latest complete year and converts every period at that year's average exchange rate, so growth in dollars equals the published real growth. The note under the chart names the year."
   },
   gdp_growth: {
     description: "How much the economy grew or shrank compared with the previous three months, in real (inflation-adjusted) terms.",
@@ -3112,17 +3112,17 @@ const INFO_CONTENT = {
   trade_balance: {
     description: "Exports minus imports of goods and services each month. Below zero means the UK buys more from abroad than it sells.",
     source: "ONS series IKBJ (MRET) \u00b7 goods and services, current prices, seasonally adjusted.",
-    dollar: "Each historical point is converted at its own contemporaneous GBP/USD rate (monthly resolution from FRED's DEXUSUK, 1971 onward), with the same pre-1971 earliest-rate fallback as GDP, see the GDP entry for detail."
+    dollar: "Each historical point is converted at its own contemporaneous GBP/USD rate (monthly resolution from FRED's DEXUSUK, 1971 onward); periods before 1971 have no dollar figure."
   },
   exports: {
     description: "The value of goods and services the UK sells to the rest of the world each month.",
     source: "ONS series IKBH (MRET) \u00b7 goods and services, current prices, seasonally adjusted.",
-    dollar: "Each historical point is converted at its own contemporaneous GBP/USD rate (monthly resolution from FRED's DEXUSUK, 1971 onward), with the same pre-1971 earliest-rate fallback as GDP, see the GDP entry for detail."
+    dollar: "Each historical point is converted at its own contemporaneous GBP/USD rate (monthly resolution from FRED's DEXUSUK, 1971 onward); periods before 1971 have no dollar figure."
   },
   imports: {
     description: "The value of goods and services the UK buys from the rest of the world each month.",
     source: "ONS series IKBI (MRET) \u00b7 goods and services, current prices, seasonally adjusted.",
-    dollar: "Each historical point is converted at its own contemporaneous GBP/USD rate (monthly resolution from FRED's DEXUSUK, 1971 onward), with the same pre-1971 earliest-rate fallback as GDP, see the GDP entry for detail."
+    dollar: "Each historical point is converted at its own contemporaneous GBP/USD rate (monthly resolution from FRED's DEXUSUK, 1971 onward); periods before 1971 have no dollar figure."
   },
   trade_intensity: {
     description: "Total trade (exports plus imports) as a share of GDP, a measure of how open the economy is to international trade.",
@@ -3138,17 +3138,17 @@ const INFO_CONTENT = {
   net_debt: {
     description: "The actual stock of UK government debt in pounds, rather than as a share of GDP.",
     source: "ONS series HF6W (PUSF) \u00b7 excluding public sector banks, not seasonally adjusted.",
-    dollar: "Each historical point is converted at its own contemporaneous GBP/USD rate (monthly resolution from FRED's DEXUSUK, 1971 onward), with the same pre-1971 earliest-rate fallback as GDP, see the GDP entry for detail."
+    dollar: "Each historical point is converted at its own contemporaneous GBP/USD rate (monthly resolution from FRED's DEXUSUK, 1971 onward); periods before 1971 have no dollar figure."
   },
   debt_interest: {
     description: "What the government pays each month to service its existing debt, mostly to holders of UK government bonds (gilts).",
     source: "ONS series NMFX (PUSF) · central government, net interest payable, not seasonally adjusted.",
-    dollar: "Each historical point is converted at its own contemporaneous GBP/USD rate (monthly resolution from FRED's DEXUSUK, 1971 onward), with the same pre-1971 earliest-rate fallback as GDP, see the GDP entry for detail. Note: debt_interest is not currently included in the automatic Convert to USD$ conversion list on this page, shown here for completeness in case that changes."
+    dollar: "Each historical point is converted at its own contemporaneous GBP/USD rate (monthly resolution from FRED's DEXUSUK, 1971 onward); periods before 1971 have no dollar figure. Note: debt_interest is not currently included in the automatic Convert to USD$ conversion list on this page, shown here for completeness in case that changes."
   },
   deficit: {
     description: "How much the government borrows each month to cover the gap between spending and tax revenue. Seasonal swings (e.g. around January self-assessment tax receipts) are normal.",
     source: "ONS series DZLS (PUSF) · excluding public sector banks, monthly, not seasonally adjusted.",
-    dollar: "Each historical point is converted at its own contemporaneous GBP/USD rate (monthly resolution from FRED's DEXUSUK, 1971 onward), with the same pre-1971 earliest-rate fallback as GDP, see the GDP entry for detail."
+    dollar: "Each historical point is converted at its own contemporaneous GBP/USD rate (monthly resolution from FRED's DEXUSUK, 1971 onward); periods before 1971 have no dollar figure."
   }
 };
 function infoIconHtml(infoKey){
@@ -3280,7 +3280,7 @@ function scaleOf(unitStr){
 // usual prefix where one is unambiguous, else the ISO code itself (CHF, DKK,
 // NOK, SEK, PLN, MAD). Must match ISO_GLYPH in generate_indicator_pages.py
 // and indicator-kit.js.
-const ISO_GLYPH = {CNY:"CN\u00a5", THB:"\u0e3f", TRY:"\u20ba", IDR:"Rp", SGD:"S$", ARS:"AR$", CLP:"CLP$", COP:"COL$", MYR:"RM", NZD:"NZ$", PHP:"\u20b1", TWD:"NT$", VND:"\u20ab", NGN:"\u20a6", EGP:"E\u00a3", PEN:"S/", HKD:"HK$", PKR:"Rs"};
+const ISO_GLYPH = {AUD:"A$", BRL:"R$", CAD:"C$", MXN:"MX$", ZAR:"R", CNY:"CN\u00a5", THB:"\u0e3f", TRY:"\u20ba", IDR:"Rp", SGD:"S$", ARS:"AR$", CLP:"CLP$", COP:"COL$", MYR:"RM", NZD:"NZ$", PHP:"\u20b1", TWD:"NT$", VND:"\u20ab", NGN:"\u20a6", EGP:"E\u00a3", PEN:"S/", HKD:"HK$", PKR:"Rs"};
 function currencySymbol(unitStr){
   const m = unitStr.match(/^[^a-zA-Z0-9]+/);
   if(m) return m[0];
@@ -3396,6 +3396,7 @@ function convertSeriesToUSD(series, fx){
    currency divided by a moving nominal rate turns devaluation into apparent
    contraction; a single rate keeps real growth exactly as published. */
 function realFxYear(series){
+  if(series.usd_anchor && series.usd_anchor.year) return String(series.usd_anchor.year);
   const pts = series.points || [];
   return pts.length ? String(pts[pts.length-1][0]).slice(0,4) : null;
 }
@@ -3413,9 +3414,13 @@ function realFxRateYear(yr, history){
 function convertRealSeriesToUSD(series, fx){
   const yr = realFxYear(series);
   const rate = (fx.history && fx.history.length && yr) ? rateForPeriod(realFxRateYear(yr, fx.history), fx.history) : fx.rate;
+  /* v1.9.138: real GDP in constant prices of its anchor year (the latest complete year), at that year's
+     average rate: real x deflator (nominal / real in that year), then converted. Base-year prices at a
+     later year's rate put Argentina's real GDP at 0.09% of its nominal GDP in dollars. */
+  const defl = (series.usd_anchor && series.usd_anchor.deflator) || 1;
   const newUnit = "$"+series.unit.replace(/^(?:[A-Za-z]+(?=(?:m|bn|tn)$)|[^a-zA-Z0-9]+)/,"");
   return {...series, unit:newUnit, real_fx_year:yr,
-          points: series.points.map(([p,v])=>[p, fx.direction==="multiply" ? v*rate : v/rate])};
+          points: series.points.map(([p,v])=>[p, fx.direction==="multiply" ? v*defl*rate : v*defl/rate])};
 }
 /* v1.7.55: points before fx.floor are dropped from the dollar view. */
 function hasPreFloorPoints(series, fx){
@@ -3599,11 +3604,11 @@ function rerender(){
       const anyPreHistory = CURRENCY_KEYS.some(k => s[k] && (hasPreHistoryPoints(s[k], fx) || hasPreFloorPoints(s[k], fx)));
       if(TOGGLE_STATE.real && s.gdp_real){
         const ry = realFxYear(s.gdp_real_annual || s.gdp_real);
-        if(ry) notes.push(`real GDP converted at the ${realFxRateYear(ry, fx.history)} average rate throughout, so its growth matches the published real growth; the World Bank publishes its own estimate in constant 2015 dollars (NY.GDP.MKTP.KD), which can grow differently because it uses an older vintage of the national accounts`);
+        if(ry) notes.push(`real GDP in constant ${ry} prices, converted at the ${realFxRateYear(ry, fx.history)} average rate throughout, so its growth matches the published real growth; the World Bank publishes its own estimate in constant 2015 dollars (NY.GDP.MKTP.KD), which can grow differently because it uses an older vintage of the national accounts`);
       }
       if(anyPreHistory){
         notes.push(fx.floor ? `figures before ${fx.floor} are not shown in dollars (no reliable market rate before then)`
-                            : `figures before ${fx.history[0][0]} use the earliest available rate (no genuine historical rate exists further back)`);
+                            : `figures before ${fx.history[0][0]} are not shown in dollars (no exchange-rate history before then)`);
       }
     } else {
       notes.push(`All currency figures converted at ${fx.pair} = ${fxRateTxt(fx.rate)} (as of ${fx.as_of}), a single rate applied across the series because no historical rate history is available for it`);

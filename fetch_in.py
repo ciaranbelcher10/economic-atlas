@@ -117,9 +117,9 @@ import series_guard
 # so a retired key must be listed here to leave the data file. OECD stopped updating this country's
 # business confidence (BCICP) after February 2026; it is shown nowhere rather than shown stale.
 RETIRED = {"business_confidence": "OECD stopped publishing it after February 2026"}
-ALLOW_SHRINK = {"ppi": "PPIACO -> PPIFID, final demand is the BLS headline"}
+#     ALLOW_SHRINK = {"ppi": "PPIACO -> PPIFID, final demand is the BLS headline"}
 # Remove it once the new series has landed.
-ALLOW_SHRINK = {}
+ALLOW_SHRINK = {"unemployment": "v1.9.138: all-India rate replaces the urban-only rate; remove after the first data run"}
 
 # key: (fred_id, freq 'm'|'q'|'a', label, unit, transform None|'yoy'|'mom'|'qoq', scale)
 FRED_SERIES = {
@@ -538,7 +538,7 @@ def mospi_login(username: str, password: str) -> str | None:
     return payload.get("token")
 
 
-def fetch_plfs_unemployment(token: str) -> list | None:
+def fetch_plfs_unemployment(token: str, sector: str = "3") -> list | None:
     import urllib3
     urllib3.disable_warnings(urllib3.exceptions.InsecureRequestWarning)
     params = {
@@ -554,7 +554,12 @@ def fetch_plfs_unemployment(token: str) -> list | None:
         # combined-sector code isn't valid for the monthly frequency, so
         # the API returned 14 real rows with every "value" field empty
         # rather than an error. Confirmed via a real run's log output.
-        "sector_code": "2",        # Urban only
+        # v1.9.138: "3" (rural + urban, all India) first. Since 2025 MoSPI's
+        # monthly bulletin publishes the all-India rate (September 2026:
+        # 5.0%); the urban-only rate ("2", 6.9%) was being shown as the
+        # national figure. "2" is used only if "3" returns nothing usable,
+        # and the label then says urban.
+        "sector_code": sector,
         "limit": "200",
         "Format": "JSON",
     }
@@ -769,11 +774,16 @@ def main() -> int:
             token = mospi_login(mospi_user, mospi_pass)
             if not token:
                 raise ValueError("login succeeded but no token in response")
-            points = fetch_plfs_unemployment(token)
+            points = fetch_plfs_unemployment(token, "3")
+            area = "all India, rural and urban"
+            if not points or len(points) < 6 or not all(0 < v < 30 for _, v in points):
+                print(f"  [mospi] all-India series unusable ({len(points or [])} points); trying urban")
+                points = fetch_plfs_unemployment(token, "2")
+                area = "urban areas only"
             if not points:
                 raise ValueError("no usable response")
             out["series"]["unemployment"] = {
-                "label": "Unemployment rate, Current Weekly Status (PLFS/MoSPI)",
+                "label": f"Unemployment rate, persons 15+, Current Weekly Status, {area} (PLFS/MoSPI)",
                 "unit": "%", "freq": "months", "points": points}
             print(f"  ok  {'unemployment':<16} {len(points):>5} observations "
                   f"({points[0][0]} to {points[-1][0]}, months)")

@@ -74,7 +74,16 @@ import series_guard
 # Add an entry ONLY when intentionally swapping source, and say why, e.g.
 #     ALLOW_SHRINK = {"ppi": "PPIACO -> PPIFID, final demand is the BLS headline"}
 # Remove it once the new series has landed.
-ALLOW_SHRINK = {}
+#
+# v1.9.138 (verification, 15 Nov 2026): the stored debt_gdp and deficit kept
+# an older IMF edition for 1995-2024 (deficit 2024 -0.78 against the current
+# WEO's -2.63; 13 of 14 years differ) because the current WEO starts Korea in
+# 2012 and the guard grafted each new year onto the old history. Accept the
+# current edition whole. Remove both entries after the first data run.
+ALLOW_SHRINK = {
+    "debt_gdp": "current IMF WEO edition replaces an older edition's 1995-2024 history",
+    "deficit": "current IMF WEO edition replaces an older edition's 1995-2024 history",
+}
 
 # key: (fred_id, freq 'm'|'q'|'a', label, unit, transform None|'yoy'|'mom'|'qoq', scale)
 # - participation_rate (LRAC64TTKRQ156S) / employment_rate (LREM64TTKRQ156S): OECD infra-annual labour-statistics FRED family, quarterly, ages 15-64. Same pattern confirmed live for Germany (pilot); inferred-by-pattern for South Korea -- not individually confirmed, check the first Actions log.

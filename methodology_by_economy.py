@@ -148,9 +148,11 @@ NOTES = [
      lambda c: "LRUN64TTZAQ156S" in c.label("South Africa", "unemployment")
      and ", SA" in c.label("South Africa", "unemployment")),
     ("Switzerland",
-     "GDP growth is calculated from the chained-volume series CLVMNACSAB1GQCH. It is not adjusted for major "
-     "sporting events, so it can differ from the rate SECO headlines.",
-     lambda c: "CLVMNACSAB1GQCH" in c.label("Switzerland", "gdp_growth")),
+     "GDP, real GDP and GDP growth are SECO's figures from the OECD quarterly national accounts, in Swiss "
+     "francs; annual GDP is the sum of each calendar year's four seasonally adjusted quarters. SECO also "
+     "publishes a growth rate adjusted for major international sporting events, which can differ.",
+     lambda c: "OECD quarterly national accounts" in c.label("Switzerland", "gdp_growth")
+     and "CHF" in c.unit("Switzerland", "gdp_level")),
     ("Poland",
      "The trade balance is Eurostat's goods balance (exports minus imports) in euros. It is left in euros when "
      "Convert to USD$ is switched on.",

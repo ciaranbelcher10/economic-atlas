@@ -10,6 +10,7 @@ Runs after every fetch script and before "Commit updated data" (like stamp_fx.py
 script that rebuilds its file without the series gets it back in the same run. Idempotent.
 If data-population.json is missing or unreadable, nothing is changed.
 """
+import glob
 import json
 import os
 import re
@@ -62,21 +63,77 @@ def scale_of(unit):
     return {"tn": 1e12, "bn": 1e9, "m": 1e6, "k": 1e3}[m.group(1)] if m else 1
 
 
+def pc_round(x):
+    """Whole currency units, except below 100, where three significant figures
+    are kept. v1.9.138: Israel's new-shekel GDP per person for 1960-1964 is
+    under ₪1 (hyperinflation and the 1985 redenomination) and rounded to 0."""
+    if x is None:
+        return None
+    if abs(x) >= 100:
+        return round(x)
+    from math import floor, log10
+    return round(x, max(0, 2 - int(floor(log10(abs(x)))))) if x else 0
+
+
 def gdp_per_capita_series(gdp, pop_points, country, updated, pop_source="World Bank"):
     """GDP per person for each complete calendar year that has that SAME year's population
-    (exact-year rule: no other year's population is ever used). Whole currency units."""
+    (exact-year rule: no other year's population is ever used). Whole currency units (see pc_round)."""
     if not gdp or "%" in str(gdp.get("unit", "")):
         return None
     years = calendar_year_gdp(gdp, country)
     pop = {str(y): v for y, v in pop_points if v}
     scale = scale_of(gdp.get("unit"))
-    pts = [[y, round(years[y] * scale / pop[y])] for y in sorted(years) if y in pop]
+    pts = [[y, pc_round(years[y] * scale / pop[y])] for y in sorted(years) if y in pop]
     if len(pts) < 2:
         return None
     return {"label": f"GDP per person, current prices, calendar year (GDP divided by {pop_source} population)",
             "unit": re.sub(r"(tn|bn|m|k)$", "", str(gdp.get("unit", "")).strip()), "freq": "years",
             "points": pts, "derived": True, "confirmed_at": (updated[:16] + "Z") if updated else None}
 
+
+def _annual_totals(series):
+    """{year: total} for complete calendar years. Annual points as they are;
+    quarters summed when all four are present; a trailing four-quarter sum
+    (gdp_real_annual) read at Q4."""
+    if not series or not series.get("points"):
+        return {}
+    pts = [(str(p), v) for p, v in series["points"] if v is not None]
+    if series.get("freq") == "years":
+        return {p[:4]: v for p, v in pts if re.fullmatch(r"\d{4}", p)}
+    if "trailing 4-quarter sum" in str(series.get("label", "")).lower():
+        return {p[:4]: v for p, v in pts if p.endswith("-Q4")}
+    by = {}
+    for p, v in pts:
+        m = re.fullmatch(r"(\d{4})-Q([1-4])", p)
+        if m:
+            by.setdefault(m.group(1), {})[m.group(2)] = v
+    return {y: sum(q.values()) for y, q in by.items() if len(q) == 4}
+
+
+def real_usd_anchor(nominal, real):
+    """How real GDP becomes US dollars: constant prices of an anchor year,
+    converted at that year's average exchange rate (the World Bank's method
+    for its constant-dollar series, which anchors on 2015). The anchor is
+    the latest complete calendar year both series cover; the deflator is
+    nominal / real GDP in that year. Real GDP x deflator equals nominal GDP
+    in the anchor year, and growth in dollars equals published real growth.
+
+    v1.9.138: the site converted real GDP in base-year prices (Argentina
+    2004 pesos, Turkey 2009 lira, Brazil 1995 reais) at the latest year's
+    exchange rate, which put Argentina's real GDP at 0.09% of its nominal
+    GDP in dollars. Returns {"year", "deflator"} or None when the two series
+    are not in the same currency."""
+    if not nominal or not real:
+        return None
+    strip = lambda u: re.sub(r"(tn|bn|m|k)$", "", str(u or "").strip())
+    if strip(nominal.get("unit")) != strip(real.get("unit")):
+        return None
+    n, r = _annual_totals(nominal), _annual_totals(real)
+    years = sorted(y for y in n if y in r and r[y])
+    if not years:
+        return None
+    y = years[-1]
+    return {"year": y, "deflator": round(n[y] * scale_of(nominal.get("unit")) / (r[y] * scale_of(real.get("unit"))), 6)}
 
 def main(root="."):
     path = os.path.join(root, SRC)
@@ -106,6 +163,26 @@ def main(root="."):
             json.dump(d, fh, ensure_ascii=False, separators=(",", ":"))
         done += 1
     print(f"merge_population: population written to {done} data file(s); not covered: {', '.join(skipped) or 'none'}")
+    # v1.9.138: every economy's real GDP gets its US$ anchor, population or not (Taiwan has none).
+    anchored = 0
+    for f in sorted(glob.glob(os.path.join(root, "data-??.json"))):
+        d = json.load(open(f, encoding="utf-8"))
+        S = d.get("series", {})
+        changed = False
+        for rk in ("gdp_real", "gdp_real_annual"):
+            if S.get(rk):
+                by = real_usd_anchor(S.get("gdp_level"), S[rk])
+                if S[rk].get("usd_anchor") != by:
+                    changed = True
+                    if by:
+                        S[rk]["usd_anchor"] = by
+                    else:
+                        S[rk].pop("usd_anchor", None)
+        if changed:
+            with open(f, "w", encoding="utf-8") as fh:
+                json.dump(d, fh, ensure_ascii=False, separators=(",", ":"))
+            anchored += 1
+    print(f"merge_population: real GDP US$ anchor updated in {anchored} data file(s)")
     return 0
 
 

@@ -556,9 +556,9 @@ def main() -> int:
         # year only, and says so on its page.
         ("cpi_mom", lambda: oecd_prices.mom_points(("ISR",), "M", label="ISR"),
          "CPI, all items, MoM (OECD live prices system)", "%", "months"),
-        ("gdp_level", lambda: [[p, round(v / 1e6, 1)] for p, v in (fetch_worldbank("NY.GDP.MKTP.CN") or [])],
+        ("gdp_level", lambda: [[p, round(v / 1e6, 4)] for p, v in (fetch_worldbank("NY.GDP.MKTP.CN") or [])],
          "GDP, current prices, ILS (World Bank, NY.GDP.MKTP.CN, annual)", "\u20aam", "years"),
-        ("gdp_real", lambda: [[p, round(v / 1e6, 1)] for p, v in (fetch_worldbank("NY.GDP.MKTP.KN") or [])],
+        ("gdp_real", lambda: [[p, round(v / 1e6, 4)] for p, v in (fetch_worldbank("NY.GDP.MKTP.KN") or [])],
          "GDP, constant prices, ILS (World Bank, NY.GDP.MKTP.KN, annual)", "\u20aam", "years"),
         ("fdi", lambda: fetch_worldbank("BX.KLT.DINV.WD.GD.ZS"),
          "FDI net inflows, % of GDP (World Bank)", "%", "years"),

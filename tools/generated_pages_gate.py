@@ -807,7 +807,7 @@ OECD_PHRASE = "latest quarters from OECD QNA"
 NOTE_RULES = {
     "uk": ("rolling three-month averages", lambda ctx: "\u2013" in ctx["labels"].get("uk-unemployment-rate", "")),
     "southafrica": ("LRUN64TTZAQ156S", lambda ctx: "LRUN64TTZAQ156S" in ctx["lab"]("unemployment") and ", SA" in ctx["lab"]("unemployment")),
-    "switzerland": ("sporting events", lambda ctx: "CLVMNACSAB1GQCH" in ctx["lab"]("gdp_growth")),
+    "switzerland": ("sporting events", lambda ctx: "OECD quarterly national accounts" in ctx["lab"]("gdp_growth") and "CHF" in ctx["unit"]("gdp_level")),
     "poland": ("goods balance", lambda ctx: "Eurostat" in ctx["lab"]("trade_balance") and "\u20ac" in ctx["unit"]("trade_balance")),
     "argentina": ("so growth is shown year on year", lambda ctx: "not seasonally adjusted" in ctx["lab"]("gdp_growth") and "YoY" in ctx["lab"]("gdp_growth")),
 }

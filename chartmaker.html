@@ -2290,7 +2290,7 @@ function getSeries(country, concept){
       if(concept === "gdp_level" || concept === "gdp_real"){
         pts = resolveGDPPoints(reg, concept, country, raw);
       }
-      return { label: (/^fx_/.test(concept) ? raw.label : CONCEPT_LABEL[concept]), unit: raw.unit || CONCEPT_UNIT[concept], freq: raw.freq, points: pts };
+      return { label: (/^fx_/.test(concept) ? raw.label : CONCEPT_LABEL[concept]), unit: raw.unit || CONCEPT_UNIT[concept], freq: raw.freq, points: pts, usd_anchor: raw.usd_anchor };
     }
   }
   return null;
@@ -2644,6 +2644,24 @@ function computeDisplay(country, metric, nomUnit, nomPts, real, dollar, percap){
       out.realView = true;
     }
   }
+  /* v1.9.138: GDP per person is a calendar-year figure on every page: the year's GDP (Q4's rolling
+     four-quarter sum, or the mean of a SAAR year's quarters) over that year's population, converted to US$
+     at the year's average rate. A quarterly per-person line converted at each quarter's rate put a second,
+     different "GDP per person" beside the calendar-year one (Germany 2025: about $63k against $61,403). */
+  if(percap && (metric === "gdp_level" || metric === "gdp_real") && basePts.length &&
+     /-Q[1-4]$/.test(String(basePts[basePts.length - 1].x))){
+    var byYear = {}, yearly = [];
+    basePts.forEach(function(p){ var y = String(p.x).slice(0, 4); (byYear[y] = byYear[y] || {})[String(p.x).slice(-1)] = p.y; });
+    Object.keys(byYear).sort().forEach(function(y){
+      var q = byYear[y];
+      if(GDP_SAAR_COUNTRIES[country]){
+        if(q["1"] != null && q["2"] != null && q["3"] != null && q["4"] != null) yearly.push({x: y, y: (q["1"] + q["2"] + q["3"] + q["4"]) / 4});
+      } else if(q["4"] != null){
+        yearly.push({x: y, y: q["4"]});
+      }
+    });
+    basePts = yearly;
+  }
   out.unit = baseUnit; out.pts = basePts;
   if(dollar && CONCEPT_UNIT[metric] === "perhead" && !isAlreadyUSDUnit(baseUnit + "m", country, "gdp_level")){
     // Whole currency units per person: the same rate lookup as GDP, read as millions in and out.
@@ -2653,14 +2671,20 @@ function computeDisplay(country, metric, nomUnit, nomPts, real, dollar, percap){
     return PC(out);
   }
   if(!dollar || CONCEPT_UNIT[metric] !== "currency") return PC(out);
-  var realYear = ((out.realView || metric === "gdp_real") && basePts.length) ? String(basePts[basePts.length - 1].x).slice(0, 4) : null;
+  // v1.9.138: real GDP in constant prices of its anchor year (the latest complete year) at that year's
+  // average rate: real x deflator, then converted, as the country pages.
+  var realSer = (out.realView || metric === "gdp_real") ? getSeries(country, "gdp_real") : null;
+  var anchor = realSer && realSer.usd_anchor;
+  var realYear = ((out.realView || metric === "gdp_real") && basePts.length)
+    ? ((anchor && anchor.year) ? String(anchor.year) : String(basePts[basePts.length - 1].x).slice(0, 4)) : null;
+  var defl = (realYear && anchor && anchor.deflator) || 1;
   var fx = FX_RATES[country];
   var floorKey = (fx && fx.floor) ? monthKey(String(fx.floor)) : null;
   var histKey = (fx && fx.history && fx.history.length) ? monthKey(String(fx.history[0][0])) : null;
   var already = isAlreadyUSDUnit(baseUnit, country, metric);
   var kept = [];
   basePts.forEach(function(p){
-    var usdM = toUSDMillions(country, p.y, baseUnit, metric, String(p.x), realYear);
+    var usdM = toUSDMillions(country, p.y * defl, baseUnit, metric, String(p.x), realYear);
     if(usdM == null){ out.droppedBeforeFloor = true; return; }
     if(!already && !realYear && histKey !== null && monthKey(String(p.x)) < histKey) out.usedEarliestRate = true;
     kept.push({ x: p.x, y: usdM });
@@ -2714,7 +2738,7 @@ function buildToggleNote(){
     }
     if(realYear){
       parts.push(fx && fx.history
-        ? "real GDP converted at the " + nearestFxYear(realYear, fx.history) + " average rate throughout, so its growth matches the published real growth"
+        ? "real GDP in constant " + realYear + " prices, converted at the " + nearestFxYear(realYear, fx.history) + " average rate throughout, so its growth matches the published real growth"
         : "real GDP converted at one rate per country (its latest year's average), so its growth matches the published real growth");
     }
     if(floorDrop){
@@ -2723,8 +2747,8 @@ function buildToggleNote(){
         : "early figures are not shown in dollars where no reliable market rate exists");
     } else if(earliest){
       parts.push(fx && fx.history
-        ? "figures before " + fx.history[0][0] + " use the earliest available rate (no genuine historical rate exists further back)"
-        : "figures before a currency's rate history begins use its earliest available rate");
+        ? "figures before " + fx.history[0][0] + " are not shown in dollars (no exchange-rate history before then)"
+        : "figures before a currency's rate history begins have no dollar value");
     }
     // Market rates, not PPP: worth saying wherever a dollar figure is shown.
     parts.push("market exchange rates, not purchasing power parity (PPP)");
@@ -3823,8 +3847,7 @@ function currencyAxisTitle(){
   series.forEach(function(s){
     if(!isCurrencySeries(s)) return;
     any = true;
-    // By the unit actually drawn: Switzerland's nominal GDP is already in dollars (World Bank), so its
-    // axis is dollars, not francs, until "Adjust for inflation" swaps it to the franc series.
+    // By the unit actually drawn: a series already in US dollars puts the axis in dollars.
     codes[(s.inUSD || isAlreadyUSDUnit(s.unit, s.country, s.metric)) ? "USD" : (COUNTRY_CURRENCY[s.country] || "?")] = true;
   });
   var keys = Object.keys(codes);
@@ -5015,7 +5038,7 @@ function scaleOf(unitStr){
 // usual prefix where one is unambiguous, else the ISO code itself (CHF, DKK,
 // NOK, SEK, PLN, MAD). Must match ISO_GLYPH in generate_indicator_pages.py
 // and indicator-kit.js.
-var ISO_GLYPH = {CNY:"CN\u00a5", THB:"\u0e3f", TRY:"\u20ba", IDR:"Rp", SGD:"S$", ARS:"AR$", CLP:"CLP$", COP:"COL$", MYR:"RM", NZD:"NZ$", PHP:"\u20b1", TWD:"NT$", VND:"\u20ab", NGN:"\u20a6", EGP:"E\u00a3", PEN:"S/", HKD:"HK$", PKR:"Rs"};
+var ISO_GLYPH = {AUD:"A$", BRL:"R$", CAD:"C$", MXN:"MX$", ZAR:"R", CNY:"CN\u00a5", THB:"\u0e3f", TRY:"\u20ba", IDR:"Rp", SGD:"S$", ARS:"AR$", CLP:"CLP$", COP:"COL$", MYR:"RM", NZD:"NZ$", PHP:"\u20b1", TWD:"NT$", VND:"\u20ab", NGN:"\u20a6", EGP:"E\u00a3", PEN:"S/", HKD:"HK$", PKR:"Rs"};
 function currencySymbol(unitStr){
   var m = unitStr.match(/^[^a-zA-Z0-9]+/);
   if(m) return m[0];

@@ -195,81 +195,53 @@
   ];
   var TICKER_SHOW_COUNT = 10; // always show the N most recently updated metrics
 
-  var METRIC_SHORT_LABELS = {
-    gdp_level:"GDP", gdp_real:"Real GDP", gdp_growth:"GDP Growth", productivity:"Productivity",
-    cpi:"CPI", cpih:"CPIH", cpi_mom:"CPI (MoM)", unemployment:"Unemployment", employment:"Employment",
-    inactivity:"Inactivity", debt_gdp:"Debt/GDP", net_debt:"Net Debt", deficit:"Deficit",
-    unemployment_1624:"Youth Unemployment", debt_interest:"Debt Interest", trade_balance:"Trade Balance",
-    current_account:"Current Account", bond_yield_10y:"10Y Bond Yield", policy_rate:"Policy Rate",
-    business_confidence:"Business Confidence"
-  };
-  // Trims trailing "(SERIES_CODE)" / "(source)" parentheticals for the rare
-  // series not covered by the short-label map above.
-  function shortSeriesLabel(label){
-    var s = label;
-    var stripped = s.replace(/\s*\([^()]*\)\s*$/, "");
-    while(stripped !== s){ s = stripped; stripped = s.replace(/\s*\([^()]*\)\s*$/, ""); }
-    return s || label;
-  }
-  function metricShortLabel(key, fallbackLabel){
-    return METRIC_SHORT_LABELS[key] || (fallbackLabel ? shortSeriesLabel(fallbackLabel) : key);
-  }
-
-  // Generic value formatter: percentages as-is, currency-prefixed units
-  // (£/$/€ + m/bn/tn scale) compacted to the largest sensible unit,
-  // anything else shown with its unit suffix as given.
-  function formatTickerValue(value, unit){
-    if(value == null) return null;
-    unit = unit || "";
-    if(unit.indexOf("%") !== -1) return value.toFixed(1) + "%";
-    var symMatch = unit.match(/^([\u00a3$\u20ac\u00a5])/);
-    if(symMatch){
-      var sym = symMatch[1];
-      var scaleSuffix = unit.replace(/^[\u00a3$\u20ac\u00a5]/, "").trim();
-      var scaleMultiplier = {m:1e6, bn:1e9, tn:1e12}[scaleSuffix] || 1;
-      var sign = value < 0 ? "\u2212" : "";
-      var absValue = Math.abs(value) * scaleMultiplier;
-      if(absValue >= 1e12) return sign + sym + (absValue/1e12).toFixed(2) + "tn";
-      if(absValue >= 1e9) return sign + sym + (absValue/1e9).toFixed(2) + "bn";
-      if(absValue >= 1e6) return sign + sym + (absValue/1e6).toFixed(1) + "m";
-      return sign + sym + absValue.toFixed(0);
-    }
-    return value.toFixed(2) + (unit ? " " + unit : "");
-  }
-
+  /* v1.9.138: each ticker item shows the figure exactly as the rest of the site does. The value, its period
+     and the metric's name come from feeds/<economy>.json (written by the same generator as the indicator pages
+     and key-figures tables); the data file supplies only when the figure first appeared. The ticker used to
+     format values itself: ISO-coded currencies printed raw ("1234567.89 CLPm"), indexes and population got a
+     unit suffix, rates lost their second decimal, and GDP showed a single quarter rather than the annual total. */
   function fetchTickerFacts(cb){
     var allFacts = [];
     var pending = TICKER_COUNTRIES.length;
     var now = Date.now();
     function done(){ pending--; if(pending === 0) cb(allFacts); }
+    function json(url){ return fetch(url, {cache:"no-cache"}).then(function(r){ if(!r.ok) throw new Error("HTTP " + r.status); return r.json(); }); }
     TICKER_COUNTRIES.forEach(function(c){
-      fetch(c.file, {cache:"no-cache"}).then(function(r){
-        if(!r.ok) throw new Error("HTTP "+r.status);
-        return r.json();
-      }).then(function(data){
-        var series = data.series || {};
-        var meta = data.new_points_meta || {};
+      Promise.all([json(c.file), json("feeds/" + c.slug + ".json")]).then(function(both){
+        var meta = (both[0] && both[0].new_points_meta) || {};
+        var shown = {};
+        ((both[1] && both[1].indicators) || []).forEach(function(i){ if(i && i.key && i.display) shown[i.key] = i; });
         Object.keys(meta).forEach(function(key){
-          var m = meta[key], s = series[key];
-          if(!s || !m || !m.first_seen || !s.points || !s.points.length) return;
-          var ageDays = (now - new Date(m.first_seen).getTime()) / 86400000;
-          if(ageDays < 0) return; // ignore clock-skew/future-dated entries only
-          var latest = s.points[s.points.length - 1];
-          var valueStr = formatTickerValue(latest[1], s.unit);
-          if(valueStr == null) return;
-          var dt = new Date(m.first_seen);
-          var dd = String(dt.getUTCDate()).padStart(2,"0");
-          var mm = String(dt.getUTCMonth()+1).padStart(2,"0");
+          var m = meta[key], f = shown[key];
+          if(!m || !m.first_seen || !f) return;   // a figure not shown on the site is not announced either
+          if((now - new Date(m.first_seen).getTime()) < 0) return;
           allFacts.push({
-            country:c.name, slug:c.slug, flag:c.flag,
-            metricShort:metricShortLabel(key, s.label),
-            valueStr:valueStr, dateStr:dd+"/"+mm, firstSeen:m.first_seen
+            country: c.name, slug: c.slug, flag: c.flag,
+            metricShort: TICKER_NAMES[key] || f.indicator,
+            valueStr: f.display, dateStr: f.period_label || f.latest_period || "", firstSeen: m.first_seen
           });
         });
         done();
       }).catch(function(){ done(); });
     });
   }
+  // The site's own metric names (rankings and indicator pages), shortened only where the full name is long.
+  var TICKER_NAMES = {
+    gdp_level: "GDP", gdp_real: "Real GDP", gdp_growth: "GDP growth (q/q)", gdp_growth_yoy: "GDP growth (y/y)",
+    gdp_per_capita: "GDP per capita", cpi: "Inflation (y/y)", cpi_mom: "Inflation (m/m)", cpih: "CPIH inflation (y/y)",
+    cpih_mom: "CPIH inflation (m/m)", unemployment: "Unemployment", unemployment_1624: "Youth unemployment",
+    employment: "Employment rate", inactivity: "Inactivity rate", trade_balance: "Trade balance", exports: "Exports",
+    imports: "Imports", current_account: "Current account (% of GDP)", debt_gdp: "Government debt (% of GDP)",
+    deficit: "Government borrowing", net_debt: "Government net debt", debt_interest: "Debt interest",
+    bond_yield_10y: "10-year bond yield", business_confidence: "Business confidence", population: "Population",
+    fdi: "FDI (% of GDP)", productivity: "Productivity", trade_intensity: "Trade intensity",
+    boe_rate: "Interest rate", boj_rate: "Interest rate", ecb_rate: "Interest rate", fed_funds: "Interest rate",
+    overnight_rate: "Interest rate", policy_rate: "Interest rate", core_cpi: "Core inflation (y/y)",
+    cpi_mom_sa: "Inflation (m/m, seasonally adjusted)", cpi_national: "Inflation, national CPI (y/y)",
+    cpi_qoq: "Inflation (q/q)", employment_rate: "Employment rate", participation: "Participation rate",
+    participation_rate: "Participation rate", pce: "PCE inflation (y/y)", ppi: "Producer prices (y/y)",
+    fx_usd: "Exchange rate"
+  };
 
   function tickerFactHtml(f){
     return '<a class="ht-item" href="'+f.slug+'">'+f.flag+' <b>'+f.country+'</b> '+f.metricShort

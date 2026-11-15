@@ -106,11 +106,17 @@ import series_guard
 # Add an entry ONLY when intentionally swapping source, and say why, e.g.
 #     ALLOW_SHRINK = {"ppi": "PPIACO -> PPIFID, final demand is the BLS headline"}
 # Remove it once the new series has landed.
-ALLOW_SHRINK = {}
+ALLOW_SHRINK = {
+    # v1.9.138: remove after the first data run.
+    "gdp_level": "World Bank current US$ (1960-) -> SECO via OECD QNA, Swiss francs (1980-)",
+}
 
 # key: (fred_id, freq 'm'|'q'|'a', label, unit, transform None|'yoy'|'mom'|'qoq', scale)
 FRED_SERIES = {
-    "gdp_real": ("CLVMNACSAB1GQCH", "q", "Real GDP, chain-linked volumes, SA (Eurostat)", "CHFm", None, 1.0),
+    # v1.9.138: gdp_real moved to the OECD quarterly national accounts (SECO's
+    # figures, see fetch_qna_gdp below). FRED's CLVMNACSAB1GQCH copy had
+    # stopped picking up revisions: quarterly growth differed from SECO/OECD
+    # by up to 0.25 points in 7 of the last 12 quarters (verification, 15 Nov 2026).
     "unemployment": ("LRUNTTTTCHQ156S", "q", "Unemployment rate, 15+, SA (OECD)", "%", None, 1.0),
     "bond_yield_10y": ("IRLTLT01CHM156N", "m", "10-year government bond yield (OECD)", "%", None, 1.0),
     "debt_gdp": ("DEBTTLCHA188A", "a", "Central government debt, % of GDP (World Bank)", "%", None, 1.0),
@@ -149,6 +155,15 @@ def fetch_fred(sid: str, freq: str, key: str) -> list:
         except (KeyError, ValueError):
             continue
     points.sort(key=lambda p: p[0])
+    # v1.9.138: a daily exchange rate (DEX*) becomes the MONTH'S AVERAGE, as
+    # fetch_au.py and the other scripts have done since v1.9.132. Keeping the
+    # last day gave month-end rates (verification, 15 Nov 2026: up to 3.2%
+    # from the IMF's monthly average in single months).
+    if str(sid).startswith("DEX"):
+        acc = {}
+        for p, v in points:
+            acc.setdefault(p, []).append(v)
+        points = [[p, round(sum(vs) / len(vs), 6)] for p, vs in sorted(acc.items())]
     dedup = {}
     for p, v in points:
         dedup[p] = v
@@ -444,6 +459,56 @@ def fetch_worldbank(code: str) -> list | None:
     return points or None
 
 
+# ---- v1.9.138: GDP from the OECD quarterly national accounts (SECO) ----
+QNA_URL = ("https://sdmx.oecd.org/public/rest/data/OECD.SDD.NAD,DSD_NAMAIN1@DF_QNA,1.1/"
+           "Q..CHE..........?format=csvfile&startPeriod=1980-Q1")
+_QNA_ROWS: list = []
+
+
+def _qna_rows() -> list:
+    """Rows of the OECD QNA reply for Switzerland, fetched once per run,
+    only in this script's OECD turn (oecd_turn raises NotThisHour otherwise,
+    and the previous series are kept)."""
+    if not _QNA_ROWS:
+        import csv, io
+        oecd_turn.check()
+        r = requests.get(QNA_URL, timeout=90,
+                         headers={"User-Agent": "economic-atlas/0.1", "Accept": "text/csv"})
+        print(f"  [oecd] DF_QNA CHE status={r.status_code}")
+        r.raise_for_status()
+        _QNA_ROWS.extend(csv.DictReader(io.StringIO(r.text)))
+    return _QNA_ROWS
+
+
+def fetch_qna_gdp(price_base: str) -> list:
+    """Seasonally adjusted quarterly GDP, CHF million, table T0102.
+    price_base "V" = current prices, "L" = chain-linked volume."""
+    pts = {}
+    for row in _qna_rows():
+        if (row.get("TRANSACTION"), row.get("PRICE_BASE"), row.get("ADJUSTMENT"),
+                row.get("TRANSFORMATION"), row.get("UNIT_MEASURE"), row.get("TABLE_IDENTIFIER")) \
+                != ("B1GQ", price_base, "Y", "N", "XDC", "T0102"):
+            continue
+        try:
+            pts[row["TIME_PERIOD"]] = round(float(row["OBS_VALUE"]), 1)
+        except (KeyError, TypeError, ValueError):
+            continue
+    out = sorted([[p, v] for p, v in pts.items() if re.fullmatch(r"\d{4}-Q[1-4]", p)])
+    if len(out) < 100:
+        raise ValueError(f"OECD QNA CHE {price_base}: only {len(out)} quarters")
+    return out
+
+
+def calendar_year_sums(quarters: list) -> list:
+    """Annual GDP as the sum of a complete year's four quarters; a year with
+    any quarter missing is left out."""
+    by = {}
+    for p, v in quarters:
+        by.setdefault(p[:4], {})[p[5:]] = v
+    return [[y, round(sum(q.values()), 1)] for y, q in sorted(by.items())
+            if set(q) == {"Q1", "Q2", "Q3", "Q4"}]
+
+
 def main() -> int:
     out = {
         "updated": datetime.now(timezone.utc).strftime("%Y-%m-%dT%H:%M:%SZ"),
@@ -476,6 +541,18 @@ def main() -> int:
                 failures.append(name)
                 print(f"FAIL  {name:<16} {exc}")
 
+        try:
+            real_q = fetch_qna_gdp("L")
+            out["series"]["gdp_real"] = {
+                "label": "Real GDP, chain-linked volume, seasonally adjusted (SECO via OECD quarterly national accounts, T0102)",
+                "unit": "CHFm", "freq": "quarters", "points": real_q}
+            print(f"  ok  gdp_real         {len(real_q):>5} observations ({real_q[0][0]} to {real_q[-1][0]}, quarters)")
+        except oecd_turn.NotThisHour as exc:
+            print(f"SKIP  gdp_real         {exc}")
+        except Exception as exc:
+            failures.append("gdp_real")
+            print(f"FAIL  gdp_real         {exc}")
+
         # gdp_growth: derived as QoQ from the real-GDP level series above
         # (chain-linked volumes, genuinely CHF millions per quarter, not
         # an index -- see the CHFm unit fix elsewhere in this file). Was
@@ -485,12 +562,12 @@ def main() -> int:
         # duplicating the separately-computed genuine YoY figure
         # (yoyGDP() in switzerland.html) rather than showing real QoQ
         # growth. lag=1 for quarterly data is genuine quarter-over-quarter.
-        if "gdp_real" in out["series"]:
+        if "gdp_real" in out["series"]:   # fresh this run (the OECD turn); otherwise all three are carried over
             level_pts = out["series"]["gdp_real"]["points"]
             growth_pts = yoy_from_level(level_pts, 1)
             if growth_pts:
                 out["series"]["gdp_growth"] = {
-                    "label": "Real GDP growth, QoQ (derived from CLVMNACSAB1GQCH)",
+                    "label": "Real GDP growth, QoQ, seasonally adjusted (derived from SECO real GDP via OECD quarterly national accounts)",
                     "unit": "%", "freq": "quarters", "points": growth_pts,
                 }
                 print(f"  ok  gdp_growth      {len(growth_pts):>5} observations (derived QoQ)")
@@ -512,7 +589,7 @@ def main() -> int:
                     for i in range(3, len(level_pts))
                 ]
                 out["series"]["gdp_real_annual"] = {
-                    "label": "Real GDP, trailing 4-quarter sum (derived from CLVMNACSAB1GQCH)",
+                    "label": "Real GDP, trailing 4-quarter sum (derived from SECO real GDP via OECD quarterly national accounts)",
                     "unit": "CHFm", "freq": "quarters", "points": annual_pts,
                 }
                 print(f"  ok  gdp_real_annual {len(annual_pts):>5} observations (derived TTM sum)")
@@ -567,31 +644,24 @@ def main() -> int:
             failures.append(name)
             print(f"FAIL  {name:<16} {exc}")
 
+    # v1.9.138: gdp_level in Swiss francs, the calendar-year sum of SECO's
+    # seasonally adjusted quarters (OECD QNA, the same source as gdp_real).
+    # Was the World Bank's current-US$ series (NY.GDP.MKTP.CD), the only
+    # Swiss money series not in francs; the World Bank's own franc series is
+    # an older edition (2025: CHF 867.5bn against SECO's 881.8bn). US$ views
+    # convert at each year's average rate like every other economy.
     try:
-        raw_gdp = fetch_worldbank("NY.GDP.MKTP.CD")
-        if not raw_gdp:
-            raise ValueError("no usable response")
-        scaled_gdp = [[p, round(v / 1e6, 1)] for p, v in raw_gdp]
-        # gdp_level stays in its native USD (World Bank's only live
-        # source for this series) rather than being pre-converted to CHF
-        # at a single current rate -- that pre-conversion (removed Aug
-        # 2026) predates the site's historical-FX-matching Dollarise
-        # feature and is actively counterproductive now that Dollarise
-        # does genuine point-by-point historical conversion: baking in a
-        # today's-rate-only CHF figure and labeling it "CHFm" meant
-        # Dollarise would then reverse-engineer a distortion that didn't
-        # need to exist, producing numbers matching neither the real
-        # historical USD data nor genuine CHF figures. Native USD lets
-        # isAlreadyUSD() correctly protect this series from Dollarise
-        # (a no-op, same as US's headline GDP), while gdp_real --
-        # genuinely CHF via Eurostat -- remains the one path where
-        # "Make it real" + Dollarise combine meaningfully.
+        nominal_q = fetch_qna_gdp("V")
+        annual = calendar_year_sums(nominal_q)
+        if len(annual) < 30:
+            raise ValueError(f"only {len(annual)} complete years")
         out["series"]["gdp_level"] = {
-            "label": "GDP, current prices (World Bank, NY.GDP.MKTP.CD, current US$)",
-            "unit": "$m", "freq": "years", "points": scaled_gdp,
+            "label": "GDP, current prices, calendar year (sum of seasonally adjusted quarters; SECO via OECD quarterly national accounts, T0102)",
+            "unit": "CHFm", "freq": "years", "points": annual,
         }
-        print(f"  ok  gdp_level        {len(scaled_gdp):>5} observations "
-              f"({scaled_gdp[0][0]} to {scaled_gdp[-1][0]}, years, USD, native)")
+        print(f"  ok  gdp_level        {len(annual):>5} observations ({annual[0][0]} to {annual[-1][0]}, years, CHF)")
+    except oecd_turn.NotThisHour as exc:
+        print(f"SKIP  gdp_level        {exc}")
     except Exception as exc:
         failures.append("gdp_level")
         print(f"FAIL  gdp_level        {exc}")

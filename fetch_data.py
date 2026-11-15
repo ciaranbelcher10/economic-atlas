@@ -277,8 +277,11 @@ def fetch_fx_history(series_id: str, api_key: str) -> list:
         except ValueError:
             continue
         period = fred_period(o["date"], "months")
-        monthly[period] = val  # daily obs sorted ascending by FRED by default -> last write per month wins
-    return sorted(monthly.items(), key=lambda kv: kv[0])
+        monthly.setdefault(period, []).append(val)
+    # v1.9.138: the MONTH'S AVERAGE of the daily rates, as every other script
+    # has used since v1.9.132; this one kept the last trading day (month-end
+    # rates, up to 2.1% from the IMF's monthly average; verification, 15 Nov 2026).
+    return sorted(((p, round(sum(vs) / len(vs), 6)) for p, vs in monthly.items()), key=lambda kv: kv[0])
 
 
 def _period_back_n(per, n: int):

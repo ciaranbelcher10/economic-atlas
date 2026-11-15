@@ -41,7 +41,7 @@
     return 1;
   }
   // ISO-coded units with a display glyph; must match generate_indicator_pages.ISO_GLYPH.
-  var ISO_GLYPH = {CNY: "CN\u00a5", THB: "\u0e3f", TRY: "\u20ba", IDR: "Rp", SGD: "S$",
+  var ISO_GLYPH = {AUD:"A$", BRL:"R$", CAD:"C$", MXN:"MX$", ZAR:"R", CNY: "CN\u00a5", THB: "\u0e3f", TRY: "\u20ba", IDR: "Rp", SGD: "S$",
                    ARS: "AR$", CLP: "CLP$", COP: "COL$", MYR:"RM", NZD:"NZ$", PHP:"\u20b1", TWD:"NT$", VND:"\u20ab", NGN:"\u20a6", EGP:"E\u00a3", PEN:"S/", HKD:"HK$", PKR:"Rs"};
   function symbolOf(u, key, country, dollarised){
     var c = cleanUnit(u);
@@ -229,12 +229,14 @@
       return [p[0], conv(p[1], r, fx)];
     });
   }
-  /* Real: ONE rate, the latest year's average, as the country pages (v1.7.55), so real growth stays as published. */
-  function toUSDReal(pts, fx){
+  /* Real: ONE rate, so real growth stays as published (v1.7.55). v1.9.138: constant prices of the anchor year
+     (the latest complete year) at that year's average rate, real x deflator, as the country pages. */
+  function toUSDReal(pts, fx, anchor){
     if(!pts.length) return pts;
-    var yr = String(pts[pts.length-1][0]).slice(0,4);
+    var yr = anchor && anchor.year ? String(anchor.year) : String(pts[pts.length-1][0]).slice(0,4);
+    var d = (anchor && anchor.deflator) || 1;
     var r = fx.history && fx.history.length ? rateForPeriod(yr, fx.history) : fx.rate;
-    return pts.map(function(p){ return [p[0], conv(p[1], r, fx)]; });
+    return pts.map(function(p){ return [p[0], conv(p[1] * d, r, fx)]; });
   }
   function usdUnit(u){
     var s = scaleOf(u);
@@ -272,7 +274,7 @@
                          !(state.real_on && state.real) && state.dollar_on && state.fx);
       if(state.dollar_on && state.fx && !pcUsdYear){
         var isReal = !!(state.real_on && state.real);
-        if(isReal) pts = toUSDReal(pts, state.fx);
+        if(isReal) pts = toUSDReal(pts, state.fx, cfg.realAnchor);
         // v1.9.131: GDP is a trailing four-quarter sum; convert each quarter at its own rate, then sum
         else if(cfg.annualise && state.rawNominal) pts = annualise(toUSD(state.rawNominal, state.fx), cfg.freq, cfg.gdpRaw);
         else pts = toUSD(pts, state.fx);

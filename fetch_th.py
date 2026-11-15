@@ -167,6 +167,15 @@ def fetch_fred(sid: str, freq: str, key: str) -> list:
         except (KeyError, ValueError):
             continue
     points.sort(key=lambda p: p[0])
+    # v1.9.138: a daily exchange rate (DEX*) becomes the MONTH'S AVERAGE, as
+    # fetch_au.py and the other scripts have done since v1.9.132. Keeping the
+    # last day gave month-end rates (verification, 15 Nov 2026: up to 3.2%
+    # from the IMF's monthly average in single months).
+    if str(sid).startswith("DEX"):
+        acc = {}
+        for p, v in points:
+            acc.setdefault(p, []).append(v)
+        points = [[p, round(sum(vs) / len(vs), 6)] for p, vs in sorted(acc.items())]
     dedup = {}
     for p, v in points:
         dedup[p] = v
@@ -555,7 +564,7 @@ def main() -> int:
     # that produced a "real GDP" ~2.6x LARGER than nominal) to World Bank
     # NY.GDP.MKTP.KN, "GDP (constant LCU)" -- genuinely national-accounts
     # real GDP in constant Thai baht, on the SAME basis as gdp_level
-    # (NY.GDP.MKTP.CN.AD, current LCU): same currency, same World Bank
+    # (NY.GDP.MKTP.CN, current LCU): same currency, same World Bank
     # national-accounts family, just price-level-adjusted. This is what
     # actually makes "Make it real" mean something here. No FRED_API_KEY
     # required (World Bank's API is free/unauthenticated), so this runs
@@ -595,13 +604,16 @@ def main() -> int:
     # rather than converting an already-USD figure a second time. Falls
     # back to the USD series (previous behaviour) if the LCU series fails
     # this run.
+    # v1.9.138: NY.GDP.MKTP.CN (baht, from 1960). The linked series CN.AD
+    # starts in 1990, so series_guard kept the longer US$ fallback every run
+    # and the baht figure never reached the page (verification, 15 Nov 2026).
     try:
-        raw_gdp_lcu = fetch_worldbank("NY.GDP.MKTP.CN.AD")
+        raw_gdp_lcu = fetch_worldbank("NY.GDP.MKTP.CN")
         if not raw_gdp_lcu:
             raise ValueError("no usable response")
         scaled_gdp_lcu = [[p, round(v / 1e6, 1)] for p, v in raw_gdp_lcu]
         out["series"]["gdp_level"] = {
-            "label": "GDP, current prices, linked series (World Bank, NY.GDP.MKTP.CN.AD)",
+            "label": "GDP, current prices, baht (World Bank, NY.GDP.MKTP.CN, annual)",
             "unit": "THBm", "freq": "years", "points": scaled_gdp_lcu,
         }
         print(f"  ok  gdp_level (THB) {len(scaled_gdp_lcu):>5} observations "
@@ -615,8 +627,7 @@ def main() -> int:
             scaled_gdp = [[p, round(v / 1e6, 1)] for p, v in raw_gdp]
             out["series"]["gdp_level"] = {
                 "label": "GDP, current prices, US$ (World Bank, NY.GDP.MKTP.CD, "
-                         "annual; shown when the quarterly national-currency "
-                         "series is unavailable)",
+                         "annual; shown when the baht series is unavailable)",
                 "unit": "$m", "freq": "years", "points": scaled_gdp,
             }
             print(f"  ok  gdp_level (USD fallback) {len(scaled_gdp):>5} observations "
