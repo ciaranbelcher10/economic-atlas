@@ -403,6 +403,18 @@ LEGACY_RANKING_REDIRECTS = {
 
 GDP_RAW_COUNTRIES = {"US", "Japan"}          # already published at an annual rate
 GDP_ALREADY_USD = {"US", "Switzerland"}      # no Convert to USD$; no FX conversion
+
+
+def gdp_in_usd(country, data):
+    """v1.9.137: GDP (and so GDP per person) is already in US dollars when the economy is listed above or when
+    this run's GDP series is the World Bank's current-US$ figure (Thailand uses it whenever its quarterly
+    national accounts are unavailable). A fixed list missed Thailand, and the rankings converted its US$577bn
+    a second time, to US$17.6bn."""
+    if country in GDP_ALREADY_USD:
+        return True
+    g = ((data or {}).get("series") or {}).get("gdp_level") or {}
+    lab = g.get("label", "")
+    return str(g.get("unit", "")).startswith("$") and ("NY.GDP.MKTP.CD" in lab or "US$" in lab)
 RATE_KEYS = {"boe_rate", "fed_funds", "ecb_rate", "boj_rate", "overnight_rate", "policy_rate", "bond_yield_10y"}
 NATIVE_DOLLAR = {"Australia": "A$", "Brazil": "R$", "Canada": "C$", "Mexico": "MX$", "South Africa": "R"}
 NATIVE_KEYS = {"gdp_level", "gdp_real", "trade_balance", "exports", "imports", "gdp_per_capita"}
@@ -1618,7 +1630,7 @@ def rank_rows(ranking, catalogue_by_country):
                 unranked.append((country, f"{Y} not yet complete"))
                 continue
             fx = info["data"].get("fx_to_usd")
-            if country in GDP_ALREADY_USD:
+            if gdp_in_usd(country, info["data"]):
                 usd = val
             elif fx:
                 usd = to_usd_value(val, str(Y), fx)
@@ -1792,7 +1804,7 @@ def render_indicator(country, info, entry, rank_info, all_rankings_meta, n_indic
         rr = resolve(country, info["data"]["series"], sources, METRIC_BY_SLUG["real-gdp"])
         if rr:
             real_pts, real_unit = rr[2], rr[1].get("unit", "")
-        if country not in GDP_ALREADY_USD:
+        if not gdp_in_usd(country, info["data"]):
             fx = info["data"].get("fx_to_usd")
         btns = []
         if real_pts:
