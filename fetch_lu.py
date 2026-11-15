@@ -398,6 +398,14 @@ def _fx_rate_for_period(fx_hist, period, fallback):
     """
     if not fx_hist:
         return fallback
+    # v1.9.133: a period's AVERAGE rate (mean of its months), the basis Convert to USD$ uses to convert
+    # back, so the round trip returns the published US$ figure (was the period's last-month rate).
+    _ms = ([period] if len(period) == 7 and period[4] == "-" else
+           [f"{period[:4]}-{m:02d}" for m in range((int(period.split('-Q')[1]) - 1) * 3 + 1, int(period.split('-Q')[1]) * 3 + 1)] if "Q" in period else
+           [f"{period[:4]}-{m:02d}" for m in range(1, 13)])
+    _hv = [v for p, v in fx_hist if p in _ms]
+    if _hv:
+        return sum(_hv) / len(_hv)
     if len(period) == 7 and period[4] == "-":
         key = period
     elif "Q" in period:
