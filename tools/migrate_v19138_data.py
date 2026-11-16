@@ -9,7 +9,6 @@ data run uses, so the next run reproduces it.
   Korea        debt_gdp and deficit: the current IMF WEO edition (an older edition's 1995-2024 had been kept)
   Euro area    current_account: EA21 from 1999 (the stored series mixed EA20 and EA21 by year)
   Israel       gdp_level / gdp_real to four decimals of a million shekels (1960s values rounded to 0.6, 0.7 ...)
-  India        unemployment labelled as the urban rate it is until the data run fetches the all-India rate
 
 Then run merge_population.py (per person, usd_anchor). Run from the repo root, with network access. Idempotent.
 """
@@ -101,14 +100,6 @@ def israel():
     print(f"il: gdp_level from {S['gdp_level']['points'][0]}")
 
 
-def india():
-    d = load("in"); S = d["series"]
-    if "unemployment" in S:
-        S["unemployment"]["label"] = "Unemployment rate, persons 15+, Current Weekly Status, urban areas only (PLFS/MoSPI)"
-        save("in", d)
-        print("in: unemployment labelled urban")
-
-
 if __name__ == "__main__":
-    for fn in (switzerland, thailand, korea, euro_area, israel, india):
+    for fn in (switzerland, thailand, korea, euro_area, israel):
         fn()
