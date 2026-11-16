@@ -32,6 +32,7 @@ THEMES = [
                 "economic-inactivity-rate"]),
     ("Money and markets", ["interest-rate", "10-year-government-bond-yield", "exchange-rate", "business-confidence"]),
     ("External", ["balance-of-trade", "exports", "imports", "trade-intensity", "current-account-to-gdp",
+                  "current-account-quarterly",
                   "foreign-direct-investment"]),
     ("Public finances", ["government-debt", "government-net-debt", "government-budget", "government-debt-interest"]),
     ("Population", ["population"]),   # v1.9.127: with GDP per capita (Output), since v1.9.115 these had no theme
@@ -52,7 +53,7 @@ CORE = [
     ("Exchange rate", ["exchange-rate"]),
     ("Business confidence", ["business-confidence"]),
     ("Trade balance", ["balance-of-trade"]),
-    ("Current account", ["current-account-to-gdp"]),
+    ("Current account", ["current-account-to-gdp", "current-account-quarterly"]),
     ("Foreign direct investment", ["foreign-direct-investment"]),
     ("Government debt", ["government-debt"]),
     ("Government budget balance", ["government-budget"]),

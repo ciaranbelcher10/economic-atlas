@@ -156,6 +156,8 @@ METRICS = [
     dict(slug="trade-intensity", keys=["trade_intensity"], title="Trade Intensity", cat="Trade", up=True, chart="line"),
     dict(slug="imports", keys=["imports"], title="Imports", cat="Trade", up=False, chart="line"),
     dict(slug="current-account-to-gdp", keys=["current_account"], title="Current Account (% of GDP)", cat="Trade", up=True, chart="bar"),
+    # v2.0.1: the UK's quarterly current account had a chart but no tile or page.
+    dict(slug="current-account-quarterly", keys=["current_account_q"], title="Current Account, Quarterly (% of GDP)", cat="Trade", up=True, chart="bar"),
     dict(slug="foreign-direct-investment", keys=["fdi"], title="Foreign Direct Investment (% of GDP)", cat="Trade", up=True, chart="line"),
     dict(slug="government-debt", keys=["debt_gdp"], title="Government Debt (% of GDP)", cat="Public finances", up=False, chart="line"),
     dict(slug="government-net-debt", keys=["net_debt"], title="Government Net Debt", cat="Public finances", up=False, chart="line"),

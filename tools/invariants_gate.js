@@ -41,7 +41,7 @@ const only = process.argv.includes("--page") ? process.argv[process.argv.indexOf
 
 // Third-currency series, by data file and key. Each needs a reason; each is an open item to fix at source.
 const THIRD_CURRENCY = {
-  "data-pl.json:trade_balance": "Eurostat publishes Poland's goods trade in euros. Open item: switch to GUS (PLN) or the IMF (USD).",
+  // v2.0.1: Poland's trade has been in zloty since v1.9.139; its entry is gone. Add one here only with a reason.
 };
 const GLYPH = {"\u00a3": "GBP", "\u20ac": "EUR", "\u00a5": "JPY", "\u20a9": "KRW", "\u20aa": "ILS", "\u20b9": "INR"};
 const DOLLAR_LOCAL = {au: "AUD", br: "BRL", ca: "CAD", mx: "MXN", za: "ZAR"};
