@@ -65,15 +65,17 @@ def build_text() -> str:
     return "\n".join(out)
 
 
+# Colours from style.css (light theme): paper #F5F6F3, panel #FFFFFF, ink #171B1E, ink2 #5A6167,
+# hair #E4E6E1, navy #1E4566 (top nav, buttons and links, as on the site)
 def build_html() -> str:
     f = SITE_FONT
     cards = "".join(f"""
           <tr><td style="padding:0 28px 12px 28px;">
-            <table role="presentation" width="100%" cellpadding="0" cellspacing="0" style="background-color:#F7F5F0;border-radius:8px;">
+            <table role="presentation" width="100%" cellpadding="0" cellspacing="0" style="background-color:#F5F6F3;border-radius:8px;border:1px solid #E4E6E1;">
               <tr><td style="padding:16px 18px;font-family:{f};">
-                <div style="font-size:17px;font-weight:bold;color:#1A1A1A;">{esc(h)}</div>
-                <div style="font-size:15px;line-height:1.45;color:#3A3A3A;padding:4px 0 10px 0;">{esc(b)}</div>
-                <a href="{SITE}{p}" style="font-size:15px;font-weight:bold;color:#AD1E1E;text-decoration:none;">{esc(cta)} &rarr;</a>
+                <div style="font-size:17px;font-weight:bold;color:#171B1E;">{esc(h)}</div>
+                <div style="font-size:15px;line-height:1.45;color:#171B1E;padding:4px 0 10px 0;">{esc(b)}</div>
+                <a href="{SITE}{p}" style="font-size:15px;font-weight:bold;color:#1E4566;text-decoration:none;">{esc(cta)} &rarr;</a>
               </td></tr>
             </table>
           </td></tr>""" for h, b, cta, p in ITEMS)
@@ -86,25 +88,25 @@ def build_html() -> str:
     <meta name="supported-color-schemes" content="light only">
     <title>{esc(SUBJECT)}</title>
   </head>
-  <body style="margin:0;padding:0;background-color:#F4F1EA;">
+  <body style="margin:0;padding:0;background-color:#F5F6F3;">
     <div style="display:none;max-height:0;overflow:hidden;opacity:0;">{esc(PREHEADER)}</div>
-    <table role="presentation" width="100%" cellpadding="0" cellspacing="0" style="background-color:#F4F1EA;">
+    <table role="presentation" width="100%" cellpadding="0" cellspacing="0" style="background-color:#F5F6F3;">
       <tr><td align="center" style="padding:24px 12px;">
         <table role="presentation" width="600" cellpadding="0" cellspacing="0" style="max-width:600px;width:100%;background-color:#FFFFFF;border-radius:10px;">
-          <tr><td style="padding:24px 28px 0 28px;">
+          <tr><td style="padding:14px 28px;background-color:#1E4566;border-radius:10px 10px 0 0;">
             <table role="presentation" cellpadding="0" cellspacing="0"><tr>
               <td style="padding-right:10px;"><div style="background-color:#FFFFFF;border-radius:50%;width:32px;height:32px;"><img src="{SITE}/logo-64.png" width="32" height="32" alt="" style="display:block;border-radius:50%;"></div></td>
-              <td style="font-family:{f};font-size:15px;font-weight:bold;color:#1A1A1A;">The Economic Atlas</td>
+              <td style="font-family:{f};font-size:18px;font-weight:600;color:#FFFFFF;letter-spacing:.02em;">The Economic Atlas</td>
             </tr></table>
           </td></tr>
-          <tr><td style="padding:22px 28px 6px 28px;font-family:{f};font-size:26px;line-height:1.2;font-weight:bold;color:#1A1A1A;">{esc(HEADLINE)}</td></tr>
-          <tr><td style="padding:0 28px 20px 28px;font-family:{f};font-size:16px;line-height:1.5;color:#3A3A3A;">{esc(INTRO)}</td></tr>{cards}
-          <tr><td style="padding:8px 28px 0 28px;font-family:{f};font-size:15px;line-height:1.5;color:#3A3A3A;">{esc(ALSO)}</td></tr>
+          <tr><td style="padding:22px 28px 6px 28px;font-family:{f};font-size:26px;line-height:1.2;font-weight:bold;color:#171B1E;">{esc(HEADLINE)}</td></tr>
+          <tr><td style="padding:0 28px 20px 28px;font-family:{f};font-size:16px;line-height:1.5;color:#171B1E;">{esc(INTRO)}</td></tr>{cards}
+          <tr><td style="padding:8px 28px 0 28px;font-family:{f};font-size:15px;line-height:1.5;color:#171B1E;">{esc(ALSO)}</td></tr>
           <tr><td align="center" style="padding:24px 28px 8px 28px;">
-            <a href="{SITE}" style="display:block;font-family:{f};font-size:16px;font-weight:bold;color:#FFFFFF;background-color:#AD1E1E;text-decoration:none;padding:14px 20px;border-radius:6px;">Explore The Economic Atlas</a>
+            <a href="{SITE}" style="display:block;font-family:{f};font-size:16px;font-weight:bold;color:#FFFFFF;background-color:#1E4566;text-decoration:none;padding:14px 20px;border-radius:6px;">Explore The Economic Atlas</a>
           </td></tr>
-          <tr><td align="center" style="padding:8px 28px 24px 28px;font-family:{f};font-size:14px;color:#6B6B6B;">{esc(OUTRO)}</td></tr>
-          <tr><td style="padding:16px 28px 22px 28px;border-top:1px solid #E7E2D8;font-family:{f};font-size:12px;line-height:1.5;color:#8A8375;">{esc(OPT_OUT)}</td></tr>
+          <tr><td align="center" style="padding:8px 28px 24px 28px;font-family:{f};font-size:14px;color:#5A6167;">{esc(OUTRO)}</td></tr>
+          <tr><td style="padding:16px 28px 22px 28px;border-top:1px solid #E4E6E1;font-family:{f};font-size:12px;line-height:1.5;color:#5A6167;">{esc(OPT_OUT)}</td></tr>
         </table>
       </td></tr>
     </table>
