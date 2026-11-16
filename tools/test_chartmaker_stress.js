@@ -146,11 +146,14 @@ function checkCSV(text, liveLabels, allLabels, tag){
   ok(data.slice(1).every(r => r.slice(1).every(v => v === "" || isFinite(+v))), tag + ": every value is a number or empty");
   ok(liveLabels.every((l, j) => data.slice(1).filter(r => r[j + 1] !== "").length >= 2), tag + ": every series column holds values");
   eq(JSON.stringify(notes[0]), JSON.stringify(["Series", "Unit", "Transform", "Source"]), tag + ": notes block header");
-  const nr = notes.slice(1, 1 + allLabels.length);
-  eq(JSON.stringify(nr.map(r => r[0])), JSON.stringify(allLabels), tag + ": a notes row per series");
+  // v2.0.2: a notes row per column; series with no data are named once on their own line
+  const nr = notes.slice(1, 1 + liveLabels.length);
+  eq(JSON.stringify(nr.map(r => r[0])), JSON.stringify(liveLabels), tag + ": a notes row per series column");
+  const missing = allLabels.filter(l => liveLabels.indexOf(l) === -1);
+  ok(!missing.length || notes.some(r => r.length === 1 && /^No data on The Economic Atlas for: /.test(r[0]) && missing.every(m => r[0].indexOf(m) !== -1)), tag + ": series with no data named once");
   ok(nr.every(r => r.length === 4 && r[2] && r[3] && !/See theeconomicatlas/.test(r[3])), tag + ": every series has a transform and a specific source: " + JSON.stringify(nr.filter(r => !r[3] || /See theeconomicatlas/.test(r[3])).slice(0, 3)));
   ok(nr.every((r, i) => liveLabels.indexOf(r[0]) === -1 || r[1]), tag + ": every series with data has a unit");
-  ok(/^Downloaded from The Economic Atlas/.test((notes[1 + allLabels.length] || [""])[0]), tag + ": download line");
+  ok(/^Downloaded from The Economic Atlas/.test((notes[notes.length - 1] || [""])[0]), tag + ": download line");
   ok(!BAD.test(text) && !/\u2014/.test(text), tag + ": no NaN, undefined or em dash in the file");
 }
 function checkSVG(svg, tag, wantSource){
@@ -246,7 +249,7 @@ function seriesInfo(P){
   ok(/"US ""headline"", jobs"/.test(ex.csv || ""), "C: a quote mark in a label is doubled inside a quoted cell");
   ok(qRows[0] && qRows[0][1] === 'US "headline", jobs', "C: that label reads back as one cell: " + JSON.stringify(qRows[0]));
   ok(qRows[0] && qRows[0].length === 4 && !qRows[0].some(l => /Vietnam/.test(l)), "C: the no-data series gets no data column: " + JSON.stringify(qRows[0]));
-  ok(qRows.some(r => /Vietnam/.test(r[0] || "") && r[3] === "No data for this country on The Economic Atlas"), "C: the no-data series is named in the notes");
+  ok(qRows.some(r => r.length === 1 && /^No data on The Economic Atlas for: .*Vietnam/.test(r[0] || "")), "C: the no-data series is named in the notes");
 
   // D. every country alone, core indicators (STRESS_QUICK=1 skips this sweep, for mutation runs)
   if(process.env.STRESS_QUICK){ console.log(`test_chartmaker_stress (quick): ${checks} checks, ${failures} failures`); process.exit(failures ? 1 : 0); }
@@ -271,7 +274,7 @@ function seriesInfo(P){
       else {
         if(rows.slice(0, blank).some(r => r.length !== rows[0].length)) problems.push("csv columns");
         const note = rows[blank + 2] || [];
-        if(note.length !== 4 || !note[3]) problems.push("csv notes");
+        if(live > 0 && (note.length !== 4 || !note[3])) problems.push("csv notes");
         if(live === 1 && /See theeconomicatlas/.test(note[3])) problems.push("csv generic source");
         if(live === 1 && !note[1]) problems.push("csv no unit");
         if(live === 1 && !/>Source: /.test(ex.png)) problems.push("png no source");

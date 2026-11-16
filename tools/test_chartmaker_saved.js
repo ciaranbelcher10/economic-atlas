@@ -309,7 +309,7 @@ async function page(){
   eq(P.$("#cmSortModeSelect").value, "value_desc", "bars are ordered high to low by default");
   const vals = [...P.svg().matchAll(/<rect [^>]*height="([\d.]+)"[^>]*rx="3"/g)].map(m => +m[1]);
   ok(vals.length === 7 && vals.every((v, i) => i === 0 || vals[i - 1] >= v - 0.01), "tallest bar first");
-  ok(/>(January|February|March|April|May|June|July|August|September|October|November|December) \d{4}</.test(P.svg()), "the period under the bars names the month in full");
+  ok(/>(Latest month, to )?(January|February|March|April|May|June|July|August|September|October|November|December) \d{4}</.test(P.svg()), "the period under the bars names the month in full");
   const fills = [...P.svg().matchAll(/<rect [^>]*rx="3" fill="(#[0-9A-Fa-f]{6})"/g)].map(m => m[1].toUpperCase());
   eq(fills[0], "#2E1E3B", "with 2 to 10 countries the highest bar takes the darkest Mako colour");
   eq(new Set(fills).size, 7, "each bar has its own shade");
@@ -319,13 +319,13 @@ async function page(){
   P.$("#cmSnapshotAt").value = pick; P.fire(P.$("#cmSnapshotAt"), "change"); await sleep(80);
   const months = ["January","February","March","April","May","June","July","August","September","October","November","December"];
   const want = /-\d{2}$/.test(pick) ? months[+pick.slice(5) - 1] + " " + pick.slice(0, 4) : pick;
-  ok(P.svg().includes(">" + want + "<"), "the bars say which period they compare: " + want);
+  ok(P.svg().includes(">" + want + "<") || P.svg().includes(">Latest month, to " + want + "<"), "the bars say which period they compare: " + want);
   ok(P.svg() !== "" && !P.svg().includes(">" + P.$("#cmSnapshotAt").options[0].textContent.replace(/^Latest in range \(|\)$/g, "") + "<"), "the old period label is gone");
   // eleven or more countries: each country's own colour
   await P.add("Spain", "Unemployment rate"); await P.add("Sweden", "Unemployment rate");
   await P.add("Poland", "Unemployment rate"); await P.add("Austria", "Unemployment rate");
   const fills11 = [...P.svg().matchAll(/<rect [^>]*rx="3" fill="(#[0-9A-Fa-f]{6})"/g)].map(m => m[1].toUpperCase());
-  ok(fills11.length === 11 && fills11.indexOf("#1E4566") !== -1, "over 10 countries, each keeps its own colour (UK navy present)");
+  ok(fills11.length === 11 && new Set(fills11).size === 1 && fills11[0] === "#1E4566", "v2.0.2: over 10 countries on one measure, every bar takes one colour");
   // a chart saved on Compare opens without the previous chart's titles
   P.$("#cmChartTitle").value = "Old title"; P.fire(P.$("#cmChartTitle"), "input");
   savedRows = [{ id: 11, name: "cmp", country_code: "compare", created_at: "2026-10-30T12:00:00Z", metric_key: "unemployment", style: { countries: ["UK", "Germany"] } }];

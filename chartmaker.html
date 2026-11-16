@@ -3381,7 +3381,21 @@ function rankColorsApply(){
   return chartType === "bar" && sameMetric && series.length <= 10;
 }
 // v1.9.34: in bar mode, 2 to 10 countries take the Mako palette in value order; anything picked by hand wins
+var BAR_ONE_COLOUR = "#1E4566";
+// v2.0.2: more than 10 countries on one metric is a single-measure ranking; 44 country colours
+// carried no information, so every bar takes one colour (anything recoloured by hand still wins)
+function oneColourBarsApply(){
+  var sameMetric = series.length > 10 && series.every(function(s){ return s.metric === series[0].metric; });
+  return chartType === "bar" && sameMetric;
+}
 function applyBarRankColors(rows){
+  if(oneColourBarsApply()){
+    rows.forEach(function(r){
+      var s = series.filter(function(x){ return x.country === r.countryCode; })[0];
+      if(s && !s.manualColor){ s.color = BAR_ONE_COLOUR; r.color = BAR_ONE_COLOUR; }
+    });
+    return;
+  }
   if(!rankColorsApply()) return;
   var ranked = rows.filter(function(r){ return r.value != null; }).slice().sort(function(a, b){ return b.value - a.value; });
   rows.forEach(function(r){ if(r.value == null){ var sx = series.filter(function(x){ return x.country === r.countryCode; })[0]; if(sx && !sx.manualColor){ sx.color = "#8A9490"; r.color = "#8A9490"; } } });
@@ -3644,11 +3658,12 @@ function renderColorsPanel(){
     }
   }
   // v1.9.35: the ranked Mako shades are meant to be close; only warn about colours someone chose
-  if(rankColorsApply()) clashPairs = [];
+  if(rankColorsApply() || oneColourBarsApply()) clashPairs = [];
   var isBarNow = chartType === "bar";
   document.getElementById("cmColorsTitle").textContent = isBarNow ? "Bar colours" : "Line colours";
   document.getElementById("cmColorsExplain").textContent = rankColorsApply()
     ? "Bars for 2 to 10 countries are shaded by rank, darkest for the highest value. Recolour any bar below, or choose a palette."
+    : oneColourBarsApply() ? "With more than 10 countries on one measure, every bar takes one colour. Recolour any bar below, or choose a palette."
     : (isBarNow ? "Each country keeps its usual colour. Recolour any bar below, or choose a palette for all of them."
                 : "Each country keeps its usual colour. Recolour any line below, or choose a palette.");
   document.getElementById("cmOpenPaletteModalBtn").textContent = isBarNow ? "Choose palette for all bars\u2026" : "Choose palette for all lines\u2026";
@@ -3935,9 +3950,18 @@ function syncSnapshotAtUI(){
   periods.slice().reverse().forEach(function(p){ var o = document.createElement("option"); o.value = p; o.textContent = fmtPeriodLong(p); sel.appendChild(o); });
   sel.value = (style.snapshotAt && periods.indexOf(style.snapshotAt) !== -1) ? style.snapshotAt : "";
 }
+// v2.0.2: when some bars carry an earlier period ("Colombia (Sep 2026)"), the label says the bars are
+// each country's latest figure up to the chosen period, not all from that period.
+function barPeriodText(){
+  var at = snapshotPeriod(), long = fmtPeriodLong(at);
+  var older = buildSnapshotRows().some(function(r){ return r.stale; });
+  if(!older) return long;
+  var unit = /^\d{4}-\d{2}$/.test(at) ? "month" : /^\d{4}-Q\d$/.test(at) ? "quarter" : "year";
+  return "Latest " + unit + ", to " + long;
+}
 function syncBarLegendTitle(){
   syncSnapshotAtUI();
-  if(chartType === "bar" && series.length > 1) followPeriodInTitle(fmtPeriodLong(snapshotPeriod()));
+  if(chartType === "bar" && series.length > 1) followPeriodInTitle(barPeriodText());
   if(legendTitleTouched) return;
   // v1.9.81: the snapshot date is only meaningful on a multi-country bar.
   // Switching back to Line left it behind ("July 2026" under a time axis).
@@ -3946,7 +3970,7 @@ function syncBarLegendTitle(){
     document.getElementById("cmLegendTitle").value = "";
     return;
   }
-  var text = fmtPeriodLong(snapshotPeriod());
+  var text = barPeriodText();
   style.legendTitle = text;
   document.getElementById("cmLegendTitle").value = text;
 }
@@ -4427,6 +4451,11 @@ function computeLegendRows(){
 function czmBottomLayout(hasLegend, srcText){
   var angle = (czmState && czmState.xLabelAngle) || "straight";
   var angleReserve = angle === "vertical" ? 54 : angle === "diagonal" ? 28 : 0;
+  // v2.0.2: a country bar chart's labels ("Colombia (Sep 2026)") are far longer than a date, so a
+  // rotated label ran into the period line under it. Reserve the longest label's rotated height.
+  var lw = czmMaxCategoryLabelW();
+  if(lw && angle === "vertical") angleReserve = Math.max(angleReserve, Math.ceil(lw) - 6);
+  else if(lw && angle === "diagonal") angleReserve = Math.max(angleReserve, Math.ceil(lw * 0.71) - 4);
   var oLabels = (angle === "straight" ? 26 : 14) + (AFS() - 11);
   var oAfterLabels = oLabels + 8 + angleReserve;
   var oLegendTitle = null, oLegendRow, legendRowCount = 1;
@@ -4458,8 +4487,13 @@ function czmBottomLayout(hasLegend, srcText){
   return {
     oLabels: oLabels, oLegendTitle: oLegendTitle, oLegendRow: oLegendRow, legendRowCount: legendRowCount,
     oAfterLegend: oAfterLegend, oDivider: oDivider, oSource: oSource, srcLines: srcLines,
-    padB: oSource + oSourceExtra + 12
+    padB: oSource + oSourceExtra + 12,
+    extraLabelH: Math.max(0, angleReserve - (angle === "vertical" ? 54 : angle === "diagonal" ? 28 : 0))
   };
+}
+function czmMaxCategoryLabelW(){
+  if(typeof chartType === "undefined" || chartType !== "bar" || series.length < 2 || (czmState && czmState.barOrient === "horizontal")) return 0;
+  return (SNAPSHOT_ROWS || []).reduce(function(m, r){ return Math.max(m, estProseWidth(String(r.country || ""), AFS())); }, 0);
 }
 // BASE_H (507) was tuned assuming a source note of up to 2 lines. A
 // many-metric bar chart's source note (one clause per country) can
@@ -4471,7 +4505,7 @@ function czmBottomLayout(hasLegend, srcText){
 // whatever chart is current, not left over from a previous one.
 function czmUpdateCanvasHeight(bl){
   CM_LAST_BL = bl;
-  G.H = BASE_H + Math.max(0, bl.srcLines - 2) * 14;
+  G.H = BASE_H + Math.max(0, bl.srcLines - 2) * 14 + (bl.extraLabelH || 0);   // v2.0.2: long rotated labels grow the canvas, not shrink the plot
 }
 function czmGeom(){
   UNIFIED_DATES = buildUnifiedDates();
@@ -4543,11 +4577,19 @@ function czmSnapshotGeom(){
     + (czmState.dataLabels ? (czmState.dataLabelSize || 11) + 4 : 0);   // v1.9.32: room for a label over the tallest bar
   var plotW = G.W - G.padL - G.padR, plotH = G.H - padT - padB;
   var n = Math.max(1, rows.length);
-  var slot = plotW / n;
+  // v2.0.2: a diagonal label runs left of its bar; the first one ran off the canvas ("olombia").
+  // Inset the bars far enough that the first label starts inside the left edge.
+  var inset = 0;
+  if(czmState.xLabelAngle === "diagonal" && rows.length && series.length > 1){
+    var w0 = estProseWidth(String(rows[0].country || ""), AFS()) * 0.71;
+    inset = Math.max(0, Math.ceil(w0 + 6 - G.padL - (plotW / n) / 2));
+    inset = Math.min(inset, plotW * 0.3);
+  }
+  var slot = (plotW - inset) / n;
   return {
     minV: bounds.minV, maxV: bounds.maxV, plotW: plotW, plotH: plotH, padB: padB, padT: padT,
     yTickValues: bounds.ticks, yScale: useLog ? "log" : "linear",
-    xForIndex: function(i){ return G.padL + slot * (i + 0.5); },
+    xForIndex: function(i){ return G.padL + inset + slot * (i + 0.5); },
     barWidth: Math.min(64, slot * 0.6),
     y: czmMakeYMapper(bounds.minV, bounds.maxV, useLog, padT, plotH)
   };
@@ -5209,6 +5251,17 @@ function buildCombinedSrcNote(){
     var short = shortSourceNote(s.country, concept);
     if(short) parts.push({ country: s.country, src: short });
   });
+  // v2.0.2: FRED and ECB IRS cite one series code per country, so a 40-country chart cited each
+  // separately. When two or more countries share the provider, they are grouped under it like
+  // Eurostat and OECD; the CSV keeps each country's full series code.
+  function family(src){
+    if(/^FRED series [A-Z0-9]+$/.test(src)) return "FRED";
+    if(/^ECB IRS M\.[A-Z]{2}\./.test(src) || /^ECB long-term interest rate for convergence purposes \(IRS, /.test(src)) return "ECB long-term interest rates (IRS)";
+    return null;
+  }
+  var famCount = {};
+  parts.forEach(function(p){ var f = family(p.src); if(f) famCount[f] = (famCount[f] || 0) + 1; });
+  parts.forEach(function(p){ var f = family(p.src); if(f && famCount[f] > 1) p.src = f; });
   // v1.9.35: countries sharing a source are cited once ("Eurostat une_rt_m (Austria, Belgium, ...)"),
   // and a source every country shares is cited plainly, instead of repeating it for each country
   var bySrc = [], idx = {};
@@ -5220,7 +5273,17 @@ function buildCombinedSrcNote(){
     ? [bySrc[0].src]
     : bySrc.map(function(g){ return g.countries.length > 1 ? g.src + " (" + g.countries.join(", ") + ")" : g.countries[0] + ": " + g.src; });
   // Compare's wording for a converted chart.
-  return parts.length ? parts.join("; ") + (converted ? " (converted to USD)" : "") : fallback;
+  return parts.length ? parts.join("; ") + (converted ? " (converted to USD)" : "") + bondTimingNote() : fallback;
+}
+// v2.0.2: Japan (national method) and the euro area (ECB benchmark) are month-end yields; every
+// other 10-year yield is a monthly average. Said once on any chart or file comparing them.
+function bondTimingNote(){
+  var live = series.filter(function(s){ return !s.missing && displayMetric(s) === "bond_yield_10y"; });
+  if(live.length < 2) return "";
+  var me = live.filter(function(s){ return s.country === "Japan" || s.country === "Eurozone"; }).map(function(s){ return s.country === "Eurozone" ? "euro area" : "Japan"; });
+  if(!me.length || me.length === live.length) return "";
+  var who = me.length === 2 ? "Japan and euro area figures are month-end yields" : (me[0] === "Japan" ? "Japan's figure is a month-end yield" : "The euro area figure is a month-end benchmark yield");
+  return ". Note: " + who + "; the others are monthly averages.";
 }
 
 function buildCzmState(){
@@ -5423,8 +5486,9 @@ function buildSnapshotRows(){
     var last = pts.length ? pts[pts.length - 1] : null;
     var label = s.customLabel || (sameMetric ? s.country : defaultSeriesLabel(s));
     // v1.9.35: a figure older than the period being compared says which period it is from
-    if(last && !covers(last.x, atV)) label += " (" + fmtPeriod(last.x) + ")";
-    return { country: label, countryCode: s.country, value: last ? last.y : null, color: s.color, missing: !!s.missing, asOf: last ? last.x : null };
+    var stale = !!(last && !covers(last.x, atV));
+    if(stale) label += " (" + fmtPeriod(last.x) + ")";
+    return { country: label, countryCode: s.country, value: last ? last.y : null, color: s.color, missing: !!s.missing, asOf: last ? last.x : null, stale: stale };
   });
 }
 
@@ -5707,6 +5771,8 @@ function csvCell(v){
   v = v === undefined || v === null ? "" : String(v);
   return /[",\r\n]/.test(v) ? "\"" + v.replace(/"/g, "\"\"") + "\"" : v;
 }
+// v2.0.2: averages and transforms left float noise in the file (3.40238095238095)
+function csvRound(v){ return +(+v).toFixed(4); }
 function csvUnit(s){
   var u = transformUnit(s.unit, s.transform);
   if(u === s.unit && isCurrencySeries(s)){
@@ -5727,15 +5793,22 @@ function buildChartCSV(){
   perSeries.forEach(function(ps){ Object.keys(ps.map).forEach(function(k){ periods[k] = true; }); });
   var rows = [["period"].concat(perSeries.map(function(ps){ return seriesLabel(ps.s); })).map(csvCell).join(",")];
   Object.keys(periods).sort().forEach(function(l){
-    rows.push([l].concat(perSeries.map(function(ps){ var v = ps.map[l]; return v === undefined || v === null || !isFinite(v) ? "" : v; })).map(csvCell).join(","));
+    rows.push([l].concat(perSeries.map(function(ps){ var v = ps.map[l]; return v === undefined || v === null || !isFinite(v) ? "" : csvRound(v); })).map(csvCell).join(","));
   });
   rows.push("");
   rows.push(["Series", "Unit", "Transform", "Source"].map(csvCell).join(","));
-  series.forEach(function(s){
+  // v2.0.2: the notes list only the series that are columns above; countries with no data are named
+  // once on their own line (the file listed 62 series against 44 columns)
+  live.forEach(function(s){
     var src = s.missing ? "No data for this country on The Economic Atlas"
       : (getSourceNote(s.country, displayMetric(s)) || "See theeconomicatlas.com/methodology") + (s.converted ? " (converted to USD)" : "");
     rows.push([seriesLabel(s), s.missing ? "" : csvUnit(s), transformLabel(s.transform || "raw"), src].map(csvCell).join(","));
   });
+  var noData = series.filter(function(s){ return live.indexOf(s) === -1; }).map(seriesLabel);
+  if(noData.length) rows.push(csvCell("No data on The Economic Atlas for: " + noData.join("; ") + "."));
+  var bondNote = bondTimingNote();
+  if(bondNote) rows.push(csvCell(bondNote.replace(/^\. Note: /, "Note: ")));
+  rows.push(csvCell("Values are rounded to 4 decimal places."));
   if(chartType === "bar" && series.length === 1 && lastBarChartThinned) rows.push(csvCell("The bar chart combines periods: " + barAggNote(lastBarChartThinned).replace(/ Narrow the date range.*$/, "") + " This file has the original periods."));   // v1.9.108
   rows.push(csvCell("Downloaded from The Economic Atlas (theeconomicatlas.com) on " + new Date().toISOString().slice(0, 10) + ". Periods " + fromV + " to " + toV + "."));
   return rows.join("\n") + "\n";
