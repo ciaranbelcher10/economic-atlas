@@ -24,7 +24,7 @@
 <noscript><link href="https://fonts.googleapis.com/css2?family=Nunito+Sans:wght@400;600;700&display=swap" rel="stylesheet"></noscript>
 <link rel="stylesheet" href="../style.css?v=63">
 <link rel="stylesheet" href="../mobile.css?v=49">
-<link rel="stylesheet" href="../indicator.css?v=15">
+<link rel="stylesheet" href="../indicator.css?v=17">
 <script type="application/ld+json">
 {
   "@context": "https://schema.org",
@@ -658,6 +658,7 @@
       // timing anything genuinely slow.
       setTimeout(function(){
         var csv = entry.kind === "multi" ? multiToCSV(entry.data) : seriesToCSV(entry.data);
+        csv = csv.replace(/^((?:Country,)?Date,)Value\n/, function(_, h){ return h + (/[",\n]/.test(String(entry.title || "")) ? '"' + String(entry.title).replace(/"/g, '""') + '"' : String(entry.title || "Value")) + "\n"; });   // v1.9.139: the value column names the chart and its unit
         triggerDownload(csv, entry.title);
         btn.classList.remove("dl-downloading");
         btn.classList.add("dl-success");
@@ -1244,8 +1245,8 @@
     <p class="ind-section-sub">Latest readings. Open any one for its full history.</p>
     <div class="ind-related">
 <div class="ind-cat">GDP &amp; growth</div>
-<a href="us-gdp"><span class="r-name">GDP</span><span class="r-val">$33.01tn</span><span class="r-per">Q3 2026</span></a>
-<a href="us-real-gdp"><span class="r-name">Real GDP</span><span class="r-val">$24.61tn</span><span class="r-per">Q3 2026</span></a>
+<a href="us-gdp"><span class="r-name">GDP</span><span class="r-val">$33.0tn</span><span class="r-per">Q3 2026</span></a>
+<a href="us-real-gdp"><span class="r-name">Real GDP</span><span class="r-val">$24.6tn</span><span class="r-per">Q3 2026</span></a>
 <a href="us-gdp-per-capita"><span class="r-name">GDP per Capita</span><span class="r-val">$90.3k</span><span class="r-per">2025</span></a>
 <a href="us-gdp-growth-rate"><span class="r-name">GDP Growth Rate (quarter on quarter, annualised)</span><span class="r-val">3.4%</span><span class="r-per">Q3 2026</span></a>
 <a href="us-gdp-annual-growth-rate"><span class="r-name">GDP Annual Growth Rate</span><span class="r-val">2.1%</span><span class="r-per">Q3 2026</span></a>
@@ -1265,15 +1266,15 @@
 <a href="us-interest-rate"><span class="r-name">Interest Rate</span><span class="r-val">3.88%</span><span class="r-per">Oct 2026</span></a>
 <a href="us-10-year-government-bond-yield"><span class="r-name">10-Year Government Bond Yield</span><span class="r-val">5.10%</span><span class="r-per">12 Nov 2026</span></a>
 <div class="ind-cat">Trade</div>
-<a href="us-balance-of-trade"><span class="r-name">Balance of Trade</span><span class="r-val">−$105.05bn</span><span class="r-per">Sep 2026</span></a>
-<a href="us-exports"><span class="r-name">Exports</span><span class="r-val">$321.51bn</span><span class="r-per">Sep 2026</span></a>
+<a href="us-balance-of-trade"><span class="r-name">Balance of Trade</span><span class="r-val">−$105.0bn</span><span class="r-per">Sep 2026</span></a>
+<a href="us-exports"><span class="r-name">Exports</span><span class="r-val">$321.5bn</span><span class="r-per">Sep 2026</span></a>
 <a href="us-trade-intensity"><span class="r-name">Trade Intensity</span><span class="r-val">25.2%</span><span class="r-per">2025</span></a>
-<a href="us-imports"><span class="r-name">Imports</span><span class="r-val">$426.56bn</span><span class="r-per">Sep 2026</span></a>
+<a href="us-imports"><span class="r-name">Imports</span><span class="r-val">$426.6bn</span><span class="r-per">Sep 2026</span></a>
 <a href="us-current-account-to-gdp"><span class="r-name">Current Account (% of GDP)</span><span class="r-val">−3.8%</span><span class="r-per">2025</span></a>
 <div class="ind-cat">Public finances</div>
 <a href="us-government-debt"><span class="r-name">Government Debt (% of GDP)</span><span class="r-val">121.2%</span><span class="r-per">Q2 2026</span></a>
-<a href="us-government-net-debt"><span class="r-name">Government Net Debt</span><span class="r-val">$39.46tn</span><span class="r-per">Q2 2026</span></a>
-<a href="us-government-budget"><span class="r-name">Federal Budget Balance</span><span class="r-val">−$404.06bn</span><span class="r-per">Oct 2026</span></a>
+<a href="us-government-net-debt"><span class="r-name">Government Net Debt</span><span class="r-val">$39.5tn</span><span class="r-per">Q2 2026</span></a>
+<a href="us-government-budget"><span class="r-name">Federal Budget Balance</span><span class="r-val">−$404.1bn</span><span class="r-per">Oct 2026</span></a>
 <div class="ind-cat">Business</div>
 <a href="us-business-confidence"><span class="r-name">Business Confidence</span><span class="r-val">100.5</span><span class="r-per">Oct 2026</span></a>
 <div class="ind-cat">Population</div>
@@ -1431,7 +1432,7 @@
 </div>
 
 <script src="https://cdnjs.cloudflare.com/ajax/libs/Chart.js/4.4.1/chart.umd.min.js"></script>
-<script src="../indicator-kit.js?v=15"></script>
+<script src="../indicator-kit.js?v=17"></script>
 <script>EATLAS_IND.initIndicator({"key": "fdi", "country": "US", "unit": "%", "freq": "years", "upIsGood": true, "chart": "line", "annualise": false, "gdpRaw": true, "dataUrl": "../data-us.json", "points": [["1970", 0.113667808624405], ["1971", 0.0661029317079452], ["1972", 0.09928778603873], ["1973", 0.135402869137687], ["1974", 0.22909018193255], ["1975", 0.137099799157697], ["1976", 0.155331555472048], ["1977", 0.140261481987448], ["1978", 0.23388341294583], ["1979", 0.306394355036077], ["1980", 0.585866341978653], ["1981", 0.800738125892372], ["1982", 0.634908482562745], ["1983", 0.316452387124185], ["1984", 0.624874152128993], ["1985", 0.221941613453303], ["1986", 0.675731298001957], ["1987", 1.30241400226355], ["1988", 1.08680748249096], ["1989", 1.34324072334346], ["1990", 1.19450410722934], ["1991", 0.56104703230478], ["1992", 0.464853986617542], ["1993", 0.732369583756588], ["1994", 0.767643589421284], ["1995", 0.904218188320061], ["1996", 1.20969310261879], ["1997", 1.4240659805968], ["1998", 2.32984953795271], ["1999", 3.244143080406], ["2000", 3.40578123865959], ["2001", 1.63009976725416], ["2002", 1.01613965201918], ["2003", 1.0221840098809], ["2004", 1.74869094348654], ["2005", 1.09166231632209], ["2006", 2.16033590475335], ["2007", 2.39469075656401], ["2008", 2.30937838146355], ["2009", 1.11260018343609], ["2010", 1.75453192115262], ["2011", 1.68911235141732], ["2012", 1.54020833064168], ["2013", 1.70686814034716], ["2014", 1.43033863092168], ["2015", 2.79548220201356], ["2016", 2.52268117379751], ["2017", 1.94177554246862], ["2018", 1.03945408799819], ["2019", 1.46696501417689], ["2020", 0.641236014628299], ["2021", 2.01451214498067], ["2022", 1.63432089226116], ["2023", 1.25738196877215], ["2024", 0.848467095703726], ["2025", 0.997793283652424]], "realPoints": null, "realUnit": null, "realKey": null, "realAnchor": null, "fx": null, "population": null, "title": "US Foreign Direct Investment (% of GDP)", "srcNote": "World Bank BX.KLT.DINV.WD.GD.ZS · FDI net inflows, % of GDP, annual (sourced from IMF balance-of-payments data)."});</script>
 <script>
 (function(){
@@ -2558,21 +2559,35 @@
     var mi = String(dt.getMinutes()).padStart(2, "0");
     return dd + " " + mo + " " + yy + ", " + hh + ":" + mi;
   }
+  /* v1.9.139: a saved chart keeps every setting the editor offers and the page's three switches
+     (Convert to USD$, Adjust for inflation, Per capita), so it reopens exactly as it was saved, here
+     or in Chartmaker. Older saves carry fewer keys; anything missing keeps its default. */
+  var CZ_SAVE_KEYS = ["chartTitle", "yTitle", "chartKind", "showFill", "showPoints", "refLine", "threshold2Color",
+    "yTitlePos", "yScale", "yTickStepIdx", "xTicks", "xLabelAngle", "lineColor", "exportTheme", "annotations"];
   function czSaveStyleSnapshot(){
-    return {
-      chartTitle: czState.chartTitle, yTitle: czState.yTitle,
-      chartKind: czState.chartKind, showFill: czState.showFill, showPoints: czState.showPoints,
-      refLine: czState.refLine, threshold2Color: czState.threshold2Color
-    };
+    var o = {};
+    CZ_SAVE_KEYS.forEach(function(k){ if(czState[k] !== undefined) o[k] = JSON.parse(JSON.stringify(czState[k])); });
+    if(typeof TOGGLE_STATE !== "undefined") o.toggles = { dollar: !!TOGGLE_STATE.dollar, real: !!TOGGLE_STATE.real, capita: !!TOGGLE_STATE.capita };
+    return o;
+  }
+  function czRestoreToggles(t){
+    if(!t || typeof TOGGLE_STATE === "undefined" || typeof toggleMetric !== "function") return;
+    [["dollar", "toggleDollar"], ["real", "toggleReal"], ["capita", "toggleCapita"]].forEach(function(p){
+      var want = !!t[p[0]], btn = document.getElementById(p[1]);
+      if(btn && !btn.disabled && !!TOGGLE_STATE[p[0]] !== want) toggleMetric(p[0], btn);
+    });
   }
   function loadSavedChart(row){
+    var style = row.style || {};
+    czRestoreToggles(style.toggles);   // the page redraws with the saved switches before the chart is rebuilt
     var meta = window.EATLAS_CHART_META && window.EATLAS_CHART_META[row.metric_key];
     var series = window.EATLAS_SERIES && window.EATLAS_SERIES[row.metric_key];
-    if(!meta || !series || !series.points){
+    var allPts = (meta && meta.pts) || (series && series.points);   // the figures the panel shows, switches applied
+    if(!meta || !allPts || !allPts.length){
       window.alert("This saved chart's series isn't available on this page.");
       return;
     }
-    var pts = series.points;
+    var pts = allPts;
     if(row.from_period || row.to_period){
       var filtered = pts.filter(function(p){
         return (!row.from_period || p[0] >= row.from_period) && (!row.to_period || p[0] <= row.to_period);
@@ -2580,22 +2595,31 @@
       if(filtered.length) pts = filtered;
     }
     window.EATLAS_OPEN_CUSTOMIZE(pts, row.name || meta.title, meta.srcNote, meta.fmtY, "", meta.title, meta.kind, czFmtPeriod, row.metric_key);
-    var style = row.style || {};
-    if(style.chartTitle != null){ czState.chartTitle = style.chartTitle; document.getElementById("czChartTitleInput").value = style.chartTitle; }
-    if(style.yTitle != null){ czState.yTitle = style.yTitle; document.getElementById("czYAxisTitleInput").value = style.yTitle; }
-    if(style.chartKind){
+    var has = function(k){ return style[k] !== undefined && style[k] !== null; };
+    var setChk = function(id, v){ var e = document.getElementById(id); if(e) e.checked = !!v; };
+    var setVal = function(id, v){ var e = document.getElementById(id); if(e) e.value = v; };
+    if(has("chartTitle")){ czState.chartTitle = style.chartTitle; setVal("czChartTitleInput", style.chartTitle); }
+    if(has("yTitle")){ czState.yTitle = style.yTitle; setVal("czYAxisTitleInput", style.yTitle); }
+    if(style.chartKind === "bar" || style.chartKind === "line"){
       czState.chartKind = style.chartKind;
       czChartKindSeg.querySelectorAll("button").forEach(function(b){ b.classList.toggle("active", b.dataset.kind === czState.chartKind); });
     }
-    if(style.refLine){
-      czState.refLine = style.refLine;
-      document.getElementById("czReflineToggle").checked = !!style.refLine.enabled;
-      document.getElementById("czReflineValue").value = style.refLine.value;
+    if(has("refLine")){
+      czState.refLine = { enabled: !!style.refLine.enabled, value: +style.refLine.value || 0 };
+      setChk("czReflineToggle", czState.refLine.enabled); setVal("czReflineValue", czState.refLine.value);
     }
-    czState.showFill = style.showFill !== false;
-    document.getElementById("czFillToggle").checked = czState.showFill;
-    czState.showPoints = style.showPoints !== false;
-    document.getElementById("czPointsToggle").checked = czState.showPoints;
+    if(has("threshold2Color")){ czState.threshold2Color = !!style.threshold2Color; setChk("czThresholdShadeToggle", czState.threshold2Color); }
+    czState.showFill = style.showFill !== false; setChk("czFillToggle", czState.showFill);
+    czState.showPoints = style.showPoints !== false; setChk("czPointsToggle", czState.showPoints);
+    if(has("yScale")){ czState.yScale = style.yScale === "log" ? "log" : "linear"; setChk("czLogScaleToggle", czState.yScale === "log"); }
+    if(typeof style.yTickStepIdx === "number") czState.yTickStepIdx = style.yTickStepIdx;
+    if(has("yTitlePos")){ czState.yTitlePos = style.yTitlePos; czYTitlePosSeg.querySelectorAll("button").forEach(function(b){ b.classList.toggle("active", b.dataset.pos === czState.yTitlePos); }); }
+    if(has("xTicks")){ czState.xTicks = +style.xTicks || czState.xTicks; czXTickVal.textContent = String(czState.xTicks); }
+    if(has("xLabelAngle")){ czState.xLabelAngle = style.xLabelAngle; czXAngleSeg.querySelectorAll("button").forEach(function(b){ b.classList.toggle("active", b.dataset.angle === czState.xLabelAngle); }); }
+    if(has("lineColor")){ czState.lineColor = style.lineColor; czSyncColorSwatches(); }
+    if(style.exportTheme === "light" || style.exportTheme === "dark"){ czState.exportTheme = style.exportTheme; czThemeSeg.querySelectorAll("button").forEach(function(b){ b.classList.toggle("active", b.dataset.theme === czState.exportTheme); }); }
+    if(Array.isArray(style.annotations)){ czState.annotations = JSON.parse(JSON.stringify(style.annotations)); czRenderAnnotList(); }
+    if(typeof czSyncModeFields === "function") czSyncModeFields();
     czRenderPreview();
   }
   // ---- Saved charts list: lives in the "Open chart" popover next to
@@ -2608,7 +2632,7 @@
       if(!listEl) return;
       listEl.innerHTML = "";
       if(!rows.length){
-        listEl.textContent = 'No saved charts yet , open "Bank Rate" → Customise & export → Save chart.';
+        listEl.textContent = 'No saved charts yet. Open any chart\u2019s Customise & export, then Save chart.';
         return;
       }
       rows.forEach(function(row){

@@ -110,7 +110,7 @@ import series_guard
 # Add an entry ONLY when intentionally swapping source, and say why, e.g.
 #     ALLOW_SHRINK = {"ppi": "PPIACO -> PPIFID, final demand is the BLS headline"}
 # Remove it once the new series has landed.
-ALLOW_SHRINK = {}
+ALLOW_SHRINK = {"unemployment": "v1.9.139: World Bank ILO modelled estimate -> IMF WEO national definition (LUR); remove after the first data run"}
 
 # key: (fred_id, freq 'm'|'q'|'a', label, unit, transform None|'yoy'|'mom'|'qoq', scale)
 FRED_SERIES = {
@@ -523,8 +523,10 @@ def main() -> int:
         # year only, and says so on its page.
         ("cpi_mom", lambda: oecd_prices.mom_points(("IDN",), "M", label="IDN"),
          "CPI, all items, MoM (OECD live prices system)", "%", "months"),
-        ("unemployment", lambda: fetch_worldbank("SL.UEM.TOTL.ZS"),
-         "Unemployment, total (modeled ILO estimate, World Bank)", "%", "years"),
+        # v1.9.139: the national statistics office's own unemployment rate, as reported to the IMF (WEO LUR), in place of
+        # the ILO modelled estimate (verification, 15 Nov 2026: modelled 3.2 against the national 4.85 for 2025).
+        ("unemployment", lambda: imf_weo.fetch("IDN", "LUR"),
+         "Unemployment rate, national definition, annual, actual years (IMF World Economic Outlook, LUR)", "%", "years"),
         ("fdi", lambda: fetch_worldbank("BX.KLT.DINV.WD.GD.ZS"),
          "FDI net inflows, % of GDP (World Bank)", "%", "years"),
     ]

@@ -967,6 +967,7 @@ footer.dash-foot{margin-top:36px; font-size:12.5px; color:var(--ink2); border-to
       // timing anything genuinely slow.
       setTimeout(function(){
         var csv = entry.kind === "multi" ? multiToCSV(entry.data) : seriesToCSV(entry.data);
+        csv = csv.replace(/^((?:Country,)?Date,)Value\n/, function(_, h){ return h + (/[",\n]/.test(String(entry.title || "")) ? '"' + String(entry.title).replace(/"/g, '""') + '"' : String(entry.title || "Value")) + "\n"; });   // v1.9.139: the value column names the chart and its unit
         triggerDownload(csv, entry.title);
         btn.classList.remove("dl-downloading");
         btn.classList.add("dl-success");
@@ -1512,11 +1513,11 @@ footer.dash-foot{margin-top:36px; font-size:12.5px; color:var(--ink2); border-to
  <h1 style="margin-bottom:6px;">My Dashboard</h1>
  <p style="color:var(--ink2); font-size:14.5px; margin:8px 0 0;">Pin figures from any of the 62 economies into one view.</p>
  <div class="metric-toggles" aria-label="Display options">
- <button type="button" class="mtoggle" id="makeRealBtn" aria-pressed="false">
- <span class="mtoggle-switch" aria-hidden="true"></span>Adjust for inflation
- </button>
  <button type="button" class="mtoggle" id="dollariseBtn" aria-pressed="false">
  <span class="mtoggle-switch" aria-hidden="true"></span>Convert to USD$
+ </button>
+ <button type="button" class="mtoggle" id="makeRealBtn" aria-pressed="false">
+ <span class="mtoggle-switch" aria-hidden="true"></span>Adjust for inflation
  </button>
  <button type="button" class="mtoggle" id="perCapitaBtn" aria-pressed="false">
  <span class="mtoggle-switch" aria-hidden="true"></span>Per capita
@@ -2824,22 +2825,32 @@ footer.dash-foot{margin-top:36px; font-size:12.5px; color:var(--ink2); border-to
     // czRenderPreview, so it hands the raw {chartTitle, yTitle,
     // chartKind, showFill, showPoints, refLine} blob in here instead of
     // reaching into this closure's variables directly).
-    if(styleOverrides){
-      if(styleOverrides.chartTitle != null){ czState.chartTitle = styleOverrides.chartTitle; document.getElementById("czChartTitleInput").value = styleOverrides.chartTitle; }
-      if(styleOverrides.yTitle != null){ czState.yTitle = styleOverrides.yTitle; document.getElementById("czYAxisTitleInput").value = styleOverrides.yTitle; }
-      if(styleOverrides.chartKind){
-        czState.chartKind = styleOverrides.chartKind;
+    if(styleOverrides){   // v1.9.139: every saved setting, not five of them
+      var so = styleOverrides, has = function(k){ return so[k] !== undefined && so[k] !== null; };
+      var setChk = function(id, v){ var e = document.getElementById(id); if(e) e.checked = !!v; };
+      var setVal = function(id, v){ var e = document.getElementById(id); if(e) e.value = v; };
+      if(has("chartTitle")){ czState.chartTitle = so.chartTitle; setVal("czChartTitleInput", so.chartTitle); }
+      if(has("yTitle")){ czState.yTitle = so.yTitle; setVal("czYAxisTitleInput", so.yTitle); }
+      if(so.chartKind === "bar" || so.chartKind === "line"){
+        czState.chartKind = so.chartKind;
         czChartKindSeg.querySelectorAll("button").forEach(function(b){ b.classList.toggle("active", b.dataset.kind === czState.chartKind); });
       }
-      if(styleOverrides.refLine){
-        czState.refLine = styleOverrides.refLine;
-        document.getElementById("czReflineToggle").checked = !!styleOverrides.refLine.enabled;
-        document.getElementById("czReflineValue").value = styleOverrides.refLine.value;
+      if(has("refLine")){
+        czState.refLine = { enabled: !!so.refLine.enabled, value: +so.refLine.value || 0 };
+        setChk("czReflineToggle", czState.refLine.enabled); setVal("czReflineValue", czState.refLine.value);
       }
-      czState.showFill = styleOverrides.showFill !== false;
-      document.getElementById("czFillToggle").checked = czState.showFill;
-      czState.showPoints = styleOverrides.showPoints !== false;
-      document.getElementById("czPointsToggle").checked = czState.showPoints;
+      if(has("threshold2Color")){ czState.threshold2Color = !!so.threshold2Color; setChk("czThresholdShadeToggle", czState.threshold2Color); }
+      czState.showFill = so.showFill !== false; setChk("czFillToggle", czState.showFill);
+      czState.showPoints = so.showPoints !== false; setChk("czPointsToggle", czState.showPoints);
+      if(has("yScale")){ czState.yScale = so.yScale === "log" ? "log" : "linear"; setChk("czLogScaleToggle", czState.yScale === "log"); }
+      if(typeof so.yTickStepIdx === "number") czState.yTickStepIdx = so.yTickStepIdx;
+      if(has("yTitlePos")){ czState.yTitlePos = so.yTitlePos; czYTitlePosSeg.querySelectorAll("button").forEach(function(b){ b.classList.toggle("active", b.dataset.pos === czState.yTitlePos); }); }
+      if(has("xTicks")){ czState.xTicks = +so.xTicks || czState.xTicks; czXTickVal.textContent = String(czState.xTicks); }
+      if(has("xLabelAngle")){ czState.xLabelAngle = so.xLabelAngle; czXAngleSeg.querySelectorAll("button").forEach(function(b){ b.classList.toggle("active", b.dataset.angle === czState.xLabelAngle); }); }
+      if(has("lineColor")){ czState.lineColor = so.lineColor; czSyncColorSwatches(); }
+      if(so.exportTheme === "light" || so.exportTheme === "dark"){ czState.exportTheme = so.exportTheme; czThemeSeg.querySelectorAll("button").forEach(function(b){ b.classList.toggle("active", b.dataset.theme === czState.exportTheme); }); }
+      if(Array.isArray(so.annotations)){ czState.annotations = JSON.parse(JSON.stringify(so.annotations)); czRenderAnnotList(); }
+      czSyncModeFields();
     }
     czRenderPreview();
     document.getElementById("customizeModal").hidden = false;
@@ -4460,6 +4471,21 @@ document.getElementById("dashUndoToastBtn").addEventListener("click", function()
   savePinned();
   renderDash();
 });
+/* v1.9.139: what a tile's chart shows, after Convert to USD$, Adjust for inflation and Per capita.
+   The expanded chart, the fullscreen chart, Download data, Customise & export and the dashboard PNG
+   all read this, so a download is the figures on screen rather than the raw series. */
+function tileDisplay(m){
+  var dk = m.dataKey || m.key;
+  var pts = toDisplayPoints(effectivePoints(m.country, dk, m.series), m.series.unit, m.country, dk);
+  var unit = toDisplayUnit(0, m.series.unit, m.country, dk, m.period).unit;
+  var pc = pcApplies(m);
+  if(pc){ var pcc = pcChartPoints(m, pts, unit); pts = pcc.pts; unit = pcc.unit; }
+  var notes = [];
+  if(unit !== m.series.unit) notes.push(unit);
+  var title = m.series.label + (notes.length ? " (" + notes.join(", ") + ")" : "");
+  return { pts: pts, unit: unit, perCapita: pc, title: title,
+           fmt: function(v){ return fmtVal(v, unit, m.key, m.country); } };
+}
 var expandedTiles = {}; // id -> true, survives renderDash() rebuilding the grid
 function expandTile(tile, id, m){
   tile.classList.add("expanded");
@@ -4467,9 +4493,7 @@ function expandTile(tile, id, m){
   if(!tileCharts[id]){
     var canvas = tile.querySelector("canvas");
     var dk = m.dataKey || m.key;
-    var pts = toDisplayPoints(effectivePoints(m.country, dk, m.series), m.series.unit, m.country, dk);
-    var chartUnit = toDisplayUnit(0, m.series.unit, m.country, dk, m.period).unit;
-    if(pcApplies(m)){ var pcc = pcChartPoints(m, pts, chartUnit); pts = pcc.pts; chartUnit = pcc.unit; }   // v1.9.138
+    var tdv = tileDisplay(m), pts = tdv.pts, chartUnit = tdv.unit;   // v1.9.139
     var kind = BAR_KEYS[m.key] ? "bar" : "line";
     var refLine = REF_LINE_FOR[m.key] == null ? null : REF_LINE_FOR[m.key];
     var fmt = function(v){ return fmtVal(v, chartUnit, m.key, m.country); };
@@ -4481,7 +4505,7 @@ function expandTile(tile, id, m){
     });
     CHART_REGISTRY[id] = {
       pts: pts, kind: kind, fmtY: fmt, fmtTip: fmt, refLine: refLine, key: m.key,
-      title: m.series.label + (dollarise && chartUnit !== m.series.unit ? " (USD)" : ""),
+      title: tdv.title,
       country: m.country,
       srcNote: metricSourceNote(m.country, dk, m.series.label)
     };
@@ -4806,13 +4830,13 @@ function renderDash(){
       + "<p class=\"chartsrc\" style=\"margin-top:2px;\">" + m.series.points.length + " observations, " + fmtPeriod(m.period) + " is the latest.</p>";
     wireInflationPicker(tile, m);
     var dlBtn = tile.querySelector(".dl-btn");
-    if(dlBtn && window.EATLAS_DOWNLOAD) window.EATLAS_DOWNLOAD.wire(dlBtn, effectivePoints(m.country, m.dataKey || m.key, m.series), m.country + " " + m.series.label);
+    var tdw = tileDisplay(m);   // v1.9.139: the figures on screen, toggles applied
+    if(dlBtn && window.EATLAS_DOWNLOAD) window.EATLAS_DOWNLOAD.wire(dlBtn, tdw.pts, m.country + " " + tdw.title);
     var czBtn = tile.querySelector(".cz-btn");
     if(czBtn && window.EATLAS_CUSTOMIZE){
       var czKind = BAR_KEYS[m.key] ? "bar" : "line";
       var czSrcNote = metricSourceNote(m.country, m.dataKey || m.key, m.series.label);
-      var czFmtY = function(v){ return fmtVal(v, m.series.unit, m.key, m.country); };
-      window.EATLAS_CUSTOMIZE.wire(czBtn, effectivePoints(m.country, m.dataKey || m.key, m.series), m.country + " " + m.series.label, czSrcNote, czFmtY, "", m.country + "_" + (m.dataKey || m.key), czKind, fmtPeriod, m.dataKey || m.key, m.country);
+      window.EATLAS_CUSTOMIZE.wire(czBtn, tdw.pts, m.country + " " + tdw.title, czSrcNote, tdw.fmt, "", m.country + "_" + (m.dataKey || m.key) + (tdw.perCapita ? "_per_person" : ""), czKind, fmtPeriod, m.dataKey || m.key, m.country);
     }
     tile.querySelector(".remove").addEventListener("click", function(e){
       e.stopPropagation();
@@ -5024,9 +5048,7 @@ loadAll().then(function(){
       var canvas = document.createElement("canvas");
       canvas.width = CHART_W; canvas.height = CHART_H;
       var xdk = m.dataKey || m.key;
-      var pts = toDisplayPoints(effectivePoints(m.country, xdk, m.series), m.series.unit, m.country, xdk);
-      var chartUnit = toDisplayUnit(0, m.series.unit, m.country, xdk, m.period).unit;
-      if(pcApplies(m)){ var pcc = pcChartPoints(m, pts, chartUnit); pts = pcc.pts; chartUnit = pcc.unit; }   // v1.9.138
+      var xtd = tileDisplay(m), pts = xtd.pts, chartUnit = xtd.unit;   // v1.9.139
       var kind = BAR_KEYS[m.key] ? "bar" : "line";
       var refLine = REF_LINE_FOR[m.key] == null ? null : REF_LINE_FOR[m.key];
       var fmt = function(v){ return fmtVal(v, chartUnit, m.key, m.country); };
@@ -5284,11 +5306,13 @@ function czFormatSavedAt(iso){
 }
 function czSaveStyleSnapshot(){
   var czState = window.EATLAS_GET_CZ_STATE();
-  return {
-    chartTitle: czState.chartTitle, yTitle: czState.yTitle,
-    chartKind: czState.chartKind, showFill: czState.showFill, showPoints: czState.showPoints,
-    refLine: czState.refLine, threshold2Color: czState.threshold2Color
-  };
+  var o = {};   // v1.9.139: every setting the editor offers, plus the page's three switches
+  ["chartTitle", "yTitle", "chartKind", "showFill", "showPoints", "refLine", "threshold2Color", "yTitlePos", "yScale",
+   "yTickStepIdx", "xTicks", "xLabelAngle", "lineColor", "exportTheme", "annotations"].forEach(function(k){
+    if(czState[k] !== undefined) o[k] = JSON.parse(JSON.stringify(czState[k]));
+  });
+  o.toggles = { dollar: !!dollarise, real: !!makeItReal, capita: !!perCapita };
+  return o;
 }
 // Country pages and Compare save/query saved_charts.country_code using
 // the site's URL-routing 2-letter code (e.g. "de", "uk") -- Dashboard's
@@ -5321,7 +5345,14 @@ function loadSavedChart(row){
     window.alert("This saved chart's series isn't available (the data for " + country + " may not have loaded).");
     return;
   }
-  var pts = effectivePoints(country, row.metric_key, series);
+  var st0 = row.style || {}, tg = st0.toggles;
+  if(tg){   // v1.9.139: put the page's switches back as they were when saved, then rebuild what the tile shows
+    var flip = [["dollar", "dollariseBtn", dollarise], ["real", "makeRealBtn", makeItReal], ["capita", "perCapitaBtn", perCapita]];
+    flip.forEach(function(f){ var b = document.getElementById(f[1]); if(b && !!tg[f[0]] !== !!f[2]) b.click(); });
+  }
+  var mSaved = (typeof tileFromId === "function") ? tileFromId(country + "::" + row.metric_key) : null;
+  var tdl = mSaved ? tileDisplay(mSaved) : null;
+  var pts = tdl ? tdl.pts : effectivePoints(country, row.metric_key, series);
   if(row.from_period || row.to_period){
     var filtered = pts.filter(function(p){
       return (!row.from_period || p[0] >= row.from_period) && (!row.to_period || p[0] <= row.to_period);
@@ -5329,7 +5360,7 @@ function loadSavedChart(row){
     if(filtered.length) pts = filtered;
   }
   var kind = BAR_KEYS[row.metric_key] ? "bar" : "line";
-  var fmtY = function(v){ return fmtVal(v, series.unit, row.metric_key, country); };
+  var fmtY = tdl ? tdl.fmt : function(v){ return fmtVal(v, series.unit, row.metric_key, country); };
   var srcNote = metricSourceNote(country, row.metric_key, series.label);
   var title = row.name || (country + " " + series.label);
   window.EATLAS_OPEN_CUSTOMIZE(pts, title, srcNote, fmtY, "", country + "_" + row.metric_key, kind, fmtPeriod, row.metric_key, country, row.style || {});

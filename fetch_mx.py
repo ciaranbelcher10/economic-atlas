@@ -49,6 +49,7 @@ import oecd_unemp
 import gdp_overlay
 import oecd_prices
 import json
+import imf_trade
 import time
 import os
 import sys
@@ -67,7 +68,7 @@ import series_guard
 # Add an entry ONLY when intentionally swapping source, and say why, e.g.
 #     ALLOW_SHRINK = {"ppi": "PPIACO -> PPIFID, final demand is the BLS headline"}
 # Remove it once the new series has landed.
-ALLOW_SHRINK = {}
+ALLOW_SHRINK = {"trade_balance": "v1.9.139: OECD quarterly (FRED) -> IMF ITG monthly from 2006; remove after the first data run"}
 
 # key: (fred_id, freq 'm'|'q'|'a', label, unit, transform None|'yoy'|'mom'|'qoq', scale)
 # - participation_rate (LRAC64TTMXQ156S) / employment_rate (LREM64TTMXQ156S): OECD infra-annual labour-statistics FRED family, quarterly, ages 15-64. Same pattern confirmed live for Germany (pilot); inferred-by-pattern for Mexico -- not individually confirmed, check the first Actions log.
@@ -78,7 +79,7 @@ FRED_SERIES = {
     "participation_rate": ("LRAC64TTMXQ156S", "q", "Labour force participation rate, 15-64, SA", "%", None, 1.0),
     "employment_rate": ("LREM64TTMXQ156S", "q", "Employment rate, 15-64, SA", "%", None, 1.0),
     "bond_yield_10y": ("IRLTLT01MXM156N", "m", "10-year government bond yield", "%", None, 1.0),
-    "trade_balance": ("XTNTVA01MXQ667S", "q", "Trade balance, goods, $", "$m", None, 1e-6),
+    # v1.9.138: trade_balance moved to the IMF monthly ITG data (imf_trade.py).
 }
 
 FRED_URL = ("https://api.stlouisfed.org/fred/series/observations"
@@ -676,6 +677,16 @@ def main() -> int:
     # a carried-over series is already in local currency, and for countries
     # whose converted unit keeps a bare $ it would otherwise be converted a
     # second time. See tools/test_trade_fx.py.
+    # v1.9.138: goods trade from the IMF's monthly ITG data (exports, imports and balance), replacing the
+    # OECD quarterly balance on FRED (XTNTVA01..Q667S), which did not match national customs figures
+    # (verification, 15 Nov 2026). US$ here; converted to pesos at each month's average rate below.
+    try:
+        for _tk, _pts in imf_trade.series("MEX").items():
+            out["series"][_tk] = {"label": imf_trade.LABEL[_tk], "unit": "$m", "freq": "months", "points": _pts}
+            print(f"  ok  {_tk:<16} {len(_pts):>5} observations ({_pts[0][0]} to {_pts[-1][0]}, months, US$, IMF ITG)")
+    except Exception as exc:
+        failures.append("trade_balance")
+        print(f"FAIL  trade (IMF ITG)  {exc}")
     _fresh_keys = set(out["series"])
     _guard_verdicts = series_guard.apply_guard(
         out["series"], _prev_series, allow_shrink=ALLOW_SHRINK)
@@ -737,7 +748,7 @@ def main() -> int:
                         if ser["unit"].strip().startswith("$"):
                             ser["points"] = [[p, round(to_local(v, p), 1)] for p, v in ser["points"]]
                             ser["unit"] = ser["unit"].replace("$", "MXN", 1)   # v1.9.138: name the currency
-                            ser["label"] = ser["label"].replace(", $ ", " ").replace(", $", "")
+                            ser["label"] = ser["label"].replace(", $ ", " ").replace(", $", "").replace("not seasonally adjusted)", "not seasonally adjusted, converted from US$ at each month's average rate)")
                             print(f"  ok  {tk:<16} converted using {fx_rate}")
             else:
                 print("note  fx_to_usd: no observations returned; check the log")

@@ -24,7 +24,7 @@
 <noscript><link href="https://fonts.googleapis.com/css2?family=Nunito+Sans:wght@400;600;700&display=swap" rel="stylesheet"></noscript>
 <link rel="stylesheet" href="../style.css?v=63">
 <link rel="stylesheet" href="../mobile.css?v=49">
-<link rel="stylesheet" href="../indicator.css?v=15">
+<link rel="stylesheet" href="../indicator.css?v=17">
 <script type="application/ld+json">
 {
   "@context": "https://schema.org",
@@ -658,6 +658,7 @@
       // timing anything genuinely slow.
       setTimeout(function(){
         var csv = entry.kind === "multi" ? multiToCSV(entry.data) : seriesToCSV(entry.data);
+        csv = csv.replace(/^((?:Country,)?Date,)Value\n/, function(_, h){ return h + (/[",\n]/.test(String(entry.title || "")) ? '"' + String(entry.title).replace(/"/g, '""') + '"' : String(entry.title || "Value")) + "\n"; });   // v1.9.139: the value column names the chart and its unit
         triggerDownload(csv, entry.title);
         btn.classList.remove("dl-downloading");
         btn.classList.add("dl-success");
@@ -1207,7 +1208,7 @@
     </div>
   </div>
   <p class="lightskey"><span><span class="led green" aria-hidden="true"></span>Up to date</span><span><span class="led orange" aria-hidden="true"></span>Awaiting update</span></p>
-  <a class="glow-cta" href="../poland"><span class="glow-inner"><span class="glow-text"><span class="glow-title">Explore the full Poland economy</span><span class="glow-sub">19 live indicators on one dashboard, from growth and prices to jobs, trade and public finances. Updated automatically from official sources.</span></span><span class="glow-go"><svg viewBox="0 0 20 20" fill="none" aria-hidden="true"><path d="M4 10h11m-4.5-4.5L15 10l-4.5 4.5" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"/></svg></span></span></a>
+  <a class="glow-cta" href="../poland"><span class="glow-inner"><span class="glow-text"><span class="glow-title">Explore the full Poland economy</span><span class="glow-sub">21 live indicators on one dashboard, from growth and prices to jobs, trade and public finances. Updated automatically from official sources.</span></span><span class="glow-go"><svg viewBox="0 0 20 20" fill="none" aria-hidden="true"><path d="M4 10h11m-4.5-4.5L15 10l-4.5 4.5" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"/></svg></span></span></a>
   
   <section class="panel ind-panel" aria-labelledby="chartTitle">
     <div class="ind-panelhead">
@@ -1244,8 +1245,8 @@
     <p class="ind-section-sub">Latest readings. Open any one for its full history.</p>
     <div class="ind-related">
 <div class="ind-cat">GDP &amp; growth</div>
-<a href="poland-gdp"><span class="r-name">GDP</span><span class="r-val">PLN4.03tn</span><span class="r-per">Q2 2026</span></a>
-<a href="poland-real-gdp"><span class="r-name">Real GDP</span><span class="r-val">PLN2.44tn</span><span class="r-per">Q2 2026</span></a>
+<a href="poland-gdp"><span class="r-name">GDP</span><span class="r-val">PLN4.0tn</span><span class="r-per">Q2 2026</span></a>
+<a href="poland-real-gdp"><span class="r-name">Real GDP</span><span class="r-val">PLN2.4tn</span><span class="r-per">Q2 2026</span></a>
 <a href="poland-gdp-per-capita"><span class="r-name">GDP per Capita</span><span class="r-val">PLN107k</span><span class="r-per">2025</span></a>
 <a href="poland-gdp-growth-rate"><span class="r-name">GDP Growth Rate (quarter on quarter)</span><span class="r-val">1.1%</span><span class="r-per">Q2 2026</span></a>
 <a href="poland-gdp-annual-growth-rate"><span class="r-name">GDP Annual Growth Rate</span><span class="r-val">4.0%</span><span class="r-per">Q2 2026</span></a>
@@ -1262,7 +1263,9 @@
 <div class="ind-cat">Markets</div>
 <a href="poland-exchange-rate"><span class="r-name">Exchange Rate Against the US Dollar</span><span class="r-val">$0.2659 per PLN 1</span><span class="r-per">2025</span></a>
 <div class="ind-cat">Trade</div>
-<a href="poland-balance-of-trade"><span class="r-name">Balance of Trade</span><span class="r-val">−€1.96bn</span><span class="r-per">Sep 2026</span></a>
+<a href="poland-balance-of-trade"><span class="r-name">Balance of Trade</span><span class="r-val">−PLN8.5bn</span><span class="r-per">Sep 2026</span></a>
+<a href="poland-exports"><span class="r-name">Exports</span><span class="r-val">PLN147.1bn</span><span class="r-per">Sep 2026</span></a>
+<a href="poland-imports"><span class="r-name">Imports</span><span class="r-val">PLN155.6bn</span><span class="r-per">Sep 2026</span></a>
 <a href="poland-foreign-direct-investment"><span class="r-name">Foreign Direct Investment (% of GDP)</span><span class="r-val">2.0%</span><span class="r-per">2025</span></a>
 <div class="ind-cat">Public finances</div>
 <a href="poland-government-debt"><span class="r-name">Government Debt (% of GDP)</span><span class="r-val">59.6%</span><span class="r-per">2025</span></a>
@@ -1422,7 +1425,7 @@
 </div>
 
 <script src="https://cdnjs.cloudflare.com/ajax/libs/Chart.js/4.4.1/chart.umd.min.js"></script>
-<script src="../indicator-kit.js?v=15"></script>
+<script src="../indicator-kit.js?v=17"></script>
 <script>EATLAS_IND.initIndicator({"key": "population", "country": "Poland", "unit": "people", "freq": "years", "upIsGood": true, "chart": "line", "annualise": false, "gdpRaw": false, "dataUrl": "../data-pl.json", "points": [["1960", 29637450], ["1961", 29964000], ["1962", 30308500], ["1963", 30712000], ["1964", 31139450], ["1965", 31444950], ["1966", 31681000], ["1967", 31987155], ["1968", 32294655], ["1969", 32548300], ["1970", 32664300], ["1971", 32783500], ["1972", 33055650], ["1973", 33357200], ["1974", 33678899], ["1975", 34015199], ["1976", 34356300], ["1977", 34689050], ["1978", 34965600], ["1979", 35247217], ["1980", 35574150], ["1981", 35898587], ["1982", 36230481], ["1983", 36571808], ["1984", 36904134], ["1985", 37201885], ["1986", 37456119], ["1987", 37668045], ["1988", 37824487], ["1989", 37961529], ["1990", 38110782], ["1991", 38246193], ["1992", 38363667], ["1993", 38461408], ["1994", 38542652], ["1995", 38594998], ["1996", 38624370], ["1997", 38649660], ["1998", 38663481], ["1999", 38660271], ["2000", 38258629], ["2001", 38248076], ["2002", 38230364], ["2003", 38204570], ["2004", 38182222], ["2005", 38165445], ["2006", 38141267], ["2007", 38120560], ["2008", 38125759], ["2009", 38151603], ["2010", 38042794], ["2011", 38063255], ["2012", 38063164], ["2013", 38040196], ["2014", 38011735], ["2015", 37986412], ["2016", 37970087], ["2017", 37974826], ["2018", 37974750], ["2019", 37965475], ["2020", 37515748], ["2021", 36981559], ["2022", 36821749], ["2023", 36687353], ["2024", 36559233], ["2025", 36435861]], "realPoints": null, "realUnit": null, "realKey": null, "realAnchor": null, "fx": null, "population": null, "title": "Poland Population", "srcNote": "World Bank · Population, total (SP.POP.TOTL), mid-year estimates, annual."});</script>
 <script>
 (function(){
@@ -2549,21 +2552,35 @@
     var mi = String(dt.getMinutes()).padStart(2, "0");
     return dd + " " + mo + " " + yy + ", " + hh + ":" + mi;
   }
+  /* v1.9.139: a saved chart keeps every setting the editor offers and the page's three switches
+     (Convert to USD$, Adjust for inflation, Per capita), so it reopens exactly as it was saved, here
+     or in Chartmaker. Older saves carry fewer keys; anything missing keeps its default. */
+  var CZ_SAVE_KEYS = ["chartTitle", "yTitle", "chartKind", "showFill", "showPoints", "refLine", "threshold2Color",
+    "yTitlePos", "yScale", "yTickStepIdx", "xTicks", "xLabelAngle", "lineColor", "exportTheme", "annotations"];
   function czSaveStyleSnapshot(){
-    return {
-      chartTitle: czState.chartTitle, yTitle: czState.yTitle,
-      chartKind: czState.chartKind, showFill: czState.showFill, showPoints: czState.showPoints,
-      refLine: czState.refLine, threshold2Color: czState.threshold2Color
-    };
+    var o = {};
+    CZ_SAVE_KEYS.forEach(function(k){ if(czState[k] !== undefined) o[k] = JSON.parse(JSON.stringify(czState[k])); });
+    if(typeof TOGGLE_STATE !== "undefined") o.toggles = { dollar: !!TOGGLE_STATE.dollar, real: !!TOGGLE_STATE.real, capita: !!TOGGLE_STATE.capita };
+    return o;
+  }
+  function czRestoreToggles(t){
+    if(!t || typeof TOGGLE_STATE === "undefined" || typeof toggleMetric !== "function") return;
+    [["dollar", "toggleDollar"], ["real", "toggleReal"], ["capita", "toggleCapita"]].forEach(function(p){
+      var want = !!t[p[0]], btn = document.getElementById(p[1]);
+      if(btn && !btn.disabled && !!TOGGLE_STATE[p[0]] !== want) toggleMetric(p[0], btn);
+    });
   }
   function loadSavedChart(row){
+    var style = row.style || {};
+    czRestoreToggles(style.toggles);   // the page redraws with the saved switches before the chart is rebuilt
     var meta = window.EATLAS_CHART_META && window.EATLAS_CHART_META[row.metric_key];
     var series = window.EATLAS_SERIES && window.EATLAS_SERIES[row.metric_key];
-    if(!meta || !series || !series.points){
+    var allPts = (meta && meta.pts) || (series && series.points);   // the figures the panel shows, switches applied
+    if(!meta || !allPts || !allPts.length){
       window.alert("This saved chart's series isn't available on this page.");
       return;
     }
-    var pts = series.points;
+    var pts = allPts;
     if(row.from_period || row.to_period){
       var filtered = pts.filter(function(p){
         return (!row.from_period || p[0] >= row.from_period) && (!row.to_period || p[0] <= row.to_period);
@@ -2571,22 +2588,31 @@
       if(filtered.length) pts = filtered;
     }
     window.EATLAS_OPEN_CUSTOMIZE(pts, row.name || meta.title, meta.srcNote, meta.fmtY, "", meta.title, meta.kind, czFmtPeriod, row.metric_key);
-    var style = row.style || {};
-    if(style.chartTitle != null){ czState.chartTitle = style.chartTitle; document.getElementById("czChartTitleInput").value = style.chartTitle; }
-    if(style.yTitle != null){ czState.yTitle = style.yTitle; document.getElementById("czYAxisTitleInput").value = style.yTitle; }
-    if(style.chartKind){
+    var has = function(k){ return style[k] !== undefined && style[k] !== null; };
+    var setChk = function(id, v){ var e = document.getElementById(id); if(e) e.checked = !!v; };
+    var setVal = function(id, v){ var e = document.getElementById(id); if(e) e.value = v; };
+    if(has("chartTitle")){ czState.chartTitle = style.chartTitle; setVal("czChartTitleInput", style.chartTitle); }
+    if(has("yTitle")){ czState.yTitle = style.yTitle; setVal("czYAxisTitleInput", style.yTitle); }
+    if(style.chartKind === "bar" || style.chartKind === "line"){
       czState.chartKind = style.chartKind;
       czChartKindSeg.querySelectorAll("button").forEach(function(b){ b.classList.toggle("active", b.dataset.kind === czState.chartKind); });
     }
-    if(style.refLine){
-      czState.refLine = style.refLine;
-      document.getElementById("czReflineToggle").checked = !!style.refLine.enabled;
-      document.getElementById("czReflineValue").value = style.refLine.value;
+    if(has("refLine")){
+      czState.refLine = { enabled: !!style.refLine.enabled, value: +style.refLine.value || 0 };
+      setChk("czReflineToggle", czState.refLine.enabled); setVal("czReflineValue", czState.refLine.value);
     }
-    czState.showFill = style.showFill !== false;
-    document.getElementById("czFillToggle").checked = czState.showFill;
-    czState.showPoints = style.showPoints !== false;
-    document.getElementById("czPointsToggle").checked = czState.showPoints;
+    if(has("threshold2Color")){ czState.threshold2Color = !!style.threshold2Color; setChk("czThresholdShadeToggle", czState.threshold2Color); }
+    czState.showFill = style.showFill !== false; setChk("czFillToggle", czState.showFill);
+    czState.showPoints = style.showPoints !== false; setChk("czPointsToggle", czState.showPoints);
+    if(has("yScale")){ czState.yScale = style.yScale === "log" ? "log" : "linear"; setChk("czLogScaleToggle", czState.yScale === "log"); }
+    if(typeof style.yTickStepIdx === "number") czState.yTickStepIdx = style.yTickStepIdx;
+    if(has("yTitlePos")){ czState.yTitlePos = style.yTitlePos; czYTitlePosSeg.querySelectorAll("button").forEach(function(b){ b.classList.toggle("active", b.dataset.pos === czState.yTitlePos); }); }
+    if(has("xTicks")){ czState.xTicks = +style.xTicks || czState.xTicks; czXTickVal.textContent = String(czState.xTicks); }
+    if(has("xLabelAngle")){ czState.xLabelAngle = style.xLabelAngle; czXAngleSeg.querySelectorAll("button").forEach(function(b){ b.classList.toggle("active", b.dataset.angle === czState.xLabelAngle); }); }
+    if(has("lineColor")){ czState.lineColor = style.lineColor; czSyncColorSwatches(); }
+    if(style.exportTheme === "light" || style.exportTheme === "dark"){ czState.exportTheme = style.exportTheme; czThemeSeg.querySelectorAll("button").forEach(function(b){ b.classList.toggle("active", b.dataset.theme === czState.exportTheme); }); }
+    if(Array.isArray(style.annotations)){ czState.annotations = JSON.parse(JSON.stringify(style.annotations)); czRenderAnnotList(); }
+    if(typeof czSyncModeFields === "function") czSyncModeFields();
     czRenderPreview();
   }
   // ---- Saved charts list: lives in the "Open chart" popover next to
@@ -2599,7 +2625,7 @@
       if(!listEl) return;
       listEl.innerHTML = "";
       if(!rows.length){
-        listEl.textContent = 'No saved charts yet , open "Bank Rate" → Customise & export → Save chart.';
+        listEl.textContent = 'No saved charts yet. Open any chart\u2019s Customise & export, then Save chart.';
         return;
       }
       rows.forEach(function(row){

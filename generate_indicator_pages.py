@@ -44,7 +44,7 @@ SITE_URL = "https://theeconomicatlas.com"
 # underlying official statistics, which stay with their publishers.
 CREATOR = {"@type": "Organization", "name": "The Economic Atlas", "url": SITE_URL}
 LICENSE = f"{SITE_URL}/terms"
-KIT_VERSION = "15"
+KIT_VERSION = "17"
 PERCAPITA_VERSION = "6"
 # v1.9.123: must match percapita.js ELIGIBLE
 PC_ELIGIBLE = {"gdp_level", "gdp_real", "exports", "imports", "trade_balance", "net_debt", "debt_interest", "deficit"}
@@ -459,6 +459,9 @@ def symbol_of(u, key, country, dollarised=False):
         sym = (ISO_GLYPH.get(code.group(1), code.group(1))) if code else ""
     if sym == "$" and not dollarised and key in NATIVE_KEYS and country in NATIVE_DOLLAR:
         sym = NATIVE_DOLLAR[country]
+    # v1.9.139: outside the US, a series still published in US dollars (Argentina, Indonesia trade) reads "US$"
+    if sym == "$" and not dollarised and country and country != "US":
+        sym = "US$"
     return sym
 
 def _trim(s):
@@ -513,7 +516,7 @@ def _fmt_num_raw(v, unit, key="", country="", mode="value", dollarised=False):
         return quote + num + " per " + base
     sym = symbol_of(unit, key, country, dollarised)
     ab = a * scale_of(unit)
-    d = 1 if mode in ("axis", "delta") else 2
+    d = 2 if mode == "cell" else 1   # v1.9.139: headline figures one decimal for tn/bn, as on every country-page tile
     if ab >= 1e12:
         out = _fixed(ab / 1e12, d) + "tn"
     elif ab >= 1e9:
@@ -524,10 +527,13 @@ def _fmt_num_raw(v, unit, key="", country="", mode="value", dollarised=False):
         out = _fixed(ab / 1e3, 0 if ab >= 1e5 else 1) + "k"
     else:
         out = _fixed(ab, 0)
-    out = out if mode == "cell" else _trim(out)
+    out = out if (mode == "cell" or (mode == "value" and re.search(r"(tn|bn)$", out))) else _trim(out)   # tiles keep "2.0tn"
     # Economies measured in trillions of a small-unit currency (COP, IDR,
     # KRW, ARS) run past 1,000tn; group the digits so they stay readable.
     out = re.sub(r"^(\d+)", lambda m: f"{int(m.group(1)):,}", out)
+    # v1.9.139: a change of under a thousand people says so ("+496 people", not "+496" beside "2.9m")
+    if mode == "delta" and _clean_unit(unit) == "people" and ab < 1e3:
+        return sign + sym + out + " people"
     return sign + sym + out
 
 def fx_dp(a):
@@ -1808,10 +1814,11 @@ def render_indicator(country, info, entry, rank_info, all_rankings_meta, n_indic
         if not gdp_in_usd(country, info["data"]):
             fx = info["data"].get("fx_to_usd")
         btns = []
-        if real_pts:
-            btns.append('<button type="button" class="mtoggle" id="indToggleReal" aria-pressed="false"><span class="mtoggle-switch" aria-hidden="true"></span>Adjust for inflation</button>')
+        # v1.9.139: Convert to USD$ first, then Adjust for inflation, then Per capita (same order on every surface)
         if fx:
             btns.append('<button type="button" class="mtoggle" id="indToggleDollar" aria-pressed="false"><span class="mtoggle-switch" aria-hidden="true"></span>Convert to USD$</button>')
+        if real_pts:
+            btns.append('<button type="button" class="mtoggle" id="indToggleReal" aria-pressed="false"><span class="mtoggle-switch" aria-hidden="true"></span>Adjust for inflation</button>')
         if btns:
             toggles_html = '<div class="ind-toggles" aria-label="Display options">' + "".join(btns) + "</div>"
 

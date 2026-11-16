@@ -24,7 +24,7 @@
 <noscript><link href="https://fonts.googleapis.com/css2?family=Nunito+Sans:wght@400;600;700&display=swap" rel="stylesheet"></noscript>
 <link rel="stylesheet" href="../style.css?v=63">
 <link rel="stylesheet" href="../mobile.css?v=49">
-<link rel="stylesheet" href="../indicator.css?v=15">
+<link rel="stylesheet" href="../indicator.css?v=17">
 <script type="application/ld+json">
 {
   "@context": "https://schema.org",
@@ -658,6 +658,7 @@
       // timing anything genuinely slow.
       setTimeout(function(){
         var csv = entry.kind === "multi" ? multiToCSV(entry.data) : seriesToCSV(entry.data);
+        csv = csv.replace(/^((?:Country,)?Date,)Value\n/, function(_, h){ return h + (/[",\n]/.test(String(entry.title || "")) ? '"' + String(entry.title).replace(/"/g, '""') + '"' : String(entry.title || "Value")) + "\n"; });   // v1.9.139: the value column names the chart and its unit
         triggerDownload(csv, entry.title);
         btn.classList.remove("dl-downloading");
         btn.classList.add("dl-success");
@@ -1207,7 +1208,7 @@
     </div>
   </div>
   <p class="lightskey"><span><span class="led green" aria-hidden="true"></span>Up to date</span><span><span class="led orange" aria-hidden="true"></span>Awaiting update</span></p>
-  <a class="glow-cta" href="../canada"><span class="glow-inner"><span class="glow-text"><span class="glow-title">Explore the full Canada economy</span><span class="glow-sub">17 live indicators on one dashboard, from growth and prices to jobs, trade and public finances. Updated automatically from official sources.</span></span><span class="glow-go"><svg viewBox="0 0 20 20" fill="none" aria-hidden="true"><path d="M4 10h11m-4.5-4.5L15 10l-4.5 4.5" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"/></svg></span></span></a>
+  <a class="glow-cta" href="../canada"><span class="glow-inner"><span class="glow-text"><span class="glow-title">Explore the full Canada economy</span><span class="glow-sub">19 live indicators on one dashboard, from growth and prices to jobs, trade and public finances. Updated automatically from official sources.</span></span><span class="glow-go"><svg viewBox="0 0 20 20" fill="none" aria-hidden="true"><path d="M4 10h11m-4.5-4.5L15 10l-4.5 4.5" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"/></svg></span></span></a>
   
   <section class="panel ind-panel" aria-labelledby="chartTitle">
     <div class="ind-panelhead">
@@ -1244,8 +1245,8 @@
     <p class="ind-section-sub">Latest readings. Open any one for its full history.</p>
     <div class="ind-related">
 <div class="ind-cat">GDP &amp; growth</div>
-<a href="canada-gdp"><span class="r-name">GDP</span><span class="r-val">C$3.33tn</span><span class="r-per">Q2 2026</span></a>
-<a href="canada-real-gdp"><span class="r-name">Real GDP</span><span class="r-val">C$2.51tn</span><span class="r-per">Q2 2026</span></a>
+<a href="canada-gdp"><span class="r-name">GDP</span><span class="r-val">C$3.3tn</span><span class="r-per">Q2 2026</span></a>
+<a href="canada-real-gdp"><span class="r-name">Real GDP</span><span class="r-val">C$2.5tn</span><span class="r-per">Q2 2026</span></a>
 <a href="canada-gdp-per-capita"><span class="r-name">GDP per Capita</span><span class="r-val">C$77.9k</span><span class="r-per">2025</span></a>
 <a href="canada-gdp-growth-rate"><span class="r-name">GDP Growth Rate (quarter on quarter)</span><span class="r-val">0.8%</span><span class="r-per">Q2 2026</span></a>
 <a href="canada-gdp-annual-growth-rate"><span class="r-name">GDP Annual Growth Rate</span><span class="r-val">1.1%</span><span class="r-per">Q2 2026</span></a>
@@ -1260,7 +1261,9 @@
 <div class="ind-cat">Markets</div>
 <a href="canada-exchange-rate"><span class="r-name">Exchange Rate Against the US Dollar</span><span class="r-val">US$0.7140 per C$1</span><span class="r-per">Nov 2026</span></a>
 <div class="ind-cat">Trade</div>
-<a href="canada-balance-of-trade"><span class="r-name">Balance of Trade</span><span class="r-val">C$7.24bn</span><span class="r-per">Q2 2026</span></a>
+<a href="canada-balance-of-trade"><span class="r-name">Balance of Trade</span><span class="r-val">C$3.8bn</span><span class="r-per">Jun 2026</span></a>
+<a href="canada-exports"><span class="r-name">Exports</span><span class="r-val">C$79.7bn</span><span class="r-per">Jun 2026</span></a>
+<a href="canada-imports"><span class="r-name">Imports</span><span class="r-val">C$75.8bn</span><span class="r-per">Jun 2026</span></a>
 <a href="canada-current-account-to-gdp"><span class="r-name">Current Account (% of GDP)</span><span class="r-val">−1.0%</span><span class="r-per">2025</span></a>
 <a href="canada-foreign-direct-investment"><span class="r-name">Foreign Direct Investment (% of GDP)</span><span class="r-val">3.0%</span><span class="r-per">2025</span></a>
 <div class="ind-cat">Public finances</div>
@@ -1419,7 +1422,7 @@
 </div>
 
 <script src="https://cdnjs.cloudflare.com/ajax/libs/Chart.js/4.4.1/chart.umd.min.js"></script>
-<script src="../indicator-kit.js?v=15"></script>
+<script src="../indicator-kit.js?v=17"></script>
 <script>EATLAS_IND.initIndicator({"key": "population", "country": "Canada", "unit": "people", "freq": "years", "upIsGood": true, "chart": "line", "annualise": false, "gdpRaw": false, "dataUrl": "../data-ca.json", "points": [["1960", 17909356], ["1961", 18271000], ["1962", 18614000], ["1963", 18964000], ["1964", 19325000], ["1965", 19678000], ["1966", 20048000], ["1967", 20412000], ["1968", 20744000], ["1969", 21028000], ["1970", 21324000], ["1971", 21962032], ["1972", 22218463], ["1973", 22491777], ["1974", 22807969], ["1975", 23143275], ["1976", 23449808], ["1977", 23725843], ["1978", 23963203], ["1979", 24201544], ["1980", 24515667], ["1981", 24819915], ["1982", 25116942], ["1983", 25366451], ["1984", 25607053], ["1985", 25842116], ["1986", 26100278], ["1987", 26446601], ["1988", 26791747], ["1989", 27276781], ["1990", 27691138], ["1991", 28037420], ["1992", 28371264], ["1993", 28684764], ["1994", 29000663], ["1995", 29302311], ["1996", 29610218], ["1997", 29905948], ["1998", 30155173], ["1999", 30401286], ["2000", 30685730], ["2001", 31020855], ["2002", 31359199], ["2003", 31642461], ["2004", 31938807], ["2005", 32242732], ["2006", 32571193], ["2007", 32888886], ["2008", 33247298], ["2009", 33630069], ["2010", 34005902], ["2011", 34339221], ["2012", 34713395], ["2013", 35080992], ["2014", 35434066], ["2015", 35704498], ["2016", 36110803], ["2017", 36545075], ["2018", 37072620], ["2019", 37618495], ["2020", 38028638], ["2021", 38239864], ["2022", 38950132], ["2023", 40049088], ["2024", 41262329], ["2025", 41651653]], "realPoints": null, "realUnit": null, "realKey": null, "realAnchor": null, "fx": null, "population": null, "title": "Canada Population", "srcNote": "World Bank · Population, total (SP.POP.TOTL), mid-year estimates, annual."});</script>
 <script>
 (function(){
@@ -2546,21 +2549,35 @@
     var mi = String(dt.getMinutes()).padStart(2, "0");
     return dd + " " + mo + " " + yy + ", " + hh + ":" + mi;
   }
+  /* v1.9.139: a saved chart keeps every setting the editor offers and the page's three switches
+     (Convert to USD$, Adjust for inflation, Per capita), so it reopens exactly as it was saved, here
+     or in Chartmaker. Older saves carry fewer keys; anything missing keeps its default. */
+  var CZ_SAVE_KEYS = ["chartTitle", "yTitle", "chartKind", "showFill", "showPoints", "refLine", "threshold2Color",
+    "yTitlePos", "yScale", "yTickStepIdx", "xTicks", "xLabelAngle", "lineColor", "exportTheme", "annotations"];
   function czSaveStyleSnapshot(){
-    return {
-      chartTitle: czState.chartTitle, yTitle: czState.yTitle,
-      chartKind: czState.chartKind, showFill: czState.showFill, showPoints: czState.showPoints,
-      refLine: czState.refLine, threshold2Color: czState.threshold2Color
-    };
+    var o = {};
+    CZ_SAVE_KEYS.forEach(function(k){ if(czState[k] !== undefined) o[k] = JSON.parse(JSON.stringify(czState[k])); });
+    if(typeof TOGGLE_STATE !== "undefined") o.toggles = { dollar: !!TOGGLE_STATE.dollar, real: !!TOGGLE_STATE.real, capita: !!TOGGLE_STATE.capita };
+    return o;
+  }
+  function czRestoreToggles(t){
+    if(!t || typeof TOGGLE_STATE === "undefined" || typeof toggleMetric !== "function") return;
+    [["dollar", "toggleDollar"], ["real", "toggleReal"], ["capita", "toggleCapita"]].forEach(function(p){
+      var want = !!t[p[0]], btn = document.getElementById(p[1]);
+      if(btn && !btn.disabled && !!TOGGLE_STATE[p[0]] !== want) toggleMetric(p[0], btn);
+    });
   }
   function loadSavedChart(row){
+    var style = row.style || {};
+    czRestoreToggles(style.toggles);   // the page redraws with the saved switches before the chart is rebuilt
     var meta = window.EATLAS_CHART_META && window.EATLAS_CHART_META[row.metric_key];
     var series = window.EATLAS_SERIES && window.EATLAS_SERIES[row.metric_key];
-    if(!meta || !series || !series.points){
+    var allPts = (meta && meta.pts) || (series && series.points);   // the figures the panel shows, switches applied
+    if(!meta || !allPts || !allPts.length){
       window.alert("This saved chart's series isn't available on this page.");
       return;
     }
-    var pts = series.points;
+    var pts = allPts;
     if(row.from_period || row.to_period){
       var filtered = pts.filter(function(p){
         return (!row.from_period || p[0] >= row.from_period) && (!row.to_period || p[0] <= row.to_period);
@@ -2568,22 +2585,31 @@
       if(filtered.length) pts = filtered;
     }
     window.EATLAS_OPEN_CUSTOMIZE(pts, row.name || meta.title, meta.srcNote, meta.fmtY, "", meta.title, meta.kind, czFmtPeriod, row.metric_key);
-    var style = row.style || {};
-    if(style.chartTitle != null){ czState.chartTitle = style.chartTitle; document.getElementById("czChartTitleInput").value = style.chartTitle; }
-    if(style.yTitle != null){ czState.yTitle = style.yTitle; document.getElementById("czYAxisTitleInput").value = style.yTitle; }
-    if(style.chartKind){
+    var has = function(k){ return style[k] !== undefined && style[k] !== null; };
+    var setChk = function(id, v){ var e = document.getElementById(id); if(e) e.checked = !!v; };
+    var setVal = function(id, v){ var e = document.getElementById(id); if(e) e.value = v; };
+    if(has("chartTitle")){ czState.chartTitle = style.chartTitle; setVal("czChartTitleInput", style.chartTitle); }
+    if(has("yTitle")){ czState.yTitle = style.yTitle; setVal("czYAxisTitleInput", style.yTitle); }
+    if(style.chartKind === "bar" || style.chartKind === "line"){
       czState.chartKind = style.chartKind;
       czChartKindSeg.querySelectorAll("button").forEach(function(b){ b.classList.toggle("active", b.dataset.kind === czState.chartKind); });
     }
-    if(style.refLine){
-      czState.refLine = style.refLine;
-      document.getElementById("czReflineToggle").checked = !!style.refLine.enabled;
-      document.getElementById("czReflineValue").value = style.refLine.value;
+    if(has("refLine")){
+      czState.refLine = { enabled: !!style.refLine.enabled, value: +style.refLine.value || 0 };
+      setChk("czReflineToggle", czState.refLine.enabled); setVal("czReflineValue", czState.refLine.value);
     }
-    czState.showFill = style.showFill !== false;
-    document.getElementById("czFillToggle").checked = czState.showFill;
-    czState.showPoints = style.showPoints !== false;
-    document.getElementById("czPointsToggle").checked = czState.showPoints;
+    if(has("threshold2Color")){ czState.threshold2Color = !!style.threshold2Color; setChk("czThresholdShadeToggle", czState.threshold2Color); }
+    czState.showFill = style.showFill !== false; setChk("czFillToggle", czState.showFill);
+    czState.showPoints = style.showPoints !== false; setChk("czPointsToggle", czState.showPoints);
+    if(has("yScale")){ czState.yScale = style.yScale === "log" ? "log" : "linear"; setChk("czLogScaleToggle", czState.yScale === "log"); }
+    if(typeof style.yTickStepIdx === "number") czState.yTickStepIdx = style.yTickStepIdx;
+    if(has("yTitlePos")){ czState.yTitlePos = style.yTitlePos; czYTitlePosSeg.querySelectorAll("button").forEach(function(b){ b.classList.toggle("active", b.dataset.pos === czState.yTitlePos); }); }
+    if(has("xTicks")){ czState.xTicks = +style.xTicks || czState.xTicks; czXTickVal.textContent = String(czState.xTicks); }
+    if(has("xLabelAngle")){ czState.xLabelAngle = style.xLabelAngle; czXAngleSeg.querySelectorAll("button").forEach(function(b){ b.classList.toggle("active", b.dataset.angle === czState.xLabelAngle); }); }
+    if(has("lineColor")){ czState.lineColor = style.lineColor; czSyncColorSwatches(); }
+    if(style.exportTheme === "light" || style.exportTheme === "dark"){ czState.exportTheme = style.exportTheme; czThemeSeg.querySelectorAll("button").forEach(function(b){ b.classList.toggle("active", b.dataset.theme === czState.exportTheme); }); }
+    if(Array.isArray(style.annotations)){ czState.annotations = JSON.parse(JSON.stringify(style.annotations)); czRenderAnnotList(); }
+    if(typeof czSyncModeFields === "function") czSyncModeFields();
     czRenderPreview();
   }
   // ---- Saved charts list: lives in the "Open chart" popover next to
@@ -2596,7 +2622,7 @@
       if(!listEl) return;
       listEl.innerHTML = "";
       if(!rows.length){
-        listEl.textContent = 'No saved charts yet , open "Bank Rate" → Customise & export → Save chart.';
+        listEl.textContent = 'No saved charts yet. Open any chart\u2019s Customise & export, then Save chart.';
         return;
       }
       rows.forEach(function(row){

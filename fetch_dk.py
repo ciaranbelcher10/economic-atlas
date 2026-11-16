@@ -109,6 +109,7 @@ import redact_stream  # noqa: F401  (v1.7.42: masks api_key= in all output)
 import re
 import oecd_turn
 import json
+import imf_trade
 import time
 import os
 import sys
@@ -129,7 +130,7 @@ import inflation_sources
 # Add an entry ONLY when intentionally swapping source, and say why, e.g.
 #     ALLOW_SHRINK = {"ppi": "PPIACO -> PPIFID, final demand is the BLS headline"}
 # Remove it once the new series has landed.
-ALLOW_SHRINK = {"unemployment": "v1.6.34: OECD/FRED LRHUTTTT copy -> Eurostat une_rt_m; Eurostat history can start later"}
+ALLOW_SHRINK = {"trade_balance": "v1.9.139: OECD quarterly (FRED) -> IMF ITG monthly from 2006; remove after the first data run", "unemployment": "v1.6.34: OECD/FRED LRHUTTTT copy -> Eurostat une_rt_m; Eurostat history can start later"}
 
 # key: (fred_id, freq 'm'|'q'|'a', label, unit, transform None|'yoy'|'mom'|'qoq', scale)
 # - participation_rate (LRAC64TTDKQ156S) / employment_rate (LREM64TTDKQ156S): OECD infra-annual labour-statistics FRED family, quarterly, ages 15-64. Same pattern confirmed live for Germany (pilot); inferred-by-pattern for Denmark -- not individually confirmed, check the first Actions log.
@@ -140,7 +141,7 @@ FRED_SERIES = {
     "participation_rate": ("LRAC64TTDKQ156S", "q", "Labour force participation rate, 15-64, SA", "%", None, 1.0),
     "employment_rate": ("LREM64TTDKQ156S", "q", "Employment rate, 15-64, SA", "%", None, 1.0),
     "bond_yield_10y": ("IRLTLT01DKM156N", "m", "10-year government bond yield", "%", None, 1.0),
-    "trade_balance": ("XTNTVA01DKQ667S", "q", "Trade balance, goods, USD exchange-rate-converted, SA (OECD)", "$m", None, 1e-6),
+    # v1.9.138: trade_balance moved to the IMF monthly ITG data (imf_trade.py).
 }
 
 EUROSTAT_STATS_BASE = "https://ec.europa.eu/eurostat/api/dissemination/statistics/1.0/data"
@@ -793,6 +794,16 @@ def main() -> int:
     # Trade conversion below must only touch series fetched fresh this run:
     # a carried-over series is already in local currency. See
     # tools/test_trade_fx.py.
+    # v1.9.138: goods trade from the IMF's monthly ITG data (exports, imports and balance), replacing the
+    # OECD quarterly balance on FRED (XTNTVA01..Q667S), which did not match national customs figures
+    # (verification, 15 Nov 2026). US$ here; converted to Danish kroner at each month's average rate below.
+    try:
+        for _tk, _pts in imf_trade.series("DNK").items():
+            out["series"][_tk] = {"label": imf_trade.LABEL[_tk], "unit": "$m", "freq": "months", "points": _pts}
+            print(f"  ok  {_tk:<16} {len(_pts):>5} observations ({_pts[0][0]} to {_pts[-1][0]}, months, US$, IMF ITG)")
+    except Exception as exc:
+        failures.append("trade_balance")
+        print(f"FAIL  trade (IMF ITG)  {exc}")
     _fresh_keys = set(out["series"])
     _guard_verdicts = series_guard.apply_guard(
         out["series"], _prev_series, allow_shrink=ALLOW_SHRINK)
@@ -854,10 +865,7 @@ def main() -> int:
                             ser["points"] = [[p, round(to_local(v, p), 1)]
                                               for p, v in ser["points"]]
                             ser["unit"] = ser["unit"].replace("$", "DKK", 1)
-                            ser["label"] = ("Trade balance, goods" if tk == "trade_balance"
-                                            else tk.capitalize() + " of goods") + \
-                                           " (OECD via FRED, converted to Danish kroner at each "\
-                                           "period's own exchange rate)"
+                            ser["label"] = ser["label"].replace("not seasonally adjusted)", "not seasonally adjusted, converted from US$ at each month's average rate)")
                             print(f"  ok  {tk:<16} converted $->kr using {fx_rate}")
             else:
                 print("note  fx_to_usd: no observations returned")

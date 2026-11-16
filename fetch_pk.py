@@ -61,7 +61,7 @@ ALLOW_SHRINK = {
     "exports": "from July 2022: the IMF series has no figures for Nov 2021 to Jun 2022",
     "imports": "from July 2022: the IMF series has no figures for Nov 2021 to Jun 2022",
     "trade_balance": "from July 2022: the IMF series has no figures for Nov 2021 to Jun 2022",
-    "unemployment": "from 2012: the ILO modelled series reads under 1% before then, a break",
+    "unemployment": "v1.9.139: World Bank ILO modelled estimate -> IMF WEO national definition (LUR); remove after the first data run",
 }
 MONTHLY_MAX_AGE = 120
 TRADE_MAX_AGE = 200     # probe, 13 Oct 2026: ITG to June 2026
@@ -252,8 +252,10 @@ SERIES = [
     ("gdp_level", lambda: wb_scaled("NY.GDP.MKTP.CN"), "GDP, current prices, annual (World Bank)", "PKRm", "years"),
     ("gdp_real", lambda: wb_scaled("NY.GDP.MKTP.KN"), "Real GDP, constant prices, annual (World Bank)", "PKRm", "years"),
     ("gdp_growth", fetch_gdp_growth, "Real GDP growth, change on previous year (World Bank)", "%", "years"),
-    ("unemployment", lambda: [p for p in fetch_worldbank("SL.UEM.TOTL.ZS") if p[0] >= UNEMP_START],
-     "Unemployment rate, ILO modelled estimate, annual, from 2012 (World Bank)", "%", "years"),
+    # v1.9.139: the national statistics office's own unemployment rate, as reported to the IMF (WEO LUR), in place of
+    # the ILO modelled estimate (verification, 15 Nov 2026: modelled 5.4 against the national 7.1 for 2025).
+    ("unemployment", lambda: imf_weo.fetch(ISO3, "LUR"),
+     "Unemployment rate, national definition, annual, actual years (IMF World Economic Outlook, LUR)", "%", "years"),
     ("debt_gdp", lambda: imf_weo.fetch(ISO3, imf_weo.DEBT), "General government gross debt, % of GDP (IMF WEO)", "%", "years"),
     ("deficit", lambda: imf_weo.fetch(ISO3, imf_weo.DEFICIT), "General government net lending/borrowing, % of GDP (IMF WEO)", "%", "years"),
     ("current_account", lambda: fetch_worldbank("BN.CAB.XOKA.GD.ZS"), "Current account balance, % of GDP (World Bank)", "%", "years"),

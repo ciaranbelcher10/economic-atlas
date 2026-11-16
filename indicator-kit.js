@@ -52,6 +52,8 @@
       sym = code ? (ISO_GLYPH[code[1]] || code[1]) : "";
     }
     if(sym === "$" && !dollarised && NATIVE_KEYS[key] && NATIVE_DOLLAR[country]) sym = NATIVE_DOLLAR[country];
+    // v1.9.139: outside the US, a series still published in US dollars (Argentina, Indonesia trade) reads "US$"
+    if(sym === "$" && !dollarised && country && country !== "US") sym = "US$";
     return sym;
   }
   function fxDp(a){ return a >= 1000 ? 0 : (a >= 100 ? 2 : 4); }
@@ -134,16 +136,18 @@
     }
     var sym = symbolOf(o.unit, o.key, o.country, o.dollarised);
     var abs = a * scaleOf(o.unit);
-    var d = mode === "axis" || mode === "delta" ? 1 : 2;
+    var d = mode === "cell" ? 2 : 1;   // v1.9.139: headline figures one decimal for tn/bn, as on every country-page tile
     if(abs >= 1e12) out = (abs/1e12).toFixed(d) + "tn";
     else if(abs >= 1e9) out = (abs/1e9).toFixed(d) + "bn";
     else if(abs >= 1e6) out = (abs/1e6).toFixed(abs >= 1e8 ? 0 : 1) + "m";
     else if(abs >= 1e3) out = (abs/1e3).toFixed(abs >= 1e5 ? 0 : 1) + "k";
     else out = abs.toFixed(0);
-    out = mode === "cell" ? out : trim(out);
+    out = (mode === "cell" || (mode === "value" && /(tn|bn)$/.test(out))) ? out : trim(out);   // tiles keep "2.0tn"
     // Economies measured in trillions of a small-unit currency (COP, IDR,
     // KRW, ARS) run past 1,000tn; group the digits so they stay readable.
     out = out.replace(/^\d+/, function(n){ return n.replace(/\B(?=(\d{3})+(?!\d))/g, ","); });
+    // v1.9.139: a change of under a thousand people says so ("+496 people", not "+496" beside "2.9m")
+    if(mode === "delta" && cleanUnit(o.unit) === "people" && abs < 1e3) return sign + sym + out + " people";
     return sign + sym + out;
   }
   function roundedDelta(d, unit, key){

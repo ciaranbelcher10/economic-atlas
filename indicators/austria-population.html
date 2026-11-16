@@ -24,7 +24,7 @@
 <noscript><link href="https://fonts.googleapis.com/css2?family=Nunito+Sans:wght@400;600;700&display=swap" rel="stylesheet"></noscript>
 <link rel="stylesheet" href="../style.css?v=63">
 <link rel="stylesheet" href="../mobile.css?v=49">
-<link rel="stylesheet" href="../indicator.css?v=15">
+<link rel="stylesheet" href="../indicator.css?v=17">
 <script type="application/ld+json">
 {
   "@context": "https://schema.org",
@@ -658,6 +658,7 @@
       // timing anything genuinely slow.
       setTimeout(function(){
         var csv = entry.kind === "multi" ? multiToCSV(entry.data) : seriesToCSV(entry.data);
+        csv = csv.replace(/^((?:Country,)?Date,)Value\n/, function(_, h){ return h + (/[",\n]/.test(String(entry.title || "")) ? '"' + String(entry.title).replace(/"/g, '""') + '"' : String(entry.title || "Value")) + "\n"; });   // v1.9.139: the value column names the chart and its unit
         triggerDownload(csv, entry.title);
         btn.classList.remove("dl-downloading");
         btn.classList.add("dl-success");
@@ -1244,7 +1245,7 @@
     <p class="ind-section-sub">Latest readings. Open any one for its full history.</p>
     <div class="ind-related">
 <div class="ind-cat">GDP &amp; growth</div>
-<a href="austria-gdp"><span class="r-name">GDP</span><span class="r-val">€529.38bn</span><span class="r-per">Q3 2026</span></a>
+<a href="austria-gdp"><span class="r-name">GDP</span><span class="r-val">€529.4bn</span><span class="r-per">Q3 2026</span></a>
 <a href="austria-real-gdp"><span class="r-name">Real GDP</span><span class="r-val">€422.5bn</span><span class="r-per">Q3 2026</span></a>
 <a href="austria-gdp-per-capita"><span class="r-name">GDP per Capita</span><span class="r-val">€56.3k</span><span class="r-per">2025</span></a>
 <a href="austria-gdp-growth-rate"><span class="r-name">GDP Growth Rate (quarter on quarter)</span><span class="r-val">0.2%</span><span class="r-per">Q3 2026</span></a>
@@ -1419,7 +1420,7 @@
 </div>
 
 <script src="https://cdnjs.cloudflare.com/ajax/libs/Chart.js/4.4.1/chart.umd.min.js"></script>
-<script src="../indicator-kit.js?v=15"></script>
+<script src="../indicator-kit.js?v=17"></script>
 <script>EATLAS_IND.initIndicator({"key": "population", "country": "Austria", "unit": "people", "freq": "years", "upIsGood": true, "chart": "line", "annualise": false, "gdpRaw": false, "dataUrl": "../data-at.json", "points": [["1960", 7047539], ["1961", 7086299], ["1962", 7129864], ["1963", 7175811], ["1964", 7223801], ["1965", 7270889], ["1966", 7322066], ["1967", 7376998], ["1968", 7415403], ["1969", 7441055], ["1970", 7467086], ["1971", 7500482], ["1972", 7544201], ["1973", 7586115], ["1974", 7599038], ["1975", 7578903], ["1976", 7565525], ["1977", 7568430], ["1978", 7562305], ["1979", 7549425], ["1980", 7549433], ["1981", 7568710], ["1982", 7574140], ["1983", 7561910], ["1984", 7561434], ["1985", 7564985], ["1986", 7569794], ["1987", 7574586], ["1988", 7585317], ["1989", 7619567], ["1990", 7677850], ["1991", 7754891], ["1992", 7840709], ["1993", 7905633], ["1994", 7936118], ["1995", 7948278], ["1996", 7959017], ["1997", 7968041], ["1998", 7976789], ["1999", 7992324], ["2000", 8011566], ["2001", 8042293], ["2002", 8081957], ["2003", 8121423], ["2004", 8171966], ["2005", 8227829], ["2006", 8268641], ["2007", 8295487], ["2008", 8321496], ["2009", 8343323], ["2010", 8363404], ["2011", 8391643], ["2012", 8429991], ["2013", 8479823], ["2014", 8546356], ["2015", 8642699], ["2016", 8736668], ["2017", 8797566], ["2018", 8840521], ["2019", 8879920], ["2020", 8916864], ["2021", 8955797], ["2022", 9041851], ["2023", 9131761], ["2024", 9177982], ["2025", 9208163]], "realPoints": null, "realUnit": null, "realKey": null, "realAnchor": null, "fx": null, "population": null, "title": "Austria Population", "srcNote": "World Bank · Population, total (SP.POP.TOTL), mid-year estimates, annual."});</script>
 <script>
 (function(){
@@ -2546,21 +2547,35 @@
     var mi = String(dt.getMinutes()).padStart(2, "0");
     return dd + " " + mo + " " + yy + ", " + hh + ":" + mi;
   }
+  /* v1.9.139: a saved chart keeps every setting the editor offers and the page's three switches
+     (Convert to USD$, Adjust for inflation, Per capita), so it reopens exactly as it was saved, here
+     or in Chartmaker. Older saves carry fewer keys; anything missing keeps its default. */
+  var CZ_SAVE_KEYS = ["chartTitle", "yTitle", "chartKind", "showFill", "showPoints", "refLine", "threshold2Color",
+    "yTitlePos", "yScale", "yTickStepIdx", "xTicks", "xLabelAngle", "lineColor", "exportTheme", "annotations"];
   function czSaveStyleSnapshot(){
-    return {
-      chartTitle: czState.chartTitle, yTitle: czState.yTitle,
-      chartKind: czState.chartKind, showFill: czState.showFill, showPoints: czState.showPoints,
-      refLine: czState.refLine, threshold2Color: czState.threshold2Color
-    };
+    var o = {};
+    CZ_SAVE_KEYS.forEach(function(k){ if(czState[k] !== undefined) o[k] = JSON.parse(JSON.stringify(czState[k])); });
+    if(typeof TOGGLE_STATE !== "undefined") o.toggles = { dollar: !!TOGGLE_STATE.dollar, real: !!TOGGLE_STATE.real, capita: !!TOGGLE_STATE.capita };
+    return o;
+  }
+  function czRestoreToggles(t){
+    if(!t || typeof TOGGLE_STATE === "undefined" || typeof toggleMetric !== "function") return;
+    [["dollar", "toggleDollar"], ["real", "toggleReal"], ["capita", "toggleCapita"]].forEach(function(p){
+      var want = !!t[p[0]], btn = document.getElementById(p[1]);
+      if(btn && !btn.disabled && !!TOGGLE_STATE[p[0]] !== want) toggleMetric(p[0], btn);
+    });
   }
   function loadSavedChart(row){
+    var style = row.style || {};
+    czRestoreToggles(style.toggles);   // the page redraws with the saved switches before the chart is rebuilt
     var meta = window.EATLAS_CHART_META && window.EATLAS_CHART_META[row.metric_key];
     var series = window.EATLAS_SERIES && window.EATLAS_SERIES[row.metric_key];
-    if(!meta || !series || !series.points){
+    var allPts = (meta && meta.pts) || (series && series.points);   // the figures the panel shows, switches applied
+    if(!meta || !allPts || !allPts.length){
       window.alert("This saved chart's series isn't available on this page.");
       return;
     }
-    var pts = series.points;
+    var pts = allPts;
     if(row.from_period || row.to_period){
       var filtered = pts.filter(function(p){
         return (!row.from_period || p[0] >= row.from_period) && (!row.to_period || p[0] <= row.to_period);
@@ -2568,22 +2583,31 @@
       if(filtered.length) pts = filtered;
     }
     window.EATLAS_OPEN_CUSTOMIZE(pts, row.name || meta.title, meta.srcNote, meta.fmtY, "", meta.title, meta.kind, czFmtPeriod, row.metric_key);
-    var style = row.style || {};
-    if(style.chartTitle != null){ czState.chartTitle = style.chartTitle; document.getElementById("czChartTitleInput").value = style.chartTitle; }
-    if(style.yTitle != null){ czState.yTitle = style.yTitle; document.getElementById("czYAxisTitleInput").value = style.yTitle; }
-    if(style.chartKind){
+    var has = function(k){ return style[k] !== undefined && style[k] !== null; };
+    var setChk = function(id, v){ var e = document.getElementById(id); if(e) e.checked = !!v; };
+    var setVal = function(id, v){ var e = document.getElementById(id); if(e) e.value = v; };
+    if(has("chartTitle")){ czState.chartTitle = style.chartTitle; setVal("czChartTitleInput", style.chartTitle); }
+    if(has("yTitle")){ czState.yTitle = style.yTitle; setVal("czYAxisTitleInput", style.yTitle); }
+    if(style.chartKind === "bar" || style.chartKind === "line"){
       czState.chartKind = style.chartKind;
       czChartKindSeg.querySelectorAll("button").forEach(function(b){ b.classList.toggle("active", b.dataset.kind === czState.chartKind); });
     }
-    if(style.refLine){
-      czState.refLine = style.refLine;
-      document.getElementById("czReflineToggle").checked = !!style.refLine.enabled;
-      document.getElementById("czReflineValue").value = style.refLine.value;
+    if(has("refLine")){
+      czState.refLine = { enabled: !!style.refLine.enabled, value: +style.refLine.value || 0 };
+      setChk("czReflineToggle", czState.refLine.enabled); setVal("czReflineValue", czState.refLine.value);
     }
-    czState.showFill = style.showFill !== false;
-    document.getElementById("czFillToggle").checked = czState.showFill;
-    czState.showPoints = style.showPoints !== false;
-    document.getElementById("czPointsToggle").checked = czState.showPoints;
+    if(has("threshold2Color")){ czState.threshold2Color = !!style.threshold2Color; setChk("czThresholdShadeToggle", czState.threshold2Color); }
+    czState.showFill = style.showFill !== false; setChk("czFillToggle", czState.showFill);
+    czState.showPoints = style.showPoints !== false; setChk("czPointsToggle", czState.showPoints);
+    if(has("yScale")){ czState.yScale = style.yScale === "log" ? "log" : "linear"; setChk("czLogScaleToggle", czState.yScale === "log"); }
+    if(typeof style.yTickStepIdx === "number") czState.yTickStepIdx = style.yTickStepIdx;
+    if(has("yTitlePos")){ czState.yTitlePos = style.yTitlePos; czYTitlePosSeg.querySelectorAll("button").forEach(function(b){ b.classList.toggle("active", b.dataset.pos === czState.yTitlePos); }); }
+    if(has("xTicks")){ czState.xTicks = +style.xTicks || czState.xTicks; czXTickVal.textContent = String(czState.xTicks); }
+    if(has("xLabelAngle")){ czState.xLabelAngle = style.xLabelAngle; czXAngleSeg.querySelectorAll("button").forEach(function(b){ b.classList.toggle("active", b.dataset.angle === czState.xLabelAngle); }); }
+    if(has("lineColor")){ czState.lineColor = style.lineColor; czSyncColorSwatches(); }
+    if(style.exportTheme === "light" || style.exportTheme === "dark"){ czState.exportTheme = style.exportTheme; czThemeSeg.querySelectorAll("button").forEach(function(b){ b.classList.toggle("active", b.dataset.theme === czState.exportTheme); }); }
+    if(Array.isArray(style.annotations)){ czState.annotations = JSON.parse(JSON.stringify(style.annotations)); czRenderAnnotList(); }
+    if(typeof czSyncModeFields === "function") czSyncModeFields();
     czRenderPreview();
   }
   // ---- Saved charts list: lives in the "Open chart" popover next to
@@ -2596,7 +2620,7 @@
       if(!listEl) return;
       listEl.innerHTML = "";
       if(!rows.length){
-        listEl.textContent = 'No saved charts yet , open "Bank Rate" → Customise & export → Save chart.';
+        listEl.textContent = 'No saved charts yet. Open any chart\u2019s Customise & export, then Save chart.';
         return;
       }
       rows.forEach(function(row){

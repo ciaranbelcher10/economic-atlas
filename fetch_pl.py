@@ -81,6 +81,7 @@ import redact_stream  # noqa: F401  (v1.7.42: masks api_key= in all output)
 import re
 import oecd_turn
 import json
+import ecb_exr
 import time
 import os
 import sys
@@ -715,15 +716,29 @@ def main() -> int:
     # Poland specifically, so unlike Austria this metric is simply
     # omitted (not shown from a fabricated fallback) if the Eurostat
     # path fails -- a genuine gap for that run, not a guess.
+    # v1.9.139: exports, imports and balance in zloty, each month converted from Eurostat's euro figures at that
+    # month's ECB reference rate, as Czechia, Hungary and Romania do. The balance was shown in euros on a zloty
+    # page, the site's only series in a third currency.
     try:
-        tb_points = fetch_eurostat_trade_balance_world_pl()
-        if not tb_points:
-            raise ValueError("Eurostat world-partner reconstruction returned nothing")
-        out["series"]["trade_balance"] = {
-            "label": "Trade balance, goods, total (Eurostat, world partner, derived EXP-IMP)",
-            "unit": "\u20acm", "freq": "months", "points": tb_points}
-        print(f"  ok  trade_balance    {len(tb_points):>5} observations "
-              f"({tb_points[0][0]} to {tb_points[-1][0]}, months, Eurostat)")
+        exp = fetch_eurostat_trade_world_pl("EXP")
+        imp = fetch_eurostat_trade_world_pl("IMP")
+        if not exp or not imp:
+            raise ValueError("Eurostat returned no exports or no imports")
+        rates = ecb_exr.fetch_monthly("PLN")
+        if not rates:
+            raise ValueError("no ECB zloty reference rates to convert with")
+        ex = ecb_exr.to_national(exp, rates)
+        im = ecb_exr.to_national(imp, rates)
+        im_by = dict(im)
+        bal = [[p, round(v - im_by[p], 1)] for p, v in ex if p in im_by]
+        if not bal:
+            raise ValueError("no months with both flows and a reference rate")
+        note = "Eurostat, world partner, converted from euro at each month's ECB reference rate"
+        out["series"]["exports"] = {"label": f"Exports, goods ({note})", "unit": "PLNm", "freq": "months", "points": ex}
+        out["series"]["imports"] = {"label": f"Imports, goods ({note})", "unit": "PLNm", "freq": "months", "points": im}
+        out["series"]["trade_balance"] = {"label": f"Trade balance, goods ({note}, exports less imports)",
+                                          "unit": "PLNm", "freq": "months", "points": bal}
+        print(f"  ok  trade_balance    {len(bal):>5} observations ({bal[0][0]} to {bal[-1][0]}, months, Eurostat, PLN)")
     except Exception as exc:
         failures.append("trade_balance")
         print(f"FAIL  trade_balance     {exc}")

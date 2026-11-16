@@ -711,6 +711,7 @@
       // timing anything genuinely slow.
       setTimeout(function(){
         var csv = entry.kind === "multi" ? multiToCSV(entry.data) : seriesToCSV(entry.data);
+        csv = csv.replace(/^((?:Country,)?Date,)Value\n/, function(_, h){ return h + (/[",\n]/.test(String(entry.title || "")) ? '"' + String(entry.title).replace(/"/g, '""') + '"' : String(entry.title || "Value")) + "\n"; });   // v1.9.139: the value column names the chart and its unit
         triggerDownload(csv, entry.title);
         btn.classList.remove("dl-downloading");
         btn.classList.add("dl-success");
@@ -1573,11 +1574,11 @@ body:not(.cm-m) #cmMobileGate{display:none;}
  <label class="cmx-chk" id="cmHideNoDataRow" style="display:none;"><input type="checkbox" id="cmHideNoData"><span>Hide countries with no data</span></label>
 </div>
  <div class="metric-toggles cmx-adjust" aria-label="Adjust figures">
- <button type="button" class="mtoggle" id="makeRealToggle" aria-label="Adjust for inflation: show GDP level as real, inflation-adjusted GDP" aria-pressed="false">
- <span class="mtoggle-switch" aria-hidden="true"></span>Adjust for inflation
- </button>
  <button type="button" class="mtoggle" id="dollariseToggle" aria-label="Convert to USD$: convert currency series to US dollars" aria-pressed="false">
  <span class="mtoggle-switch" aria-hidden="true"></span>Convert to USD$
+ </button>
+ <button type="button" class="mtoggle" id="makeRealToggle" aria-label="Adjust for inflation: show GDP level as real, inflation-adjusted GDP" aria-pressed="false">
+ <span class="mtoggle-switch" aria-hidden="true"></span>Adjust for inflation
  </button>
  <button type="button" class="mtoggle" id="percapToggle" aria-label="Per capita: divide currency series by each year's population" aria-pressed="false">
  <span class="mtoggle-switch" aria-hidden="true"></span>Per capita
@@ -5995,20 +5996,92 @@ function formatSavedAt(iso){
 //  - country page / Dashboard: {country_code:"<2-letter code>", metric_key, style:{...one metric's styling}}
 //  - Compare: {country_code:"compare", metric_key, style:{countries:[...codes...], styleSnapshot:{...}}}
 //  - ChartMaker: {country_code:"chartmaker", style:{series:[...]}}
+/* v1.9.139: a chart saved on Compare, opened here. Compare keeps its own settings (chart type, the year
+   shown, Per capita, titles, theme and so on); before this, Chartmaker read none of them, so the chart
+   opened as a line, untitled, with a year-only range that resolved backwards ("Jan 2025" to "Q4 2024")
+   and drew nothing. Each Compare setting maps to its Chartmaker equivalent here.
+   One difference cannot be mapped: a Compare bar is a whole-year figure (a year's total for flows, a
+   year's average for rates), and a Chartmaker bar is the value in one period. The notice says so. */
+function compareRowToChartmaker(row){
+  var st = row.style || {}, ss = st.styleSnapshot || {}, ct = st.cardTime || {}, fl = st.flags || {};
+  var isBar = st.chartType !== "line";
+  var change = isBar && ct.mode === "change";
+  var from = row.from_period, to = row.to_period, notice = "";
+  if(isBar && !change){
+    var y = String(ct.snapshotYear || row.to_period || "").slice(0, 4);
+    if(/^\d{4}$/.test(y)){ from = y; to = y + "-Z"; }   // the whole of that year: the last period on or before "Y-Z" is its final month or quarter
+    notice = "Opened from Compare. Compare shows each country's figure for the whole of " + y
+      + "; Chartmaker bars show the latest month or quarter in " + y + " for each series, so flows and some rates can differ from Compare.";
+  } else if(change){
+    from = String(ct.changeStartYear || ""); to = String(ct.changeEndYear || "") + "-Z";
+    notice = "Opened from Compare as a line chart over " + ct.changeStartYear + " to " + ct.changeEndYear
+      + ": Chartmaker has no change-between-years bar, so the change Compare showed is the distance between the two ends of each line.";
+  }
+  var snapshot = {
+    chartType: (isBar && !change) ? "bar" : "line",
+    chartTitle: ss.chartTitle || "", yAxisTitle: ss.yTitle || "", legendTitle: ss.legendTitle || "",
+    yTitlePos: ss.yTitlePos || "along",
+    showFill: !!ss.showFill, showPoints: ss.showPoints !== false,
+    refLine: ss.refLine ? { enabled: !!ss.refLine.enabled, value: +ss.refLine.value || 0 } : { enabled: false, value: 0 },
+    centerAroundRef: !!ss.centerAroundRef, thresholdShadeBars: !!ss.thresholdShadeBars,
+    logScale: ss.yScale === "log", hideNoData: !!ss.hideNoData,
+    xTicks: ss.xTicks || 8, xLabelAngle: ss.xLabelAngle || "straight",
+    sortMode: st.sortMode || "value_desc", theme: ss.exportTheme === "dark" ? "dark" : "light",
+    snapshotAt: "",
+    percap: !!(ct.percap || fl.percap),
+    dollar: fl.money ? !fl.native : false, real: false
+  };
+  return { snapshot: snapshot, from_period: from, to_period: to, notice: notice,
+           annotations: (!isBar && Array.isArray(ss.annotations)) ? ss.annotations : [] };
+}
 function normalizeSavedRow(row){
   var code = row.country_code;
   var seriesSpec;
   if(code === "chartmaker"){
     seriesSpec = (row.style && row.style.series) || [];
   } else if(code === "compare"){
-    var countries = (row.style && row.style.countries) || [];
+    var cst = row.style || {}, countries = cst.countries || [], keys = cst.keys || {}, cols = cst.colors || {};
     seriesSpec = countries.map(function(c){
-      var name = CODE_TO_REGISTRY_KEY[c] || c;
-      return { country: name, metric: row.metric_key, transform: "raw" };
+      var name = CODE_TO_REGISTRY_KEY[c] || c, k = keys[c] || {};
+      var metric = k.key || (row.metric_key === "gdp_growth" ? "gdp_real" : row.metric_key);
+      var spec = { country: name, metric: metric, transform: k.transform || (row.metric_key === "gdp_growth" ? "yoy" : "raw") };
+      if(cols[c]){ spec.color = cols[c]; spec.manualColor = true; }
+      return spec;
     });
+    var cmp = compareRowToChartmaker(row);   // v1.9.139: Compare's own settings, in Chartmaker's terms
+    return {
+      id: row.id, name: row.name, created_at: row.created_at, source: "Compare",
+      seriesSpec: seriesSpec, available: seriesSpec.some(function(s){ return !!getSeries(s.country, s.metric); }),
+      category: seriesSpec.length ? (CONCEPT_CATEGORY[seriesSpec[0].metric] || "Other") : "Other",
+      annotations: cmp.annotations, snapshot: cmp.snapshot, notice: cmp.notice,
+      from_period: cmp.from_period, to_period: cmp.to_period, raw: row
+    };
   } else {
     var singleName = CODE_TO_REGISTRY_KEY[code] || code;
     seriesSpec = [{ country: singleName, metric: row.metric_key, transform: "raw" }];
+    var pst = row.style || {};
+    if(pst.lineColor){ seriesSpec[0].color = pst.lineColor; seriesSpec[0].manualColor = true; }
+    if(!pst.snapshot && (pst.chartKind || pst.toggles || pst.chartTitle != null)){
+      /* v1.9.139: a chart saved on a country page or the Dashboard, in Chartmaker's terms */
+      var tg = pst.toggles || {};
+      return {
+        id: row.id, name: row.name, created_at: row.created_at, source: "Country page / Dashboard",
+        seriesSpec: seriesSpec, available: !!getSeries(singleName, row.metric_key),
+        category: CONCEPT_CATEGORY[row.metric_key] || "Other",
+        annotations: Array.isArray(pst.annotations) ? pst.annotations : [],
+        snapshot: {
+          chartType: pst.chartKind === "bar" ? "bar" : "line",
+          chartTitle: pst.chartTitle || "", yAxisTitle: pst.yTitle || "", yTitlePos: pst.yTitlePos || "along",
+          showFill: !!pst.showFill, showPoints: pst.showPoints !== false,
+          refLine: pst.refLine ? { enabled: !!pst.refLine.enabled, value: +pst.refLine.value || 0 } : { enabled: false, value: 0 },
+          thresholdShadeBars: !!pst.threshold2Color, logScale: pst.yScale === "log",
+          xTicks: pst.xTicks || 8, xLabelAngle: pst.xLabelAngle || "straight",
+          theme: pst.exportTheme === "dark" ? "dark" : "light", snapshotAt: "",
+          dollar: !!tg.dollar, real: !!tg.real, percap: !!tg.capita
+        },
+        from_period: row.from_period, to_period: row.to_period, raw: row
+      };
+    }
   }
   var available = seriesSpec.length > 0 && seriesSpec.some(function(s){
     return !!getSeries(s.country, s.metric);
@@ -6254,6 +6327,10 @@ function loadSavedChart(row){
   lastAutoPeriodText = "";
   syncBarLegendTitle();
   renderChart();
+  if(row.notice){   // v1.9.139: a chart saved on Compare says how its bars differ here
+    var nEl = document.getElementById("cmMeasureNotice");
+    if(nEl){ nEl.className = "cm-measurenotice"; nEl.innerHTML = ""; var nT = document.createElement("span"); nT.textContent = row.notice; nEl.appendChild(nT); nEl.hidden = false; }
+  }
   // Saved rows only carry date/label/type/align/seriesIndex, same as the
   // real product's own save schema -- never exact drag pixel positions.
   // Fill in a fresh default position for each restored annotation now

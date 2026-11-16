@@ -119,7 +119,7 @@ import series_guard
 RETIRED = {"business_confidence": "OECD stopped publishing it after February 2026"}
 #     ALLOW_SHRINK = {"ppi": "PPIACO -> PPIFID, final demand is the BLS headline"}
 # Remove it once the new series has landed.
-ALLOW_SHRINK = {"unemployment": "v1.9.138: all-India rate replaces the urban-only rate; remove after the first data run"}
+ALLOW_SHRINK = {}
 
 # key: (fred_id, freq 'm'|'q'|'a', label, unit, transform None|'yoy'|'mom'|'qoq', scale)
 FRED_SERIES = {

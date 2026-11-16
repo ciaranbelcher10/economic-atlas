@@ -45,6 +45,7 @@ import redact_stream  # noqa: F401  (v1.7.42: masks api_key= in all output)
 import re
 import oecd_turn
 import json
+import imf_weo
 import time
 import os
 import sys
@@ -64,7 +65,7 @@ import imf_datamapper
 # Add an entry ONLY when intentionally swapping source, and say why, e.g.
 #     ALLOW_SHRINK = {"ppi": "PPIACO -> PPIFID, final demand is the BLS headline"}
 # Remove it once the new series has landed.
-ALLOW_SHRINK = {}
+ALLOW_SHRINK = {"unemployment": "v1.9.139: World Bank ILO modelled estimate -> IMF WEO national definition (LUR); remove after the first data run"}
 
 # key: (fred_id, freq 'm'|'q'|'a', label, unit, transform None|'yoy'|'mom'|'qoq', scale)
 # debt_gdp, deficit and trade_balance were removed from here after being
@@ -682,8 +683,10 @@ def main() -> int:
          "FDI net inflows, % of GDP (World Bank)", "%", "years"),
         ("current_account", lambda: fetch_worldbank("BN.CAB.XOKA.GD.ZS"),
          "Current account balance, % of GDP (World Bank)", "%", "years"),
-        ("unemployment", lambda: fetch_worldbank("SL.UEM.TOTL.ZS"),
-         "Unemployment, % of total labor force (World Bank, annual)", "%", "years"),
+        # v1.9.139: the national statistics office's own unemployment rate, as reported to the IMF (WEO LUR), in place of
+        # the ILO modelled estimate (verification, 15 Nov 2026: modelled 9.0 against the national 13.0 for 2025).
+        ("unemployment", lambda: imf_weo.fetch("MAR", "LUR"),
+         "Unemployment rate, national definition, annual, actual years (IMF World Economic Outlook, LUR)", "%", "years"),
         ("gdp_level", lambda: [[p, round(v / 1e6, 1)] for p, v in (fetch_worldbank("NY.GDP.MKTP.CN") or [])],
          "GDP, current prices, MAD (World Bank, NY.GDP.MKTP.CN, annual)", "MADm", "years"),
         ("gdp_real", lambda: [[p, round(v / 1e6, 1)] for p, v in (fetch_worldbank("NY.GDP.MKTP.KN") or [])],

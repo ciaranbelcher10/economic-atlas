@@ -24,7 +24,7 @@
 <noscript><link href="https://fonts.googleapis.com/css2?family=Nunito+Sans:wght@400;600;700&display=swap" rel="stylesheet"></noscript>
 <link rel="stylesheet" href="../style.css?v=63">
 <link rel="stylesheet" href="../mobile.css?v=49">
-<link rel="stylesheet" href="../indicator.css?v=15">
+<link rel="stylesheet" href="../indicator.css?v=17">
 <script type="application/ld+json">
 {
   "@context": "https://schema.org",
@@ -658,6 +658,7 @@
       // timing anything genuinely slow.
       setTimeout(function(){
         var csv = entry.kind === "multi" ? multiToCSV(entry.data) : seriesToCSV(entry.data);
+        csv = csv.replace(/^((?:Country,)?Date,)Value\n/, function(_, h){ return h + (/[",\n]/.test(String(entry.title || "")) ? '"' + String(entry.title).replace(/"/g, '""') + '"' : String(entry.title || "Value")) + "\n"; });   // v1.9.139: the value column names the chart and its unit
         triggerDownload(csv, entry.title);
         btn.classList.remove("dl-downloading");
         btn.classList.add("dl-success");
@@ -1207,7 +1208,7 @@
     </div>
   </div>
   <p class="lightskey"><span><span class="led green" aria-hidden="true"></span>Up to date</span><span><span class="led orange" aria-hidden="true"></span>Awaiting update</span></p>
-  <a class="glow-cta" href="../southkorea"><span class="glow-inner"><span class="glow-text"><span class="glow-title">Explore the full South Korea economy</span><span class="glow-sub">19 live indicators on one dashboard, from growth and prices to jobs, trade and public finances. Updated automatically from official sources.</span></span><span class="glow-go"><svg viewBox="0 0 20 20" fill="none" aria-hidden="true"><path d="M4 10h11m-4.5-4.5L15 10l-4.5 4.5" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"/></svg></span></span></a>
+  <a class="glow-cta" href="../southkorea"><span class="glow-inner"><span class="glow-text"><span class="glow-title">Explore the full South Korea economy</span><span class="glow-sub">21 live indicators on one dashboard, from growth and prices to jobs, trade and public finances. Updated automatically from official sources.</span></span><span class="glow-go"><svg viewBox="0 0 20 20" fill="none" aria-hidden="true"><path d="M4 10h11m-4.5-4.5L15 10l-4.5 4.5" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"/></svg></span></span></a>
   
   <section class="panel ind-panel" aria-labelledby="chartTitle">
     <div class="ind-panelhead">
@@ -1243,8 +1244,8 @@
     <p class="ind-section-sub">Latest readings. Open any one for its full history.</p>
     <div class="ind-related">
 <div class="ind-cat">GDP &amp; growth</div>
-<a href="southkorea-gdp"><span class="r-name">GDP</span><span class="r-val">₩2,962.04tn</span><span class="r-per">Q2 2026</span></a>
-<a href="southkorea-real-gdp"><span class="r-name">Real GDP</span><span class="r-val">₩2,369.66tn</span><span class="r-per">Q2 2026</span></a>
+<a href="southkorea-gdp"><span class="r-name">GDP</span><span class="r-val">₩2,962.0tn</span><span class="r-per">Q2 2026</span></a>
+<a href="southkorea-real-gdp"><span class="r-name">Real GDP</span><span class="r-val">₩2,369.7tn</span><span class="r-per">Q2 2026</span></a>
 <a href="southkorea-gdp-per-capita"><span class="r-name">GDP per Capita</span><span class="r-val">₩51.8m</span><span class="r-per">2025</span></a>
 <a href="southkorea-gdp-growth-rate"><span class="r-name">GDP Growth Rate (quarter on quarter)</span><span class="r-val">0.6%</span><span class="r-per">Q2 2026</span></a>
 <a href="southkorea-gdp-annual-growth-rate"><span class="r-name">GDP Annual Growth Rate</span><span class="r-val">3.7%</span><span class="r-per">Q2 2026</span></a>
@@ -1258,7 +1259,9 @@
 <div class="ind-cat">Interest rates</div>
 <a href="southkorea-10-year-government-bond-yield"><span class="r-name">10-Year Government Bond Yield</span><span class="r-val">4.45%</span><span class="r-per">Sep 2026</span></a>
 <div class="ind-cat">Trade</div>
-<a href="southkorea-balance-of-trade"><span class="r-name">Balance of Trade</span><span class="r-val">₩124.85tn</span><span class="r-per">Q2 2026</span></a>
+<a href="southkorea-balance-of-trade"><span class="r-name">Balance of Trade</span><span class="r-val">₩45.2tn</span><span class="r-per">Jul 2026</span></a>
+<a href="southkorea-exports"><span class="r-name">Exports</span><span class="r-val">₩147.1tn</span><span class="r-per">Jul 2026</span></a>
+<a href="southkorea-imports"><span class="r-name">Imports</span><span class="r-val">₩101.9tn</span><span class="r-per">Jul 2026</span></a>
 <a href="southkorea-current-account-to-gdp"><span class="r-name">Current Account (% of GDP)</span><span class="r-val">6.6%</span><span class="r-per">2025</span></a>
 <a href="southkorea-foreign-direct-investment"><span class="r-name">Foreign Direct Investment (% of GDP)</span><span class="r-val">0.8%</span><span class="r-per">2025</span></a>
 <div class="ind-cat">Public finances</div>
@@ -1421,7 +1424,7 @@
 </div>
 
 <script src="https://cdnjs.cloudflare.com/ajax/libs/Chart.js/4.4.1/chart.umd.min.js"></script>
-<script src="../indicator-kit.js?v=15"></script>
+<script src="../indicator-kit.js?v=17"></script>
 <script>EATLAS_IND.initIndicator({"key": "fx_usd", "country": "South Korea", "unit": "$ per ₩1,000 (end of month)", "freq": "months", "upIsGood": true, "chart": "line", "annualise": false, "gdpRaw": false, "dataUrl": "../data-kr.json", "points": [["1981-04", 1.47674], ["1981-05", 1.46648], ["1981-06", 1.46119], ["1981-07", 1.45673], ["1981-08", 1.4539], ["1981-09", 1.45624], ["1981-10", 1.46239], ["1981-11", 1.4523], ["1981-12", 1.4395], ["1982-01", 1.4181], ["1982-02", 1.40834], ["1982-03", 1.39924], ["1982-04", 1.3869], ["1982-05", 1.38055], ["1982-06", 1.35446], ["1982-07", 1.34578], ["1982-08", 1.34327], ["1982-09", 1.34479], ["1982-10", 1.34472], ["1982-11", 1.3412], ["1982-12", 1.33984], ["1983-01", 1.33368], ["1983-02", 1.32945], ["1983-03", 1.31936], ["1983-04", 1.3067], ["1983-05", 1.30214], ["1983-06", 1.28895], ["1983-07", 1.28225], ["1983-08", 1.27034], ["1983-09", 1.2645], ["1983-10", 1.26363], ["1983-11", 1.25578], ["1983-12", 1.2512], ["1984-01", 1.24948], ["1984-02", 1.25138], ["1984-03", 1.25863], ["1984-04", 1.25563], ["1984-05", 1.24759], ["1984-06", 1.24656], ["1984-07", 1.23311], ["1984-08", 1.2324], ["1984-09", 1.22576], ["1984-10", 1.21946], ["1984-11", 1.22116], ["1984-12", 1.21104], ["1985-01", 1.20168], ["1985-02", 1.19166], ["1985-03", 1.17549], ["1985-04", 1.16115], ["1985-05", 1.14796], ["1985-06", 1.14286], ["1985-07", 1.14095], ["1985-08", 1.12982], ["1985-09", 1.11851], ["1985-10", 1.11795], ["1985-11", 1.11938], ["1985-12", 1.11966], ["1986-01", 1.12014], ["1986-02", 1.1254], ["1986-03", 1.12783], ["1986-04", 1.12618], ["1986-05", 1.12474], ["1986-06", 1.12266], ["1986-07", 1.12538], ["1986-08", 1.12809], ["1986-09", 1.13243], ["1986-10", 1.1379], ["1986-11", 1.14476], ["1986-12", 1.1515], ["1987-01", 1.15893], ["1987-02", 1.16249], ["1987-03", 1.16808], ["1987-04", 1.18388], ["1987-05", 1.20115], ["1987-06", 1.22192], ["1987-07", 1.23181], ["1987-08", 1.23171], ["1987-09", 1.23445], ["1987-10", 1.2369], ["1987-11", 1.24641], ["1987-12", 1.25259], ["1988-01", 1.26372], ["1988-02", 1.28725], ["1988-03", 1.32036], ["1988-04", 1.34172], ["1988-05", 1.35238], ["1988-06", 1.36448], ["1988-07", 1.37236], ["1988-08", 1.3779], ["1988-09", 1.38312], ["1988-10", 1.40307], ["1988-11", 1.43661], ["1988-12", 1.45371], ["1989-01", 1.45925], ["1989-02", 1.46997], ["1989-03", 1.47999], ["1989-04", 1.49255], ["1989-05", 1.49422], ["1989-06", 1.4938], ["1989-07", 1.4929], ["1989-08", 1.49002], ["1989-09", 1.48648], ["1989-10", 1.48399], ["1989-11", 1.48162], ["1989-12", 1.47568], ["1990-01", 1.45733], ["1990-02", 1.4441], ["1990-03", 1.42756], ["1990-04", 1.41091], ["1990-05", 1.4048], ["1990-06", 1.39262], ["1990-07", 1.39131], ["1990-08", 1.39226], ["1990-09", 1.393], ["1990-10", 1.39322], ["1990-11", 1.39464], ["1990-12", 1.39164], ["1991-01", 1.3873], ["1991-02", 1.38127], ["1991-03", 1.37413], ["1991-04", 1.37295], ["1991-05", 1.37364], ["1991-06", 1.37368], ["1991-07", 1.36656], ["1991-08", 1.36258], ["1991-09", 1.34376], ["1991-10", 1.32707], ["1991-11", 1.32024], ["1991-12", 1.31289], ["1992-01", 1.30363], ["1992-02", 1.29881], ["1992-03", 1.2892], ["1992-04", 1.27713], ["1992-05", 1.27008], ["1992-06", 1.26008], ["1992-07", 1.26594], ["1992-08", 1.26173], ["1992-09", 1.26781], ["1992-10", 1.27099], ["1992-11", 1.2705], ["1992-12", 1.26303], ["1993-01", 1.25806], ["1993-02", 1.25117], ["1993-03", 1.25562], ["1993-04", 1.25217], ["1993-05", 1.24503], ["1993-06", 1.24083], ["1993-07", 1.23521], ["1993-08", 1.23162], ["1993-09", 1.23177], ["1993-10", 1.22933], ["1993-11", 1.23489], ["1993-12", 1.23066], ["1994-01", 1.22919], ["1994-02", 1.23116], ["1994-03", 1.23352], ["1994-04", 1.23197], ["1994-05", 1.23489], ["1994-06", 1.23478], ["1994-07", 1.23703], ["1994-08", 1.23942], ["1994-09", 1.24426], ["1994-10", 1.24692], ["1994-11", 1.25085], ["1994-12", 1.25816], ["1995-01", 1.26091], ["1995-02", 1.26072], ["1995-03", 1.27908], ["1995-04", 1.29767], ["1995-05", 1.30816], ["1995-06", 1.3091], ["1995-07", 1.31571], ["1995-08", 1.30306], ["1995-09", 1.29527], ["1995-10", 1.30345], ["1995-11", 1.29907], ["1995-12", 1.2965], ["1996-01", 1.27043], ["1996-02", 1.28186], ["1996-03", 1.27989], ["1996-04", 1.28136], ["1996-05", 1.28064], ["1996-06", 1.25243], ["1996-07", 1.22996], ["1996-08", 1.22321], ["1996-09", 1.21595], ["1996-10", 1.20738], ["1996-11", 1.204], ["1996-12", 1.18776], ["1997-01", 1.17086], ["1997-02", 1.15155], ["1997-03", 1.13299], ["1997-04", 1.11661], ["1997-05", 1.11773], ["1997-06", 1.12182], ["1997-07", 1.11971], ["1997-08", 1.11271], ["1997-09", 1.09588], ["1997-10", 1.07594], ["1997-11", 0.965975], ["1997-12", 0.668047], ["1998-01", 0.58572], ["1998-02", 0.614092], ["1998-03", 0.671431], ["1998-04", 0.718625], ["1998-05", 0.714771], ["1998-06", 0.715424], ["1998-07", 0.771747], ["1998-08", 0.76087], ["1998-09", 0.726988], ["1998-10", 0.743969], ["1998-11", 0.772791], ["1998-12", 0.824254], ["1999-01", 0.850988], ["1999-02", 0.841158], ["1999-03", 0.813192], ["1999-04", 0.826471], ["1999-05", 0.83478], ["1999-06", 0.855495], ["1999-07", 0.840976], ["1999-08", 0.834509], ["1999-09", 0.832639], ["1999-10", 0.829679], ["1999-11", 0.849636], ["1999-12", 0.879659], ["2000-01", 0.884181], ["2000-02", 0.885155], ["2000-03", 0.895744], ["2000-04", 0.900641], ["2000-05", 0.893267], ["2000-06", 0.894506], ["2000-07", 0.896801], ["2000-08", 0.89729], ["2000-09", 0.894799], ["2000-10", 0.884096], ["2000-11", 0.864646], ["2000-12", 0.821737], ["2001-01", 0.785772], ["2001-02", 0.798178], ["2001-03", 0.77435], ["2001-04", 0.75315], ["2001-05", 0.769885], ["2001-06", 0.772172], ["2001-07", 0.766144], ["2001-08", 0.777815], ["2001-09", 0.772897], ["2001-10", 0.767835], ["2001-11", 0.77997], ["2001-12", 0.773823], ["2002-01", 0.759683], ["2002-02", 0.757259], ["2002-03", 0.755912], ["2002-04", 0.758673], ["2002-05", 0.792267], ["2002-06", 0.819877], ["2002-07", 0.847467], ["2002-08", 0.835067], ["2002-09", 0.825351], ["2002-10", 0.806327], ["2002-11", 0.82631], ["2002-12", 0.828765], ["2003-01", 0.850013], ["2003-02", 0.840076], ["2003-03", 0.808277], ["2003-04", 0.812279], ["2003-05", 0.832478], ["2003-06", 0.837421], ["2003-07", 0.846623], ["2003-08", 0.848464], ["2003-09", 0.858071], ["2003-10", 0.855183], ["2003-11", 0.842894], ["2003-12", 0.83869], ["2004-01", 0.845062], ["2004-02", 0.856508], ["2004-03", 0.857422], ["2004-04", 0.867405], ["2004-05", 0.848987], ["2004-06", 0.862796], ["2004-07", 0.863036], ["2004-08", 0.863534], ["2004-09", 0.870535], ["2004-10", 0.875987], ["2004-11", 0.920442], ["2004-12", 0.952042], ["2005-01", 0.963407], ["2005-02", 0.977412], ["2005-03", 0.992284], ["2005-04", 0.990034], ["2005-05", 0.998165], ["2005-06", 0.987693], ["2005-07", 0.964729], ["2005-08", 0.97878], ["2005-09", 0.971021], ["2005-10", 0.956135], ["2005-11", 0.960836], ["2005-12", 0.978109], ["2006-01", 1.01892], ["2006-02", 1.03109], ["2006-03", 1.02595], ["2006-04", 1.04976], ["2006-05", 1.06291], ["2006-06", 1.04772], ["2006-07", 1.05173], ["2006-08", 1.04063], ["2006-09", 1.0501], ["2006-10", 1.04971], ["2006-11", 1.06905], ["2006-12", 1.0811], ["2007-01", 1.06751], ["2007-02", 1.06735], ["2007-03", 1.06058], ["2007-04", 1.07447], ["2007-05", 1.07809], ["2007-06", 1.07774], ["2007-07", 1.08918], ["2007-08", 1.07011], ["2007-09", 1.0769], ["2007-10", 1.09296], ["2007-11", 1.08836], ["2007-12", 1.074], ["2008-01", 1.06151], ["2008-02", 1.05932], ["2008-03", 1.01861], ["2008-04", 1.01331], ["2008-05", 0.966993], ["2008-06", 0.969475], ["2008-07", 0.985169], ["2008-08", 0.955919], ["2008-09", 0.881161], ["2008-10", 0.752339], ["2008-11", 0.714947], ["2008-12", 0.734445], ["2009-01", 0.738336], ["2009-02", 0.694645], ["2009-03", 0.689838], ["2009-04", 0.75068], ["2009-05", 0.797229], ["2009-06", 0.794096], ["2009-07", 0.793856], ["2009-08", 0.807106], ["2009-09", 0.825175], ["2009-10", 0.851977], ["2009-11", 0.859966], ["2009-12", 0.859615], ["2010-01", 0.878584], ["2010-02", 0.86531], ["2010-03", 0.880218], ["2010-04", 0.896492], ["2010-05", 0.858486], ["2010-06", 0.823648], ["2010-07", 0.830696], ["2010-08", 0.847805], ["2010-09", 0.86212], ["2010-10", 0.891313], ["2010-11", 0.885251], ["2010-12", 0.872994], ["2011-01", 0.893761], ["2011-02", 0.894905], ["2011-03", 0.893442], ["2011-04", 0.923211], ["2011-05", 0.922201], ["2011-06", 0.925538], ["2011-07", 0.945694], ["2011-08", 0.931197], ["2011-09", 0.891337], ["2011-10", 0.869048], ["2011-11", 0.882241], ["2011-12", 0.870984], ["2012-01", 0.876941], ["2012-02", 0.890718], ["2012-03", 0.887965], ["2012-04", 0.881039], ["2012-05", 0.864535], ["2012-06", 0.859558], ["2012-07", 0.875444], ["2012-08", 0.883591], ["2012-09", 0.890479], ["2012-10", 0.904664], ["2012-11", 0.920003], ["2012-12", 0.93004], ["2013-01", 0.937629], ["2013-02", 0.919702], ["2013-03", 0.906724], ["2013-04", 0.892142], ["2013-05", 0.89969], ["2013-06", 0.881051], ["2013-07", 0.888865], ["2013-08", 0.896104], ["2013-09", 0.923948], ["2013-10", 0.938212], ["2013-11", 0.942007], ["2013-12", 0.947297], ["2014-01", 0.937096], ["2014-02", 0.93344], ["2014-03", 0.934151], ["2014-04", 0.959108], ["2014-05", 0.975813], ["2014-06", 0.981601], ["2014-07", 0.979399], ["2014-08", 0.976038], ["2014-09", 0.965352], ["2014-10", 0.943097], ["2014-11", 0.910852], ["2014-12", 0.906929], ["2015-01", 0.919008], ["2015-02", 0.907885], ["2015-03", 0.898553], ["2015-04", 0.921939], ["2015-05", 0.915217], ["2015-06", 0.898567], ["2015-07", 0.872184], ["2015-08", 0.848793], ["2015-09", 0.844359], ["2015-10", 0.874738], ["2015-11", 0.866948], ["2015-12", 0.85474], ["2016-01", 0.831036], ["2016-02", 0.822214], ["2016-03", 0.846329], ["2016-04", 0.872755], ["2016-05", 0.851941], ["2016-06", 0.85822], ["2016-07", 0.876528], ["2016-08", 0.900886], ["2016-09", 0.902231], ["2016-10", 0.886394], ["2016-11", 0.860061], ["2016-12", 0.845259], ["2017-01", 0.848099], ["2017-02", 0.876818], ["2017-03", 0.881942], ["2017-04", 0.881698], ["2017-05", 0.888782], ["2017-06", 0.884293], ["2017-07", 0.88359], ["2017-08", 0.884744], ["2017-09", 0.883705], ["2017-10", 0.884264], ["2017-11", 0.909261], ["2017-12", 0.923445], ["2018-01", 0.938402], ["2018-02", 0.927235], ["2018-03", 0.93463], ["2018-04", 0.93629], ["2018-05", 0.928799], ["2018-06", 0.91378], ["2018-07", 0.891104], ["2018-08", 0.892517], ["2018-09", 0.893001], ["2018-10", 0.883693], ["2018-11", 0.888616], ["2018-12", 0.890929], ["2019-01", 0.892594], ["2019-02", 0.891398], ["2019-03", 0.883704], ["2019-04", 0.87553], ["2019-05", 0.845342], ["2019-06", 0.851945], ["2019-07", 0.849448], ["2019-08", 0.826188], ["2019-09", 0.837441], ["2019-10", 0.844989], ["2019-11", 0.856679], ["2019-12", 0.851277], ["2020-01", 0.856559], ["2020-02", 0.836585], ["2020-03", 0.820887], ["2020-04", 0.817574], ["2020-05", 0.814243], ["2020-06", 0.828538], ["2020-07", 0.834294], ["2020-08", 0.842562], ["2020-09", 0.849717], ["2020-10", 0.874303], ["2020-11", 0.895979], ["2020-12", 0.914254], ["2021-01", 0.910551], ["2021-02", 0.899431], ["2021-03", 0.884757], ["2021-04", 0.89457], ["2021-05", 0.889952], ["2021-06", 0.890783], ["2021-07", 0.8723], ["2021-08", 0.86133], ["2021-09", 0.852646], ["2021-10", 0.846102], ["2021-11", 0.844552], ["2021-12", 0.844675], ["2022-01", 0.836096], ["2022-02", 0.833943], ["2022-03", 0.819108], ["2022-04", 0.809616], ["2022-05", 0.788141], ["2022-06", 0.782837], ["2022-07", 0.764509], ["2022-08", 0.757913], ["2022-09", 0.716141], ["2022-10", 0.70123], ["2022-11", 0.734328], ["2022-12", 0.773059], ["2023-01", 0.80446], ["2023-02", 0.784055], ["2023-03", 0.765687], ["2023-04", 0.756397], ["2023-05", 0.753307], ["2023-06", 0.770861], ["2023-07", 0.779859], ["2023-08", 0.756569], ["2023-09", 0.749492], ["2023-10", 0.739915], ["2023-11", 0.764436], ["2023-12", 0.766639], ["2024-01", 0.754198], ["2024-02", 0.751126], ["2024-03", 0.750934], ["2024-04", 0.731071], ["2024-05", 0.732749], ["2024-06", 0.725135], ["2024-07", 0.723564], ["2024-08", 0.739949], ["2024-09", 0.751485], ["2024-10", 0.734015], ["2024-11", 0.716836], ["2024-12", 0.694446], ["2025-01", 0.688614], ["2025-02", 0.692141], ["2025-03", 0.685709], ["2025-04", 0.694552], ["2025-05", 0.718681], ["2025-06", 0.732774], ["2025-07", 0.725008], ["2025-08", 0.719943], ["2025-09", 0.717924], ["2025-10", 0.702701], ["2025-11", 0.684988], ["2025-12", 0.682428], ["2026-01", 0.687051], ["2026-02", 0.690949], ["2026-03", 0.670908], ["2026-04", 0.673946], ["2026-05", 0.671864], ["2026-06", 0.653825], ["2026-07", 0.672942], ["2026-08", 0.712647], ["2026-09", 0.735722], ["2026-10", 0.747742], ["2026-11", 0.741216]], "realPoints": null, "realUnit": null, "realKey": null, "realAnchor": null, "fx": null, "population": null, "title": "South Korea Exchange Rate Against the US Dollar", "srcNote": "FRED series DEXKOUS (Federal Reserve H.10) · end-of-month rate, the current month shows the latest daily rate; shown as US$ per ₩1,000, 1,000 ÷ the published KRW per US$."});</script>
 <script>
 (function(){
@@ -2548,21 +2551,35 @@
     var mi = String(dt.getMinutes()).padStart(2, "0");
     return dd + " " + mo + " " + yy + ", " + hh + ":" + mi;
   }
+  /* v1.9.139: a saved chart keeps every setting the editor offers and the page's three switches
+     (Convert to USD$, Adjust for inflation, Per capita), so it reopens exactly as it was saved, here
+     or in Chartmaker. Older saves carry fewer keys; anything missing keeps its default. */
+  var CZ_SAVE_KEYS = ["chartTitle", "yTitle", "chartKind", "showFill", "showPoints", "refLine", "threshold2Color",
+    "yTitlePos", "yScale", "yTickStepIdx", "xTicks", "xLabelAngle", "lineColor", "exportTheme", "annotations"];
   function czSaveStyleSnapshot(){
-    return {
-      chartTitle: czState.chartTitle, yTitle: czState.yTitle,
-      chartKind: czState.chartKind, showFill: czState.showFill, showPoints: czState.showPoints,
-      refLine: czState.refLine, threshold2Color: czState.threshold2Color
-    };
+    var o = {};
+    CZ_SAVE_KEYS.forEach(function(k){ if(czState[k] !== undefined) o[k] = JSON.parse(JSON.stringify(czState[k])); });
+    if(typeof TOGGLE_STATE !== "undefined") o.toggles = { dollar: !!TOGGLE_STATE.dollar, real: !!TOGGLE_STATE.real, capita: !!TOGGLE_STATE.capita };
+    return o;
+  }
+  function czRestoreToggles(t){
+    if(!t || typeof TOGGLE_STATE === "undefined" || typeof toggleMetric !== "function") return;
+    [["dollar", "toggleDollar"], ["real", "toggleReal"], ["capita", "toggleCapita"]].forEach(function(p){
+      var want = !!t[p[0]], btn = document.getElementById(p[1]);
+      if(btn && !btn.disabled && !!TOGGLE_STATE[p[0]] !== want) toggleMetric(p[0], btn);
+    });
   }
   function loadSavedChart(row){
+    var style = row.style || {};
+    czRestoreToggles(style.toggles);   // the page redraws with the saved switches before the chart is rebuilt
     var meta = window.EATLAS_CHART_META && window.EATLAS_CHART_META[row.metric_key];
     var series = window.EATLAS_SERIES && window.EATLAS_SERIES[row.metric_key];
-    if(!meta || !series || !series.points){
+    var allPts = (meta && meta.pts) || (series && series.points);   // the figures the panel shows, switches applied
+    if(!meta || !allPts || !allPts.length){
       window.alert("This saved chart's series isn't available on this page.");
       return;
     }
-    var pts = series.points;
+    var pts = allPts;
     if(row.from_period || row.to_period){
       var filtered = pts.filter(function(p){
         return (!row.from_period || p[0] >= row.from_period) && (!row.to_period || p[0] <= row.to_period);
@@ -2570,22 +2587,31 @@
       if(filtered.length) pts = filtered;
     }
     window.EATLAS_OPEN_CUSTOMIZE(pts, row.name || meta.title, meta.srcNote, meta.fmtY, "", meta.title, meta.kind, czFmtPeriod, row.metric_key);
-    var style = row.style || {};
-    if(style.chartTitle != null){ czState.chartTitle = style.chartTitle; document.getElementById("czChartTitleInput").value = style.chartTitle; }
-    if(style.yTitle != null){ czState.yTitle = style.yTitle; document.getElementById("czYAxisTitleInput").value = style.yTitle; }
-    if(style.chartKind){
+    var has = function(k){ return style[k] !== undefined && style[k] !== null; };
+    var setChk = function(id, v){ var e = document.getElementById(id); if(e) e.checked = !!v; };
+    var setVal = function(id, v){ var e = document.getElementById(id); if(e) e.value = v; };
+    if(has("chartTitle")){ czState.chartTitle = style.chartTitle; setVal("czChartTitleInput", style.chartTitle); }
+    if(has("yTitle")){ czState.yTitle = style.yTitle; setVal("czYAxisTitleInput", style.yTitle); }
+    if(style.chartKind === "bar" || style.chartKind === "line"){
       czState.chartKind = style.chartKind;
       czChartKindSeg.querySelectorAll("button").forEach(function(b){ b.classList.toggle("active", b.dataset.kind === czState.chartKind); });
     }
-    if(style.refLine){
-      czState.refLine = style.refLine;
-      document.getElementById("czReflineToggle").checked = !!style.refLine.enabled;
-      document.getElementById("czReflineValue").value = style.refLine.value;
+    if(has("refLine")){
+      czState.refLine = { enabled: !!style.refLine.enabled, value: +style.refLine.value || 0 };
+      setChk("czReflineToggle", czState.refLine.enabled); setVal("czReflineValue", czState.refLine.value);
     }
-    czState.showFill = style.showFill !== false;
-    document.getElementById("czFillToggle").checked = czState.showFill;
-    czState.showPoints = style.showPoints !== false;
-    document.getElementById("czPointsToggle").checked = czState.showPoints;
+    if(has("threshold2Color")){ czState.threshold2Color = !!style.threshold2Color; setChk("czThresholdShadeToggle", czState.threshold2Color); }
+    czState.showFill = style.showFill !== false; setChk("czFillToggle", czState.showFill);
+    czState.showPoints = style.showPoints !== false; setChk("czPointsToggle", czState.showPoints);
+    if(has("yScale")){ czState.yScale = style.yScale === "log" ? "log" : "linear"; setChk("czLogScaleToggle", czState.yScale === "log"); }
+    if(typeof style.yTickStepIdx === "number") czState.yTickStepIdx = style.yTickStepIdx;
+    if(has("yTitlePos")){ czState.yTitlePos = style.yTitlePos; czYTitlePosSeg.querySelectorAll("button").forEach(function(b){ b.classList.toggle("active", b.dataset.pos === czState.yTitlePos); }); }
+    if(has("xTicks")){ czState.xTicks = +style.xTicks || czState.xTicks; czXTickVal.textContent = String(czState.xTicks); }
+    if(has("xLabelAngle")){ czState.xLabelAngle = style.xLabelAngle; czXAngleSeg.querySelectorAll("button").forEach(function(b){ b.classList.toggle("active", b.dataset.angle === czState.xLabelAngle); }); }
+    if(has("lineColor")){ czState.lineColor = style.lineColor; czSyncColorSwatches(); }
+    if(style.exportTheme === "light" || style.exportTheme === "dark"){ czState.exportTheme = style.exportTheme; czThemeSeg.querySelectorAll("button").forEach(function(b){ b.classList.toggle("active", b.dataset.theme === czState.exportTheme); }); }
+    if(Array.isArray(style.annotations)){ czState.annotations = JSON.parse(JSON.stringify(style.annotations)); czRenderAnnotList(); }
+    if(typeof czSyncModeFields === "function") czSyncModeFields();
     czRenderPreview();
   }
   // ---- Saved charts list: lives in the "Open chart" popover next to
@@ -2598,7 +2624,7 @@
       if(!listEl) return;
       listEl.innerHTML = "";
       if(!rows.length){
-        listEl.textContent = 'No saved charts yet , open "Bank Rate" → Customise & export → Save chart.';
+        listEl.textContent = 'No saved charts yet. Open any chart\u2019s Customise & export, then Save chart.';
         return;
       }
       rows.forEach(function(row){

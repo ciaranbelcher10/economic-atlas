@@ -24,7 +24,7 @@
 <noscript><link href="https://fonts.googleapis.com/css2?family=Nunito+Sans:wght@400;600;700&display=swap" rel="stylesheet"></noscript>
 <link rel="stylesheet" href="../style.css?v=63">
 <link rel="stylesheet" href="../mobile.css?v=49">
-<link rel="stylesheet" href="../indicator.css?v=15">
+<link rel="stylesheet" href="../indicator.css?v=17">
 <script type="application/ld+json">
 {
   "@context": "https://schema.org",
@@ -658,6 +658,7 @@
       // timing anything genuinely slow.
       setTimeout(function(){
         var csv = entry.kind === "multi" ? multiToCSV(entry.data) : seriesToCSV(entry.data);
+        csv = csv.replace(/^((?:Country,)?Date,)Value\n/, function(_, h){ return h + (/[",\n]/.test(String(entry.title || "")) ? '"' + String(entry.title).replace(/"/g, '""') + '"' : String(entry.title || "Value")) + "\n"; });   // v1.9.139: the value column names the chart and its unit
         triggerDownload(csv, entry.title);
         btn.classList.remove("dl-downloading");
         btn.classList.add("dl-success");
@@ -1207,7 +1208,7 @@
     </div>
   </div>
   <p class="lightskey"><span><span class="led green" aria-hidden="true"></span>Up to date</span><span><span class="led orange" aria-hidden="true"></span>Awaiting update</span></p>
-  <a class="glow-cta" href="../mexico"><span class="glow-inner"><span class="glow-text"><span class="glow-title">Explore the full Mexico economy</span><span class="glow-sub">19 live indicators on one dashboard, from growth and prices to jobs, trade and public finances. Updated automatically from official sources.</span></span><span class="glow-go"><svg viewBox="0 0 20 20" fill="none" aria-hidden="true"><path d="M4 10h11m-4.5-4.5L15 10l-4.5 4.5" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"/></svg></span></span></a>
+  <a class="glow-cta" href="../mexico"><span class="glow-inner"><span class="glow-text"><span class="glow-title">Explore the full Mexico economy</span><span class="glow-sub">21 live indicators on one dashboard, from growth and prices to jobs, trade and public finances. Updated automatically from official sources.</span></span><span class="glow-go"><svg viewBox="0 0 20 20" fill="none" aria-hidden="true"><path d="M4 10h11m-4.5-4.5L15 10l-4.5 4.5" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"/></svg></span></span></a>
   
   <section class="panel ind-panel" aria-labelledby="chartTitle">
     <div class="ind-panelhead">
@@ -1244,8 +1245,8 @@
     <p class="ind-section-sub">Latest readings. Open any one for its full history.</p>
     <div class="ind-related">
 <div class="ind-cat">GDP &amp; growth</div>
-<a href="mexico-gdp"><span class="r-name">GDP</span><span class="r-val">MX$36.16tn</span><span class="r-per">Q2 2026</span></a>
-<a href="mexico-real-gdp"><span class="r-name">Real GDP</span><span class="r-val">MX$25.68tn</span><span class="r-per">Q2 2026</span></a>
+<a href="mexico-gdp"><span class="r-name">GDP</span><span class="r-val">MX$36.2tn</span><span class="r-per">Q2 2026</span></a>
+<a href="mexico-real-gdp"><span class="r-name">Real GDP</span><span class="r-val">MX$25.7tn</span><span class="r-per">Q2 2026</span></a>
 <a href="mexico-gdp-per-capita"><span class="r-name">GDP per Capita</span><span class="r-val">MX$268k</span><span class="r-per">2025</span></a>
 <a href="mexico-gdp-growth-rate"><span class="r-name">GDP Growth Rate (quarter on quarter)</span><span class="r-val">1.4%</span><span class="r-per">Q2 2026</span></a>
 <a href="mexico-gdp-annual-growth-rate"><span class="r-name">GDP Annual Growth Rate</span><span class="r-val">1.9%</span><span class="r-per">Q2 2026</span></a>
@@ -1260,7 +1261,9 @@
 <div class="ind-cat">Markets</div>
 <a href="mexico-exchange-rate"><span class="r-name">Exchange Rate Against the US Dollar</span><span class="r-val">US$0.0536 per MX$1</span><span class="r-per">Nov 2026</span></a>
 <div class="ind-cat">Trade</div>
-<a href="mexico-balance-of-trade"><span class="r-name">Balance of Trade</span><span class="r-val">MX$128.39bn</span><span class="r-per">Q2 2026</span></a>
+<a href="mexico-balance-of-trade"><span class="r-name">Balance of Trade</span><span class="r-val">MX$39.5bn</span><span class="r-per">Jun 2026</span></a>
+<a href="mexico-exports"><span class="r-name">Exports</span><span class="r-val">MX$1.3tn</span><span class="r-per">Jun 2026</span></a>
+<a href="mexico-imports"><span class="r-name">Imports</span><span class="r-val">MX$1.2tn</span><span class="r-per">Jun 2026</span></a>
 <a href="mexico-current-account-to-gdp"><span class="r-name">Current Account (% of GDP)</span><span class="r-val">−0.5%</span><span class="r-per">2025</span></a>
 <a href="mexico-foreign-direct-investment"><span class="r-name">Foreign Direct Investment (% of GDP)</span><span class="r-val">2.4%</span><span class="r-per">2025</span></a>
 <div class="ind-cat">Public finances</div>
@@ -1423,7 +1426,7 @@
 </div>
 
 <script src="https://cdnjs.cloudflare.com/ajax/libs/Chart.js/4.4.1/chart.umd.min.js"></script>
-<script src="../indicator-kit.js?v=15"></script>
+<script src="../indicator-kit.js?v=17"></script>
 <script>EATLAS_IND.initIndicator({"key": "cpi", "country": "Mexico", "unit": "%", "freq": "months", "upIsGood": false, "chart": "line", "annualise": false, "gdpRaw": false, "dataUrl": "../data-mx.json", "points": [["2015-01", 3.065641], ["2015-02", 3.000266], ["2015-03", 3.137075], ["2015-04", 3.062327], ["2015-05", 2.876643], ["2015-06", 2.87078], ["2015-07", 2.739047], ["2015-08", 2.587317], ["2015-09", 2.518892], ["2015-10", 2.479728], ["2015-11", 2.214853], ["2015-12", 2.130813], ["2016-01", 2.613105], ["2016-02", 2.867251], ["2016-03", 2.60101], ["2016-04", 2.541579], ["2016-05", 2.596662], ["2016-06", 2.537988], ["2016-07", 2.654829], ["2016-08", 2.727437], ["2016-09", 2.968949], ["2016-10", 3.063623], ["2016-11", 3.305351], ["2016-12", 3.360274], ["2017-01", 4.718281], ["2017-02", 4.864232], ["2017-03", 5.352562], ["2017-04", 5.81717], ["2017-05", 6.164014], ["2017-06", 6.313656], ["2017-07", 6.438164], ["2017-08", 6.663488], ["2017-09", 6.347847], ["2017-10", 6.371532], ["2017-11", 6.634523], ["2017-12", 6.773048], ["2018-01", 5.545835], ["2018-02", 5.339217], ["2018-03", 5.035412], ["2018-04", 4.550784], ["2018-05", 4.506269], ["2018-06", 4.646858], ["2018-07", 4.811406], ["2018-08", 4.904528], ["2018-09", 5.019574], ["2018-10", 4.903636], ["2018-11", 4.716534], ["2018-12", 4.830546], ["2019-01", 4.365606], ["2019-02", 3.940276], ["2019-03", 4.004178], ["2019-04", 4.413454], ["2019-05", 4.281993], ["2019-06", 3.947147], ["2019-07", 3.781338], ["2019-08", 3.162441], ["2019-09", 2.997513], ["2019-10", 3.019519], ["2019-11", 2.974497], ["2019-12", 2.828577], ["2020-01", 3.238352], ["2020-02", 3.696194], ["2020-03", 3.249063], ["2020-04", 2.148149], ["2020-05", 2.837271], ["2020-06", 3.334011], ["2020-07", 3.623405], ["2020-08", 4.048423], ["2020-09", 4.013777], ["2020-10", 4.086964], ["2020-11", 3.331878], ["2020-12", 3.150074], ["2021-01", 3.535093], ["2021-02", 3.75904], ["2021-03", 4.666879], ["2021-04", 6.084819], ["2021-05", 5.893823], ["2021-06", 5.878606], ["2021-07", 5.805815], ["2021-08", 5.592072], ["2021-09", 6.000148], ["2021-10", 6.239542], ["2021-11", 7.374881], ["2021-12", 7.355108], ["2022-01", 7.070139], ["2022-02", 7.279974], ["2022-03", 7.453677], ["2022-04", 7.682503], ["2022-05", 7.652621], ["2022-06", 7.986339], ["2022-07", 8.150806], ["2022-08", 8.695423], ["2022-09", 8.69975], ["2022-10", 8.406816], ["2022-11", 7.796619], ["2022-12", 7.817029], ["2023-01", 7.910036], ["2023-02", 7.618864], ["2023-03", 6.849258], ["2023-04", 6.252845], ["2023-05", 5.835303], ["2023-06", 5.055554], ["2023-07", 4.785763], ["2023-08", 4.638014], ["2023-09", 4.454488], ["2023-10", 4.257], ["2023-11", 4.323913], ["2023-12", 4.66089], ["2024-01", 4.883929], ["2024-02", 4.400762], ["2024-03", 4.420939], ["2024-04", 4.65321], ["2024-05", 4.686768], ["2024-06", 4.976056], ["2024-07", 5.566164], ["2024-08", 4.99286], ["2024-09", 4.580387], ["2024-10", 4.76154], ["2024-11", 4.548671], ["2024-12", 4.212339], ["2025-01", 3.58504], ["2025-02", 3.77391], ["2025-03", 3.801141], ["2025-04", 3.933421], ["2025-05", 4.418773], ["2025-06", 4.317429], ["2025-07", 3.512423], ["2025-08", 3.568777], ["2025-09", 3.760288], ["2025-10", 3.566521], ["2025-11", 3.799191], ["2025-12", 3.691944], ["2026-01", 3.791301], ["2026-02", 4.023038], ["2026-03", 4.586773], ["2026-04", 4.448503], ["2026-05", 3.938948], ["2026-06", 3.365977], ["2026-07", 3.11763], ["2026-08", 3.261942], ["2026-09", 3.454748], ["2026-10", 3.752787]], "realPoints": null, "realUnit": null, "realKey": null, "realAnchor": null, "fx": null, "population": null, "title": "Mexico Inflation Rate", "srcNote": "OECD live prices system · CPI, all items, year on year, monthly. Where the OECD series is unavailable, this falls back to World Bank annual CPI (FP.CPI.TOTL.ZG); the period shown under the figure tells you which is live, a year on its own means the annual fallback."});</script>
 <script>
 (function(){
@@ -2550,21 +2553,35 @@
     var mi = String(dt.getMinutes()).padStart(2, "0");
     return dd + " " + mo + " " + yy + ", " + hh + ":" + mi;
   }
+  /* v1.9.139: a saved chart keeps every setting the editor offers and the page's three switches
+     (Convert to USD$, Adjust for inflation, Per capita), so it reopens exactly as it was saved, here
+     or in Chartmaker. Older saves carry fewer keys; anything missing keeps its default. */
+  var CZ_SAVE_KEYS = ["chartTitle", "yTitle", "chartKind", "showFill", "showPoints", "refLine", "threshold2Color",
+    "yTitlePos", "yScale", "yTickStepIdx", "xTicks", "xLabelAngle", "lineColor", "exportTheme", "annotations"];
   function czSaveStyleSnapshot(){
-    return {
-      chartTitle: czState.chartTitle, yTitle: czState.yTitle,
-      chartKind: czState.chartKind, showFill: czState.showFill, showPoints: czState.showPoints,
-      refLine: czState.refLine, threshold2Color: czState.threshold2Color
-    };
+    var o = {};
+    CZ_SAVE_KEYS.forEach(function(k){ if(czState[k] !== undefined) o[k] = JSON.parse(JSON.stringify(czState[k])); });
+    if(typeof TOGGLE_STATE !== "undefined") o.toggles = { dollar: !!TOGGLE_STATE.dollar, real: !!TOGGLE_STATE.real, capita: !!TOGGLE_STATE.capita };
+    return o;
+  }
+  function czRestoreToggles(t){
+    if(!t || typeof TOGGLE_STATE === "undefined" || typeof toggleMetric !== "function") return;
+    [["dollar", "toggleDollar"], ["real", "toggleReal"], ["capita", "toggleCapita"]].forEach(function(p){
+      var want = !!t[p[0]], btn = document.getElementById(p[1]);
+      if(btn && !btn.disabled && !!TOGGLE_STATE[p[0]] !== want) toggleMetric(p[0], btn);
+    });
   }
   function loadSavedChart(row){
+    var style = row.style || {};
+    czRestoreToggles(style.toggles);   // the page redraws with the saved switches before the chart is rebuilt
     var meta = window.EATLAS_CHART_META && window.EATLAS_CHART_META[row.metric_key];
     var series = window.EATLAS_SERIES && window.EATLAS_SERIES[row.metric_key];
-    if(!meta || !series || !series.points){
+    var allPts = (meta && meta.pts) || (series && series.points);   // the figures the panel shows, switches applied
+    if(!meta || !allPts || !allPts.length){
       window.alert("This saved chart's series isn't available on this page.");
       return;
     }
-    var pts = series.points;
+    var pts = allPts;
     if(row.from_period || row.to_period){
       var filtered = pts.filter(function(p){
         return (!row.from_period || p[0] >= row.from_period) && (!row.to_period || p[0] <= row.to_period);
@@ -2572,22 +2589,31 @@
       if(filtered.length) pts = filtered;
     }
     window.EATLAS_OPEN_CUSTOMIZE(pts, row.name || meta.title, meta.srcNote, meta.fmtY, "", meta.title, meta.kind, czFmtPeriod, row.metric_key);
-    var style = row.style || {};
-    if(style.chartTitle != null){ czState.chartTitle = style.chartTitle; document.getElementById("czChartTitleInput").value = style.chartTitle; }
-    if(style.yTitle != null){ czState.yTitle = style.yTitle; document.getElementById("czYAxisTitleInput").value = style.yTitle; }
-    if(style.chartKind){
+    var has = function(k){ return style[k] !== undefined && style[k] !== null; };
+    var setChk = function(id, v){ var e = document.getElementById(id); if(e) e.checked = !!v; };
+    var setVal = function(id, v){ var e = document.getElementById(id); if(e) e.value = v; };
+    if(has("chartTitle")){ czState.chartTitle = style.chartTitle; setVal("czChartTitleInput", style.chartTitle); }
+    if(has("yTitle")){ czState.yTitle = style.yTitle; setVal("czYAxisTitleInput", style.yTitle); }
+    if(style.chartKind === "bar" || style.chartKind === "line"){
       czState.chartKind = style.chartKind;
       czChartKindSeg.querySelectorAll("button").forEach(function(b){ b.classList.toggle("active", b.dataset.kind === czState.chartKind); });
     }
-    if(style.refLine){
-      czState.refLine = style.refLine;
-      document.getElementById("czReflineToggle").checked = !!style.refLine.enabled;
-      document.getElementById("czReflineValue").value = style.refLine.value;
+    if(has("refLine")){
+      czState.refLine = { enabled: !!style.refLine.enabled, value: +style.refLine.value || 0 };
+      setChk("czReflineToggle", czState.refLine.enabled); setVal("czReflineValue", czState.refLine.value);
     }
-    czState.showFill = style.showFill !== false;
-    document.getElementById("czFillToggle").checked = czState.showFill;
-    czState.showPoints = style.showPoints !== false;
-    document.getElementById("czPointsToggle").checked = czState.showPoints;
+    if(has("threshold2Color")){ czState.threshold2Color = !!style.threshold2Color; setChk("czThresholdShadeToggle", czState.threshold2Color); }
+    czState.showFill = style.showFill !== false; setChk("czFillToggle", czState.showFill);
+    czState.showPoints = style.showPoints !== false; setChk("czPointsToggle", czState.showPoints);
+    if(has("yScale")){ czState.yScale = style.yScale === "log" ? "log" : "linear"; setChk("czLogScaleToggle", czState.yScale === "log"); }
+    if(typeof style.yTickStepIdx === "number") czState.yTickStepIdx = style.yTickStepIdx;
+    if(has("yTitlePos")){ czState.yTitlePos = style.yTitlePos; czYTitlePosSeg.querySelectorAll("button").forEach(function(b){ b.classList.toggle("active", b.dataset.pos === czState.yTitlePos); }); }
+    if(has("xTicks")){ czState.xTicks = +style.xTicks || czState.xTicks; czXTickVal.textContent = String(czState.xTicks); }
+    if(has("xLabelAngle")){ czState.xLabelAngle = style.xLabelAngle; czXAngleSeg.querySelectorAll("button").forEach(function(b){ b.classList.toggle("active", b.dataset.angle === czState.xLabelAngle); }); }
+    if(has("lineColor")){ czState.lineColor = style.lineColor; czSyncColorSwatches(); }
+    if(style.exportTheme === "light" || style.exportTheme === "dark"){ czState.exportTheme = style.exportTheme; czThemeSeg.querySelectorAll("button").forEach(function(b){ b.classList.toggle("active", b.dataset.theme === czState.exportTheme); }); }
+    if(Array.isArray(style.annotations)){ czState.annotations = JSON.parse(JSON.stringify(style.annotations)); czRenderAnnotList(); }
+    if(typeof czSyncModeFields === "function") czSyncModeFields();
     czRenderPreview();
   }
   // ---- Saved charts list: lives in the "Open chart" popover next to
@@ -2600,7 +2626,7 @@
       if(!listEl) return;
       listEl.innerHTML = "";
       if(!rows.length){
-        listEl.textContent = 'No saved charts yet , open "Bank Rate" → Customise & export → Save chart.';
+        listEl.textContent = 'No saved charts yet. Open any chart\u2019s Customise & export, then Save chart.';
         return;
       }
       rows.forEach(function(row){

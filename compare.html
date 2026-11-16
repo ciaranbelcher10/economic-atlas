@@ -1048,6 +1048,7 @@ footer.cmp-foot{margin-top:36px; font-size:12.5px; color:var(--ink2); border-top
       // timing anything genuinely slow.
       setTimeout(function(){
         var csv = entry.kind === "multi" ? multiToCSV(entry.data) : seriesToCSV(entry.data);
+        csv = csv.replace(/^((?:Country,)?Date,)Value\n/, function(_, h){ return h + (/[",\n]/.test(String(entry.title || "")) ? '"' + String(entry.title).replace(/"/g, '""') + '"' : String(entry.title || "Value")) + "\n"; });   // v1.9.139: the value column names the chart and its unit
         triggerDownload(csv, entry.title);
         btn.classList.remove("dl-downloading");
         btn.classList.add("dl-success");
@@ -2083,8 +2084,10 @@ var SOURCE_MAP = {
     gdp_growth: "IMF International Financial Statistics, via FRED, quarter-on-quarter.",
     gdp_level: "FRED series NGDPNSAXDCBRQ · IMF International Financial Statistics, quarterly, not seasonally adjusted.",
     gdp_real: "IMF International Financial Statistics, via FRED, quarterly.",
-    trade_balance: "FRED series XTNTVA01BRQ667S · OECD merchandise trade, quarterly.",
+    trade_balance: "IMF international trade in goods (ITG) · exports free on board less imports cost, insurance and freight, monthly, not seasonally adjusted, in reais at each month's average rate.",
     unemployment: "World Bank · % of total labor force, annual.",
+    exports: "IMF international trade in goods (ITG) · exports of goods, free on board, monthly, not seasonally adjusted, in reais at each month's average rate.",
+    imports: "IMF international trade in goods (ITG) · imports of goods, cost, insurance and freight, monthly, not seasonally adjusted, in reais at each month's average rate.",
   },
   "Canada": {
     business_confidence: "OECD · Business Confidence Indicator (BCICP), amplitude-adjusted, long-term average = 100.",
@@ -2097,8 +2100,10 @@ var SOURCE_MAP = {
     gdp_level: "FRED series (IMF International Financial Statistics), quarterly.",
     gdp_real: "IMF International Financial Statistics, via FRED, quarterly.",
     overnight_rate: "FRED series IRSTCI01CAM156N · interbank overnight rate, monthly.",
-    trade_balance: "FRED series CANXTNTVA01CXMLQ · OECD merchandise trade, quarterly.",
+    trade_balance: "IMF international trade in goods (ITG) · exports free on board less imports cost, insurance and freight, monthly, not seasonally adjusted, in Canadian dollars at each month's average rate.",
     unemployment: "FRED series LRUNTTTTCAM156S · seasonally adjusted, monthly.",
+    exports: "IMF international trade in goods (ITG) · exports of goods, free on board, monthly, not seasonally adjusted, in Canadian dollars at each month's average rate.",
+    imports: "IMF international trade in goods (ITG) · imports of goods, cost, insurance and freight, monthly, not seasonally adjusted, in Canadian dollars at each month's average rate.",
   },
   "Chile": {
     bond_yield_10y: "FRED series IRLTLT01CLM156N · monthly average.",
@@ -2165,8 +2170,10 @@ var SOURCE_MAP = {
     gdp_level: "Eurostat namq_10_gdp (CP_MNAC) · current prices, seasonally and calendar adjusted, quarterly, shown as a rolling four-quarter sum.",
     gdp_real: "Eurostat namq_10_gdp (CLV20_MNAC) · chain-linked volumes, 2020 reference year, seasonally and calendar adjusted, quarterly, shown as a rolling four-quarter sum.",
     participation_rate: "FRED series LRAC64TTDKQ156S · OECD, ages 15-64, seasonally adjusted, quarterly.",
-    trade_balance: "OECD · merchandise trade, quarterly.",
+    trade_balance: "IMF international trade in goods (ITG) · exports free on board less imports cost, insurance and freight, monthly, not seasonally adjusted, in kroner at each month's average rate.",
     unemployment: "Eurostat une_rt_m · unemployment rate, ILO definition, ages 15 to 74, seasonally adjusted, monthly.",
+    exports: "IMF international trade in goods (ITG) · exports of goods, free on board, monthly, not seasonally adjusted, in kroner at each month's average rate.",
+    imports: "IMF international trade in goods (ITG) · imports of goods, cost, insurance and freight, monthly, not seasonally adjusted, in kroner at each month's average rate.",
   },
   "Eurozone": {
     business_confidence: "OECD · Business Confidence Indicator (BCICP), amplitude-adjusted, long-term average = 100.",
@@ -2244,7 +2251,7 @@ var SOURCE_MAP = {
     gdp_level: "FRED series NGDPSAXDCIDQ · IMF International Financial Statistics, trailing 4-quarter sum, seasonally adjusted (falls back to World Bank current US$, annual, only if the live IDR series is unavailable).",
     gdp_real: "FRED series NGDPRSAXDCIDQ · IMF International Financial Statistics, quarterly, seasonally adjusted.",
     trade_balance: "OECD · merchandise trade, monthly.",
-    unemployment: "World Bank SL.UEM.TOTL.ZS · modeled ILO estimate, % of total labour force, annual.",
+    unemployment: "IMF World Economic Outlook (LUR) · unemployment rate, national definition, as published by Statistics Indonesia (BPS), annual, actual years.",
   },
   "Ireland": {
     bond_yield_10y: "FRED series IRLTLT01IEM156N · OECD, monthly.",
@@ -2325,8 +2332,10 @@ var SOURCE_MAP = {
     gdp_level: "FRED series NGDPSAXDCMXQ · IMF International Financial Statistics, quarterly.",
     gdp_real: "IMF International Financial Statistics, via FRED, quarterly.",
     participation_rate: "FRED series LRAC64TTMXQ156S · OECD, ages 15-64, seasonally adjusted, quarterly.",
-    trade_balance: "FRED series XTNTVA01MXQ667S · OECD merchandise trade, quarterly.",
+    trade_balance: "IMF international trade in goods (ITG) · exports free on board less imports cost, insurance and freight, monthly, not seasonally adjusted, in pesos at each month's average rate.",
     unemployment: "FRED series LRUNTTTTMXQ156S · seasonally adjusted, quarterly.",
+    exports: "IMF international trade in goods (ITG) · exports of goods, free on board, monthly, not seasonally adjusted, in pesos at each month's average rate.",
+    imports: "IMF international trade in goods (ITG) · imports of goods, cost, insurance and freight, monthly, not seasonally adjusted, in pesos at each month's average rate.",
   },
   "Morocco": {
     business_confidence: "OECD · Business Confidence Indicator (BCICP), amplitude-adjusted, long-term average = 100.",
@@ -2339,7 +2348,7 @@ var SOURCE_MAP = {
     gdp_level: "World Bank NY.GDP.MKTP.CN · current local-currency units (MAD), annual.",
     gdp_real: "World Bank NY.GDP.MKTP.KN · constant local-currency units (MAD), annual.",
     trade_balance: "FRED series XTNTVA01MAQ667S · OECD merchandise trade, quarterly.",
-    unemployment: "World Bank · % of total labor force, annual.",
+    unemployment: "IMF World Economic Outlook (LUR) · unemployment rate, national definition, as published by the High Commission for Planning (HCP), annual, actual years.",
   },
   "Netherlands": {
     bond_yield_10y: "FRED series IRLTLT01NLM156N · monthly average.",
@@ -2384,8 +2393,10 @@ var SOURCE_MAP = {
     gdp_growth: "FRED series NGDPRSAXDCPLQ · IMF International Financial Statistics, quarterly.",
     gdp_level: "FRED series NGDPSAXDCPLQ · IMF International Financial Statistics, trailing 4-quarter sum (falls back to World Bank current US$, annual, only if the live PLN series is unavailable).",
     gdp_real: "FRED series NGDPRSAXDCPLQ · IMF International Financial Statistics, quarterly, seasonally adjusted.",
-    trade_balance: "Eurostat · goods trade, total, monthly (world partner, derived as exports minus imports).",
+    trade_balance: "Eurostat · goods trade, total, world partner, monthly, not seasonally adjusted, in zloty at each month's ECB reference rate (exports less imports).",
     unemployment: "Eurostat une_rt_m · unemployment rate, ILO definition, ages 15 to 74, seasonally adjusted, monthly.",
+    exports: "Eurostat · goods trade, total, world partner, monthly, not seasonally adjusted, in zloty at each month's ECB reference rate.",
+    imports: "Eurostat · goods trade, total, world partner, monthly, not seasonally adjusted, in zloty at each month's ECB reference rate.",
   },
   "Singapore": {
     business_confidence: "OECD · Business Confidence Indicator (BCICP), amplitude-adjusted, long-term average = 100.",
@@ -2425,8 +2436,10 @@ var SOURCE_MAP = {
     gdp_level: "FRED (IMF International Financial Statistics), quarterly.",
     gdp_real: "IMF International Financial Statistics, via FRED, quarterly.",
     participation_rate: "FRED series LRAC64TTKRQ156S · OECD, ages 15-64, seasonally adjusted, quarterly.",
-    trade_balance: "FRED series XTNTVA01KRQ667S · OECD merchandise trade, quarterly.",
+    trade_balance: "IMF international trade in goods (ITG) · exports free on board less imports cost, insurance and freight, monthly, not seasonally adjusted, in won at each month's average rate.",
     unemployment: "OECD DF_IALFS_UNE_M · unemployment rate, ages 15 and over, seasonally adjusted, monthly.",
+    exports: "IMF international trade in goods (ITG) · exports of goods, free on board, monthly, not seasonally adjusted, in won at each month's average rate.",
+    imports: "IMF international trade in goods (ITG) · imports of goods, cost, insurance and freight, monthly, not seasonally adjusted, in won at each month's average rate.",
   },
   "Spain": {
     bond_yield_10y: "ECB IRS M.ES.L.L40.CI.0000.EUR.N.Z · 10-year benchmark government bond yield, monthly average (ECB long-term interest rate for convergence purposes).",
@@ -2985,7 +2998,7 @@ var SOURCE_MAP = {
     imports: "Central Reserve Bank of Peru (BCRP), series PN38718BM · imports of goods, free on board, US$ converted to soles at the BIS monthly average rate, monthly.",
     policy_rate: "BIS central bank policy rates (WS_CBPOL, M.PE, extended with the daily series D.PE) · the Central Reserve Bank of Peru's reference rate, end of month, from September 2003; the current month shows the latest rate.",
     trade_balance: "Central Reserve Bank of Peru (BCRP) trade balance · exports less imports, both free on board, converted to soles at the BIS monthly average rate, monthly.",
-    unemployment: "World Bank SL.UEM.TOTL.ZS · International Labour Organization modelled estimate, % of the labour force, annual.",
+    unemployment: "IMF World Economic Outlook (LUR) · unemployment rate, national definition, as published by INEI, the national statistics institute, annual, actual years.",
   },
   "Hong Kong": {
     cpi: "IMF consumer price index (CPI, HKG.CPI._T.YOY_PCH_PA_PT.M), from the Census and Statistics Department · Composite CPI, all items, change on the same month a year earlier as the IMF publishes it, to one decimal place, monthly.",
@@ -3034,7 +3047,7 @@ var SOURCE_MAP = {
     gdp_real: "World Bank NY.GDP.MKTP.KN · GDP at constant prices, rupee million, annual.",
     imports: "IMF international trade in goods (ITG) · imports of goods, cost, insurance and freight, in rupees as Pakistan reports them, monthly, from July 2022.",
     trade_balance: "IMF international trade in goods (ITG) · exports less imports of goods, rupees, monthly, from July 2022.",
-    unemployment: "World Bank SL.UEM.TOTL.ZS · International Labour Organization modelled estimate, % of the labour force, annual, from 2012 (the modelled series reads under 1% before then, far below Pakistan's own surveys).",
+    unemployment: "IMF World Economic Outlook (LUR) · unemployment rate, national definition, as published by the Pakistan Bureau of Statistics' Labour Force Survey, annual, actual years.",
   },
 };
 var POLICY_RATE_KEYS = ["boe_rate", "fed_funds", "ecb_rate", "boj_rate", "overnight_rate", "policy_rate", "rate"];
@@ -3438,6 +3451,9 @@ function openInfoPopover(btn, concept){
     pcP.appendChild(document.createTextNode(" " + (EA_PC.eligible(concept)
       ? EA_PC.infoNote(concept, {on: typeof percapOn === "function" && percapOn(concept)}) + " Switch it on with the card's Per capita button."
       : EA_PC.infoNote(concept, {}))));
+  } else {
+    var oldPc = el.querySelector(".infoPopoverPc");   // v1.9.139: the popover is reused; drop a Per capita line left by an earlier metric
+    if(oldPc) oldPc.parentNode.removeChild(oldPc);
   }
   el.hidden = false;
   var rect = btn.getBoundingClientRect();
@@ -5248,9 +5264,9 @@ function fillCardChart(card, concept){
     if(dlBtnLine && window.EATLAS_DOWNLOAD){
       var lineRows = [];
       lineResult.datasets.forEach(function(ds){
-        ds.data.forEach(function(pt){ lineRows.push({country: ds.label, date: pt.x, value: pt.y}); });
+        ds.data.forEach(function(pt){ lineRows.push({country: ds.label, date: pt.x, value: (lineResult.isCurrencyMetric && percapOn(concept)) ? Math.round(pt.y * 1e6) : pt.y}); });   // v1.9.139: per person in whole currency units, as the bar download
       });
-      window.EATLAS_DOWNLOAD.wireMulti(dlBtnLine, lineRows, CONCEPT_LABEL[concept] + " over time");
+      window.EATLAS_DOWNLOAD.wireMulti(dlBtnLine, lineRows, CONCEPT_LABEL[concept] + pcTitle(concept) + " over time");
     }
     var czBtnLine = card.querySelector(".cz-btn");
     if(czBtnLine && window.EATLAS_CUSTOMIZE){
@@ -5261,7 +5277,7 @@ function fillCardChart(card, concept){
         ? function(v){ return curFmt(v, cardUnit(concept), 2); }
         : function(v){ return axisTickLabel(v, concept); };
       var czSrcNote = buildRealSrcNote(concept, czSeriesList.map(function(s){ return s.country; })) + (lineResult.isCurrencyMetric && !isNativeCard(concept) ? " (converted to USD)" : "");
-      window.EATLAS_CUSTOMIZE.wireMulti(czBtnLine, czSeriesList, CONCEPT_LABEL[concept] + " over time", czSrcNote, czFmtY, concept + "_comparison", fmtPeriod);
+      window.EATLAS_CUSTOMIZE.wireMulti(czBtnLine, czSeriesList, CONCEPT_LABEL[concept] + pcTitle(concept) + " over time", czSrcNote, czFmtY, concept + "_comparison", fmtPeriod);
     }
   } else {
     var barResult = buildBarChart(canvas, concept);
@@ -5280,8 +5296,8 @@ function fillCardChart(card, concept){
     var dlBtnBar = card.querySelector(".dl-btn");
     if(dlBtnBar && window.EATLAS_DOWNLOAD){
       var barRows = barResult.rows.filter(function(r){ return r.dv != null; })
-        .map(function(r){ return {country: r.country, date: r.dv.period || "", value: r.dv.perPerson ? Math.round(r.dv.value * 1e6) : r.dv.value}; });
-      window.EATLAS_DOWNLOAD.wireMulti(dlBtnBar, barRows, CONCEPT_LABEL[concept] + pcTitle(concept) + (isNativeCard(concept) ? " (" + cardCurrency(concept) + (pcTitle(concept) ? "" : " millions") + ")" : ""));
+        .map(function(r){ return {country: r.country, date: r.dv.period || (r.dv.endYear ? r.dv.year + " to " + r.dv.endYear : String(r.dv.year == null ? "" : r.dv.year)), value: r.dv.perPerson ? Math.round(r.dv.value * 1e6) : r.dv.value}; });   // v1.9.139: bar values carry year/endYear, not period, so the Date column was empty
+      window.EATLAS_DOWNLOAD.wireMulti(dlBtnBar, barRows, CONCEPT_LABEL[concept] + pcTitle(concept) + (isMoneyConcept(concept) && !(barResult.rows.filter(function(r){ return r.dv != null; })[0] || {dv: {}}).dv.isCumulative ? " (" + (isNativeCard(concept) ? cardCurrency(concept) : "US$") + (pcTitle(concept) ? "" : " millions") + ")" : ""));   // v1.9.139: unit named for US$ figures too
     }
     var czBtnBar = card.querySelector(".cz-btn");
     if(czBtnBar && window.EATLAS_CUSTOMIZE){
@@ -5294,7 +5310,7 @@ function fillCardChart(card, concept){
       var czSnapFmtY = (isMoneyConcept(concept) && !czIsCumulative)
         ? function(v){ return curFmt(v, czRawUnit || cardUnit(concept), 0); }
         : function(v){ return axisTickLabel(v, concept, czIsCumulative); };
-      window.EATLAS_CUSTOMIZE.wireSnapshot(czBtnBar, czSnapshotRows, CONCEPT_LABEL[concept] + barResult.titleSuffix, buildRealSrcNote(concept, barResult.rows.filter(function(r){ return r.dv != null; }).map(function(r){ return r.country; })), czSnapFmtY, concept + "_snapshot");
+      window.EATLAS_CUSTOMIZE.wireSnapshot(czBtnBar, czSnapshotRows, CONCEPT_LABEL[concept] + pcTitle(concept) + barResult.titleSuffix, buildRealSrcNote(concept, barResult.rows.filter(function(r){ return r.dv != null; }).map(function(r){ return r.country; })), czSnapFmtY, concept + "_snapshot");
     }
   }
 }
@@ -5789,9 +5805,11 @@ function loadSavedSelection(concept, countries, chartType, cardTime, sortMode){
     saveVisibleMetrics();
   }
   ensureCardTimeState(concept);
+  if(cardTime && typeof cardTime.percap === "boolean"){ cardTimeState[concept].percap = cardTime.percap; saveCardTimeState(); }   // v1.9.139
   cardChartType[concept] = chartType === "line" ? "line" : "bar";
   if(chartType !== "line" && cardTime){
     cardTimeState[concept] = {
+      percap: !!cardTime.percap,
       mode: cardTime.mode === "change" ? "change" : "snapshot",
       snapshotYear: cardTime.snapshotYear || DEFAULT_SNAPSHOT_YEAR,
       changeStartYear: cardTime.changeStartYear || DEFAULT_CHANGE_START_YEAR,
@@ -5824,11 +5842,22 @@ window.EATLAS_COMPARE = {
   getCountryColor: getCountryColor,
   COUNTRY_LABEL: COUNTRY_LABEL,
   getSelected: function(){ return selected.slice(); },
+  /* v1.9.139: what a saved chart needs to reopen the same figures elsewhere (Chartmaker) */
+  getCardFlags: function(concept){ return { money: !!isMoneyConcept(concept), native: !!isNativeCard(concept), percap: !!percapOn(concept), currency: isNativeCard(concept) ? cardCurrency(concept) : "USD" }; },
+  /* v1.9.139: the series each country's figure comes from, so Chartmaker opens the same series */
+  resolveKeys: function(concept, countries){
+    var o = {};
+    (countries || []).forEach(function(c){
+      var k = concept === "gdp_growth" ? "gdp_real" : resolveKey(c, concept);
+      if(k) o[c] = { key: k, transform: concept === "gdp_growth" ? "yoy" : "raw" };
+    });
+    return o;
+  },
   getCardChartType: function(concept){ return cardChartType[concept] === "line" ? "line" : "bar"; },
   getCardTimeState: function(concept){
     var st = cardTimeState[concept];
     if(!st) return null;
-    return { mode: st.mode, snapshotYear: st.snapshotYear, changeStartYear: st.changeStartYear, changeEndYear: st.changeEndYear };
+    return { mode: st.mode, snapshotYear: st.snapshotYear, changeStartYear: st.changeStartYear, changeEndYear: st.changeEndYear, percap: !!st.percap };   // v1.9.139: Per capita travels with a saved chart
   },
   loadSavedSelection: loadSavedSelection,
   // v1.9.83: used by the phone Countries and Metrics sheets in mobile.js,
@@ -7280,7 +7309,7 @@ window.EATLAS_COMPARE = {
     // every exported snapshot filename. Use the snapshot's actual year
     // instead; fall back to just the base name if no year is available.
     if(czmState.mode === "snapshot"){
-      var cts = cardTimeState[czmState.concept];
+      var cts = window.EATLAS_COMPARE && window.EATLAS_COMPARE.getCardTimeState ? window.EATLAS_COMPARE.getCardTimeState(czmState.concept) : null;   // v1.9.139: cardTimeState is private to the page script; reading it here threw and froze both export buttons
       return cts && cts.snapshotYear ? czmState.filenameBase + "_" + cts.snapshotYear : czmState.filenameBase;
     }
     return czmState.filenameBase + "_" + czmState.from + "_to_" + czmState.to;
@@ -7534,13 +7563,56 @@ window.EATLAS_COMPARE = {
       style: {
         countries: countries,
         chartType: snap.chartType === "bar" ? "bar" : "line",
-        cardTime: null, sortMode: null,
+        /* v1.9.139: the year shown, Per capita and every style setting the two editors share */
+        cardTime: { mode: "snapshot", percap: !!snap.percap,
+          snapshotYear: +String(snap.snapshotAt || row.to_period || "").slice(0, 4) || undefined },
+        sortMode: snap.sortMode || null,
         styleSnapshot: {
-          chartTitle: snap.chartTitle, yTitle: snap.yAxisTitle,
-          showFill: snap.showFill, showPoints: snap.showPoints, refLine: snap.refLine
+          chartTitle: snap.chartTitle, yTitle: snap.yAxisTitle, legendTitle: snap.legendTitle,
+          yTitlePos: snap.yTitlePos, showFill: snap.showFill, showPoints: snap.showPoints,
+          hideNoData: snap.hideNoData, refLine: snap.refLine, centerAroundRef: snap.centerAroundRef,
+          thresholdShadeBars: snap.thresholdShadeBars, yScale: snap.logScale ? "log" : "linear",
+          xTicks: snap.xTicks, xLabelAngle: snap.xLabelAngle, exportTheme: snap.theme
         }
       }
     };
+  }
+
+  /* v1.9.139: a saved Compare chart keeps every setting the editor offers, and reopening it puts each
+     one back, controls included. Older saves carry only some keys; anything missing keeps its default. */
+  var CZ_STYLE_KEYS = ["chartTitle", "yTitle", "legendTitle", "yTitlePos", "showFill", "showPoints", "hideNoData",
+    "refLine", "centerAroundRef", "thresholdShadeBars", "yScale", "yTickStepIdx", "xTicks", "xLabelAngle", "exportTheme", "annotations"];
+  function czStyleSnapshot(){
+    var o = {};
+    CZ_STYLE_KEYS.forEach(function(k){ if(czmState[k] !== undefined) o[k] = JSON.parse(JSON.stringify(czmState[k])); });
+    return o;
+  }
+  function czApplyStyleSnapshot(snap, chartType){
+    var has = function(k){ return snap[k] !== undefined && snap[k] !== null; };
+    var setChk = function(id, v){ var e = document.getElementById(id); if(e) e.checked = !!v; };
+    var setVal = function(id, v){ var e = document.getElementById(id); if(e) e.value = v; };
+    if(has("chartTitle")){ czmState.chartTitle = snap.chartTitle; setVal("czChartTitleInput", snap.chartTitle); }
+    if(has("yTitle")){ czmState.yTitle = snap.yTitle; setVal("czYAxisTitleInput", snap.yTitle); }
+    if(has("legendTitle")){ czmState.legendTitle = snap.legendTitle; setVal("czLegendTitleInput", snap.legendTitle); }
+    if(has("refLine")){
+      czmState.refLine = { enabled: !!snap.refLine.enabled, value: +snap.refLine.value || 0 };
+      setChk("czReflineToggle", czmState.refLine.enabled); setVal("czReflineValue", czmState.refLine.value);
+    }
+    if(has("centerAroundRef")){ czmState.centerAroundRef = !!snap.centerAroundRef; setChk("czCenterRefToggle", czmState.centerAroundRef); }
+    if(has("thresholdShadeBars")){ czmState.thresholdShadeBars = !!snap.thresholdShadeBars; setChk("czThresholdShadeToggle", czmState.thresholdShadeBars); }
+    if(has("yScale")){ czmState.yScale = snap.yScale === "log" ? "log" : "linear"; setChk("czLogScaleToggle", czmState.yScale === "log"); }
+    if(has("hideNoData") && chartType !== "line"){ czmState.hideNoData = !!snap.hideNoData; setChk("czHideNoDataToggle", czmState.hideNoData); }
+    if(chartType === "line"){
+      czmState.showFill = snap.showFill !== false; setChk("czFillToggle", czmState.showFill);
+      czmState.showPoints = snap.showPoints !== false; setChk("czPointsToggle", czmState.showPoints);
+      if(has("xTicks")){ czmState.xTicks = +snap.xTicks || czmState.xTicks; czXTickVal.textContent = String(czmState.xTicks); }
+      if(Array.isArray(snap.annotations)){ czmState.annotations = JSON.parse(JSON.stringify(snap.annotations)); czRenderAnnotList(); }
+    }
+    if(typeof snap.yTickStepIdx === "number") czmState.yTickStepIdx = snap.yTickStepIdx;
+    if(has("yTitlePos")){ czmState.yTitlePos = snap.yTitlePos; czYTitlePosSeg.querySelectorAll("button").forEach(function(b){ b.classList.toggle("active", b.dataset.pos === czmState.yTitlePos); }); }
+    if(has("xLabelAngle")){ czmState.xLabelAngle = snap.xLabelAngle; czXAngleSeg.querySelectorAll("button").forEach(function(b){ b.classList.toggle("active", b.dataset.angle === czmState.xLabelAngle); }); }
+    if(snap.exportTheme === "light" || snap.exportTheme === "dark"){ czmState.exportTheme = snap.exportTheme; czThemeSeg.querySelectorAll("button").forEach(function(b){ b.classList.toggle("active", b.dataset.theme === czmState.exportTheme); }); }
+    if(typeof czmSyncModeFields === "function") czmSyncModeFields();
   }
   function loadSavedChart(row){
     if(!window.EATLAS_COMPARE || !window.EATLAS_COMPARE.loadSavedSelection){
@@ -7574,20 +7646,7 @@ window.EATLAS_COMPARE = {
       if(fromSel) fromSel.value = row.from_period;
       if(toSel) toSel.value = row.to_period;
     }
-    var snap = style.styleSnapshot || {};
-    if(snap.chartTitle != null){ czmState.chartTitle = snap.chartTitle; document.getElementById("czChartTitleInput").value = snap.chartTitle; }
-    if(snap.yTitle != null){ czmState.yTitle = snap.yTitle; document.getElementById("czYAxisTitleInput").value = snap.yTitle; }
-    if(snap.refLine){
-      czmState.refLine = snap.refLine;
-      document.getElementById("czReflineToggle").checked = !!snap.refLine.enabled;
-      document.getElementById("czReflineValue").value = snap.refLine.value;
-    }
-    if(chartType === "line"){
-      czmState.showFill = snap.showFill !== false;
-      document.getElementById("czFillToggle").checked = czmState.showFill;
-      czmState.showPoints = snap.showPoints !== false;
-      document.getElementById("czPointsToggle").checked = czmState.showPoints;
-    }
+    czApplyStyleSnapshot(style.styleSnapshot || {}, chartType);   // v1.9.139: every setting the editor has, not five of them
     var countryEl = document.getElementById("czModalCountry");
     if(countryEl && row.name) countryEl.textContent = row.name;
     czRenderPreview();
@@ -7710,7 +7769,7 @@ window.EATLAS_COMPARE = {
         var concept = czmState.concept;
         var countries = window.EATLAS_COMPARE.getSelected();
         var chartType = window.EATLAS_COMPARE.getCardChartType(concept);
-        var cardTime = chartType === "line" ? null : window.EATLAS_COMPARE.getCardTimeState(concept);
+        var cardTime = window.EATLAS_COMPARE.getCardTimeState(concept);   // v1.9.139: kept for line too, it carries Per capita
         var name = window.prompt("Name this saved chart:", czmState.chartTitle || "");
         if(name === null) return;
         name = name.trim();
@@ -7718,7 +7777,7 @@ window.EATLAS_COMPARE = {
         var fromPeriod = null, toPeriod = null;
         if(chartType === "line"){
           fromPeriod = czmState.from; toPeriod = czmState.to;
-        } else if(cardTime){
+        } else if(cardTime && chartType !== "line"){
           if(cardTime.mode === "change"){
             fromPeriod = String(cardTime.changeStartYear); toPeriod = String(cardTime.changeEndYear);
           } else {
@@ -7749,11 +7808,10 @@ window.EATLAS_COMPARE = {
                 chartType: chartType,
                 cardTime: cardTime,
                 sortMode: sortMode,
-                styleSnapshot: {
-                  chartTitle: czmState.chartTitle, yTitle: czmState.yTitle,
-                  showFill: czmState.showFill, showPoints: czmState.showPoints,
-                  refLine: czmState.refLine
-                }
+                styleSnapshot: czStyleSnapshot(),
+                flags: window.EATLAS_COMPARE.getCardFlags(concept),
+                keys: window.EATLAS_COMPARE.resolveKeys(concept, countries),
+                colors: countries.reduce(function(o, c){ o[c] = window.EATLAS_COMPARE.getCountryColor(c); return o; }, {})
               }
             });
           }).then(function(res){

@@ -24,7 +24,7 @@
 <noscript><link href="https://fonts.googleapis.com/css2?family=Nunito+Sans:wght@400;600;700&display=swap" rel="stylesheet"></noscript>
 <link rel="stylesheet" href="../style.css?v=63">
 <link rel="stylesheet" href="../mobile.css?v=49">
-<link rel="stylesheet" href="../indicator.css?v=15">
+<link rel="stylesheet" href="../indicator.css?v=17">
 <script type="application/ld+json">
 {
   "@context": "https://schema.org",
@@ -658,6 +658,7 @@
       // timing anything genuinely slow.
       setTimeout(function(){
         var csv = entry.kind === "multi" ? multiToCSV(entry.data) : seriesToCSV(entry.data);
+        csv = csv.replace(/^((?:Country,)?Date,)Value\n/, function(_, h){ return h + (/[",\n]/.test(String(entry.title || "")) ? '"' + String(entry.title).replace(/"/g, '""') + '"' : String(entry.title || "Value")) + "\n"; });   // v1.9.139: the value column names the chart and its unit
         triggerDownload(csv, entry.title);
         btn.classList.remove("dl-downloading");
         btn.classList.add("dl-success");
@@ -1207,7 +1208,7 @@
     </div>
   </div>
   <p class="lightskey"><span><span class="led green" aria-hidden="true"></span>Up to date</span><span><span class="led orange" aria-hidden="true"></span>Awaiting update</span></p>
-  <a class="glow-cta" href="../denmark"><span class="glow-inner"><span class="glow-text"><span class="glow-title">Explore the full Denmark economy</span><span class="glow-sub">20 live indicators on one dashboard, from growth and prices to jobs, trade and public finances. Updated automatically from official sources.</span></span><span class="glow-go"><svg viewBox="0 0 20 20" fill="none" aria-hidden="true"><path d="M4 10h11m-4.5-4.5L15 10l-4.5 4.5" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"/></svg></span></span></a>
+  <a class="glow-cta" href="../denmark"><span class="glow-inner"><span class="glow-text"><span class="glow-title">Explore the full Denmark economy</span><span class="glow-sub">22 live indicators on one dashboard, from growth and prices to jobs, trade and public finances. Updated automatically from official sources.</span></span><span class="glow-go"><svg viewBox="0 0 20 20" fill="none" aria-hidden="true"><path d="M4 10h11m-4.5-4.5L15 10l-4.5 4.5" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"/></svg></span></span></a>
   
   <section class="panel ind-panel" aria-labelledby="chartTitle">
     <div class="ind-panelhead">
@@ -1243,8 +1244,8 @@
     <p class="ind-section-sub">Latest readings. Open any one for its full history.</p>
     <div class="ind-related">
 <div class="ind-cat">GDP &amp; growth</div>
-<a href="denmark-gdp"><span class="r-name">GDP</span><span class="r-val">DKK3.17tn</span><span class="r-per">Q2 2026</span></a>
-<a href="denmark-real-gdp"><span class="r-name">Real GDP</span><span class="r-val">DKK2.78tn</span><span class="r-per">Q2 2026</span></a>
+<a href="denmark-gdp"><span class="r-name">GDP</span><span class="r-val">DKK3.2tn</span><span class="r-per">Q2 2026</span></a>
+<a href="denmark-real-gdp"><span class="r-name">Real GDP</span><span class="r-val">DKK2.8tn</span><span class="r-per">Q2 2026</span></a>
 <a href="denmark-gdp-per-capita"><span class="r-name">GDP per Capita</span><span class="r-val">DKK519k</span><span class="r-per">2025</span></a>
 <a href="denmark-gdp-growth-rate"><span class="r-name">GDP Growth Rate (quarter on quarter)</span><span class="r-val">0.9%</span><span class="r-per">Q2 2026</span></a>
 <a href="denmark-gdp-annual-growth-rate"><span class="r-name">GDP Annual Growth Rate</span><span class="r-val">5.7%</span><span class="r-per">Q2 2026</span></a>
@@ -1260,7 +1261,9 @@
 <div class="ind-cat">Markets</div>
 <a href="denmark-exchange-rate"><span class="r-name">Exchange Rate Against the US Dollar</span><span class="r-val">$0.1499 per DKK 1</span><span class="r-per">Nov 2026</span></a>
 <div class="ind-cat">Trade</div>
-<a href="denmark-balance-of-trade"><span class="r-name">Balance of Trade</span><span class="r-val">DKK71.64bn</span><span class="r-per">Q2 2026</span></a>
+<a href="denmark-balance-of-trade"><span class="r-name">Balance of Trade</span><span class="r-val">DKK8.5bn</span><span class="r-per">Jun 2026</span></a>
+<a href="denmark-exports"><span class="r-name">Exports</span><span class="r-val">DKK89.3bn</span><span class="r-per">Jun 2026</span></a>
+<a href="denmark-imports"><span class="r-name">Imports</span><span class="r-val">DKK80.8bn</span><span class="r-per">Jun 2026</span></a>
 <a href="denmark-current-account-to-gdp"><span class="r-name">Current Account (% of GDP)</span><span class="r-val">12.6%</span><span class="r-per">2025</span></a>
 <a href="denmark-foreign-direct-investment"><span class="r-name">Foreign Direct Investment (% of GDP)</span><span class="r-val">3.7%</span><span class="r-per">2025</span></a>
 <div class="ind-cat">Public finances</div>
@@ -1423,7 +1426,7 @@
 </div>
 
 <script src="https://cdnjs.cloudflare.com/ajax/libs/Chart.js/4.4.1/chart.umd.min.js"></script>
-<script src="../indicator-kit.js?v=15"></script>
+<script src="../indicator-kit.js?v=17"></script>
 <script>EATLAS_IND.initIndicator({"key": "participation_rate", "country": "Denmark", "unit": "%", "freq": "quarters", "upIsGood": true, "chart": "line", "annualise": false, "gdpRaw": false, "dataUrl": "../data-dk.json", "points": [["1999-Q1", 80.59943], ["1999-Q2", 80.70996], ["1999-Q3", 80.77426], ["1999-Q4", 80.14082], ["2000-Q1", 80.25851], ["2000-Q2", 80.05329], ["2000-Q3", 79.47187], ["2000-Q4", 80.06076], ["2001-Q1", 79.58319], ["2001-Q2", 79.25732], ["2001-Q3", 80.09257], ["2001-Q4", 80.57246], ["2002-Q1", 79.62785], ["2002-Q2", 79.97339], ["2002-Q3", 79.37058], ["2002-Q4", 79.30307], ["2003-Q1", 79.15774], ["2003-Q2", 79.5285], ["2003-Q3", 79.86086], ["2003-Q4", 79.40655], ["2004-Q1", 79.83773], ["2004-Q2", 80.31957], ["2004-Q3", 80.71563], ["2004-Q4", 79.6947], ["2005-Q1", 80.21846], ["2005-Q2", 79.47189], ["2005-Q3", 79.41009], ["2005-Q4", 80.1216], ["2006-Q1", 80.53117], ["2006-Q2", 80.19913], ["2006-Q3", 80.64516], ["2006-Q4", 80.84432], ["2007-Q1", 80.81012], ["2007-Q2", 80.18937], ["2007-Q3", 79.6816], ["2007-Q4", 79.65028], ["2008-Q1", 78.96597], ["2008-Q2", 79.50065], ["2008-Q3", 79.3582], ["2008-Q4", 79.39185], ["2009-Q1", 79.1736], ["2009-Q2", 79.04169], ["2009-Q3", 78.68987], ["2009-Q4", 77.78754], ["2010-Q1", 77.95351], ["2010-Q2", 78.118], ["2010-Q3", 77.97675], ["2010-Q4", 77.86838], ["2011-Q1", 78.06537], ["2011-Q2", 77.76642], ["2011-Q3", 77.8561], ["2011-Q4", 77.54095], ["2012-Q1", 77.33826], ["2012-Q2", 77.60928], ["2012-Q3", 77.06782], ["2012-Q4", 76.87991], ["2013-Q1", 76.83711], ["2013-Q2", 76.64743], ["2013-Q3", 76.59215], ["2013-Q4", 76.132], ["2014-Q1", 76.06517], ["2014-Q2", 76.27388], ["2014-Q3", 76.72401], ["2014-Q4", 77.21603], ["2015-Q1", 77.07309], ["2015-Q2", 77.00749], ["2015-Q3", 76.75475], ["2015-Q4", 76.94207], ["2016-Q1", 77.17101], ["2016-Q2", 77.55394], ["2016-Q3", 77.60854], ["2016-Q4", 77.52348], ["2017-Q1", 77.91254], ["2017-Q2", 77.72761], ["2017-Q3", 78.10419], ["2017-Q4", 77.86667], ["2018-Q1", 77.95322], ["2018-Q2", 78.34385], ["2018-Q3", 78.271], ["2018-Q4", 78.42581], ["2019-Q1", 78.80582], ["2019-Q2", 79.0079], ["2019-Q3", 79.15227], ["2019-Q4", 79.35937], ["2020-Q1", 79.0965], ["2020-Q2", 78.3507], ["2020-Q3", 79.1189], ["2020-Q4", 79.26468], ["2021-Q1", 78.99174], ["2021-Q2", 79.6233], ["2021-Q3", 79.61445], ["2021-Q4", 80.13349], ["2022-Q1", 80.10101], ["2022-Q2", 80.37267], ["2022-Q3", 80.71861], ["2022-Q4", 80.48417], ["2023-Q1", 80.64866], ["2023-Q2", 80.22344], ["2023-Q3", 80.57717], ["2023-Q4", 81.6831], ["2024-Q1", 82.07983], ["2024-Q2", 82.47056], ["2024-Q3", 82.58954], ["2024-Q4", 82.5297], ["2025-Q1", 82.41857], ["2025-Q2", 82.52937], ["2025-Q3", 82.29276], ["2025-Q4", 81.91115], ["2026-Q1", 82.55415], ["2026-Q2", 82.62188]], "realPoints": null, "realUnit": null, "realKey": null, "realAnchor": null, "fx": null, "population": null, "title": "Denmark Labour Force Participation Rate", "srcNote": "FRED series LRAC64TTDKQ156S · OECD, ages 15-64, seasonally adjusted, quarterly."});</script>
 <script>
 (function(){
@@ -2550,21 +2553,35 @@
     var mi = String(dt.getMinutes()).padStart(2, "0");
     return dd + " " + mo + " " + yy + ", " + hh + ":" + mi;
   }
+  /* v1.9.139: a saved chart keeps every setting the editor offers and the page's three switches
+     (Convert to USD$, Adjust for inflation, Per capita), so it reopens exactly as it was saved, here
+     or in Chartmaker. Older saves carry fewer keys; anything missing keeps its default. */
+  var CZ_SAVE_KEYS = ["chartTitle", "yTitle", "chartKind", "showFill", "showPoints", "refLine", "threshold2Color",
+    "yTitlePos", "yScale", "yTickStepIdx", "xTicks", "xLabelAngle", "lineColor", "exportTheme", "annotations"];
   function czSaveStyleSnapshot(){
-    return {
-      chartTitle: czState.chartTitle, yTitle: czState.yTitle,
-      chartKind: czState.chartKind, showFill: czState.showFill, showPoints: czState.showPoints,
-      refLine: czState.refLine, threshold2Color: czState.threshold2Color
-    };
+    var o = {};
+    CZ_SAVE_KEYS.forEach(function(k){ if(czState[k] !== undefined) o[k] = JSON.parse(JSON.stringify(czState[k])); });
+    if(typeof TOGGLE_STATE !== "undefined") o.toggles = { dollar: !!TOGGLE_STATE.dollar, real: !!TOGGLE_STATE.real, capita: !!TOGGLE_STATE.capita };
+    return o;
+  }
+  function czRestoreToggles(t){
+    if(!t || typeof TOGGLE_STATE === "undefined" || typeof toggleMetric !== "function") return;
+    [["dollar", "toggleDollar"], ["real", "toggleReal"], ["capita", "toggleCapita"]].forEach(function(p){
+      var want = !!t[p[0]], btn = document.getElementById(p[1]);
+      if(btn && !btn.disabled && !!TOGGLE_STATE[p[0]] !== want) toggleMetric(p[0], btn);
+    });
   }
   function loadSavedChart(row){
+    var style = row.style || {};
+    czRestoreToggles(style.toggles);   // the page redraws with the saved switches before the chart is rebuilt
     var meta = window.EATLAS_CHART_META && window.EATLAS_CHART_META[row.metric_key];
     var series = window.EATLAS_SERIES && window.EATLAS_SERIES[row.metric_key];
-    if(!meta || !series || !series.points){
+    var allPts = (meta && meta.pts) || (series && series.points);   // the figures the panel shows, switches applied
+    if(!meta || !allPts || !allPts.length){
       window.alert("This saved chart's series isn't available on this page.");
       return;
     }
-    var pts = series.points;
+    var pts = allPts;
     if(row.from_period || row.to_period){
       var filtered = pts.filter(function(p){
         return (!row.from_period || p[0] >= row.from_period) && (!row.to_period || p[0] <= row.to_period);
@@ -2572,22 +2589,31 @@
       if(filtered.length) pts = filtered;
     }
     window.EATLAS_OPEN_CUSTOMIZE(pts, row.name || meta.title, meta.srcNote, meta.fmtY, "", meta.title, meta.kind, czFmtPeriod, row.metric_key);
-    var style = row.style || {};
-    if(style.chartTitle != null){ czState.chartTitle = style.chartTitle; document.getElementById("czChartTitleInput").value = style.chartTitle; }
-    if(style.yTitle != null){ czState.yTitle = style.yTitle; document.getElementById("czYAxisTitleInput").value = style.yTitle; }
-    if(style.chartKind){
+    var has = function(k){ return style[k] !== undefined && style[k] !== null; };
+    var setChk = function(id, v){ var e = document.getElementById(id); if(e) e.checked = !!v; };
+    var setVal = function(id, v){ var e = document.getElementById(id); if(e) e.value = v; };
+    if(has("chartTitle")){ czState.chartTitle = style.chartTitle; setVal("czChartTitleInput", style.chartTitle); }
+    if(has("yTitle")){ czState.yTitle = style.yTitle; setVal("czYAxisTitleInput", style.yTitle); }
+    if(style.chartKind === "bar" || style.chartKind === "line"){
       czState.chartKind = style.chartKind;
       czChartKindSeg.querySelectorAll("button").forEach(function(b){ b.classList.toggle("active", b.dataset.kind === czState.chartKind); });
     }
-    if(style.refLine){
-      czState.refLine = style.refLine;
-      document.getElementById("czReflineToggle").checked = !!style.refLine.enabled;
-      document.getElementById("czReflineValue").value = style.refLine.value;
+    if(has("refLine")){
+      czState.refLine = { enabled: !!style.refLine.enabled, value: +style.refLine.value || 0 };
+      setChk("czReflineToggle", czState.refLine.enabled); setVal("czReflineValue", czState.refLine.value);
     }
-    czState.showFill = style.showFill !== false;
-    document.getElementById("czFillToggle").checked = czState.showFill;
-    czState.showPoints = style.showPoints !== false;
-    document.getElementById("czPointsToggle").checked = czState.showPoints;
+    if(has("threshold2Color")){ czState.threshold2Color = !!style.threshold2Color; setChk("czThresholdShadeToggle", czState.threshold2Color); }
+    czState.showFill = style.showFill !== false; setChk("czFillToggle", czState.showFill);
+    czState.showPoints = style.showPoints !== false; setChk("czPointsToggle", czState.showPoints);
+    if(has("yScale")){ czState.yScale = style.yScale === "log" ? "log" : "linear"; setChk("czLogScaleToggle", czState.yScale === "log"); }
+    if(typeof style.yTickStepIdx === "number") czState.yTickStepIdx = style.yTickStepIdx;
+    if(has("yTitlePos")){ czState.yTitlePos = style.yTitlePos; czYTitlePosSeg.querySelectorAll("button").forEach(function(b){ b.classList.toggle("active", b.dataset.pos === czState.yTitlePos); }); }
+    if(has("xTicks")){ czState.xTicks = +style.xTicks || czState.xTicks; czXTickVal.textContent = String(czState.xTicks); }
+    if(has("xLabelAngle")){ czState.xLabelAngle = style.xLabelAngle; czXAngleSeg.querySelectorAll("button").forEach(function(b){ b.classList.toggle("active", b.dataset.angle === czState.xLabelAngle); }); }
+    if(has("lineColor")){ czState.lineColor = style.lineColor; czSyncColorSwatches(); }
+    if(style.exportTheme === "light" || style.exportTheme === "dark"){ czState.exportTheme = style.exportTheme; czThemeSeg.querySelectorAll("button").forEach(function(b){ b.classList.toggle("active", b.dataset.theme === czState.exportTheme); }); }
+    if(Array.isArray(style.annotations)){ czState.annotations = JSON.parse(JSON.stringify(style.annotations)); czRenderAnnotList(); }
+    if(typeof czSyncModeFields === "function") czSyncModeFields();
     czRenderPreview();
   }
   // ---- Saved charts list: lives in the "Open chart" popover next to
@@ -2600,7 +2626,7 @@
       if(!listEl) return;
       listEl.innerHTML = "";
       if(!rows.length){
-        listEl.textContent = 'No saved charts yet , open "Bank Rate" → Customise & export → Save chart.';
+        listEl.textContent = 'No saved charts yet. Open any chart\u2019s Customise & export, then Save chart.';
         return;
       }
       rows.forEach(function(row){

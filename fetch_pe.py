@@ -59,7 +59,7 @@ import series_guard
 ISO3 = "PER"
 OUT_FILE = "data-pe.json"
 UA = {"User-Agent": "economic-atlas/0.1 (+https://theeconomicatlas.com)"}
-ALLOW_SHRINK = {}
+ALLOW_SHRINK = {"unemployment": "v1.9.139: World Bank ILO modelled estimate -> IMF WEO national definition (LUR); remove after the first data run"}
 MONTHLY_MAX_AGE = 120
 QUARTERLY_MAX_AGE = 230
 REF_RATE_START = "2003-09"   # BCRP's reference rate became the policy instrument in September 2003
@@ -359,8 +359,10 @@ SERIES = [
     }, "PENm", "months"),
     ("gdp_level", fetch_gdp_level, "GDP, current prices, annual, from 1991 (World Bank)", "PENm", "years"),
     ("gdp_growth", fetch_gdp_growth, "Real GDP growth, change on previous year (World Bank)", "%", "years"),
-    ("unemployment", lambda: fetch_worldbank("SL.UEM.TOTL.ZS"),
-     "Unemployment rate, ILO modelled estimate, annual (World Bank)", "%", "years"),
+    # v1.9.139: the national statistics office's own unemployment rate, as reported to the IMF (WEO LUR), in place of
+    # the ILO modelled estimate (verification, 15 Nov 2026: modelled 5.1 against the national 5.9 for 2025).
+    ("unemployment", lambda: imf_weo.fetch(ISO3, "LUR"),
+     "Unemployment rate, national definition, annual, actual years (IMF World Economic Outlook, LUR)", "%", "years"),
     ("debt_gdp", lambda: imf_weo.fetch(ISO3, imf_weo.DEBT), "General government gross debt, % of GDP (IMF WEO)", "%", "years"),
     ("deficit", lambda: imf_weo.fetch(ISO3, imf_weo.DEFICIT), "General government net lending/borrowing, % of GDP (IMF WEO)", "%", "years"),
     ("current_account", lambda: fetch_worldbank("BN.CAB.XOKA.GD.ZS"), "Current account balance, % of GDP (World Bank)", "%", "years"),

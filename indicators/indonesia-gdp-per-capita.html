@@ -24,7 +24,7 @@
 <noscript><link href="https://fonts.googleapis.com/css2?family=Nunito+Sans:wght@400;600;700&display=swap" rel="stylesheet"></noscript>
 <link rel="stylesheet" href="../style.css?v=63">
 <link rel="stylesheet" href="../mobile.css?v=49">
-<link rel="stylesheet" href="../indicator.css?v=15">
+<link rel="stylesheet" href="../indicator.css?v=17">
 <script type="application/ld+json">
 {
   "@context": "https://schema.org",
@@ -658,6 +658,7 @@
       // timing anything genuinely slow.
       setTimeout(function(){
         var csv = entry.kind === "multi" ? multiToCSV(entry.data) : seriesToCSV(entry.data);
+        csv = csv.replace(/^((?:Country,)?Date,)Value\n/, function(_, h){ return h + (/[",\n]/.test(String(entry.title || "")) ? '"' + String(entry.title).replace(/"/g, '""') + '"' : String(entry.title || "Value")) + "\n"; });   // v1.9.139: the value column names the chart and its unit
         triggerDownload(csv, entry.title);
         btn.classList.remove("dl-downloading");
         btn.classList.add("dl-success");
@@ -1244,19 +1245,19 @@
     <p class="ind-section-sub">Latest readings. Open any one for its full history.</p>
     <div class="ind-related">
 <div class="ind-cat">GDP &amp; growth</div>
-<a href="indonesia-gdp"><span class="r-name">GDP</span><span class="r-val">Rp24,944.16tn</span><span class="r-per">Q2 2026</span></a>
-<a href="indonesia-real-gdp"><span class="r-name">Real GDP</span><span class="r-val">Rp13,938.34tn</span><span class="r-per">Q2 2026</span></a>
+<a href="indonesia-gdp"><span class="r-name">GDP</span><span class="r-val">Rp24,944.2tn</span><span class="r-per">Q2 2026</span></a>
+<a href="indonesia-real-gdp"><span class="r-name">Real GDP</span><span class="r-val">Rp13,938.3tn</span><span class="r-per">Q2 2026</span></a>
 <a href="indonesia-gdp-growth-rate"><span class="r-name">GDP Growth Rate (quarter on quarter)</span><span class="r-val">1.3%</span><span class="r-per">Q2 2026</span></a>
 <a href="indonesia-gdp-annual-growth-rate"><span class="r-name">GDP Annual Growth Rate</span><span class="r-val">5.3%</span><span class="r-per">Q2 2026</span></a>
 <div class="ind-cat">Prices</div>
 <a href="indonesia-inflation-rate"><span class="r-name">Inflation Rate</span><span class="r-val">3.2%</span><span class="r-per">Oct 2026</span></a>
 <a href="indonesia-inflation-rate-mom"><span class="r-name">Inflation Rate, Month on Month</span><span class="r-val">0.2%</span><span class="r-per">Oct 2026</span></a>
 <div class="ind-cat">Labour market</div>
-<a href="indonesia-unemployment-rate"><span class="r-name">Unemployment Rate</span><span class="r-val">3.2%</span><span class="r-per">2025</span></a>
+<a href="indonesia-unemployment-rate"><span class="r-name">Unemployment Rate</span><span class="r-val">4.8%</span><span class="r-per">2025</span></a>
 <div class="ind-cat">Markets</div>
 <a href="indonesia-exchange-rate"><span class="r-name">Exchange Rate Against the US Dollar</span><span class="r-val">$0.6069 per Rp10,000</span><span class="r-per">2025</span></a>
 <div class="ind-cat">Trade</div>
-<a href="indonesia-balance-of-trade"><span class="r-name">Balance of Trade</span><span class="r-val">$2.49bn</span><span class="r-per">Aug 2026</span></a>
+<a href="indonesia-balance-of-trade"><span class="r-name">Balance of Trade</span><span class="r-val">US$2.5bn</span><span class="r-per">Aug 2026</span></a>
 <a href="indonesia-foreign-direct-investment"><span class="r-name">Foreign Direct Investment (% of GDP)</span><span class="r-val">1.6%</span><span class="r-per">2025</span></a>
 <div class="ind-cat">Public finances</div>
 <a href="indonesia-government-debt"><span class="r-name">Government Debt (% of GDP)</span><span class="r-val">40.9%</span><span class="r-per">2025</span></a>
@@ -1418,7 +1419,7 @@
 </div>
 
 <script src="https://cdnjs.cloudflare.com/ajax/libs/Chart.js/4.4.1/chart.umd.min.js"></script>
-<script src="../indicator-kit.js?v=15"></script>
+<script src="../indicator-kit.js?v=17"></script>
 <script>EATLAS_IND.initIndicator({"key": "gdp_per_capita", "country": "Indonesia", "unit": "IDR", "freq": "years", "upIsGood": true, "chart": "line", "annualise": false, "gdpRaw": false, "dataUrl": "../data-id.json", "points": [["1990", 1381479], ["1991", 1608922], ["1992", 1786402], ["1993", 2050932], ["1994", 2337348], ["1995", 2733609], ["1996", 3150780], ["1997", 3653667], ["1998", 5475967], ["1999", 6206882], ["2000", 7037663], ["2001", 8221901], ["2002", 8975905], ["2003", 9790611], ["2004", 11021471], ["2005", 13148479], ["2006", 15617596], ["2007", 18235950], ["2008", 22547007], ["2009", 24715789], ["2010", 27868391], ["2011", 31393454], ["2012", 34094795], ["2013", 37311088], ["2014", 40829000], ["2015", 44027372], ["2016", 46864866], ["2017", 50832226], ["2018", 54968159], ["2019", 58103759], ["2020", 56195480], ["2021", 61341490], ["2022", 70252206], ["2023", 74299610], ["2024", 78095003], ["2025", 83371834]], "realPoints": null, "realUnit": null, "realKey": null, "realAnchor": null, "fx": null, "population": null, "title": "Indonesia GDP per Capita", "srcNote": "Calculated: GDP for each complete calendar year divided by that year's population. GDP: FRED series NGDPSAXDCIDQ · IMF International Financial Statistics, trailing 4-quarter sum, seasonally adjusted (falls back to World Bank current US$, annual, only if the live IDR series is unavailable on a given run). Population: World Bank · Population, total (SP.POP.TOTL)."});</script>
 <script>
 (function(){
@@ -2545,21 +2546,35 @@
     var mi = String(dt.getMinutes()).padStart(2, "0");
     return dd + " " + mo + " " + yy + ", " + hh + ":" + mi;
   }
+  /* v1.9.139: a saved chart keeps every setting the editor offers and the page's three switches
+     (Convert to USD$, Adjust for inflation, Per capita), so it reopens exactly as it was saved, here
+     or in Chartmaker. Older saves carry fewer keys; anything missing keeps its default. */
+  var CZ_SAVE_KEYS = ["chartTitle", "yTitle", "chartKind", "showFill", "showPoints", "refLine", "threshold2Color",
+    "yTitlePos", "yScale", "yTickStepIdx", "xTicks", "xLabelAngle", "lineColor", "exportTheme", "annotations"];
   function czSaveStyleSnapshot(){
-    return {
-      chartTitle: czState.chartTitle, yTitle: czState.yTitle,
-      chartKind: czState.chartKind, showFill: czState.showFill, showPoints: czState.showPoints,
-      refLine: czState.refLine, threshold2Color: czState.threshold2Color
-    };
+    var o = {};
+    CZ_SAVE_KEYS.forEach(function(k){ if(czState[k] !== undefined) o[k] = JSON.parse(JSON.stringify(czState[k])); });
+    if(typeof TOGGLE_STATE !== "undefined") o.toggles = { dollar: !!TOGGLE_STATE.dollar, real: !!TOGGLE_STATE.real, capita: !!TOGGLE_STATE.capita };
+    return o;
+  }
+  function czRestoreToggles(t){
+    if(!t || typeof TOGGLE_STATE === "undefined" || typeof toggleMetric !== "function") return;
+    [["dollar", "toggleDollar"], ["real", "toggleReal"], ["capita", "toggleCapita"]].forEach(function(p){
+      var want = !!t[p[0]], btn = document.getElementById(p[1]);
+      if(btn && !btn.disabled && !!TOGGLE_STATE[p[0]] !== want) toggleMetric(p[0], btn);
+    });
   }
   function loadSavedChart(row){
+    var style = row.style || {};
+    czRestoreToggles(style.toggles);   // the page redraws with the saved switches before the chart is rebuilt
     var meta = window.EATLAS_CHART_META && window.EATLAS_CHART_META[row.metric_key];
     var series = window.EATLAS_SERIES && window.EATLAS_SERIES[row.metric_key];
-    if(!meta || !series || !series.points){
+    var allPts = (meta && meta.pts) || (series && series.points);   // the figures the panel shows, switches applied
+    if(!meta || !allPts || !allPts.length){
       window.alert("This saved chart's series isn't available on this page.");
       return;
     }
-    var pts = series.points;
+    var pts = allPts;
     if(row.from_period || row.to_period){
       var filtered = pts.filter(function(p){
         return (!row.from_period || p[0] >= row.from_period) && (!row.to_period || p[0] <= row.to_period);
@@ -2567,22 +2582,31 @@
       if(filtered.length) pts = filtered;
     }
     window.EATLAS_OPEN_CUSTOMIZE(pts, row.name || meta.title, meta.srcNote, meta.fmtY, "", meta.title, meta.kind, czFmtPeriod, row.metric_key);
-    var style = row.style || {};
-    if(style.chartTitle != null){ czState.chartTitle = style.chartTitle; document.getElementById("czChartTitleInput").value = style.chartTitle; }
-    if(style.yTitle != null){ czState.yTitle = style.yTitle; document.getElementById("czYAxisTitleInput").value = style.yTitle; }
-    if(style.chartKind){
+    var has = function(k){ return style[k] !== undefined && style[k] !== null; };
+    var setChk = function(id, v){ var e = document.getElementById(id); if(e) e.checked = !!v; };
+    var setVal = function(id, v){ var e = document.getElementById(id); if(e) e.value = v; };
+    if(has("chartTitle")){ czState.chartTitle = style.chartTitle; setVal("czChartTitleInput", style.chartTitle); }
+    if(has("yTitle")){ czState.yTitle = style.yTitle; setVal("czYAxisTitleInput", style.yTitle); }
+    if(style.chartKind === "bar" || style.chartKind === "line"){
       czState.chartKind = style.chartKind;
       czChartKindSeg.querySelectorAll("button").forEach(function(b){ b.classList.toggle("active", b.dataset.kind === czState.chartKind); });
     }
-    if(style.refLine){
-      czState.refLine = style.refLine;
-      document.getElementById("czReflineToggle").checked = !!style.refLine.enabled;
-      document.getElementById("czReflineValue").value = style.refLine.value;
+    if(has("refLine")){
+      czState.refLine = { enabled: !!style.refLine.enabled, value: +style.refLine.value || 0 };
+      setChk("czReflineToggle", czState.refLine.enabled); setVal("czReflineValue", czState.refLine.value);
     }
-    czState.showFill = style.showFill !== false;
-    document.getElementById("czFillToggle").checked = czState.showFill;
-    czState.showPoints = style.showPoints !== false;
-    document.getElementById("czPointsToggle").checked = czState.showPoints;
+    if(has("threshold2Color")){ czState.threshold2Color = !!style.threshold2Color; setChk("czThresholdShadeToggle", czState.threshold2Color); }
+    czState.showFill = style.showFill !== false; setChk("czFillToggle", czState.showFill);
+    czState.showPoints = style.showPoints !== false; setChk("czPointsToggle", czState.showPoints);
+    if(has("yScale")){ czState.yScale = style.yScale === "log" ? "log" : "linear"; setChk("czLogScaleToggle", czState.yScale === "log"); }
+    if(typeof style.yTickStepIdx === "number") czState.yTickStepIdx = style.yTickStepIdx;
+    if(has("yTitlePos")){ czState.yTitlePos = style.yTitlePos; czYTitlePosSeg.querySelectorAll("button").forEach(function(b){ b.classList.toggle("active", b.dataset.pos === czState.yTitlePos); }); }
+    if(has("xTicks")){ czState.xTicks = +style.xTicks || czState.xTicks; czXTickVal.textContent = String(czState.xTicks); }
+    if(has("xLabelAngle")){ czState.xLabelAngle = style.xLabelAngle; czXAngleSeg.querySelectorAll("button").forEach(function(b){ b.classList.toggle("active", b.dataset.angle === czState.xLabelAngle); }); }
+    if(has("lineColor")){ czState.lineColor = style.lineColor; czSyncColorSwatches(); }
+    if(style.exportTheme === "light" || style.exportTheme === "dark"){ czState.exportTheme = style.exportTheme; czThemeSeg.querySelectorAll("button").forEach(function(b){ b.classList.toggle("active", b.dataset.theme === czState.exportTheme); }); }
+    if(Array.isArray(style.annotations)){ czState.annotations = JSON.parse(JSON.stringify(style.annotations)); czRenderAnnotList(); }
+    if(typeof czSyncModeFields === "function") czSyncModeFields();
     czRenderPreview();
   }
   // ---- Saved charts list: lives in the "Open chart" popover next to
@@ -2595,7 +2619,7 @@
       if(!listEl) return;
       listEl.innerHTML = "";
       if(!rows.length){
-        listEl.textContent = 'No saved charts yet , open "Bank Rate" → Customise & export → Save chart.';
+        listEl.textContent = 'No saved charts yet. Open any chart\u2019s Customise & export, then Save chart.';
         return;
       }
       rows.forEach(function(row){
