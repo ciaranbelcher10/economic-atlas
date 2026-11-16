@@ -5999,6 +5999,13 @@ window.EATLAS_COMPARE = {
  <span>Colour bars by above/below reference line (overrides country colours)</span>
  <input type="checkbox" id="czThresholdShadeToggle" style="width:15px; height:15px;">
  </div>
+ <div id="czManyBarColourField" style="display:none; align-items:center; justify-content:space-between; font-size:12.5px; margin-bottom:8px;">
+ <span>Bar colours</span>
+ <select id="czManyBarColourSelect" style="padding:4px 7px; border:1px solid var(--hair); border-radius:6px; background:var(--paper); color:var(--ink); font:inherit; font-size:12px;">
+ <option value="one">One colour</option>
+ <option value="country">Country colours</option>
+ </select>
+ </div>
  <div id="czLogScaleField" style="display:flex; align-items:center; justify-content:space-between; font-size:12.5px; margin-bottom:8px;">
  <span id="czLogScaleLabel">Log scale</span>
  <input type="checkbox" id="czLogScaleToggle" style="width:15px; height:15px;">
@@ -6611,6 +6618,7 @@ window.EATLAS_COMPARE = {
     // has explicitly asked for it via the checkbox, never a silent
     // default.
     var useThresholdColor = czmState.refLine.enabled && czmState.thresholdShadeBars;
+    var oneColourBars = czOneColourBars();
     rows.forEach(function(r, i){
       var bx = gm.xForIndex(i);
       if(r.value == null){
@@ -6622,7 +6630,7 @@ window.EATLAS_COMPARE = {
         var h = Math.max(0.6, Math.abs(by - zeroY));
         var barColor = useThresholdColor
           ? (r.value >= czmState.refLine.value ? "#348FA7" : "#413D7B")
-          : r.color;
+          : (oneColourBars ? CZ_ONE_BAR_COLOUR : r.color);
         svg.push("<rect x='" + (bx - gm.barWidth / 2).toFixed(1) + "' y='" + top.toFixed(1) + "' width='" + gm.barWidth.toFixed(1) + "' height='" + h.toFixed(1) + "' rx='3' fill='" + barColor + "'/>");
       }
       // The line/"over time" view already draws this short tick before
@@ -7006,6 +7014,10 @@ window.EATLAS_COMPARE = {
     czmState.yScale = e.target.checked ? "log" : "linear";
     czRenderPreview();
   });
+  document.getElementById("czManyBarColourSelect").addEventListener("change", function(e){
+    czmState.manyBarColour = e.target.value === "country" ? "country" : "one";
+    czRenderPreview();
+  });
   document.getElementById("czThresholdShadeToggle").addEventListener("change", function(e){
     czmState.thresholdShadeBars = e.target.checked;
     czRenderPreview();
@@ -7122,6 +7134,15 @@ window.EATLAS_COMPARE = {
       list.appendChild(rowEl);
     });
   }
+  // v2.0.3: more than 10 countries is a single-measure ranking. The person chooses one colour (navy, the
+  // default, as in Chartmaker) or each country's own colour. Value shading by reference line still wins.
+  var CZ_ONE_BAR_COLOUR = "#1E4566";
+  function czManyBarChoiceApplies(){
+    return czmState.mode === "snapshot" && czmEffectiveSnapshotRows().length > 10;
+  }
+  function czOneColourBars(){
+    return czManyBarChoiceApplies() && czmState.manyBarColour !== "country";
+  }
   function czmSyncModeFields(){
     document.getElementById("czCenterRefField").style.display = czmState.refLine.enabled ? "flex" : "none";
     if(!czmState.refLine.enabled && czmState.centerAroundRef){
@@ -7130,6 +7151,10 @@ window.EATLAS_COMPARE = {
     }
     document.getElementById("czSortModeField").style.display = czmState.mode === "snapshot" ? "flex" : "none";
     czRenderCountryColorsRow();
+    document.getElementById("czManyBarColourField").style.display = czManyBarChoiceApplies() ? "flex" : "none";
+    document.getElementById("czManyBarColourSelect").value = czmState.manyBarColour === "country" ? "country" : "one";
+    var ccPanel = document.getElementById("czCountryColorsPanel");
+    if(ccPanel) ccPanel.style.display = czOneColourBars() ? "none" : "";
     // Threshold-by-value bar colouring is a snapshot/bar-only concept --
     // on the line/"over time" view, colour is what lets you track which
     // series belongs to which country over time, so recolouring by
@@ -7424,7 +7449,7 @@ window.EATLAS_COMPARE = {
       concept: (filenameBase || "").replace(/_comparison$/, ""),
       from: allDates[0], to: allDates[allDates.length - 1],
       showFill: false, showPoints: true, hideNoData: false,
-      refLine: { enabled: isBizConf, value: isBizConf ? 100 : 0 }, centerAroundRef: isBizConf, thresholdShadeBars: false,
+      refLine: { enabled: isBizConf, value: isBizConf ? 100 : 0 }, centerAroundRef: isBizConf, thresholdShadeBars: false, manyBarColour: "one",
       yTitlePos: "along", yTickStepIdx: defaultStepIdxFor(Math.min.apply(null, allValsForDefault), Math.max.apply(null, allValsForDefault), 5),
       yScale: "linear", xTicks: 3, xLabelAngle: "straight", chartTitle: title || "", legendTitle: "",
       annotations: [], exportTheme: "light",
@@ -7477,7 +7502,7 @@ window.EATLAS_COMPARE = {
       mode: "snapshot",
       concept: (filenameBase || "").replace(/_snapshot$/, ""),
       showFill: false, showPoints: true, hideNoData: false,
-      refLine: { enabled: isBizConf, value: isBizConf ? 100 : 0 }, centerAroundRef: isBizConf, thresholdShadeBars: false,
+      refLine: { enabled: isBizConf, value: isBizConf ? 100 : 0 }, centerAroundRef: isBizConf, thresholdShadeBars: false, manyBarColour: "one",
       yTitlePos: "along", yTickStepIdx: defaultStepIdxFor(defRawMin, defRawMax, 5),
       yScale: "linear", xTicks: 3, xLabelAngle: "straight", chartTitle: title || "", legendTitle: "",
       annotations: [], exportTheme: "light",
@@ -7571,7 +7596,7 @@ window.EATLAS_COMPARE = {
           chartTitle: snap.chartTitle, yTitle: snap.yAxisTitle, legendTitle: snap.legendTitle,
           yTitlePos: snap.yTitlePos, showFill: snap.showFill, showPoints: snap.showPoints,
           hideNoData: snap.hideNoData, refLine: snap.refLine, centerAroundRef: snap.centerAroundRef,
-          thresholdShadeBars: snap.thresholdShadeBars, yScale: snap.logScale ? "log" : "linear",
+          thresholdShadeBars: snap.thresholdShadeBars, manyBarColour: snap.manyBarColour, yScale: snap.logScale ? "log" : "linear",
           xTicks: snap.xTicks, xLabelAngle: snap.xLabelAngle, exportTheme: snap.theme
         }
       }
@@ -7581,7 +7606,7 @@ window.EATLAS_COMPARE = {
   /* v1.9.139: a saved Compare chart keeps every setting the editor offers, and reopening it puts each
      one back, controls included. Older saves carry only some keys; anything missing keeps its default. */
   var CZ_STYLE_KEYS = ["chartTitle", "yTitle", "legendTitle", "yTitlePos", "showFill", "showPoints", "hideNoData",
-    "refLine", "centerAroundRef", "thresholdShadeBars", "yScale", "yTickStepIdx", "xTicks", "xLabelAngle", "exportTheme", "annotations"];
+    "refLine", "centerAroundRef", "thresholdShadeBars", "manyBarColour", "yScale", "yTickStepIdx", "xTicks", "xLabelAngle", "exportTheme", "annotations"];
   function czStyleSnapshot(){
     var o = {};
     CZ_STYLE_KEYS.forEach(function(k){ if(czmState[k] !== undefined) o[k] = JSON.parse(JSON.stringify(czmState[k])); });
@@ -7599,6 +7624,7 @@ window.EATLAS_COMPARE = {
       setChk("czReflineToggle", czmState.refLine.enabled); setVal("czReflineValue", czmState.refLine.value);
     }
     if(has("centerAroundRef")){ czmState.centerAroundRef = !!snap.centerAroundRef; setChk("czCenterRefToggle", czmState.centerAroundRef); }
+    if(has("manyBarColour")){ czmState.manyBarColour = snap.manyBarColour === "country" ? "country" : "one"; }
     if(has("thresholdShadeBars")){ czmState.thresholdShadeBars = !!snap.thresholdShadeBars; setChk("czThresholdShadeToggle", czmState.thresholdShadeBars); }
     if(has("yScale")){ czmState.yScale = snap.yScale === "log" ? "log" : "linear"; setChk("czLogScaleToggle", czmState.yScale === "log"); }
     if(has("hideNoData") && chartType !== "line"){ czmState.hideNoData = !!snap.hideNoData; setChk("czHideNoDataToggle", czmState.hideNoData); }

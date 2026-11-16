@@ -1571,6 +1571,13 @@ body:not(.cm-m) #cmMobileGate{display:none;}
  <label for="cmSnapshotAt">Compare at</label>
  <select id="cmSnapshotAt"></select>
  </div>
+ <div class="cmx-at" id="cmManyBarColourRow" style="display:none;">
+ <label>Bar colours</label>
+ <div class="seg" id="cmManyBarColourSeg">
+ <button type="button" data-mode="one" class="active" style="flex:1;">One colour</button>
+ <button type="button" data-mode="country" style="flex:1;">Country colours</button>
+ </div>
+ </div>
  <label class="cmx-chk" id="cmHideNoDataRow" style="display:none;"><input type="checkbox" id="cmHideNoData"><span>Hide countries with no data</span></label>
 </div>
  <div class="metric-toggles cmx-adjust" aria-label="Adjust figures">
@@ -2898,6 +2905,7 @@ var style = {
   sortMode: "value_desc",   // v1.9.34: highest first by default, everywhere countries are ranked
   axisFontSize: 11, font: "helvetica",
   barOrient: "vertical", dataLabels: false, dataLabelSize: 11,
+  manyBarColour: "one",   // v2.0.3: more than 10 bars on one measure, "one" (navy) or "country" colours
   snapshotAt: ""   // v1.9.34: the period the bars compare ("" = the end of the date range)
 };
 // v1.9.40: a copy of the starting settings, so a chart without ChartMaker settings (or Reset) starts clean
@@ -3385,6 +3393,10 @@ var BAR_ONE_COLOUR = "#1E4566";
 // v2.0.2: more than 10 countries on one metric is a single-measure ranking; 44 country colours
 // carried no information, so every bar takes one colour (anything recoloured by hand still wins)
 function oneColourBarsApply(){
+  return manyBarChoiceApplies() && style.manyBarColour !== "country";
+}
+// v2.0.3: the choice between one colour and country colours is offered only where the one-colour rule applies
+function manyBarChoiceApplies(){
   var sameMetric = series.length > 10 && series.every(function(s){ return s.metric === series[0].metric; });
   return chartType === "bar" && sameMetric;
 }
@@ -5496,6 +5508,8 @@ function buildSnapshotRows(){
 var svgBoxEl = document.getElementById("cmSvgBox");
 
 function renderChart(){
+  var mbRow = document.getElementById("cmManyBarColourRow");
+  if(mbRow) mbRow.style.display = manyBarChoiceApplies() ? "" : "none";
   if(!series.length){
     emptyStateEl.style.display = "flex";
     svgBoxEl.style.display = "none";
@@ -5839,6 +5853,8 @@ function syncBarOptionsUI(){
   document.getElementById("cmBarOptions").style.display = isBar ? "" : "none";
   document.querySelectorAll("#cmBarOrientSeg button").forEach(function(b){ b.classList.toggle("active", b.dataset.orient === style.barOrient); });
   document.getElementById("cmDataLabelsToggle").checked = !!style.dataLabels;
+  document.getElementById("cmManyBarColourRow").style.display = manyBarChoiceApplies() ? "" : "none";
+  document.querySelectorAll("#cmManyBarColourSeg button").forEach(function(b){ b.classList.toggle("active", b.dataset.mode === style.manyBarColour); });
   document.getElementById("cmDataLabelSizeRow").style.display = style.dataLabels ? "" : "none";
   document.getElementById("cmDlFsVal").textContent = style.dataLabelSize + "px";
   document.getElementById("cmDlFsMinus").disabled = style.dataLabelSize <= AXIS_FS_MIN;
@@ -5846,6 +5862,9 @@ function syncBarOptionsUI(){
 }
 document.querySelectorAll("#cmBarOrientSeg button").forEach(function(b){
   b.addEventListener("click", function(){ style.barOrient = b.dataset.orient; syncBarOptionsUI(); renderChart(); });
+});
+document.querySelectorAll("#cmManyBarColourSeg button").forEach(function(b){
+  b.addEventListener("click", function(){ style.manyBarColour = b.dataset.mode === "country" ? "country" : "one"; assignColors(); syncBarOptionsUI(); renderChart(); });
 });
 document.getElementById("cmHideNoData").addEventListener("change", function(e){ style.hideNoData = e.target.checked; renderChart(); });
 document.querySelectorAll("#cmXDateSeg button").forEach(function(b){
@@ -6368,6 +6387,7 @@ function loadSavedChart(row){
     style.axisFontSize = (typeof snap.axisFontSize === "number") ? Math.max(AXIS_FS_MIN, Math.min(AXIS_FS_MAX, snap.axisFontSize)) : 11;
     style.font = CHART_FONTS[snap.font] ? snap.font : "helvetica";
     style.barOrient = snap.barOrient === "horizontal" ? "horizontal" : "vertical";
+    style.manyBarColour = snap.manyBarColour === "country" ? "country" : "one";
     style.dataLabels = !!snap.dataLabels;
     style.dataLabelSize = (typeof snap.dataLabelSize === "number") ? Math.max(AXIS_FS_MIN, Math.min(AXIS_FS_MAX + 3, snap.dataLabelSize)) : 11;
     style.snapshotAt = typeof snap.snapshotAt === "string" ? snap.snapshotAt : "";
@@ -6452,7 +6472,7 @@ function buildSavePayload(name){
         yStartMode: style.yStartMode, yStartValue: style.yStartValue,
         yTickStepIdx: yTickStepIdx, yTickStep: currentYTickStep(), xTicks: style.xTicks, xLabelAngle: style.xLabelAngle,
         theme: exportTheme, axisFontSize: style.axisFontSize, font: style.font,
-        barOrient: style.barOrient, dataLabels: style.dataLabels, dataLabelSize: style.dataLabelSize, snapshotAt: style.snapshotAt,
+        barOrient: style.barOrient, dataLabels: style.dataLabels, dataLabelSize: style.dataLabelSize, snapshotAt: style.snapshotAt, manyBarColour: style.manyBarColour,
         sortMode: style.sortMode, legendTitleTouched: legendTitleTouched, xDateFmt: style.xDateFmt, hideNoData: !!style.hideNoData,
         real: userRealPreference, dollar: userDollarPreference, percap: userPercapPreference
       }
