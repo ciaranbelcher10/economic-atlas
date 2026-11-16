@@ -154,9 +154,11 @@ NOTES = [
      lambda c: "OECD quarterly national accounts" in c.label("Switzerland", "gdp_growth")
      and "CHF" in c.unit("Switzerland", "gdp_level")),
     ("Poland",
-     "The trade balance is Eurostat's goods balance (exports minus imports) in euros. It is left in euros when "
-     "Convert to USD$ is switched on.",
-     lambda c: "Eurostat" in c.label("Poland", "trade_balance") and "\u20ac" in c.unit("Poland", "trade_balance")),
+     "Exports, imports and the trade balance are Eurostat's goods figures, which Eurostat publishes in euros. "
+     "They are converted to zloty at each month's ECB reference rate. Convert to USD$ then converts each point "
+     "at that year's average PLN/USD rate.",
+     lambda c: all("Eurostat" in c.label("Poland", k) and "ECB reference rate" in c.label("Poland", k)
+                   and c.unit("Poland", k) == "PLNm" for k in ("trade_balance", "exports", "imports"))),
     ("Argentina",
      "GDP is not seasonally adjusted, so growth is shown year on year: a quarter-on-quarter rate would mostly "
      "show the seasons.",

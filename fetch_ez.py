@@ -413,14 +413,50 @@ def _fetch_eurostat_teiet(dataset: str, stk_flow: str) -> list | None:
     return None
 
 
-def fetch_eurostat_trade_pair() -> tuple[list | None, list | None]:
-    """Returns (exports, imports) points, euro-area extra-area goods trade
-    in EUR million. IMP from teiet110 confirmed live and working; EXP from
-    teiet010, the confirmed-to-exist counterpart table, using the exact
-    same query shape -- unconfirmed until the next live run."""
+def _fetch_eurostat_easitc(stk_flow: str) -> list | None:
+    """v2.0: euro-area goods trade with countries outside the euro area, from
+    Eurostat ext_st_easitc (geo EA21, partner EXT_EA21, SITC total,
+    TRD_VAL_SCA = seasonally and calendar adjusted, EUR million). Monthly
+    from 2002-01. Its recent months equal teiet010/teiet110 exactly (checked
+    2025-10 to 2026-09 on 16 Nov 2026); the teiet tables keep only the latest
+    twelve months, which left the euro-area chart with one year of history."""
+    params = {"geo": "EA21", "partner": "EXT_EA21", "indic_et": "TRD_VAL_SCA",
+              "stk_flow": stk_flow, "sitc06": "TOTAL"}
+    qs = "&".join(f"{k}={v}" for k, v in params.items())
+    url = f"{EUROSTAT_STATS_BASE}/ext_st_easitc?format=JSON&lang=EN&{qs}&sinceTimePeriod=2002"
+    tag = f"eurostat-easitc-{stk_flow}"
+    try:
+        r = requests.get(url, timeout=90, headers={"User-Agent": "economic-atlas/0.1"})
+        print(f"  [{tag}] status={r.status_code}")
+        r.raise_for_status()
+        return _parse_jsonstat(r.text, tag)
+    except Exception as exc:
+        print(f"  [{tag}] failed: {exc}")
+        return None
+
+
+EASITC_LABELS = {
+    "exports": "Exports of goods, extra-euro-area, seasonally adjusted (Eurostat ext_st_easitc)",
+    "imports": "Imports of goods, extra-euro-area, seasonally adjusted (Eurostat ext_st_easitc)",
+    "trade_balance": "Trade balance, goods, extra-euro-area, seasonally adjusted (derived from Eurostat ext_st_easitc)",
+}
+TEIET_LABELS = {
+    "exports": "Exports of goods, extra-euro-area (Eurostat teiet010)",
+    "imports": "Imports of goods, extra-euro-area (Eurostat teiet110)",
+    "trade_balance": "Trade balance, goods, extra-euro-area (derived from Eurostat teiet010 and teiet110)",
+}
+
+
+def fetch_eurostat_trade_pair() -> tuple[list | None, list | None, dict]:
+    """Returns (exports, imports, labels): euro-area extra-area goods trade in
+    EUR million. ext_st_easitc first (full history); the twelve-month teiet
+    tables only if it fails, so a run never ends with mixed sources."""
+    exports, imports = _fetch_eurostat_easitc("EXP"), _fetch_eurostat_easitc("IMP")
+    if exports and imports:
+        return exports, imports, EASITC_LABELS
     exports = _fetch_eurostat_teiet("teiet010", "EXP")
     imports = _fetch_eurostat_teiet("teiet110", "IMP")
-    return exports, imports
+    return exports, imports, TEIET_LABELS
 
 
 WB_URL = ("https://api.worldbank.org/v2/country/EMU/indicator/"
@@ -646,20 +682,28 @@ def main() -> int:
     # 8.3.0: prefer live Eurostat trade over the FRED/OECD mirror that died
     # in April 2023. Only swap in when BOTH flows fetch, so exports/imports
     # and the derived balance always share one source.
-    es_exp, es_imp = fetch_eurostat_trade_pair()
+    es_exp, es_imp, es_labels = fetch_eurostat_trade_pair()
+    # v2.0: the teiet fallback holds only twelve months. Never let it replace a
+    # longer stored history; keep the stored series and say so.
+    _prev_exp = _prev_series_early.get("exports", {}).get("points") or []
+    if es_labels is TEIET_LABELS and es_exp and len(_prev_exp) > len(es_exp) \
+            and _prev_exp[-1][0] >= es_exp[-1][0]:
+        print("note  ext_st_easitc unavailable; stored history is longer and as "
+              "current as teiet, so it is kept")
+        es_exp = es_imp = None
     if es_exp and es_imp:
         out["series"]["exports"] = {
-            "label": "Exports of goods, extra-euro-area (Eurostat teiet010)",
+            "label": es_labels["exports"],
             "unit": "\u20acm", "freq": "months", "points": es_exp}
         out["series"]["imports"] = {
-            "label": "Imports of goods, extra-euro-area (Eurostat teiet110)",
+            "label": es_labels["imports"],
             "unit": "\u20acm", "freq": "months", "points": es_imp}
         _fresh_keys.update(("exports", "imports"))
         print(f"  ok  exports/imports replaced with live Eurostat series "
               f"({es_exp[-1][0]} / {es_imp[-1][0]})")
     else:
-        print("note  Eurostat trade unavailable this run -- keeping the "
-              "discontinued OECD mirror (ends Apr 2023)")
+        print("note  Eurostat trade unavailable this run; keeping the stored "
+              "series (series_guard keeps the longer, more current one)")
 
     if "exports" in out["series"] and "imports" in out["series"]:
         imp = dict(out["series"]["imports"]["points"])
@@ -671,7 +715,8 @@ def main() -> int:
             # $-to-local FX conversion below; with the OECD fallback they are
             # $m and will be converted as before.
             out["series"]["trade_balance"] = {
-                "label": "Trade balance, goods, extra-euro-area (derived from Eurostat teiet010 and teiet110)",
+                "label": (EASITC_LABELS if "ext_st_easitc" in out["series"]["exports"]["label"]
+                          else TEIET_LABELS)["trade_balance"],
                 "unit": out["series"]["exports"]["unit"],
                 "freq": "months", "points": tb}
             if "exports" in _fresh_keys and "imports" in _fresh_keys:
