@@ -1,0 +1,41 @@
+name: Send update email
+
+# Run by hand only. Preview builds the email, test sends one copy to test_to,
+# live sends to every account holder only when confirm is SEND-TO-ALL.
+on:
+  workflow_dispatch:
+    inputs:
+      mode:
+        description: "preview, test or live"
+        required: true
+        default: "test"
+        type: choice
+        options: [preview, test, live]
+      test_to:
+        description: "Test mode: the one address to send to"
+        required: false
+        default: ""
+      confirm:
+        description: "Live mode: type SEND-TO-ALL to send"
+        required: false
+        default: ""
+
+permissions:
+  contents: read
+
+jobs:
+  send:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v5
+      - uses: actions/setup-python@v6
+        with:
+          python-version: "3.12"
+      - name: Send
+        run: python3 send_update_email.py --mode "$MODE" --to "$TEST_TO" --confirm "$CONFIRM"
+        env:
+          MODE: ${{ inputs.mode }}
+          TEST_TO: ${{ inputs.test_to }}
+          CONFIRM: ${{ inputs.confirm }}
+          RESEND_API_KEY: ${{ secrets.RESEND_API_KEY }}
+          SUPABASE_SERVICE_ROLE_KEY: ${{ secrets.SUPABASE_SERVICE_ROLE_KEY }}
