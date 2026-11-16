@@ -4,7 +4,7 @@ Run by hand from send-update-email.yml (workflow_dispatch only, never on a sched
 Resend account, sending domain and Supabase service_role read as send_calendar_alerts.py.
 
 Modes:
-  preview  Builds the email and writes update-email-preview.html and .txt. Reads no users and sends nothing.
+  preview  Builds the email and writes update-email-preview.html and .txt to the temp folder. Reads no users and sends nothing.
   test     Sends one copy to --to only. Reads no users.
   live     Sends to every account holder with an email except those who opted out, and only when
            --confirm SEND-TO-ALL is given. Otherwise it lists the recipient count and stops.
@@ -30,38 +30,27 @@ SUPABASE_SERVICE_ROLE_KEY = os.environ.get("SUPABASE_SERVICE_ROLE_KEY")
 FROM = "The Economic Atlas <alerts@theeconomicatlas.com>"
 REPLY_TO = "alerts@theeconomicatlas.com"
 CAMPAIGN = "update-v2-0"
-SUBJECT = "What's new on The Economic Atlas"
+SUBJECT = "The Economic Atlas now covers 62 economies"
+# Inbox preview line, shown next to the subject and hidden in the email itself
+PREHEADER = "Compare countries, build your own charts and see what is released this week."
 SITE = "https://theeconomicatlas.com"
 SITE_FONT = "'Avenir Next','Avenir','Nunito Sans',system-ui,sans-serif"   # single quotes: double quotes would end the style attribute
 
-INTRO = ("You have an account on The Economic Atlas, so here is a short note on what has changed since "
-         "the first version. The site still does one thing: official statistics with the source named on "
-         "every figure, and no commentary.")
+HEADLINE = "A lot has changed since you signed up"
+INTRO = "The Economic Atlas has grown from 18 economies to 62. Every figure still comes from an official source, named on the page."
 
-# (heading, body, link path)
+# (heading, one line, button label, link path)
 ITEMS = [
-    ("62 economies", "Up from 18 at launch. Each has its own page with headline figures and charts on output, "
-     "prices, labour, money and markets, trade and public finances.", "/"),
-    ("1,109 indicator pages", "One page per economy and series, with a chart, the source series and an "
-     "embeddable version.", "/indicators/"),
-    ("14 rankings", "GDP, growth, inflation, unemployment, interest rates, bond yields, debt and more, "
-     "across every economy with data.", "/rankings/"),
-    ("Compare", "Any set of economies side by side on one measure, as bars, lines or a map.", "/compare"),
-    ("Chartmaker", "Build a chart from any series on the site and export it as PNG, SVG or CSV.", "/chartmaker"),
-    ("Dashboard and saved charts", "Pin figures from any country into one view, and save charts to "
-     "your account to open later.", "/dashboard"),
-    ("Release calendar", "Upcoming data releases, with an optional weekly email for the countries and "
-     "measures you track.", "/calendar"),
-    ("USD, inflation and per capita", "Country pages, Compare and Chartmaker can convert to US dollars, "
-     "adjust for inflation and show figures per person.", "/compare"),
-    ("Data status and methodology", "The latest period and next release for every series, and the exact "
-     "source behind every indicator.", "/data-status"),
+    ("Compare any countries", "Put economies side by side on one measure, as bars, lines or a map.", "Open Compare", "/compare"),
+    ("Make your own chart", "Pick any series on the site and download it as PNG, SVG or CSV.", "Open Chartmaker", "/chartmaker"),
+    ("See what is released this week", "Upcoming data releases, with an optional weekly email for the ones you follow.", "Open the calendar", "/calendar"),
+    ("Who ranks where", "14 rankings, from GDP and inflation to bond yields and debt.", "See the rankings", "/rankings/"),
 ]
 
-OUTRO = ("If something looks wrong or you would like a country or series added, reply to this email.")
+ALSO = "Also new: your own Dashboard, saved charts, and switches to show figures in US dollars, after inflation or per person."
+OUTRO = "Missing a country or a series? Reply and tell us."
 OPT_OUT = ("You are receiving this because you have an account on The Economic Atlas. To stop update "
-           "emails like this one, reply with \"unsubscribe\". Calendar alerts are set separately on the "
-           "Calendar page.")
+           "emails like this one, reply with \"unsubscribe\".")
 
 
 def esc(s: str) -> str:
@@ -69,41 +58,53 @@ def esc(s: str) -> str:
 
 
 def build_text() -> str:
-    out = [INTRO, ""]
-    for h, b, p in ITEMS:
+    out = [HEADLINE, "", INTRO, ""]
+    for h, b, _, p in ITEMS:
         out += [h, b, SITE + p, ""]
-    out += [OUTRO, "", SITE, "", "-", OPT_OUT]
+    out += [ALSO, "", OUTRO, "", SITE, "", OPT_OUT]
     return "\n".join(out)
 
 
 def build_html() -> str:
-    rows = "".join(f"""
-              <tr><td style="padding:14px 0;border-top:1px solid #E7E2D8;font-family:{SITE_FONT};">
-                <a href="{SITE}{p}" style="font-size:15px;font-weight:bold;color:#AD1E1E;text-decoration:none;">{esc(h)}</a>
-                <div style="font-size:14px;line-height:1.5;color:#1A1A1A;padding-top:3px;">{esc(b)}</div>
-              </td></tr>""" for h, b, p in ITEMS)
+    f = SITE_FONT
+    cards = "".join(f"""
+          <tr><td style="padding:0 28px 12px 28px;">
+            <table role="presentation" width="100%" cellpadding="0" cellspacing="0" style="background-color:#F7F5F0;border-radius:8px;">
+              <tr><td style="padding:16px 18px;font-family:{f};">
+                <div style="font-size:17px;font-weight:bold;color:#1A1A1A;">{esc(h)}</div>
+                <div style="font-size:15px;line-height:1.45;color:#3A3A3A;padding:4px 0 10px 0;">{esc(b)}</div>
+                <a href="{SITE}{p}" style="font-size:15px;font-weight:bold;color:#AD1E1E;text-decoration:none;">{esc(cta)} &rarr;</a>
+              </td></tr>
+            </table>
+          </td></tr>""" for h, b, cta, p in ITEMS)
     return f"""<!DOCTYPE html>
-<html>
+<html lang="en">
+  <head>
+    <meta charset="utf-8">
+    <meta name="viewport" content="width=device-width,initial-scale=1">
+    <meta name="color-scheme" content="light only">
+    <meta name="supported-color-schemes" content="light only">
+    <title>{esc(SUBJECT)}</title>
+  </head>
   <body style="margin:0;padding:0;background-color:#F4F1EA;">
+    <div style="display:none;max-height:0;overflow:hidden;opacity:0;">{esc(PREHEADER)}</div>
     <table role="presentation" width="100%" cellpadding="0" cellspacing="0" style="background-color:#F4F1EA;">
-      <tr><td align="center" style="padding:32px 16px;">
-        <table role="presentation" width="600" cellpadding="0" cellspacing="0" style="max-width:600px;width:100%;background-color:#FFFFFF;border:1px solid #E7E2D8;border-radius:6px;">
-          <tr><td style="padding:28px 32px 20px 32px;border-bottom:2px solid #1A1A1A;">
+      <tr><td align="center" style="padding:24px 12px;">
+        <table role="presentation" width="600" cellpadding="0" cellspacing="0" style="max-width:600px;width:100%;background-color:#FFFFFF;border-radius:10px;">
+          <tr><td style="padding:24px 28px 0 28px;">
             <table role="presentation" cellpadding="0" cellspacing="0"><tr>
-              <td style="padding-right:10px;"><img src="{SITE}/logo-64.png" width="28" height="28" alt="" style="display:block;border-radius:50%;"></td>
-              <td style="font-family:{SITE_FONT};font-size:19px;color:#1A1A1A;font-weight:bold;">What's new on The Economic Atlas</td>
+              <td style="padding-right:10px;"><div style="background-color:#FFFFFF;border-radius:50%;width:32px;height:32px;"><img src="{SITE}/logo-64.png" width="32" height="32" alt="" style="display:block;border-radius:50%;"></div></td>
+              <td style="font-family:{f};font-size:15px;font-weight:bold;color:#1A1A1A;">The Economic Atlas</td>
             </tr></table>
           </td></tr>
-          <tr><td style="padding:20px 32px 6px 32px;font-family:{SITE_FONT};font-size:14px;line-height:1.5;color:#1A1A1A;">{esc(INTRO)}</td></tr>
-          <tr><td style="padding:6px 32px 8px 32px;">
-            <table role="presentation" width="100%" cellpadding="0" cellspacing="0">{rows}
-            </table>
+          <tr><td style="padding:22px 28px 6px 28px;font-family:{f};font-size:26px;line-height:1.2;font-weight:bold;color:#1A1A1A;">{esc(HEADLINE)}</td></tr>
+          <tr><td style="padding:0 28px 20px 28px;font-family:{f};font-size:16px;line-height:1.5;color:#3A3A3A;">{esc(INTRO)}</td></tr>{cards}
+          <tr><td style="padding:8px 28px 0 28px;font-family:{f};font-size:15px;line-height:1.5;color:#3A3A3A;">{esc(ALSO)}</td></tr>
+          <tr><td align="center" style="padding:24px 28px 8px 28px;">
+            <a href="{SITE}" style="display:block;font-family:{f};font-size:16px;font-weight:bold;color:#FFFFFF;background-color:#AD1E1E;text-decoration:none;padding:14px 20px;border-radius:6px;">Explore The Economic Atlas</a>
           </td></tr>
-          <tr><td style="padding:8px 32px 0 32px;font-family:{SITE_FONT};font-size:14px;line-height:1.5;color:#1A1A1A;">{esc(OUTRO)}</td></tr>
-          <tr><td align="center" style="padding:24px 32px 28px 32px;">
-            <a href="{SITE}" style="display:inline-block;font-family:{SITE_FONT};font-size:15px;font-weight:bold;color:#FFFFFF;background-color:#1A1A1A;text-decoration:none;padding:12px 28px;border-radius:5px;">Open The Economic Atlas</a>
-          </td></tr>
-          <tr><td style="padding:16px 32px 24px 32px;border-top:1px solid #E7E2D8;font-family:{SITE_FONT};font-size:12px;line-height:1.5;color:#8A8375;">{esc(OPT_OUT)}</td></tr>
+          <tr><td align="center" style="padding:8px 28px 24px 28px;font-family:{f};font-size:14px;color:#6B6B6B;">{esc(OUTRO)}</td></tr>
+          <tr><td style="padding:16px 28px 22px 28px;border-top:1px solid #E7E2D8;font-family:{f};font-size:12px;line-height:1.5;color:#8A8375;">{esc(OPT_OUT)}</td></tr>
         </table>
       </td></tr>
     </table>
@@ -164,9 +165,12 @@ def main():
     text, html = build_text(), build_html()
 
     if a.mode == "preview":
-        open("update-email-preview.html", "w").write(html)
-        open("update-email-preview.txt", "w").write(text)
-        print("Wrote update-email-preview.html and update-email-preview.txt. Nothing sent.")
+        # written outside the repo: an .html file at the root fails generated_pages_gate.py
+        import tempfile
+        d = tempfile.gettempdir()
+        open(os.path.join(d, "update-email-preview.html"), "w").write(html)
+        open(os.path.join(d, "update-email-preview.txt"), "w").write(text)
+        print(f"Wrote update-email-preview.html and .txt to {d}. Nothing sent.")
         return
     if a.mode == "test":
         if not a.to or "@" not in a.to:
