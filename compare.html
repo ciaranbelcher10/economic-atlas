@@ -100,6 +100,11 @@ html[data-theme="dark"]{ --map-nodata: #C4CAC0; }
 [data-theme="dark"] .card-sort-row{background:var(--panel) !important; border-color:var(--hair) !important;}
 [data-theme="dark"] .card-sort-row > span{color:var(--ink) !important;}
 .picker-actions{display:flex; gap:10px; margin:2px 0 18px;}
+/* v2.0.8: country groups in the picker, and one alphabetical list */
+.picker-groups{display:flex; flex-wrap:wrap; gap:6px; margin:-8px 0 16px;}
+.picker-groups button{border:1px solid var(--navy); background:transparent; color:var(--navy); border-radius:999px; padding:5px 11px; font:700 12px "Avenir Next","Avenir","Nunito Sans",sans-serif; cursor:pointer;}
+[data-theme="dark"] .picker-groups button{color:var(--ink); border-color:var(--blue);}
+.picker-groups button.on{background:var(--navy); color:#fff;}
 .picker-actions button{border:1px solid var(--hair); background:var(--panel); color:var(--ink2);
   font:600 12px "Avenir Next","Avenir","Nunito Sans",sans-serif; padding:6px 13px; border-radius:8px; cursor:pointer;}
 .picker-actions button:hover{border-color:var(--blue); color:var(--navy);}
@@ -1723,11 +1728,12 @@ footer.cmp-foot{margin-top:36px; font-size:12.5px; color:var(--ink2); border-top
  <div class="modal-content">
  <button type="button" class="modal-close" id="countryClose" aria-label="Close">&times;</button>
  <h2>Choose countries</h2>
- <p class="modal-sub">Grouped the same way as the Country Breakdowns menu. Tap any country to add or remove it, changes apply straight away.</p>
+ <p class="modal-sub">Tap a country or a group to add or remove it. Changes apply straight away.</p>
  <div class="picker-actions">
  <button type="button" id="pickerSelectAll">Select all</button>
  <button type="button" id="pickerClearAll">Clear all</button>
  </div>
+ <div class="picker-groups" id="pickerGroups"></div>
  <div class="cap-meter" id="cmpCapMeter" hidden><div class="cap-meter-txt"></div><div class="cap-slots" aria-hidden="true"></div></div>
  <div id="pickerRegions"></div>
  <div class="cap-warn" id="cmpCapWarn" role="status" hidden><span class="cap-lock" aria-hidden="true"></span><div class="cap-body"><strong></strong><p></p><div class="cap-warn-btns"><button type="button" class="cap-signup">Sign up free</button><button type="button" class="cap-login">Log in</button></div></div><button type="button" class="cap-x" aria-label="Close this note">&times;</button></div><div class="cap-slim" id="cmpCapSlim" hidden><span class="cap-lock" aria-hidden="true"></span><span class="cap-slim-t"></span><button type="button" class="cap-slim-go">Sign up</button></div>
@@ -4008,7 +4014,8 @@ function periodLabelFor(dv){
   if(!dv) return "";
   if(dv.isCumulative) return "since " + dv.year;
   if(dv.isDelta) return "vs " + dv.year;
-  return String(dv.year);
+  // v2.0.8: the year still in progress says so (an average of the months published, or the latest reading)
+  return String(dv.year) + (+dv.year >= new Date().getFullYear() ? " so far" : "");
 }
 var selected = ["UK", "US", "Germany", "Japan"];
 // ?countries=all expands the default 4-country view to every tracked
@@ -4612,14 +4619,13 @@ function renderCountryPicker(){
   var wrap = document.getElementById("pickerRegions");
   var capSt = renderCmpCap();
   wrap.innerHTML = "";
-  REGION_GROUPS.forEach(function(region){
-    var known = region.countries.filter(function(c){ return ALL_COUNTRIES.indexOf(c) !== -1; });
+  renderPickerGroups();
+  // v2.0.8: one alphabetical list (by the name shown), not grouped by region
+  [{ name: "", countries: ALL_COUNTRIES.slice().sort(function(a, b){ return (COUNTRY_LABEL[a] || a).localeCompare(COUNTRY_LABEL[b] || b); }) }].forEach(function(region){
+    var known = region.countries;
     if(!known.length) return;
     var section = document.createElement("div");
     section.className = "picker-region";
-    var heading = document.createElement("h4");
-    heading.textContent = region.name;
-    section.appendChild(heading);
     var grid = document.createElement("div");
     grid.className = "picker-grid";
     known.forEach(function(c){
@@ -4645,6 +4651,38 @@ function renderCountryPicker(){
     wrap.appendChild(section);
   });
 }
+var PICKER_GROUPS = [
+  { name: "G7", members: ["Canada","France","Germany","Italy","Japan","UK","US"] },
+  { name: "G20", members: ["Argentina","Australia","Brazil","Canada","China","France","Germany","India","Indonesia","Italy","Japan","Mexico","Saudi Arabia","South Africa","South Korea","Turkey","UK","US"] },
+  { name: "EU", members: ["Austria","Belgium","Bulgaria","Croatia","Cyprus","Czechia","Denmark","Estonia","Finland","France","Germany","Greece","Hungary","Ireland","Italy","Latvia","Lithuania","Luxembourg","Malta","Netherlands","Poland","Portugal","Romania","Slovakia","Slovenia","Spain","Sweden"] },
+  { name: "Euro area", members: ["Austria","Belgium","Bulgaria","Croatia","Cyprus","Estonia","Finland","France","Germany","Greece","Ireland","Italy","Latvia","Lithuania","Luxembourg","Malta","Netherlands","Portugal","Slovakia","Slovenia","Spain"] },
+  { name: "OECD", members: ["Australia","Austria","Belgium","Canada","Chile","Colombia","Czechia","Denmark","Estonia","Finland","France","Germany","Greece","Hungary","Iceland","Ireland","Israel","Italy","Japan","South Korea","Latvia","Lithuania","Luxembourg","Mexico","Netherlands","New Zealand","Norway","Poland","Portugal","Slovakia","Slovenia","Spain","Sweden","Switzerland","Turkey","UK","US"] },
+  { name: "BRICS", members: ["Brazil","China","Egypt","India","Indonesia","South Africa"] }
+];
+function pickerGroupMembers(g){ return g.members.filter(function(c){ return ALL_COUNTRIES.indexOf(c) !== -1; }); }
+function renderPickerGroups(){
+  var el = document.getElementById("pickerGroups"); if(!el) return;
+  el.innerHTML = PICKER_GROUPS.map(function(g, i){
+    var m = pickerGroupMembers(g), on = m.length && m.every(function(c){ return selected.indexOf(c) !== -1; });
+    return "<button type=\"button\" data-g=\"" + i + "\" class=\"" + (on ? "on" : "") + "\" aria-pressed=\"" + !!on + "\">" + g.name + " (" + m.length + ")</button>";
+  }).join("");
+}
+try {
+  document.getElementById("pickerGroups").addEventListener("click", function(e){
+    var b = e.target.closest("button"); if(!b) return;
+    var m = pickerGroupMembers(PICKER_GROUPS[+b.dataset.g]);
+    var on = m.every(function(c){ return selected.indexOf(c) !== -1; });
+    if(on){ selected = selected.filter(function(c){ return m.indexOf(c) === -1; }); }
+    else {
+      var max = getMaxSelected(), capped = false;
+      m.forEach(function(c){ if(selected.indexOf(c) === -1){ if(selected.length < max) selected.push(c); else capped = true; } });
+      if(capped){ var loggedIn = !!(window.EATLAS_PREFS && window.EATLAS_PREFS.isLoggedIn && window.EATLAS_PREFS.isLoggedIn()); if(!loggedIn) cmpCapFlag(); }
+    }
+    if(window.EATLAS_PREFS) window.EATLAS_PREFS.set("compareSelectedCountries", selected);
+    renderAll();
+    renderCountryPicker();
+  });
+} catch(e) { console.error("Country groups wiring failed:", e); }
 function openCountryModal(){
   document.getElementById("countryModal").hidden = false;
   document.body.style.overflow = "hidden";
@@ -4747,7 +4785,9 @@ function buildBarChart(canvas, concept){
   // actually resolved for THIS card, not a page-wide variable.
   var horizonNote = isCumulative ? "Cumulative % change from " + firstReal.year + " to " + firstReal.endYear + ", using complete years only."
     : isDelta ? "Change from " + firstReal.year + " to " + firstReal.endYear + ", using complete years only."
-    : "Figures for " + firstReal.year + ".";
+    : (+firstReal.year >= new Date().getFullYear()
+        ? "Figures for " + firstReal.year + " so far: averages of the readings published this year, or the latest reading for levels such as debt."
+        : "Figures for " + firstReal.year + ".");
   var titleSuffix = isCumulative ? " (cumulative change)" : isDelta ? " (change)" : "";
   var chart = new Chart(canvas, {
     type: "bar",
@@ -4759,7 +4799,7 @@ function buildBarChart(canvas, concept){
       datasets: [{
         data: rows.map(function(r){ return r.dv ? r.dv.value : null; }),
         backgroundColor: rows.map(function(r){ return getCountryColor(r.country); }),
-        borderRadius: 5
+        borderRadius: 0
       }]
     },
     options: {
@@ -6633,7 +6673,7 @@ window.EATLAS_COMPARE = {
         var barColor = useThresholdColor
           ? (r.value >= czmState.refLine.value ? "#348FA7" : "#413D7B")
           : (oneColourBars ? CZ_ONE_BAR_COLOUR : r.color);
-        svg.push("<rect x='" + (bx - gm.barWidth / 2).toFixed(1) + "' y='" + top.toFixed(1) + "' width='" + gm.barWidth.toFixed(1) + "' height='" + h.toFixed(1) + "' rx='3' fill='" + barColor + "'/>");
+        svg.push("<rect x='" + (bx - gm.barWidth / 2).toFixed(1) + "' y='" + top.toFixed(1) + "' width='" + gm.barWidth.toFixed(1) + "' height='" + h.toFixed(1) + "' fill='" + barColor + "'/>");
       }
       // The line/"over time" view already draws this short tick before
       // its own date labels (see the line-mode axis loop above) -- the
@@ -7451,7 +7491,7 @@ window.EATLAS_COMPARE = {
       concept: (filenameBase || "").replace(/_comparison$/, ""),
       from: allDates[0], to: allDates[allDates.length - 1],
       showFill: false, showPoints: true, hideNoData: false,
-      refLine: { enabled: isBizConf, value: isBizConf ? 100 : 0 }, centerAroundRef: isBizConf, thresholdShadeBars: false, manyBarColour: "one",
+      refLine: { enabled: isBizConf, value: isBizConf ? 100 : 0 }, centerAroundRef: isBizConf, thresholdShadeBars: false, manyBarColour: "country",
       yTitlePos: "along", yTickStepIdx: defaultStepIdxFor(Math.min.apply(null, allValsForDefault), Math.max.apply(null, allValsForDefault), 5),
       yScale: "linear", xTicks: 3, xLabelAngle: "straight", chartTitle: title || "", legendTitle: "",
       annotations: [], exportTheme: "light",
@@ -7504,7 +7544,7 @@ window.EATLAS_COMPARE = {
       mode: "snapshot",
       concept: (filenameBase || "").replace(/_snapshot$/, ""),
       showFill: false, showPoints: true, hideNoData: false,
-      refLine: { enabled: isBizConf, value: isBizConf ? 100 : 0 }, centerAroundRef: isBizConf, thresholdShadeBars: false, manyBarColour: "one",
+      refLine: { enabled: isBizConf, value: isBizConf ? 100 : 0 }, centerAroundRef: isBizConf, thresholdShadeBars: false, manyBarColour: "country",
       yTitlePos: "along", yTickStepIdx: defaultStepIdxFor(defRawMin, defRawMax, 5),
       yScale: "linear", xTicks: 3, xLabelAngle: "straight", chartTitle: title || "", legendTitle: "",
       annotations: [], exportTheme: "light",
@@ -7626,7 +7666,7 @@ window.EATLAS_COMPARE = {
       setChk("czReflineToggle", czmState.refLine.enabled); setVal("czReflineValue", czmState.refLine.value);
     }
     if(has("centerAroundRef")){ czmState.centerAroundRef = !!snap.centerAroundRef; setChk("czCenterRefToggle", czmState.centerAroundRef); }
-    if(has("manyBarColour")){ czmState.manyBarColour = snap.manyBarColour === "country" ? "country" : "one"; }
+    if(has("manyBarColour")){ czmState.manyBarColour = snap.manyBarColour === "one" ? "one" : "country"; }
     if(has("thresholdShadeBars")){ czmState.thresholdShadeBars = !!snap.thresholdShadeBars; setChk("czThresholdShadeToggle", czmState.thresholdShadeBars); }
     if(has("yScale")){ czmState.yScale = snap.yScale === "log" ? "log" : "linear"; setChk("czLogScaleToggle", czmState.yScale === "log"); }
     if(has("hideNoData") && chartType !== "line"){ czmState.hideNoData = !!snap.hideNoData; setChk("czHideNoDataToggle", czmState.hideNoData); }

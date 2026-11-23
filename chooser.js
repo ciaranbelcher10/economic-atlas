@@ -200,7 +200,10 @@
       $("cmzGroups").innerHTML = GROUPS.map(function(g, i){
         var on = g.members.every(function(c){ return cz.countries.indexOf(c) !== -1; });
         return "<button type='button' data-g='" + i + "' class='" + (on ? "on" : "") + "' aria-pressed='" + on + "'>" + esc(g.name) + " (" + g.members.length + ")</button>";
-      }).join("");
+      }).join("")
+        // v2.0.8: every country at once, and a way back to none
+        + "<button type='button' data-all='1' class='" + (countries().every(function(c){ return cz.countries.indexOf(c) !== -1; }) ? "on" : "") + "'>All countries (" + countries().length + ")</button>"
+        + (cz.countries.length ? "<button type='button' data-clear='1'>Clear</button>" : "");
     }
     function renderCount(){ $("cmzCount").textContent = cz.countries.length ? cz.countries.length + " chosen" : ""; }
     function renderCountries(){
@@ -298,6 +301,12 @@
     });
     $("cmzGroups").addEventListener("click", function(e){
       var b = e.target.closest("button"); if(!b) return;
+      if(b.dataset.clear){ cz.countries = []; render(); return; }
+      if(b.dataset.all){
+        var all = countries(), allOn = all.every(function(c){ return cz.countries.indexOf(c) !== -1; });
+        cz.countries = allOn ? [] : all.slice();
+        render(); return;
+      }
       var g = GROUPS[+b.dataset.g].members, on = g.every(function(c){ return cz.countries.indexOf(c) !== -1; });
       if(on) cz.countries = cz.countries.filter(function(c){ return g.indexOf(c) === -1; });
       else g.forEach(function(c){ if(cz.countries.indexOf(c) === -1) cz.countries.push(c); });

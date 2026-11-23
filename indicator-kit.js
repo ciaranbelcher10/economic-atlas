@@ -335,7 +335,7 @@
       var ds = isBar ? {
         data: shown.map(function(p){ return p[1]; }),
         backgroundColor: shown.map(function(p){ return p[1] < 0 ? "#8FB8D8" : LINE; }),
-        borderRadius: 2, maxBarThickness: 14
+        borderRadius: 0, maxBarThickness: 14
       } : {
         data: shown.map(function(p){ return p[1]; }),
         borderColor: LINE, borderWidth: 2.2, tension: 0.2, fill: true, backgroundColor: grad,

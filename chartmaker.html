@@ -367,7 +367,7 @@
 })();
 </script>
 <script src="https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2.116.0"></script>
-<script src="chooser.js?v=2"></script>
+<script src="chooser.js?v=3"></script>
 <script>
 (function(){
   var SUPABASE_URL = "https://skluvrxnuibkordzgtmu.supabase.co";
@@ -548,6 +548,7 @@
     }
     if(window.EATLAS_DOWNLOAD) window.EATLAS_DOWNLOAD.setAuthState(!!(session && session.user));
     if(window.EATLAS_PREFS) window.EATLAS_PREFS.setAuthState(!!(session && session.user), session && session.user ? session.user.id : null);
+    if(typeof applyExportGateState === "function") applyExportGateState(); // v2.0.8: unlock the export buttons the moment sign-in lands
   }
   authBtn.addEventListener("click", function(){
     sb.auth.getSession().then(function(res){
@@ -1502,6 +1503,13 @@ body:not(.cm-m) #cmMobileGate{display:none;}
 #cmSortModeRow{margin-left:auto;}
 .cmx-tnote{display:block; margin:0 0 6px;}
 .cmx-tnote:empty{display:none;}
+/* v2.0.8: the notes on conversions and on how Bar works sit in one collapsed line above the chart */
+.cm-notes{margin:-4px 0 12px; font-size:12px; color:var(--ink2);}
+.cm-notes > summary{cursor:pointer; font-weight:700; list-style:none; display:inline-flex; align-items:center; gap:6px;}
+.cm-notes > summary::-webkit-details-marker{display:none;}
+.cm-notes > summary::before{content:"i"; display:inline-flex; align-items:center; justify-content:center; width:16px; height:16px; border:1px solid var(--hair); border-radius:50%; font-size:10.5px; font-style:italic; font-family:Georgia,serif;}
+.cm-notes[open] > summary{margin-bottom:6px;}
+.cm-notes .cmx-tnote{margin:0;}
 #cmChartTypeNote{margin:0 0 10px !important;}
 .cmx-spacer{flex:1;}
 /* Adjust for inflation and Convert to USD$ as buttons: navy when on, greyed when not relevant */
@@ -1576,8 +1584,8 @@ body:not(.cm-m) #cmMobileGate{display:none;}
  <div class="cmx-at" id="cmManyBarColourRow" style="display:none;">
  <label>Bar colours</label>
  <div class="seg" id="cmManyBarColourSeg">
- <button type="button" data-mode="one" class="active" style="flex:1;">One colour</button>
- <button type="button" data-mode="country" style="flex:1;">Country colours</button>
+ <button type="button" data-mode="one" style="flex:1;">One colour</button>
+ <button type="button" data-mode="country" class="active" style="flex:1;">Country colours</button>
  </div>
  </div>
  <label class="cmx-chk" id="cmHideNoDataRow" style="display:none;"><input type="checkbox" id="cmHideNoData"><span>Hide countries with no data</span></label>
@@ -1605,8 +1613,9 @@ body:not(.cm-m) #cmMobileGate{display:none;}
  </select>
  </div>
  </div>
+ <details class="cm-notes" id="cmNotesBox" hidden><summary>About these figures</summary>
  <span class="mtoggle-note cmx-tnote" id="mtoggleNote"></span>
- <p id="cmChartTypeNote" style="font-size:11px; color:var(--ink2); margin:-8px 0 14px; line-height:1.4; display:none;">Bar shows each metric's latest value in the selected date range, one bar per metric: a snapshot rather than a chart over time.</p>
+ <p id="cmChartTypeNote" style="font-size:11px; color:var(--ink2); margin:4px 0 0; line-height:1.4; display:none;">Bar shows each metric's latest value in the selected date range, one bar per metric: a snapshot rather than a chart over time.</p></details>
  <div class="cm-chart-outer" id="cmChartOuter">
  <div class="cm-empty" id="cmEmptyState">Add a metric on the left to start building a chart.</div>
  <div id="cmSvgBox" style="display:none; width:100%; height:100%;"></div>
@@ -2828,6 +2837,17 @@ function updateToggleUI(){
     note.textContent = (tn && pn) ? tn + " \u00b7 " + pn : (tn || pn);
   }
 }
+// v2.0.8: the collapsed notes line shows only when one of its notes has something to say
+function syncNotesBox(){
+  var box = document.getElementById("cmNotesBox"); if(!box) return;
+  var tn = document.getElementById("mtoggleNote"), cn = document.getElementById("cmChartTypeNote");
+  box.hidden = !((tn && tn.textContent.trim()) || (cn && cn.style.display !== "none" && cn.textContent.trim()));
+}
+(function(){
+  var box = document.getElementById("cmNotesBox"); if(!box || typeof MutationObserver === "undefined") return;
+  var mo = new MutationObserver(syncNotesBox);
+  ["mtoggleNote", "cmChartTypeNote"].forEach(function(id){ var el = document.getElementById(id); if(el) mo.observe(el, {childList:true, characterData:true, subtree:true, attributes:true, attributeFilter:["style"]}); });
+})();
 // v1.9.117: what Per capita did, in one sentence per kind of gap (percapita.js wording).
 function perCapitaNote(){
   if(!TOGGLE_STATE.percap || !window.EA_PC) return "";
@@ -2907,7 +2927,7 @@ var style = {
   sortMode: "value_desc",   // v1.9.34: highest first by default, everywhere countries are ranked
   axisFontSize: 11, font: "helvetica",
   barOrient: "vertical", dataLabels: false, dataLabelSize: 11,
-  manyBarColour: "one",   // v2.0.3: more than 10 bars on one measure, "one" (navy) or "country" colours
+  manyBarColour: "country",   // v2.0.8 default country colours; v2.0.3: more than 10 bars on one measure, "one" (navy) or "country" colours
   snapshotAt: ""   // v1.9.34: the period the bars compare ("" = the end of the date range)
 };
 // v1.9.40: a copy of the starting settings, so a chart without ChartMaker settings (or Reset) starts clean
@@ -4653,6 +4673,10 @@ function czmSnapshotGeomH(){
   var padT = (czmState.chartTitle ? G.padT + 24 : G.padT);
   var titleRow = czmState.yTitle ? 14 : 0;
   G.H += titleRow;
+  // v2.0.8: every row keeps room for its own label: with many rows the chart grows taller
+  // instead of squeezing the labels into each other
+  var needH = padT + bl.padB + titleRow + Math.max(1, rows.length) * (AFS() + 6);
+  if(G.H < needH) G.H = Math.ceil(needH);
   var x0 = padL + negRoom, x1 = G.W - G.padR - dlRoom;
   var plotW = x1 - x0, plotH = G.H - padT - bl.padB - titleRow;
   var n = Math.max(1, rows.length), slot = plotH / n;
@@ -4710,7 +4734,7 @@ function czmBuildSVGSnapshotH(theme, forExport){
     var barColor = useThresholdColor
       ? (r.value >= czmState.refLine.value ? "#348FA7" : "#413D7B")
       : (series.length === 1 && r.value < 0 ? "#413D7B" : r.color);
-    svg.push("<rect x='" + left.toFixed(1) + "' y='" + (cy - gm.barH / 2).toFixed(1) + "' width='" + w.toFixed(1) + "' height='" + gm.barH.toFixed(1) + "' rx='3' fill='" + barColor + "'/>");
+    svg.push("<rect x='" + left.toFixed(1) + "' y='" + (cy - gm.barH / 2).toFixed(1) + "' width='" + w.toFixed(1) + "' height='" + gm.barH.toFixed(1) + "' fill='" + barColor + "'/>");
     if(czmState.dataLabels){
       var pos = r.value >= 0;
       svg.push("<text class='cz-dl' x='" + (pos ? vx + 5 : vx - 5).toFixed(1) + "' y='" + (cy + DLS() * 0.35).toFixed(1) + "' font-size='" + DLS() + "' fill='" + t.ink + "' text-anchor='" + (pos ? "start" : "end") + "'>" + escapeXML(czmDataLabelText(r.value)) + "</text>");
@@ -4817,8 +4841,14 @@ function czmBuildSVGSnapshot(theme, forExport){
   // on the X-axis label angle control (Straight/Diagonal/Vertical) to
   // keep many labels legible rather than silently hiding most of them.
   var labelStep = series.length > 1 ? 1 : Math.max(1, Math.ceil(rows.length / czmState.xTicks));
-  var barYear = (series.length === 1 && czmYearMode()) ? czmYearTicks(rows.map(function(r){ return r.period; }), czmState.xTicks) : null;
-  var barYearLab = {}; if(barYear) barYear.forEach(function(tk){ barYearLab[tk.idx] = tk.label; });
+  // v2.0.8: a single series over three years or more labels round years (1980, 1990...) rather
+  // than every Nth bar, so annual bars no longer read 1975, 1982, 1989
+  var barPeriods = rows.map(function(r){ return r.period; });
+  var barSpan = barPeriods.length > 1 ? (+String(barPeriods[barPeriods.length - 1]).slice(0, 4) - +String(barPeriods[0]).slice(0, 4)) : 0;
+  var barYear = (series.length === 1 && (czmYearMode() || barSpan >= 3)) ? czmYearTicks(barPeriods, czmState.xTicks) : null;
+  if(barYear && barYear.length < 2) barYear = null;
+  var barYearLab = {};
+  if(barYear) barYear.forEach(function(tk){ barYearLab[tk.idx] = (czmYearMode() || /^\d{4}$/.test(String(barPeriods[tk.idx]))) ? tk.label : fmtPeriod(barPeriods[tk.idx]); });
   rows.forEach(function(r, i){
     var bx = gm.xForIndex(i);
     if(r.value == null){
@@ -4831,7 +4861,7 @@ function czmBuildSVGSnapshot(theme, forExport){
       var barColor = useThresholdColor
         ? (r.value >= czmState.refLine.value ? "#348FA7" : "#413D7B")
         : (series.length === 1 && r.value < 0 ? "#413D7B" : r.color);   // v1.9.32: one series over time, as Customise & export
-      svg.push("<rect x=\'" + (bx - gm.barWidth / 2).toFixed(1) + "\' y=\'" + top.toFixed(1) + "\' width=\'" + gm.barWidth.toFixed(1) + "\' height=\'" + h.toFixed(1) + "\' rx=\'3\' fill=\'" + barColor + "\'/>");
+      svg.push("<rect x=\'" + (bx - gm.barWidth / 2).toFixed(1) + "\' y=\'" + top.toFixed(1) + "\' width=\'" + gm.barWidth.toFixed(1) + "\' height=\'" + h.toFixed(1) + "\' fill=\'" + barColor + "\'/>");
       if(czmState.dataLabels) svg.push(czmDataLabelV(bx, top, h, r.value, t));
     }
     if(barYear ? barYearLab[i] !== undefined : i % labelStep === 0){
@@ -6399,7 +6429,7 @@ function loadSavedChart(row){
     style.axisFontSize = (typeof snap.axisFontSize === "number") ? Math.max(AXIS_FS_MIN, Math.min(AXIS_FS_MAX, snap.axisFontSize)) : 11;
     style.font = CHART_FONTS[snap.font] ? snap.font : "helvetica";
     style.barOrient = snap.barOrient === "horizontal" ? "horizontal" : "vertical";
-    style.manyBarColour = snap.manyBarColour === "country" ? "country" : "one";
+    style.manyBarColour = snap.manyBarColour === "one" ? "one" : "country";
     style.dataLabels = !!snap.dataLabels;
     style.dataLabelSize = (typeof snap.dataLabelSize === "number") ? Math.max(AXIS_FS_MIN, Math.min(AXIS_FS_MAX + 3, snap.dataLabelSize)) : 11;
     style.snapshotAt = typeof snap.snapshotAt === "string" ? snap.snapshotAt : "";
