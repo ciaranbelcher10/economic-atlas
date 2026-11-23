@@ -145,6 +145,11 @@ def fetch_fred(sid: str, freq: str, key: str) -> list:
     return sorted([[p, v] for p, v in dedup.items()], key=lambda x: x[0])
 
 
+def year_end_from_quarters(points: list) -> list:
+    """Quarterly [YYYY-Qn, v] points to annual [YYYY, Q4 value]; years without a Q4 are dropped (v2.0.5)."""
+    return [[p[:4], v] for p, v in points if str(p).endswith("-Q4")]
+
+
 def _period_back(per, months: int):
     """The period label `months` earlier. Handles YYYY-MM, YYYY-Qn and YYYY."""
     s = str(per)
@@ -564,7 +569,9 @@ def main() -> int:
          "FDI net inflows, % of GDP (World Bank)", "%", "years"),
         ("current_account", lambda: fetch_worldbank("BN.CAB.XOKA.GD.ZS"),
          "Current account balance, % of GDP (World Bank)", "%", "years"),
-        ("debt_gdp", lambda: fetch_fred("QILGAM770A", "a", key) if key else None,
+        # v2.0.5: BIS publishes this quarterly. Each year is its Q4 (end-of-year) reading, and a year
+        # whose Q4 is not out yet is left out, so a part-year reading is never shown as an annual figure.
+        ("debt_gdp", lambda: year_end_from_quarters(fetch_fred("QILGAM770A", "q", key)) if key else None,
          "Total credit to general government, adjusted for breaks, % of GDP (BIS)", "%", "years"),
         ("deficit", lambda: fetch_worldbank("GC.NLD.TOTL.GD.ZS"),
          "Net lending/net borrowing, % of GDP (World Bank, annual)", "%", "years"),
