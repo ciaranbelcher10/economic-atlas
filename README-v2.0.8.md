@@ -10,11 +10,12 @@
 
 ## Also fixed
 - **Column chart (one series over time):** labels fall on round years (1980, 1990 …), not every 7th bar (1975, 1982, 1989).
-- **Horizontal chart:** grows taller so every row keeps room for its label. The 51-year Bank Rate chart overlapped before.
+- **Golden ratio, always.** Chartmaker exports keep 820 × 507 proportions. When a long source footer, rotated labels or a long list of countries needs more height, the canvas widens in proportion: it used to grow taller only, so the 62-country export came out 820 × 591. The horizontal axis title now takes space from the plot rather than adding height.
+- **Horizontal chart labels:** a single series over time labels round years (1980, 1990 …), so the 51-year Bank Rate chart no longer overlaps. A list of countries keeps every label, with smaller text when the rows are tight; at 62 countries the canvas grows (still golden ratio) so the text stays at 9px or more. "No data" matches the row text size.
 - **Compare, the year in progress:** shows "2026 so far" in the ranking, and the card says the figures average the readings published this year. UK CPI read 3.06% for 2026 against 3.6% for Oct 2026 elsewhere, with nothing saying why.
 
 ## Tests
-- New: test_v208_polish.js (20 checks). It fails on the old files.
+- New: test_v208_polish.js (25 checks, including the golden ratio for column, horizontal, 62-country and line exports). It fails on the old files.
 - Updated for square bars and the new default: test_v203_bar_colours (12/0), test_v203_compare_bar_colours (9/0).
 - Unchanged and passing: test_v207_chartmaker_axis (6/0), test_compare_rules (37/37), test_signup_terms, html_gate, generated_pages_gate, coverage_claims_gate.
 

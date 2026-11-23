@@ -4540,6 +4540,9 @@ function czmMaxCategoryLabelW(){
 function czmUpdateCanvasHeight(bl){
   CM_LAST_BL = bl;
   G.H = BASE_H + Math.max(0, bl.srcLines - 2) * 14 + (bl.extraLabelH || 0);   // v2.0.2: long rotated labels grow the canvas, not shrink the plot
+  // v2.0.8: the export is always the golden ratio (820 x 507): when the footer or rotated labels
+  // need more height, the canvas widens in proportion rather than only growing taller
+  if(G.W >= CM_DESK_W && G.H > BASE_H) G.W = Math.round(G.H * CM_DESK_W / BASE_H);
 }
 function czmGeom(){
   UNIFIED_DATES = buildUnifiedDates();
@@ -4671,12 +4674,14 @@ function czmSnapshotGeomH(){
   var dlRoom = czmState.dataLabels ? Math.max(36, vals.reduce(function(m, v){ return Math.max(m, estTextWidth(czmDataLabelText(v), DLS())); }, 0) + 8) : 0;
   var negRoom = czmState.dataLabels && bounds.minV < 0 ? dlRoom : 0;
   var padT = (czmState.chartTitle ? G.padT + 24 : G.padT);
-  var titleRow = czmState.yTitle ? 14 : 0;
-  G.H += titleRow;
-  // v2.0.8: every row keeps room for its own label: with many rows the chart grows taller
-  // instead of squeezing the labels into each other
-  var needH = padT + bl.padB + titleRow + Math.max(1, rows.length) * (AFS() + 6);
-  if(G.H < needH) G.H = Math.ceil(needH);
+  var titleRow = czmState.yTitle ? 14 : 0;   // v2.0.8: taken from the plot, not added to the canvas (golden ratio)
+  // v2.0.8: a list of many countries needs a row each: the canvas grows in both directions,
+  // keeping the golden ratio, until every row has room for 9px text (a single series over time
+  // labels round years instead, so it never needs this)
+  if(series.length > 1 && G.W >= CM_DESK_W){
+    var needPlot = rows.length * 11, havePlot = G.H - padT - bl.padB - titleRow;
+    if(havePlot < needPlot){ G.H = Math.ceil(G.H + needPlot - havePlot); G.W = Math.round(G.H * CM_DESK_W / BASE_H); }
+  }
   var x0 = padL + negRoom, x1 = G.W - G.padR - dlRoom;
   var plotW = x1 - x0, plotH = G.H - padT - bl.padB - titleRow;
   var n = Math.max(1, rows.length), slot = plotH / n;
@@ -4723,11 +4728,24 @@ function czmBuildSVGSnapshotH(theme, forExport){
     svg.push("<line x1='" + rx.toFixed(1) + "' y1='" + gm.padT + "' x2='" + rx.toFixed(1) + "' y2='" + bottom + "' stroke='" + t.annot + "' stroke-width='1.3' stroke-dasharray='4,3'/>");
   }
   var useThresholdColor = czmState.thresholdShadeBars && czmState.refLine.enabled;
+  // v2.0.8: the canvas keeps its golden-ratio size, so the row labels fit it instead: one series
+  // over time labels round years only (1980, 1990...); a list of countries keeps every label, in
+  // smaller text when the rows are tight (never below 8px)
+  var hSlot = gm.plotH / Math.max(1, rows.length);
+  var hPeriods = rows.map(function(r){ return r.period; });
+  var hSpan = hPeriods.length > 1 ? (+String(hPeriods[hPeriods.length - 1]).slice(0, 4) - +String(hPeriods[0]).slice(0, 4)) : 0;
+  var hYear = (series.length === 1 && hSlot < AFS() + 3 && hSpan >= 3) ? czmYearTicks(hPeriods, czmState.xTicks) : null;
+  if(hYear && hYear.length < 2) hYear = null;
+  var hYearLab = {};
+  if(hYear) hYear.forEach(function(tk){ hYearLab[tk.idx] = (czmYearMode() || /^\d{4}$/.test(String(hPeriods[tk.idx]))) ? tk.label : fmtPeriod(hPeriods[tk.idx]); });
+  var hFS = hYear ? AFS() : Math.max(8, Math.min(AFS(), Math.floor(hSlot - 2)));
   rows.forEach(function(r, i){
     var cy = gm.yForIndex(i);
-    svg.push("<text x='" + (gm.padL - 8).toFixed(1) + "' y='" + (cy + AFS() * 0.35).toFixed(1) + "' font-size='" + AFS() + "' fill='" + t.ink2 + "' text-anchor='end'>" + escapeXML(r.country) + "</text>");
+    if(!hYear || hYearLab[i] !== undefined){
+      svg.push("<text x='" + (gm.padL - 8).toFixed(1) + "' y='" + (cy + hFS * 0.35).toFixed(1) + "' font-size='" + hFS + "' fill='" + t.ink2 + "' text-anchor='end'>" + escapeXML(hYear ? hYearLab[i] : r.country) + "</text>");
+    }
     if(r.value == null){
-      svg.push("<text x='" + (zeroX + 6).toFixed(1) + "' y='" + (cy + 4).toFixed(1) + "' font-size='" + AFS() + "' fill='" + t.ink2 + "'>No data</text>");
+      svg.push("<text x='" + (zeroX + 6).toFixed(1) + "' y='" + (cy + hFS * 0.35).toFixed(1) + "' font-size='" + hFS + "' fill='" + t.ink2 + "'>No data</text>");
       return;
     }
     var vx = gm.x(r.value), left = Math.min(vx, zeroX), w = Math.max(0.6, Math.abs(vx - zeroX));
