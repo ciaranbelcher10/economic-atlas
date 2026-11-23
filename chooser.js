@@ -15,6 +15,18 @@
     { name: "BRICS", members: ["Brazil","China","Egypt","India","Indonesia","South Africa"] }
   ];
 
+  // v2.0.9: regions as in the Country Breakdowns menu (same list as Compare); countries sit alphabetically within each
+  var REGIONS = [
+    {name: "Europe", countries: ["UK", "Eurozone", "Germany", "France", "Italy", "Spain", "Netherlands", "Ireland", "Poland", "Switzerland", "Austria", "Sweden", "Turkey", "Belgium", "Portugal", "Finland", "Greece", "Czechia", "Hungary", "Romania", "Slovakia", "Croatia", "Bulgaria", "Lithuania", "Estonia", "Latvia", "Slovenia", "Luxembourg", "Cyprus", "Malta", "Iceland"]},
+    {name: "Scandinavia", countries: ["Denmark", "Norway"]},
+    {name: "North America", countries: ["US", "Canada", "Mexico"]},
+    {name: "Asia", countries: ["China", "Japan", "India", "South Korea", "Indonesia", "Singapore", "Thailand", "Malaysia", "Philippines", "Taiwan", "Vietnam", "Hong Kong", "Pakistan"]},
+    {name: "Oceania", countries: ["Australia", "New Zealand"]},
+    {name: "Middle East", countries: ["Israel", "Saudi Arabia"]},
+    {name: "South America", countries: ["Brazil", "Chile", "Colombia", "Argentina", "Peru"]},
+    {name: "Africa", countries: ["South Africa", "Morocco", "Nigeria", "Egypt"]}
+  ];
+
   // Inflation measure name from a series label (moved from ChartMaker's measureName).
   function measureFromLabel(label){
     if(!label) return null;
@@ -109,6 +121,8 @@
     "[data-theme=\"dark\"] .cmz-groups button{color:var(--ink); border-color:var(--blue);}",
     ".cmz-groups button.on{background:var(--navy); color:#fff;}",
     ".cmz-countries{display:grid; grid-template-columns:repeat(2,minmax(0,1fr)); gap:2px 10px;}",
+    ".cmz-countries h4{grid-column:1/-1; margin:10px 0 2px; font-size:11.5px; font-weight:700; letter-spacing:.04em; text-transform:uppercase; color:var(--ink2);}",
+    ".cmz-countries h4:first-child{margin-top:0;}",
     ".cmz-countries label{display:flex; align-items:center; gap:8px; font-size:13.5px; padding:5px 6px; border-radius:7px; cursor:pointer;}",
     ".cmz-countries label:hover{background:var(--paper);}",
     ".cmz-countries label.nd{color:var(--ink2);}",
@@ -211,11 +225,25 @@
       var list = countries().slice().sort(function(a, b){ return a.localeCompare(b); }).filter(function(c){
         return !ws.length || ws.some(function(w){ return c.toLowerCase().indexOf(w) === 0; });
       });
-      $("cmzCountries").innerHTML = list.map(function(c){
+      var item = function(c){
         var on = cz.countries.indexOf(c) !== -1, hasIt = !v || !!v.key(c);
         var already = v && isOn(c, v);
         return "<label class='" + (hasIt ? "" : "nd") + "'><input type='checkbox' data-c='" + esc(c) + "'" + (on ? " checked" : "") + "> " + esc(c) + (already ? "<small class='onc'>" + esc(onTag) + "</small>" : (hasIt ? "" : "<small>No data</small>")) + "</label>";
-      }).join("") || "<p class='cm-status'>No country matches.</p>";
+      };
+      var html;
+      if(ws.length){ html = list.map(item).join(""); }   // a search shows its matches as one list
+      else {
+        var placed = {}, parts = [];
+        REGIONS.forEach(function(r){
+          var cs = list.filter(function(c){ return r.countries.indexOf(c) !== -1 && !placed[c]; });
+          cs.forEach(function(c){ placed[c] = true; });
+          if(cs.length) parts.push("<h4>" + esc(r.name) + "</h4>" + cs.map(item).join(""));
+        });
+        var rest = list.filter(function(c){ return !placed[c]; });
+        if(rest.length) parts.push("<h4>Other</h4>" + rest.map(item).join(""));
+        html = parts.join("");
+      }
+      $("cmzCountries").innerHTML = html || "<p class='cm-status'>No country matches.</p>";
       renderCount();
     }
     function renderInds(){

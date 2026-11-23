@@ -1728,7 +1728,7 @@ footer.cmp-foot{margin-top:36px; font-size:12.5px; color:var(--ink2); border-top
  <div class="modal-content">
  <button type="button" class="modal-close" id="countryClose" aria-label="Close">&times;</button>
  <h2>Choose countries</h2>
- <p class="modal-sub">Tap a country or a group to add or remove it. Changes apply straight away.</p>
+ <p class="modal-sub">Grouped the same way as the Country Breakdowns menu. Tap a country or a group to add or remove it. Changes apply straight away.</p>
  <div class="picker-actions">
  <button type="button" id="pickerSelectAll">Select all</button>
  <button type="button" id="pickerClearAll">Clear all</button>
@@ -4620,12 +4620,24 @@ function renderCountryPicker(){
   var capSt = renderCmpCap();
   wrap.innerHTML = "";
   renderPickerGroups();
-  // v2.0.8: one alphabetical list (by the name shown), not grouped by region
-  [{ name: "", countries: ALL_COUNTRIES.slice().sort(function(a, b){ return (COUNTRY_LABEL[a] || a).localeCompare(COUNTRY_LABEL[b] || b); }) }].forEach(function(region){
+  // v2.0.9: grouped by region as in the Country Breakdowns menu, alphabetical within each region
+  var byName = function(a, b){ return (COUNTRY_LABEL[a] || a).localeCompare(COUNTRY_LABEL[b] || b); };
+  var placed = {};
+  var regions = REGION_GROUPS.map(function(region){
+    var known = region.countries.filter(function(c){ return ALL_COUNTRIES.indexOf(c) !== -1 && !placed[c]; });
+    known.forEach(function(c){ placed[c] = true; });
+    return { name: region.name, countries: known.sort(byName) };
+  });
+  var rest = ALL_COUNTRIES.filter(function(c){ return !placed[c]; }).sort(byName);
+  if(rest.length) regions.push({ name: "Other", countries: rest });
+  regions.forEach(function(region){
     var known = region.countries;
     if(!known.length) return;
     var section = document.createElement("div");
     section.className = "picker-region";
+    var heading = document.createElement("h4");
+    heading.textContent = region.name;
+    section.appendChild(heading);
     var grid = document.createElement("div");
     grid.className = "picker-grid";
     known.forEach(function(c){
@@ -5198,10 +5210,10 @@ function wireCardTimeControls(card, concept){
   snapSlider.min = minYear;
   snapSlider.max = maxYearFor(concept);
   snapSlider.value = st.snapshotYear;
-  snapLabel.textContent = st.snapshotYear;
+  snapLabel.textContent = st.snapshotYear + (+st.snapshotYear >= new Date().getFullYear() ? " so far" : "");   // v2.0.9
   snapSlider.addEventListener("input", function(){
     st.snapshotYear = +snapSlider.value;
-    snapLabel.textContent = st.snapshotYear;
+    snapLabel.textContent = st.snapshotYear + (+st.snapshotYear >= new Date().getFullYear() ? " so far" : "");   // v2.0.9
     refreshOneCard(concept);
     saveCardTimeState();
   });

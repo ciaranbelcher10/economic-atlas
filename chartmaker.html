@@ -367,7 +367,7 @@
 })();
 </script>
 <script src="https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2.116.0"></script>
-<script src="chooser.js?v=3"></script>
+<script src="chooser.js?v=4"></script>
 <script>
 (function(){
   var SUPABASE_URL = "https://skluvrxnuibkordzgtmu.supabase.co";
@@ -548,7 +548,7 @@
     }
     if(window.EATLAS_DOWNLOAD) window.EATLAS_DOWNLOAD.setAuthState(!!(session && session.user));
     if(window.EATLAS_PREFS) window.EATLAS_PREFS.setAuthState(!!(session && session.user), session && session.user ? session.user.id : null);
-    if(typeof applyExportGateState === "function") applyExportGateState(); // v2.0.8: unlock the export buttons the moment sign-in lands
+    if(window.EATLAS_APPLY_EXPORT_GATE) window.EATLAS_APPLY_EXPORT_GATE(); // v2.0.8: unlock the export buttons the moment sign-in lands
   }
   authBtn.addEventListener("click", function(){
     sb.auth.getSession().then(function(res){
@@ -1195,7 +1195,7 @@
     updateTrialBanner();
     maybeShowWelcomeProModal();
     // v1.9.7: defined in a later script; if the account settles first, that script applies it on load.
-    if(typeof applyExportGateState === "function") applyExportGateState();
+    if(window.EATLAS_APPLY_EXPORT_GATE) window.EATLAS_APPLY_EXPORT_GATE();
   });
   // If this page load is the redirect back from clicking "confirm your
   // email" in the inbox, Supabase appends #access_token=...&type=signup
@@ -2982,6 +2982,9 @@ function applyExportGateState(){
   });
 }
 applyExportGateState();
+// v2.0.9: this script runs in its own scope, so the sign-in code (an earlier script) reaches the gate
+// through window; before this it never could, and the padlocks stayed until a reload
+window.EATLAS_APPLY_EXPORT_GATE = applyExportGateState;
 
 var annotListEl = document.getElementById("cmAnnotList");
 var addAnnotBtn = document.getElementById("cmAddAnnotBtn");

@@ -1,5 +1,5 @@
 #!/usr/bin/env node
-/* v2.0.8: Chartmaker and Compare polish.
+/* v2.0.8 (v2.0.9: regions, slider label): Chartmaker and Compare polish.
  *  Chartmaker: round-year labels on a long single-series column chart; a horizontal chart grows so
  *  no two row labels overlap; the notes sit in one collapsed "About these figures" line; the
  *  country chooser has All countries and Clear; bars are square.
@@ -66,6 +66,11 @@ eval(src.slice(src.indexOf("async function boot"), src.indexOf("(async () => {")
   ok(!!clr, "Clear appears once countries are chosen");
   clr.click();
   ok(win.document.querySelectorAll("#cmzCountries input:checked").length === 0, "Clear unticks every country");
+  const hs = [...win.document.querySelectorAll("#cmzCountries h4")].map(h => h.textContent);
+  ok(hs.length >= 6 && hs.indexOf("Europe") !== -1 && hs.indexOf("Asia") !== -1, "chooser grouped by region: " + hs.join(", "));
+  const firstGroup = []; let el = win.document.querySelector("#cmzCountries h4").nextElementSibling;
+  while(el && el.tagName === "LABEL"){ firstGroup.push(el.textContent.replace(/No data$/, "").trim()); el = el.nextElementSibling; }
+  ok(firstGroup.length > 3 && JSON.stringify(firstGroup) === JSON.stringify(firstGroup.slice().sort((a, b) => a.localeCompare(b))), "alphabetical within a region: " + firstGroup.slice(0, 5).join(", ") + "...");
   win.close();
   // ---------------- Compare ----------------
   const boot2 = require("./compare_harness");
@@ -76,9 +81,11 @@ eval(src.slice(src.indexOf("async function boot"), src.indexOf("(async () => {")
   ok(!doc.getElementById("countryModal").hidden, "country picker opens");
   const gb = [...doc.querySelectorAll("#pickerGroups button")].map(b => b.textContent);
   ok(["G7", "G20", "EU", "Euro area", "OECD", "BRICS"].every(n => gb.some(t => t.indexOf(n + " (") === 0)), "group buttons: " + gb.join(", "));
-  const names = [...doc.querySelectorAll("#pickerRegions .picker-item")].map(l => l.textContent.trim());
-  const sorted = names.slice().sort((a, b) => a.localeCompare(b));
-  ok(names.length >= 60 && JSON.stringify(names) === JSON.stringify(sorted), "picker is one alphabetical list (" + names.length + ")");
+  // v2.0.9: grouped by region, alphabetical within each region
+  const regs = [...doc.querySelectorAll("#pickerRegions .picker-region")].map(s => ({ h: (s.querySelector("h4") || {}).textContent, n: [...s.querySelectorAll(".picker-item")].map(l => l.textContent.trim()) }));
+  const total = regs.reduce((a, r) => a + r.n.length, 0);
+  ok(regs.length >= 6 && regs.every(r => r.h) && total >= 60, "picker grouped by region: " + regs.map(r => r.h + " " + r.n.length).join(", "));
+  ok(regs.every(r => JSON.stringify(r.n) === JSON.stringify(r.n.slice().sort((a, b) => a.localeCompare(b)))), "alphabetical within each region");
   doc.getElementById("pickerClearAll").click();
   // signed out, Compare holds 4 countries: a group fills the free slots and flags the limit
   doc.querySelector('#pickerGroups button[data-g="0"]').click();
@@ -92,6 +99,9 @@ eval(src.slice(src.indexOf("async function boot"), src.indexOf("(async () => {")
   doc.querySelector('#pickerGroups button[data-g="0"]').click();
   ok([...doc.querySelectorAll("#chipRow .chip")].length === 0, "G7 button again removes them");
   const html = fs.readFileSync(path.join(ROOT, "compare.html"), "utf8");
+  ok((html.match(/snapLabel\.textContent = st\.snapshotYear \+ \(\+st\.snapshotYear >= new Date\(\)\.getFullYear\(\) \? " so far" : ""\)/g) || []).length === 2, "the year slider says so far for the year in progress");
+  const sl = [...doc.querySelectorAll(".card-snapshot-label")].map(e => e.textContent);
+  ok(sl.length === 0 || sl.every(s => !/^\d{4}$/.test(s) || +s < new Date().getFullYear()), "no slider shows the current year bare: " + sl.join(" | "));
   ok(/" so far" : ""/.test(html) && /Figures for " \+ firstReal\.year \+ " so far/.test(html), "the year in progress is labelled so far");
   console.log(`test_v208_polish: ${checks} checks, ${failures} failures`);
   process.exit(failures ? 1 : 0);
