@@ -4976,8 +4976,17 @@ function czmBuildSVG(theme, forExport){
   if(yearTicks){
     yearTicks.forEach(function(tk){ xTickIdxs.push(tk.idx); xTickLab[tk.idx] = tk.label; });
   } else {
-    for(var k = 0; k < xTickCount; k++){
-      xTickIdxs.push(Math.round((k / Math.max(1, xTickCount - 1)) * (UNIFIED_DATES.length - 1)));
+    // v2.0.7: monthly or quarterly data over three years or more puts its labels on the
+    // first period of a year (Jan 1980, Jan 1990...), not evenly by count, so they no longer drift.
+    var snapTicks = (UNIFIED_DATES.length > 1 && /^\d{4}-(\d{2}|Q\d)$/.test(String(UNIFIED_DATES[0]))
+      && (+String(UNIFIED_DATES[UNIFIED_DATES.length - 1]).slice(0, 4) - +String(UNIFIED_DATES[0]).slice(0, 4)) >= 3)
+      ? czmYearTicks(UNIFIED_DATES, czmState.xTicks) : null;
+    if(snapTicks && snapTicks.length >= 2){
+      snapTicks.forEach(function(tk){ xTickIdxs.push(tk.idx); });
+    } else {
+      for(var k = 0; k < xTickCount; k++){
+        xTickIdxs.push(Math.round((k / Math.max(1, xTickCount - 1)) * (UNIFIED_DATES.length - 1)));
+      }
     }
     xTickIdxs = xTickIdxs.filter(function(v, i, arr){ return arr.indexOf(v) === i; });
   }
@@ -6346,7 +6355,8 @@ function loadSavedChart(row){
   userPercapPreference = !!(row.snapshot && row.snapshot.percap);
   refreshToggleState();
   var snap0 = row.snapshot || {};
-  yAxisTitleTouched = !!snap0.yAxisTitle; legendTitleTouched = legendTouchedFromSnap(snap0);
+  // v2.0.7: an axis title the person cleared stays cleared (older charts carry no flag: a saved title means touched)
+  yAxisTitleTouched = (typeof snap0.yAxisTitleTouched === "boolean") ? snap0.yAxisTitleTouched : !!snap0.yAxisTitle; legendTitleTouched = legendTouchedFromSnap(snap0);
   if(!row.snapshot){
     // v1.9.34: a chart saved on Compare or a country page has no ChartMaker settings, so start from the
     // defaults instead of keeping the previous chart's titles, axis and options
@@ -6468,7 +6478,7 @@ function buildSavePayload(name){
       // v1.9.32: positions and sizes travel too, so a reopened chart looks exactly as it was saved
       annotations: annotations.map(function(a){ return { date:a.date, label:a.label, type:a.type, align:a.align, seriesIndex:a.seriesIndex||0, labelX:a.labelX, labelY:a.labelY, fontSize:a.fontSize||11 }; }),
       snapshot: {
-        chartTitle: style.chartTitle, yAxisTitle: style.yAxisTitle, legendTitle: style.legendTitle,
+        chartTitle: style.chartTitle, yAxisTitle: style.yAxisTitle, yAxisTitleTouched: yAxisTitleTouched, legendTitle: style.legendTitle,
         yTitlePos: style.yTitlePos, showFill: style.showFill, showPoints: style.showPoints,
         refLine: style.refLine, centerAroundRef: style.centerAroundRef, thresholdShadeBars: style.thresholdShadeBars, logScale: style.logScale, chartType: chartType,
         yStartMode: style.yStartMode, yStartValue: style.yStartValue,

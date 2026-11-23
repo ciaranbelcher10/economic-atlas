@@ -86,7 +86,7 @@ import series_guard
 # Add an entry ONLY when intentionally swapping source, and say why, e.g.
 #     ALLOW_SHRINK = {"ppi": "PPIACO -> PPIFID, final demand is the BLS headline"}
 # Remove it once the new series has landed.
-ALLOW_SHRINK = {"debt_gdp": "v2.0.6: year-end (Q4) readings only, so the part-year 2026 point is dropped"}
+ALLOW_SHRINK = {}
 
 # key: (fred_id, freq 'm'|'q'|'a', label, unit, transform None|'yoy'|'mom'|'qoq', scale)
 # - participation_rate (LRAC64TTILQ156S) / employment_rate (LREM64TTILQ156S): OECD infra-annual labour-statistics FRED family, quarterly, ages 15-64. Same pattern confirmed live for Germany (pilot); inferred-by-pattern for Israel -- not individually confirmed, check the first Actions log.
