@@ -44,6 +44,31 @@ SITE_URL = "https://theeconomicatlas.com"
 # underlying official statistics, which stay with their publishers.
 CREATOR = {"@type": "Organization", "name": "The Economic Atlas", "url": SITE_URL}
 LICENSE = f"{SITE_URL}/terms"
+# v2.0.15: Dataset structured data names the original publisher as creator (these are not our numbers)
+# and The Economic Atlas as publisher; places carry their full names.
+PLACE_NAME = {"UK": "United Kingdom", "US": "United States"}
+def place(country):
+    return {"@type": "Place", "name": PLACE_NAME.get(country, country)}
+AGENCIES = [   # most specific first: a national office beats the intermediary that carries its series
+    ("Bank of England", "Bank of England"), ("Central Bank of the Republic of China (Taiwan)", "Central Bank of the Republic of China (Taiwan)"), ("ONS", "Office for National Statistics"),
+    ("Statistics Bureau of Japan", "Statistics Bureau of Japan"), ("e-Stat", "Statistics Bureau of Japan"),
+    ("Cabinet Office", "Cabinet Office, Government of Japan"), ("INDEC", "INDEC (Argentina)"),
+    ("Census and Statistics Department", "Census and Statistics Department, Hong Kong"),
+    ("DOSM", "Department of Statistics Malaysia"), ("PSA", "Philippine Statistics Authority"),
+    ("Statistics Iceland", "Statistics Iceland"), ("Central Reserve Bank of Peru", "Central Reserve Bank of Peru"),
+    ("GASTAT", "General Authority for Statistics, Saudi Arabia"), ("MoSPI", "Ministry of Statistics and Programme Implementation, India"),
+    ("BLS", "U.S. Bureau of Labor Statistics"), ("BEA", "U.S. Bureau of Economic Analysis"),
+    ("Federal Reserve", "Board of Governors of the Federal Reserve System"),
+    ("ECB", "European Central Bank"), ("BIS", "Bank for International Settlements"),
+    ("Eurostat", "Eurostat"), ("IMF", "International Monetary Fund"), ("OECD", "OECD"), ("World Bank", "World Bank"),
+    ("FRED", "Federal Reserve Bank of St. Louis (FRED)"),
+]
+def creator_for(source_text):
+    s = source_text or ""
+    for key, name in AGENCIES:
+        if re.search(r"(?<![A-Za-z])" + re.escape(key) + r"(?![A-Za-z])", s):
+            return {"@type": "Organization", "name": name}
+    return CREATOR
 KIT_VERSION = "17"
 PERCAPITA_VERSION = "6"
 # v1.9.123: must match percapita.js ELIGIBLE
@@ -1879,8 +1904,9 @@ def render_indicator(country, info, entry, rank_info, all_rankings_meta, n_indic
         "@context": "https://schema.org", "@type": "Dataset",
         "name": f"{country} {title}", "description": description or f"{country} {title}", "url": canonical,
         "temporalCoverage": f"{iso_period(pts[0][0])}/{iso_period(latest_p, end=True)}",
-        "spatialCoverage": country,
-        "creator": CREATOR, "license": LICENSE,
+        "spatialCoverage": place(country),
+        "creator": creator_for(source_text), "publisher": CREATOR, "license": LICENSE,
+        "isAccessibleForFree": True,
         "distribution": {"@type": "DataDownload", "encodingFormat": "application/json", "contentUrl": f"{SITE_URL}/{data_file}"},
         "variableMeasured": title,
     }, ensure_ascii=False, indent=2)
@@ -2084,8 +2110,8 @@ def render_ranking(ranking, rows, unranked, all_rankings_meta, catalogue_by_coun
     jsonld = json.dumps({
         "@context": "https://schema.org", "@type": "Dataset",
         "name": ranking["title"], "description": ranking["lede"], "url": canonical,
-        "spatialCoverage": [r["country"] for r in rows],
-        "creator": CREATOR, "license": LICENSE,
+        "spatialCoverage": [place(r["country"]) for r in rows],
+        "creator": CREATOR, "publisher": CREATOR, "license": LICENSE, "isAccessibleForFree": True,
         "variableMeasured": m["title"],
     }, ensure_ascii=False, indent=2)
 
