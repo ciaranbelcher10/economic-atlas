@@ -52,7 +52,7 @@ for (const f of pages){
   /* 1. markup */
   const iR = src.indexOf('id="toggleReal"'), iD = src.indexOf('id="toggleDollar"'), iC = src.indexOf('id="toggleCapita"');
   ok(iR > 0 && iR < iD && iD < iC, f + ": order Adjust for inflation | Convert to USD$ | Per capita");
-  ok(/>Per capita\n <\/button>/.test(src), f + ": button label");
+  ok(/>Per capita(<\/span>)?\n <\/button>/.test(src), f + ": button label");
   // v1.9.125: percapita.js is now v4 (population wording); the page must load the current version once
   ok(src.split('<script src="percapita.js?v=6"></script>').length === 2 && !/percapita\.js\?v=[0-5]\b/.test(src), f + ": percapita.js?v=6 loaded exactly once (v1.9.128)");
   ok(src.split("v1.9.122 per capita").length - 1 >= 1, f + ": migration marker");

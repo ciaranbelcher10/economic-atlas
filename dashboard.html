@@ -34,7 +34,7 @@
 <noscript><link href="https://fonts.googleapis.com/css2?family=Nunito+Sans:wght@400;600;700&display=swap" rel="stylesheet"></noscript>
 <link rel="icon" type="image/png" sizes="32x32" href="favicon-32.png">
 <link rel="apple-touch-icon" href="apple-touch-icon.png">
-<link rel="stylesheet" href="style.css?v=63">
+<link rel="stylesheet" href="style.css?v=64">
 <script src="https://cdnjs.cloudflare.com/ajax/libs/Chart.js/4.4.1/chart.umd.min.js"></script>
 <script src="https://cdnjs.cloudflare.com/ajax/libs/hammer.js/2.0.8/hammer.min.js"></script>
 <script src="https://cdnjs.cloudflare.com/ajax/libs/chartjs-plugin-zoom/2.0.1/chartjs-plugin-zoom.min.js"></script>
@@ -290,7 +290,7 @@ footer.dash-foot{margin-top:36px; font-size:12.5px; color:var(--ink2); border-to
 .seg button{background:transparent; color:var(--ink2);}
 .seg button.active{background:var(--blue); color:#fff;}
 </style>
-<link rel="stylesheet" href="mobile.css?v=53">
+<link rel="stylesheet" href="mobile.css?v=54">
 <script type="application/ld+json">{"@context": "https://schema.org", "@type": "WebApplication", "applicationCategory": "BusinessApplication", "operatingSystem": "Any", "browserRequirements": "Requires JavaScript", "isAccessibleForFree": true, "offers": {"@type": "Offer", "price": "0", "priceCurrency": "GBP"}, "name": "My Dashboard", "url": "https://theeconomicatlas.com/dashboard", "provider": {"@type": "Organization", "name": "The Economic Atlas", "url": "https://theeconomicatlas.com"}, "isPartOf": {"@type": "WebSite", "name": "The Economic Atlas", "url": "https://theeconomicatlas.com"}, "description": "Pin any metric from any country into one personal view, with an inline chart on demand."}</script>
 </head>
 <body>
@@ -624,6 +624,7 @@ footer.dash-foot{margin-top:36px; font-size:12.5px; color:var(--ink2); border-to
 <script src="https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2.116.0"></script>
 <script src="chooser.js?v=4"></script>
 <script src="percapita.js?v=6"></script>
+<script src="ppp.js?v=1"></script>
 <script>
 (function(){
   var SUPABASE_URL = "https://skluvrxnuibkordzgtmu.supabase.co";
@@ -1516,17 +1517,22 @@ footer.dash-foot{margin-top:36px; font-size:12.5px; color:var(--ink2); border-to
  <h1 style="margin-bottom:6px;">My Dashboard</h1>
  <p style="color:var(--ink2); font-size:14.5px; margin:8px 0 0;">Pin figures from any of the 62 economies into one view.</p>
  <div class="metric-toggles" aria-label="Display options">
+ <span class="mtoggle-pair">
  <button type="button" class="mtoggle" id="dollariseBtn" aria-pressed="false">
- <span class="mtoggle-switch" aria-hidden="true"></span>Convert to USD$
+ <span class="mtoggle-switch" aria-hidden="true"></span><span class="mt-l" data-short="USD$">Convert to USD$</span>
  </button>
+ <button type="button" class="mtoggle" id="pppBtn" aria-pressed="false">
+ <span class="mtoggle-switch" aria-hidden="true"></span><span class="mt-l" data-short="PPP">Convert to PPP</span>
+ </button>
+ </span>
  <button type="button" class="mtoggle" id="makeRealBtn" aria-pressed="false">
- <span class="mtoggle-switch" aria-hidden="true"></span>Adjust for inflation
+ <span class="mtoggle-switch" aria-hidden="true"></span><span class="mt-l" data-short="Real">Adjust for inflation</span>
  </button>
  <button type="button" class="mtoggle" id="perCapitaBtn" aria-pressed="false">
- <span class="mtoggle-switch" aria-hidden="true"></span>Per capita
+ <span class="mtoggle-switch" aria-hidden="true"></span><span class="mt-l" data-short="Per cap.">Per capita</span>
  </button>
  <button type="button" class="dash-d-info" id="dashInfoBtn" aria-label="What these switches do" aria-expanded="false" aria-controls="dashToggleNote">i</button>
- <span class="mtoggle-note" id="dashToggleNote">Adjust for inflation shows real GDP. Convert to USD$ converts each figure at its own period's exchange rate, except real GDP at its latest year's rate, so its growth matches the published figures. Per capita divides by that year's population.</span>
+ <span class="mtoggle-note" id="dashToggleNote">Adjust for inflation shows real GDP. Convert to USD$ converts each figure at its own period's exchange rate, except real GDP at its latest year's rate, so its growth matches the published figures. Convert to PPP converts GDP, real GDP and GDP per person to international dollars at the World Bank's PPP conversion factor for each year (real GDP at its price base year's factor); it is never on together with Convert to USD$. Per capita divides by that year's population.</span>
  <span id="mtoggleAnnounce" class="sr-only" role="status" aria-live="polite"></span>
  <button type="button" class="dashexportbtn" id="exportDashboardBtn" style="margin-left:auto;">Export dashboard (PNG)</button>
  </div>
@@ -4143,6 +4149,7 @@ function scaleOf(unitStr){
 // and indicator-kit.js.
 var ISO_GLYPH = {AUD:"A$", BRL:"R$", CAD:"C$", MXN:"MX$", ZAR:"R", CNY:"CN\u00a5", THB:"\u0e3f", TRY:"\u20ba", IDR:"Rp", SGD:"S$", ARS:"AR$", CLP:"CLP$", COP:"COL$", MYR:"RM", NZD:"NZ$", PHP:"\u20b1", TWD:"NT$", VND:"\u20ab", NGN:"\u20a6", EGP:"E\u00a3", PEN:"S/", HKD:"HK$", PKR:"Rs"};
 function currencySymbol(unitStr){
+  if(/^Int\$/.test(unitStr)) return "Int$";   // v2.0.16: international dollars (PPP)
   var m = unitStr.match(/^[^a-zA-Z0-9]+/);
   if(m) return m[0];
   var c = unitStr.match(/^([A-Z]{3})(tn|bn|m|k)?(\s|\(|$)/);
@@ -4243,6 +4250,26 @@ var REAL_AFFECTED_KEYS = ["gdp_level"];
    Same rule as the country pages, Compare and Chartmaker (percapita.js): each period is divided by
    THAT year's population only; years without one are left out. Applied last, after inflation and
    USD$. A GDP tile shows the latest complete calendar year, so it equals the GDP per capita tile. */
+/* v2.0.16 Convert to PPP (ppp.js): GDP, real GDP and GDP per person in international dollars. Each period at
+   its own year's factor; real GDP at its anchor year's factor (real x deflator), so growth is unchanged.
+   Never on together with Convert to USD$. Economies without a checked "ppp" series show no figure. */
+var PPP_KEY = "eatlas_dashboard_ppp";
+var pppMode = false;
+try { pppMode = localStorage.getItem(PPP_KEY) === "1" && !dollarise; } catch(e){}
+// undefined: PPP does not apply to this figure; null: it applies but there is no factor; else the divisor
+function pppFactorFor(country, key, period){
+  var k = key === "gdp_real_annual" ? "gdp_real" : key;
+  if(!pppMode || !window.EA_PPP || !EA_PPP.eligible(k)) return undefined;
+  var pp = REGISTRY[country] && REGISTRY[country].ppp, idx = EA_PPP.factorIndex(pp && pp.points);
+  if(k === "gdp_real"){
+    var rs = REGISTRY[country] && (REGISTRY[country][key] || REGISTRY[country].gdp_real);
+    var ra = (pp && pp.real_anchor) || {}, a = ra[key] || ra.gdp_real || (rs && rs.usd_anchor);   // merge_population's PPP price year
+    var f = a && idx[String(a.year)];
+    return (f && a.deflator > 0) ? f / a.deflator : null;
+  }
+  return idx[String(period).slice(0, 4)] || null;
+}
+function pppSuffix(unit){ return String(unit || "").replace(/\s*\(.*\)\s*$/, "").trim().replace(/^.*?((?:tn|bn|m|k)?)$/, "$1"); }
 var PER_CAPITA_KEY = "eatlas_dashboard_percapita";
 var perCapita = false;
 try { perCapita = localStorage.getItem(PER_CAPITA_KEY) === "1"; } catch(e){}
@@ -4263,6 +4290,11 @@ function pcChartPoints(m, pts, unit){
   var dk = m.dataKey || m.key;
   if(m.key !== "gdp_level" && m.key !== "gdp_real") return pcPoints(m, pts, unit, false);
   var nat = pcPoints(m, effectivePoints(m.country, dk === "gdp_real_annual" ? "gdp_real" : dk, m.series), m.series.unit, true);
+  if(pppFactorFor(m.country, dk, "2000") !== undefined){   // v2.0.16: whole local units per person, then each year's factor
+    var pout = [];
+    nat.pts.forEach(function(p){ var f = pppFactorFor(m.country, dk, p[0]); if(f) pout.push([p[0], Math.round(p[1]) / f]); });
+    return {pts: pout, unit: "Int$ per person", dropped: nat.dropped};
+  }
   if(!dollarise || !isCurrencyUnit(m.series.unit) || isAlreadyUSD(m.series.unit, m.country, dk)) return nat;
   var fx = FX_RATES[m.country];
   if(!fx) return nat;
@@ -4313,6 +4345,8 @@ function isAlreadyUSD(unit, country, key){
   return clean.charAt(0) === "$";
 }
 function toDisplayUnit(value, unit, country, key, period){
+  var pf = isCurrencyUnit(unit) ? pppFactorFor(country, key, period) : undefined;
+  if(pf !== undefined) return {value: pf ? value / pf : null, unit: "Int$" + pppSuffix(unit)};   // v2.0.16
   if(!dollarise || !isCurrencyUnit(unit) || isAlreadyUSD(unit, country, key)) return {value: value, unit: unit};
   var fx = FX_RATES[country];
   if(!fx) return {value: value, unit: unit};
@@ -4339,6 +4373,11 @@ function foreignCurrencyOf(unit, fx){
   return code && code !== own && code !== "USD" ? code : null;
 }
 function toDisplayPoints(pts, unit, country, key){
+  if(isCurrencyUnit(unit) && pppFactorFor(country, key, "2000") !== undefined){   // v2.0.16
+    var pout = [];
+    pts.forEach(function(p){ var f = pppFactorFor(country, key, p[0]); if(f) pout.push([p[0], p[1] / f]); });
+    return pout;
+  }
   if(!dollarise || !isCurrencyUnit(unit) || isAlreadyUSD(unit, country, key)) return pts;
   var fx = FX_RATES[country];
   if(!fx) return pts;
@@ -4778,6 +4817,14 @@ function renderDash(){
     var m = tileFromId(id);
     if(!m) return;
     var disp = toDisplayUnit(m.value, m.series.unit, m.country, m.dataKey || m.key, m.period);
+    if(disp.value == null && pppFactorFor(m.country, m.dataKey || m.key, m.period) === null){
+      // v2.0.16: no PPP factor for the latest period yet: the tile shows the latest period that has one
+      var ep = effectivePoints(m.country, m.dataKey || m.key, m.series) || m.series.points || [];
+      for(var pi = ep.length - 1; pi >= 0; pi--){
+        if(ep[pi][1] != null && pppFactorFor(m.country, m.dataKey || m.key, ep[pi][0])){ m.value = ep[pi][1]; m.period = ep[pi][0]; break; }
+      }
+      disp = toDisplayUnit(m.value, m.series.unit, m.country, m.dataKey || m.key, m.period);
+    }
     var pcPeriod = null;
     if(pcApplies(m)){
       var pdk = m.dataKey || m.key;
@@ -4786,7 +4833,7 @@ function renderDash(){
       // In US$, GDP per person is the local-currency figure converted at that year's average rate,
       // the same number as the GDP per capita tile, Compare and the country page (never a sum of
       // quarters each at its own rate, and never a trailing sum at one quarter's rate).
-      if(pl && /^gdp_level$/.test(m.key) && !makeItReal && dollarise && isCurrencyUnit(m.series.unit) && !isAlreadyUSD(m.series.unit, m.country, pdk)){
+      if(pl && /^gdp_level$/.test(m.key) && !makeItReal && dollarise && !pppMode && isCurrencyUnit(m.series.unit) && !isAlreadyUSD(m.series.unit, m.country, pdk)){
         var nat = pcPoints(m, effectivePoints(m.country, pdk, m.series), m.series.unit, true);
         var nl = nat.pts[nat.pts.length - 1], fx = FX_RATES[m.country], rate = nl ? usdRateFor(m.country, pdk, nl[0]) : null;
         pl = (nl && fx && rate != null) ? [nl[0], fx.direction === "multiply" ? Math.round(nl[1]) * rate : Math.round(nl[1]) / rate] : null;   // whole local units first, as stored
@@ -4807,6 +4854,7 @@ function renderDash(){
     // and fixed once on the country pages themselves (see mexico.html's
     // own applyToggleHighlighting comment) -- ported the fix here too.
     var actuallyConverted = dollarise && isCurrencyUnit(m.series.unit) && !isAlreadyUSD(m.series.unit, m.country, m.dataKey || m.key);
+    var pppConverted = isCurrencyUnit(m.series.unit) && pppFactorFor(m.country, m.dataKey || m.key, m.period) !== undefined;   // v2.0.16
     var tile = document.createElement("div");
     tile.className = "tile";
     tile.dataset.id = id;
@@ -4815,7 +4863,7 @@ function renderDash(){
       + "<button type=\"button\" class=\"collapsebtn\" aria-label=\"Hide chart\" title=\"Hide chart\">&#8722;</button>"
       + "<button type=\"button\" class=\"draghandle\" aria-label=\"Drag to reorder\" title=\"Drag to reorder\">&#10495;</button>"
       + "<p class=\"country\">" + m.country + "</p>"
-      + "<div class=\"tile-label-row\" style=\"display:flex; align-items:center; gap:2px;\"><p class=\"label\" style=\"margin:0;\">" + m.series.label + (actuallyConverted ? " (USD)" : "") + "</p>" + infoIconHtml(m.country, m.dataKey || m.key) + "</div>"
+      + "<div class=\"tile-label-row\" style=\"display:flex; align-items:center; gap:2px;\"><p class=\"label\" style=\"margin:0;\">" + m.series.label + (pppConverted ? " (PPP)" : actuallyConverted ? " (USD)" : "") + "</p>" + infoIconHtml(m.country, m.dataKey || m.key) + "</div>"
       + "<p class=\"value\"><span class=\"led " + led + "\" title=\"" + ledTitle + "\" role=\"img\" aria-label=\"" + ledTitle + "\"></span>" + fmtVal(disp.value, disp.unit, m.key, m.country) + "</p>"
       + "<p class=\"period\">" + (pcPeriod ? fmtPeriod(pcPeriod) + " \u00b7 per person, " + String(pcPeriod).slice(0, 4) + " population" : fmtPeriod(m.period)) + "</p>"
       + "<div class=\"chartactions\">"
@@ -4953,7 +5001,8 @@ function applyDashToggleHighlighting(){
     var m = tileFromId(tile.dataset.id);
     tile.classList.remove("fx-real", "fx-dollar", "fx-both");
     if(!m) return;
-    var dollarHit = dollarise && isCurrencyUnit(m.series.unit) && !isAlreadyUSD(m.series.unit, m.country, m.dataKey || m.key);
+    var dollarHit = (dollarise && isCurrencyUnit(m.series.unit) && !isAlreadyUSD(m.series.unit, m.country, m.dataKey || m.key))
+      || (isCurrencyUnit(m.series.unit) && pppFactorFor(m.country, m.dataKey || m.key, m.period) !== undefined);   // v2.0.16: PPP shares USD$'s colours
     var realHit = makeItReal && REAL_AFFECTED_KEYS.indexOf(key) !== -1;
     tile.classList.remove("fx-pc", "fx-real-pc", "fx-dollar-pc", "fx-all");
     if(pcApplies(m)) tile.classList.add(realHit && dollarHit ? "fx-all" : realHit ? "fx-real-pc" : dollarHit ? "fx-dollar-pc" : "fx-pc");
@@ -4962,20 +5011,21 @@ function applyDashToggleHighlighting(){
     else if(dollarHit) tile.classList.add("fx-dollar");
   });
   var realBtn = document.getElementById("makeRealBtn");
-  var dollarBtn = document.getElementById("dollariseBtn");
-  [realBtn, dollarBtn].forEach(function(b){ if(b) b.classList.remove("fx-real", "fx-dollar", "fx-both"); });
-  if(makeItReal && dollarise){
+  var dollarBtn = pppMode ? document.getElementById("pppBtn") : document.getElementById("dollariseBtn");   // v2.0.16
+  var dz = dollarise || pppMode;   // the colour logic below treats PPP exactly as Convert to USD$
+  [realBtn, document.getElementById("dollariseBtn"), document.getElementById("pppBtn")].forEach(function(b){ if(b) b.classList.remove("fx-real", "fx-dollar", "fx-both", "fx-pc", "fx-real-pc", "fx-dollar-pc", "fx-all"); });
+  if(makeItReal && dz){
     if(realBtn) realBtn.classList.add("fx-both");
     if(dollarBtn) dollarBtn.classList.add("fx-both");
   } else {
     if(makeItReal && realBtn) realBtn.classList.add("fx-real");
-    if(dollarise && dollarBtn) dollarBtn.classList.add("fx-dollar");
+    if(dz && dollarBtn) dollarBtn.classList.add("fx-dollar");
   }
   var pcBtn = document.getElementById("perCapitaBtn");
   [realBtn, dollarBtn, pcBtn].forEach(function(b){ if(b) b.classList.remove("fx-pc", "fx-real-pc", "fx-dollar-pc", "fx-all"); });
   if(perCapita && pcBtn){
-    var pcc = makeItReal && dollarise ? "fx-all" : makeItReal ? "fx-real-pc" : dollarise ? "fx-dollar-pc" : "fx-pc";
-    [pcBtn, makeItReal ? realBtn : null, dollarise ? dollarBtn : null].forEach(function(b){
+    var pcc = makeItReal && dz ? "fx-all" : makeItReal ? "fx-real-pc" : dz ? "fx-dollar-pc" : "fx-pc";
+    [pcBtn, makeItReal ? realBtn : null, dz ? dollarBtn : null].forEach(function(b){
       if(b){ b.classList.remove("fx-real", "fx-dollar", "fx-both"); b.classList.add(pcc); } });
   }
 }
@@ -5141,7 +5191,7 @@ loadAll().then(function(){
   function announceToggle(which, on){
     var el = document.getElementById("mtoggleAnnounce");
     if(!el) return;
-    var label = which === "real" ? "Adjust for inflation" : which === "capita" ? "Per capita" : "Convert to USD$";
+    var label = which === "real" ? "Adjust for inflation" : which === "capita" ? "Per capita" : which === "ppp" ? "Convert to PPP" : "Convert to USD$";
     el.textContent = label + ": " + (on ? "on" : "off");
   }
   var dollarBtn = document.getElementById("dollariseBtn");
@@ -5150,8 +5200,25 @@ loadAll().then(function(){
     dollarBtn.setAttribute("aria-pressed", String(dollarise));
   }
   updateDollarBtn();
+  var pppBtnEl = document.getElementById("pppBtn");
+  function updatePppBtn(){
+    pppBtnEl.classList.toggle("on", pppMode);
+    pppBtnEl.setAttribute("aria-pressed", String(pppMode));
+  }
+  updatePppBtn();
+  pppBtnEl.addEventListener("click", function(){
+    pppMode = !pppMode;
+    if(pppMode && dollarise){ dollarise = false; try { localStorage.setItem(DOLLARISE_KEY, "0"); } catch(e){} updateDollarBtn(); }
+    try { localStorage.setItem(PPP_KEY, pppMode ? "1" : "0"); } catch(e){}
+    updatePppBtn();
+    announceToggle("ppp", pppMode);
+    Object.keys(tileCharts).forEach(function(id){ tileCharts[id].destroy(); });
+    tileCharts = {};
+    renderDash();
+  });
   dollarBtn.addEventListener("click", function(){
     dollarise = !dollarise;
+    if(dollarise && pppMode){ pppMode = false; try { localStorage.setItem(PPP_KEY, "0"); } catch(e){} updatePppBtn(); }   // v2.0.16: one way to dollars at a time
     try { localStorage.setItem(DOLLARISE_KEY, dollarise ? "1" : "0"); } catch(e){}
     updateDollarBtn();
     announceToggle("dollar", dollarise);
@@ -5314,7 +5381,7 @@ function czSaveStyleSnapshot(){
    "yTickStepIdx", "xTicks", "xLabelAngle", "lineColor", "exportTheme", "annotations"].forEach(function(k){
     if(czState[k] !== undefined) o[k] = JSON.parse(JSON.stringify(czState[k]));
   });
-  o.toggles = { dollar: !!dollarise, real: !!makeItReal, capita: !!perCapita };
+  o.toggles = { dollar: !!dollarise, real: !!makeItReal, capita: !!perCapita, ppp: !!pppMode };
   return o;
 }
 // Country pages and Compare save/query saved_charts.country_code using
@@ -5350,7 +5417,7 @@ function loadSavedChart(row){
   }
   var st0 = row.style || {}, tg = st0.toggles;
   if(tg){   // v1.9.139: put the page's switches back as they were when saved, then rebuild what the tile shows
-    var flip = [["dollar", "dollariseBtn", dollarise], ["real", "makeRealBtn", makeItReal], ["capita", "perCapitaBtn", perCapita]];
+    var flip = [["dollar", "dollariseBtn", dollarise], ["ppp", "pppBtn", pppMode], ["real", "makeRealBtn", makeItReal], ["capita", "perCapitaBtn", perCapita]];
     flip.forEach(function(f){ var b = document.getElementById(f[1]); if(b && !!tg[f[0]] !== !!f[2]) b.click(); });
   }
   var mSaved = (typeof tileFromId === "function") ? tileFromId(country + "::" + row.metric_key) : null;
@@ -5537,7 +5604,7 @@ window.EATLAS_SAVED_CHARTS = (function(){
 })();
 })();
 </script>
-<script src="mobile.js?v=51" defer></script>
+<script src="mobile.js?v=52" defer></script>
 <script>
 /* v1.9.104: on desktop the Adjust for inflation / Convert to USD$ explanation sits behind an (i), like on phones */
 (function(){var b=document.getElementById("dashInfoBtn"); if(!b) return; var tg=b.parentNode;

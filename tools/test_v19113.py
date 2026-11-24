@@ -22,12 +22,12 @@ for n in files:
     check("USD${" not in s, f"{n}: label sits against a template expression")
     if 'class="mtoggle-switch"' in s and n.endswith(".html"):
         with_toggles += 1
-        check("</span>Adjust for inflation" in s or "</span>Convert to USD$" in s, f"{n}: toggle buttons not relabelled")
+        check("</span>Adjust for inflation" in s or "</span>Convert to USD$" in s or '">Convert to USD$</span>' in s, f"{n}: toggle buttons not relabelled")   # v2.0.16: label in a span
 check(with_toggles >= 60, f"expected 60+ pages with toggles, found {with_toggles}")
 cm = read("chartmaker.html")
 check('id="dollariseToggle" aria-label="Convert to USD$:' in cm and 'id="makeRealToggle" aria-label="Adjust for inflation:' in cm,
       "chartmaker: button names relabelled, ids unchanged")
-check('(which === "real" ? "Adjust for inflation" : "Convert to USD$") + ": "' in cm, "chartmaker: screen-reader announcement")
+check('(which === "real" ? "Adjust for inflation" : "Convert to USD$") + ": "' in cm or '{real: "Adjust for inflation", percap: "Per capita", ppp: "Convert to PPP"}[which] || "Convert to USD$") + ": "' in cm, "chartmaker: screen-reader announcement")
 dash = read("dashboard.html")
 check('id="dollariseBtn"' in dash and "DOLLARISE_KEY" in dash, "dashboard: ids and saved-setting key unchanged")
 check("escapeHtmlDash(eaRelabel(info.dollar))" in dash and "escapeHtmlDash(eaRelabel(info.real))" in dash, "dashboard popover notes relabelled")

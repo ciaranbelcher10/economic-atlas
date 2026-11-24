@@ -60,8 +60,8 @@ const glyphOf = src => grab(src, "var DOLLAR_GLYPH_LOCAL_CURRENCY_COUNTRIES", /;
 const C = load(cmpSrc, ["monthKey", "rateForPeriod", "scaleOf", "isAlreadyUSDUnit", "isBeforeFxFloor", "realFxYearFor", "toUSDValue", "toUSDMillions", "unitCompatible"],
   HELPER(cmpSrc) + glyphOf(cmpSrc) + varLit(cmpSrc, "CONCEPT_UNIT") + "var FX_RATES = {}, REGISTRY = {}; function resolveKey(c, k){ return REGISTRY[c] && REGISTRY[c][k] ? k : null; }" +
   "this.setData = function(f, r){ FX_RATES = f; REGISTRY = r; };");
-const D = load(dashSrc, ["monthKey", "rateForPeriod", "scaleOf", "isRealGDPKey", "realFxYearFor", "usdRateFor", "toUSDValue", "toDisplayPoints", "isCurrencyUnit", "isAlreadyUSD"],
-  HELPER(dashSrc) + glyphOf(dashSrc) + "var FX_RATES = {}, REGISTRY = {}, dollarise = true;" + "this.setData = function(f, r){ FX_RATES = f; REGISTRY = r; };");
+const D = load(dashSrc, ["monthKey", "rateForPeriod", "scaleOf", "isRealGDPKey", "realFxYearFor", "usdRateFor", "toUSDValue", "toDisplayPoints", "isCurrencyUnit", "isAlreadyUSD", "pppFactorFor"],
+  HELPER(dashSrc) + glyphOf(dashSrc) + "var FX_RATES = {}, REGISTRY = {}, dollarise = true, pppMode = false;" + "this.setData = function(f, r){ FX_RATES = f; REGISTRY = r; };");
 const M = load(cmSrc, ["monthKey", "rateForPeriod", "nearestFxYear", "scaleOf", "isAlreadyUSDUnit", "toUSDValue", "toUSDMillions", "forceUSDUnit", "computeDisplay", "unitCompatible"],
   HELPER(cmSrc) + glyphOf(cmSrc) + varLit(cmSrc, "CONCEPT_UNIT") + "var FX_RATES = {}, REGISTRY = {}; function getSeries(){ return null; }" +
   "this.setData = function(f){ FX_RATES = f; };");

@@ -181,7 +181,47 @@ def build(payload, prev_doc, today=None, coverage=None):
     }
 
 
+def fetch_ppp():
+    """v2.0.16: World Bank PPP factors and GDP at PPP into data-ppp.json (ppp_data.py).
+    Independent of population: a failure here keeps the previous file and never blocks population."""
+    import ppp_data as P
+    prev = P.load_doc(OUT)
+    if prev.get("updated") and not os.environ.get("FORCE_POPULATION"):
+        try:
+            age = dt.datetime.now(dt.timezone.utc) - dt.datetime.strptime(prev["updated"], "%Y-%m-%dT%H:%M:%SZ").replace(tzinfo=dt.timezone.utc)
+            if age < dt.timedelta(hours=REFRESH_HOURS):
+                print(f"fetch_population: PPP refreshed {age.seconds // 3600}h ago; skipping")
+                return 0
+        except ValueError:
+            pass
+    codes = ";".join(sorted(wb_codes()))
+    base = "https://api.worldbank.org/v2/country/" + codes + "/indicator/{ind}?format=json&per_page=20000&date=1990:" + str(dt.date.today().year)
+    try:
+        rf = requests.get(base.format(ind=P.FACTOR), timeout=90, headers=UA)
+        print(f"  [wb] {P.FACTOR} status={rf.status_code}")
+        rf.raise_for_status()
+        try:
+            rg = requests.get(base.format(ind=P.GDP_PPP), timeout=90, headers=UA)
+            print(f"  [wb] {P.GDP_PPP} status={rg.status_code}")
+            rg.raise_for_status()
+            gdp = rg.json()
+        except Exception as e:  # the previous check figures are kept
+            print(f"  [wb] {P.GDP_PPP} failed: {e}")
+            gdp = None
+        doc = P.build_doc(rf.json(), gdp, prev, wb_codes())
+    except Exception as e:
+        print(f"fetch_population: PPP FAILED, previous PPP figures kept ({e})")
+        return 1
+    P.save_doc(doc, OUT)
+    print(f"fetch_population: PPP factors for {len(doc['countries'])} economies; missing: {', '.join(doc['missing']) or 'none'}")
+    return 0
+
+
 def main():
+    try:
+        fetch_ppp()
+    except Exception as e:  # never let PPP stop the population refresh
+        print(f"fetch_population: PPP step error ({e})")
     prev = {}
     if os.path.exists(OUT):
         try:
@@ -216,6 +256,8 @@ def main():
     except Exception as e:  # keep the previous file untouched
         print(f"fetch_population: FAILED, previous {OUT} kept ({e})")
         return 1
+    if prev.get("ppp"):   # v2.0.16: the PPP figures share this file
+        doc["ppp"] = prev["ppp"]
     with open(OUT, "w", encoding="utf-8") as f:
         json.dump(doc, f, ensure_ascii=False, separators=(",", ":"))
     c = doc["countries"]

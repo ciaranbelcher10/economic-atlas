@@ -2,7 +2,7 @@
 const fs=require("fs"),path=require("path");const {JSDOM,VirtualConsole}=require("jsdom");
 const ROOT=require("path").resolve(__dirname,".."),NM=process.env.NODE_PATH||"/tmp/node_modules";
 module.exports=async function(opts){opts=opts||{};
- const html=require(ROOT+"/tools/inline_local_scripts")(fs.readFileSync(ROOT+"/compare.html","utf8"),ROOT);
+ let html=require(ROOT+"/tools/inline_local_scripts")(fs.readFileSync(ROOT+"/compare.html","utf8"),ROOT);if(opts.transform)html=opts.transform(html);
  const store=Object.assign({},opts.store||{});const errs=[];const vc=new VirtualConsole();
  vc.on("jsdomError",e=>{const m=String(e&&e.message||e).split("\n")[0];if(!/supabase|EATLAS_PREFS|Not implemented/i.test(m))errs.push(m);});
  const dom=new JSDOM(html,{runScripts:"dangerously",pretendToBeVisual:true,virtualConsole:vc,url:"https://theeconomicatlas.com/compare",

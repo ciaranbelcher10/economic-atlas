@@ -34,7 +34,7 @@
 <noscript><link href="https://fonts.googleapis.com/css2?family=Nunito+Sans:wght@400;600;700&display=swap" rel="stylesheet"></noscript>
 <link rel="icon" type="image/png" sizes="32x32" href="favicon-32.png">
 <link rel="apple-touch-icon" href="apple-touch-icon.png">
-<link rel="stylesheet" href="style.css?v=63">
+<link rel="stylesheet" href="style.css?v=64">
 <style>
 :root{ --map-nodata: #E9EBE7; }
 /* ---- info button + popover (per-card data source & methodology) ---- */
@@ -130,6 +130,8 @@ html[data-theme="dark"]{ --map-nodata: #C4CAC0; }
 .modebtn:hover{color:var(--navy);}
 .modebtn.active{background:var(--navy); color:#fff;}
 .cmp-card .btn.ghost.card-percap-btn[aria-pressed="true"]{background:#E06A5A !important; border-color:#E06A5A !important; color:#fff !important;}
+.cmp-card .btn.ghost.card-ppp-btn[aria-pressed="true"]{background:var(--blue) !important; border-color:var(--blue) !important; color:#fff !important;}
+.cmp-card .btn.ghost.fx-dollar-pc[aria-pressed="true"]{background:#8E63C9 !important; border-color:#8E63C9 !important; color:#fff !important;}
 /* Snapshot: a single native range input -- deliberately kept as simple,
    native browser styling (accent-color only) rather than a custom-built
    thumb, since a single thumb needs no special construction. */
@@ -377,7 +379,7 @@ footer.cmp-foot{margin-top:36px; font-size:12.5px; color:var(--ink2); border-top
   "variableMeasured": ["GDP level", "GDP growth rate", "Consumer Price Index (inflation)", "Unemployment rate", "Government debt to GDP", "Trade balance", "Central bank policy rate"]
 }
 </script>
-<link rel="stylesheet" href="mobile.css?v=53">
+<link rel="stylesheet" href="mobile.css?v=54">
 </head>
 <body>
 <nav class="top"><div class="wrap">
@@ -1994,6 +1996,7 @@ function scaleOf(unitStr){
 // and indicator-kit.js.
 var ISO_GLYPH = {AUD:"A$", BRL:"R$", CAD:"C$", MXN:"MX$", ZAR:"R", CNY:"CN\u00a5", THB:"\u0e3f", TRY:"\u20ba", IDR:"Rp", SGD:"S$", ARS:"AR$", CLP:"CLP$", COP:"COL$", MYR:"RM", NZD:"NZ$", PHP:"\u20b1", TWD:"NT$", VND:"\u20ab", NGN:"\u20a6", EGP:"E\u00a3", PEN:"S/", HKD:"HK$", PKR:"Rs"};
 function currencySymbol(unitStr){
+  if(/^Int\$/.test(unitStr)) return "Int$";   // v2.0.16: international dollars (PPP)
   var pd = unitStr.match(/^(A|C|MX|R)\$/);   // v1.9.119: A$, C$, MX$, R$ on a native card
   if(pd) return pd[0];
   var m = unitStr.match(/^[^a-zA-Z0-9]+/);
@@ -2017,9 +2020,42 @@ function peopleFmt(v){
 // Per capita (percapita.js): each year divided by THAT year's population only.
 function percapOn(concept){ return !!(window.EA_PC && EA_PC.eligible(concept) && ensureCardTimeState(concept).percap); }
 function popPointsOf(country){ var s = REGISTRY[country] && REGISTRY[country].population; return s ? s.points : []; }
-function pcTitle(concept){ return percapOn(concept) ? " per person" : ""; }
+function pcTitle(concept){ return (percapOn(concept) ? " per person" : "") + (pppOn(concept) ? " (PPP)" : ""); }
 function pcExpl(concept){
+  return (pppOn(concept) ? " PPP: converted to international dollars at the World Bank's PPP conversion factor for each year" + (concept === "gdp_real" ? " (real GDP at its price base year's factor, so growth is unchanged)" : "") + "; a year with no published factor is left out, never filled from another year." : "")
+    + pcExpl0(concept);
+}
+function explainerFor(concept){
+  var t = CONCEPT_EXPLAINER[concept] || "";
+  return pppOn(concept) ? t.replace(/,? converted to US dollars\./, ".") : t;
+}
+function pcExpl0(concept){
   return percapOn(concept) ? " Per capita: each country's figure is divided by its own population in the same year (World Bank; Eurostat for Cyprus, covering the same area as its GDP); a year with no published population is left out, never filled from another year." : "";
+}
+/* v2.0.16 Convert to PPP (ppp.js): GDP, real GDP and GDP per person in international dollars. Each year at
+   its own year's factor; real GDP at its anchor year's factor (real x deflator), so growth is unchanged. */
+function pppOn(concept){ return !!(window.EA_PPP && EA_PPP.eligible(concept) && ensureCardTimeState(concept).ppp); }
+function pppPointsOf(country){ var s = REGISTRY[country] && REGISTRY[country].ppp; return s ? s.points : []; }
+function pppFactorFor(country, concept, year){
+  var idx = EA_PPP.factorIndex(pppPointsOf(country));
+  if(concept === "gdp_real"){
+    var rk = resolveKey(country, "gdp_real"), rs = rk && REGISTRY[country][rk];
+    var ra = (REGISTRY[country].ppp && REGISTRY[country].ppp.real_anchor) || {}, a = ra[rk] || ra.gdp_real || (rs && rs.usd_anchor);
+    var f = a && idx[String(a.year)];
+    return (f && a.deflator > 0) ? f / a.deflator : null;
+  }
+  return idx[String(year).slice(0, 4)] || null;
+}
+function toPPPMillions(country, rawValue, unitStr, concept, period){
+  var f = pppFactorFor(country, concept, period);
+  return f ? rawValue * (scaleOf(unitStr) / 1e6) / f : null;
+}
+function pppNoReason(country, concept, year){
+  var pts = pppPointsOf(country);
+  if(!pts.length) return "PPP is not available for " + country + ".";
+  if(concept === "gdp_real") return "No PPP conversion factor for " + country + "'s real GDP price base year.";
+  var ly = EA_PPP.latestYear(pts);
+  return year > +ly ? "No PPP conversion factor for " + year + " yet (latest " + ly + ")." : "No PPP conversion factor for " + year + ".";
 }
 function popForYear(country, year){ return EA_PC.popIndex(popPointsOf(country))[String(year)] || null; }
 function EA_group(s){ return String(s).replace(/^\d+/, function(n){ return n.replace(/\B(?=(\d{3})+(?!\d))/g, ","); }); }
@@ -3329,12 +3365,14 @@ function cardCurrency(concept){
 }
 function isNativeCard(concept){ var c = cardCurrency(concept); return !!c && c !== "USD"; }
 function cardUnit(concept){
+  if(pppOn(concept)) return "Int$m";   // v2.0.16
   var c = cardCurrency(concept);
   if(!c || c === "USD") return "$m";
   return CODE_GLYPH[c] ? CODE_GLYPH[c] + "m" : c + "m";
 }
 function currencyWord(code){ return CURRENCY_WORD[code] || code; }
 function nativeNote(concept){
+  if(pppOn(concept)) return "";   // v2.0.16: a PPP card is in international dollars
   if(!isNativeCard(concept)) return "";
   var c = cardCurrency(concept);
   return " Shown in " + currencyWord(c) + (selected.length > 1 ? ", the currency every selected country reports in" : "")
@@ -3342,6 +3380,7 @@ function nativeNote(concept){
 }
 // The card's money figure in millions of the card's currency (US$ unless the card is native).
 function toCardMillions(country, rawValue, unitStr, concept, period){
+  if(pppOn(concept)) return toPPPMillions(country, rawValue, unitStr, concept, period);
   if(!isNativeCard(concept)) return toUSDMillions(country, rawValue, unitStr, concept, period);
   return rawValue * (scaleOf(unitStr) / 1e6);
 }
@@ -3450,9 +3489,18 @@ function openInfoPopover(btn, concept){
   }
   var caveatEl = el.querySelector(".infoPopoverCaveat");
   var isCurrency = isMoneyConcept(concept);
-  caveatEl.textContent = (isCurrency && !isNativeCard(concept))
+  caveatEl.textContent = (isCurrency && !isNativeCard(concept) && !pppOn(concept))
     ? "Different countries' statistics agencies publish this on different schedules and with different revision practices. Currency figures shown here are converted to USD, see each card's own methodology note above its chart for exactly how."
     : "Different countries' statistics agencies publish this on different schedules and with different revision practices, so treat cross-country comparisons as broadly indicative rather than perfectly like-for-like.";
+  /* v2.0.16: GDP cards' (i) explains PPP */
+  var pppP = el.querySelector(".infoPopoverPpp");
+  if(window.EA_PPP && EA_PPP.eligible(concept)){
+    if(!pppP){ pppP = document.createElement("p"); pppP.className = "infoPopoverCaveat infoPopoverPpp"; caveatEl.parentNode.insertBefore(pppP, caveatEl.nextSibling); }
+    pppP.textContent = "";
+    var pppS = document.createElement("strong"); pppS.textContent = "PPP:"; pppP.appendChild(pppS);
+    pppP.appendChild(document.createTextNode(" " + EA_PPP.infoNote(concept, {on: pppOn(concept)}) + " Switch it on with the card's PPP button."));
+    pppP.hidden = false;
+  } else if(pppP){ pppP.hidden = true; }
   /* v1.9.128: every (i) explains Per capita too */
   if(window.EA_PC && EA_PC.infoNote && EA_PC.eligible(concept)){   // v1.9.131: only where it changes the figure
     var pcP = el.querySelector(".infoPopoverPc");
@@ -3836,7 +3884,12 @@ function noDataReason(country, concept, year){
     var missingPop = needYears.filter(function(y){ return !popForYear(country, y); }).map(String);
     if(missingPop.length) return EA_PC.note(missingPop, EA_PC.latestYear(pp));
   }
-  if(isMoneyConcept(concept) && !isNativeCard(concept) && concept !== "gdp_real" && isBeforeFxFloor(country, String(year))
+  if(pppOn(concept)){
+    var pst = ensureCardTimeState(concept), py = pst.mode === "change" ? [pst.changeStartYear, pst.changeEndYear] : [year];
+    var bad = py.filter(function(y){ return !pppFactorFor(country, concept, y); });
+    if(bad.length) return pppNoReason(country, concept, bad[bad.length - 1]);
+  }
+  if(isMoneyConcept(concept) && !pppOn(concept) && !isNativeCard(concept) && concept !== "gdp_real" && isBeforeFxFloor(country, String(year))
      && !isAlreadyUSDUnit(series.unit, country, concept)){
     var fxs = FX_RATES[country], h0 = fxs.history && fxs.history.length ? String(fxs.history[0][0]).slice(0, 4) : null;
     var from = fxs.floor && (!h0 || String(fxs.floor) > h0) ? String(fxs.floor).slice(0, 4) : h0;
@@ -4142,7 +4195,7 @@ function defaultCardTimeState(concept){
     snapshotYear: end,
     changeStartYear: Math.min(DEFAULT_CHANGE_START_YEAR, end - 1),
     changeEndYear: end,
-    percap: false
+    percap: false, ppp: false
   };
 }
 // v1.9.88: each card's mode and year(s) are saved (account when logged
@@ -4162,7 +4215,7 @@ function saveCardTimeState(){
         snapshotYear: st.snapshotYear >= max ? "latest" : st.snapshotYear,
         changeStartYear: st.changeStartYear,
         changeEndYear: st.changeEndYear >= max ? "latest" : st.changeEndYear,
-        percap: !!st.percap
+        percap: !!st.percap, ppp: !!st.ppp
       };
     });
     window.EATLAS_PREFS.set("compareCardTime", out);
@@ -4180,7 +4233,7 @@ function restoreCardTimeState(saved){
       snapshotYear: yr(v.snapshotYear, d.snapshotYear),
       changeStartYear: yr(v.changeStartYear, d.changeStartYear),
       changeEndYear: yr(v.changeEndYear, d.changeEndYear),
-      percap: v.percap === true
+      percap: v.percap === true, ppp: v.ppp === true
     };
   });
 }
@@ -4864,7 +4917,8 @@ function buildLineChart(canvas, concept){
     var plotPts = pts.map(function(p){
       var y = p[1] * scale;
       if(isCurrencyMetric){
-        if(!isNativeCard(concept)) y = isAlreadyUSDUnit(seriesUnit, c, concept) ? y : toUSDValue(c, y, String(p[0]), concept);
+        if(pppOn(concept)){ var pf = pppFactorFor(c, concept, p[0]); y = pf ? y / pf : null; }   // v2.0.16
+        else if(!isNativeCard(concept)) y = isAlreadyUSDUnit(seriesUnit, c, concept) ? y : toUSDValue(c, y, String(p[0]), concept);
         if(y == null) return null;
         if(percapOn(concept)){
           var pop = popForYear(c, yearOf(p[0]));
@@ -5047,6 +5101,7 @@ function buildCardShell(concept, hasHistory, mode){
         + "</div>"
       + "</div>"
       + "<span style=\"display:flex; align-items:center; gap:8px;\">"
+        + ((window.EA_PPP && EA_PPP.eligible(concept)) ? "<button type=\"button\" class=\"btn ghost card-ppp-btn\" aria-pressed=\"false\" title=\"Convert to international dollars at purchasing power parity (World Bank PPP conversion factor for each year)\">PPP</button>" : "")
         + ((window.EA_PC && EA_PC.eligible(concept)) ? "<button type=\"button\" class=\"btn ghost card-percap-btn\" aria-pressed=\"false\" title=\"Divide each country's figure by its population in the same year\">Per capita</button>" : "")
         + "<button type=\"button\" class=\"btn ghost card-fullscreen-btn\">Fullscreen</button>"
       + "</span>"
@@ -5101,12 +5156,34 @@ function buildCardShell(concept, hasHistory, mode){
     });
   }
   wireCardTimeControls(card, concept);
-  var pcBtn = card.querySelector(".card-percap-btn");
+  var pcBtn = card.querySelector(".card-percap-btn"), pppBtn = card.querySelector(".card-ppp-btn");
+  // v2.0.16: PPP takes Convert to USD$'s blue; with Per capita both turn purple, as on the country pages
+  var syncCombo = function(){
+    var st = ensureCardTimeState(concept), both = !!(st.ppp && st.percap && pppBtn && pcBtn);
+    [pcBtn, pppBtn].forEach(function(b){ if(b) b.classList.toggle("fx-dollar-pc", both); });
+  };
+  if(pppBtn){
+    var syncPpp = function(){
+      var on = !!ensureCardTimeState(concept).ppp;
+      pppBtn.setAttribute("aria-pressed", on ? "true" : "false");
+      pppBtn.classList.toggle("active", on);
+      syncCombo();
+    };
+    syncPpp();
+    pppBtn.addEventListener("click", function(){
+      var st = ensureCardTimeState(concept);
+      st.ppp = !st.ppp;
+      syncPpp();
+      saveCardTimeState();
+      refreshOneCard(concept);
+    });
+  }
   if(pcBtn){
     var syncPc = function(){
       var on = !!ensureCardTimeState(concept).percap;
       pcBtn.setAttribute("aria-pressed", on ? "true" : "false");
       pcBtn.classList.toggle("active", on);
+      syncCombo();
     };
     syncPc();
     pcBtn.addEventListener("click", function(){
@@ -5311,9 +5388,9 @@ function fillCardChart(card, concept){
       return;
     }
     titleEl.textContent = CONCEPT_LABEL[concept] + pcTitle(concept) + " (over time)";
-    explEl.textContent = CONCEPT_EXPLAINER[concept] + " Full published history, for each selected country that tracks it." +
+    explEl.textContent = explainerFor(concept) + " Full published history, for each selected country that tracks it." +
       (lineResult.isCurrencyMetric && isNativeCard(concept) ? nativeNote(concept) : "") +
-      (lineResult.isCurrencyMetric && !isNativeCard(concept) ? " Converted to USD at each point's own period exchange rate. Periods before a currency's exchange-rate history starts have no dollar figure." : "") + pcExpl(concept);
+      (lineResult.isCurrencyMetric && !isNativeCard(concept) && !pppOn(concept) ? " Converted to USD at each point's own period exchange rate. Periods before a currency's exchange-rate history starts have no dollar figure." : "") + pcExpl(concept);
     charts[concept] = lineResult.chart;
     card.querySelector("#rankSub").textContent = "Latest available value per country.";
     renderLineRankList(rankBody, concept, lineResult.datasets, lineResult.chart);
@@ -5346,7 +5423,7 @@ function fillCardChart(card, concept){
       return;
     }
     titleEl.textContent = CONCEPT_LABEL[concept] + pcTitle(concept) + barResult.titleSuffix;
-    explEl.textContent = CONCEPT_EXPLAINER[concept] + " " + barResult.horizonNote + nativeNote(concept) + pcExpl(concept);
+    explEl.textContent = explainerFor(concept) + " " + barResult.horizonNote + nativeNote(concept) + pcExpl(concept);
     charts[concept] = barResult.chart;
     card.querySelector("#rankSub").textContent = "Highest to lowest, current selection.";
     renderBarRankList(rankBody, concept, barResult.rows, barResult.chart);
@@ -5354,7 +5431,7 @@ function fillCardChart(card, concept){
     if(dlBtnBar && window.EATLAS_DOWNLOAD){
       var barRows = barResult.rows.filter(function(r){ return r.dv != null; })
         .map(function(r){ return {country: r.country, date: r.dv.period || (r.dv.endYear ? r.dv.year + " to " + r.dv.endYear : String(r.dv.year == null ? "" : r.dv.year)), value: r.dv.perPerson ? Math.round(r.dv.value * 1e6) : r.dv.value}; });   // v1.9.139: bar values carry year/endYear, not period, so the Date column was empty
-      window.EATLAS_DOWNLOAD.wireMulti(dlBtnBar, barRows, CONCEPT_LABEL[concept] + pcTitle(concept) + (isMoneyConcept(concept) && !(barResult.rows.filter(function(r){ return r.dv != null; })[0] || {dv: {}}).dv.isCumulative ? " (" + (isNativeCard(concept) ? cardCurrency(concept) : "US$") + (pcTitle(concept) ? "" : " millions") + ")" : ""));   // v1.9.139: unit named for US$ figures too
+      window.EATLAS_DOWNLOAD.wireMulti(dlBtnBar, barRows, CONCEPT_LABEL[concept] + pcTitle(concept) + (isMoneyConcept(concept) && !(barResult.rows.filter(function(r){ return r.dv != null; })[0] || {dv: {}}).dv.isCumulative ? " (" + (pppOn(concept) ? "Int$" : isNativeCard(concept) ? cardCurrency(concept) : "US$") + (percapOn(concept) ? "" : " millions") + ")" : ""));   // v1.9.139: unit named for US$ figures too
     }
     var czBtnBar = card.querySelector(".cz-btn");
     if(czBtnBar && window.EATLAS_CUSTOMIZE){
@@ -5863,10 +5940,11 @@ function loadSavedSelection(concept, countries, chartType, cardTime, sortMode){
   }
   ensureCardTimeState(concept);
   if(cardTime && typeof cardTime.percap === "boolean"){ cardTimeState[concept].percap = cardTime.percap; saveCardTimeState(); }   // v1.9.139
+  if(cardTime && typeof cardTime.ppp === "boolean"){ cardTimeState[concept].ppp = cardTime.ppp; saveCardTimeState(); }   // v2.0.16
   cardChartType[concept] = chartType === "line" ? "line" : "bar";
   if(chartType !== "line" && cardTime){
     cardTimeState[concept] = {
-      percap: !!cardTime.percap,
+      percap: !!cardTime.percap, ppp: !!cardTime.ppp,
       mode: cardTime.mode === "change" ? "change" : "snapshot",
       snapshotYear: cardTime.snapshotYear || DEFAULT_SNAPSHOT_YEAR,
       changeStartYear: cardTime.changeStartYear || DEFAULT_CHANGE_START_YEAR,
@@ -5900,7 +5978,7 @@ window.EATLAS_COMPARE = {
   COUNTRY_LABEL: COUNTRY_LABEL,
   getSelected: function(){ return selected.slice(); },
   /* v1.9.139: what a saved chart needs to reopen the same figures elsewhere (Chartmaker) */
-  getCardFlags: function(concept){ return { money: !!isMoneyConcept(concept), native: !!isNativeCard(concept), percap: !!percapOn(concept), currency: isNativeCard(concept) ? cardCurrency(concept) : "USD" }; },
+  getCardFlags: function(concept){ return { money: !!isMoneyConcept(concept), native: !!isNativeCard(concept), percap: !!percapOn(concept), ppp: !!pppOn(concept), currency: pppOn(concept) ? "Int$" : (isNativeCard(concept) ? cardCurrency(concept) : "USD") }; },
   /* v1.9.139: the series each country's figure comes from, so Chartmaker opens the same series */
   resolveKeys: function(concept, countries){
     var o = {};
@@ -5914,7 +5992,7 @@ window.EATLAS_COMPARE = {
   getCardTimeState: function(concept){
     var st = cardTimeState[concept];
     if(!st) return null;
-    return { mode: st.mode, snapshotYear: st.snapshotYear, changeStartYear: st.changeStartYear, changeEndYear: st.changeEndYear, percap: !!st.percap };   // v1.9.139: Per capita travels with a saved chart
+    return { mode: st.mode, snapshotYear: st.snapshotYear, changeStartYear: st.changeStartYear, changeEndYear: st.changeEndYear, percap: !!st.percap, ppp: !!st.ppp };   // v1.9.139: Per capita travels with a saved chart
   },
   loadSavedSelection: loadSavedSelection,
   // v1.9.83: used by the phone Countries and Metrics sheets in mobile.js,
@@ -7916,6 +7994,7 @@ window.EATLAS_COMPARE = {
 })();
 </script>
 <script src="percapita.js?v=6"></script>
-<script src="mobile.js?v=51" defer></script>
+<script src="ppp.js?v=1"></script>
+<script src="mobile.js?v=52" defer></script>
 </body>
 </html>

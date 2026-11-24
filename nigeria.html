@@ -83,7 +83,7 @@
 <noscript><link href="https://fonts.googleapis.com/css2?family=Nunito+Sans:wght@400;600;700&display=swap" rel="stylesheet"></noscript>
 <link rel="icon" type="image/png" sizes="32x32" href="favicon-32.png">
 <link rel="apple-touch-icon" href="apple-touch-icon.png">
-<link rel="stylesheet" href="style.css?v=63">
+<link rel="stylesheet" href="style.css?v=64">
 <style>
 .led{display:inline-block; width:9px; height:9px; border-radius:50%;
   margin-right:9px; vertical-align:middle; position:relative; top:-3px;}
@@ -335,7 +335,7 @@ button.mtoggle.fx-all{background:#8A5A3C; border-color:#8A5A3C; color:#fff;}
   ]
 }
 </script>
-<link rel="stylesheet" href="mobile.css?v=53">
+<link rel="stylesheet" href="mobile.css?v=54">
 </head>
 <body>
 <nav class="top"><div class="wrap">
@@ -1696,14 +1696,19 @@ document.addEventListener("DOMContentLoaded", function(){
  <button data-sec="misc">Miscellaneous</button>
 </nav>
 <div class="metric-toggles" aria-label="Display options">
+ <span class="mtoggle-pair">
  <button type="button" class="mtoggle" id="toggleDollar" onclick="toggleMetric('dollar',this)" aria-pressed="false">
- <span class="mtoggle-switch" aria-hidden="true"></span>Convert to USD$
+ <span class="mtoggle-switch" aria-hidden="true"></span><span class="mt-l" data-short="USD$">Convert to USD$</span>
  </button>
+ <button type="button" class="mtoggle" id="togglePpp" onclick="toggleMetric('ppp',this)" aria-pressed="false">
+ <span class="mtoggle-switch" aria-hidden="true"></span><span class="mt-l" data-short="PPP">Convert to PPP</span>
+ </button>
+ </span>
  <button type="button" class="mtoggle" id="toggleReal" onclick="toggleMetric('real',this)" aria-pressed="false">
- <span class="mtoggle-switch" aria-hidden="true"></span>Adjust for inflation
+ <span class="mtoggle-switch" aria-hidden="true"></span><span class="mt-l" data-short="Real">Adjust for inflation</span>
  </button>
  <button type="button" class="mtoggle" id="toggleCapita" onclick="toggleMetric('capita',this)" aria-pressed="false">
- <span class="mtoggle-switch" aria-hidden="true"></span>Per capita
+ <span class="mtoggle-switch" aria-hidden="true"></span><span class="mt-l" data-short="Per cap.">Per capita</span>
  </button>
  <span class="mtoggle-note" id="mtoggleNote"></span>
  <span id="mtoggleAnnounce" class="sr-only" role="status" aria-live="polite"></span>
@@ -2676,6 +2681,7 @@ function scaleOf(unitStr){
 // and indicator-kit.js.
 const ISO_GLYPH = {AUD:"A$", BRL:"R$", CAD:"C$", MXN:"MX$", ZAR:"R", CNY:"CN\u00a5", THB:"\u0e3f", TRY:"\u20ba", IDR:"Rp", SGD:"S$", ARS:"AR$", CLP:"CLP$", COP:"COL$", MYR:"RM", NZD:"NZ$", PHP:"\u20b1", TWD:"NT$", VND:"\u20ab", NGN:"\u20a6", EGP:"E\u00a3", PEN:"S/", HKD:"HK$", PKR:"Rs"};
 function currencySymbol(unitStr){
+  if(/^Int\$/.test(unitStr)) return "Int$";   // v2.0.16: international dollars (PPP)
   const m = unitStr.match(/^[^a-zA-Z0-9]+/);
   if(m) return m[0];
   const c = unitStr.match(/^([A-Z]{3})(tn|bn|m|k)?(\s|\(|$)/);
@@ -3007,6 +3013,17 @@ function openInfoPopover(btn, infoKey, title){
       on: !!TOGGLE_STATE.capita })));
     togglesEl.appendChild(p);
   }
+  /* v2.0.16: GDP figures' (i) explains PPP */
+  if(window.EA_PPP && EA_PPP.eligible(infoKey === "gdp_real_annual" ? "gdp_real" : infoKey)){
+    const p = document.createElement("p");
+    p.className = "infoPopoverToggleNote dollar";
+    const st = document.createElement("strong"); st.textContent = "Convert to PPP:";
+    p.appendChild(st);
+    p.appendChild(document.createTextNode(" " + (typeof pppAvailable === "function" && !pppAvailable()
+      ? EA_PPP.infoNote(infoKey, {country: typeof COUNTRY_LABEL !== "undefined" ? COUNTRY_LABEL : "", notOffered: true})
+      : EA_PPP.infoNote(infoKey === "gdp_real_annual" ? "gdp_real" : infoKey, {country: typeof COUNTRY_LABEL !== "undefined" ? COUNTRY_LABEL : "", on: !!TOGGLE_STATE.ppp}))));
+    togglesEl.appendChild(p);
+  }
   el.hidden = false;
   const rect = btn.getBoundingClientRect();
   const popRect = el.querySelector(".infoPopoverInner").getBoundingClientRect();
@@ -3033,7 +3050,59 @@ document.addEventListener("click", e=>{
   }
   openInfoPopover(btn, infoKey, title);
 }, true);
+/* v2.0.16 Convert to PPP (ppp.js): GDP, real GDP and GDP per person in international dollars, the same rule
+   as Chartmaker, Compare and the Dashboard. Each period at its own year's World Bank PPP conversion factor;
+   real GDP at its price base year's factor (real x deflator), so growth is unchanged. Never on together with
+   Convert to USD$. Applied first, so Adjust for inflation and Per capita then work on the converted figures. */
+TOGGLE_STATE.ppp = false;
+const PPP_KEYS = ["gdp_level","gdp_level_annual","gdp_real","gdp_real_annual","gdp_per_capita"];
+let PPP_APPLIED = new Set(), PPP_DROPPED = [], PPP_ANCHOR = null;
+function pppPoints(){ const s = typeof PAGE_DATA !== "undefined" && PAGE_DATA && PAGE_DATA.series && PAGE_DATA.series.ppp; return (s && s.points) || []; }
+function pppAvailable(){ return !!(window.EA_PPP && pppPoints().length); }
 function buildDisplaySeries(rawSeries){
+  PPP_APPLIED = new Set(); PPP_DROPPED = []; PPP_ANCHOR = null;
+  if(!TOGGLE_STATE.ppp || !pppAvailable()) return buildDisplaySeriesBase(rawSeries);
+  const pre = {...rawSeries}, dropped = new Set();
+  PPP_KEYS.forEach(k=>{
+    const s = pre[k];
+    if(!s || !Array.isArray(s.points) || !(k === "gdp_per_capita" || isCurrencyUnit(s.unit)) || / per /.test(String(s.unit))) return;
+    const isReal = k === "gdp_real" || k === "gdp_real_annual";
+    const pts = s.points.map(([x, y]) => ({x, y}));
+    const ra = ((PAGE_DATA.series.ppp || {}).real_anchor) || {};
+    const r = isReal ? EA_PPP.convertReal(pts, s.unit, pppPoints(), ra[k] || ra.gdp_real || s.usd_anchor)
+                     : EA_PPP.convert(pts, s.unit, pppPoints());
+    if(!r.ok || !r.pts.length){ if(isReal) PPP_ANCHOR = PPP_ANCHOR || "none"; return; }   // left as published; the note says so
+    PPP_APPLIED.add(k);
+    pre[k] = {...s, unit: k === "gdp_per_capita" ? "Int$" : r.unit, points: r.pts.map(p => [p.x, p.y])};
+    if(r.anchorYear) PPP_ANCHOR = r.anchorYear;
+    r.droppedYears.forEach(y => dropped.add(y));
+  });
+  PPP_DROPPED = [...dropped].sort();
+  return buildDisplaySeriesBase(pre);
+}
+function rerender(){
+  rerenderBase();
+  const b = document.getElementById("togglePpp");
+  if(!b) return;
+  const ok = pppAvailable();
+  b.disabled = !ok; b.classList.toggle("disabled", !ok);
+  if(!ok){
+    b.setAttribute("aria-disabled", "true"); b.title = "PPP not available for this economy";
+    if(TOGGLE_STATE.ppp){ TOGGLE_STATE.ppp = false; b.classList.remove("on"); b.setAttribute("aria-pressed", "false"); }
+    return;
+  }
+  b.removeAttribute("aria-disabled"); b.title = "Convert GDP to international dollars at purchasing power parity";
+  if(!TOGGLE_STATE.ppp) return;
+  const parts = [], note = document.getElementById("mtoggleNote");
+  const realShown = TOGGLE_STATE.real && PPP_ANCHOR;
+  if(!realShown || PPP_APPLIED.has("gdp_per_capita"))
+    parts.push(EA_PPP.note({droppedYears: PPP_DROPPED}, EA_PPP.latestYear(pppPoints())).replace(/\.$/, ""));
+  if(PPP_ANCHOR === "none") parts.push("PPP not available for real GDP here (no PPP conversion factor for its price base year)");
+  else if(PPP_ANCHOR) parts.push(EA_PPP.note({anchorYear: PPP_ANCHOR}).replace(/\.$/, ""));
+  parts.push("other money figures are shown as published");
+  if(note) note.textContent = (note.textContent ? note.textContent + " · " : "") + parts.join(" · ");
+}
+function buildDisplaySeriesBase(rawSeries){
   const out = {};
   for(const k in rawSeries) out[k]=rawSeries[k];
   // v1.7.55: is gdp_level about to hold a real series?
@@ -3097,18 +3166,25 @@ function buildDisplaySeries(rawSeries){
 function announceToggle(which, on){
   const el = document.getElementById("mtoggleAnnounce");
   if(!el) return;
-  const label = which === "real" ? "Adjust for inflation" : which === "capita" ? "Per capita" : "Convert to USD$";
+  const label = which === "real" ? "Adjust for inflation" : which === "capita" ? "Per capita" : which === "ppp" ? "Convert to PPP" : "Convert to USD$";
   el.textContent = label + ": " + (on ? "on" : "off");
 }
 function toggleMetric(which, el){
   if(el.disabled) return;
+  // v2.0.16: Convert to USD$ and Convert to PPP are never on together
+  const other = which === "dollar" ? ["ppp", "togglePpp"] : which === "ppp" ? ["dollar", "toggleDollar"] : null;
+  if(other && !TOGGLE_STATE[which] && TOGGLE_STATE[other[0]]){
+    TOGGLE_STATE[other[0]] = false;
+    const ob = document.getElementById(other[1]);
+    if(ob){ ob.classList.remove("on"); ob.setAttribute("aria-pressed", "false"); }
+  }
   TOGGLE_STATE[which] = !TOGGLE_STATE[which];
   el.classList.toggle("on", TOGGLE_STATE[which]);
   el.setAttribute("aria-pressed", String(TOGGLE_STATE[which]));
   announceToggle(which, TOGGLE_STATE[which]);
   rerender();
 }
-function rerender(){
+function rerenderBase(){
   if(!PAGE_DATA || !PAGE_DATA.series) return;
   const s = PAGE_DATA.series;
   const realBtn = document.getElementById("toggleReal");
@@ -3220,12 +3296,12 @@ function applyPerCapitaHighlighting(){
     const p = prev(el); if(p) el.classList.remove(p);
     el.classList.add(combo[p]);
   });
-  const btns = ["toggleReal","toggleDollar","toggleCapita"].map(id => document.getElementById(id)).filter(Boolean);
+  const btns = ["toggleReal","toggleDollar","togglePpp","toggleCapita"].map(id => document.getElementById(id)).filter(Boolean);
   btns.forEach(b => b.classList.remove("fx-pc","fx-real-pc","fx-dollar-pc","fx-all"));
   if(!on) return;
-  const r = TOGGLE_STATE.real, d = TOGGLE_STATE.dollar;
+  const r = TOGGLE_STATE.real, d = TOGGLE_STATE.dollar || !!TOGGLE_STATE.ppp;
   const cls = r && d ? "fx-all" : r ? "fx-real-pc" : d ? "fx-dollar-pc" : "fx-pc";
-  btns.forEach(b => { if(b.id === "toggleCapita" || (b.id === "toggleReal" && r) || (b.id === "toggleDollar" && d)){ b.classList.remove("fx-real","fx-dollar","fx-both"); b.classList.add(cls); } });
+  btns.forEach(b => { if(b.id === "toggleCapita" || (b.id === "toggleReal" && r) || (b.id === "toggleDollar" && TOGGLE_STATE.dollar) || (b.id === "togglePpp" && TOGGLE_STATE.ppp)){ b.classList.remove("fx-real","fx-dollar","fx-both"); b.classList.add(cls); } });
 }
 /* v1.9.122: {year: GDP per person} for complete years only, as merge_population.py's
    calendar_year_gdp: an annual figure, or all four quarters summed (averaged where quarters are
@@ -3248,7 +3324,7 @@ function pcCalendarYears(series){
   return out.length ? {...series, points: out, freq: "years"} : series;
 }
 function applyToggleHighlighting(){
-  const realOn = TOGGLE_STATE.real, dollarOn = TOGGLE_STATE.dollar;
+  const realOn = TOGGLE_STATE.real, dollarOn = TOGGLE_STATE.dollar || !!TOGGLE_STATE.ppp;   // v2.0.16
   const rawSeries = PAGE_DATA && PAGE_DATA.series;
   document.querySelectorAll(".stat[data-key], .panel[data-key]").forEach(el=>{
     const key = el.dataset.key;
@@ -3256,7 +3332,7 @@ function applyToggleHighlighting(){
     if(!key || key==="null") return;
     const realHit = realOn && REAL_AFFECTED_KEYS.includes(key);
     const seriesForKey = rawSeries && rawSeries[key];
-    const dollarHit = dollarOn && CURRENCY_KEYS.includes(key) &&
+    const dollarHit = dollarOn && (TOGGLE_STATE.ppp ? PPP_APPLIED.has(key) : CURRENCY_KEYS.includes(key)) &&
       seriesForKey && isCurrencyUnit(seriesForKey.unit) && !isAlreadyUSD(seriesForKey.unit, key) &&
       !foreignCurrencyOf(seriesForKey.unit, PAGE_DATA && PAGE_DATA.fx_to_usd);
     if(realHit && dollarHit) el.classList.add("fx-both");
@@ -3264,8 +3340,8 @@ function applyToggleHighlighting(){
     else if(dollarHit) el.classList.add("fx-dollar");
   });
   const realBtn = document.getElementById("toggleReal");
-  const dollarBtn = document.getElementById("toggleDollar");
-  [realBtn, dollarBtn].forEach(b=>b && b.classList.remove("fx-real","fx-dollar","fx-both"));
+  const dollarBtn = document.getElementById(TOGGLE_STATE.ppp ? "togglePpp" : "toggleDollar");
+  [realBtn, document.getElementById("toggleDollar"), document.getElementById("togglePpp")].forEach(b=>b && b.classList.remove("fx-real","fx-dollar","fx-both"));
   if(realOn && dollarOn){
     if(realBtn) realBtn.classList.add("fx-both");
     if(dollarBtn) dollarBtn.classList.add("fx-both");
@@ -4907,12 +4983,12 @@ document.querySelectorAll(".mtbtn").forEach(function(btn){
   function czSaveStyleSnapshot(){
     var o = {};
     CZ_SAVE_KEYS.forEach(function(k){ if(czState[k] !== undefined) o[k] = JSON.parse(JSON.stringify(czState[k])); });
-    if(typeof TOGGLE_STATE !== "undefined") o.toggles = { dollar: !!TOGGLE_STATE.dollar, real: !!TOGGLE_STATE.real, capita: !!TOGGLE_STATE.capita };
+    if(typeof TOGGLE_STATE !== "undefined") o.toggles = { dollar: !!TOGGLE_STATE.dollar, real: !!TOGGLE_STATE.real, capita: !!TOGGLE_STATE.capita, ppp: !!TOGGLE_STATE.ppp };
     return o;
   }
   function czRestoreToggles(t){
     if(!t || typeof TOGGLE_STATE === "undefined" || typeof toggleMetric !== "function") return;
-    [["dollar", "toggleDollar"], ["real", "toggleReal"], ["capita", "toggleCapita"]].forEach(function(p){
+    [["dollar", "toggleDollar"], ["ppp", "togglePpp"], ["real", "toggleReal"], ["capita", "toggleCapita"]].forEach(function(p){
       var want = !!t[p[0]], btn = document.getElementById(p[1]);
       if(btn && !btn.disabled && !!TOGGLE_STATE[p[0]] !== want) toggleMetric(p[0], btn);
     });
@@ -5092,6 +5168,7 @@ document.querySelectorAll(".mtbtn").forEach(function(btn){
 })();
 </script>
 <script src="percapita.js?v=6"></script>
-<script src="mobile.js?v=51" defer></script>
+<script src="ppp.js?v=1"></script>
+<script src="mobile.js?v=52" defer></script>
 </body>
 </html>

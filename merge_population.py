@@ -183,6 +183,75 @@ def main(root="."):
                 json.dump(d, fh, ensure_ascii=False, separators=(",", ":"))
             anchored += 1
     print(f"merge_population: real GDP US$ anchor updated in {anchored} data file(s)")
+    merge_ppp(root)
+    return 0
+
+
+def ppp_real_anchors(S, factor_points):
+    """v2.0.16: for each real GDP series, the year its PPP figures are priced in: the latest complete
+    calendar year with nominal GDP, real GDP AND a PPP factor (the US$ anchor year can be newer than the
+    newest factor). deflator = nominal / real in that year, as real_usd_anchor()."""
+    fac = {str(y) for y, v in factor_points if v}
+    sc = lambda u: scale_of(re.sub(r"\s*\(.*\)\s*$", "", str(u or "")).strip())
+    out = {}
+    for rk in ("gdp_real", "gdp_real_annual"):
+        nominal, real = S.get("gdp_level"), S.get(rk)
+        if not nominal or not real:
+            continue
+        strip = lambda u: re.sub(r"(tn|bn|m|k)$", "", re.sub(r"\s*\(.*\)\s*$", "", str(u or "")).strip())
+        if strip(nominal.get("unit")) != strip(real.get("unit")):
+            continue
+        n, r = _annual_totals(nominal), _annual_totals(real)
+        years = sorted(y for y in n if y in r and r[y] and y in fac)
+        if years:
+            y = years[-1]
+            out[rk] = {"year": y, "deflator": round(n[y] * sc(nominal.get("unit")) / (r[y] * sc(real.get("unit"))), 6)}
+    return out
+
+
+def merge_ppp(root="."):
+    """v2.0.16: check every economy's PPP factors against the World Bank's GDP at PPP (ppp_data.py),
+    then write a "ppp" series into each data file that passes, and remove it from any that does not."""
+    import ppp_data as P
+    path = os.path.join(root, P.OUT)
+    doc = P.load_doc(path)
+    if not doc.get("countries"):
+        print("merge_population: no PPP figures yet; PPP left as it is")
+        return 0
+    files = {}
+    for name, (_cur, code, _q) in COUNTRY_FX.items():
+        f = os.path.join(root, f"data-{code}.json")
+        if os.path.exists(f):
+            files[name] = (f, json.load(open(f, encoding="utf-8")))
+    changed = P.apply_checks(doc, {n: d.get("series", {}).get("gdp_level") for n, (_f, d) in files.items()})
+    if changed:
+        P.save_doc(doc, path)
+    wrote, off = 0, []
+    for name, (f, d) in files.items():
+        e = (doc.get("countries") or {}).get(name)
+        S = d.setdefault("series", {})
+        new = None
+        if e and e.get("ok"):
+            frm = (e.get("check") or {}).get("from") or "0"
+            pts = [p for p in e["points"] if str(p[0]) >= str(frm)]   # never before the first checked year
+            new = {"label": "PPP conversion factor, GDP (local currency per international $)",
+                   "unit": "LCU per international $", "freq": "years", "points": pts,
+                   "source": P.SOURCE, "check": e.get("check"), "derived": True}
+            ra = ppp_real_anchors(S, pts)
+            if ra:
+                new["real_anchor"] = ra
+        else:
+            off.append(name)
+        if S.get("ppp") == new:
+            continue
+        if new:
+            S["ppp"] = new
+        else:
+            S.pop("ppp", None)
+        with open(f, "w", encoding="utf-8") as fh:
+            json.dump(d, fh, ensure_ascii=False, separators=(",", ":"))
+        wrote += 1
+    print(f"merge_population: PPP written to {wrote} data file(s); not offered: {', '.join(sorted(off)) or 'none'}")
     return 0
 
 

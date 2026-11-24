@@ -25,7 +25,7 @@ for(const [page, cc] of Object.entries(PAGES)){
     grab(src, "const CURRENCY_KEYS", /\n/),
     grab(src, "var CURRENCY_GLYPH_CODE", /\n/),
     ...["scaleOf","isCurrencyUnit","isAlreadyUSD","convertSeriesToUSD","monthKey","rateForPeriod",
-        "hasPreHistoryPoints","realFxYear","realFxRateYear","convertRealSeriesToUSD","hasPreFloorPoints","buildDisplaySeries","foreignCurrencyOf"].map(n=>fn(src,n)),
+        "hasPreHistoryPoints","realFxYear","realFxRateYear","convertRealSeriesToUSD","hasPreFloorPoints","buildDisplaySeries","buildDisplaySeriesBase","pppPoints","pppAvailable","foreignCurrencyOf"].map(n=>fn(src,n)),
     /NATIVE_SYMBOL_OVERRIDE\s*=/.test(src) ? (src.match(/(?:const|let|var) NATIVE_SYMBOL_OVERRIDE\s*=[^;]*;/)||[""])[0] : "",
   ].join("\n");
   const stub = new Proxy(function(){}, {get:(t,k)=> k===Symbol.toPrimitive ? ()=>"" : stub, apply:()=>stub});
