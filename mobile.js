@@ -445,6 +445,9 @@
       wrap._mobCollapseAttached = true;
       if(wrap.classList.contains("mapwrap")){
         wrap.classList.add("mm-collapsible");
+        // v2.0.14: as on the country pages, the caption sits above the card, not inside it
+        var cap = wrap.querySelector(".home-mapcap");
+        if(cap && wrap.parentNode){ cap.classList.add("ea-maphint"); wrap.parentNode.insertBefore(cap, wrap); }
         if(!wrap.querySelector(".minihint")){
           var pill = document.createElement("span");
           pill.className = "minihint"; pill.textContent = "Expand \u2197";
