@@ -25,6 +25,8 @@ let checks = 0, failures = 0; const ok = (c, m) => { checks++; if(!c){ failures+
   const pp = E(`getSnapshotValue("UK", "gdp_level", 2024)`);
   ok(pp && pp.perPerson && pp.value * 1e6 > 40000 && pp.value * 1e6 < 80000, "Int$ per person plausible: " + (pp && pp.value * 1e6));
   ok(/\(PPP\)/.test(card.textContent), "title says PPP");
+  E(`selected.push("Taiwan"); renderAll();`);
+  ok(/PPP is not available for Taiwan/.test(doc.querySelector('.metric-card[data-concept="gdp_level"]').textContent), "an economy without PPP is named, not silently dropped");
   ok(!errs.length, "no page errors: " + errs.join(" | "));
   console.log(`test_v216_compare_ppp: ${checks} checks, ${failures} failures`); process.exit(failures ? 1 : 0);
 })().catch(e => { console.log("ERROR " + e.stack); process.exit(1); });

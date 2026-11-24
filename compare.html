@@ -2022,7 +2022,9 @@ function percapOn(concept){ return !!(window.EA_PC && EA_PC.eligible(concept) &&
 function popPointsOf(country){ var s = REGISTRY[country] && REGISTRY[country].population; return s ? s.points : []; }
 function pcTitle(concept){ return (percapOn(concept) ? " per person" : "") + (pppOn(concept) ? " (PPP)" : ""); }
 function pcExpl(concept){
-  return (pppOn(concept) ? " PPP: converted to international dollars at the World Bank's PPP conversion factor for each year" + (concept === "gdp_real" ? " (real GDP at its price base year's factor, so growth is unchanged)" : "") + "; a year with no published factor is left out, never filled from another year." : "")
+  var pppNone = pppOn(concept) ? selected.filter(function(c){ return REGISTRY[c] && !pppPointsOf(c).length; }) : [];
+  return (pppNone.length ? " PPP is not available for " + pppNone.join(", ") + " (no checked World Bank PPP conversion factor), so " + (pppNone.length > 1 ? "they are" : "it is") + " not shown." : "")
+    + (pppOn(concept) ? " PPP: converted to international dollars at the World Bank's PPP conversion factor for each year" + (concept === "gdp_real" ? " (real GDP at its price base year's factor, so growth is unchanged)" : "") + "; a year with no published factor is left out, never filled from another year." : "")
     + pcExpl0(concept);
 }
 function explainerFor(concept){

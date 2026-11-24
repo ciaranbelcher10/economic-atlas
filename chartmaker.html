@@ -3462,7 +3462,7 @@ function removeSeries(id){
 // What the series actually shows: "Adjust for inflation" turns a GDP level series into real GDP, so it is
 // named that, and a series drawn in dollars says so, the way the Dashboard marks converted figures.
 function displayMetric(s){ return s.realView ? "gdp_real" : s.metric; }
-function defaultSeriesLabel(s){ return s.country + ", " + conceptLabelFor(s.country, displayMetric(s)) + (s.inUSD ? " (USD)" : ""); }
+function defaultSeriesLabel(s){ return s.country + ", " + conceptLabelFor(s.country, displayMetric(s)) + (s.inUSD ? " (USD)" : (s.display && s.display.ppp && !s.display.pppNo) ? " (PPP)" : ""); }
 function seriesLabel(s){ return s.customLabel || defaultSeriesLabel(s); }
 // Colour logic, per your brief:
 // - Comparing the SAME metric across MULTIPLE countries -> each series
@@ -6136,7 +6136,7 @@ function renderThumb(container, item){
       var d = computeDisplay(ss.country, ss.metric, sd.unit, sd.points.map(function(p){ return {x:p[0], y:p[1]}; }), !!snap.real, thumbDollar, !!snap.percap, !!snap.ppp);
       units[d.unit] = true;
       var pts = applyTransform(d.pts, ss.transform || "raw");
-      return { country: ss.country + ", " + (conceptLabelFor(ss.country, d.realView ? "gdp_real" : ss.metric) || ss.metric) + (d.inUSD ? " (USD)" : ""), color: ss.color || SWATCH_PALETTE[0], points: pts.map(function(p){ return [p.x, p.y]; }) };
+      return { country: ss.country + ", " + (conceptLabelFor(ss.country, d.realView ? "gdp_real" : ss.metric) || ss.metric) + (d.inUSD ? " (USD)" : (d.ppp && !d.pppNo) ? " (PPP)" : ""), color: ss.color || SWATCH_PALETTE[0], points: pts.map(function(p){ return [p.x, p.y]; }) };
     }).filter(Boolean);
     if(!thumbSeries.length) return;
     var unitKeys = Object.keys(units);
