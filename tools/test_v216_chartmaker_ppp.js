@@ -44,6 +44,7 @@ const ok = (c, m) => { checks++; if(!c){ failures++; console.log("  FAIL  " + m)
   ok(!/market exchange rates, not purchasing power parity/.test(note), "no market-rate line while PPP is on");
   ok(run("currencyAxisTitle()") === "International dollars (PPP)", "axis named international dollars, not the home currency: " + run("currencyAxisTitle()"));
   ok(/\(PPP\)$/.test(run(`defaultSeriesLabel(series[0])`)) && /\(PPP\)/.test(run("buildChartCSV()").split("\n")[0]), "legend and CSV header say PPP: " + run("buildChartCSV()").split("\n")[0]);
+  ok([...d.querySelectorAll("input,.series-name,label")].some(e => /UK, GDP level \(PPP\)/.test(e.value || e.textContent || "")), "series panel says PPP");
   usd.click();
   ok(run("TOGGLE_STATE.ppp") === false && ppp.getAttribute("aria-pressed") === "false", "Convert to USD$ turns PPP off");
   ppp.click();

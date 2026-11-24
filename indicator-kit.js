@@ -45,6 +45,7 @@
                    ARS: "AR$", CLP: "CLP$", COP: "COL$", MYR:"RM", NZD:"NZ$", PHP:"\u20b1", TWD:"NT$", VND:"\u20ab", NGN:"\u20a6", EGP:"E\u00a3", PEN:"S/", HKD:"HK$", PKR:"Rs"};
   function symbolOf(u, key, country, dollarised){
     var c = cleanUnit(u);
+    if(/^Int\$/.test(c)) return "Int$";   // v2.0.19: international dollars (PPP)
     var m = c.match(/^[^a-zA-Z0-9]+/);
     var sym = m ? m[0] : "";
     if(!m){
@@ -267,13 +268,28 @@
   /* ------------------------------------------------------------------ */
   function initIndicator(cfg){
     var state = {rawNominal: cfg.rawPoints || null, nominal: cfg.points, real: cfg.realPoints || null, fx: cfg.fx || null,
-                 real_on: false, dollar_on: false, pc_on: false, range: "max"};
+                 real_on: false, dollar_on: false, pc_on: false, ppp_on: false, ppp: cfg.ppp || null, range: "max"};
     var chart = null;
 
     function current(){
       var pts = state.real_on && state.real ? state.real : state.nominal;
       var unit = state.real_on && state.real ? (cfg.realUnit || cfg.unit) : cfg.unit;
-      var dollarised = false;
+      var dollarised = false, pppNote = null;
+      // v2.0.19 Convert to PPP (ppp.js, the same rule as every other surface): nominal GDP at each year's
+      // factor; real GDP at its price base year's factor, so growth is unchanged. Never with Convert to USD$.
+      if(state.ppp_on && state.ppp && window.EA_PPP){
+        var isRealP = !!(state.real_on && state.real) || cfg.key === "gdp_real";
+        var xy = pts.map(function(p){ return {x: p[0], y: p[1]}; });
+        var pr = isRealP ? window.EA_PPP.convertReal(xy, unit, state.ppp, cfg.pppRealAnchor) : window.EA_PPP.convert(xy, unit, state.ppp);
+        if(pr.ok && pr.pts.length){
+          pts = pr.pts.map(function(p){ return [p.x, p.y]; });
+          unit = cfg.key === "gdp_per_capita" ? "Int$" : pr.unit.replace(/\s*\(.*\)\s*$/, "");
+          dollarised = true;
+          pppNote = window.EA_PPP.note(pr, window.EA_PPP.latestYear(state.ppp)).replace(/ at current prices/g, "");
+        } else {
+          pppNote = "PPP is not available for " + (isRealP ? "real GDP here (no PPP conversion factor for its price base year)" : "this figure") + "; shown as published.";
+        }
+      }
       var pcUsdYear = !!(state.pc_on && cfg.population && window.EA_PC && cfg.annualise && cfg.key === "gdp_level" &&
                          !(state.real_on && state.real) && state.dollar_on && state.fx);
       if(state.dollar_on && state.fx && !pcUsdYear){
@@ -304,7 +320,7 @@
         unit = r.unit;
         pcNote = window.EA_PC.note(r.droppedYears, window.EA_PC.latestYear(cfg.population), false);
       }
-      return {pts: pts, unit: unit, dollarised: dollarised, pcNote: pcNote};
+      return {pts: pts, unit: unit, dollarised: dollarised, pcNote: pcNote, pppNote: pppNote};
     }
     function calendarYears(pts, raw){
       var q = pts.filter(function(p){ return /^\d{4}-Q[1-4]$/.test(p[0]); });
@@ -374,6 +390,8 @@
       var c = current(), pts = c.pts;
       var pcn = document.getElementById("indPcNote");
       if(pcn){ pcn.hidden = !c.pcNote; pcn.textContent = c.pcNote || ""; }
+      var pppn = document.getElementById("indPppNote");
+      if(pppn){ pppn.hidden = !c.pppNote; pppn.textContent = c.pppNote || ""; }
       if(!pts || pts.length < 2) return;
       var last = pts[pts.length-1], prev = pts[pts.length-2];
       var fig = document.getElementById("indFigure");
@@ -413,7 +431,7 @@
       if(!box) return;
       box.innerHTML = '<a class="lockedbtn dl-btn" href="../contact" data-tip="Create a free account to unlock this feature."><span class="lockicon">&#128274;</span> Download data</a>'
         + '<a class="lockedbtn cz-btn" href="../contact" data-tip="Create a free account to unlock this feature."><span class="lockicon">&#128274;</span> Customise &amp; export</a>';
-      var title = cfg.title + (state.real_on && state.real ? " (real)" : "") + (dollarised ? " (US$)" : "") + (state.pc_on && cfg.population ? " per person" : "");
+      var title = cfg.title + (state.real_on && state.real ? " (real)" : "") + (state.ppp_on && state.ppp ? " (PPP)" : dollarised ? " (US$)" : "") + (state.pc_on && cfg.population ? " per person" : "");
       var fmtY = function(v){ return fmtNum(v, fo(unit, dollarised, "axis")); };
       var dl = box.querySelector(".dl-btn"), cz = box.querySelector(".cz-btn");
       if(window.EATLAS_DOWNLOAD) window.EATLAS_DOWNLOAD.wire(dl, pts, title);
@@ -431,11 +449,18 @@
     // v1.9.66: on phones a long history opens on 10 years, so the bars are readable; Max is one tap away
     var b10 = document.querySelector('[data-range="10"]');
     if(b10 && window.matchMedia && window.matchMedia("(max-width: 700px)").matches) b10.click();
-    [["indToggleReal", "real_on"], ["indToggleDollar", "dollar_on"], ["indTogglePc", "pc_on"]].forEach(function(t){
+    [["indToggleReal", "real_on"], ["indToggleDollar", "dollar_on"], ["indTogglePpp", "ppp_on"], ["indTogglePc", "pc_on"]].forEach(function(t){
       var b = document.getElementById(t[0]);
       if(!b) return;
       b.addEventListener("click", function(){
         state[t[1]] = !state[t[1]];
+        // v2.0.19: Convert to USD$ and Convert to PPP are never on together
+        var other = t[1] === "dollar_on" ? ["ppp_on", "indTogglePpp"] : t[1] === "ppp_on" ? ["dollar_on", "indToggleDollar"] : null;
+        if(other && state[t[1]] && state[other[0]]){
+          state[other[0]] = false;
+          var ob = document.getElementById(other[1]);
+          if(ob){ ob.classList.remove("on"); ob.setAttribute("aria-pressed", "false"); }
+        }
         b.classList.toggle("on", state[t[1]]);
         b.setAttribute("aria-pressed", state[t[1]] ? "true" : "false");
         paint();
@@ -450,6 +475,7 @@
       if(!s || !s.points) return;
       var pts = s.points.filter(function(p){ return p && p[1] != null; });
       state.rawNominal = pts.slice();
+      if(d.series && d.series.ppp && d.series.ppp.points && state.ppp) state.ppp = d.series.ppp.points;   // v2.0.19
       if(cfg.annualise) pts = annualise(pts, s.freq, cfg.gdpRaw);
       if(pts.length < 2) return;
       state.nominal = pts;

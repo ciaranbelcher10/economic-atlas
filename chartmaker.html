@@ -1524,6 +1524,9 @@ body:not(.cm-m) #cmMobileGate{display:none;}
 .cmx-group .cm-row span{font-size:12.5px;}
 @media (max-width:1100px){ .cmx-grid{grid-template-columns:1fr;} .cmx-groups{grid-template-columns:1fr 1fr;} }
 @media (max-width:620px){ .cmx-groups{grid-template-columns:1fr;} #cmSortModeRow{margin-left:0;} .cmx-chart{padding:14px;} }
+/* v2.0.19: a long series name ends in an ellipsis instead of being cut mid-word; the full name is in its tooltip */
+.main-edit{text-overflow:ellipsis; white-space:nowrap; overflow:hidden; min-width:0;}
+.main-edit:focus{text-overflow:clip;}
 </style>
 <div class="wrap cm-wrap" role="main">
 <div class="cmx-head">
@@ -3644,7 +3647,7 @@ function renderSeriesList(){
     var main = document.createElement("input");
     main.type = "text"; main.className = "main-edit"; main.maxLength = 60;
     main.value = seriesLabel(s);
-    main.title = "Click to rename this metric's title";
+    main.title = seriesLabel(s) + " (click to rename)";   // v2.0.19: the full name on hover, as long names end in an ellipsis
     main.addEventListener("input", function(){
       s.customLabel = main.value.trim() || null;
       renderColorsPanel(); renderChart();

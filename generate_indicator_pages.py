@@ -69,8 +69,10 @@ def creator_for(source_text):
         if re.search(r"(?<![A-Za-z])" + re.escape(key) + r"(?![A-Za-z])", s):
             return {"@type": "Organization", "name": name}
     return CREATOR
-KIT_VERSION = "17"
+KIT_VERSION = "18"
 PERCAPITA_VERSION = "6"
+PPP_VERSION = "1"   # v2.0.19: ppp.js on GDP-family indicator pages
+PPP_ELIGIBLE = {"gdp_level", "gdp_real", "gdp_per_capita"}   # must match ppp.js ELIGIBLE
 # v1.9.123: must match percapita.js ELIGIBLE
 PC_ELIGIBLE = {"gdp_level", "gdp_real", "exports", "imports", "trade_balance", "net_debt", "debt_interest", "deficit"}
 
@@ -1867,10 +1869,28 @@ def render_indicator(country, info, entry, rank_info, all_rankings_meta, n_indic
                 toggles_html = '<div class="ind-toggles" aria-label="Display options">' + pc_btn + "</div>"
             toggles_html += '<p class="ind-pc-note" id="indPcNote" style="margin:-6px 0 14px;font-size:13px;color:var(--ink2,#5A6167)" hidden></p>'
 
+    # v2.0.19 Convert to PPP: the GDP family only (ppp.js), where merge_population.py wrote a checked
+    # "ppp" series. Joined to Convert to USD$ as one pill; the two are never on together.
+    ppp_pts, ppp_anchor = None, None
+    ppp_s = info["data"].get("series", {}).get("ppp") or {}
+    if key in PPP_ELIGIBLE and ppp_s.get("points"):
+        ppp_pts = [[str(y), v] for y, v in ppp_s["points"] if v]
+        ppp_anchor = (ppp_s.get("real_anchor") or {}).get("gdp_real") or None
+        ppp_btn = ('<button type="button" class="mtoggle" id="indTogglePpp" aria-pressed="false">'
+                   '<span class="mtoggle-switch" aria-hidden="true"></span>Convert to PPP</button>')
+        dollar_btn_re = re.compile(r'(<button type="button" class="mtoggle" id="indToggleDollar".*?</button>)')
+        if toggles_html and dollar_btn_re.search(toggles_html):
+            toggles_html = dollar_btn_re.sub(lambda mm: '<span class="mtoggle-pair">' + mm.group(1) + ppp_btn + '</span>', toggles_html, count=1)
+        elif toggles_html:
+            toggles_html = toggles_html.replace('<div class="ind-toggles" aria-label="Display options">', '<div class="ind-toggles" aria-label="Display options">' + ppp_btn, 1)
+        else:
+            toggles_html = '<div class="ind-toggles" aria-label="Display options">' + ppp_btn + "</div>"
+        toggles_html += '<p class="ind-pc-note" id="indPppNote" style="margin:-6px 0 14px;font-size:13px;color:var(--ink2,#5A6167)" hidden></p>'
+
     cfg = dict(key=key, country=country, unit=unit, freq=freq, upIsGood=entry["up"], chart=m["chart"],
                annualise=bool(m.get("ann")), gdpRaw=country in GDP_RAW_COUNTRIES, dataUrl=f"../{(info['data'].get('_bond_daily_file') if key == 'bond_yield_10y' and info['data'].get('_bond_daily_file') else data_file)}",
                points=pts, realPoints=real_pts, realUnit=real_unit, realKey=("gdp_real" if real_pts else None), realAnchor=real_anchor, fx=fx,
-               population=pc_pop)
+               population=pc_pop, ppp=ppp_pts, pppRealAnchor=ppp_anchor)
     # v1.9.131: raw quarters, so US$ converts each quarter at its own rate before the four-quarter sum
     if fx and m.get("ann") and country not in GDP_RAW_COUNTRIES:
         cfg["rawPoints"] = [[str(a), b] for a, b in (info["data"]["series"].get(key) or {}).get("points", []) if b is not None]
@@ -2021,6 +2041,8 @@ def render_indicator(country, info, entry, rank_info, all_rankings_meta, n_indic
     boot = f"<script>EATLAS_IND.initIndicator({json.dumps(cfg, ensure_ascii=False)});</script>"
     if pc_pop:
         boot = f'<script src="../percapita.js?v={PERCAPITA_VERSION}"></script>\n' + boot
+    if ppp_pts:
+        boot = f'<script src="../ppp.js?v={PPP_VERSION}"></script>\n' + boot
     html_out += page_tail(boot + "\n" + cz_script, cz_modal)
     return page_slug, html_out
 
