@@ -451,16 +451,26 @@
           wrap.appendChild(pill);
         }
       }
+      // v2.0.12: any touch on the map (a tap, or a finger starting to scroll) opens it at once; the
+      // tap that opened it never opens a country by accident. Any touch elsewhere on the page closes it,
+      // smoothly while it is on screen.
+      var openMap = function(){
+        if(wrap.classList.contains("mm-expanded")) return;
+        wrap._mmOpenedAt = Date.now();
+        animateMap(wrap, function(){ wrap.classList.add("mm-expanded"); });
+      };
+      wrap.addEventListener("pointerdown", openMap, {passive: true});
+      wrap.addEventListener("touchstart", openMap, {passive: true});
       wrap.addEventListener("click", function(e){
-        if(!wrap.classList.contains("mm-expanded")){
+        if(!wrap.classList.contains("mm-expanded")){ openMap(); }
+        if(wrap._mmOpenedAt && Date.now() - wrap._mmOpenedAt < 700){
           e.preventDefault();
           e.stopPropagation();
-          animateMap(wrap, function(){ wrap.classList.add("mm-expanded"); });
         }
       }, true);
-      document.addEventListener("click", function(e){
-        if(!wrap.contains(e.target)) shrinkMap(wrap, true);
-      }, true);
+      var closeIfOutside = function(e){ if(!wrap.contains(e.target)) shrinkMap(wrap, true); };
+      document.addEventListener("pointerdown", closeIfOutside, {capture: true, passive: true});
+      document.addEventListener("touchstart", closeIfOutside, {capture: true, passive: true});
       if("IntersectionObserver" in window){
         new IntersectionObserver(function(entries){
           entries.forEach(function(en){ if(!en.isIntersecting) shrinkMap(wrap, false); });
