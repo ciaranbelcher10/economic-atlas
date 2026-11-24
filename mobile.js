@@ -397,23 +397,27 @@
      v1.9.130: smooth. The card animates its real height (measured), not a 1200px max-height cap, so
      enlarging and shrinking are one even 0.3s motion each way; reduced-motion readers get no
      animation. Shrinking off screen stays instant, where nobody can see it. */
-  var MAP_EASE = "max-height .3s cubic-bezier(.2,.8,.2,1)";
+  var MAP_EASE = "max-height .35s cubic-bezier(.25,.8,.25,1)";
   function mapStill(){ return !!(window.matchMedia && window.matchMedia("(prefers-reduced-motion: reduce)").matches); }
+  // v2.0.11: the heights are set as !important inline styles. The country pages' collapsed card has a
+  // max-height:130px !important rule (mobile.css), which beat the plain inline height, so shrinking
+  // snapped shut instead of animating; an !important inline style outranks it.
+  function setMH(wrap, v){ if(v) wrap.style.setProperty("max-height", v, "important"); else wrap.style.removeProperty("max-height"); }
   function settleMap(wrap){
     if(wrap._mmTimer){ clearTimeout(wrap._mmTimer); wrap._mmTimer = null; }
-    wrap.style.maxHeight = ""; wrap.style.transition = "";
+    setMH(wrap, ""); wrap.style.transition = "";
   }
   function animateMap(wrap, change){
     settleMap(wrap);
     var h0 = wrap.getBoundingClientRect().height;
     change();
-    wrap.style.maxHeight = "none";
+    setMH(wrap, "");   // v2.0.11: measure with the page's own cap (130px closed), not "none", or closing measured as no change and snapped
     var h1 = wrap.getBoundingClientRect().height;
     if(mapStill() || !(h0 > 0) || !(h1 > 0) || Math.abs(h1 - h0) < 2){ settleMap(wrap); return; }
-    wrap.style.maxHeight = h0 + "px";
+    setMH(wrap, h0 + "px");
     void wrap.offsetHeight;
     wrap.style.transition = MAP_EASE;
-    wrap.style.maxHeight = h1 + "px";
+    setMH(wrap, h1 + "px");
     var done = function(){ wrap.removeEventListener("transitionend", onEnd); settleMap(wrap); };
     var onEnd = function(e){ if(e.target === wrap && e.propertyName === "max-height") done(); };
     wrap.addEventListener("transitionend", onEnd);

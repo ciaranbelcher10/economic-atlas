@@ -432,7 +432,8 @@ html[data-theme="dark"] .ht-item{ color:#8FE3B0 !important; }
     background:linear-gradient(to bottom, transparent, var(--paper));
     pointer-events:none;
   }
-  .mini-mapwrap.mm-expanded::after{ display:none; }
+  .mini-mapwrap::after{ transition:opacity .25s ease; }
+  .mini-mapwrap.mm-expanded::after{ opacity:0; }   /* v2.0.11: fades rather than vanishing */
 
   /* v1.9.128: homepage map, same collapsed card as the country pages (mobile.js initMapCollapse) */
   .mapwrap.mm-collapsible{ max-height:190px; cursor:pointer; transition:none; }
@@ -450,9 +451,11 @@ html[data-theme="dark"] .ht-item{ color:#8FE3B0 !important; }
     background:linear-gradient(to bottom, transparent, var(--panel));
     pointer-events:none;
   }
-  .mapwrap.mm-collapsible.mm-expanded::after{ display:none; }
+  .mapwrap.mm-collapsible::after{ transition:opacity .25s ease; }
+  .mapwrap.mm-collapsible.mm-expanded::after{ opacity:0; }
   /* v1.9.129: no Collapse button; the card shrinks by itself (mobile.js shrinkMap) */
-  .mini-mapwrap.mm-expanded .minihint, .mapwrap.mm-collapsible.mm-expanded .minihint{ display:none; }
+  .mini-mapwrap .minihint, .mapwrap.mm-collapsible .minihint{ transition:opacity .2s ease; }
+  .mini-mapwrap.mm-expanded .minihint, .mapwrap.mm-collapsible.mm-expanded .minihint{ opacity:0; }   /* v2.0.11 */
 
 
   .infopop, .metric-info-popover, [class*="info-pop"]{
@@ -917,4 +920,22 @@ html[data-theme="dark"] .ht-item{ color:#8FE3B0 !important; }
   /* v1.9.126: the smallest phones (320 to 360px) keep both first-row labels inside their buttons */
   .metric-toggles .mtoggle, body.dash-m .metric-toggles .mtoggle{ font-size:12px !important; padding:0 6px !important; gap:5px !important; }
   .metric-toggles .mtoggle .mtoggle-switch{ transform:scale(.85); margin:0 -3px; }
+}
+
+/* v2.0.11: the three switches (Convert to USD$, Adjust for inflation, Per capita) share one compact row
+   on phones instead of two full-width rows: smaller switch, label on up to two lines */
+@media (max-width:760px){
+  .metric-toggles{ flex-wrap:wrap !important; gap:6px !important; }
+  .metric-toggles .mtoggle, body.dash-m .metric-toggles .mtoggle{ flex:1 1 0 !important; min-width:0 !important;
+    min-height:42px !important; padding:5px 8px !important; gap:6px !important; font-size:12px !important;
+    line-height:1.15 !important; white-space:normal !important; text-align:left !important; justify-content:flex-start !important; }
+  .metric-toggles .mtoggle .mtoggle-switch{ flex:none; transform:scale(.8); margin:0 -3px; }
+  body.dash-m .metric-toggles .dash-d-info{ flex:none !important; width:30px !important; height:30px !important; min-width:30px !important; padding:0 !important; }
+  body.dash-m .metric-toggles{ gap:5px !important; }
+  body.dash-m .metric-toggles .mtoggle{ padding:5px 6px !important; gap:4px !important; font-size:11.5px !important; }
+  body.dash-m .metric-toggles .mtoggle .mtoggle-switch{ transform:scale(.72); margin:0 -5px; }
+}
+@media (max-width:360px){
+  .metric-toggles .mtoggle, body.dash-m .metric-toggles .mtoggle{ font-size:11px !important; padding:4px 6px !important; gap:4px !important; }
+  .metric-toggles .mtoggle .mtoggle-switch{ transform:scale(.72); margin:0 -5px; }
 }
