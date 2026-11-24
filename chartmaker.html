@@ -3959,7 +3959,7 @@ document.getElementById("cmChartTitle").addEventListener("input", function(e){ s
 var yAxisTitleTouched = false;
 var UNIT_AXIS_LABEL = { "%": "%", pp: "Percentage points", index: "Index" };
 var CURRENCY_NAME = {
-  USD:"US dollars", GBP:"Pounds sterling", EUR:"Euros", JPY:"Japanese yen", INR:"Indian rupees", CAD:"Canadian dollars",
+  INT:"International dollars (PPP)", USD:"US dollars", GBP:"Pounds sterling", EUR:"Euros", JPY:"Japanese yen", INR:"Indian rupees", CAD:"Canadian dollars",
   AUD:"Australian dollars", KRW:"South Korean won", ILS:"Israeli shekels", MXN:"Mexican pesos", BRL:"Brazilian reais",
   ZAR:"South African rand", MAD:"Moroccan dirhams", DKK:"Danish kroner", NOK:"Norwegian kroner", CLP:"Chilean pesos",
   COP:"Colombian pesos", TRY:"Turkish lira", IDR:"Indonesian rupiah", PLN:"Polish zloty", CHF:"Swiss francs",
@@ -3977,7 +3977,8 @@ function currencyAxisTitle(){
     if(!isCurrencySeries(s)) return;
     any = true;
     // By the unit actually drawn: a series already in US dollars puts the axis in dollars.
-    codes[(s.inUSD || isAlreadyUSDUnit(s.unit, s.country, s.metric)) ? "USD" : (COUNTRY_CURRENCY[s.country] || "?")] = true;
+    var isPPP = !!(s.display && s.display.ppp && !s.display.pppNo);   // v2.0.16
+    codes[isPPP ? "INT" : (s.inUSD || isAlreadyUSDUnit(s.unit, s.country, s.metric)) ? "USD" : (COUNTRY_CURRENCY[s.country] || "?")] = true;
   });
   var keys = Object.keys(codes);
   return (any && keys.length === 1 && CURRENCY_NAME[keys[0]]) || "";
@@ -3989,7 +3990,7 @@ function nativeSymbolOverride(){
   var sym = null, ok = true;
   series.forEach(function(s){
     if(!isCurrencySeries(s)) return;
-    var o = s.inUSD ? null : NATIVE_DOLLAR_SYMBOL[s.country];
+    var o = (s.inUSD || (s.display && s.display.ppp && !s.display.pppNo)) ? null : NATIVE_DOLLAR_SYMBOL[s.country];
     if(!o){ ok = false; return; }
     if(sym === null) sym = o; else if(sym !== o) ok = false;
   });

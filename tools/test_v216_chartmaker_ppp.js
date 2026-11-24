@@ -42,6 +42,7 @@ const ok = (c, m) => { checks++; if(!c){ failures++; console.log("  FAIL  " + m)
   const note = d.getElementById("mtoggleNote").textContent;
   ok(/PPP: each value converted at that year/.test(note) && /2025/.test(note), "note explains PPP and names 2025: " + note.slice(0, 200));
   ok(!/market exchange rates, not purchasing power parity/.test(note), "no market-rate line while PPP is on");
+  ok(run("currencyAxisTitle()") === "International dollars (PPP)", "axis named international dollars, not the home currency: " + run("currencyAxisTitle()"));
   usd.click();
   ok(run("TOGGLE_STATE.ppp") === false && ppp.getAttribute("aria-pressed") === "false", "Convert to USD$ turns PPP off");
   ppp.click();

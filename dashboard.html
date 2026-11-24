@@ -4260,7 +4260,9 @@ try { pppMode = localStorage.getItem(PPP_KEY) === "1" && !dollarise; } catch(e){
 function pppFactorFor(country, key, period){
   var k = key === "gdp_real_annual" ? "gdp_real" : key;
   if(!pppMode || !window.EA_PPP || !EA_PPP.eligible(k)) return undefined;
-  var pp = REGISTRY[country] && REGISTRY[country].ppp, idx = EA_PPP.factorIndex(pp && pp.points);
+  var pp = REGISTRY[country] && REGISTRY[country].ppp;
+  if(!pp || !pp.points || !pp.points.length) return undefined;   // not offered (e.g. euro area): shown as published
+  var idx = EA_PPP.factorIndex(pp.points);
   if(k === "gdp_real"){
     var rs = REGISTRY[country] && (REGISTRY[country][key] || REGISTRY[country].gdp_real);
     var ra = (pp && pp.real_anchor) || {}, a = ra[key] || ra.gdp_real || (rs && rs.usd_anchor);   // merge_population's PPP price year
@@ -4863,7 +4865,7 @@ function renderDash(){
       + "<button type=\"button\" class=\"collapsebtn\" aria-label=\"Hide chart\" title=\"Hide chart\">&#8722;</button>"
       + "<button type=\"button\" class=\"draghandle\" aria-label=\"Drag to reorder\" title=\"Drag to reorder\">&#10495;</button>"
       + "<p class=\"country\">" + m.country + "</p>"
-      + "<div class=\"tile-label-row\" style=\"display:flex; align-items:center; gap:2px;\"><p class=\"label\" style=\"margin:0;\">" + m.series.label + (pppConverted ? " (PPP)" : actuallyConverted ? " (USD)" : "") + "</p>" + infoIconHtml(m.country, m.dataKey || m.key) + "</div>"
+      + "<div class=\"tile-label-row\" style=\"display:flex; align-items:center; gap:2px;\"><p class=\"label\" style=\"margin:0;\">" + m.series.label + (pppConverted ? " (PPP)" : actuallyConverted ? " (USD)" : (pppMode && window.EA_PPP && EA_PPP.eligible((m.dataKey || m.key) === "gdp_real_annual" ? "gdp_real" : (m.dataKey || m.key)) ? " (PPP not available)" : "")) + "</p>" + infoIconHtml(m.country, m.dataKey || m.key) + "</div>"
       + "<p class=\"value\"><span class=\"led " + led + "\" title=\"" + ledTitle + "\" role=\"img\" aria-label=\"" + ledTitle + "\"></span>" + fmtVal(disp.value, disp.unit, m.key, m.country) + "</p>"
       + "<p class=\"period\">" + (pcPeriod ? fmtPeriod(pcPeriod) + " \u00b7 per person, " + String(pcPeriod).slice(0, 4) + " population" : fmtPeriod(m.period)) + "</p>"
       + "<div class=\"chartactions\">"
