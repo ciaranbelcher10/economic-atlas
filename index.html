@@ -2324,7 +2324,7 @@
  <p class="home-mapcap">All 62 economies. Tap or click a coloured country to open its data.</p>
  <svg id="map" viewBox="0 0 960 500" role="img" aria-label="World map. Economies across Europe, the Americas, Asia, Africa and the Middle East are highlighted; selecting one opens its economy page."></svg>
  <div id="maptip" aria-hidden="true"></div>
- <span class="zoomhint">Scroll or pinch to zoom</span>
+ <span class="zoomhint">Ctrl + scroll or pinch to zoom</span>
  <p id="maperr">The map couldn't load. Use the country search above.</p>
  <div class="legend">
  <span><span class="swatch" style="background:var(--mako-4)"></span>G7 economy (live)</span>
@@ -2379,6 +2379,43 @@
 </div>
 <script src="https://cdnjs.cloudflare.com/ajax/libs/d3/7.8.5/d3.min.js"></script>
 <script src="https://cdnjs.cloudflare.com/ajax/libs/topojson/3.0.2/topojson.min.js"></script>
+<script>
+/* v2.0.21 wheel */
+/* A plain mouse wheel scrolls the page. Ctrl or Command + wheel zooms the map (a trackpad pinch arrives as
+   Ctrl + wheel). d3's own default filter is kept for everything else. */
+function eaWheelFilter(e){
+  if(e.type === "wheel" && !e.ctrlKey && !e.metaKey){ eaWheelNudge(this); return false; }
+  return (!e.ctrlKey || e.type === "wheel") && !e.button;
+}
+var eaWheelTimer = null;
+function eaWheelNudge(svg){
+  var box = svg && svg.parentNode;
+  if(!box) return;
+  var h = box.querySelector(".ea-wheelhint");
+  if(!h){
+    h = document.createElement("div");
+    h.className = "ea-wheelhint";
+    h.setAttribute("aria-hidden", "true");
+    h.textContent = (/Mac|iPhone|iPad/.test(navigator.platform) ? "\u2318" : "Ctrl") + " + scroll to zoom the map";
+    h.style.cssText = "position:absolute;left:50%;top:50%;transform:translate(-50%,-50%);background:rgba(20,33,52,.85);"
+      + "color:#fff;font-size:13px;line-height:1.3;padding:8px 14px;border-radius:8px;pointer-events:none;"
+      + "white-space:nowrap;opacity:0;transition:opacity .2s;z-index:6;";
+    if(getComputedStyle(box).position === "static") box.style.position = "relative";
+    box.appendChild(h);
+  }
+  h.style.opacity = "1";
+  clearTimeout(eaWheelTimer);
+  eaWheelTimer = setTimeout(function(){ h.style.opacity = "0"; }, 1400);
+}
+(function(){
+  function label(){
+    var t = matchMedia("(hover: none)").matches ? "Pinch to zoom"
+          : (/Mac/.test(navigator.platform) ? "\u2318" : "Ctrl") + " + scroll or pinch to zoom";
+    document.querySelectorAll(".zoomhint").forEach(function(el){ el.textContent = t; });
+  }
+  if(document.readyState === "loading") document.addEventListener("DOMContentLoaded", label); else label();
+})();
+</script>
 <script>
 "use strict";
 /* ISO 3166-1 numeric ids in the world-atlas file */
@@ -2514,7 +2551,7 @@ fetch("https://cdn.jsdelivr.net/npm/world-atlas@2/countries-110m.json")
         tip.style.display = "block";
       })
       .on("mouseleave", () => { tip.style.display = "none"; });
-    const zoom = d3.zoom()
+    const zoom = d3.zoom().filter(eaWheelFilter)
       .scaleExtent([1, 8])
       .translateExtent([[0, 0], [960, 500]])
       .on("zoom", (e) => { g.attr("transform", e.transform); });
