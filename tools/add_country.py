@@ -31,6 +31,7 @@ ROOT = Path(__file__).resolve().parent.parent
 REGIONS = ("Europe", "Scandinavia", "North America", "South America", "Asia", "Oceania", "Middle East", "Africa")
 CHANGES: list[str] = []
 CHECK_ONLY = "--check" in sys.argv
+NEWLY_ADDED = False   # set when this run adds the country to COUNTRIES: only then do the counts move
 
 
 def die(msg):
@@ -107,7 +108,9 @@ def step_generator(s):
     rel = "generate_indicator_pages.py"
     t = rd(rel)
     new = t
+    global NEWLY_ADDED
     if f'"{s["name"]}":' not in t.split("COUNTRIES", 1)[1][:4000]:
+        NEWLY_ADDED = True
         m = re.search(r"COUNTRIES\s*=\s*\{\n", new)
         line = f'    "{s["name"]}":{" " * max(1, 14 - len(s["name"]))}("{s["code"]}", "{s["slug"]}", "{s["iso2"]}", "{s["region"]}"),\n'
         new = new[:m.end()] + line + new[m.end():]
@@ -197,9 +200,23 @@ def palette_pick(compare_text):
         t = lambda u: u ** (1 / 3) if u > 0.008856 else 7.787 * u + 16 / 116
         return (116 * t(Y) - 16, 500 * (t(X) - t(Y)), 200 * (t(Y) - t(Z)))
     free = [c for c in pal if c not in used]
-    if not free:
-        die("COMPARE_PALETTE has no unused colour left; add one")
-    return max(free, key=lambda c: min(math.dist(lab(c), lab(u)) for u in used))
+    if free:
+        return max(free, key=lambda c: min(math.dist(lab(c), lab(u)) for u in used))
+    # v2.0.20: all 62 palette colours were taken by the 62 countries. Generate the candidate furthest (CIELAB)
+    # from every palette colour, within the palette's band (mid saturation, mid lightness: readable lines
+    # on the cream background, never pale), and step_apps appends it to COMPARE_PALETTE.
+    import colorsys
+    cands = []
+    for h in range(0, 360, 4):
+        for sat in (0.5, 0.62, 0.74):
+            for li in (0.34, 0.42, 0.5):
+                r, g, b = colorsys.hls_to_rgb(h / 360, li, sat)
+                cands.append("#%02X%02X%02X" % (round(r * 255), round(g * 255), round(b * 255)))
+    # keep to the palette's own lightness band (CIELAB L 30-62: no pale lines on the cream page)
+    lo, hi = min(lab(c)[0] for c in pal), max(lab(c)[0] for c in pal)
+    cmax = max(math.hypot(*lab(c)[1:]) for c in pal)
+    cands = [c for c in cands if max(30, lo) <= lab(c)[0] <= min(62, hi) and math.hypot(*lab(c)[1:]) <= cmax * 0.9]
+    return max(cands, key=lambda c: min(math.dist(lab(c), lab(u)) for u in pal))
 
 
 def step_apps(s):
@@ -214,6 +231,9 @@ def step_apps(s):
     new = add_entry(new, "FILES", n, " " + q(s["datafile"]))
     new = add_entry(new, "COUNTRY_LABEL", n, q(n))
     new = add_entry(new, "COUNTRY_COLOR", n, q(color))
+    pa, pb = obj_span(new, "COMPARE_PALETTE")
+    if color not in new[pa:pb]:
+        new = new[:pb - 1] + f', "{color}"' + new[pb - 1:]   # a generated colour joins the swatch picker too
     new = add_entry(new, "ISO_OF", n, q(s["isonum"]))
     new = add_entry(new, "REGION_OF", n, q(s["region"]))
     new = group_insert(new, s)
@@ -413,18 +433,223 @@ def step_freshness(s):
 
 
 def step_counts(s):
+    """Every "N countries / economies" claim, sitewide (v2.0.20: 74 files carried the count; this step used
+    to fix two of them and invariants_gate.js failed the rest). Only the previous total is rewritten, using
+    the same claim pattern invariants_gate.js checks, so other numbers are never touched."""
+    if not NEWLY_ADDED:
+        return   # a repair run on a country already in the roster: the counts are already right
     sys.path.insert(0, str(ROOT))
     src = rd("generate_indicator_pages.py")
     n = len(re.findall(r'^    "[^"]+":\s*\("[a-z]{2}", "', src.split("COUNTRIES", 1)[1].split("\n}", 1)[0], re.M))
-    for rel, pats in (("index.html", [r"\b\d\d economies\b"]),
-                      ("compare.html", [r"across \d\d countries", r"for all \d\d countries", r"full \d\d-country roster"])):
+    n += CHECK_ONLY   # --check wrote nothing, so the file still has the old roster
+    old = n - 1
+    claim = re.compile(r"(?<![\d.,])" + str(old) + r"(\+?\s+(?:[a-z-]+\s+){0,2}(?:countries|economies|country pages|individual pages)\b|-country\b)", re.I)
+    files = [Path(p).name for p in glob.glob(str(ROOT / "*.html"))] + ["mobile.js", "chooser.js", "llms.txt"]
+    for rel in sorted(set(files)):
+        if not (ROOT / rel).exists():
+            continue
         t = rd(rel)
-        new = t
-        for p in pats:
-            new = re.sub(p, lambda m: re.sub(r"\d\d", str(n), m.group(0)), new)
-        wr(rel, t, new, f"country count -> {n}")
+        wr(rel, t, claim.sub(lambda m: str(n) + m.group(1), t), f"country count {old} -> {n}")
     t = rd("check_data_freshness.py")
     wr("check_data_freshness.py", t, re.sub(r"# All \d\d country data files", f"# All {n} country data files", t), "count comment")
+
+# ------------------------------------------------------------------ v2.0.20 surfaces
+# Everything below was added to the site after v1.7.4 and was wired by hand for every country since.
+# country_surfaces_gate.py checks each one. Spec fields used here (all optional unless noted):
+#   iso3        3-letter ISO code (needed for the outside-source verification list)
+#   groups      memberships among "G7", "G20", "OECD", "BRICS" (EU and euro area follow from euro_member/eu_member)
+#   eu_member   true for an EU state outside the euro
+#   the         true if the name takes "the" in running text ("the Philippines")
+#   agencies    [[text to find in citations, name shown]] for the national publishers, most specific first
+#   about_sources [{"name","url"}] for about.html; defaults to national_sources with any leading "the " dropped
+#   methodology_limit  one paragraph for methodology.html when the page is partial
+MEMBERSHIP = ("G7", "G20", "EU", "Euro area", "OECD", "BRICS")
+
+
+
+def memberships(s):
+    g = set(s.get("groups", []))
+    bad = g - set(MEMBERSHIP)
+    if bad:
+        die(f"spec groups {sorted(bad)} not among {MEMBERSHIP}")
+    if s.get("euro_member"):
+        g |= {"EU", "Euro area"}
+    if s.get("eu_member"):
+        g.add("EU")
+    return g
+
+
+def _add_to_named_list(text, open_re, name, close="]"):
+    """Add "name" to the quoted list that follows open_re, alphabetically, unless present."""
+    m = re.search(open_re, text)
+    if not m:
+        return text, False
+    j = text.index(close, m.end())
+    body = text[m.end():j]
+    items = re.findall(r'"([^"]+)"', body)
+    if name in items:
+        return text, True
+    items.append(name)
+    sep = ", " if '", "' in body else ","
+    items = sorted(items, key=str.lower) if items[:-1] == sorted(items[:-1], key=str.lower) else items
+    return text[:m.end()] + sep.join(json.dumps(x) for x in items) + text[j:], True
+
+
+def step_groups(s):
+    n, groups = s["name"], memberships(s)
+    for rel, fmt in (("chooser.js", r'\{{ ?name: "{g}", members: \['), ("compare.html", r'\{{ ?name: "{g}", members: \['),
+                     ("calendar.html", r'\{{ ?name: "{g}", members: \[')):
+        t = rd(rel)
+        new = t
+        for g in sorted(groups):
+            new, found = _add_to_named_list(new, fmt.format(g=re.escape(g)), n)
+            if not found and rel != "calendar.html":   # the calendar's picker has no euro-area group
+                die(f"{rel}: no {g} group")
+        wr(rel, t, new, "membership groups " + ",".join(sorted(groups)) if groups else "")
+    rel = "mobile.js"
+    t = rd(rel)
+    new = t
+    pres = {g for g in groups if g in ("G7", "G20", "EU")}
+    if s["region"] in ("Asia", "Oceania"):
+        pres.add("Asia-Pacific")
+    if s["region"] in ("North America", "South America"):
+        pres.add("Americas")
+    for g in sorted(pres):
+        new, found = _add_to_named_list(new, r'\{name:"' + re.escape(g) + r'", list:\[', n)
+        if not found:
+            die(f"mobile.js: no {g} preset")
+    # calendar chips: two-letter code
+    m = re.search(r'var CC = \{', new)
+    if m and f'"{n}":' not in new[m.end():new.index("};", m.end())]:
+        k = new.index("};", m.end())
+        new = new[:k] + f',"{n}":"{s["iso2"].upper()}"' + new[k:]
+    wr(rel, t, new, "CMP_PRESETS / calendar CC")
+
+
+def step_chooser_regions(s):
+    rel = "chooser.js"
+    t = rd(rel)
+    m = re.search(r'\{name: "' + re.escape(s["region"]) + r'", countries: \[([^\]]*)\]\}', t[slice(*obj_span(t, "REGIONS"))])
+    if not m:
+        die(f"chooser.js REGIONS has no {s['region']}")
+    a, _ = obj_span(t, "REGIONS")
+    if json.dumps(s["name"]) in m.group(1):
+        return
+    k = a + m.end(1)
+    wr(rel, t, t[:k] + ", " + json.dumps(s["name"]) + t[k:], "REGIONS")
+
+
+def step_index_catalog(s):
+    rel = "index.html"
+    t = rd(rel)
+    if f'"name": "{s["name"]} economic data"' in t:
+        return
+    m = re.search(r'\n  \}\n \]\n\}\n</script>', t)
+    if not m or '"@type": "DataCatalog"' not in t[:m.start()]:
+        die("index.html: DataCatalog dataset list not found")
+    url = f'https://theeconomicatlas.com/{s["slug"]}'
+    block = (',\n  {\n   "@type": "Dataset",\n   "name": ' + json.dumps(s["name"] + " economic data") + ',\n'
+             f'   "url": "{url}",\n   "spatialCoverage": {{\n    "@type": "Place",\n    "name": {json.dumps(s["name"])}\n   }},\n'
+             '   "isAccessibleForFree": true,\n   "distribution": {\n    "@type": "DataDownload",\n'
+             f'    "encodingFormat": "application/json",\n    "contentUrl": "https://theeconomicatlas.com/feeds/{s["slug"]}.json"\n   }}\n  }}')
+    k = m.start() + len("\n  }")
+    wr(rel, t, t[:k] + block + t[k:], "DataCatalog Dataset")
+
+
+def step_alert_slug(s):
+    rel = "send_calendar_alerts.py"
+    t = rd(rel)
+    m = re.search(r"COUNTRY_SLUGS = \{", t)
+    j = t.index("\n}", m.end())
+    if re.search(re.escape(json.dumps(s["name"])) + r"\s*:", t[m.end():j]):
+        return
+    wr(rel, t, t[:j] + f'\n    {json.dumps(s["name"])}: {json.dumps(s["slug"])},' + t[j:], "COUNTRY_SLUGS")
+
+
+def step_generator_text(s):
+    rel = "generate_indicator_pages.py"
+    t = rd(rel)
+    new = t
+    n = s["name"]
+    if s.get("the"):
+        for var in ("THE_COUNTRIES", "KF_THE"):
+            new = re.sub(r"(" + var + r" = \{[^}]*)\}", lambda m: m.group(0) if json.dumps(n) in m.group(1) else m.group(1) + ", " + json.dumps(n) + "}", new, count=1)
+    for key, shown in s.get("agencies", []):
+        entry = f"({json.dumps(key)}, {json.dumps(shown)})"
+        for var in ("AGENCIES", "KF_PUBLISHERS"):
+            m = re.search(var + r" = \[", new)
+            j = new.index("\n]", m.end())
+            if json.dumps(key) + "," in new[m.end():j]:
+                continue
+            # most specific first: national publishers go before the international ones (after the
+            # opening line, which may carry a comment)
+            eol = new.index("\n", m.end())
+            new = new[:eol] + "\n    " + entry + "," + new[eol:]
+    wr(rel, t, new, "THE / AGENCIES / KF_PUBLISHERS")
+
+
+def step_docs(s):
+    rel = "about.html"
+    t = rd(rel)
+    srcs = s.get("about_sources") or [{"name": re.sub(r"^the ", "", x["name"]), "url": x["url"]} for x in s.get("national_sources", [])]
+    if srcs and f"<dt>{s['name']}</dt>" not in t:
+        dd = ", ".join(f'<a href="{x["url"]}">{x["name"]}</a>' for x in srcs)
+        rows = list(re.finditer(r"<dt>([^<]+)</dt><dd>.*?</dd>\n", t))
+        if not rows:
+            die("about.html: sources list not found")
+        at = next((r.start() for r in rows if r.group(1).lower() > s["name"].lower()), rows[-1].end())
+        wr(rel, t, t[:at] + f"<dt>{s['name']}</dt><dd>{dd}</dd>\n" + t[at:], "national sources")
+    rel = "methodology.html"
+    t = rd(rel)
+    if s.get("methodology_limit") and f'id="limit-{s["slug"]}"' not in t:
+        last = list(re.finditer(r'<details class="doc-detail" id="limit-[a-z-]+">.*?</details>\n', t, re.S))
+        if not last:
+            die("methodology.html: no limit- sections")
+        k = last[-1].end()
+        blk = (f'<details class="doc-detail" id="limit-{s["slug"]}"><summary>{s["name"]}</summary>\n<p>\n '
+               + s["methodology_limit"] + "\n </p>\n</details>\n")
+        wr(rel, t, t[:k] + blk + t[k:], "limit section")
+
+
+def step_oecd_group(s):
+    fetch = ROOT / f"fetch_{s['code']}.py"
+    if not fetch.exists():
+        return
+    if not re.search(r"sdmx\.oecd\.org|oecd_[a-z]+|import oecd", fetch.read_text(encoding="utf-8")):
+        return   # no OECD calls: nothing to rotate
+    rel = "oecd_turn.py"
+    t = rd(rel)
+    sys.path.insert(0, str(ROOT))
+    import importlib
+    import oecd_turn
+    importlib.reload(oecd_turn)
+    if fetch.name in oecd_turn.GROUPS:
+        return
+    counts = {g: list(oecd_turn.GROUPS.values()).count(g) for g in oecd_turn.ORDER}
+    g = min(oecd_turn.ORDER, key=lambda x: (counts[x], x))
+    k = t.index("\n}\n", t.index("GROUPS = {")) + 1
+    wr(rel, t, t[:k] + f'    "{fetch.name}": "{g}",   # added by add_country.py: smallest group ({counts[g]})\n' + t[k:], f"OECD rotation group {g}")
+
+
+def step_sampledata_iso(s):
+    rel = "tools/sampledata_gate.js"
+    t = rd(rel)
+    m = re.search(r"const ISO = \{([^}]*)\};", t)
+    if not m or re.search(r"(?<![a-z])" + s["code"] + r":", m.group(1)):
+        return
+    wr(rel, t, t[:m.end(1)] + f",{s['code']}:{int(s['isonum'])}" + t[m.end(1):], "ISO (map home code check)")
+
+
+def step_verify_lists(s):
+    rel = "tools/probe_external_all.py"
+    t = rd(rel)
+    new = t
+    c = s["code"]
+    if s.get("iso3") and f'"{c}":"' not in new[new.index("ISO3 = {"):new.index("}", new.index("ISO3 = {"))]:
+        new = re.sub(r'(ISO3 = \{[^}]*)\}', lambda m: m.group(1) + f',"{c}":"{s["iso3"]}"}}', new, count=1)
+    if f'"{c}": ' not in new[new.index("CITE_NAME = {"):new.index("}", new.index("CITE_NAME = {"))]:
+        new = re.sub(r'(CITE_NAME = \{[^}]*)\}', lambda m: m.group(1) + f', "{c}": {json.dumps(s["name"])}}}', new, count=1)
+    wr(rel, t, new, "ISO3 / CITE_NAME (verify_all coverage)")
 
 
 def workflow_yaml(s):
@@ -440,10 +665,16 @@ def workflow_yaml(s):
         env:
           FRED_API_KEY: ${{{{ secrets.FRED_API_KEY }}}}
   2. In the commit step's explicit list:  git add {s['datafile']}
+  3. In the generated-pages commit step (the line listing every country page):  add {s['slug']}.html
+     (the generator injects key figures into it every hour; without this the change is never committed)
 ---- update-trade-data.yml ----
   1. A step running fetch_{c}_trade_partners.py (copy the fetch_cn_trade_partners step).
   2. In its commit step:  git add data-{c}-trade-partners.json 2>/dev/null || true
-"""
+""" + (f"""---- update-calendar.yml (fetch_calendar_{c}.py exists) ----
+  1. A step running fetch_calendar_{c}.py (copy the fetch_calendar_vn step).
+  2. calendar.html: add "data-calendar-{c}.json" to the file list and "{s['name']}" to COUNTRIES_WITH_DATA,
+     REGION_GROUPS and COUNTRY_COLOR (calendar surfaces are reviewed by eye).
+""" if (ROOT / f"fetch_calendar_{c}.py").exists() else "")
 
 
 def main():
@@ -463,6 +694,15 @@ def main():
     step_glyph(s)
     step_freshness(s)
     step_counts(s)
+    step_groups(s)
+    step_chooser_regions(s)
+    step_index_catalog(s)
+    step_alert_slug(s)
+    step_generator_text(s)
+    step_docs(s)
+    step_oecd_group(s)
+    step_verify_lists(s)
+    step_sampledata_iso(s)
     print(("WOULD CHANGE" if CHECK_ONLY else "CHANGED") + f" {len(CHANGES)} surface(s) for {s['name']}"
           + (f" (Compare colour {s['color']})" if s.get("color") else ""))
     for c in CHANGES:

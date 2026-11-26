@@ -26,6 +26,8 @@ CHECKS = 0
 # Pages with no country nav or no mini-map by design.
 # The Eurozone is an aggregate: no single map shape, so no ISO number or mini-map route.
 NO_MAP = {"Eurozone"}
+# Not a per-country fetcher: the daily bond run, scheduled before v2.0.20 without a rotation group.
+OECD_UNGROUPED_OK = {"fetch_bonds_daily.py"}
 NO_NAV = {"404.html", "gdp-by-country.html", "inflation-by-country.html", "unemployment-by-country.html"}
 
 
@@ -118,6 +120,72 @@ def main():
         check(n in fxc.COUNTRY_FX or n in fxc.EURO_MEMBERS, f"{n}: not in fx_config.COUNTRY_FX")
         check(n in cdf.DATA_FILES, f"{n}: not in check_data_freshness.DATA_FILES")
         check(n in sources, f"{n}: no data-metric-sources.json entry")
+
+
+    # ---- v2.0.20: surfaces added after v1.7.4 (wired by tools/add_country.py since v2.0.20) ----
+    idx = texts["index.html"]
+    chooser = page("chooser.js")
+    mobile = page("mobile.js")
+    cal = texts["calendar.html"]
+    alerts = page("send_calendar_alerts.py")
+    probe = page("tools/probe_external_all.py")
+    slugs = dict(re.findall(r'"([^"]+)": "([a-z-]+)"', alerts[alerts.index("COUNTRY_SLUGS = {"):alerts.index("\n}", alerts.index("COUNTRY_SLUGS = {"))]))
+    regions = obj(chooser, "REGIONS")
+    for n, c in countries.items():
+        check(f'"name": {json.dumps(g.PLACE_NAME.get(n, n) + " economic data")}' in idx, f"{n}: no Dataset in index.html's DataCatalog")
+        check(json.dumps(n) in regions, f"{n}: not in chooser.js REGIONS (Chartmaker/Dashboard region pickers)")
+        check(slugs.get(n) == c["slug"], f"{n}: send_calendar_alerts.COUNTRY_SLUGS gives {slugs.get(n)}, expected {c['slug']}")
+        check(re.search(r'"' + c["code"] + r'":\s*"', probe[probe.index("CITE_NAME = {"):]) is not None,
+              f"{n}: not in tools/probe_external_all.py CITE_NAME (verify_all would skip it)")
+    # membership groups agree across their four copies; euro members are in the euro area and the EU
+    def groups(text, rx):
+        return {m.group(1): set(re.findall(r'"([^"]+)"', m.group(2))) for m in re.finditer(rx, text)}
+    copies = {"chooser.js": groups(chooser, r'\{ ?name: "([^"]+)", members: \[([^\]]*)\]'),
+              "compare.html": groups(compare, r'\{ ?name: "([^"]+)", members: \[([^\]]*)\]'),
+              "calendar.html": groups(cal, r'\{ ?name: "([^"]+)", members: \[([^\]]*)\]'),
+              "mobile.js": groups(mobile, r'\{name:"([^"]+)", list:\[([^\]]*)\]')}
+    ref = copies["chooser.js"]
+    for f, gs in copies.items():
+        for grp, mem in gs.items():
+            if grp in ref and f != "chooser.js":
+                check(mem == ref[grp], f"{f} {grp} group differs from chooser.js: {sorted(mem ^ ref[grp])}")
+    for n in fxc.EURO_MEMBERS:
+        check(n in ref.get("Euro area", set()) and n in ref.get("EU", set()), f"{n}: euro member missing from chooser.js Euro area/EU groups")
+    # calendar: every economy with events is listed, coloured, chipped and loaded
+    cal_files = set(re.findall(r'"(data-calendar-[a-z-]+\.json)"', cal))
+    wd = obj(cal, "COUNTRIES_WITH_DATA") or cal[cal.index("COUNTRIES_WITH_DATA"):cal.index("];", cal.index("COUNTRIES_WITH_DATA"))]
+    cc = mobile[mobile.index("var CC = {"):mobile.index("};", mobile.index("var CC = {"))]
+    for f in sorted(glob.glob(str(ROOT / "data-calendar-*.json"))):
+        name = Path(f).name
+        check(name in cal_files, f"{name} exists but calendar.html does not load it")
+        try:
+            d = json.load(open(f, encoding="utf-8"))
+        except Exception:
+            continue
+        evs = d.get("events", d) if isinstance(d, dict) else d
+        for who in {e.get("country") for e in (evs if isinstance(evs, list) else []) if isinstance(e, dict) and e.get("country")}:
+            if who in countries:
+                check(json.dumps(who) in wd, f"{who}: has calendar events but is not in calendar.html COUNTRIES_WITH_DATA")
+                check(json.dumps(who) + ":" in cc, f"{who}: has calendar events but no mobile.js calendar chip code (CC)")
+    # workflows: every country is fetched and committed; every per-country fetcher runs
+    wf = {k: page(f".github/workflows/{k}.yml") for k in ("update-data", "update-trade-data", "update-calendar")}
+    for n, c in countries.items():
+        datafile = "data-uk.json" if c["code"] == "uk" else f"data-{c['code']}.json"
+        check(datafile in wf["update-data"], f"{n}: {datafile} is not in update-data.yml's commit list")
+        check(f"{c['slug']}.html" in wf["update-data"], f"{n}: {c['slug']}.html is not in update-data.yml's commit list (key figures would never be committed)")
+    for f in sorted(glob.glob(str(ROOT / "fetch_*.py"))):
+        f = Path(f).name
+        which = "update-trade-data" if f.endswith("_trade_partners.py") else "update-calendar" if f.startswith("fetch_calendar_") else "update-data"
+        if re.fullmatch(r"fetch_([a-z]{2}|[a-z]{2}_trade_partners|calendar_[a-z_]+)\.py", f):
+            check(f"python {f}" in wf[which], f"{f} is never run by {which}.yml")
+    # OECD rotation (v1.9.57): a fetcher that calls the OECD and has no group fetches every hour
+    import oecd_turn
+    for f in sorted(glob.glob(str(ROOT / "fetch_*.py"))):
+        f = Path(f).name
+        if f in OECD_UNGROUPED_OK:
+            continue
+        if re.search(r"sdmx\.oecd\.org|oecd_[a-z]+|import oecd", page(f)):
+            check(f in oecd_turn.GROUPS, f"{f} calls the OECD but has no oecd_turn.GROUPS entry (it would call every hour)")
 
     # counts in copy
     m = re.search(r"\b(\d\d) economies\b", texts["index.html"])

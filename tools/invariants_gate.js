@@ -67,6 +67,9 @@ for (const f of dataFiles) {
     ok(bad.length === 0, `${f} ${k}: ${bad.length} point(s) not a finite number, e.g. ${JSON.stringify(bad[0])}`);
     const u = s.unit || "";
     if (u === "%" || u === "index" || u === "" || u === "people") continue;   // v1.9.127: population is a count, not money
+    // v2.0.20: the PPP series (v2.0.16) is a conversion factor, local currency per international dollar,
+    // not an amount of money; its own checks are tools/test_v216_ppp*.{js,py}
+    if (k === "ppp" && u === "LCU per international $") continue;
     const c = currencyOf(u, code);
     ok(c !== null, `${f} ${k}: unit "${u}" names no currency this gate recognises`);
     if (c && c !== own && c !== "USD") {

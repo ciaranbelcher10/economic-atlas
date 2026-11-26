@@ -32,7 +32,9 @@ const UK_MODULES = {mpcLatest: "The MPC vote record", ageGrid: "The age breakdow
   reasonLegend: "The breakdown of reasons for inactivity", cofogSecnote: "The spending breakdown"};
 
 const pages = fs.readdirSync(ROOT).filter(f => /\.html$/.test(f) && /fetch\("data-[a-z]{2}\.json"/.test(read(f)));
-ok(pages.length === 62, `expected 62 country pages, found ${pages.length}`);
+// v2.0.20: one page per ISO entry plus the Eurozone (no map shape); add_country.py adds the ISO entry
+const EXPECTED = Object.keys(ISO).length + 1;
+ok(pages.length === EXPECTED, `expected ${EXPECTED} country pages, found ${pages.length}`);
 
 for (const p of pages) {
   const s = read(p);

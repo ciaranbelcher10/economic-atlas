@@ -31,13 +31,15 @@ import json, re, sys
 from pathlib import Path
 
 ROOT = Path(__file__).resolve().parent.parent
+sys.path.insert(0, str(Path(__file__).resolve().parent))
 TEMPLATE = "china.html"
 T_NAME, T_ADJ, T_SLUG, T_CODE, T_NUM, T_ISO2 = "China", "Chinese", "china", "cn", "156", "CN"
 
 # key: (chart section or None, chart title, chart kind, fmt, upIsGood, zero line, tile sections, tile label)
 CATALOG = {
-    "business_confidence": ("headline", "Business confidence", "line", "idx", True, 100, ["hero"], "Business confidence"),
-    "fdi": ("headline", "Foreign direct investment", "line", "pct", True, None, ["hero"], "FDI (net inflows)"),
+    # v2.0.20: FDI and business confidence live in Miscellaneous (v1.9.117), not the Headline.
+    "business_confidence": ("misc", "Business confidence", "line", "idx", True, 100, ["misc"], "Business confidence"),
+    "fdi": ("misc", "Foreign direct investment", "line", "pct", True, None, ["misc"], "FDI (net inflows)"),
     "gdp_level": ("gdp", "GDP", "line", "cur2", True, None, ["hero", "gdp"], "GDP (annual)"),
     "gdp_real": (None, None, None, None, None, None, [], None),   # served through "Make it real"
     "gdp_growth": ("gdp", "Real GDP growth, quarter on quarter", "bar", "pct", True, 0, ["gdp"], "Growth (QoQ)"),
@@ -64,7 +66,11 @@ CATALOG = {
     "deficit": ("public", "General government net lending/borrowing, % of GDP", "bar", "pct", True, 0, ["hero", "public"], "Gov. balance"),
 }
 HERO_ORDER = ["gdp_level", "gdp_growth_yoy", "cpi_national", "cpi", "POLICY", "bond_yield_10y", "unemployment",
-              "deficit", "debt_gdp", "business_confidence", "fdi"]
+              "deficit", "debt_gdp"]
+# v2.0.20: written by merge_population.py into every data file after the fetch (population, GDP per capita,
+# PPP factors). Not fetched, not cited per country: the page draws them with the generic blocks lifted from
+# the template below (v1.9.115 population, v1.9.116 per capita, v2.0.16 PPP).
+DERIVED = {"gdp_per_capita", "population", "ppp"}
 SECTION_ORDER = ["gdp_level", "gdp_growth", "gdp_growth_yoy", "cpi_national", "cpi", "cpi_mom", "cpi_qoq", "POLICY", "bond_yield_10y",
                  "unemployment", "employment", "participation", "employment_rate", "participation_rate", "trade_balance", "exports", "imports",
                  "current_account", "debt_gdp", "deficit", "business_confidence", "fdi"]
@@ -73,6 +79,7 @@ FMT = {"pct": ("pct", "pp"), "pct2": ('v=>v.toFixed(2)+"%"', 'v=>v.toFixed(2)+"p
 CHART_FMT = {"pct": ('v=>v+"%"', "pct"), "pct2": ('v=>v+"%"', 'v=>v.toFixed(2)+"%"'), "idx": ("idx", 'v=>idx(v)+" (avg = 100)"'),
              "cur1": ("v=>curFmt(v,UNIT,0)", "v=>curFmt(v,UNIT,1)"), "cur2": ("v=>curFmt(v,UNIT,2)", "v=>curFmt(v,UNIT,2)")}
 LEFTOVER = re.compile(r"\bChina\b|\bChinese\b|\byuan\b|\bCNY\b|data-cn|\"cn\"|Lunar|People's Bank|loan prime", re.I)
+KF_RE = re.compile(r"<!-- KEY-FIGURES:START.*?<!-- KEY-FIGURES:END -->\n?", re.S)   # generator-owned (v1.9.x)
 ALLOWED_LEFTOVER = ('href="china"', 'CNc=new Set', 'CNc.has(id)', '"156":"CN"', 'CNY:"CN', "CN\\u00a5")
 
 
@@ -101,7 +108,7 @@ def main():
         die(f'no data-metric-sources.json["{N}"]')
     SRC = src_all[N]
     pk = spec.get("policy_rate_key")
-    served = set(data)
+    served = set(data) - DERIVED
     unknown = sorted(k for k in served if k not in CATALOG and k != pk)
     if unknown:
         die(f"served keys with no CATALOG entry: {unknown}. Add them to CATALOG (section, title, format) first.")
@@ -110,6 +117,7 @@ def main():
         die(f"served keys with no citation in data-metric-sources.json: {missing_src}")
 
     s = (ROOT / TEMPLATE).read_text(encoding="utf-8")
+    s = KF_RE.sub("", s, count=1)   # v2.0.20: China's key figures; the generator injects the new page's
 
     def sub(a, b, n=1):
         nonlocal s
@@ -169,9 +177,10 @@ def main():
         block = m.group(1)
         if sec == "trade":
             # notes sit before the partner block in the trade section
-            block = re.sub(r' <p class="secnote">[^\n]*</p>\n(?= <div class="tpm-head">)', "", block, count=1)
+            # v2.0.20: the partner block is wrapped in <div id="tpmBlock"> (the note sits just before it)
+            block = re.sub(r' <p class="secnote">[^\n]*</p>\n(?= <div id="tpmBlock">)', "", block, count=1)
             if notes.get(sec):
-                block = block.replace(' <div class="tpm-head">', f' <p class="secnote">{notes[sec]}</p>\n <div class="tpm-head">', 1)
+                block = block.replace(' <div id="tpmBlock">', f' <p class="secnote">{notes[sec]}</p>\n <div id="tpmBlock">', 1)
         else:
             block = re.sub(r' {1,2}<p class="secnote">[^\n]*</p>\n', "", block)
             if notes.get(sec):
@@ -195,25 +204,29 @@ def main():
     sub("not China's own currency", f"not {N}'s own currency")
 
     # ---------- footer ----------
-    provs = []
+    # v2.0.20: plain-text credits and a row of buttons (no links inside running text, v1.9.x rule), as on
+    # every live page. Order: the international sources the citations name, the national ones, then FRED.
+    provs = []   # (text in the sentence, button label, url)
     blob = " ".join(v.get("source", "") for v in SRC.values())
-    for word, html in (("Eurostat", '<a href="https://ec.europa.eu/eurostat">Eurostat</a>'),
-                       ("OECD", 'the <a href="https://www.oecd.org">OECD</a>'), ("IMF", 'the <a href="https://www.imf.org">IMF</a>'),
-                       ("BIS", 'the <a href="https://www.bis.org">Bank for International Settlements</a>'),
-                       ("ECB", 'the <a href="https://www.ecb.europa.eu">European Central Bank</a>'),
-                       ("World Bank", 'the <a href="https://data.worldbank.org">World Bank</a>')):
+    for word, text, label, url in (("Eurostat", "Eurostat", "Eurostat", "https://ec.europa.eu/eurostat"),
+                                   ("OECD", "the OECD", "OECD", "https://www.oecd.org"),
+                                   ("IMF", "the IMF", "IMF", "https://www.imf.org"),
+                                   ("BIS", "the Bank for International Settlements", "Bank for International Settlements", "https://www.bis.org"),
+                                   ("ECB", "the European Central Bank", "European Central Bank", "https://www.ecb.europa.eu"),
+                                   ("World Bank", "the World Bank", "World Bank", "https://data.worldbank.org")):
         if re.search(r"\b" + word + r"\b", blob):
-            provs.append(html)
+            provs.append((text, label, url))
     for nat in spec.get("national_sources", []):
-        provs.append(f'<a href="{nat["url"]}">{nat["name"]}</a>')
+        provs.append((nat["name"], nat.get("label") or re.sub(r"^the ", "", nat["name"]).split(", ")[0], nat["url"]))
     # FRED is credited for exchange rates only, unless it also serves data series (eurozone pages).
     fred_more = any("FRED" in v.get("source", "") for k, v in SRC.items() if not k.startswith("fx_") and k in served)
-    provs.append('<a href="https://fred.stlouisfed.org">FRED, Federal Reserve Bank of St. Louis</a>'
-                 + ("" if fred_more else " (exchange rates)"))
-    credits = ", ".join(provs[:-1]) + " and " + provs[-1] if len(provs) > 1 else provs[0]
-    sub_re(r" Data: the <a href=\"https://www.oecd.org\">OECD</a>.*?\(exchange rates\)\.",
-           " Data: " + credits + ".")
-    sub("not yet for China.", f"not yet for {N}.")
+    provs.append(("FRED, Federal Reserve Bank of St. Louis" + ("" if fred_more else " (exchange rates)"), "FRED", "https://fred.stlouisfed.org"))
+    words = [p[0] for p in provs]
+    credits = ", ".join(words[:-1]) + " and " + words[-1] if len(words) > 1 else words[0]
+    buttons = "".join(f'<a class="ea-btn sm" href="{u}">{l}</a>' for _, l, u in provs)
+    sub_re(r"<footer>\n Data: .*?\. Figures are the latest published and may be revised\.\n <div class=\"lnk-row\">.*?<a class=\"ea-btn sm\" href=\"contact\">",
+           lambda m: "<footer>\n Data: " + credits + ". Figures are the latest published and may be revised.\n"
+                     ' <div class="lnk-row">' + buttons + '<a class="ea-btn sm" href="contact">')
 
     # ---------- NAMES, label, data files ----------
     names = {"gdp_level": "GDP", "gdp_real": "Real GDP", "gdp_growth": "GDP growth", "gdp_growth_yoy": "GDP growth (y/y)",
@@ -245,11 +258,27 @@ def main():
 
 
     # ---------- render() ----------
+    # v2.0.20: the layout every live page has had since v1.9.117: charts by section (FDI and business
+    # confidence in Miscellaneous), the generic per capita and population blocks lifted verbatim from the
+    # template, section tiles, then the Headline as the first 10 of migrate_v19117's priority list, built
+    # from this page's own tile statements exactly as that migration built it for the live pages.
+    import migrate_v19117 as m117
+
     def key_of(cat):
         return pk if cat == "POLICY" else cat
 
     def src_line(k):
         return js(short(SRC[k]["source"]))
+
+    def lift(pattern, what):
+        m = re.search(pattern, s, re.S)
+        if not m:
+            die(f"template has no {what} block")
+        return m.group(0)
+    PC_HELP = lift(r"  /\* v1\.9\.116 gdp per capita \*/\n.*?  if\(s\.gdp_per_capita\) chartPanel\(.*?\);\n", "per capita chart")
+    POP_HELP = lift(r"  /\* v1\.9\.115 population \*/\n.*?  if\(s\.population\) chartPanel\(.*?\);\n", "population chart")
+    PC_TILE = lift(r"  if\(s\.gdp_per_capita\) statTile\(tg,.*?\);\n", "per capita tile")
+    POP_TILE = lift(r"  if\(s\.population\) statTile\(tmisc,.*?tmisc\.appendChild\(na\); \}\n", "population tile")
 
     body = ["  const gdpAnnual = s.gdp_level ? annualGDP(s.gdp_level) : null;",
             '  const pct=v=>v.toFixed(1)+"%", pp=v=>v.toFixed(1)+"pp";',
@@ -274,13 +303,11 @@ def main():
         title = spec.get("chart_titles", {}).get(k, title)
         if not sec or not title:
             continue
-        unit = f"s.{k}.unit" if not fmt.startswith("cur") else ("s.gdp_level.unit" if k == "gdp_level" else f"s.{k}.unit")
+        unit = "s.gdp_level.unit" if k == "gdp_level" else f"s.{k}.unit"
         fy, ft = (x.replace("UNIT", unit) for x in CHART_FMT[fmt])
         series = "gdpAnnual" if k == "gdp_level" else f"s.{k}"
         expl = js(SRC[k].get("description", ""))
         if k == "gdp_level" and "gdp_real" in served and "at current prices" in SRC[k].get("description", ""):
-            # "Make it real" retitles the explanation too (v1.7.13 on hand-built
-            # pages; folded into the builder v1.7.33).
             real_desc = SRC[k]["description"].replace("at current prices", "in real terms (adjusted for inflation)")
             expl = f"(TOGGLE_STATE.real&&PAGE_DATA.series.gdp_real?{js(real_desc)}:{expl})"
         extra = ""
@@ -294,30 +321,31 @@ def main():
             extra = f",undefined,{zero}"
         body.append(f'  if({series}) chartPanel("{k}","charts-{sec}",{js(title)},\n    {expl},\n'
                     f'    {series},"{kind}",{fy},{ft},{srcexpr(k)}{extra});')
-    # tiles
+
     def tile(cont, k, label, fmt, up):
-        # spec "tile_labels" names a measure where the default would mislead
-        # (Czechia: HICP and the national CPI side by side, v1.7.33).
         label = spec.get("tile_labels", {}).get(k, label)
         a, d = (x.replace("UNIT", "s.gdp_level.unit" if k == "gdp_level" else f"s.{k}.unit") for x in FMT[fmt])
         series = "gdpAnnual" if k == "gdp_level" else f"s.{k}"
-        # A series with no chart of its own (cpi_mom, cpi_qoq: bases of the CPI
-        # chart) passes a null key, as brazil.html does, so the tile does not try
-        # to scroll to a missing chart; pageKey still links its indicator page.
         own = CATALOG.get(k, (None,) * 8)[1] is not None or k == pk
         keyarg = f'"{k}"' if own else "null"
         extra = "" if own else f'pageKey:"{k}",'
         return (f'  if({series}) statTile({cont},{keyarg},{js(label)},{series},\n'
                 f"    {{{extra}fmt:{a},fmtD:{d},upIsGood:{str(up).lower()},source:{srcexpr(k)},infoKey:\"{k}\"}});")
+
+    def label_of(cat, label):
+        return spec.get("policy_rate_tile", names.get(pk, "Policy rate")) if cat == "POLICY" else label
+
     body.append('  const hero=document.getElementById("hero");')
+    body.append(PC_HELP.rstrip("\n"))
+    body.append(POP_HELP.rstrip("\n"))
+    hero_t = {}   # key -> the Headline version of its tile (the hero label), as the pre-v1.9.117 pages had
     for cat in HERO_ORDER:
         k = key_of(cat)
-        if not k or k not in served:
-            continue
-        sec, title, kind, fmt, up, zero, tiles, label = CATALOG[cat]
-        if cat == "POLICY":
-            label = spec.get("policy_rate_tile", names.get(pk, "Policy rate"))
-        body.append(tile("hero", k, label, fmt, up))
+        if k and k in served:
+            _, _, _, fmt, up, _, _, label = CATALOG[cat]
+            hero_t[k] = tile("hero", k, label_of(cat, label), fmt, up)
+    sect_t = {}
+    misc = []
     for sec in ("gdp", "inflation", "labour", "trade", "public", "markets"):
         cont = {"gdp": "tg", "inflation": "tinf", "labour": "tl", "trade": "tt", "public": "tp", "markets": "tm"}[sec]
         body.append(f'  const {cont}=document.getElementById("tiles-{sec}");')
@@ -326,12 +354,52 @@ def main():
             if not k or k not in served or sec not in CATALOG[cat][6]:
                 continue
             _, _, _, fmt, up, _, _, label = CATALOG[cat]
-            if cat == "POLICY":
-                label = spec.get("policy_rate_tile", names.get(pk, "Policy rate"))
-            body.append(tile(cont, k, label, fmt, up))
+            st = tile(cont, k, label_of(cat, label), fmt, up)
+            body.append(st)
+            sect_t.setdefault(k, st)
+        if sec == "gdp":
+            body.append(PC_TILE.rstrip("\n"))
+    for cat in m117.MISC:   # FDI, then business confidence, as migrate_v19117 ordered them
+        if "misc" in CATALOG[cat][6] and cat in served:
+            _, _, _, fmt, up, _, _, label = CATALOG[cat]
+            misc.append(tile("tmisc", cat, label, fmt, up))
+    body.append(m117.FX_LINE.rstrip("\n"))
+    # Headline entries, as migrate_v19117.migrate() writes them
+    pc = PC_TILE.strip()
+    sect_t.setdefault("gdp_per_capita", pc)
+
+    def cond_body(stmt, cont):
+        x = m117.statements(stmt + "\n", 0, len(stmt) + 1)[0]
+        return x["cond"], m117.retarget(x["body"], cont, "hero")
+    entries = []
+    for grp, keys in m117.PRIORITY:
+        if keys == ["@fx"]:
+            entries.append(f"    // {grp}\n    [()=>!!headlineFxPair(), ()=>renderFxHeadline(hero)],\n")
+            continue
+        alts = []
+        for k in keys:
+            if k in hero_t:
+                alts.append(cond_body(hero_t[k], "hero"))
+            elif k in sect_t:
+                st = sect_t[k] if sect_t[k].startswith("  ") else "  " + sect_t[k]
+                alts.append(cond_body(st, re.search(r"statTile\((\w+),", st).group(1)))
+        if not alts:
+            continue
+        ok = " || ".join(f"({c})" for c, _ in alts)
+        draw = " else ".join(f"if({c}){{\n      {b.strip()}\n    }}" for c, b in alts)
+        entries.append(f"    // {grp}\n    [()=>!!({ok}), ()=>{{\n    {draw}\n    }}],\n")
+    body.append("  " + m117.MARK + "\n"
+                "  // Miscellaneous: FDI, Business confidence, Population\n"
+                '  const tmisc=document.getElementById("tiles-misc");\n' + "".join(x + "\n" for x in misc) + POP_TILE +
+                "  // Headline: the first 10 of one priority list (see tools/migrate_v19117.py)\n"
+                "  const HEADLINE_TILES=[\n" + "".join(entries) + "  ];\n"
+                "  {let n=0; for(const [ok,draw] of HEADLINE_TILES){ if(n>=10) break; if(ok()){ draw(); n++; } }}")
     i0 = s.index("  const gdpAnnual = s.gdp_level ? annualGDP(s.gdp_level) : null;")
-    i1 = s.index('  renderFxMarkets(document.getElementById("tiles-markets"));', i0)
+    end_mark = "  {let n=0; for(const [ok,draw] of HEADLINE_TILES){ if(n>=10) break; if(ok()){ draw(); n++; } }}\n"
+    i1 = s.index(end_mark, i0) + len(end_mark)
     s = s[:i0] + "\n".join(body) + "\n" + s[i1:]
+    n_head = min(10, len(entries))
+    sub_re(r'(id="hero" aria-label="Headline figures" style="--hero-rows:)\d+(")', lambda m: m.group(1) + str((n_head + 1) // 2) + m.group(2))
 
     # ---------- INFO_CONTENT verbatim from the citations ----------
     i0 = s.index("/* ---- per-metric info popover content ----")

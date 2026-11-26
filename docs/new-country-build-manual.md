@@ -38,6 +38,41 @@ exists; the sequence below is how a country is actually added now.
 Re-running it is safe: a surface that already carries the country is left
 alone, so it doubles as a repair tool.
 
+### v2.0.20 (25 Nov 2026): the fast path brought up to date
+
+Between v1.7.4 and v2.0.19 the site gained per capita, population, PPP, the Miscellaneous section and
+Headline priority list, region pickers, calendars, alert emails, homepage structured data and the
+outside-source verification run. None of it was in the tools, so the page builder no longer ran and
+about 14 surfaces were wired by hand for every country. v2.0.20 fixes that:
+
+* `build_country_page.py` writes today's page: derived keys (`gdp_per_capita`, `population`, `ppp`) are
+  drawn by blocks lifted verbatim from the template (so later migrations carry over), FDI and business
+  confidence go to Miscellaneous, the Headline is migrate_v19117's priority list, the footer is plain
+  text plus buttons, and the key-figures block is left to the generator.
+* `tools/test_build_country_page.py` rebuilds every country that has a spec and compares it with the
+  live page (structure exact; wording drift and two named exceptions, Cyprus and Taiwan, reported).
+  Run it before any release that touches country pages: it is what keeps the builder current.
+* `add_country.py` also wires: membership groups (chooser.js, compare.html, calendar.html, mobile.js
+  presets), chooser.js REGIONS, mobile.js calendar chip code, the homepage DataCatalog Dataset,
+  send_calendar_alerts COUNTRY_SLUGS, "the" and agency names in the generator, about.html sources,
+  the methodology.html limit section, the OECD rotation group (smallest), the verify_all lists,
+  sampledata_gate's ISO table, every country count sitewide (only when the country is new), and a new
+  Compare colour when the palette is full (it was, at 62). Its printed YAML now includes the page in
+  the generated-pages commit list and the calendar step.
+* `country_surfaces_gate.py` checks all of the above plus the workflows (every fetcher run, every data
+  file and page committed) and OECD rotation coverage.
+
+New optional spec fields: `iso3`, `groups` (G7, G20, OECD, BRICS), `eu_member`, `the`,
+`agencies` ([[text in citations, name shown]]), `about_sources`, `methodology_limit`, and `label` on a
+`national_sources` entry (footer button text; defaults to the name without "the" and anything after a comma).
+
+Still by hand: a population-coverage override like Cyprus (fetch_population.COVERAGE_SOURCE and the page's
+per capita and population lines), calendar.html for a new calendar (file list, COUNTRIES_WITH_DATA,
+REGION_GROUPS, COUNTRY_COLOR: printed by add_country), and the workflow YAML.
+
+The sandbox now reaches the World Bank, OECD, Eurostat, BIS and IMF; only FRED (needs the key) and
+Comtrade do not. Probes and audits can run there.
+
 ### What the tools now guarantee (each was a real China-era bug)
 
 * **Every surface, every country.** `country_surfaces_gate.py` treats
